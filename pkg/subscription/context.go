@@ -2,7 +2,20 @@ package subscription
 
 import (
 	"context"
+	"net/http"
 )
+
+type InitialHttpRequestContext struct {
+	context.Context
+	Request *http.Request
+}
+
+func NewInitialHttpRequestContext(r *http.Request) *InitialHttpRequestContext {
+	return &InitialHttpRequestContext{
+		Context: r.Context(),
+		Request: r,
+	}
+}
 
 type subscriptionCancellations map[string]context.CancelFunc
 

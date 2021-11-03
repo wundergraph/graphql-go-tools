@@ -149,7 +149,7 @@ func TestRequest_ValidateRestrictedFields(t *testing.T) {
 
 				var buf bytes.Buffer
 				_, _ = result.Errors.WriteResponse(&buf)
-				assert.Equal(t, `{"errors":[{"message":"field: droid is restricted on type: Query","path":null}]}`, buf.String())
+				assert.Equal(t, `{"errors":[{"message":"field: droid is restricted on type: Query"}]}`, buf.String())
 			})
 
 			t.Run("when mutation is restricted", func(t *testing.T) {
@@ -247,7 +247,7 @@ func TestRequest_ValidateFieldRestrictions(t *testing.T) {
 
 				var buf bytes.Buffer
 				_, _ = result.Errors.WriteResponse(&buf)
-				assert.Equal(t, `{"errors":[{"message":"field: droid is restricted on type: Query","path":null}]}`, buf.String())
+				assert.Equal(t, `{"errors":[{"message":"field: droid is restricted on type: Query"}]}`, buf.String())
 			})
 
 			t.Run("when mutation is restricted", func(t *testing.T) {
@@ -317,7 +317,7 @@ func Test_operationValidationResultFromReport(t *testing.T) {
 		assert.Error(t, err)
 		assert.Equal(t, internalErr, err)
 		assert.False(t, result.Valid)
-		assert.Len(t, result.Errors.(OperationValidationErrors), 1)
-		assert.Equal(t, "graphql error", result.Errors.(OperationValidationErrors)[0].Message)
+		assert.Len(t, result.Errors.(RequestErrors), 1)
+		assert.Equal(t, "graphql error", result.Errors.(RequestErrors)[0].Message)
 	})
 }

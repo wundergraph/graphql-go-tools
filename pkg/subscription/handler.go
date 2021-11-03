@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"strings"
 	"sync"
 	"time"
 
@@ -188,7 +187,12 @@ func (h *Handler) handleStart(id string, payload []byte) {
 			abstractlogger.Error(err),
 		)
 
-		h.handleError(id, cleanErrorMessage(err))
+		h.handleError(id, graphql.RequestErrorsFromError(err))
+		return
+	}
+
+	if err = h.handleOnBeforeStart(executor); err != nil {
+		h.handleError(id, graphql.RequestErrorsFromError(err))
 		return
 	}
 
@@ -199,6 +203,19 @@ func (h *Handler) handleStart(id string, payload []byte) {
 	}
 
 	go h.handleNonSubscriptionOperation(id, executor)
+}
+
+func (h *Handler) handleOnBeforeStart(executor Executor) error {
+	switch e := executor.(type) {
+	case *ExecutorV2:
+		if hook := e.engine.GetWebsocketBeforeStartHook(); hook != nil {
+			return hook.OnBeforeStart(e.reqCtx, e.operation)
+		}
+	case *ExecutorV1:
+		// do nothing
+	}
+
+	return nil
 }
 
 // handleNonSubscriptionOperation will handle a non-subscription operation like a query or a mutation.
@@ -224,7 +241,7 @@ func (h *Handler) handleNonSubscriptionOperation(id string, executor Executor) {
 			abstractlogger.Error(err),
 		)
 
-		h.handleError(id, err.Error())
+		h.handleError(id, graphql.RequestErrorsFromError(err))
 		return
 	}
 
@@ -283,7 +300,7 @@ func (h *Handler) executeSubscription(buf *graphql.EngineResultWriter, id string
 			abstractlogger.Error(err),
 		)
 
-		h.handleError(id, err)
+		h.handleError(id, graphql.RequestErrorsFromError(err))
 		return
 	}
 
@@ -402,12 +419,12 @@ func (h *Handler) handleConnectionError(errorPayload interface{}) {
 }
 
 // handleError will handle an error message.
-func (h *Handler) handleError(id string, errorPayload interface{}) {
-	payloadBytes, err := json.Marshal(errorPayload)
+func (h *Handler) handleError(id string, errors graphql.RequestErrors) {
+	payloadBytes, err := json.Marshal(errors)
 	if err != nil {
 		h.logger.Error("subscription.Handler.handleError()",
 			abstractlogger.Error(err),
-			abstractlogger.Any("errorPayload", errorPayload),
+			abstractlogger.Any("errors", errors),
 		)
 	}
 
@@ -428,9 +445,4 @@ func (h *Handler) handleError(id string, errorPayload interface{}) {
 // ActiveSubscriptions will return the actual number of active subscriptions for that client.
 func (h *Handler) ActiveSubscriptions() int {
 	return len(h.subCancellations)
-}
-
-func cleanErrorMessage(err error) string {
-	errMsg := strings.TrimPrefix(err.Error(), "external: ")
-	return errMsg
 }

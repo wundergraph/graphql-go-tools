@@ -205,7 +205,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	}, Configuration{
-		DefaultFlushInterval: 0,
+		DefaultFlushIntervalMillis: 0,
 	}))
 
 	t.Run("operation selection", func(t *testing.T) {

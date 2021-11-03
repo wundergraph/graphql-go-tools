@@ -1,0 +1,16 @@
+query MyHistory {
+    me {
+        username
+        history {
+            __typename
+            ... on Purchase {
+                wallet {
+                    amount
+                }
+            }
+            ... on Sale {
+                rating
+            }
+        }
+    }
+}

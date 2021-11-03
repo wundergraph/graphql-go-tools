@@ -2,6 +2,8 @@ package httpclient
 
 import (
 	"bytes"
+	"compress/flate"
+	"compress/gzip"
 	"context"
 	"io"
 	"net/http"
@@ -10,6 +12,11 @@ import (
 	"github.com/buger/jsonparser"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+)
+
+const (
+	ContentEncodingHeader = "Content-Encoding"
+	AcceptEncodingHeader  = "Accept-Encoding"
 )
 
 var (
@@ -87,9 +94,28 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 	if err != nil {
 		return err
 	}
-
 	defer response.Body.Close()
 
-	_, err = io.Copy(out, response.Body)
+	respReader, err := respBodyReader(request, response)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(out, respReader)
 	return
+}
+
+func respBodyReader(req *http.Request, resp *http.Response) (io.ReadCloser, error) {
+	if req.Header.Get(AcceptEncodingHeader) == "" {
+		return resp.Body, nil
+	}
+
+	switch resp.Header.Get(ContentEncodingHeader) {
+	case "gzip":
+		return gzip.NewReader(resp.Body)
+	case "deflate":
+		return flate.NewReader(resp.Body), nil
+	}
+
+	return resp.Body, nil
 }
