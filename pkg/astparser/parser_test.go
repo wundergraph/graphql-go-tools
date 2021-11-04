@@ -379,7 +379,7 @@ func TestParser_Parse(t *testing.T) {
 	})
 	t.Run("interface type extension", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
-			run(`extend interface NamedEntity @foo {
+			run(`extend interface NamedEntity {
  								name: String
 							}`, parse, false,
 				func(doc *ast.Document, extra interface{}) {
@@ -398,6 +398,39 @@ func TestParser_Parse(t *testing.T) {
 					foo := doc.Directives[namedEntity.Directives.Refs[0]]
 					if doc.Input.ByteSliceString(foo.Name) != "foo" {
 						panic("want foo")
+					}
+				})
+		})
+		t.Run("with interface implementation", func(t *testing.T) {
+			run(`extend interface NamedEntity implements Foo & Bar {
+ 								name: String
+							}`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					namedEntity := doc.InterfaceTypeExtensions[0]
+					if doc.Input.ByteSliceString(namedEntity.Name) != "NamedEntity" {
+						panic("want NamedEntity")
+					}
+
+					implementsFoo := doc.Types[namedEntity.ImplementsInterfaces.Refs[0]]
+					if implementsFoo.TypeKind != ast.TypeKindNamed {
+						panic("want TypeKindNamed")
+					}
+					if doc.Input.ByteSliceString(implementsFoo.Name) != "Foo" {
+						panic("want Foo")
+					}
+
+					implementsBar := doc.Types[namedEntity.ImplementsInterfaces.Refs[1]]
+					if implementsBar.TypeKind != ast.TypeKindNamed {
+						panic("want TypeKindNamed")
+					}
+					if doc.Input.ByteSliceString(implementsBar.Name) != "Bar" {
+						panic("want Bar")
+					}
+
+					// fields
+					name := doc.FieldDefinitions[namedEntity.FieldsDefinition.Refs[0]]
+					if doc.Input.ByteSliceString(name.Name) != "name" {
+						panic("want name")
 					}
 				})
 		})
@@ -899,6 +932,32 @@ func TestParser_Parse(t *testing.T) {
 					}
 					if doc.Input.ByteSliceString(namedEntity.Description.Content) != "describes NamedEntity" {
 						panic("want 'describes NamedEntity'")
+					}
+				})
+		})
+		t.Run("with interface implementation", func(t *testing.T) {
+			run(`interface NamedEntity implements Foo & Bar {
+ 								name: String
+							}`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					namedEntity := doc.InterfaceTypeDefinitions[0]
+					if doc.Input.ByteSliceString(namedEntity.Name) != "NamedEntity" {
+						panic("want NamedEntity")
+					}
+					implementsFoo := doc.Types[namedEntity.ImplementsInterfaces.Refs[0]]
+					if implementsFoo.TypeKind != ast.TypeKindNamed {
+						panic("want TypeKindNamed")
+					}
+					if doc.Input.ByteSliceString(implementsFoo.Name) != "Foo" {
+						panic("want Foo")
+					}
+
+					implementsBar := doc.Types[namedEntity.ImplementsInterfaces.Refs[1]]
+					if implementsBar.TypeKind != ast.TypeKindNamed {
+						panic("want TypeKindNamed")
+					}
+					if doc.Input.ByteSliceString(implementsBar.Name) != "Bar" {
+						panic("want Bar")
 					}
 				})
 		})
