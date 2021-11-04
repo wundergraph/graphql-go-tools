@@ -250,6 +250,199 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 	}))
 
+	t.Run("Query with array input", RunTest(subgraphTestSchema, `
+		query($representations: [_Any!]!) {
+			_entities(representations: $representations){
+				... on Product {
+					reviews {
+						body 
+						author {
+							username 
+							id
+						}
+					}
+				}
+			}
+		}
+	`, "", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://subgraph-reviews/query","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {username id}}}}}","variables":{"representations":$$0$$}}}`,
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path:                 []string{"representations"},
+							JsonValueType:        jsonparser.Array,
+							ArrayJsonValueType:   jsonparser.Object,
+							RenderAsGraphQLValue: true,
+						},
+					),
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("_entities"),
+						Position: resolve.Position{
+							Line:   3,
+							Column: 4,
+						},
+						Value: &resolve.Array{
+							Path:     []string{"_entities"},
+							Nullable: false,
+							Item: &resolve.Object{
+								Nullable: true,
+								Path:     nil,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("reviews"),
+										Value: &resolve.Array{
+											Path:                []string{"reviews"},
+											Nullable:            true,
+											ResolveAsynchronous: false,
+											Item: &resolve.Object{
+												Nullable: true,
+												Path:     nil,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("body"),
+														Value: &resolve.String{
+															Path:     []string{"body"},
+															Nullable: false,
+														},
+														Position: resolve.Position{
+															Line:   6,
+															Column: 7,
+														},
+													},
+													{
+														Name: []byte("author"),
+														Value: &resolve.Object{
+															Nullable: false,
+															Path:     []string{"author"},
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("username"),
+																	Value: &resolve.String{
+																		Path:     []string{"username"},
+																		Nullable: false,
+																	},
+																	Position: resolve.Position{
+																		Line:   8,
+																		Column: 8,
+																	},
+																},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.String{
+																		Path:     []string{"id"},
+																		Nullable: false,
+																	},
+																	Position: resolve.Position{
+																		Line:   9,
+																		Column: 8,
+																	},
+																},
+															},
+														},
+														Position: resolve.Position{
+															Line:   7,
+															Column: 7,
+														},
+													},
+												},
+											},
+										},
+										Position: resolve.Position{
+											Line:   5,
+											Column: 6,
+										},
+										OnTypeName: []byte("Product"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"_entities", "_service"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "_Service",
+						FieldNames: []string{"sdl"},
+					},
+					{
+						TypeName:   "Entity",
+						FieldNames: []string{"findProductByUpc", "findUserByID"},
+					},
+					{
+						TypeName:   "Product",
+						FieldNames: []string{"upc", "reviews"},
+					},
+					{
+						TypeName:   "Review",
+						FieldNames: []string{"body", "author", "product"},
+					},
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "username", "reviews"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://subgraph-reviews/query",
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "_entities",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "representations",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "Entity",
+				FieldName: "findProductByUpc",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "upc",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "Entity",
+				FieldName: "findUserByID",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+	}))
+
 	t.Run("simple mutation", RunTest(`
 		type Mutation {
 			addFriend(name: String!):Friend!
@@ -3237,6 +3430,49 @@ type Product {
 type Query {
   me: User
   topProducts(first: Int = 5): [Product]
+}
+
+type Review {
+  body: String!
+  author: User!
+  product: Product!
+}
+
+type User {
+  id: ID!
+  username: String!
+  reviews: [Review]
+}
+`
+
+const subgraphTestSchema = `
+directive @external on FIELD_DEFINITION
+directive @requires(fields: _FieldSet!) on FIELD_DEFINITION
+directive @provides(fields: _FieldSet!) on FIELD_DEFINITION
+directive @key(fields: _FieldSet!) on OBJECT | INTERFACE
+directive @extends on OBJECT
+
+scalar _Any
+union _Entity = Product | User
+scalar _FieldSet
+
+type _Service {
+  sdl: String
+}
+
+type Entity {
+  findProductByUpc(upc: String!): Product!
+  findUserByID(id: ID!): User!
+}
+
+type Product {
+  upc: String!
+  reviews: [Review]
+}
+
+type Query {
+  _entities(representations: [_Any!]!): [_Entity]!
+  _service: _Service!
 }
 
 type Review {
