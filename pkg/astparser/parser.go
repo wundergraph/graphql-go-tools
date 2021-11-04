@@ -1203,12 +1203,12 @@ func (p *Parser) parseInterfaceTypeDefinition(description *ast.Description) {
 	}
 	interfaceTypeDefinition.InterfaceLiteral = p.mustReadIdentKey(identkeyword.INTERFACE).TextPosition
 	interfaceTypeDefinition.Name = p.mustRead(keyword.IDENT).Literal
+	if p.peekEqualsIdentKey(identkeyword.IMPLEMENTS) {
+		interfaceTypeDefinition.ImplementsInterfaces = p.parseImplementsInterfaces()
+	}
 	if p.peekEquals(keyword.AT) {
 		interfaceTypeDefinition.Directives = p.parseDirectiveList()
 		interfaceTypeDefinition.HasDirectives = len(interfaceTypeDefinition.Directives.Refs) > 0
-	}
-	if p.peekEqualsIdentKey(identkeyword.IMPLEMENTS) {
-		interfaceTypeDefinition.ImplementsInterfaces = p.parseImplementsInterfaces()
 	}
 	if p.peekEquals(keyword.LBRACE) {
 		interfaceTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
