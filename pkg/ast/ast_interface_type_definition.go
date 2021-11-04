@@ -58,15 +58,18 @@ func (d *Document) AddInterfaceTypeDefinition(definition InterfaceTypeDefinition
 }
 
 func (d *Document) ImportInterfaceTypeDefinition(name, description string, fieldRefs []int) (ref int) {
-	return d.ImportInterfaceTypeDefinitionWithDirectives(name, description, fieldRefs, nil)
+	return d.ImportInterfaceTypeDefinitionWithDirectives(name, description, fieldRefs, nil, nil)
 }
 
-func (d *Document) ImportInterfaceTypeDefinitionWithDirectives(name, description string, fieldRefs []int, directiveRefs []int) (ref int) {
+func (d *Document) ImportInterfaceTypeDefinitionWithDirectives(name, description string, fieldRefs []int, iRefs []int, directiveRefs []int) (ref int) {
 	definition := InterfaceTypeDefinition{
 		Name:        d.Input.AppendInputString(name),
 		Description: d.ImportDescription(description),
 		FieldsDefinition: FieldDefinitionList{
 			Refs: fieldRefs,
+		},
+		ImplementsInterfaces: TypeList{
+			Refs: iRefs,
 		},
 		HasFieldDefinitions: len(fieldRefs) > 0,
 		HasDirectives:       len(directiveRefs) > 0,
