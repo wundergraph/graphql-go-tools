@@ -48,6 +48,13 @@ func (d *Document) ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(interfa
 		d.InterfaceTypeDefinitions[interfaceTypeDefinitionRef].HasDirectives = true
 	}
 
+	if len(d.InterfaceTypeExtensions[interfaceTypeExtensionRef].ImplementsInterfaces.Refs) > 0 {
+		d.InterfaceTypeExtensions[interfaceTypeDefinitionRef].ImplementsInterfaces.Refs = append(
+			d.InterfaceTypeExtensions[interfaceTypeDefinitionRef].ImplementsInterfaces.Refs,
+			d.InterfaceTypeExtensions[interfaceTypeExtensionRef].ImplementsInterfaces.Refs...,
+		)
+	}
+
 	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: interfaceTypeExtensionRef, Kind: NodeKindInterfaceTypeExtension})
 }
 
@@ -56,6 +63,7 @@ func (d *Document) ImportAndExtendInterfaceTypeDefinitionByInterfaceTypeExtensio
 		d.InterfaceTypeExtensionNameString(interfaceTypeExtensionRef),
 		d.InterfaceTypeExtensionDescriptionString(interfaceTypeExtensionRef),
 		d.InterfaceTypeExtensions[interfaceTypeExtensionRef].FieldsDefinition.Refs,
+		d.InterfaceTypeExtensions[interfaceTypeExtensionRef].ImplementsInterfaces.Refs,
 		d.InterfaceTypeExtensions[interfaceTypeExtensionRef].Directives.Refs,
 	)
 	d.Index.MergedTypeExtensions = append(d.Index.MergedTypeExtensions, Node{Ref: interfaceTypeExtensionRef, Kind: NodeKindInterfaceTypeExtension})
