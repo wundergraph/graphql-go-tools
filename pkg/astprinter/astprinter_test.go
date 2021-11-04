@@ -271,6 +271,121 @@ vary: [String]! = []) on QUERY`)
 				}`,
 			`mutation AddToWatchlist($a: Int!, $b: String!){addToWatchlist(movieID: $a, name: $b){id name year}} mutation AddWithInput($a: WatchlistInput!){addToWatchlistWithInput(input: $a){id name year}}`)
 	})
+
+	t.Run("ommit comments", func(t *testing.T) {
+		t.Run("operation", func(t *testing.T) {
+			run(`
+				fragment friendFields on User {#comment
+  					id#comment
+					#commented
+  					name #comment
+				}#comment
+				mutation AddToWatchlist($a: Int!,# comment
+$b: String!#comment
+){ # comment
+					addToWatchlist( #comment
+movieID: $a, #comment
+name: $b){ # comment
+						id # comment
+						# name # commented field
+						year # comment
+					    ...friendFields# comment
+						... on User {# comment
+						  friends {# comment
+							count# comment
+						  }# comment
+						}# comment
+					} # comment
+				}# comment
+`,
+				`fragment friendFields on User {id name} mutation AddToWatchlist($a: Int!, $b: String!){addToWatchlist(movieID: $a, name: $b){id year ...friendFields... on User {friends {count}}}}`)
+		})
+
+		t.Run("definition", func(t *testing.T) {
+			run(`
+# comment
+union SearchResult = Human | Droid | Starship # comment
+union SearchRes = Human | Droid# comment
+# comment
+schema { # comment
+    query: Query# comment
+    mutation: Mutation# comment
+    subscription: Subscription
+	#comment
+}#comment
+# comment
+type Query {#comment
+    hero: Character#comment
+    droid(id: ID!): Droid # comment
+    search(name: String!): SearchResult#comment
+}
+#comment
+#comment
+#comment
+type Mutation {#comment
+#comment
+#comment
+    createReview(#comment
+episode: Episode!,#comment
+review: ReviewInput! #comment
+): Review # comment
+#comment
+}
+
+#comment
+type Subscription {
+#comment
+    remainingJedis: Int!
+}
+
+#comment
+input ReviewInput { # comment
+#comment
+    stars: Int!#comment
+#comment
+    #commentary: String
+}
+
+type Review { # comment
+    id: ID!
+    stars: Int!
+    commentary: String
+}
+
+# comment
+enum Episode { # comment
+    NEWHOPE#comment
+    #EMPIRE #comment
+    JEDI # comment
+}
+
+# comment
+interface Character { # comment
+    name: String! # comment
+    friends: [Character] # comment
+}
+
+# comment
+type Human implements Character { # comment
+    name: String!
+    height: String!
+    friends: [Character] # comment
+}
+
+# comment
+type Droid implements Character {#comment
+    name: String!
+    primaryFunction: String!
+    friends: [Character]
+}#comment
+
+type Starship { # comment
+    name: String!
+    length: Float!
+}`,
+				`union SearchResult = Human | Droid | Starship union SearchRes = Human | Droid schema {query: Query mutation: Mutation subscription: Subscription} type Query {hero: Character droid(id: ID!): Droid search(name: String!): SearchResult} type Mutation {createReview(episode: Episode!, review: ReviewInput!): Review} type Subscription {remainingJedis: Int!} input ReviewInput {stars: Int!} type Review {id: ID! stars: Int! commentary: String} enum Episode {NEWHOPE JEDI} interface Character {name: String! friends: [Character]} type Human implements Character {name: String! height: String! friends: [Character]} type Droid implements Character {name: String! primaryFunction: String! friends: [Character]} type Starship {name: String! length: Float!}`)
+		})
+	})
 }
 
 func TestPrintSchemaDefinition(t *testing.T) {
