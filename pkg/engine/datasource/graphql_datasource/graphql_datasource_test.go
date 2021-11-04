@@ -248,6 +248,87 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 	}))
 
+	t.Run("query with array variable", RunTest(`
+		scalar Int
+		
+		schema {
+			query: Query
+		}
+
+		type Query {
+			withArrayVariable(someVar: [String!]!): String!
+		}
+	`,
+		`query GetWithArrayVariable($someVar: [String!]!) { withArrayVariable(someVar: $someVar) }`,
+		"GetWithArrayVariable",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("withArrayVariable"),
+							Value: &resolve.String{
+								Path: []string{"withArrayVariable"},
+							},
+							HasBuffer: true,
+							Position: resolve.Position{
+								Line:   1,
+								Column: 52,
+							},
+						},
+					},
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"https://simple.service","body":{"query":"query($someVar: [String!]!){withArrayVariable(someVar: $someVar)}","variables":{"someVar":$$0$$}}}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(&resolve.ContextVariable{
+							Path:                 []string{"someVar"},
+							JsonValueType:        jsonparser.Array,
+							ArrayJsonValueType:   jsonparser.String,
+							RenderAsGraphQLValue: true,
+						}),
+						InputTemplate:        resolve.InputTemplate{},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{
+							ExtractGraphqlResponse: true,
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"withArrayVariable"},
+						},
+					},
+					Factory: &Factory{},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "https://simple.service",
+						},
+					}),
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "withArrayVariable",
+					Path:      []string{"withArrayVariable"},
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "someVar",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+			},
+		},
+	))
+
 	t.Run("simple mutation", RunTest(`
 		type Mutation {
 			addFriend(name: String!):Friend!

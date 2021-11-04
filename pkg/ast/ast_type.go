@@ -209,3 +209,14 @@ func (d *Document) ResolveUnderlyingType(ref int) (typeRef int) {
 	}
 	return
 }
+
+func (d *Document) ResolveListOrNameType(ref int) (typeRef int) {
+	typeRef = ref
+	graphqlType := d.Types[ref]
+	for (graphqlType.TypeKind != TypeKindNamed) && (graphqlType.TypeKind != TypeKindList) {
+		typeRef = graphqlType.OfType
+		graphqlType = d.Types[typeRef]
+
+	}
+	return
+}
