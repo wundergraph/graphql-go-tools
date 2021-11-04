@@ -1677,7 +1677,7 @@ func (o *ObjectVariable) SetJsonValueType(definition *ast.Document, typeRef int)
 	// TODO: check is it reachable
 	if definition.TypeIsList(typeRef) {
 		o.JsonValueType = jsonparser.Array
-		o.ArrayJsonValueType = getJsonValueTypeType(definition, definition, typeRef)
+		o.ArrayJsonValueType = getJsonValueTypeType(definition, definition, definition.ResolveUnderlyingType(typeRef))
 		return
 	}
 
