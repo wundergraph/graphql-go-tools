@@ -1066,6 +1066,46 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"errors":[{"message":"errorMessage1"},{"message":"errorMessage2"}],"data":{"name":null}}`
 	}))
+	t.Run("not nullable object in nullable field", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return  &GraphQLResponse{
+			Data: &Object{
+				Nullable: false,
+				Fetch: &SingleFetch{
+					BufferId:   0,
+					DataSource: FakeDataSource(`{"nullable_field": null}`),
+				},
+				Fields: []*Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("nullableField"),
+						Value: &Object{
+							Nullable: true,
+							Path: []string{"nullable_field"},
+							Fields: []*Field{
+								{
+									Name: []byte("notNullableField"),
+									Value: &Object{
+										Nullable: false,
+										Path: []string{"not_nullable_field"},
+										Fields: []*Field{
+											{
+												Name: []byte("someField"),
+												Value: &String{
+													Nullable: false,
+													Path:     []string{"some_field"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background()}, `{"data":{"nullableField":null}}`
+	}))
 	t.Run("null field should bubble up to parent with error", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
