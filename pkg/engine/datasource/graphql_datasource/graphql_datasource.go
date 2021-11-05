@@ -370,41 +370,12 @@ func (p *Planner) addRepresentationsVariable() {
 		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("GraphQL Planner: failed parsing Federation SDL"))
 		return
 	}
-	directive := -1
-	for i := range doc.ObjectTypeExtensions {
-		if p.lastFieldEnclosingTypeName == doc.ObjectTypeExtensionNameString(i) {
-			for _, j := range doc.ObjectTypeExtensions[i].Directives.Refs {
-				if doc.DirectiveNameString(j) == "key" {
-					directive = j
-					break
-				}
-			}
-			break
-		}
-	}
-	for i := range doc.ObjectTypeDefinitions {
-		if p.lastFieldEnclosingTypeName == doc.ObjectTypeDefinitionNameString(i) {
-			for _, j := range doc.ObjectTypeDefinitions[i].Directives.Refs {
-				if doc.DirectiveNameString(j) == "key" {
-					directive = j
-					break
-				}
-			}
-			break
-		}
-	}
-	if directive == -1 {
+
+	fields := p.selectFederationKeyFields(doc)
+	if len(fields) == 0 {
 		return
 	}
-	value, exists := doc.DirectiveArgumentValueByName(directive, []byte("fields"))
-	if !exists {
-		return
-	}
-	if value.Kind != ast.ValueKindString {
-		return
-	}
-	fieldsStr := doc.StringValueContentString(value.Ref)
-	fields := strings.Split(fieldsStr, " ")
+
 	representationsJson, _ := sjson.SetRawBytes(nil, "__typename", []byte("\""+p.lastFieldEnclosingTypeName+"\""))
 	for i := range fields {
 		objectVariable := &resolve.ObjectVariable{
@@ -425,6 +396,52 @@ func (p *Planner) addRepresentationsVariable() {
 	representationsJson = append([]byte("["), append(representationsJson, []byte("]")...)...)
 	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", representationsJson)
 	p.extractEntities = true
+}
+
+func (p *Planner) selectFederationKeyFields(doc *ast.Document) []string {
+	var directiveRefs []int
+
+	for i := range doc.ObjectTypeExtensions {
+		if p.lastFieldEnclosingTypeName == doc.ObjectTypeExtensionNameString(i) {
+			for _, j := range doc.ObjectTypeExtensions[i].Directives.Refs {
+				if doc.DirectiveNameString(j) == "key" {
+					directiveRefs = append(directiveRefs, j)
+				}
+			}
+			break
+		}
+	}
+	for i := range doc.ObjectTypeDefinitions {
+		if p.lastFieldEnclosingTypeName == doc.ObjectTypeDefinitionNameString(i) {
+			for _, j := range doc.ObjectTypeDefinitions[i].Directives.Refs {
+				if doc.DirectiveNameString(j) == "key" {
+					directiveRefs = append(directiveRefs, j)
+				}
+			}
+			break
+		}
+	}
+
+	if len(directiveRefs) == 0 {
+		return nil
+	}
+
+	var fields []string
+
+	for _, directiveRef := range directiveRefs {
+		value, exists := doc.DirectiveArgumentValueByName(directiveRef, []byte("fields"))
+		if !exists {
+			continue
+		}
+		if value.Kind != ast.ValueKindString {
+			continue
+		}
+
+		fieldsStr := doc.StringValueContentString(value.Ref)
+		fields = append(fields, strings.Split(fieldsStr, " ")...)
+	}
+
+	return fields
 }
 
 func (p *Planner) fieldDefinition(fieldName, typeName string) *ast.FieldDefinition {
