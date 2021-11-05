@@ -667,115 +667,153 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 }
 
 func TestExecutionEngineV2_FederationAndSubscription_IntegrationTest(t *testing.T) {
-	ctx, cancelFn := context.WithCancel(context.Background())
-	setup, err := newFederationSetup(ctx)
-	defer func() {
-		cancelFn()
-		setup.accountsUpstreamServer.Close()
-		setup.productsUpstreamServer.Close()
-		setup.reviewsUpstreamServer.Close()
-		setup.pollingUpstreamServer.Close()
-	}()
 
-	require.NoError(t, err)
-
-	t.Run("should successfully execute a federation operation", func(t *testing.T) {
-		gqlRequest := &Request{
-			OperationName: "",
-			Variables:     nil,
-			Query:         federationExample.QueryReviewsOfMe,
-		}
-
-		validationResult, err := gqlRequest.ValidateForSchema(setup.schema)
-		require.NoError(t, err)
-		require.True(t, validationResult.Valid)
-
-		execCtx, execCtxCancelFn := context.WithCancel(context.Background())
-		defer execCtxCancelFn()
-
-		resultWriter := NewEngineResultWriter()
-		err = setup.engine.Execute(execCtx, gqlRequest, &resultWriter)
-		if assert.NoError(t, err) {
-			assert.Equal(t,
-				`{"data":{"me":{"reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby","price":11}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora","price":22}}]}}}`,
-				resultWriter.String(),
-			)
-		}
-	})
-
-	t.Run("should successfully execute a federation subscription", func(t *testing.T) {
-		gqlRequest := &Request{
-			OperationName: "",
-			Variables:     nil,
-			Query:         federationExample.SubscriptionUpdatedPrice,
-		}
-
-		validationResult, err := gqlRequest.ValidateForSchema(setup.schema)
-		require.NoError(t, err)
-		require.True(t, validationResult.Valid)
-
-		execCtx, execCtxCancelFn := context.WithCancel(context.Background())
-		defer execCtxCancelFn()
-
-		message := make(chan string)
-		resultWriter := NewEngineResultWriter()
-		resultWriter.SetFlushCallback(func(data []byte) {
-			message <- string(data)
+	runIntegration := func(t *testing.T, enableDataLoader bool, secondRun bool) {
+		t.Helper()
+		ctx, cancelFn := context.WithCancel(context.Background())
+		setup := newFederationSetup()
+		t.Cleanup(func() {
+			cancelFn()
+			setup.accountsUpstreamServer.Close()
+			setup.productsUpstreamServer.Close()
+			setup.reviewsUpstreamServer.Close()
+			setup.pollingUpstreamServer.Close()
 		})
 
-		go func() {
-			err := setup.engine.Execute(execCtx, gqlRequest, &resultWriter)
+		engine, schema, err := newFederationEngine(ctx, setup, enableDataLoader)
+		require.NoError(t, err)
+
+		t.Run("should successfully execute a federation operation", func(t *testing.T) {
+			gqlRequest := &Request{
+				OperationName: "",
+				Variables:     nil,
+				Query:         federationExample.QueryReviewsOfMe,
+			}
+
+			validationResult, err := gqlRequest.ValidateForSchema(schema)
+			require.NoError(t, err)
+			require.True(t, validationResult.Valid)
+
+			execCtx, execCtxCancelFn := context.WithCancel(context.Background())
+			defer execCtxCancelFn()
+
+			resultWriter := NewEngineResultWriter()
+			err = engine.Execute(execCtx, gqlRequest, &resultWriter)
+			if assert.NoError(t, err) {
+				assert.Equal(t,
+					`{"data":{"me":{"reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby","price":11}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora","price":22}}]}}}`,
+					resultWriter.String(),
+				)
+			}
+		})
+
+		t.Run("should successfully execute a federation subscription", func(t *testing.T) {
+			query := `
+subscription UpdatedPrice {
+  updatedPrice {
+    name
+    price
+	reviews {
+      body
+      author {
+		id
+		username
+      }
+    }
+  }
+}`
+
+			gqlRequest := &Request{
+				OperationName: "",
+				Variables:     nil,
+				Query:         query,
+			}
+
+			validationResult, err := gqlRequest.ValidateForSchema(schema)
+			require.NoError(t, err)
+			require.True(t, validationResult.Valid)
+
+			execCtx, execCtxCancelFn := context.WithCancel(context.Background())
+			defer execCtxCancelFn()
+
+			message := make(chan string)
+			resultWriter := NewEngineResultWriter()
+			resultWriter.SetFlushCallback(func(data []byte) {
+				message <- string(data)
+			})
+
+			go func() {
+				err := engine.Execute(execCtx, gqlRequest, &resultWriter)
+				assert.NoError(t, err)
+			}()
+
+			if assert.NoError(t, err) {
+				assert.Eventuallyf(t, func() bool {
+					msg := `{"data":{"updatedPrice":{"name":"Trilby","price":%d,"reviews":[{"body":"A highly effective form of birth control.","author":{"id":"1234","username":"User 1234"}}]}}}`
+					price := 10
+					if secondRun {
+						price += 2
+					}
+
+					firstMessage := <-message
+					expectedFirstMessage := fmt.Sprintf(msg, price)
+					assert.Equal(t, expectedFirstMessage, firstMessage)
+
+					secondMessage := <-message
+					expectedSecondMessage := fmt.Sprintf(msg, price+1)
+					assert.Equal(t, expectedSecondMessage, secondMessage)
+					return true
+				}, time.Second, 10*time.Millisecond, "did not receive expected messages")
+			}
+		})
+
+		/* Uncomment when polling subscriptions are ready:
+
+		t.Run("should successfully subscribe to rest data source", func(t *testing.T) {
+			gqlRequest := &Request{
+				OperationName: "",
+				Variables:     nil,
+				Query:         "subscription Counter { counter }",
+			}
+
+			validationResult, err := gqlRequest.ValidateForSchema(setup.schema)
+			require.NoError(t, err)
+			require.True(t, validationResult.Valid)
+
+			execCtx, execCtxCancelFn := context.WithCancel(context.Background())
+			defer execCtxCancelFn()
+
+			message := make(chan string)
+			resultWriter := NewEngineResultWriter()
+			resultWriter.SetFlushCallback(func(data []byte) {
+				fmt.Println(string(data))
+				message <- string(data)
+			})
+
+			err = setup.engine.Execute(execCtx, gqlRequest, &resultWriter)
 			assert.NoError(t, err)
-		}()
 
-		if assert.NoError(t, err) {
-			assert.Eventuallyf(t, func() bool {
-				firstMessage := <-message
-				assert.Equal(t, `{"data":{"updatedPrice":{"name":"Trilby","price":10}}}`, firstMessage)
-				secondMessage := <-message
-				assert.Equal(t, `{"data":{"updatedPrice":{"name":"Trilby","price":11}}}`, secondMessage)
-				return true
-			}, time.Second, 10*time.Millisecond, "did not receive expected messages")
-		}
-	})
-
-	/* Uncomment when polling subscriptions are ready:
-
-	t.Run("should successfully subscribe to rest data source", func(t *testing.T) {
-		gqlRequest := &Request{
-			OperationName: "",
-			Variables:     nil,
-			Query:         "subscription Counter { counter }",
-		}
-
-		validationResult, err := gqlRequest.ValidateForSchema(setup.schema)
-		require.NoError(t, err)
-		require.True(t, validationResult.Valid)
-
-		execCtx, execCtxCancelFn := context.WithCancel(context.Background())
-		defer execCtxCancelFn()
-
-		message := make(chan string)
-		resultWriter := NewEngineResultWriter()
-		resultWriter.SetFlushCallback(func(data []byte) {
-			fmt.Println(string(data))
-			message <- string(data)
+			if assert.NoError(t, err) {
+				assert.Eventuallyf(t, func() bool {
+					firstMessage := <-message
+					assert.Equal(t, `{"data":{"counter":1}}`, firstMessage)
+					secondMessage := <-message
+					assert.Equal(t, `{"data":{"counter":2}}`, secondMessage)
+					return true
+				}, time.Second, 10*time.Millisecond, "did not receive expected messages")
+			}
 		})
+		*/
 
-		err = setup.engine.Execute(execCtx, gqlRequest, &resultWriter)
-		assert.NoError(t, err)
+	}
 
-		if assert.NoError(t, err) {
-			assert.Eventuallyf(t, func() bool {
-				firstMessage := <-message
-				assert.Equal(t, `{"data":{"counter":1}}`, firstMessage)
-				secondMessage := <-message
-				assert.Equal(t, `{"data":{"counter":2}}`, secondMessage)
-				return true
-			}, time.Second, 10*time.Millisecond, "did not receive expected messages")
-		}
+	t.Run("federation", func(t *testing.T) {
+		runIntegration(t, false, false)
 	})
-	*/
+
+	t.Run("federation with data loader enabled", func(t *testing.T) {
+		runIntegration(t, true, true)
+	})
 }
 
 func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) *http.Client {
@@ -1066,32 +1104,34 @@ type federationSetup struct {
 	productsUpstreamServer *httptest.Server
 	reviewsUpstreamServer  *httptest.Server
 	pollingUpstreamServer  *httptest.Server
-	engine                 *ExecutionEngineV2
-	schema                 *Schema
 }
 
-func newFederationSetup(ctx context.Context) (*federationSetup, error) {
-	setup := &federationSetup{
+func newFederationSetup() *federationSetup {
+	return &federationSetup{
 		accountsUpstreamServer: httptest.NewServer(accounts.GraphQLEndpointHandler(accounts.TestOptions)),
 		productsUpstreamServer: httptest.NewServer(products.GraphQLEndpointHandler(products.TestOptions)),
 		reviewsUpstreamServer:  httptest.NewServer(reviews.GraphQLEndpointHandler(reviews.TestOptions)),
 		pollingUpstreamServer:  httptest.NewServer(newPollingUpstreamHandler()),
 	}
+}
 
+func newFederationEngine(ctx context.Context, setup *federationSetup, enableDataLoader bool) (engine *ExecutionEngineV2, schema *Schema, err error) {
 	accountsSDL, err := federationExample.LoadSDLFromExamplesDirectoryWithinPkg(federationExample.UpstreamAccounts)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	productsSDL, err := federationExample.LoadSDLFromExamplesDirectoryWithinPkg(federationExample.UpstreamProducts)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	reviewsSDL, err := federationExample.LoadSDLFromExamplesDirectoryWithinPkg(federationExample.UpstreamReviews)
 	if err != nil {
-		return nil, err
+		return
 	}
+
+	batchFactory := graphql_datasource.NewBatchFactory()
 
 	accountsDataSource := plan.DataSourceConfiguration{
 		RootNodes: []plan.TypeField{
@@ -1121,6 +1161,7 @@ func newFederationSetup(ctx context.Context) (*federationSetup, error) {
 			},
 		}),
 		Factory: &graphql_datasource.Factory{
+			BatchFactory: batchFactory,
 			HTTPClient: httpclient.DefaultNetHttpClient,
 		},
 	}
@@ -1164,6 +1205,7 @@ func newFederationSetup(ctx context.Context) (*federationSetup, error) {
 			},
 		}),
 		Factory: &graphql_datasource.Factory{
+			BatchFactory: batchFactory,
 			HTTPClient: httpclient.DefaultNetHttpClient,
 		},
 	}
@@ -1207,6 +1249,7 @@ func newFederationSetup(ctx context.Context) (*federationSetup, error) {
 			},
 		}),
 		Factory: &graphql_datasource.Factory{
+			BatchFactory: batchFactory,
 			HTTPClient: httpclient.DefaultNetHttpClient,
 		},
 	}
@@ -1296,25 +1339,25 @@ func newFederationSetup(ctx context.Context) (*federationSetup, error) {
 		},
 	}
 
-	setup.schema, err = federationSchema()
+	schema, err = federationSchema()
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	engineConfig := NewEngineV2Configuration(setup.schema)
+	engineConfig := NewEngineV2Configuration(schema)
 	engineConfig.AddDataSource(accountsDataSource)
 	engineConfig.AddDataSource(productsDataSource)
 	engineConfig.AddDataSource(reviewsDataSource)
 	engineConfig.AddDataSource(pollingDataSource)
 	engineConfig.SetFieldConfigurations(fieldConfigs)
+	engineConfig.EnableDataLoader(enableDataLoader)
 
-	engine, err := NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConfig)
+	engine, err = NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConfig)
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	setup.engine = engine
-	return setup, nil
+	return
 }
 
 // nolint

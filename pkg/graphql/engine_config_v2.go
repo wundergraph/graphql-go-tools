@@ -6,6 +6,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	graphqlDataSource "github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
 
 const (
@@ -16,6 +17,7 @@ type EngineV2Configuration struct {
 	schema                   *Schema
 	plannerConfig            plan.Configuration
 	websocketBeforeStartHook WebsocketBeforeStartHook
+	dataLoaderConfig dataLoaderConfig
 }
 
 func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
@@ -26,7 +28,16 @@ func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
 			DataSources:                []plan.DataSourceConfiguration{},
 			Fields:                     plan.FieldConfigurations{},
 		},
+		dataLoaderConfig: dataLoaderConfig{
+			EnableSingleFlightLoader: false,
+			EnableDataLoader:         false,
+		},
 	}
+}
+
+type dataLoaderConfig struct {
+	EnableSingleFlightLoader bool
+	EnableDataLoader         bool
 }
 
 func (e *EngineV2Configuration) AddDataSource(dataSource plan.DataSourceConfiguration) {
@@ -53,6 +64,10 @@ func (e *EngineV2Configuration) FieldConfigurations() plan.FieldConfigurations {
 	return e.plannerConfig.Fields
 }
 
+func (e *EngineV2Configuration) EnableDataLoader(enable bool) {
+	e.dataLoaderConfig.EnableDataLoader = enable
+}
+
 // SetWebsocketBeforeStartHook - sets before start hook which will be called before processing any operation sent over websockets
 func (e *EngineV2Configuration) SetWebsocketBeforeStartHook(hook WebsocketBeforeStartHook) {
 	e.websocketBeforeStartHook = hook
@@ -68,13 +83,14 @@ func newGraphQLDataSourceV2Generator(document *ast.Document) *graphqlDataSourceV
 	}
 }
 
-func (d *graphqlDataSourceV2Generator) Generate(config graphqlDataSource.Configuration, httpClient *http.Client) plan.DataSourceConfiguration {
+func (d *graphqlDataSourceV2Generator) Generate(config graphqlDataSource.Configuration,batchFactory resolve.DataSourceBatchFactory, httpClient *http.Client) plan.DataSourceConfiguration {
 	var planDataSource plan.DataSourceConfiguration
 	extractor := plan.NewLocalTypeFieldExtractor(d.document)
 	planDataSource.RootNodes, planDataSource.ChildNodes = extractor.GetAllNodes()
 
 	factory := &graphqlDataSource.Factory{
 		HTTPClient: httpClient,
+		BatchFactory: batchFactory,
 	}
 
 	planDataSource.Factory = factory

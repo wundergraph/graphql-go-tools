@@ -682,8 +682,8 @@ func TestProcessDefer_Process_ParallelFetch(t *testing.T) {
 						Value: &resolve.Array{
 							Item: &resolve.Object{
 								Fetch: &resolve.ParallelFetch{
-									Fetches: []*resolve.SingleFetch{
-										{
+									Fetches: []resolve.Fetch{
+										&resolve.SingleFetch{
 											BufferId:   1,
 											DataSource: postsService,
 											InputTemplate: resolve.InputTemplate{
@@ -696,7 +696,7 @@ func TestProcessDefer_Process_ParallelFetch(t *testing.T) {
 												},
 											},
 										},
-										{
+										&resolve.SingleFetch{
 											BufferId:   2,
 											DataSource: postsService,
 										},
