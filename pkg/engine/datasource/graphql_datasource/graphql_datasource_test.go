@@ -443,6 +443,201 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 	}))
 
+	t.Run("Query with ID array input", runTestOnTestDefinition(`
+		query Droids($droidIDs: [ID!]!) {
+			droids(ids: $droidIDs) {
+				name
+				primaryFunction
+			}
+		}`, "Droids",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidIDs: [ID!]!){droids(ids: $droidIDs){name primaryFunction}}","variables":{"droidIDs":$$0$$}}}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:                 []string{"droidIDs"},
+								JsonValueType:        jsonparser.Array,
+								ArrayJsonValueType:   jsonparser.String,
+								RenderAsGraphQLValue: true,
+							},
+						),
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("droids"),
+							Value: &resolve.Array{
+								Path:     []string{"droids"},
+								Nullable: true,
+								Item: &resolve.Object{
+									Nullable: true,
+									Path:     nil,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: false,
+											},
+											Position: resolve.Position{
+												Line:   4,
+												Column: 5,
+											},
+										},
+										{
+											Name: []byte("primaryFunction"),
+											Value: &resolve.String{
+												Path:     []string{"primaryFunction"},
+												Nullable: false,
+											},
+											Position: resolve.Position{
+												Line:   5,
+												Column: 5,
+											},
+										},
+									},
+								},
+								Stream: resolve.Stream{},
+							},
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
+							HasBuffer: true,
+							BufferID:  0,
+						},
+					},
+				},
+			},
+		}))
+
+	t.Run("Query with ID input", runTestOnTestDefinition(`
+		query Droid($droidID: ID!) {
+			droid(id: $droidID) {
+				name
+				primaryFunction
+			}
+		}`, "Droid",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidID: ID!){droid(id: $droidID){name primaryFunction}}","variables":{"droidID":$$0$$}}}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:                 []string{"droidID"},
+								JsonValueType:        jsonparser.String,
+								RenderAsGraphQLValue: true,
+							},
+						),
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("droid"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Path:     []string{"droid"},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
+										},
+									},
+									{
+										Name: []byte("primaryFunction"),
+										Value: &resolve.String{
+											Path:     []string{"primaryFunction"},
+											Nullable: false,
+										},
+										Position: resolve.Position{
+											Line:   5,
+											Column: 5,
+										},
+									},
+								},
+							},
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
+							HasBuffer: true,
+							BufferID:  0,
+						},
+					},
+				},
+			},
+		}))
+
+	t.Run("Query with Date input aka scalar", runTestOnTestDefinition(`
+		query HeroByBirthdate($birthdate: Date!) {
+			heroByBirthdate(birthdate: $birthdate) {
+				name
+			}
+		}`, "HeroByBirthdate",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($birthdate: Date!){heroByBirthdate(birthdate: $birthdate){name}}","variables":{"birthdate":$$0$$}}}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:                 []string{"birthdate"},
+								JsonValueType:        jsonparser.String,
+								RenderAsGraphQLValue: true,
+							},
+						),
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("heroByBirthdate"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Path:     []string{"heroByBirthdate"},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
+										},
+									},
+								},
+							},
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
+							HasBuffer: true,
+							BufferID:  0,
+						},
+					},
+				},
+			},
+		}))
+
 	t.Run("simple mutation", RunTest(`
 		type Mutation {
 			addFriend(name: String!):Friend!
@@ -2615,7 +2810,7 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 				RootNodes: []plan.TypeField{
 					{
 						TypeName:   "Query",
-						FieldNames: []string{"hero", "droid", "search", "stringList", "nestedStringList"},
+						FieldNames: []string{"hero", "heroByBirthdate", "droid", "droids", "search", "stringList", "nestedStringList"},
 					},
 					{
 						TypeName:   "Mutation",
@@ -2632,6 +2827,10 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 						FieldNames: []string{"id", "stars", "commentary"},
 					},
 					{
+						TypeName:   "Character",
+						FieldNames: []string{"name", "friends"},
+					},
+					{
 						TypeName:   "Human",
 						FieldNames: []string{"name", "height", "friends"},
 					},
@@ -2646,7 +2845,7 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 				},
 				Custom: ConfigJson(Configuration{
 					Fetch: FetchConfiguration{
-						URL:    "http://swapi.com/graphql",
+						URL:    "https://swapi.com/graphql",
 						Method: "POST",
 					},
 					Subscription: SubscriptionConfiguration{
@@ -2659,10 +2858,30 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 		Fields: []plan.FieldConfiguration{
 			{
 				TypeName:  "Query",
+				FieldName: "heroByBirthdate",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "birthdate",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "Query",
 				FieldName: "droid",
 				Arguments: []plan.ArgumentConfiguration{
 					{
 						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "droids",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "ids",
 						SourceType: plan.FieldArgumentSource,
 					},
 				},
@@ -3428,6 +3647,7 @@ directive @fromClaim(
 
 const testDefinition = `
 union SearchResult = Human | Droid | Starship
+scalar Date
 
 schema {
     query: Query
@@ -3437,7 +3657,9 @@ schema {
 
 type Query {
     hero: Character
+	heroByBirthdate(birthdate: Date): Character
     droid(id: ID!): Droid
+	droids(ids: [ID!]!): [Droid]
     search(name: String!): SearchResult
 	stringList: [String]
 	nestedStringList: [String]
