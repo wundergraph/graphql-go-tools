@@ -1906,7 +1906,7 @@ func TestGraphQLDataSource(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	t.Run("subscription", RunTest(testDefinition, `
+	t.Run("subscription", runTestOnTestDefinition(`
 		subscription RemainingJedis {
 			remainingJedis
 		}
@@ -1936,24 +1936,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		},
-	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Subscription",
-						FieldNames: []string{"remainingJedis"},
-					},
-				},
-				Custom: ConfigJson(Configuration{
-					Subscription: SubscriptionConfiguration{
-						URL: "wss://swapi.com/graphql",
-					},
-				}),
-				Factory: factory,
-			},
-		},
-	}))
+	}, testWithFactory(factory)))
 
 	t.Run("subscription with variables", RunTest(`
 		type Subscription {
@@ -2606,6 +2589,102 @@ func FakeDataSource(data string) *_fakeDataSource {
 	return &_fakeDataSource{
 		data: []byte(data),
 	}
+}
+
+type runTestOnTestDefinitionOptions func(planConfig *plan.Configuration, extraChecks *[]CheckFunc)
+
+func testWithFactory(factory *Factory) runTestOnTestDefinitionOptions {
+	return func(planConfig *plan.Configuration, extraChecks *[]CheckFunc) {
+		for _, ds := range planConfig.DataSources {
+			ds.Factory = factory
+		}
+	}
+}
+
+func testWithExtraChecks(extraChecks ...CheckFunc) runTestOnTestDefinitionOptions {
+	return func(planConfig *plan.Configuration, availableChecks *[]CheckFunc) {
+		*availableChecks = append(*availableChecks, extraChecks...)
+	}
+}
+
+func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.Plan, options ...runTestOnTestDefinitionOptions) func(t *testing.T) {
+	extraChecks := make([]CheckFunc, 0)
+	config := plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"hero", "droid", "search", "stringList", "nestedStringList"},
+					},
+					{
+						TypeName:   "Mutation",
+						FieldNames: []string{"createReview"},
+					},
+					{
+						TypeName:   "Subscription",
+						FieldNames: []string{"remainingJedis"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Review",
+						FieldNames: []string{"id", "stars", "commentary"},
+					},
+					{
+						TypeName:   "Human",
+						FieldNames: []string{"name", "height", "friends"},
+					},
+					{
+						TypeName:   "Droid",
+						FieldNames: []string{"name", "primaryFunction", "friends"},
+					},
+					{
+						TypeName:   "Starship",
+						FieldNames: []string{"name", "length"},
+					},
+				},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL:    "http://swapi.com/graphql",
+						Method: "POST",
+					},
+					Subscription: SubscriptionConfiguration{
+						URL: "wss://swapi.com/graphql",
+					},
+				}),
+				Factory: &Factory{},
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "droid",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "search",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "name",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+	}
+
+	for _, opt := range options {
+		opt(&config, &extraChecks)
+	}
+
+	return RunTest(testDefinition, operation, operationName, expectedPlan, config, extraChecks...)
 }
 
 func BenchmarkFederationBatching(b *testing.B) {
@@ -3406,7 +3485,7 @@ type Droid implements Character {
     friends: [Character]
 }
 
-type Startship {
+type Starship {
     name: String!
     length: Float!
 }`
