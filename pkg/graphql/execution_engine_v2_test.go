@@ -414,6 +414,57 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		},
 	))
 
+	t.Run("execute operation with array input type", runWithoutError(ExecutionEngineV2TestCase{
+		schema:           heroWithArgumentSchema(t),
+		operation: func(t *testing.T) Request {
+			return Request{
+				OperationName: "MyHeroes",
+				Variables: stringify(map[string]interface{}{
+					"heroNames": []string{"Luke Skywalker", "R2-D2"},
+				}),
+				Query: `query MyHeroes($heroNames: [String!]!){
+						heroes(names: $heroNames)
+					}`,
+			}
+		},
+		dataSources:      []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Query", FieldNames: []string{"heroes"}},
+				},
+				Factory: &graphql_datasource.Factory{
+					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "example.com",
+						expectedPath:     "/",
+						expectedBody:     `{"query":"query($heroNames: [String!]!){heroes(names: $heroNames)}","variables":{"heroNames":["Luke Skywalker","R2-D2"]}}`,
+						sendResponseBody: `{"data":{"heroes":["Human","Droid"]}}`,
+						sendStatusCode:   200,
+					}),
+				},
+				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+					Fetch: graphql_datasource.FetchConfiguration{
+						URL:    "https://example.com/",
+						Method: "POST",
+					},
+				}),
+			},
+		},
+		fields:           []plan.FieldConfiguration{
+			{
+				TypeName:              "Query",
+				FieldName:             "heroes",
+				Path:                  []string{"heroes"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:         "names",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		expectedResponse: `{"data":{"heroes":["Human","Droid"]}}`,
+	}))
+
 	t.Run("execute operation with arguments", runWithoutError(
 		ExecutionEngineV2TestCase{
 			schema:    starwarsSchema(t),
@@ -1111,7 +1162,7 @@ func newFederationEngine(ctx context.Context, setup *federationSetup, enableData
 		}),
 		Factory: &graphql_datasource.Factory{
 			BatchFactory: batchFactory,
-			HTTPClient: httpclient.DefaultNetHttpClient,
+			HTTPClient:   httpclient.DefaultNetHttpClient,
 		},
 	}
 
@@ -1155,7 +1206,7 @@ func newFederationEngine(ctx context.Context, setup *federationSetup, enableData
 		}),
 		Factory: &graphql_datasource.Factory{
 			BatchFactory: batchFactory,
-			HTTPClient: httpclient.DefaultNetHttpClient,
+			HTTPClient:   httpclient.DefaultNetHttpClient,
 		},
 	}
 
@@ -1199,7 +1250,7 @@ func newFederationEngine(ctx context.Context, setup *federationSetup, enableData
 		}),
 		Factory: &graphql_datasource.Factory{
 			BatchFactory: batchFactory,
-			HTTPClient: httpclient.DefaultNetHttpClient,
+			HTTPClient:   httpclient.DefaultNetHttpClient,
 		},
 	}
 

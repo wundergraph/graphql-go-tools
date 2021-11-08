@@ -85,9 +85,9 @@ func (b *BatchFactory) multiplexBatch(out *fastbuffer.FastBuffer, inputs [][]byt
 	variablesBuf.WriteBytes(literal.LBRACK)
 
 	var (
-		variablesIdx int
+		variablesIdx              int
 		firstRepresentationsStart int
-		firstRepresentationsEnd int
+		firstRepresentationsEnd   int
 	)
 
 	for i := range inputs {
@@ -151,7 +151,7 @@ func (b *Batch) demultiplexBatch(responsePair *resolve.BufPair, responseMappings
 	if responsePair.HasData() {
 		_, err = jsonparser.ArrayEach(responsePair.Data.Bytes(), func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 
-			if outPosition > len(responseMappings) +1 {
+			if outPosition > len(responseMappings)+1 {
 				return
 			}
 

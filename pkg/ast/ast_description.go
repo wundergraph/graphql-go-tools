@@ -35,21 +35,33 @@ func (d *Document) PrintDescription(description Description, indent []byte, dept
 
 	content := d.Input.ByteSlice(description.Content)
 	skipWhitespace := false
+	skippedWhitespace := 0.0
+	depthToSkip := float64(depth)
 	for i := range content {
+
+		if skipWhitespace && skippedWhitespace < depthToSkip {
+			switch content[i] {
+			case runes.TAB:
+				skippedWhitespace += 1
+				continue
+			case runes.SPACE:
+				skippedWhitespace += 0.5
+				continue
+			}
+		}
+
 		switch content[i] {
 		case runes.LINETERMINATOR:
 			skipWhitespace = true
-		case runes.TAB, runes.SPACE:
-			if skipWhitespace {
-				continue
-			}
 		default:
 			if skipWhitespace {
-				for i := 0; i < depth; i++ {
+				for j := 0; j < depth; j++ {
 					_, err = writer.Write(indent)
 				}
+
+				skipWhitespace = false
+				skippedWhitespace = 0.0
 			}
-			skipWhitespace = false
 		}
 		_, err = writer.Write(content[i : i+1])
 	}

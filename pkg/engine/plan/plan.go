@@ -729,7 +729,7 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 		switch parts[0] {
 		case "object":
 			variable := &resolve.ObjectVariable{
-				Path: path,
+				Path:               path,
 				RenderAsPlainValue: true,
 			}
 			variableName, _ = variables.AddVariable(variable)
@@ -838,14 +838,13 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external Fet
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 
 	singleFetch := &resolve.SingleFetch{
-		BufferId:             internal.bufferID,
-		Input:                external.Input,
-		DataSource:           external.DataSource,
-		Variables:            external.Variables,
-		DisallowSingleFlight: external.DisallowSingleFlight,
+		BufferId:              internal.bufferID,
+		Input:                 external.Input,
+		DataSource:            external.DataSource,
+		Variables:             external.Variables,
+		DisallowSingleFlight:  external.DisallowSingleFlight,
 		DataSourceIdentifier:  []byte(dataSourceType),
 		ProcessResponseConfig: external.ProcessResponseConfig,
-
 	}
 
 	if !external.BatchConfig.AllowBatch {
@@ -853,7 +852,7 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external Fet
 	}
 
 	return &resolve.BatchFetch{
-		Fetch:       singleFetch,
+		Fetch:        singleFetch,
 		BatchFactory: external.BatchConfig.BatchFactory,
 	}
 }
@@ -973,11 +972,11 @@ type FetchConfiguration struct {
 	DataSource            resolve.DataSource
 	DisallowSingleFlight  bool
 	ProcessResponseConfig resolve.ProcessResponseConfig
-	BatchConfig          BatchConfig
+	BatchConfig           BatchConfig
 }
 
 type BatchConfig struct {
-	AllowBatch  bool
+	AllowBatch   bool
 	BatchFactory resolve.DataSourceBatchFactory
 }
 

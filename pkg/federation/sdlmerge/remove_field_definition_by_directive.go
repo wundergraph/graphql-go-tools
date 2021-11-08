@@ -42,5 +42,5 @@ func (r *removeFieldDefinitionByDirective) LeaveObjectTypeDefinition(ref int) {
 		}
 	}
 	// delete fields
-	r.operation.RemoveFieldDefinitionsFromObjectTypeDefinition(refsForDeletion,ref)
+	r.operation.RemoveFieldDefinitionsFromObjectTypeDefinition(refsForDeletion, ref)
 }
