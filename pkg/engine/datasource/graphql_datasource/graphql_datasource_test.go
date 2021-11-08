@@ -2796,7 +2796,7 @@ func testWithFactory(factory *Factory) runTestOnTestDefinitionOptions {
 	}
 }
 
-// nolint:deadcode
+// nolint:deadcode,unused
 func testWithExtraChecks(extraChecks ...CheckFunc) runTestOnTestDefinitionOptions {
 	return func(planConfig *plan.Configuration, availableChecks *[]CheckFunc) {
 		*availableChecks = append(*availableChecks, extraChecks...)
