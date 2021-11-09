@@ -250,6 +250,394 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 	}))
 
+	t.Run("Query with array input", RunTest(subgraphTestSchema, `
+		query($representations: [_Any!]!) {
+			_entities(representations: $representations){
+				... on Product {
+					reviews {
+						body 
+						author {
+							username 
+							id
+						}
+					}
+				}
+			}
+		}
+	`, "", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://subgraph-reviews/query","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {username id}}}}}","variables":{"representations":$$0$$}}}`,
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path:                 []string{"representations"},
+							JsonValueType:        jsonparser.Array,
+							ArrayJsonValueType:   jsonparser.Object,
+							RenderAsGraphQLValue: true,
+						},
+					),
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("_entities"),
+						Position: resolve.Position{
+							Line:   3,
+							Column: 4,
+						},
+						Value: &resolve.Array{
+							Path:     []string{"_entities"},
+							Nullable: false,
+							Item: &resolve.Object{
+								Nullable: true,
+								Path:     nil,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("reviews"),
+										Value: &resolve.Array{
+											Path:                []string{"reviews"},
+											Nullable:            true,
+											ResolveAsynchronous: false,
+											Item: &resolve.Object{
+												Nullable: true,
+												Path:     nil,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("body"),
+														Value: &resolve.String{
+															Path:     []string{"body"},
+															Nullable: false,
+														},
+														Position: resolve.Position{
+															Line:   6,
+															Column: 7,
+														},
+													},
+													{
+														Name: []byte("author"),
+														Value: &resolve.Object{
+															Nullable: false,
+															Path:     []string{"author"},
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("username"),
+																	Value: &resolve.String{
+																		Path:     []string{"username"},
+																		Nullable: false,
+																	},
+																	Position: resolve.Position{
+																		Line:   8,
+																		Column: 8,
+																	},
+																},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.String{
+																		Path:     []string{"id"},
+																		Nullable: false,
+																	},
+																	Position: resolve.Position{
+																		Line:   9,
+																		Column: 8,
+																	},
+																},
+															},
+														},
+														Position: resolve.Position{
+															Line:   7,
+															Column: 7,
+														},
+													},
+												},
+											},
+										},
+										Position: resolve.Position{
+											Line:   5,
+											Column: 6,
+										},
+										OnTypeName: []byte("Product"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"_entities", "_service"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "_Service",
+						FieldNames: []string{"sdl"},
+					},
+					{
+						TypeName:   "Entity",
+						FieldNames: []string{"findProductByUpc", "findUserByID"},
+					},
+					{
+						TypeName:   "Product",
+						FieldNames: []string{"upc", "reviews"},
+					},
+					{
+						TypeName:   "Review",
+						FieldNames: []string{"body", "author", "product"},
+					},
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "username", "reviews"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://subgraph-reviews/query",
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "_entities",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "representations",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "Entity",
+				FieldName: "findProductByUpc",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "upc",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "Entity",
+				FieldName: "findUserByID",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+	}))
+
+	t.Run("Query with ID array input", runTestOnTestDefinition(`
+		query Droids($droidIDs: [ID!]!) {
+			droids(ids: $droidIDs) {
+				name
+				primaryFunction
+			}
+		}`, "Droids",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidIDs: [ID!]!){droids(ids: $droidIDs){name primaryFunction}}","variables":{"droidIDs":$$0$$}}}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:                 []string{"droidIDs"},
+								JsonValueType:        jsonparser.Array,
+								ArrayJsonValueType:   jsonparser.String,
+								RenderAsGraphQLValue: true,
+							},
+						),
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("droids"),
+							Value: &resolve.Array{
+								Path:     []string{"droids"},
+								Nullable: true,
+								Item: &resolve.Object{
+									Nullable: true,
+									Path:     nil,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: false,
+											},
+											Position: resolve.Position{
+												Line:   4,
+												Column: 5,
+											},
+										},
+										{
+											Name: []byte("primaryFunction"),
+											Value: &resolve.String{
+												Path:     []string{"primaryFunction"},
+												Nullable: false,
+											},
+											Position: resolve.Position{
+												Line:   5,
+												Column: 5,
+											},
+										},
+									},
+								},
+								Stream: resolve.Stream{},
+							},
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
+							HasBuffer: true,
+							BufferID:  0,
+						},
+					},
+				},
+			},
+		}))
+
+	t.Run("Query with ID input", runTestOnTestDefinition(`
+		query Droid($droidID: ID!) {
+			droid(id: $droidID) {
+				name
+				primaryFunction
+			}
+		}`, "Droid",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidID: ID!){droid(id: $droidID){name primaryFunction}}","variables":{"droidID":$$0$$}}}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:                 []string{"droidID"},
+								JsonValueType:        jsonparser.String,
+								RenderAsGraphQLValue: true,
+							},
+						),
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("droid"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Path:     []string{"droid"},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
+										},
+									},
+									{
+										Name: []byte("primaryFunction"),
+										Value: &resolve.String{
+											Path:     []string{"primaryFunction"},
+											Nullable: false,
+										},
+										Position: resolve.Position{
+											Line:   5,
+											Column: 5,
+										},
+									},
+								},
+							},
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
+							HasBuffer: true,
+							BufferID:  0,
+						},
+					},
+				},
+			},
+		}))
+
+	t.Run("Query with Date input aka scalar", runTestOnTestDefinition(`
+		query HeroByBirthdate($birthdate: Date!) {
+			heroByBirthdate(birthdate: $birthdate) {
+				name
+			}
+		}`, "HeroByBirthdate",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($birthdate: Date!){heroByBirthdate(birthdate: $birthdate){name}}","variables":{"birthdate":$$0$$}}}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:                 []string{"birthdate"},
+								JsonValueType:        jsonparser.String,
+								RenderAsGraphQLValue: true,
+							},
+						),
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("heroByBirthdate"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Path:     []string{"heroByBirthdate"},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
+										},
+									},
+								},
+							},
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
+							HasBuffer: true,
+							BufferID:  0,
+						},
+					},
+				},
+			},
+		}))
+
 	t.Run("simple mutation", RunTest(`
 		type Mutation {
 			addFriend(name: String!):Friend!
@@ -1713,7 +2101,7 @@ func TestGraphQLDataSource(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	t.Run("subscription", RunTest(testDefinition, `
+	t.Run("subscription", runTestOnTestDefinition(`
 		subscription RemainingJedis {
 			remainingJedis
 		}
@@ -1743,24 +2131,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		},
-	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Subscription",
-						FieldNames: []string{"remainingJedis"},
-					},
-				},
-				Custom: ConfigJson(Configuration{
-					Subscription: SubscriptionConfiguration{
-						URL: "wss://swapi.com/graphql",
-					},
-				}),
-				Factory: factory,
-			},
-		},
-	}))
+	}, testWithFactory(factory)))
 
 	t.Run("subscription with variables", RunTest(`
 		type Subscription {
@@ -2423,6 +2794,127 @@ func FakeDataSource(data string) *_fakeDataSource {
 	return &_fakeDataSource{
 		data: []byte(data),
 	}
+}
+
+type runTestOnTestDefinitionOptions func(planConfig *plan.Configuration, extraChecks *[]CheckFunc)
+
+func testWithFactory(factory *Factory) runTestOnTestDefinitionOptions {
+	return func(planConfig *plan.Configuration, extraChecks *[]CheckFunc) {
+		for _, ds := range planConfig.DataSources {
+			ds.Factory = factory
+		}
+	}
+}
+
+// nolint:deadcode,unused
+func testWithExtraChecks(extraChecks ...CheckFunc) runTestOnTestDefinitionOptions {
+	return func(planConfig *plan.Configuration, availableChecks *[]CheckFunc) {
+		*availableChecks = append(*availableChecks, extraChecks...)
+	}
+}
+
+func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.Plan, options ...runTestOnTestDefinitionOptions) func(t *testing.T) {
+	extraChecks := make([]CheckFunc, 0)
+	config := plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"hero", "heroByBirthdate", "droid", "droids", "search", "stringList", "nestedStringList"},
+					},
+					{
+						TypeName:   "Mutation",
+						FieldNames: []string{"createReview"},
+					},
+					{
+						TypeName:   "Subscription",
+						FieldNames: []string{"remainingJedis"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Review",
+						FieldNames: []string{"id", "stars", "commentary"},
+					},
+					{
+						TypeName:   "Character",
+						FieldNames: []string{"name", "friends"},
+					},
+					{
+						TypeName:   "Human",
+						FieldNames: []string{"name", "height", "friends"},
+					},
+					{
+						TypeName:   "Droid",
+						FieldNames: []string{"name", "primaryFunction", "friends"},
+					},
+					{
+						TypeName:   "Starship",
+						FieldNames: []string{"name", "length"},
+					},
+				},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL:    "https://swapi.com/graphql",
+						Method: "POST",
+					},
+					Subscription: SubscriptionConfiguration{
+						URL: "wss://swapi.com/graphql",
+					},
+				}),
+				Factory: &Factory{},
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "heroByBirthdate",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "birthdate",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "droid",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "droids",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "ids",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "search",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "name",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+	}
+
+	for _, opt := range options {
+		opt(&config, &extraChecks)
+	}
+
+	return RunTest(testDefinition, operation, operationName, expectedPlan, config, extraChecks...)
 }
 
 func BenchmarkFederationBatching(b *testing.B) {
@@ -3166,6 +3658,7 @@ directive @fromClaim(
 
 const testDefinition = `
 union SearchResult = Human | Droid | Starship
+scalar Date
 
 schema {
     query: Query
@@ -3175,7 +3668,9 @@ schema {
 
 type Query {
     hero: Character
+	heroByBirthdate(birthdate: Date): Character
     droid(id: ID!): Droid
+	droids(ids: [ID!]!): [Droid]
     search(name: String!): SearchResult
 	stringList: [String]
 	nestedStringList: [String]
@@ -3223,7 +3718,7 @@ type Droid implements Character {
     friends: [Character]
 }
 
-type Startship {
+type Starship {
     name: String!
     length: Float!
 }`
@@ -3247,6 +3742,49 @@ type Product {
 type Query {
   me: User
   topProducts(first: Int = 5): [Product]
+}
+
+type Review {
+  body: String!
+  author: User!
+  product: Product!
+}
+
+type User {
+  id: ID!
+  username: String!
+  reviews: [Review]
+}
+`
+
+const subgraphTestSchema = `
+directive @external on FIELD_DEFINITION
+directive @requires(fields: _FieldSet!) on FIELD_DEFINITION
+directive @provides(fields: _FieldSet!) on FIELD_DEFINITION
+directive @key(fields: _FieldSet!) on OBJECT | INTERFACE
+directive @extends on OBJECT
+
+scalar _Any
+union _Entity = Product | User
+scalar _FieldSet
+
+type _Service {
+  sdl: String
+}
+
+type Entity {
+  findProductByUpc(upc: String!): Product!
+  findUserByID(id: ID!): User!
+}
+
+type Product {
+  upc: String!
+  reviews: [Review]
+}
+
+type Query {
+  _entities(representations: [_Any!]!): [_Entity]!
+  _service: _Service!
 }
 
 type Review {

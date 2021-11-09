@@ -14,7 +14,7 @@ type OptionsSDL struct {
 
 func SDL(input string, options OptionsSDL) (string, error) {
 	repair := sdlRepair{
-		sdl: input,
+		sdl:     input,
 		options: options,
 	}
 	return repair.do()
@@ -158,9 +158,9 @@ func (e *emptyInputObjectTypeDefinitionVisitor) EnterInputObjectTypeDefinition(r
 }
 
 type setAllMutationFieldsNullableVisitor struct {
-	walker                *astvisitor.Walker
-	definition *ast.Document
-	insideMutation bool
+	walker           *astvisitor.Walker
+	definition       *ast.Document
+	insideMutation   bool
 	mutationTypeName string
 }
 

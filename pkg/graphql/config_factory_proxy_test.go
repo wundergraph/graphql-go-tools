@@ -25,7 +25,7 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 		},
 	}
 	batchFactory := graphqlDataSource.NewBatchFactory()
-	configFactory := NewProxyEngineConfigFactory(schema, upstreamConfig,batchFactory ,WithProxyHttpClient(client))
+	configFactory := NewProxyEngineConfigFactory(schema, upstreamConfig, batchFactory, WithProxyHttpClient(client))
 	config, err := configFactory.EngineV2Configuration()
 	if !assert.NoError(t, err) {
 		return
@@ -57,7 +57,7 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 			},
 		},
 		Factory: &graphqlDataSource.Factory{
-			HTTPClient: client,
+			HTTPClient:   client,
 			BatchFactory: batchFactory,
 		},
 		Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{
