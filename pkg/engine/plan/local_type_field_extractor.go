@@ -81,6 +81,24 @@ func (e *LocalTypeFieldExtractor) findChildNodesForType(typeName string, childNo
 		return
 	}
 
+	switch node.Kind {
+	case ast.NodeKindUnionTypeDefinition:
+		for _, ref := range e.document.UnionTypeDefinitions[node.Ref].UnionMemberTypes.Refs {
+			fieldTypeName := e.document.TypeNameString(ref)
+			e.findChildNodesForType(fieldTypeName, childNodes)
+		}
+
+		return
+
+	case ast.NodeKindInterfaceTypeDefinition:
+		for ref := range e.document.ObjectTypeDefinitions {
+			if e.document.ObjectTypeDefinitionImplementsInterface(ref, e.document.InterfaceTypeDefinitionNameBytes(node.Ref)) {
+				typeName := e.document.ObjectTypeDefinitionNameString(ref)
+				e.findChildNodesForType(typeName, childNodes)
+			}
+		}
+	}
+
 	fieldsRefs := e.document.NodeFieldDefinitions(node)
 
 	for _, fieldRef := range fieldsRefs {

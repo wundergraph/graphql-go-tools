@@ -146,7 +146,7 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"third"}}}}`))
 		assert.NoError(t, err)
 
-		_,_, err = conn.Read(ctx)
+		_, _, err = conn.Read(ctx)
 		assert.Error(t, err)
 		close(serverDone)
 	}))

@@ -1,13 +1,27 @@
 package subscription
 
 import (
+	"bytes"
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestNewInitialHttpRequestContext(t *testing.T) {
+	ctx, cancelFn := context.WithCancel(context.Background())
+	defer cancelFn()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost:8080", bytes.NewBufferString("lorem ipsum"))
+	require.NoError(t, err)
+
+	initialReqCtx := NewInitialHttpRequestContext(req)
+	assert.Equal(t, ctx, initialReqCtx.Context)
+	assert.Equal(t, req, initialReqCtx.Request)
+}
 
 func TestSubscriptionCancellations(t *testing.T) {
 	cancellations := subscriptionCancellations{}

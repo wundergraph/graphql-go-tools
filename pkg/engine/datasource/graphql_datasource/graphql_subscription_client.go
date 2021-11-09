@@ -160,7 +160,7 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, opti
 	return nil
 }
 
-// generateHandlerIDHash generates a Hash based on: URL, Headers, Body to uniquely identify Upgrade Requests
+// generateHandlerIDHash generates a Hash based on: URL and Headers to uniquely identify Upgrade Requests
 func (c *WebSocketGraphQLSubscriptionClient) generateHandlerIDHash(options GraphQLSubscriptionOptions) (uint64, error) {
 	var (
 		err error

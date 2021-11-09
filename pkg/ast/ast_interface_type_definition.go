@@ -1,6 +1,8 @@
 package ast
 
 import (
+	"bytes"
+
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 )
@@ -11,13 +13,14 @@ import (
 // 	name: String
 // }
 type InterfaceTypeDefinition struct {
-	Description         Description        // optional, describes the interface
-	InterfaceLiteral    position.Position  // interface
-	Name                ByteSliceReference // e.g. NamedEntity
-	HasDirectives       bool
-	Directives          DirectiveList // optional, e.g. @foo
-	HasFieldDefinitions bool
-	FieldsDefinition    FieldDefinitionList // optional, e.g. { name: String }
+	Description          Description        // optional, describes the interface
+	InterfaceLiteral     position.Position  // interface
+	Name                 ByteSliceReference // e.g. NamedEntity
+	ImplementsInterfaces TypeList           // e.g implements Bar & Baz
+	HasDirectives        bool
+	Directives           DirectiveList // optional, e.g. @foo
+	HasFieldDefinitions  bool
+	FieldsDefinition     FieldDefinitionList // optional, e.g. { name: String }
 }
 
 func (d *Document) InterfaceTypeDefinitionNameBytes(ref int) ByteSlice {
@@ -35,6 +38,16 @@ func (d *Document) InterfaceTypeDefinitionDescriptionBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.InterfaceTypeDefinitions[ref].Description.Content)
 }
 
+func (d *Document) InterfaceTypeDefinitionImplementsInterface(definitionRef int, interfaceName ByteSlice) bool {
+	for _, iRef := range d.InterfaceTypeDefinitions[definitionRef].ImplementsInterfaces.Refs {
+		implements := d.ResolveTypeNameBytes(iRef)
+		if bytes.Equal(interfaceName, implements) {
+			return true
+		}
+	}
+	return false
+}
+
 func (d *Document) InterfaceTypeDefinitionDescriptionString(ref int) string {
 	return unsafebytes.BytesToString(d.InterfaceTypeDefinitionDescriptionBytes(ref))
 }
@@ -45,15 +58,18 @@ func (d *Document) AddInterfaceTypeDefinition(definition InterfaceTypeDefinition
 }
 
 func (d *Document) ImportInterfaceTypeDefinition(name, description string, fieldRefs []int) (ref int) {
-	return d.ImportInterfaceTypeDefinitionWithDirectives(name, description, fieldRefs, nil)
+	return d.ImportInterfaceTypeDefinitionWithDirectives(name, description, fieldRefs, nil, nil)
 }
 
-func (d *Document) ImportInterfaceTypeDefinitionWithDirectives(name, description string, fieldRefs []int, directiveRefs []int) (ref int) {
+func (d *Document) ImportInterfaceTypeDefinitionWithDirectives(name, description string, fieldRefs []int, iRefs []int, directiveRefs []int) (ref int) {
 	definition := InterfaceTypeDefinition{
 		Name:        d.Input.AppendInputString(name),
 		Description: d.ImportDescription(description),
 		FieldsDefinition: FieldDefinitionList{
 			Refs: fieldRefs,
+		},
+		ImplementsInterfaces: TypeList{
+			Refs: iRefs,
 		},
 		HasFieldDefinitions: len(fieldRefs) > 0,
 		HasDirectives:       len(directiveRefs) > 0,
