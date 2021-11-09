@@ -58,7 +58,13 @@ type ExecutorV2 struct {
 }
 
 func (e *ExecutorV2) Execute(writer resolve.FlushWriter) error {
-	return e.engine.Execute(e.context, e.operation, writer)
+	options := make([]graphql.ExecutionOptionsV2, 0)
+	switch ctx := e.reqCtx.(type) {
+	case *InitialHttpRequestContext:
+		options = append(options, graphql.WithAdditionalHttpHeaders(ctx.Request.Header))
+	}
+
+	return e.engine.Execute(e.context, e.operation, writer, options...)
 }
 
 func (e *ExecutorV2) OperationType() ast.OperationType {

@@ -61,6 +61,7 @@ func (m *normalizer) setupWalkers() {
 		// visitors for extending objects and interfaces
 		{
 			newExtendInterfaceTypeDefinition(),
+			newExtendUnionTypeDefinition(),
 			newExtendObjectTypeDefinition(),
 			newRemoveMergedTypeExtensions(),
 			newRemoveEmptyObjectTypeDefinition(),

@@ -110,8 +110,7 @@ func (p *Planner) configureInput() []byte {
 func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	input := p.configureInput()
 	return plan.FetchConfiguration{
-		Input:     string(input),
-		Variables: nil,
+		Input: string(input),
 		DataSource: &Source{
 			client: p.client,
 		},

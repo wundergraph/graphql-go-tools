@@ -415,6 +415,10 @@ func runMany(definition, operation, expectedOutput string, normalizeFuncs ...reg
 	run(runManyNormalizers, definition, operation, expectedOutput)
 }
 
+func runManyOnDefinition(definition, expectedOutput string, normalizeFuncs ...registerNormalizeFunc) {
+	runMany("", definition, expectedOutput, normalizeFuncs...)
+}
+
 const testOperation = `	
 subscription sub {
 	... multipleSubscriptions

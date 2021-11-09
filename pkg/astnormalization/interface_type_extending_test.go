@@ -21,6 +21,57 @@ func TestExtendInterfaceType(t *testing.T) {
 					}
 					`)
 	})
+	t.Run("extend interface by implements interface", func(t *testing.T) {
+		run(extendInterfaceTypeDefinition, testDefinition, `
+					interface A {
+						name: String
+					}
+					extend interface A implements B {
+						age: Int
+					}
+					interface B {
+						age: Int
+					}
+					 `, `
+					interface A implements B {
+						name: String
+						age: Int
+					}
+					extend interface A implements B {
+						age: Int
+					}
+					interface B {
+						age: Int
+					}
+					`)
+	})
+	t.Run("extend interface by implements interface and field", func(t *testing.T) {
+		run(extendInterfaceTypeDefinition, testDefinition, `
+					interface A {
+						name: String
+					}
+					extend interface A implements B {
+						field: String
+						age: Int
+					}
+					interface B {
+						age: Int
+					}
+					 `, `
+					interface A implements B {
+						name: String
+						field: String
+						age: Int
+					}
+					extend interface A implements B {
+						field: String
+						age: Int
+					}
+					interface B {
+						age: Int
+					}
+					`)
+	})
 	t.Run("extend simple interface type by directive", func(t *testing.T) {
 		run(extendInterfaceTypeDefinition, testDefinition, `
 					interface Mammal {
