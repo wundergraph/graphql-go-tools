@@ -145,7 +145,7 @@ CPU and Memory consumption for lexing, parsing as well as most other operations 
     - Author of the introspection converter (introspection JSON -> AST)
     - Fixed various bugs in the parser & visitor & printer
     - Refactored and enhanced the astimport package
-- [Vasyl][vasyl-github]
+- [Vasyl Domanchuk][vasyl-github]
     - Implemented the logic to generate a federation configuration
     - Added federation example
 

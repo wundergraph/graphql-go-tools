@@ -40,5 +40,5 @@ func (r *removeFieldDefinitionDirective) EnterFieldDefinition(ref int) {
 		}
 	}
 	// delete directives
-	r.operation.RemoveDirectivesFromNode(ast.Node{Kind: ast.NodeKindFieldDefinition, Ref: ref},refsForDeletion)
+	r.operation.RemoveDirectivesFromNode(ast.Node{Kind: ast.NodeKindFieldDefinition, Ref: ref}, refsForDeletion)
 }

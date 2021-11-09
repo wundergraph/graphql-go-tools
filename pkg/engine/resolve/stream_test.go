@@ -343,11 +343,11 @@ func TestStreamAndDefer(t *testing.T) {
 					InputTemplate: InputTemplate{
 						Segments: []TemplateSegment{
 							{
-								SegmentType:        VariableSegmentType,
-								VariableSource:     VariableSourceObject,
-								VariableSourcePath: []string{"id"},
+								SegmentType:                  VariableSegmentType,
+								VariableSource:               VariableSourceObject,
+								VariableSourcePath:           []string{"id"},
 								RenderVariableAsGraphQLValue: true,
-								VariableValueType: jsonparser.Number,
+								VariableValueType:            jsonparser.Number,
 							},
 						},
 					},
