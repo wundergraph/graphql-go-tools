@@ -148,11 +148,6 @@ func (h *Handler) Handle(ctx context.Context) {
 
 			h.handleConnectionError("could not read message from client")
 		} else if message != nil {
-			h.logger.Info(
-				"Receive message",
-				abstractlogger.String("type", message.Type),
-				abstractlogger.String("payload", string(message.Payload)),
-			)
 			switch message.Type {
 			case MessageTypeConnectionInit:
 				ctx, err = h.handleInit(ctx, message.Payload)
