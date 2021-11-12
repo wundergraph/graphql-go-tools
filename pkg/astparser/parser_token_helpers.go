@@ -68,19 +68,6 @@ func (p *Parser) peekEqualsIdentKey(identKey identkeyword.IdentKeyword) bool {
 	return actualKey == identKey
 }
 
-func (p *Parser) mustNext(key keyword.Keyword) int {
-	current := p.currentToken
-	if p.next() == current {
-		p.errUnexpectedToken(p.tokens[p.currentToken], key)
-		return p.currentToken
-	}
-	if p.tokens[p.currentToken].Keyword != key {
-		p.errUnexpectedToken(p.tokens[p.currentToken], key)
-		return p.currentToken
-	}
-	return p.currentToken
-}
-
 func (p *Parser) mustRead(key keyword.Keyword) (next token.Token) {
 	next = p.read()
 	if next.Keyword != key {

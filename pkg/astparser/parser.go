@@ -391,7 +391,7 @@ func (p *Parser) parseDirectiveList() (list ast.DirectiveList) {
 
 func (p *Parser) parseArgumentList() (list ast.ArgumentList) {
 
-	bracketOpen := p.next()
+	bracketOpen := p.mustRead(keyword.LPAREN)
 
 Loop:
 	for {
@@ -403,12 +403,12 @@ Loop:
 			break Loop
 		}
 
-		name := p.next()
+		name := p.read()
 		colon := p.mustRead(keyword.COLON)
 		value := p.ParseValue()
 
 		argument := ast.Argument{
-			Name:  p.tokens[name].Literal,
+			Name:  name.Literal,
 			Colon: colon.TextPosition,
 			Value: value,
 		}
@@ -429,7 +429,7 @@ Loop:
 
 	bracketClose := p.mustRead(keyword.RPAREN)
 
-	list.LPAREN = p.tokens[bracketOpen].TextPosition
+	list.LPAREN = bracketOpen.TextPosition
 	list.RPAREN = bracketClose.TextPosition
 
 	return
@@ -1319,12 +1319,14 @@ func (p *Parser) parseSelectionSet() (int, bool) {
 	var set ast.SelectionSet
 
 	set.SelectionRefs = p.document.Refs[p.document.NextRefIndex()][:0]
-	set.LBrace = p.tokens[p.mustNext(keyword.LBRACE)].TextPosition
+	lbraceToken := p.mustRead(keyword.LBRACE)
+	set.LBrace = lbraceToken.TextPosition
 
 	for {
 		switch p.peek() {
 		case keyword.RBRACE:
-			set.RBrace = p.tokens[p.next()].TextPosition
+			rbraceToken := p.read()
+			set.RBrace = rbraceToken.TextPosition
 
 			if len(set.SelectionRefs) == 0 {
 				return 0, false
@@ -1359,9 +1361,11 @@ func (p *Parser) parseSelection() int {
 		})
 		return len(p.document.Selections) - 1
 	case keyword.SPREAD:
-		return p.parseFragmentSelection(p.tokens[p.next()].TextPosition)
+		spreadToken := p.read()
+		return p.parseFragmentSelection(spreadToken.TextPosition)
 	default:
-		p.errUnexpectedToken(p.tokens[p.next()], keyword.IDENT, keyword.SPREAD)
+		nextToken := p.read()
+		p.errUnexpectedToken(nextToken, keyword.IDENT, keyword.SPREAD)
 		return -1
 	}
 }
@@ -1386,7 +1390,8 @@ func (p *Parser) parseFragmentSelection(spread position.Position) int {
 			selection.Ref = p.parseFragmentSpread(spread)
 		}
 	default:
-		p.errUnexpectedToken(p.tokens[p.next()], keyword.IDENT)
+		nextToken := p.read()
+		p.errUnexpectedToken(nextToken, keyword.IDENT)
 	}
 
 	p.document.Selections = append(p.document.Selections, selection)
@@ -1397,20 +1402,22 @@ func (p *Parser) parseField() int {
 
 	var field ast.Field
 
-	firstIdent := p.next()
-	if p.tokens[firstIdent].Keyword != keyword.IDENT {
-		p.errUnexpectedToken(p.tokens[firstIdent], keyword.IDENT)
+	firstToken := p.read()
+	if firstToken.Keyword != keyword.IDENT {
+		p.errUnexpectedToken(firstToken, keyword.IDENT)
 	}
 
 	if p.peek() == keyword.COLON {
 		field.Alias.IsDefined = true
-		field.Alias.Name = p.tokens[firstIdent].Literal
-		field.Alias.Colon = p.tokens[p.next()].TextPosition
-		field.Name = p.tokens[p.mustNext(keyword.IDENT)].Literal
+		field.Alias.Name = firstToken.Literal
+		colonToken := p.read()
+		field.Alias.Colon = colonToken.TextPosition
+		nameToken := p.mustRead(keyword.IDENT)
+		field.Name = nameToken.Literal
 	} else {
-		field.Name = p.tokens[firstIdent].Literal
+		field.Name = firstToken.Literal
 	}
-	field.Position = p.tokens[firstIdent].TextPosition
+	field.Position = firstToken.TextPosition
 
 	if p.peekEquals(keyword.LPAREN) {
 		field.Arguments = p.parseArgumentList()
