@@ -237,6 +237,164 @@ func TestParser_Parse(t *testing.T) {
 		t.Run("invalid directive without @", func(t *testing.T) {
 			run(`schema foo {}`, parse, true)
 		})
+		t.Run("no report on schema with comments everywhere", func(t *testing.T) {
+			run(`
+				#comment
+				scalar #comment
+				Date #comment
+				
+				schema #comment
+				{ #comment
+				  query#comment
+				  :#comment
+				  #comment
+				  Query#comment
+				  #comment
+				}#comment
+				
+				#comment
+				type#comment
+				Query#comment
+				{#comment
+				  me#comment
+				  :#comment
+				  User#comment
+				  !#comment
+				  user(#comment
+					id#comment
+					:#comment
+					ID#comment
+					!#comment
+				  )#comment
+				  :#comment
+				  User#comment
+				  allUsers#comment
+				  :#comment
+				  [#comment
+					#comment
+					User#comment
+				  ]#comment
+				  search#comment
+				  (#comment
+					term#comment
+					:#comment
+					String#comment
+					!#comment
+				  )#comment
+				  :#comment
+				  [#comment
+					SearchResult#comment
+					!#comment
+				  ]#comment
+				  !#comment
+				  myChats:#comment
+				  [#comment
+					Chat#comment
+					!#comment
+				  ]!#comment
+				}
+				
+				enum#comment
+				Role#comment
+				{#comment
+				  #comment
+				  USER#comment
+				  ,#comment
+				  ADMIN#comment
+				  ,#comment
+				  #comment
+				}#comment
+				
+				interface#comment
+				Node {#comment
+				  id#comment
+				  :#comment
+				  ID#comment
+				  !#comment
+				}#comment
+				
+				union #comment
+				SearchResult#comment
+				=#comment
+				User#comment
+				|#comment
+				Chat#comment
+				|#comment
+				ChatMessage#comment
+				
+				type#comment
+				User#comment
+				implements#comment
+				Node#comment
+				{#comment
+				  id#comment
+				  :#comment
+				  ID#comment
+				  !#comment
+				  username#comment
+				  :#comment
+				  String#comment
+				  !#comment
+				  email#comment
+				  :#comment
+				  String#comment
+				  !#comment
+				  role#comment
+				  :#comment
+				  Role#comment
+				  !#comment
+				}#comment
+				
+				type#comment
+				Chat#comment
+				implements#comment
+				Node#comment
+				{#comment
+				  id#comment
+				  :#comment
+				  ID#comment
+				  !#comment
+				  users#comment
+				  :#comment
+				  [#comment
+					User#comment
+					!#comment
+				  ]!#comment
+				  messages#comment
+				  :#comment
+				  [#comment
+					ChatMessage#comment
+					!#comment
+				  ]#comment
+				  !#comment
+				  #comment
+				}#comment
+				
+				type#comment
+				ChatMessage#comment
+				implements#comment
+				Node#comment
+				{#comment
+				  id#comment
+				  :#comment
+				  ID#comment
+				  !#comment
+				  content#comment
+				  :#comment
+				  String#comment
+				  !#comment
+				  time#comment
+				  :#comment
+				  Date#comment
+				  !#comment
+				  user#comment
+				  :#comment
+				  User#comment
+				  !#comment
+				  #comment
+				}#comment`, parse, false)
+		})
+
 	})
 	t.Run("schema extension", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
