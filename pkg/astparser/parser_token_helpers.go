@@ -7,21 +7,20 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/token"
 )
 
-// read - increments currentToken index and return token if hasNextToken
-// otherwise returns keyword.EOF
+// read - reads and returns next token
 func (p *Parser) read() token.Token {
 	return p.tokenizer.Read()
 }
 
-// peek - returns token next to currentToken if hasNextToken
-// otherwise returns keyword.EOF
+// peek - returns token next to currentToken
+// returns keyword.EOF when reached end of document
 func (p *Parser) peek() keyword.Keyword {
 	tok := p.tokenizer.Peek()
 	return tok.Keyword
 }
 
-// peekLiteral - returns token next to currentToken and token name as a ast.ByteSliceReference if hasNextToken
-// otherwise returns keyword.EOF
+// peekLiteral - returns keyword.Keyword and literal ast.ByteSliceReference of token next to currentToken
+// returns keyword.EOF when reached end of document
 func (p *Parser) peekLiteral() (keyword.Keyword, ast.ByteSliceReference) {
 	tok := p.tokenizer.Peek()
 	if tok.Keyword != keyword.EOF {
@@ -30,12 +29,12 @@ func (p *Parser) peekLiteral() (keyword.Keyword, ast.ByteSliceReference) {
 	return keyword.EOF, ast.ByteSliceReference{}
 }
 
-// peekEquals - checks that next token is equal to key
+// peekEquals - checks that next token keyword is equal to key
 func (p *Parser) peekEquals(key keyword.Keyword) bool {
 	return p.peek() == key
 }
 
-// peekEqualsIdentKey - checks that next token is an identifier
+// peekEqualsIdentKey - checks that next token is an identifier of the given key
 func (p *Parser) peekEqualsIdentKey(identKey identkeyword.IdentKeyword) bool {
 	key, literal := p.peekLiteral()
 	if key != keyword.IDENT {
