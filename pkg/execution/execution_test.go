@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	log "github.com/jensneuse/abstractlogger"
 	"github.com/sebdah/goldie"
 	"github.com/stretchr/testify/assert"

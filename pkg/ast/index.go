@@ -3,7 +3,7 @@ package ast
 import (
 	"bytes"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 )
