@@ -85,8 +85,6 @@ func (p *Parser) parse() {
 			return
 		case keyword.LBRACE:
 			p.parseOperationDefinition()
-		case keyword.COMMENT:
-			p.read()
 		case keyword.STRING, keyword.BLOCKSTRING:
 			p.parseRootDescription()
 		case keyword.IDENT:
@@ -787,8 +785,6 @@ func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 				refsInitialized = true
 			}
 			list.Refs = append(list.Refs, ref)
-		case keyword.COMMENT:
-			p.read()
 		default:
 			p.errUnexpectedToken(p.read())
 			return
