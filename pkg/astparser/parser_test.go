@@ -1846,6 +1846,49 @@ func TestParser_Parse(t *testing.T) {
 					}
 				})
 		})
+
+		t.Run("operation with comments everywhere", func(t *testing.T) {
+			run(`
+				query #comment
+				findUser#comment
+				(#comment
+					$userId#comment
+				  :#comment
+				  ID#comment
+				  !#comment
+				  #comment
+					)#comment
+					{#comment
+				  user#comment
+					  (#comment
+					  id#comment
+						:#comment
+					$userId#comment
+					  #comment
+				)#comment
+					  #comment
+				{#comment
+					...#comment
+				  UserFields#comment
+					... #comment
+				  on #comment
+				  User#comment
+				  {#comment
+						email#comment
+					}#comment
+				  }#comment
+				}#comment
+				
+				fragment #comment
+				UserFields #comment
+				on #comment
+				User#comment
+				{#comment
+				  id#comment
+				  #username#comment
+					  role#comment
+					}#comment`, parse, false)
+		})
 	})
 	t.Run("variable definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
