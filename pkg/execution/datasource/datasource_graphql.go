@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	"github.com/buger/jsonparser"
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	log "github.com/jensneuse/abstractlogger"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"

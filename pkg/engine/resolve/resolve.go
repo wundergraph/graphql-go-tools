@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 
 	errors "golang.org/x/xerrors"
 
