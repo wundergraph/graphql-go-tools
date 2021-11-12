@@ -2267,8 +2267,8 @@ func BenchmarkParseStarwars(b *testing.B) {
 	b.SetBytes(int64(len(starwarsSchema)))
 
 	for i := 0; i < b.N; i++ {
-		doc.Input.ResetInputBytes(starwarsSchema)
 		doc.Reset()
+		doc.Input.ResetInputBytes(starwarsSchema)
 		report.Reset()
 		parser.Parse(doc, &report)
 		if report.HasErrors() {
@@ -2294,8 +2294,8 @@ func BenchmarkParseGithub(b *testing.B) {
 	b.SetBytes(int64(len(schemaFile)))
 
 	for i := 0; i < b.N; i++ {
-		doc.Input.ResetInputBytes(schemaFile)
 		doc.Reset()
+		doc.Input.ResetInputBytes(schemaFile)
 		parser.Parse(doc, &report)
 		if report.HasErrors() {
 			b.Fatal(report.Error())
@@ -2314,8 +2314,8 @@ func BenchmarkSelectionSet(b *testing.B) {
 	b.SetBytes(int64(len(selectionSet)))
 
 	for i := 0; i < b.N; i++ {
-		doc.Input.ResetInputBytes(selectionSet)
 		doc.Reset()
+		doc.Input.ResetInputBytes(selectionSet)
 		report.Reset()
 		parser.Parse(doc, &report)
 		if report.HasErrors() {
@@ -2335,8 +2335,8 @@ func BenchmarkIntrospectionQuery(b *testing.B) {
 	b.SetBytes(int64(len(introspectionQuery)))
 
 	for i := 0; i < b.N; i++ {
-		doc.Input.ResetInputBytes(introspectionQuery)
 		doc.Reset()
+		doc.Input.ResetInputBytes(introspectionQuery)
 		parser.Parse(doc, &report)
 		if report.HasErrors() {
 			b.Fatal(report.Error())
@@ -2355,8 +2355,8 @@ func BenchmarkKitchenSink(b *testing.B) {
 	b.SetBytes(int64(len(kitchenSinkData)))
 
 	for i := 0; i < b.N; i++ {
-		doc.Input.ResetInputBytes(kitchenSinkData)
 		doc.Reset()
+		doc.Input.ResetInputBytes(kitchenSinkData)
 		report.Reset()
 		parser.Parse(doc, &report)
 	}
@@ -2373,8 +2373,8 @@ func BenchmarkParse(b *testing.B) {
 	b.SetBytes(int64(len(inputBytes)))
 
 	for i := 0; i < b.N; i++ {
-		doc.Input.ResetInputBytes(inputBytes)
 		doc.Reset()
+		doc.Input.ResetInputBytes(inputBytes)
 		parser.Parse(doc, &report)
 		if report.HasErrors() {
 			b.Fatal(report.Error())
