@@ -28,7 +28,6 @@ func TestParser_Parse(t *testing.T) {
 		return func(parser *Parser) (interface{}, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
-			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			ref := parser.ParseType()
 			return ref, report
@@ -39,7 +38,6 @@ func TestParser_Parse(t *testing.T) {
 		return func(parser *Parser) (interface{}, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
-			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			value := parser.ParseValue()
 			return value, report
@@ -50,7 +48,6 @@ func TestParser_Parse(t *testing.T) {
 		return func(parser *Parser) (interface{}, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
-			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			set, _ := parser.parseSelectionSet()
 			return set, report
@@ -61,7 +58,6 @@ func TestParser_Parse(t *testing.T) {
 		return func(parser *Parser) (interface{}, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
-			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			fragmentSpread := parser.parseFragmentSpread(position.Position{})
 			return parser.document.FragmentSpreads[fragmentSpread], report
@@ -72,7 +68,6 @@ func TestParser_Parse(t *testing.T) {
 		return func(parser *Parser) (interface{}, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
-			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			inlineFragment := parser.parseInlineFragment(position.Position{})
 			return parser.document.InlineFragments[inlineFragment], report
@@ -83,7 +78,6 @@ func TestParser_Parse(t *testing.T) {
 		return func(parser *Parser) (interface{}, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
-			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			variableDefinitionList := parser.parseVariableDefinitionList()
 			return variableDefinitionList, report
@@ -136,8 +130,6 @@ func TestParser_Parse(t *testing.T) {
 
 		parser := NewParser()
 		parser.document = doc
-		parser.lexer.SetInput(&doc.Input)
-
 		parser.tokenize()
 
 		for i, want := range []keyword.Keyword{

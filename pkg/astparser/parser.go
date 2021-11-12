@@ -8,7 +8,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerrors"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/identkeyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
@@ -43,10 +42,7 @@ func ParseGraphqlDocumentBytes(input []byte) (ast.Document, operationreport.Repo
 type Parser struct {
 	document             *ast.Document
 	report               *operationreport.Report
-	lexer                *lexer.Lexer
-	tokens               []token.Token
-	maxTokens            int
-	currentToken         int
+	tokenizer            *Tokenizer
 	shouldIndex          bool
 	reportInternalErrors bool
 }
@@ -54,8 +50,7 @@ type Parser struct {
 // NewParser returns a new parser with all values properly initialized
 func NewParser() *Parser {
 	return &Parser{
-		tokens:               make([]token.Token, 256),
-		lexer:                &lexer.Lexer{},
+		tokenizer:            NewTokenizer(),
 		shouldIndex:          true,
 		reportInternalErrors: false,
 	}
@@ -65,7 +60,6 @@ func NewParser() *Parser {
 func (p *Parser) PrepareImport(document *ast.Document, report *operationreport.Report) {
 	p.document = document
 	p.report = report
-	p.lexer.SetInput(&document.Input)
 	p.tokenize()
 }
 
@@ -73,24 +67,12 @@ func (p *Parser) PrepareImport(document *ast.Document, report *operationreport.R
 func (p *Parser) Parse(document *ast.Document, report *operationreport.Report) {
 	p.document = document
 	p.report = report
-	p.lexer.SetInput(&document.Input)
 	p.tokenize()
 	p.parse()
 }
 
 func (p *Parser) tokenize() {
-
-	p.tokens = p.tokens[:0]
-
-	for {
-		next := p.lexer.Read()
-		if next.Keyword == keyword.EOF {
-			p.maxTokens = len(p.tokens)
-			p.currentToken = -1
-			return
-		}
-		p.tokens = append(p.tokens, next)
-	}
+	p.tokenizer.Tokenize(&p.document.Input)
 }
 
 func (p *Parser) parse() {
