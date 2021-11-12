@@ -25,25 +25,6 @@ func (p *Parser) read() token.Token {
 	}
 }
 
-func (p *Parser) readExpectLiteral(expect ...identkeyword.IdentKeyword) (token.Token, identkeyword.IdentKeyword) {
-	p.currentToken++
-	if p.currentToken < p.maxTokens {
-		out := p.tokens[p.currentToken]
-		identKey := p.identKeywordToken(out)
-		for _, expectation := range expect {
-			if identKey == expectation {
-				return out, identKey
-			}
-		}
-		p.errUnexpectedToken(out)
-		return out, identKey
-	}
-
-	return token.Token{
-		Keyword: keyword.EOF,
-	}, identkeyword.UNDEFINED
-}
-
 func (p *Parser) peek() keyword.Keyword {
 	nextIndex := p.currentToken + 1
 	if nextIndex < p.maxTokens {
@@ -116,4 +97,17 @@ func (p *Parser) mustReadExceptIdentKey(key identkeyword.IdentKeyword) (next tok
 		p.errUnexpectedIdentKey(next, identKey, key)
 	}
 	return
+}
+
+func (p *Parser) mustReadOneOf(keys ...identkeyword.IdentKeyword) (token.Token, identkeyword.IdentKeyword) {
+	next := p.read()
+
+	identKey := p.identKeywordToken(next)
+	for _, expectation := range keys {
+		if identKey == expectation {
+			return next, identKey
+		}
+	}
+	p.errUnexpectedToken(next)
+	return next, identKey
 }

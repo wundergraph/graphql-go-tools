@@ -290,7 +290,7 @@ func (p *Parser) parseRootOperationTypeDefinitionList(list *ast.RootOperationTyp
 			return
 		case keyword.IDENT:
 
-			_, operationType := p.readExpectLiteral(identkeyword.QUERY, identkeyword.MUTATION, identkeyword.SUBSCRIPTION)
+			_, operationType := p.mustReadOneOf(identkeyword.QUERY, identkeyword.MUTATION, identkeyword.SUBSCRIPTION)
 			colon := p.mustRead(keyword.COLON)
 			namedType := p.mustRead(keyword.IDENT)
 
