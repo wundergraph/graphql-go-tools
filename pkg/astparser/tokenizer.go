@@ -25,40 +25,49 @@ func NewTokenizer() *Tokenizer {
 	}
 }
 
-func (p *Tokenizer) Tokenize(input *ast.Input) {
-	p.lexer.SetInput(input)
-	p.tokens = p.tokens[:0]
+func (t *Tokenizer) Tokenize(input *ast.Input) {
+	t.lexer.SetInput(input)
+	t.tokens = t.tokens[:0]
 
 	for {
-		next := p.lexer.Read()
+		next := t.lexer.Read()
 		if next.Keyword == keyword.EOF {
-			p.maxTokens = len(p.tokens)
-			p.currentToken = -1
+			t.maxTokens = len(t.tokens)
+			t.currentToken = -1
 			return
 		}
-		p.tokens = append(p.tokens, next)
+		t.tokens = append(t.tokens, next)
 	}
 }
 
 // hasNextToken - checks that we haven't reached eof
-func (p *Tokenizer) hasNextToken() bool {
-	return p.currentToken+1 < p.maxTokens
+func (t *Tokenizer) hasNextToken(skip int) bool {
+	return t.currentToken+1+skip < t.maxTokens
 }
 
 // next - increments current token index if hasNextToken
 // otherwise returns current token
-func (p *Tokenizer) next() int {
-	if p.hasNextToken() {
-		p.currentToken++
+func (t *Tokenizer) next() int {
+	if t.hasNextToken(0) {
+		t.currentToken++
 	}
-	return p.currentToken
+	return t.currentToken
 }
 
 // Read - increments currentToken index and return token if hasNextToken
 // otherwise returns keyword.EOF
-func (p *Tokenizer) Read() token.Token {
-	if p.hasNextToken() {
-		return p.tokens[p.next()]
+func (t *Tokenizer) Read() token.Token {
+	tok := t.read()
+	if t.skipComments && tok.Keyword == keyword.COMMENT {
+		tok = t.read()
+	}
+
+	return tok
+}
+
+func (t *Tokenizer) read() token.Token {
+	if t.hasNextToken(0) {
+		return t.tokens[t.next()]
 	}
 
 	return token.Token{
@@ -68,20 +77,21 @@ func (p *Tokenizer) Read() token.Token {
 
 // Peek - returns token next to currentToken if hasNextToken
 // otherwise returns keyword.EOF
-func (p *Tokenizer) Peek() keyword.Keyword {
-	if p.hasNextToken() {
-		nextIndex := p.currentToken + 1
-		return p.tokens[nextIndex].Keyword
+func (t *Tokenizer) Peek() token.Token {
+	tok := t.peek(0)
+	if t.skipComments && tok.Keyword == keyword.COMMENT {
+		tok = t.peek(1)
 	}
-	return keyword.EOF
+
+	return tok
 }
 
-// PeekLiteral - returns token next to currentToken and token name as a ast.ByteSliceReference if hasNextToken
-// otherwise returns keyword.EOF
-func (p *Tokenizer) PeekLiteral() (keyword.Keyword, ast.ByteSliceReference) {
-	if p.hasNextToken() {
-		nextIndex := p.currentToken + 1
-		return p.tokens[nextIndex].Keyword, p.tokens[nextIndex].Literal
+func (t *Tokenizer) peek(skip int) token.Token {
+	if t.hasNextToken(skip) {
+		nextIndex := t.currentToken + 1 + skip
+		return t.tokens[nextIndex]
 	}
-	return keyword.EOF, ast.ByteSliceReference{}
+	return token.Token{
+		Keyword: keyword.EOF,
+	}
 }

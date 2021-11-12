@@ -16,13 +16,18 @@ func (p *Parser) read() token.Token {
 // peek - returns token next to currentToken if hasNextToken
 // otherwise returns keyword.EOF
 func (p *Parser) peek() keyword.Keyword {
-	return p.tokenizer.Peek()
+	tok := p.tokenizer.Peek()
+	return tok.Keyword
 }
 
 // peekLiteral - returns token next to currentToken and token name as a ast.ByteSliceReference if hasNextToken
 // otherwise returns keyword.EOF
 func (p *Parser) peekLiteral() (keyword.Keyword, ast.ByteSliceReference) {
-	return p.tokenizer.PeekLiteral()
+	tok := p.tokenizer.Peek()
+	if tok.Keyword != keyword.EOF {
+		return tok.Keyword, tok.Literal
+	}
+	return keyword.EOF, ast.ByteSliceReference{}
 }
 
 // peekEquals - checks that next token is equal to key
