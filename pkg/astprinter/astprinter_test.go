@@ -272,117 +272,209 @@ vary: [String]! = []) on QUERY`)
 			`mutation AddToWatchlist($a: Int!, $b: String!){addToWatchlist(movieID: $a, name: $b){id name year}} mutation AddWithInput($a: WatchlistInput!){addToWatchlistWithInput(input: $a){id name year}}`)
 	})
 
-	t.Run("ommit comments", func(t *testing.T) {
+	t.Run("ignore comments", func(t *testing.T) {
 		t.Run("operation", func(t *testing.T) {
 			run(`
-				fragment friendFields on User {#comment
-  					id#comment
-					#commented
-  					name #comment
-				}#comment
-				mutation AddToWatchlist($a: Int!,# comment
-$b: String!#comment
-){ # comment
-					addToWatchlist( #comment
-movieID: $a, #comment
-name: $b){ # comment
-						id # comment
-						# name # commented field
-						year # comment
-					    ...friendFields# comment
-						... on User {# comment
-						  friends {# comment
-							count# comment
-						  }# comment
-						}# comment
-					} # comment
-				}# comment
+query #comment
+findUser#comment
+(#comment
+    $userId#comment
+  :#comment
+  ID#comment
+  !#comment
+  #comment
+    )#comment
+    {#comment
+  user#comment
+      (#comment
+      id#comment
+        :#comment
+    $userId#comment
+      #comment
+)#comment
+      #comment
+{#comment
+    ...#comment
+  UserFields#comment
+    ... #comment
+  on #comment
+  User#comment
+  {#comment
+        email#comment
+    }#comment
+  }#comment
+}#comment
+
+fragment #comment
+UserFields #comment
+on #comment
+User#comment
+{#comment
+  id#comment
+  #username#comment
+  role#comment
+}#comment
 `,
-				`fragment friendFields on User {id name} mutation AddToWatchlist($a: Int!, $b: String!){addToWatchlist(movieID: $a, name: $b){id year ...friendFields... on User {friends {count}}}}`)
+				`fragment friendFields on User {id name} mutation AddToWatchlist($a: Int!, $b: String!){addToWatchlist(movieID: $a, name: $b){id year ...friendFields ... on User {friends {count}}}}`)
 		})
 
 		t.Run("definition", func(t *testing.T) {
 			run(`
-# comment
-union SearchResult = Human | Droid | Starship # comment
-union SearchRes = Human | Droid# comment
-# comment
-schema { # comment
-    query: Query# comment
-    mutation: Mutation# comment
-    subscription: Subscription
-	#comment
-}#comment
-# comment
-type Query {#comment
-    hero: Character#comment
-    droid(id: ID!): Droid # comment
-    search(name: String!): SearchResult#comment
-}
 #comment
-#comment
-#comment
-type Mutation {#comment
-#comment
-#comment
-    createReview(#comment
-episode: Episode!,#comment
-review: ReviewInput! #comment
-): Review # comment
-#comment
-}
+scalar #comment
+Date #comment
 
-#comment
-type Subscription {
-#comment
-    remainingJedis: Int!
-}
-
-#comment
-input ReviewInput { # comment
-#comment
-    stars: Int!#comment
-#comment
-    #commentary: String
-}
-
-type Review { # comment
-    id: ID!
-    stars: Int!
-    commentary: String
-}
-
-# comment
-enum Episode { # comment
-    NEWHOPE#comment
-    #EMPIRE #comment
-    JEDI # comment
-}
-
-# comment
-interface Character { # comment
-    name: String! # comment
-    friends: [Character] # comment
-}
-
-# comment
-type Human implements Character { # comment
-    name: String!
-    height: String!
-    friends: [Character] # comment
-}
-
-# comment
-type Droid implements Character {#comment
-    name: String!
-    primaryFunction: String!
-    friends: [Character]
+schema #comment
+{ #comment
+  query#comment
+  :#comment
+  #comment
+  Query#comment
+  #comment
 }#comment
 
-type Starship { # comment
-    name: String!
-    length: Float!
-}`,
+#comment
+type#comment
+Query#comment
+{#comment
+  me#comment
+  :#comment
+  User#comment
+  !#comment
+  user(#comment
+    id#comment
+    :#comment
+    ID#comment
+    !#comment
+  )#comment
+  :#comment
+  User#comment
+  allUsers#comment
+  :#comment
+  [#comment
+    #comment
+    User#comment
+  ]#comment
+  search#comment
+  (#comment
+    term#comment
+    :#comment
+    String#comment
+    !#comment
+  )#comment
+  :#comment
+  [#comment
+    SearchResult#comment
+    !#comment
+  ]#comment
+  !#comment
+  myChats:#comment
+  [#comment
+    Chat#comment
+    !#comment
+  ]!#comment
+}
+
+enum#comment
+Role#comment
+{#comment
+  #comment
+  USER#comment
+  ,#comment
+  ADMIN#comment
+  ,#comment
+  #comment
+}#comment
+
+interface#comment
+Node {#comment
+  id#comment
+  :#comment
+  ID#comment
+  !#comment
+}#comment
+
+union #comment
+SearchResult#comment
+=#comment
+User#comment
+|#comment
+Chat#comment
+|#comment
+ChatMessage#comment
+
+type#comment
+User#comment
+implements#comment
+Node#comment
+{#comment
+  id#comment
+  :#comment
+  ID#comment
+  !#comment
+  username#comment
+  :#comment
+  String#comment
+  !#comment
+  email#comment
+  :#comment
+  String#comment
+  !#comment
+  role#comment
+  :#comment
+  Role#comment
+  !#comment
+}#comment
+
+type#comment
+Chat#comment
+implements#comment
+Node#comment
+{#comment
+  id#comment
+  :#comment
+  ID#comment
+  !#comment
+  users#comment
+  :#comment
+  [#comment
+    User#comment
+    !#comment
+  ]!#comment
+  messages#comment
+  :#comment
+  [#comment
+    ChatMessage#comment
+    !#comment
+  ]#comment
+  !#comment
+  #comment
+}#comment
+
+type#comment
+ChatMessage#comment
+implements#comment
+Node#comment
+{#comment
+  id#comment
+  :#comment
+  ID#comment
+  !#comment
+  content#comment
+  :#comment
+  String#comment
+  !#comment
+  time#comment
+  :#comment
+  Date#comment
+  !#comment
+  user#comment
+  :#comment
+  User#comment
+  !#comment
+  #comment
+}#comment
+`,
 				`union SearchResult = Human | Droid | Starship union SearchRes = Human | Droid schema {query: Query mutation: Mutation subscription: Subscription} type Query {hero: Character droid(id: ID!): Droid search(name: String!): SearchResult} type Mutation {createReview(episode: Episode!, review: ReviewInput!): Review} type Subscription {remainingJedis: Int!} input ReviewInput {stars: Int!} type Review {id: ID! stars: Int! commentary: String} enum Episode {NEWHOPE JEDI} interface Character {name: String! friends: [Character]} type Human implements Character {name: String! height: String! friends: [Character]} type Droid implements Character {name: String! primaryFunction: String! friends: [Character]} type Starship {name: String! length: Float!}`)
 		})
 	})
