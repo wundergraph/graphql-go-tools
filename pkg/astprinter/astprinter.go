@@ -310,7 +310,14 @@ func (p *printVisitor) EnterFragmentSpread(ref int) {
 }
 
 func (p *printVisitor) LeaveFragmentSpread(ref int) {
-
+	ancestor := p.Ancestors[len(p.Ancestors)-1]
+	if p.document.SelectionsAfterFragmentSpread(ref, ancestor) {
+		if p.indent != nil {
+			p.write(literal.LINETERMINATOR)
+		} else {
+			p.write(literal.SPACE)
+		}
+	}
 }
 
 func (p *printVisitor) EnterInlineFragment(ref int) {

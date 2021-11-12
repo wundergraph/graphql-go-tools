@@ -58,7 +58,7 @@ func (d *Document) SelectionsBeforeField(field int, selectionSet Node) bool {
 	return false
 }
 
-func (d *Document) SelectionsAfterField(field int, selectionSet Node) bool {
+func (d *Document) SelectionsAfter(selectionKind SelectionKind, selectionRef int, selectionSet Node) bool {
 	if selectionSet.Kind != NodeKindSelectionSet {
 		return false
 	}
@@ -68,7 +68,7 @@ func (d *Document) SelectionsAfterField(field int, selectionSet Node) bool {
 	}
 
 	for i, j := range d.SelectionSets[selectionSet.Ref].SelectionRefs {
-		if d.Selections[j].Kind == SelectionKindField && d.Selections[j].Ref == field {
+		if d.Selections[j].Kind == selectionKind && d.Selections[j].Ref == selectionRef {
 			return i != len(d.SelectionSets[selectionSet.Ref].SelectionRefs)-1
 		}
 	}
@@ -76,22 +76,16 @@ func (d *Document) SelectionsAfterField(field int, selectionSet Node) bool {
 	return false
 }
 
+func (d *Document) SelectionsAfterField(field int, selectionSet Node) bool {
+	return d.SelectionsAfter(SelectionKindField, field, selectionSet)
+}
+
 func (d *Document) SelectionsAfterInlineFragment(inlineFragment int, selectionSet Node) bool {
-	if selectionSet.Kind != NodeKindSelectionSet {
-		return false
-	}
+	return d.SelectionsAfter(SelectionKindInlineFragment, inlineFragment, selectionSet)
+}
 
-	if len(d.SelectionSets[selectionSet.Ref].SelectionRefs) == 1 {
-		return false
-	}
-
-	for i, j := range d.SelectionSets[selectionSet.Ref].SelectionRefs {
-		if d.Selections[j].Kind == SelectionKindInlineFragment && d.Selections[j].Ref == inlineFragment {
-			return i != len(d.SelectionSets[selectionSet.Ref].SelectionRefs)-1
-		}
-	}
-
-	return false
+func (d *Document) SelectionsAfterFragmentSpread(fragmentSpread int, selectionSet Node) bool {
+	return d.SelectionsAfter(SelectionKindFragmentSpread, fragmentSpread, selectionSet)
 }
 
 func (d *Document) AddSelectionSet() Node {
