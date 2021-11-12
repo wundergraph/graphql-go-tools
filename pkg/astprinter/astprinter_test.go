@@ -8,6 +8,7 @@ import (
 	"github.com/jensneuse/diffview"
 	"github.com/sebdah/goldie"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -15,38 +16,38 @@ import (
 
 func TestPrint(t *testing.T) {
 
-	must := func(err error) {
+	must := func(t *testing.T, err error) {
+		t.Helper()
 		if report, ok := err.(operationreport.Report); ok {
 			if report.HasErrors() {
-				panic(report.Error())
+				t.Fatalf("report has errors %s", report.Error())
 			}
-			return
 		}
-		if err != nil {
-			panic(err)
-		}
+		require.NoError(t, err)
 	}
 
-	run := func(raw string, expected string) {
+	run := func(t *testing.T, raw string, expected string) {
+		t.Helper()
 
 		definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
 		doc := unsafeparser.ParseGraphqlDocumentString(raw)
 
 		buff := &bytes.Buffer{}
+		// printer := Printer{indent: []byte("  ")}
 		printer := Printer{}
 
-		must(printer.Print(&doc, &definition, buff))
+		must(t, printer.Print(&doc, &definition, buff))
 
 		actual := buff.String()
 		assert.Equal(t, expected, actual)
 	}
 
 	t.Run("simple", func(t *testing.T) {
-		run("query o($id: String!){user(id: $id){id name birthday}}",
+		run(t, "query o($id: String!){user(id: $id){id name birthday}}",
 			"query o($id: String!){user(id: $id){id name birthday}}")
 	})
 	t.Run("complex", func(t *testing.T) {
-		run(`	
+		run(t, `	
 				subscription sub {
 					...multipleSubscriptions
 				}
@@ -68,7 +69,7 @@ func TestPrint(t *testing.T) {
 			"subscription sub {...multipleSubscriptions} fragment multipleSubscriptions on Subscription {...{newMessage {body}} ... on Subscription {typedInlineFragment} newMessage {body sender} disallowedSecondRootField}")
 	})
 	t.Run("multiline comments indentation", func(t *testing.T) {
-		run(`"""
+		run(t, `"""
 the following lines test indentation
 	one tab
   two spaces
@@ -100,7 +101,7 @@ example from issue:
 type Query `)
 	})
 	t.Run("directive definition", func(t *testing.T) {
-		run(`
+		run(t, `
 """
 directive @cache
 """
@@ -126,14 +127,14 @@ Examples: 'jwt.sub', 'jwt.team' to vary the cache key based on 'sub' or 'team' f
 vary: [String]! = []) on QUERY`)
 	})
 	t.Run("anonymous query", func(t *testing.T) {
-		run(`	{
+		run(t, `	{
 						dog {
 							...aliasedLyingFieldTargetNotDefined
 						}
 					}`, "{dog {...aliasedLyingFieldTargetNotDefined}}")
 	})
 	t.Run("arguments", func(t *testing.T) {
-		run(`
+		run(t, `
 				query argOnRequiredArg($catCommand: CatCommand @include(if: true), $complex: Boolean = true) {
 					dog {
 						doesKnowCommand(dogCommand: $catCommand)
@@ -141,12 +142,12 @@ vary: [String]! = []) on QUERY`)
 				}`, `query argOnRequiredArg($catCommand: CatCommand @include(if: true), $complex: Boolean = true){dog {doesKnowCommand(dogCommand: $catCommand)}}`)
 	})
 	t.Run("spacing", func(t *testing.T) {
-		run(`query($representations: [_Any!]!){_entities (representations: $representations){... on User {reviews {body product {upc __typename}}}}}`,
+		run(t, `query($representations: [_Any!]!){_entities (representations: $representations){... on User {reviews {body product {upc __typename}}}}}`,
 			`query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}`)
 	})
 	t.Run("directives", func(t *testing.T) {
 		t.Run("on field", func(t *testing.T) {
-			run(`
+			run(t, `
 			query directivesQuery @foo(bar: BAZ) {
 				dog @include(if: true, or: false) {
 					doesKnowCommand(dogCommand: $catCommand)
@@ -154,7 +155,7 @@ vary: [String]! = []) on QUERY`)
 			}`, `query directivesQuery @foo(bar: BAZ) {dog @include(if: true, or: false) {doesKnowCommand(dogCommand: $catCommand)}}`)
 		})
 		t.Run("on inline fragment", func(t *testing.T) {
-			run(`
+			run(t, `
 				{
 					dog {
 						name: nickname
@@ -170,10 +171,10 @@ vary: [String]! = []) on QUERY`)
 		})
 	})
 	t.Run("complex operation", func(t *testing.T) {
-		run(benchmarkTestOperation, benchmarkTestOperationFlat)
+		run(t, benchmarkTestOperation, benchmarkTestOperationFlat)
 	})
 	t.Run("schema definition", func(t *testing.T) {
-		run(`
+		run(t, `
 				schema {
 					query: Query
 					mutation: Mutation
@@ -181,7 +182,7 @@ vary: [String]! = []) on QUERY`)
 				}`, `schema {query: Query mutation: Mutation subscription: Subscription}`)
 	})
 	t.Run("schema extension", func(t *testing.T) {
-		run(`
+		run(t, `
 				extend schema @foo {
 					query: Query
 					mutation: Mutation
@@ -189,71 +190,71 @@ vary: [String]! = []) on QUERY`)
 				}`, `extend schema @foo {query: Query mutation: Mutation subscription: Subscription}`)
 	})
 	t.Run("object type definition", func(t *testing.T) {
-		run(`
+		run(t, `
 				type Foo {
 					field: String
 				}`, `type Foo {field: String}`)
 	})
 	t.Run("object type extension", func(t *testing.T) {
-		run(`
+		run(t, `
 				extend type Foo @foo {
 					field: String
 				}`, `extend type Foo @foo {field: String}`)
 	})
 	t.Run("input object type definition", func(t *testing.T) {
-		run(`
+		run(t, `
 				input Foo {
 					field: String
 					field2: Boolean = true
 				}`, `input Foo {field: String field2: Boolean = true}`)
 	})
 	t.Run("input object type extension", func(t *testing.T) {
-		run(`
+		run(t, `
 				extend input Foo @foo {
 					field: String
 				}`, `extend input Foo @foo {field: String}`)
 	})
 	t.Run("interface type definition", func(t *testing.T) {
-		run(`
+		run(t, `
 				interface Foo {
 					field: String
 					field2: Boolean
 				}`, `interface Foo {field: String field2: Boolean}`)
 	})
 	t.Run("interface type extension", func(t *testing.T) {
-		run(`
+		run(t, `
 				extend interface Foo @foo {
 					field: String
 				}`, `extend interface Foo @foo {field: String}`)
 	})
 	t.Run("scalar type definition", func(t *testing.T) {
-		run(`scalar JSON`, `scalar JSON`)
+		run(t, `scalar JSON`, `scalar JSON`)
 	})
 	t.Run("scalar type extension", func(t *testing.T) {
-		run(`extend scalar JSON @foo`, `extend scalar JSON @foo`)
+		run(t, `extend scalar JSON @foo`, `extend scalar JSON @foo`)
 	})
 	t.Run("union type definition", func(t *testing.T) {
-		run(`union Foo = BAR | BAZ`, `union Foo = BAR | BAZ`)
+		run(t, `union Foo = BAR | BAZ`, `union Foo = BAR | BAZ`)
 	})
 	t.Run("union type extension", func(t *testing.T) {
-		run(`extend union Foo @foo = BAR | BAZ`, `extend union Foo @foo = BAR | BAZ`)
+		run(t, `extend union Foo @foo = BAR | BAZ`, `extend union Foo @foo = BAR | BAZ`)
 	})
 	t.Run("enum type definition", func(t *testing.T) {
-		run(`
+		run(t, `
 				enum Foo {
 					BAR
 					BAZ
 				}`, `enum Foo {BAR BAZ}`)
 	})
 	t.Run("enum type extension", func(t *testing.T) {
-		run(`
+		run(t, `
 				extend enum Foo @foo {
 					BAR
 					BAZ
 				}`, `extend enum Foo @foo {BAR BAZ}`)
 	})
 	t.Run("multiple operations with variables", func(t *testing.T) {
-		run(`
+		run(t, `
 				mutation AddToWatchlist($a: Int!, $b: String!){
 					addToWatchlist(movieID: $a, name: $b){
 						id
@@ -274,7 +275,7 @@ vary: [String]! = []) on QUERY`)
 
 	t.Run("ignore comments", func(t *testing.T) {
 		t.Run("operation", func(t *testing.T) {
-			run(`
+			run(t, `
 query #comment
 findUser#comment
 (#comment
@@ -315,11 +316,11 @@ User#comment
   role#comment
 }#comment
 `,
-				`fragment friendFields on User {id name} mutation AddToWatchlist($a: Int!, $b: String!){addToWatchlist(movieID: $a, name: $b){id year ...friendFields ... on User {friends {count}}}}`)
+				`query findUser($userId: ID!){user(id: $userId){...UserFields ... on User {email}}} fragment UserFields on User{id role}`)
 		})
 
 		t.Run("definition", func(t *testing.T) {
-			run(`
+			run(t, `
 #comment
 scalar #comment
 Date #comment
@@ -475,7 +476,7 @@ Node#comment
   #comment
 }#comment
 `,
-				`union SearchResult = Human | Droid | Starship union SearchRes = Human | Droid schema {query: Query mutation: Mutation subscription: Subscription} type Query {hero: Character droid(id: ID!): Droid search(name: String!): SearchResult} type Mutation {createReview(episode: Episode!, review: ReviewInput!): Review} type Subscription {remainingJedis: Int!} input ReviewInput {stars: Int!} type Review {id: ID! stars: Int! commentary: String} enum Episode {NEWHOPE JEDI} interface Character {name: String! friends: [Character]} type Human implements Character {name: String! height: String! friends: [Character]} type Droid implements Character {name: String! primaryFunction: String! friends: [Character]} type Starship {name: String! length: Float!}`)
+				`scalar Date schema {query: Query} type Query {me: User! user(id: ID!): User allUsers: [User] search(term: String!): [SearchResult!]! myChats: [Chat!]!} enum Role {USER ADMIN} interface Node {id: ID!} union SearchResult = User | Chat | ChatMessage type User implements Node {id: ID! username: String! email: String! role: Role!} type Chat implements Node {id: ID! users: [User!]! messages: [ChatMessage!]!} type ChatMessage implements Node {id: ID! content: String! time: Date! user: User!}`)
 		})
 	})
 }
