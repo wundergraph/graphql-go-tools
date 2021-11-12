@@ -470,8 +470,7 @@ func (p *Parser) parseRootOperationTypeDefinitionList(list *ast.RootOperationTyp
 			if p.shouldIndex {
 				p.indexRootOperationTypeDefinition(rootOperationTypeDefinition)
 			}
-		case keyword.COMMENT:
-			p.read()
+
 		default:
 			p.errUnexpectedToken(p.read())
 			return
@@ -555,8 +554,6 @@ Loop:
 		next := p.peek()
 		switch next {
 		case keyword.IDENT:
-		case keyword.COMMENT:
-			p.read()
 		default:
 			break Loop
 		}
@@ -1105,8 +1102,6 @@ func (p *Parser) parseInputValueDefinitionList(closingKeyword keyword.Keyword) (
 				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
 			list.Refs = append(list.Refs, ref)
-		case keyword.COMMENT:
-			p.read()
 		default:
 			p.errUnexpectedToken(p.read())
 			return
@@ -1356,8 +1351,6 @@ func (p *Parser) parseEnumValueDefinitionList() (list ast.EnumValueDefinitionLis
 		case keyword.RBRACE:
 			list.RBRACE = p.read().TextPosition
 			return
-		case keyword.COMMENT:
-			p.read()
 		default:
 			p.errUnexpectedToken(p.read())
 			return
@@ -1501,8 +1494,6 @@ func (p *Parser) parseSelectionSet() (int, bool) {
 			}
 			ref := p.parseSelection()
 			set.SelectionRefs = append(set.SelectionRefs, ref)
-		case keyword.COMMENT:
-			p.read()
 		default:
 			p.errUnexpectedToken(p.read(), keyword.RBRACE, keyword.IDENT, keyword.SPREAD)
 		}
@@ -1711,8 +1702,6 @@ func (p *Parser) parseVariableDefinitionList() (list ast.VariableDefinitionList)
 				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
 			list.Refs = append(list.Refs, ref)
-		case keyword.COMMENT:
-			p.read()
 		default:
 			p.errUnexpectedToken(p.read(), keyword.RPAREN, keyword.DOLLAR)
 			return
