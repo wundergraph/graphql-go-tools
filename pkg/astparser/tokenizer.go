@@ -7,7 +7,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/token"
 )
 
-// Tokenizer takes a raw input and turns it into an AST
+// Tokenizer takes a raw input and turns it into set of tokens
 type Tokenizer struct {
 	lexer        *lexer.Lexer
 	tokens       []token.Token
