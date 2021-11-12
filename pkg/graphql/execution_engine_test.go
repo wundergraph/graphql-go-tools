@@ -321,6 +321,7 @@ func heroWithArgumentSchema(t *testing.T) *Schema {
 	schemaString := `
 		type Query {
 			hero(name: String): String
+			heroes(names: [String!]!): [String!]
 		}`
 
 	schema, err := NewSchemaFromString(schemaString)

@@ -14,7 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/buger/jsonparser"
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	byte_template "github.com/jensneuse/byte-template"
 	"github.com/tidwall/gjson"
 

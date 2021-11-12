@@ -370,41 +370,12 @@ func (p *Planner) addRepresentationsVariable() {
 		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("GraphQL Planner: failed parsing Federation SDL"))
 		return
 	}
-	directive := -1
-	for i := range doc.ObjectTypeExtensions {
-		if p.lastFieldEnclosingTypeName == doc.ObjectTypeExtensionNameString(i) {
-			for _, j := range doc.ObjectTypeExtensions[i].Directives.Refs {
-				if doc.DirectiveNameString(j) == "key" {
-					directive = j
-					break
-				}
-			}
-			break
-		}
-	}
-	for i := range doc.ObjectTypeDefinitions {
-		if p.lastFieldEnclosingTypeName == doc.ObjectTypeDefinitionNameString(i) {
-			for _, j := range doc.ObjectTypeDefinitions[i].Directives.Refs {
-				if doc.DirectiveNameString(j) == "key" {
-					directive = j
-					break
-				}
-			}
-			break
-		}
-	}
-	if directive == -1 {
+
+	fields := p.selectFederationKeyFields(doc)
+	if len(fields) == 0 {
 		return
 	}
-	value, exists := doc.DirectiveArgumentValueByName(directive, []byte("fields"))
-	if !exists {
-		return
-	}
-	if value.Kind != ast.ValueKindString {
-		return
-	}
-	fieldsStr := doc.StringValueContentString(value.Ref)
-	fields := strings.Split(fieldsStr, " ")
+
 	representationsJson, _ := sjson.SetRawBytes(nil, "__typename", []byte("\""+p.lastFieldEnclosingTypeName+"\""))
 	for i := range fields {
 		objectVariable := &resolve.ObjectVariable{
@@ -427,6 +398,51 @@ func (p *Planner) addRepresentationsVariable() {
 	p.extractEntities = true
 }
 
+func (p *Planner) selectFederationKeyFields(doc *ast.Document) []string {
+	var directiveRefs []int
+
+	for i := range doc.ObjectTypeExtensions {
+		if p.lastFieldEnclosingTypeName == doc.ObjectTypeExtensionNameString(i) {
+			for _, j := range doc.ObjectTypeExtensions[i].Directives.Refs {
+				if doc.DirectiveNameString(j) == "key" {
+					directiveRefs = append(directiveRefs, j)
+				}
+			}
+			break
+		}
+	}
+	for i := range doc.ObjectTypeDefinitions {
+		if p.lastFieldEnclosingTypeName == doc.ObjectTypeDefinitionNameString(i) {
+			for _, j := range doc.ObjectTypeDefinitions[i].Directives.Refs {
+				if doc.DirectiveNameString(j) == "key" {
+					directiveRefs = append(directiveRefs, j)
+				}
+			}
+			break
+		}
+	}
+
+	if len(directiveRefs) == 0 {
+		return nil
+	}
+
+	var fields []string
+
+	for _, directiveRef := range directiveRefs {
+		value, exists := doc.DirectiveArgumentValueByName(directiveRef, []byte("fields"))
+		if !exists {
+			continue
+		}
+		if value.Kind != ast.ValueKindString {
+			continue
+		}
+
+		fieldsStr := doc.StringValueContentString(value.Ref)
+		fields = append(fields, strings.Split(fieldsStr, " ")...)
+	}
+
+	return fields
+}
 func (p *Planner) fieldDefinition(fieldName, typeName string) *ast.FieldDefinition {
 	node, ok := p.visitor.Definition.Index.FirstNodeByNameStr(typeName)
 	if !ok {
@@ -534,7 +550,7 @@ func (p *Planner) storeArgType(typeName, fieldName, argName string) {
 		if bytes.Equal(p.visitor.Definition.FieldDefinitionNameBytes(fieldDefRef), []byte(fieldName)) {
 			for _, argDefRef := range p.visitor.Definition.FieldDefinitions[fieldDefRef].ArgumentsDefinition.Refs {
 				if bytes.Equal(p.visitor.Definition.InputValueDefinitionNameBytes(argDefRef), []byte(argName)) {
-					p.argTypeRef = p.visitor.Definition.ResolveUnderlyingType(p.visitor.Definition.InputValueDefinitions[argDefRef].Type)
+					p.argTypeRef = p.visitor.Definition.ResolveListOrNameType(p.visitor.Definition.InputValueDefinitions[argDefRef].Type)
 				}
 			}
 		}
@@ -615,7 +631,7 @@ func (p *Planner) applyInlineFieldArgument(upstreamField, downstreamField int, a
 // fieldName - exists only for ast.ValueKindObject type of argument
 func (p *Planner) resolveNestedArgumentType(fieldName []byte) (fieldTypeRef int) {
 	if fieldName == nil {
-		return p.visitor.Definition.ResolveUnderlyingType(p.argTypeRef)
+		return p.visitor.Definition.ResolveListOrNameType(p.argTypeRef)
 	}
 
 	argTypeName := p.visitor.Definition.ResolveTypeNameString(p.argTypeRef)
@@ -623,7 +639,7 @@ func (p *Planner) resolveNestedArgumentType(fieldName []byte) (fieldTypeRef int)
 
 	for _, inputFieldDefRef := range p.visitor.Definition.InputObjectTypeDefinitions[argTypeNode.Ref].InputFieldsDefinition.Refs {
 		if bytes.Equal(p.visitor.Definition.InputValueDefinitionNameBytes(inputFieldDefRef), fieldName) {
-			return p.visitor.Definition.ResolveUnderlyingType(p.visitor.Definition.InputValueDefinitions[inputFieldDefRef].Type)
+			return p.visitor.Definition.ResolveListOrNameType(p.visitor.Definition.InputValueDefinitions[inputFieldDefRef].Type)
 		}
 	}
 

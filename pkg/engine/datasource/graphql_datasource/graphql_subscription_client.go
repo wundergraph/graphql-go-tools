@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/OneOfOne/xxhash"
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
 	"nhooyr.io/websocket"
 )
@@ -75,7 +75,7 @@ func NewWebSocketGraphQLSubscriptionClient(httpClient *http.Client, ctx context.
 		readTimeout: op.readTimeout,
 		hashPool: sync.Pool{
 			New: func() interface{} {
-				return xxhash.New64()
+				return xxhash.New()
 			},
 		},
 	}
@@ -165,7 +165,7 @@ func (c *WebSocketGraphQLSubscriptionClient) generateHandlerIDHash(options Graph
 	var (
 		err error
 	)
-	xxh := c.hashPool.Get().(*xxhash.XXHash64)
+	xxh := c.hashPool.Get().(*xxhash.Digest)
 	defer c.hashPool.Put(xxh)
 	xxh.Reset()
 

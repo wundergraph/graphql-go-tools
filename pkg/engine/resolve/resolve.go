@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 
 	errors "golang.org/x/xerrors"
 
@@ -974,7 +974,7 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 	if len(object.Path) != 0 {
 		data, _, _, _ = jsonparser.Get(data, object.Path...)
 
-		if len(data) == 0 {
+		if len(data) == 0 || bytes.Equal(data, literal.NULL) {
 			if object.Nullable {
 				r.resolveNull(objectBuf.Data)
 				return
@@ -1608,22 +1608,28 @@ func (c *ContextVariable) SetJsonValueType(operation, definition *ast.Document, 
 	// TODO: check is it reachable
 	if operation.TypeIsList(typeRef) {
 		c.JsonValueType = jsonparser.Array
-		c.ArrayJsonValueType = getScalarJsonValueTypeType(typeRef, operation)
+		c.ArrayJsonValueType = getJsonValueTypeType(operation, definition, operation.ResolveUnderlyingType(typeRef))
 		return
+	}
+
+	c.JsonValueType = getJsonValueTypeType(operation, definition, typeRef)
+}
+
+func getJsonValueTypeType(operation, definition *ast.Document, typeRef int) jsonparser.ValueType {
+	if operation.TypeIsList(typeRef) {
+		return jsonparser.Array
 	}
 
 	if operation.TypeIsEnum(typeRef, definition) {
-		c.JsonValueType = jsonparser.String
-		return
+		return jsonparser.String
 	}
 
 	if operation.TypeIsScalar(typeRef, definition) {
-		c.JsonValueType = getScalarJsonValueTypeType(typeRef, operation)
-		return
+		return getScalarJsonValueTypeType(typeRef, operation)
 	}
 
 	// TODO: this is not checking nested objects, consider using JSON Schema instead
-	c.JsonValueType = jsonparser.Object
+	return jsonparser.Object
 }
 
 func getScalarJsonValueTypeType(typeRef int, document *ast.Document) jsonparser.ValueType {
@@ -1635,6 +1641,8 @@ func getScalarJsonValueTypeType(typeRef int, document *ast.Document) jsonparser.
 		return jsonparser.Number
 	case "String", "Date", "ID":
 		return jsonparser.String
+	case "_Any":
+		return jsonparser.Object
 	default:
 		// TODO: this could be wrong in case of custom scalars
 		return jsonparser.String
@@ -1694,22 +1702,11 @@ func (o *ObjectVariable) SetJsonValueType(definition *ast.Document, typeRef int)
 	// TODO: check is it reachable
 	if definition.TypeIsList(typeRef) {
 		o.JsonValueType = jsonparser.Array
-		o.ArrayJsonValueType = getScalarJsonValueTypeType(typeRef, definition)
+		o.ArrayJsonValueType = getJsonValueTypeType(definition, definition, definition.ResolveUnderlyingType(typeRef))
 		return
 	}
 
-	if definition.TypeIsEnum(typeRef, definition) {
-		o.JsonValueType = jsonparser.String
-		return
-	}
-
-	if definition.TypeIsScalar(typeRef, definition) {
-		o.JsonValueType = getScalarJsonValueTypeType(typeRef, definition)
-		return
-	}
-
-	// TODO: this is not checking nested objects, consider using JSON Schema instead
-	o.JsonValueType = jsonparser.Object
+	o.JsonValueType = getJsonValueTypeType(definition, definition, typeRef)
 }
 
 func (o *ObjectVariable) TemplateSegment() TemplateSegment {
