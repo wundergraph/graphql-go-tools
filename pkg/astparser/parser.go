@@ -8,7 +8,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerrors"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/identkeyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
@@ -37,60 +36,13 @@ func ParseGraphqlDocumentBytes(input []byte) (ast.Document, operationreport.Repo
 	return doc, report
 }
 
-type origin struct {
-	file     string
-	line     int
-	funcName string
-}
-
-// ErrUnexpectedToken is a custom error object containing all necessary information to properly render an unexpected token error
-type ErrUnexpectedToken struct {
-	keyword  keyword.Keyword
-	expected []keyword.Keyword
-	position position.Position
-	literal  string
-	origins  []origin
-}
-
-func (e ErrUnexpectedToken) Error() string {
-
-	origins := ""
-	for _, origin := range e.origins {
-		origins = origins + fmt.Sprintf("\n\t\t%s:%d\n\t\t%s", origin.file, origin.line, origin.funcName)
-	}
-
-	return fmt.Sprintf("unexpected token - keyword: '%s' literal: '%s' - expected: '%s' position: '%s'%s", e.keyword, e.literal, e.expected, e.position, origins)
-}
-
-// ErrUnexpectedIdentKey is a custom error object to properly render an unexpected ident key error
-type ErrUnexpectedIdentKey struct {
-	keyword  identkeyword.IdentKeyword
-	expected []identkeyword.IdentKeyword
-	position position.Position
-	literal  string
-	origins  []origin
-}
-
-func (e ErrUnexpectedIdentKey) Error() string {
-
-	origins := ""
-	for _, origin := range e.origins {
-		origins = origins + fmt.Sprintf("\n\t\t%s:%d\n\t\t%s", origin.file, origin.line, origin.funcName)
-	}
-
-	return fmt.Sprintf("unexpected ident - keyword: '%s' literal: '%s' - expected: '%s' position: '%s'%s", e.keyword, e.literal, e.expected, e.position, origins)
-}
-
 // Parser takes a raw input and turns it into an AST
 // use NewParser() to create a parser
 // Don't create new parsers in the hot path, re-use them.
 type Parser struct {
 	document             *ast.Document
 	report               *operationreport.Report
-	lexer                *lexer.Lexer
-	tokens               []token.Token
-	maxTokens            int
-	currentToken         int
+	tokenizer            *Tokenizer
 	shouldIndex          bool
 	reportInternalErrors bool
 }
@@ -98,8 +50,7 @@ type Parser struct {
 // NewParser returns a new parser with all values properly initialized
 func NewParser() *Parser {
 	return &Parser{
-		tokens:               make([]token.Token, 256),
-		lexer:                &lexer.Lexer{},
+		tokenizer:            NewTokenizer(),
 		shouldIndex:          true,
 		reportInternalErrors: false,
 	}
@@ -109,7 +60,6 @@ func NewParser() *Parser {
 func (p *Parser) PrepareImport(document *ast.Document, report *operationreport.Report) {
 	p.document = document
 	p.report = report
-	p.lexer.SetInput(&document.Input)
 	p.tokenize()
 }
 
@@ -117,24 +67,12 @@ func (p *Parser) PrepareImport(document *ast.Document, report *operationreport.R
 func (p *Parser) Parse(document *ast.Document, report *operationreport.Report) {
 	p.document = document
 	p.report = report
-	p.lexer.SetInput(&document.Input)
 	p.tokenize()
 	p.parse()
 }
 
 func (p *Parser) tokenize() {
-
-	p.tokens = p.tokens[:0]
-
-	for {
-		next := p.lexer.Read()
-		if next.Keyword == keyword.EOF {
-			p.maxTokens = len(p.tokens)
-			p.currentToken = -1
-			return
-		}
-		p.tokens = append(p.tokens, next)
-	}
+	p.tokenizer.Tokenize(&p.document.Input)
 }
 
 func (p *Parser) parse() {
@@ -147,8 +85,6 @@ func (p *Parser) parse() {
 			return
 		case keyword.LBRACE:
 			p.parseOperationDefinition()
-		case keyword.COMMENT:
-			p.read()
 		case keyword.STRING, keyword.BLOCKSTRING:
 			p.parseRootDescription()
 		case keyword.IDENT:
@@ -189,78 +125,12 @@ func (p *Parser) parse() {
 	}
 }
 
-func (p *Parser) next() int {
-	if p.currentToken != p.maxTokens-1 {
-		p.currentToken++
-	}
-	return p.currentToken
-}
-
-func (p *Parser) read() token.Token {
-	p.currentToken++
-	if p.currentToken < p.maxTokens {
-		return p.tokens[p.currentToken]
-	}
-
-	return token.Token{
-		Keyword: keyword.EOF,
-	}
-}
-
 func (p *Parser) identKeywordToken(token token.Token) identkeyword.IdentKeyword {
 	return identkeyword.KeywordFromLiteral(p.document.Input.ByteSlice(token.Literal))
 }
 
 func (p *Parser) identKeywordSliceRef(ref ast.ByteSliceReference) identkeyword.IdentKeyword {
 	return identkeyword.KeywordFromLiteral(p.document.Input.ByteSlice(ref))
-}
-
-func (p *Parser) readExpectLiteral(expect ...identkeyword.IdentKeyword) (token.Token, identkeyword.IdentKeyword) {
-	p.currentToken++
-	if p.currentToken < p.maxTokens {
-		out := p.tokens[p.currentToken]
-		identKey := p.identKeywordToken(out)
-		for _, expectation := range expect {
-			if identKey == expectation {
-				return out, identKey
-			}
-		}
-		p.errUnexpectedToken(out)
-		return out, identKey
-	}
-
-	return token.Token{
-		Keyword: keyword.EOF,
-	}, identkeyword.UNDEFINED
-}
-
-func (p *Parser) peek() keyword.Keyword {
-	nextIndex := p.currentToken + 1
-	if nextIndex < p.maxTokens {
-		return p.tokens[nextIndex].Keyword
-	}
-	return keyword.EOF
-}
-
-func (p *Parser) peekLiteral() (keyword.Keyword, ast.ByteSliceReference) {
-	nextIndex := p.currentToken + 1
-	if nextIndex < p.maxTokens {
-		return p.tokens[nextIndex].Keyword, p.tokens[nextIndex].Literal
-	}
-	return keyword.EOF, ast.ByteSliceReference{}
-}
-
-func (p *Parser) peekEquals(key keyword.Keyword) bool {
-	return p.peek() == key
-}
-
-func (p *Parser) peekEqualsIdentKey(identKey identkeyword.IdentKeyword) bool {
-	key, literal := p.peekLiteral()
-	if key != keyword.IDENT {
-		return false
-	}
-	actualKey := p.identKeywordSliceRef(literal)
-	return actualKey == identKey
 }
 
 func (p *Parser) errUnexpectedIdentKey(unexpected token.Token, unexpectedKey identkeyword.IdentKeyword, expectedKeywords ...identkeyword.IdentKeyword) {
@@ -357,51 +227,6 @@ func (p *Parser) errUnexpectedToken(unexpected token.Token, expectedKeywords ...
 	})
 }
 
-func (p *Parser) mustNext(key keyword.Keyword) int {
-	current := p.currentToken
-	if p.next() == current {
-		p.errUnexpectedToken(p.tokens[p.currentToken], key)
-		return p.currentToken
-	}
-	if p.tokens[p.currentToken].Keyword != key {
-		p.errUnexpectedToken(p.tokens[p.currentToken], key)
-		return p.currentToken
-	}
-	return p.currentToken
-}
-
-func (p *Parser) mustRead(key keyword.Keyword) (next token.Token) {
-	next = p.read()
-	if next.Keyword != key {
-		p.errUnexpectedToken(next, key)
-	}
-	return
-}
-
-func (p *Parser) mustReadIdentKey(key identkeyword.IdentKeyword) (next token.Token) {
-	next = p.read()
-	if next.Keyword != keyword.IDENT {
-		p.errUnexpectedToken(next, keyword.IDENT)
-	}
-	identKey := p.identKeywordToken(next)
-	if identKey != key {
-		p.errUnexpectedIdentKey(next, identKey, key)
-	}
-	return
-}
-
-func (p *Parser) mustReadExceptIdentKey(key identkeyword.IdentKeyword) (next token.Token) {
-	next = p.read()
-	if next.Keyword != keyword.IDENT {
-		p.errUnexpectedToken(next, keyword.IDENT)
-	}
-	identKey := p.identKeywordToken(next)
-	if identKey == key {
-		p.errUnexpectedIdentKey(next, identKey, key)
-	}
-	return
-}
-
 func (p *Parser) parseSchemaDefinition() {
 
 	schemaLiteral := p.read()
@@ -445,7 +270,7 @@ func (p *Parser) parseRootOperationTypeDefinitionList(list *ast.RootOperationTyp
 			return
 		case keyword.IDENT:
 
-			_, operationType := p.readExpectLiteral(identkeyword.QUERY, identkeyword.MUTATION, identkeyword.SUBSCRIPTION)
+			_, operationType := p.mustReadOneOf(identkeyword.QUERY, identkeyword.MUTATION, identkeyword.SUBSCRIPTION)
 			colon := p.mustRead(keyword.COLON)
 			namedType := p.mustRead(keyword.IDENT)
 
@@ -546,7 +371,7 @@ func (p *Parser) parseDirectiveList() (list ast.DirectiveList) {
 
 func (p *Parser) parseArgumentList() (list ast.ArgumentList) {
 
-	bracketOpen := p.next()
+	bracketOpen := p.mustRead(keyword.LPAREN)
 
 Loop:
 	for {
@@ -558,12 +383,12 @@ Loop:
 			break Loop
 		}
 
-		name := p.next()
+		name := p.read()
 		colon := p.mustRead(keyword.COLON)
 		value := p.ParseValue()
 
 		argument := ast.Argument{
-			Name:  p.tokens[name].Literal,
+			Name:  name.Literal,
 			Colon: colon.TextPosition,
 			Value: value,
 		}
@@ -584,7 +409,7 @@ Loop:
 
 	bracketClose := p.mustRead(keyword.RPAREN)
 
-	list.LPAREN = p.tokens[bracketOpen].TextPosition
+	list.LPAREN = bracketOpen.TextPosition
 	list.RPAREN = bracketClose.TextPosition
 
 	return
@@ -960,8 +785,6 @@ func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 				refsInitialized = true
 			}
 			list.Refs = append(list.Refs, ref)
-		case keyword.COMMENT:
-			p.read()
 		default:
 			p.errUnexpectedToken(p.read())
 			return
@@ -1474,12 +1297,14 @@ func (p *Parser) parseSelectionSet() (int, bool) {
 	var set ast.SelectionSet
 
 	set.SelectionRefs = p.document.Refs[p.document.NextRefIndex()][:0]
-	set.LBrace = p.tokens[p.mustNext(keyword.LBRACE)].TextPosition
+	lbraceToken := p.mustRead(keyword.LBRACE)
+	set.LBrace = lbraceToken.TextPosition
 
 	for {
 		switch p.peek() {
 		case keyword.RBRACE:
-			set.RBrace = p.tokens[p.next()].TextPosition
+			rbraceToken := p.read()
+			set.RBrace = rbraceToken.TextPosition
 
 			if len(set.SelectionRefs) == 0 {
 				return 0, false
@@ -1514,9 +1339,11 @@ func (p *Parser) parseSelection() int {
 		})
 		return len(p.document.Selections) - 1
 	case keyword.SPREAD:
-		return p.parseFragmentSelection(p.tokens[p.next()].TextPosition)
+		spreadToken := p.read()
+		return p.parseFragmentSelection(spreadToken.TextPosition)
 	default:
-		p.errUnexpectedToken(p.tokens[p.next()], keyword.IDENT, keyword.SPREAD)
+		nextToken := p.read()
+		p.errUnexpectedToken(nextToken, keyword.IDENT, keyword.SPREAD)
 		return -1
 	}
 }
@@ -1541,7 +1368,8 @@ func (p *Parser) parseFragmentSelection(spread position.Position) int {
 			selection.Ref = p.parseFragmentSpread(spread)
 		}
 	default:
-		p.errUnexpectedToken(p.tokens[p.next()], keyword.IDENT)
+		nextToken := p.read()
+		p.errUnexpectedToken(nextToken, keyword.IDENT)
 	}
 
 	p.document.Selections = append(p.document.Selections, selection)
@@ -1552,20 +1380,22 @@ func (p *Parser) parseField() int {
 
 	var field ast.Field
 
-	firstIdent := p.next()
-	if p.tokens[firstIdent].Keyword != keyword.IDENT {
-		p.errUnexpectedToken(p.tokens[firstIdent], keyword.IDENT)
+	firstToken := p.read()
+	if firstToken.Keyword != keyword.IDENT {
+		p.errUnexpectedToken(firstToken, keyword.IDENT)
 	}
 
 	if p.peek() == keyword.COLON {
 		field.Alias.IsDefined = true
-		field.Alias.Name = p.tokens[firstIdent].Literal
-		field.Alias.Colon = p.tokens[p.next()].TextPosition
-		field.Name = p.tokens[p.mustNext(keyword.IDENT)].Literal
+		field.Alias.Name = firstToken.Literal
+		colonToken := p.read()
+		field.Alias.Colon = colonToken.TextPosition
+		nameToken := p.mustRead(keyword.IDENT)
+		field.Name = nameToken.Literal
 	} else {
-		field.Name = p.tokens[firstIdent].Literal
+		field.Name = firstToken.Literal
 	}
-	field.Position = p.tokens[firstIdent].TextPosition
+	field.Position = firstToken.TextPosition
 
 	if p.peekEquals(keyword.LPAREN) {
 		field.Arguments = p.parseArgumentList()

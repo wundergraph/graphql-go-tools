@@ -28,7 +28,6 @@ func TestParser_Parse(t *testing.T) {
 		return func(parser *Parser) (interface{}, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
-			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			ref := parser.ParseType()
 			return ref, report
@@ -39,7 +38,6 @@ func TestParser_Parse(t *testing.T) {
 		return func(parser *Parser) (interface{}, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
-			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			value := parser.ParseValue()
 			return value, report
@@ -50,7 +48,6 @@ func TestParser_Parse(t *testing.T) {
 		return func(parser *Parser) (interface{}, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
-			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			set, _ := parser.parseSelectionSet()
 			return set, report
@@ -61,7 +58,6 @@ func TestParser_Parse(t *testing.T) {
 		return func(parser *Parser) (interface{}, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
-			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			fragmentSpread := parser.parseFragmentSpread(position.Position{})
 			return parser.document.FragmentSpreads[fragmentSpread], report
@@ -72,7 +68,6 @@ func TestParser_Parse(t *testing.T) {
 		return func(parser *Parser) (interface{}, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
-			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			inlineFragment := parser.parseInlineFragment(position.Position{})
 			return parser.document.InlineFragments[inlineFragment], report
@@ -83,7 +78,6 @@ func TestParser_Parse(t *testing.T) {
 		return func(parser *Parser) (interface{}, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
-			parser.lexer.SetInput(&parser.document.Input)
 			parser.tokenize()
 			variableDefinitionList := parser.parseVariableDefinitionList()
 			return variableDefinitionList, report
@@ -136,8 +130,6 @@ func TestParser_Parse(t *testing.T) {
 
 		parser := NewParser()
 		parser.document = doc
-		parser.lexer.SetInput(&doc.Input)
-
 		parser.tokenize()
 
 		for i, want := range []keyword.Keyword{
@@ -245,6 +237,164 @@ func TestParser_Parse(t *testing.T) {
 		t.Run("invalid directive without @", func(t *testing.T) {
 			run(`schema foo {}`, parse, true)
 		})
+		t.Run("no report on schema with comments everywhere", func(t *testing.T) {
+			run(`
+				#comment
+				scalar #comment
+				Date #comment
+				
+				schema #comment
+				{ #comment
+				  query#comment
+				  :#comment
+				  #comment
+				  Query#comment
+				  #comment
+				}#comment
+				
+				#comment
+				type#comment
+				Query#comment
+				{#comment
+				  me#comment
+				  :#comment
+				  User#comment
+				  !#comment
+				  user(#comment
+					id#comment
+					:#comment
+					ID#comment
+					!#comment
+				  )#comment
+				  :#comment
+				  User#comment
+				  allUsers#comment
+				  :#comment
+				  [#comment
+					#comment
+					User#comment
+				  ]#comment
+				  search#comment
+				  (#comment
+					term#comment
+					:#comment
+					String#comment
+					!#comment
+				  )#comment
+				  :#comment
+				  [#comment
+					SearchResult#comment
+					!#comment
+				  ]#comment
+				  !#comment
+				  myChats:#comment
+				  [#comment
+					Chat#comment
+					!#comment
+				  ]!#comment
+				}
+				
+				enum#comment
+				Role#comment
+				{#comment
+				  #comment
+				  USER#comment
+				  ,#comment
+				  ADMIN#comment
+				  ,#comment
+				  #comment
+				}#comment
+				
+				interface#comment
+				Node {#comment
+				  id#comment
+				  :#comment
+				  ID#comment
+				  !#comment
+				}#comment
+				
+				union #comment
+				SearchResult#comment
+				=#comment
+				User#comment
+				|#comment
+				Chat#comment
+				|#comment
+				ChatMessage#comment
+				
+				type#comment
+				User#comment
+				implements#comment
+				Node#comment
+				{#comment
+				  id#comment
+				  :#comment
+				  ID#comment
+				  !#comment
+				  username#comment
+				  :#comment
+				  String#comment
+				  !#comment
+				  email#comment
+				  :#comment
+				  String#comment
+				  !#comment
+				  role#comment
+				  :#comment
+				  Role#comment
+				  !#comment
+				}#comment
+				
+				type#comment
+				Chat#comment
+				implements#comment
+				Node#comment
+				{#comment
+				  id#comment
+				  :#comment
+				  ID#comment
+				  !#comment
+				  users#comment
+				  :#comment
+				  [#comment
+					User#comment
+					!#comment
+				  ]!#comment
+				  messages#comment
+				  :#comment
+				  [#comment
+					ChatMessage#comment
+					!#comment
+				  ]#comment
+				  !#comment
+				  #comment
+				}#comment
+				
+				type#comment
+				ChatMessage#comment
+				implements#comment
+				Node#comment
+				{#comment
+				  id#comment
+				  :#comment
+				  ID#comment
+				  !#comment
+				  content#comment
+				  :#comment
+				  String#comment
+				  !#comment
+				  time#comment
+				  :#comment
+				  Date#comment
+				  !#comment
+				  user#comment
+				  :#comment
+				  User#comment
+				  !#comment
+				  #comment
+				}#comment`, parse, false)
+		})
+
 	})
 	t.Run("schema extension", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
@@ -1696,6 +1846,49 @@ func TestParser_Parse(t *testing.T) {
 					}
 				})
 		})
+
+		t.Run("operation with comments everywhere", func(t *testing.T) {
+			run(`
+				query #comment
+				findUser#comment
+				(#comment
+					$userId#comment
+				  :#comment
+				  ID#comment
+				  !#comment
+				  #comment
+					)#comment
+					{#comment
+				  user#comment
+					  (#comment
+					  id#comment
+						:#comment
+					$userId#comment
+					  #comment
+				)#comment
+					  #comment
+				{#comment
+					...#comment
+				  UserFields#comment
+					... #comment
+				  on #comment
+				  User#comment
+				  {#comment
+						email#comment
+					}#comment
+				  }#comment
+				}#comment
+				
+				fragment #comment
+				UserFields #comment
+				on #comment
+				User#comment
+				{#comment
+				  id#comment
+				  #username#comment
+					  role#comment
+					}#comment`, parse, false)
+		})
 	})
 	t.Run("variable definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
@@ -2074,8 +2267,8 @@ func BenchmarkParseStarwars(b *testing.B) {
 	b.SetBytes(int64(len(starwarsSchema)))
 
 	for i := 0; i < b.N; i++ {
-		doc.Input.ResetInputBytes(starwarsSchema)
 		doc.Reset()
+		doc.Input.ResetInputBytes(starwarsSchema)
 		report.Reset()
 		parser.Parse(doc, &report)
 		if report.HasErrors() {
@@ -2101,8 +2294,8 @@ func BenchmarkParseGithub(b *testing.B) {
 	b.SetBytes(int64(len(schemaFile)))
 
 	for i := 0; i < b.N; i++ {
-		doc.Input.ResetInputBytes(schemaFile)
 		doc.Reset()
+		doc.Input.ResetInputBytes(schemaFile)
 		parser.Parse(doc, &report)
 		if report.HasErrors() {
 			b.Fatal(report.Error())
@@ -2121,8 +2314,8 @@ func BenchmarkSelectionSet(b *testing.B) {
 	b.SetBytes(int64(len(selectionSet)))
 
 	for i := 0; i < b.N; i++ {
-		doc.Input.ResetInputBytes(selectionSet)
 		doc.Reset()
+		doc.Input.ResetInputBytes(selectionSet)
 		report.Reset()
 		parser.Parse(doc, &report)
 		if report.HasErrors() {
@@ -2142,8 +2335,8 @@ func BenchmarkIntrospectionQuery(b *testing.B) {
 	b.SetBytes(int64(len(introspectionQuery)))
 
 	for i := 0; i < b.N; i++ {
-		doc.Input.ResetInputBytes(introspectionQuery)
 		doc.Reset()
+		doc.Input.ResetInputBytes(introspectionQuery)
 		parser.Parse(doc, &report)
 		if report.HasErrors() {
 			b.Fatal(report.Error())
@@ -2162,8 +2355,8 @@ func BenchmarkKitchenSink(b *testing.B) {
 	b.SetBytes(int64(len(kitchenSinkData)))
 
 	for i := 0; i < b.N; i++ {
-		doc.Input.ResetInputBytes(kitchenSinkData)
 		doc.Reset()
+		doc.Input.ResetInputBytes(kitchenSinkData)
 		report.Reset()
 		parser.Parse(doc, &report)
 	}
@@ -2180,8 +2373,8 @@ func BenchmarkParse(b *testing.B) {
 	b.SetBytes(int64(len(inputBytes)))
 
 	for i := 0; i < b.N; i++ {
-		doc.Input.ResetInputBytes(inputBytes)
 		doc.Reset()
+		doc.Input.ResetInputBytes(inputBytes)
 		parser.Parse(doc, &report)
 		if report.HasErrors() {
 			b.Fatal(report.Error())
