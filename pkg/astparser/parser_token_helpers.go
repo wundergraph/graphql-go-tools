@@ -7,17 +7,25 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/token"
 )
 
+// hasNextToken - checks that we haven't reached eof
+func (p *Parser) hasNextToken() bool {
+	return p.currentToken+1 < p.maxTokens
+}
+
+// next - increments current token index if hasNextToken
+// otherwise returns current token
 func (p *Parser) next() int {
-	if p.currentToken != p.maxTokens-1 {
+	if p.hasNextToken() {
 		p.currentToken++
 	}
 	return p.currentToken
 }
 
+// read - increments currentToken index and return token if hasNextToken
+// otherwise returns keyword.EOF
 func (p *Parser) read() token.Token {
-	p.currentToken++
-	if p.currentToken < p.maxTokens {
-		return p.tokens[p.currentToken]
+	if p.hasNextToken() {
+		return p.tokens[p.next()]
 	}
 
 	return token.Token{
@@ -25,26 +33,32 @@ func (p *Parser) read() token.Token {
 	}
 }
 
+// peek - returns token next to currentToken if hasNextToken
+// otherwise returns keyword.EOF
 func (p *Parser) peek() keyword.Keyword {
-	nextIndex := p.currentToken + 1
-	if nextIndex < p.maxTokens {
+	if p.hasNextToken() {
+		nextIndex := p.currentToken + 1
 		return p.tokens[nextIndex].Keyword
 	}
 	return keyword.EOF
 }
 
+// peekLiteral - returns token next to currentToken and token name as a ast.ByteSliceReference if hasNextToken
+// otherwise returns keyword.EOF
 func (p *Parser) peekLiteral() (keyword.Keyword, ast.ByteSliceReference) {
-	nextIndex := p.currentToken + 1
-	if nextIndex < p.maxTokens {
+	if p.hasNextToken() {
+		nextIndex := p.currentToken + 1
 		return p.tokens[nextIndex].Keyword, p.tokens[nextIndex].Literal
 	}
 	return keyword.EOF, ast.ByteSliceReference{}
 }
 
+// peekEquals - checks that next token is equal to key
 func (p *Parser) peekEquals(key keyword.Keyword) bool {
 	return p.peek() == key
 }
 
+// peekEqualsIdentKey - checks that next token is an identifier
 func (p *Parser) peekEqualsIdentKey(identKey identkeyword.IdentKeyword) bool {
 	key, literal := p.peekLiteral()
 	if key != keyword.IDENT {
