@@ -37,50 +37,6 @@ func ParseGraphqlDocumentBytes(input []byte) (ast.Document, operationreport.Repo
 	return doc, report
 }
 
-type origin struct {
-	file     string
-	line     int
-	funcName string
-}
-
-// ErrUnexpectedToken is a custom error object containing all necessary information to properly render an unexpected token error
-type ErrUnexpectedToken struct {
-	keyword  keyword.Keyword
-	expected []keyword.Keyword
-	position position.Position
-	literal  string
-	origins  []origin
-}
-
-func (e ErrUnexpectedToken) Error() string {
-
-	origins := ""
-	for _, origin := range e.origins {
-		origins = origins + fmt.Sprintf("\n\t\t%s:%d\n\t\t%s", origin.file, origin.line, origin.funcName)
-	}
-
-	return fmt.Sprintf("unexpected token - keyword: '%s' literal: '%s' - expected: '%s' position: '%s'%s", e.keyword, e.literal, e.expected, e.position, origins)
-}
-
-// ErrUnexpectedIdentKey is a custom error object to properly render an unexpected ident key error
-type ErrUnexpectedIdentKey struct {
-	keyword  identkeyword.IdentKeyword
-	expected []identkeyword.IdentKeyword
-	position position.Position
-	literal  string
-	origins  []origin
-}
-
-func (e ErrUnexpectedIdentKey) Error() string {
-
-	origins := ""
-	for _, origin := range e.origins {
-		origins = origins + fmt.Sprintf("\n\t\t%s:%d\n\t\t%s", origin.file, origin.line, origin.funcName)
-	}
-
-	return fmt.Sprintf("unexpected ident - keyword: '%s' literal: '%s' - expected: '%s' position: '%s'%s", e.keyword, e.literal, e.expected, e.position, origins)
-}
-
 // Parser takes a raw input and turns it into an AST
 // use NewParser() to create a parser
 // Don't create new parsers in the hot path, re-use them.
@@ -189,78 +145,12 @@ func (p *Parser) parse() {
 	}
 }
 
-func (p *Parser) next() int {
-	if p.currentToken != p.maxTokens-1 {
-		p.currentToken++
-	}
-	return p.currentToken
-}
-
-func (p *Parser) read() token.Token {
-	p.currentToken++
-	if p.currentToken < p.maxTokens {
-		return p.tokens[p.currentToken]
-	}
-
-	return token.Token{
-		Keyword: keyword.EOF,
-	}
-}
-
 func (p *Parser) identKeywordToken(token token.Token) identkeyword.IdentKeyword {
 	return identkeyword.KeywordFromLiteral(p.document.Input.ByteSlice(token.Literal))
 }
 
 func (p *Parser) identKeywordSliceRef(ref ast.ByteSliceReference) identkeyword.IdentKeyword {
 	return identkeyword.KeywordFromLiteral(p.document.Input.ByteSlice(ref))
-}
-
-func (p *Parser) readExpectLiteral(expect ...identkeyword.IdentKeyword) (token.Token, identkeyword.IdentKeyword) {
-	p.currentToken++
-	if p.currentToken < p.maxTokens {
-		out := p.tokens[p.currentToken]
-		identKey := p.identKeywordToken(out)
-		for _, expectation := range expect {
-			if identKey == expectation {
-				return out, identKey
-			}
-		}
-		p.errUnexpectedToken(out)
-		return out, identKey
-	}
-
-	return token.Token{
-		Keyword: keyword.EOF,
-	}, identkeyword.UNDEFINED
-}
-
-func (p *Parser) peek() keyword.Keyword {
-	nextIndex := p.currentToken + 1
-	if nextIndex < p.maxTokens {
-		return p.tokens[nextIndex].Keyword
-	}
-	return keyword.EOF
-}
-
-func (p *Parser) peekLiteral() (keyword.Keyword, ast.ByteSliceReference) {
-	nextIndex := p.currentToken + 1
-	if nextIndex < p.maxTokens {
-		return p.tokens[nextIndex].Keyword, p.tokens[nextIndex].Literal
-	}
-	return keyword.EOF, ast.ByteSliceReference{}
-}
-
-func (p *Parser) peekEquals(key keyword.Keyword) bool {
-	return p.peek() == key
-}
-
-func (p *Parser) peekEqualsIdentKey(identKey identkeyword.IdentKeyword) bool {
-	key, literal := p.peekLiteral()
-	if key != keyword.IDENT {
-		return false
-	}
-	actualKey := p.identKeywordSliceRef(literal)
-	return actualKey == identKey
 }
 
 func (p *Parser) errUnexpectedIdentKey(unexpected token.Token, unexpectedKey identkeyword.IdentKeyword, expectedKeywords ...identkeyword.IdentKeyword) {
@@ -355,51 +245,6 @@ func (p *Parser) errUnexpectedToken(unexpected token.Token, expectedKeywords ...
 		origins:  origins,
 		expected: expectedKeywords,
 	})
-}
-
-func (p *Parser) mustNext(key keyword.Keyword) int {
-	current := p.currentToken
-	if p.next() == current {
-		p.errUnexpectedToken(p.tokens[p.currentToken], key)
-		return p.currentToken
-	}
-	if p.tokens[p.currentToken].Keyword != key {
-		p.errUnexpectedToken(p.tokens[p.currentToken], key)
-		return p.currentToken
-	}
-	return p.currentToken
-}
-
-func (p *Parser) mustRead(key keyword.Keyword) (next token.Token) {
-	next = p.read()
-	if next.Keyword != key {
-		p.errUnexpectedToken(next, key)
-	}
-	return
-}
-
-func (p *Parser) mustReadIdentKey(key identkeyword.IdentKeyword) (next token.Token) {
-	next = p.read()
-	if next.Keyword != keyword.IDENT {
-		p.errUnexpectedToken(next, keyword.IDENT)
-	}
-	identKey := p.identKeywordToken(next)
-	if identKey != key {
-		p.errUnexpectedIdentKey(next, identKey, key)
-	}
-	return
-}
-
-func (p *Parser) mustReadExceptIdentKey(key identkeyword.IdentKeyword) (next token.Token) {
-	next = p.read()
-	if next.Keyword != keyword.IDENT {
-		p.errUnexpectedToken(next, keyword.IDENT)
-	}
-	identKey := p.identKeywordToken(next)
-	if identKey == key {
-		p.errUnexpectedIdentKey(next, identKey, key)
-	}
-	return
 }
 
 func (p *Parser) parseSchemaDefinition() {
