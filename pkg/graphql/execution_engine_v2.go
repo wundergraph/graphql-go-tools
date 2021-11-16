@@ -199,6 +199,8 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 	}
 	fetcher := resolve.NewFetcher(engineConfig.dataLoaderConfig.EnableSingleFlightLoader)
 
+	// TODO: extend planner config here
+
 	return &ExecutionEngineV2{
 		logger:   logger,
 		config:   engineConfig,

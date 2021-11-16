@@ -210,6 +210,57 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		},
 	))
 
+	t.Run("introspection", func(t *testing.T) {
+		schema := heroWithArgumentSchema(t)
+		factory := NewIntrospectionConfigFactory(schema)
+
+		t.Run("execute introspection query", runWithoutError(
+			ExecutionEngineV2TestCase{
+				schema: schema,
+				operation: func(t *testing.T) Request {
+					return Request{
+						OperationName: "myIntrospection",
+						Query: `query myIntrospection(){
+							__type(name: "Query") {
+								name
+								kind
+							}
+							__schema {
+								queryType { name }
+								types {
+									name
+									kind
+									fields {
+										name
+										type {
+											kind
+											name
+											ofType {
+												kind
+												name
+												ofType {
+													kind
+													name
+												}
+											}
+										}
+									}
+									enumValues(includeDeprecated: true) {
+										name
+									}
+								}
+							}
+						}`,
+					}
+				},
+				dataSources:      factory.engineConfigDataSources(),
+				fields:           factory.engineConfigFieldConfigs(),
+				expectedResponse: "",
+			},
+		))
+
+	})
+
 	t.Run("execute simple hero operation with rest data source", runWithoutError(
 		ExecutionEngineV2TestCase{
 			schema:    starwarsSchema(t),
@@ -415,7 +466,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 	))
 
 	t.Run("execute operation with array input type", runWithoutError(ExecutionEngineV2TestCase{
-		schema:           heroWithArgumentSchema(t),
+		schema: heroWithArgumentSchema(t),
 		operation: func(t *testing.T) Request {
 			return Request{
 				OperationName: "MyHeroes",
@@ -427,7 +478,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					}`,
 			}
 		},
-		dataSources:      []plan.DataSourceConfiguration{
+		dataSources: []plan.DataSourceConfiguration{
 			{
 				RootNodes: []plan.TypeField{
 					{TypeName: "Query", FieldNames: []string{"heroes"}},
@@ -449,14 +500,14 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				}),
 			},
 		},
-		fields:           []plan.FieldConfiguration{
+		fields: []plan.FieldConfiguration{
 			{
-				TypeName:              "Query",
-				FieldName:             "heroes",
-				Path:                  []string{"heroes"},
+				TypeName:  "Query",
+				FieldName: "heroes",
+				Path:      []string{"heroes"},
 				Arguments: []plan.ArgumentConfiguration{
 					{
-						Name:         "names",
+						Name:       "names",
 						SourceType: plan.FieldArgumentSource,
 					},
 				},
