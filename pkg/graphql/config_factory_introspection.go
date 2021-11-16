@@ -30,50 +30,50 @@ func (f *IntrospectionConfigFactory) introspection() (data introspection.Data) {
 
 func (f *IntrospectionConfigFactory) engineConfigFieldConfigs() (planFields plan.FieldConfigurations) {
 	return plan.FieldConfigurations{
-		{
-			TypeName:  "Query",
-			FieldName: "__schema",
-		},
-		{
-			TypeName:  "Query",
-			FieldName: "__type",
-			// Arguments: plan.ArgumentsConfigurations{
-			// 	{
-			// 		Name:       "name",
-			// 		SourceType: plan.FieldArgumentSource,
-			// 	},
-			// },
-		},
-		{
-			TypeName:  "__Type",
-			FieldName: "fields",
-			// Arguments: plan.ArgumentsConfigurations{
-			// 	{
-			// 		Name:       "includeDeprecated",
-			// 		SourceType: plan.FieldArgumentSource,
-			// 	},
-			// 	{
-			// 		Name:       "typeName",
-			// 		SourceType: plan.ObjectFieldSource,
-			// 		SourcePath: []string{"name"},
-			// 	},
-			// },
-		},
-		{
-			TypeName:  "__Type",
-			FieldName: "enumValues",
-			// Arguments: plan.ArgumentsConfigurations{
-			// 	{
-			// 		Name:       "includeDeprecated",
-			// 		SourceType: plan.FieldArgumentSource,
-			// 	},
-			// 	{
-			// 		Name:       "typeName",
-			// 		SourceType: plan.ObjectFieldSource,
-			// 		SourcePath: []string{"name"},
-			// 	},
-			// },
-		},
+		// {
+		// 	TypeName:  "Query",
+		// 	FieldName: "__schema",
+		// },
+		// {
+		// 	TypeName:  "Query",
+		// 	FieldName: "__type",
+		// 	// Arguments: plan.ArgumentsConfigurations{
+		// 	// 	{
+		// 	// 		Name:       "name",
+		// 	// 		SourceType: plan.FieldArgumentSource,
+		// 	// 	},
+		// 	// },
+		// },
+		// {
+		// 	TypeName:  "__Type",
+		// 	FieldName: "fields",
+		// 	// Arguments: plan.ArgumentsConfigurations{
+		// 	// 	{
+		// 	// 		Name:       "includeDeprecated",
+		// 	// 		SourceType: plan.FieldArgumentSource,
+		// 	// 	},
+		// 	// 	{
+		// 	// 		Name:       "typeName",
+		// 	// 		SourceType: plan.ObjectFieldSource,
+		// 	// 		SourcePath: []string{"name"},
+		// 	// 	},
+		// 	// },
+		// },
+		// {
+		// 	TypeName:  "__Type",
+		// 	FieldName: "enumValues",
+		// 	// Arguments: plan.ArgumentsConfigurations{
+		// 	// 	{
+		// 	// 		Name:       "includeDeprecated",
+		// 	// 		SourceType: plan.FieldArgumentSource,
+		// 	// 	},
+		// 	// 	{
+		// 	// 		Name:       "typeName",
+		// 	// 		SourceType: plan.ObjectFieldSource,
+		// 	// 		SourcePath: []string{"name"},
+		// 	// 	},
+		// 	// },
+		// },
 	}
 }
 

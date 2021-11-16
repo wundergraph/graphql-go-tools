@@ -20,9 +20,11 @@ const (
 	EnumValuesIntrospectionRequestType
 )
 
-type InrospectionRequest struct {
-	RequestType IntrospectionRequestType `json:"request_type"`
-	TypeName    *string                  `json:"type_name"`
+type IntrospectionRequest struct {
+	RequestType       IntrospectionRequestType `json:"request_type"`
+	OnTypeName        *string                  `json:"on_type_name"`
+	TypeName          *string                  `json:"type_name"`
+	IncludeDeprecated bool                     `json:"include_deprecated"`
 }
 
 type Factory struct {
@@ -70,9 +72,9 @@ func (p *Planner) EnterField(ref int) {
 func (p *Planner) configureInput() []byte {
 	fieldName := p.v.Operation.FieldNameString(p.rootField)
 
-	var objArg = []byte(`"onType":"{{ .object.name }}"`)
-	var queryArg = []byte(`"Type":"{{ .arguments.name }}"`)
-	var filterArg = []byte(`"filter":{{ .arguments.includeDeprecated }}`)
+	var objArg = []byte(`"on_type_name":"{{ .object.name }}"`)
+	var queryArg = []byte(`"type_name":"{{ .arguments.name }}"`)
+	var filterArg = []byte(`"include_deprecated":{{ .arguments.includeDeprecated }}`)
 
 	var (
 		typeName     []byte
@@ -132,5 +134,48 @@ type Source struct {
 
 func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
 	println(string(input))
+
+	input = bytes.Replace(input, []byte(`"include_deprecated":}`), []byte(`"include_deprecated":false}`), 1)
+
+	var req IntrospectionRequest
+	if err := json.Unmarshal(input, &req); err != nil {
+		return err
+	}
+
+	switch req.RequestType {
+	case TypeIntrospectionRequestType:
+		return s.singleType(w, *req.TypeName)
+	case EnumValuesIntrospectionRequestType:
+		return s.enumValuesForType(w, *req.OnTypeName, req.IncludeDeprecated)
+	case TypeFieldsIntrospectionRequestType:
+		return s.fieldsForType(w, *req.OnTypeName, req.IncludeDeprecated)
+	}
+
 	return json.NewEncoder(w).Encode(s.IntrospectionData)
+}
+
+func (s *Source) typeInfo(typeName string) *introspection.FullType {
+	for _, fullType := range s.IntrospectionData.Schema.Types {
+		if fullType.Name == typeName {
+			return &fullType
+		}
+	}
+	return nil
+}
+
+func (s *Source) singleType(w io.Writer, typeName string) error {
+	typeInfo := s.typeInfo(typeName)
+	return json.NewEncoder(w).Encode(typeInfo)
+}
+
+func (s *Source) fieldsForType(w io.Writer, typeName string, includeDeprecated bool) error {
+	typeInfo := s.typeInfo(typeName)
+
+	return json.NewEncoder(w).Encode(typeInfo.Fields)
+}
+
+func (s *Source) enumValuesForType(w io.Writer, typeName string, includeDeprecated bool) error {
+	typeInfo := s.typeInfo(typeName)
+
+	return json.NewEncoder(w).Encode(typeInfo.EnumValues)
 }
