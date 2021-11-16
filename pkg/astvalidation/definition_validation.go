@@ -7,15 +7,24 @@ import (
 )
 
 func DefaultDefinitionValidator() *DefinitionValidator {
+	return NewDefinitionValidator(
+		UniqueOperationTypes(),
+		UniqueTypeNames(),
+		UniqueFieldDefinitionNames(),
+		UniqueEnumValueNames(),
+		KnownTypeNames(),
+		RequireDefinedTypesForExtensions(),
+	)
+}
+
+func NewDefinitionValidator(rules ...Rule) *DefinitionValidator {
 	validator := &DefinitionValidator{
 		walker: astvisitor.NewWalker(48),
 	}
 
-	validator.RegisterRule(UniqueOperationTypes())
-	validator.RegisterRule(UniqueTypeNames())
-	validator.RegisterRule(UniqueFieldDefinitionNames())
-	validator.RegisterRule(UniqueEnumValueNames())
-	validator.RegisterRule(KnownTypeNames())
+	for _, rule := range rules {
+		validator.RegisterRule(rule)
+	}
 
 	return validator
 }
