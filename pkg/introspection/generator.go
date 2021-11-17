@@ -26,7 +26,22 @@ func NewGenerator() *Generator {
 		Walker: &walker,
 	}
 
-	walker.RegisterAllNodesVisitor(&visitor)
+	walker.RegisterEnterDocumentVisitor(&visitor)
+	walker.RegisterEnterDirectiveLocationVisitor(&visitor)
+	walker.RegisterEnterInputValueDefinitionVisitor(&visitor)
+	walker.RegisterEnterRootOperationTypeDefinitionVisitor(&visitor)
+	walker.RegisterEnterScalarTypeDefinitionVisitor(&visitor)
+	walker.RegisterEnterUnionMemberTypeVisitor(&visitor)
+
+	walker.RegisterDirectiveDefinitionVisitor(&visitor)
+	walker.RegisterEnumTypeDefinitionVisitor(&visitor)
+	walker.RegisterFieldDefinitionVisitor(&visitor)
+	walker.RegisterInputObjectTypeDefinitionVisitor(&visitor)
+	walker.RegisterInterfaceTypeDefinitionVisitor(&visitor)
+	walker.RegisterObjectTypeDefinitionVisitor(&visitor)
+	walker.RegisterUnionTypeDefinitionVisitor(&visitor)
+
+	walker.RegisterLeaveEnumValueDefinitionVisitor(&visitor)
 
 	return &Generator{
 		walker:  &walker,
@@ -53,10 +68,6 @@ func (i *introspectionVisitor) EnterDocument(operation, definition *ast.Document
 	i.data.Schema = NewSchema()
 }
 
-func (i *introspectionVisitor) LeaveDocument(operation, definition *ast.Document) {
-
-}
-
 func (i *introspectionVisitor) EnterObjectTypeDefinition(ref int) {
 	i.currentType = NewFullType()
 	i.currentType.Name = i.definition.ObjectTypeDefinitionNameString(ref)
@@ -76,14 +87,6 @@ func (i *introspectionVisitor) LeaveObjectTypeDefinition(ref int) {
 		return
 	}
 	i.data.Schema.Types = append(i.data.Schema.Types, i.currentType)
-}
-
-func (i *introspectionVisitor) EnterObjectTypeExtension(ref int) {
-
-}
-
-func (i *introspectionVisitor) LeaveObjectTypeExtension(ref int) {
-
 }
 
 func (i *introspectionVisitor) EnterFieldDefinition(ref int) {
@@ -138,10 +141,6 @@ func (i *introspectionVisitor) EnterInputValueDefinition(ref int) {
 	}
 }
 
-func (i *introspectionVisitor) LeaveInputValueDefinition(ref int) {
-
-}
-
 func (i *introspectionVisitor) EnterInterfaceTypeDefinition(ref int) {
 	i.currentType = NewFullType()
 	i.currentType.Kind = INTERFACE
@@ -167,32 +166,12 @@ func (i *introspectionVisitor) LeaveInterfaceTypeDefinition(ref int) {
 	i.data.Schema.Types = append(i.data.Schema.Types, i.currentType)
 }
 
-func (i *introspectionVisitor) EnterInterfaceTypeExtension(ref int) {
-
-}
-
-func (i *introspectionVisitor) LeaveInterfaceTypeExtension(ref int) {
-
-}
-
 func (i *introspectionVisitor) EnterScalarTypeDefinition(ref int) {
 	typeDefinition := NewFullType()
 	typeDefinition.Kind = SCALAR
 	typeDefinition.Name = i.definition.ScalarTypeDefinitionNameString(ref)
 	typeDefinition.Description = i.definition.ScalarTypeDefinitionDescriptionString(ref)
 	i.data.Schema.Types = append(i.data.Schema.Types, typeDefinition)
-}
-
-func (i *introspectionVisitor) LeaveScalarTypeDefinition(ref int) {
-
-}
-
-func (i *introspectionVisitor) EnterScalarTypeExtension(ref int) {
-
-}
-
-func (i *introspectionVisitor) LeaveScalarTypeExtension(ref int) {
-
 }
 
 func (i *introspectionVisitor) EnterUnionTypeDefinition(ref int) {
@@ -209,24 +188,12 @@ func (i *introspectionVisitor) LeaveUnionTypeDefinition(ref int) {
 	i.data.Schema.Types = append(i.data.Schema.Types, i.currentType)
 }
 
-func (i *introspectionVisitor) EnterUnionTypeExtension(ref int) {
-
-}
-
-func (i *introspectionVisitor) LeaveUnionTypeExtension(ref int) {
-
-}
-
 func (i *introspectionVisitor) EnterUnionMemberType(ref int) {
 	name := i.definition.TypeNameString(ref)
 	i.currentType.PossibleTypes = append(i.currentType.PossibleTypes, TypeRef{
 		Kind: OBJECT,
 		Name: &name,
 	})
-}
-
-func (i *introspectionVisitor) LeaveUnionMemberType(ref int) {
-
 }
 
 func (i *introspectionVisitor) EnterEnumTypeDefinition(ref int) {
@@ -241,18 +208,6 @@ func (i *introspectionVisitor) LeaveEnumTypeDefinition(ref int) {
 		return
 	}
 	i.data.Schema.Types = append(i.data.Schema.Types, i.currentType)
-}
-
-func (i *introspectionVisitor) EnterEnumTypeExtension(ref int) {
-
-}
-
-func (i *introspectionVisitor) LeaveEnumTypeExtension(ref int) {
-
-}
-
-func (i *introspectionVisitor) EnterEnumValueDefinition(ref int) {
-
 }
 
 func (i *introspectionVisitor) LeaveEnumValueDefinition(ref int) {
@@ -283,14 +238,6 @@ func (i *introspectionVisitor) LeaveInputObjectTypeDefinition(ref int) {
 	i.data.Schema.Types = append(i.data.Schema.Types, i.currentType)
 }
 
-func (i *introspectionVisitor) EnterInputObjectTypeExtension(ref int) {
-
-}
-
-func (i *introspectionVisitor) LeaveInputObjectTypeExtension(ref int) {
-
-}
-
 func (i *introspectionVisitor) EnterDirectiveDefinition(ref int) {
 	i.currentDirective = NewDirective()
 	i.currentDirective.Name = i.definition.DirectiveDefinitionNameString(ref)
@@ -303,26 +250,6 @@ func (i *introspectionVisitor) LeaveDirectiveDefinition(ref int) {
 
 func (i *introspectionVisitor) EnterDirectiveLocation(location ast.DirectiveLocation) {
 	i.currentDirective.Locations = append(i.currentDirective.Locations, location.LiteralString())
-}
-
-func (i *introspectionVisitor) LeaveDirectiveLocation(location ast.DirectiveLocation) {
-
-}
-
-func (i *introspectionVisitor) EnterSchemaDefinition(ref int) {
-
-}
-
-func (i *introspectionVisitor) LeaveSchemaDefinition(ref int) {
-
-}
-
-func (i *introspectionVisitor) EnterSchemaExtension(ref int) {
-
-}
-
-func (i *introspectionVisitor) LeaveSchemaExtension(ref int) {
-
 }
 
 func (i *introspectionVisitor) EnterRootOperationTypeDefinition(ref int) {
@@ -340,82 +267,6 @@ func (i *introspectionVisitor) EnterRootOperationTypeDefinition(ref int) {
 			Name: i.definition.Input.ByteSliceString(i.definition.RootOperationTypeDefinitions[ref].NamedType.Name),
 		}
 	}
-}
-
-func (i *introspectionVisitor) LeaveRootOperationTypeDefinition(ref int) {
-
-}
-
-func (i *introspectionVisitor) EnterOperationDefinition(ref int) {
-
-}
-
-func (i *introspectionVisitor) LeaveOperationDefinition(ref int) {
-
-}
-
-func (i *introspectionVisitor) EnterSelectionSet(ref int) {
-
-}
-
-func (i *introspectionVisitor) LeaveSelectionSet(ref int) {
-
-}
-
-func (i *introspectionVisitor) EnterField(ref int) {
-
-}
-
-func (i *introspectionVisitor) LeaveField(ref int) {
-
-}
-
-func (i *introspectionVisitor) EnterArgument(ref int) {
-
-}
-
-func (i *introspectionVisitor) LeaveArgument(ref int) {
-
-}
-
-func (i *introspectionVisitor) EnterFragmentSpread(ref int) {
-
-}
-
-func (i *introspectionVisitor) LeaveFragmentSpread(ref int) {
-
-}
-
-func (i *introspectionVisitor) EnterInlineFragment(ref int) {
-
-}
-
-func (i *introspectionVisitor) LeaveInlineFragment(ref int) {
-
-}
-
-func (i *introspectionVisitor) EnterFragmentDefinition(ref int) {
-
-}
-
-func (i *introspectionVisitor) LeaveFragmentDefinition(ref int) {
-
-}
-
-func (i *introspectionVisitor) EnterVariableDefinition(ref int) {
-
-}
-
-func (i *introspectionVisitor) LeaveVariableDefinition(ref int) {
-
-}
-
-func (i *introspectionVisitor) EnterDirective(ref int) {
-
-}
-
-func (i *introspectionVisitor) LeaveDirective(ref int) {
-
 }
 
 func (i *introspectionVisitor) TypeRef(typeRef int) TypeRef {
