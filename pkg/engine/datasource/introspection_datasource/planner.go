@@ -47,18 +47,18 @@ func (p *Planner) configureInput() string {
 	var (
 		typeName     []byte
 		fieldsFilter []byte
-		requestType  = SchemaIntrospectionRequestType
+		requestType  = SchemaRequestType
 	)
 	switch fieldName {
 	case "__type":
-		requestType = TypeIntrospectionRequestType
+		requestType = TypeRequestType
 		typeName = queryArg
 	case "fields":
-		requestType = TypeFieldsIntrospectionRequestType
+		requestType = TypeFieldsRequestType
 		typeName = objArg
 		fieldsFilter = filterArg
 	case "enumValues":
-		requestType = EnumValuesIntrospectionRequestType
+		requestType = TypeEnumValuesRequestType
 		typeName = objArg
 		fieldsFilter = filterArg
 	}

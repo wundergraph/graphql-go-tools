@@ -26,11 +26,11 @@ func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error
 	}
 
 	switch req.RequestType {
-	case TypeIntrospectionRequestType:
+	case TypeRequestType:
 		return s.singleType(w, *req.TypeName)
-	case EnumValuesIntrospectionRequestType:
+	case TypeEnumValuesRequestType:
 		return s.enumValuesForType(w, *req.OnTypeName, req.IncludeDeprecated)
-	case TypeFieldsIntrospectionRequestType:
+	case TypeFieldsRequestType:
 		return s.fieldsForType(w, *req.OnTypeName, req.IncludeDeprecated)
 	}
 
