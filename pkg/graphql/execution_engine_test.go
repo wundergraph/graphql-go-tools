@@ -604,14 +604,3 @@ var droidGraphqlDataSource = datasource.PlannerConfiguration{
 		},
 	},
 }
-
-func loadStarWarsQuery(starwarsFile string, variables starwars.QueryVariables) func(t *testing.T) Request {
-	return func(t *testing.T) Request {
-		query := starwars.LoadQuery(t, starwarsFile, variables)
-		request := Request{}
-		err := UnmarshalRequest(bytes.NewBuffer(query), &request)
-		require.NoError(t, err)
-
-		return request
-	}
-}

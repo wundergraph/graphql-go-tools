@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
 )
@@ -112,26 +111,6 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 				Depth:      1,
 			}}, result.PerRootField, "unexpected per root field results")
 	})
-}
-
-func starwarsSchema(t *testing.T) *Schema {
-	starwars.SetRelativePathToStarWarsPackage("../starwars")
-	schemaBytes := starwars.Schema(t)
-
-	schema, err := NewSchemaFromString(string(schemaBytes))
-	require.NoError(t, err)
-
-	return schema
-}
-
-func requestForQuery(t *testing.T, fileName string) Request {
-	rawRequest := starwars.LoadQuery(t, fileName, nil)
-
-	var request Request
-	err := UnmarshalRequest(bytes.NewBuffer(rawRequest), &request)
-	require.NoError(t, err)
-
-	return request
 }
 
 func TestRequest_IsIntrospectionQuery(t *testing.T) {
