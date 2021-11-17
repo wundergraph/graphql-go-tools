@@ -69,62 +69,38 @@ func (s *schemaBuilder) extendQueryTypeWithFederationFields(schema string) strin
 
 func (s *schemaBuilder) extendQueryType(doc *ast.Document, ref int) {
 	serviceType := doc.AddNonNullNamedType([]byte("_Service"))
-	fieldDefinition := ast.FieldDefinition{
-		Name: doc.Input.AppendInputString("_service"),
-		Type: serviceType,
-	}
-	fdRef := doc.AddFieldDefinition(fieldDefinition)
+
+	serviceFieldDefRef := doc.ImportFieldDefinition(
+		"_service",
+		"",
+		serviceType,
+		nil,
+		nil,
+	)
+
 	doc.ObjectTypeDefinitions[ref].HasFieldDefinitions = true
-	doc.ObjectTypeDefinitions[ref].FieldsDefinition.Refs = append(doc.ObjectTypeDefinitions[ref].FieldsDefinition.Refs, fdRef)
+	doc.ObjectTypeDefinitions[ref].FieldsDefinition.Refs = append(doc.ObjectTypeDefinitions[ref].FieldsDefinition.Refs, serviceFieldDefRef)
 
 	anyType := doc.AddNonNullNamedType([]byte("_Any"))
 	entityType := doc.AddNamedType([]byte("_Entity"))
+	listOfAnyType := doc.AddListType(anyType)
+	nonNullListOfAnyType := doc.AddNonNullType(listOfAnyType)
+	listOfEntityType := doc.AddListType(entityType)
+	nonNullListOfEntityType := doc.AddNonNullType(listOfEntityType)
 
-	doc.Types = append(doc.Types, ast.Type{
-		TypeKind: ast.TypeKindList,
-		OfType:   anyType,
-	})
+	representationsArg := doc.ImportInputValueDefinition(
+		"representations",
+		"",
+		nonNullListOfAnyType,
+		ast.DefaultValue{})
 
-	listOfAnyType := len(doc.Types) - 1
+	entitiesFDRef := doc.ImportFieldDefinition(
+		"_entities",
+		"",
+		nonNullListOfEntityType,
+		[]int{representationsArg},
+		nil)
 
-	doc.Types = append(doc.Types, ast.Type{
-		TypeKind: ast.TypeKindNonNull,
-		OfType:   listOfAnyType,
-	})
-
-	nonNullListOfAnyType := len(doc.Types) - 1
-
-	doc.Types = append(doc.Types, ast.Type{
-		TypeKind: ast.TypeKindList,
-		OfType:   entityType,
-	})
-
-	listOfEntityType := len(doc.Types) - 1
-
-	doc.Types = append(doc.Types, ast.Type{
-		TypeKind: ast.TypeKindNonNull,
-		OfType:   listOfEntityType,
-	})
-
-	nonNullListOfEntityType := len(doc.Types) - 1
-
-	doc.InputValueDefinitions = append(doc.InputValueDefinitions, ast.InputValueDefinition{
-		Name: doc.Input.AppendInputString("representations"),
-		Type: nonNullListOfAnyType,
-	})
-
-	representationsArg := len(doc.InputValueDefinitions) - 1
-
-	entitiesFieldDefinition := ast.FieldDefinition{
-		Name:                    doc.Input.AppendInputString("_entities"),
-		HasArgumentsDefinitions: true,
-		ArgumentsDefinition: ast.InputValueDefinitionList{
-			Refs: []int{representationsArg},
-		},
-		Type: nonNullListOfEntityType,
-	}
-
-	entitiesFDRef := doc.AddFieldDefinition(entitiesFieldDefinition)
 	doc.ObjectTypeDefinitions[ref].FieldsDefinition.Refs = append(doc.ObjectTypeDefinitions[ref].FieldsDefinition.Refs, entitiesFDRef)
 }
 
