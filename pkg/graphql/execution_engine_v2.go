@@ -199,7 +199,15 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 	}
 	fetcher := resolve.NewFetcher(engineConfig.dataLoaderConfig.EnableSingleFlightLoader)
 
-	// TODO: extend planner config here
+	introspectionCfg, err := NewIntrospectionConfigFactory(engineConfig.schema)
+	if err != nil {
+		return nil, err
+	}
+
+	engineConfig.AddDataSource(introspectionCfg.engineConfigDataSource())
+	for _, fieldCfg := range introspectionCfg.engineConfigFieldConfigs() {
+		engineConfig.AddFieldConfiguration(fieldCfg)
+	}
 
 	return &ExecutionEngineV2{
 		logger:   logger,

@@ -52,21 +52,19 @@ func (f *IntrospectionConfigFactory) engineConfigFieldConfigs() (planFields plan
 	}
 }
 
-func (f *IntrospectionConfigFactory) engineConfigDataSources() []plan.DataSourceConfiguration {
-	return []plan.DataSourceConfiguration{
-		{
-			RootNodes: []plan.TypeField{
-				{
-					TypeName:   "Query",
-					FieldNames: []string{"__schema", "__type"},
-				},
-				{
-					TypeName:   "__Type",
-					FieldNames: []string{"fields", "enumValues"},
-				},
+func (f *IntrospectionConfigFactory) engineConfigDataSource() plan.DataSourceConfiguration {
+	return plan.DataSourceConfiguration{
+		RootNodes: []plan.TypeField{
+			{
+				TypeName:   "Query",
+				FieldNames: []string{"__schema", "__type"},
 			},
-			Factory: introspection_datasource.NewFactory(f.introspectionData),
-			Custom:  json.RawMessage{},
+			{
+				TypeName:   "__Type",
+				FieldNames: []string{"fields", "enumValues"},
+			},
 		},
+		Factory: introspection_datasource.NewFactory(f.introspectionData),
+		Custom:  json.RawMessage{},
 	}
 }
