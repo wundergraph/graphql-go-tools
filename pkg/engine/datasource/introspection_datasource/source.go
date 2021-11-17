@@ -14,8 +14,6 @@ type Source struct {
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
-	println(string(input))
-
 	// fix corrupted input json
 	// TODO: remove when default argument value bug will be fixed
 	input = bytes.Replace(input, []byte(`"include_deprecated":}`), []byte(`"include_deprecated":false}`), 1)
@@ -43,7 +41,7 @@ func (s *Source) typeInfo(typeName string) *introspection.FullType {
 			return &fullType
 		}
 	}
-	return nil
+	return &introspection.FullType{}
 }
 
 func (s *Source) singleType(w io.Writer, typeName string) error {

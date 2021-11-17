@@ -44,12 +44,14 @@ func (f FieldConfigurations) ForTypeField(typeName, fieldName string) *FieldConf
 }
 
 type FieldConfiguration struct {
-	TypeName              string
-	FieldName             string
+	TypeName  string
+	FieldName string
+	// DisableDefaultMapping - instructs planner whether to use path mapping coming from Path field
 	DisableDefaultMapping bool
-	Path                  []string
-	Arguments             ArgumentsConfigurations
-	RequiresFields        []string
+	// Path - represents a json path to lookup for a field value in response json
+	Path           []string
+	Arguments      ArgumentsConfigurations
+	RequiresFields []string
 }
 
 type ArgumentsConfigurations []ArgumentConfiguration
