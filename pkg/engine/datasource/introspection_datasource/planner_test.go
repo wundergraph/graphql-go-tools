@@ -206,4 +206,132 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 		},
 		planConfiguration,
 	))
+
+	t.Run("type introspection request with fields args", datasourcetesting.RunTest(schema, typeIntrospectionWithArgs, "",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:             0,
+						Input:                `{"request_type":2,"type_name":"$$0$$"}`,
+						DataSource:           &Source{},
+						DataSourceIdentifier: []byte("introspection_datasource.Source"),
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:               []string{"a"},
+								JsonValueType:      jsonparser.String,
+								RenderAsPlainValue: true,
+							},
+						),
+					},
+					Fields: []*resolve.Field{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Name:      []byte("__type"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
+							Value: &resolve.Object{
+								Nullable: true,
+								Fetch: &resolve.ParallelFetch{
+									Fetches: []resolve.Fetch{
+										&resolve.SingleFetch{
+											BufferId:   1,
+											Input:      `{"request_type":3,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
+											DataSource: &Source{},
+											Variables: resolve.NewVariables(
+												&resolve.ObjectVariable{
+													Path:               []string{"name"},
+													RenderAsPlainValue: true,
+												},
+												&resolve.ContextVariable{
+													Path:               []string{"b"},
+													JsonValueType:      jsonparser.Boolean,
+													RenderAsPlainValue: true,
+												},
+											),
+											DataSourceIdentifier: []byte("introspection_datasource.Source"),
+										},
+										&resolve.SingleFetch{
+											BufferId:   2,
+											Input:      `{"request_type":4,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
+											DataSource: &Source{},
+											Variables: resolve.NewVariables(
+												&resolve.ObjectVariable{
+													Path:               []string{"name"},
+													RenderAsPlainValue: true,
+												},
+												&resolve.ContextVariable{
+													Path:               []string{"c"},
+													JsonValueType:      jsonparser.Boolean,
+													RenderAsPlainValue: true,
+												},
+											),
+											DataSourceIdentifier: []byte("introspection_datasource.Source"),
+										},
+									},
+								},
+								Fields: []*resolve.Field{
+									{
+										BufferID:  1,
+										HasBuffer: true,
+										Name:      []byte("fields"),
+										Value: &resolve.Array{
+											Nullable: true,
+											Item: &resolve.Object{
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("name"),
+														Value: &resolve.String{
+															Path: []string{"name"},
+														},
+														Position: resolve.Position{
+															Line:   5,
+															Column: 6,
+														},
+													},
+												},
+											},
+										}, Position: resolve.Position{
+											Line:   4,
+											Column: 5,
+										},
+									},
+									{
+										BufferID:  2,
+										HasBuffer: true,
+										Name:      []byte("enumValues"),
+										Value: &resolve.Array{
+											Nullable: true,
+											Item: &resolve.Object{
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("name"),
+														Value: &resolve.String{
+															Path: []string{"name"},
+														},
+														Position: resolve.Position{
+															Line:   8,
+															Column: 6,
+														},
+													},
+												},
+											},
+										}, Position: resolve.Position{
+											Line:   7,
+											Column: 5,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		planConfiguration,
+	))
+
 }
