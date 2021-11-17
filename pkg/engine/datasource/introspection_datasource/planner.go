@@ -1,9 +1,7 @@
 package introspection_datasource
 
 import (
-	"bytes"
 	"encoding/json"
-	"strconv"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
@@ -40,52 +38,12 @@ func (p *Planner) EnterField(ref int) {
 func (p *Planner) configureInput() string {
 	fieldName := p.v.Operation.FieldNameString(p.rootField)
 
-	var objArg = []byte(`"on_type_name":"{{ .object.name }}"`)
-	var queryArg = []byte(`"type_name":"{{ .arguments.name }}"`)
-	var filterArg = []byte(`"include_deprecated":{{ .arguments.includeDeprecated }}`)
-
-	var (
-		typeName     []byte
-		fieldsFilter []byte
-		requestType  = SchemaRequestType
-	)
-	switch fieldName {
-	case "__type":
-		requestType = TypeRequestType
-		typeName = queryArg
-	case "fields":
-		requestType = TypeFieldsRequestType
-		typeName = objArg
-		fieldsFilter = filterArg
-	case "enumValues":
-		requestType = TypeEnumValuesRequestType
-		typeName = objArg
-		fieldsFilter = filterArg
-	}
-
-	buf := bytes.Buffer{}
-	buf.Write([]byte(`{"request_type":`))
-	buf.Write([]byte(strconv.Itoa(int(requestType))))
-
-	if typeName != nil {
-		buf.Write([]byte(`,`))
-		buf.Write(typeName)
-	}
-
-	if fieldsFilter != nil {
-		buf.Write([]byte(`,`))
-		buf.Write(fieldsFilter)
-	}
-
-	buf.Write([]byte(`}`))
-
-	return buf.String()
+	return buildInput(fieldName)
 }
 
 func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
-	input := p.configureInput()
 	return plan.FetchConfiguration{
-		Input: input,
+		Input: p.configureInput(),
 		DataSource: &Source{
 			introspectionData: p.introspectionData,
 		},
