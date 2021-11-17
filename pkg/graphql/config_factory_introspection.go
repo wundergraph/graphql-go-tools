@@ -30,56 +30,56 @@ func (f *IntrospectionConfigFactory) introspection() (data introspection.Data) {
 
 func (f *IntrospectionConfigFactory) engineConfigFieldConfigs() (planFields plan.FieldConfigurations) {
 	return plan.FieldConfigurations{
-		// {
-		// 	TypeName:  "Query",
-		// 	FieldName: "__schema",
-		// },
-		// {
-		// 	TypeName:  "Query",
-		// 	FieldName: "__type",
-		// 	// Arguments: plan.ArgumentsConfigurations{
-		// 	// 	{
-		// 	// 		Name:       "name",
-		// 	// 		SourceType: plan.FieldArgumentSource,
-		// 	// 	},
-		// 	// },
-		// },
-		// {
-		// 	TypeName:  "__Type",
-		// 	FieldName: "fields",
-		// 	// Arguments: plan.ArgumentsConfigurations{
-		// 	// 	{
-		// 	// 		Name:       "includeDeprecated",
-		// 	// 		SourceType: plan.FieldArgumentSource,
-		// 	// 	},
-		// 	// 	{
-		// 	// 		Name:       "typeName",
-		// 	// 		SourceType: plan.ObjectFieldSource,
-		// 	// 		SourcePath: []string{"name"},
-		// 	// 	},
-		// 	// },
-		// },
-		// {
-		// 	TypeName:  "__Type",
-		// 	FieldName: "enumValues",
-		// 	// Arguments: plan.ArgumentsConfigurations{
-		// 	// 	{
-		// 	// 		Name:       "includeDeprecated",
-		// 	// 		SourceType: plan.FieldArgumentSource,
-		// 	// 	},
-		// 	// 	{
-		// 	// 		Name:       "typeName",
-		// 	// 		SourceType: plan.ObjectFieldSource,
-		// 	// 		SourcePath: []string{"name"},
-		// 	// 	},
-		// 	// },
-		// },
+		{
+			TypeName:              "Query",
+			FieldName:             "__schema",
+			DisableDefaultMapping: true,
+		},
+		{
+			TypeName:              "Query",
+			FieldName:             "__type",
+			DisableDefaultMapping: true,
+			// Arguments: plan.ArgumentsConfigurations{
+			// 	{
+			// 		Name:       "name",
+			// 		SourceType: plan.FieldArgumentSource,
+			// 	},
+			// },
+		},
+		{
+			TypeName:              "__Type",
+			FieldName:             "fields",
+			DisableDefaultMapping: true,
+			// Arguments: plan.ArgumentsConfigurations{
+			// 	{
+			// 		Name:       "includeDeprecated",
+			// 		SourceType: plan.FieldArgumentSource,
+			// 	},
+			// 	{
+			// 		Name:       "typeName",
+			// 		SourceType: plan.ObjectFieldSource,
+			// 		SourcePath: []string{"name"},
+			// 	},
+			// },
+		},
+		{
+			TypeName:              "__Type",
+			FieldName:             "enumValues",
+			DisableDefaultMapping: true,
+			// Arguments: plan.ArgumentsConfigurations{
+			// 	{
+			// 		Name:       "includeDeprecated",
+			// 		SourceType: plan.FieldArgumentSource,
+			// 	},
+			// 	{
+			// 		Name:       "typeName",
+			// 		SourceType: plan.ObjectFieldSource,
+			// 		SourcePath: []string{"name"},
+			// 	},
+			// },
+		},
 	}
 }
-
-// __schema: __Schema!
-// __type(name: String!): __Type
-//
 
 func (f *IntrospectionConfigFactory) engineConfigDataSources() (planDataSources []plan.DataSourceConfiguration) {
 	data := f.introspection()
@@ -95,7 +95,7 @@ func (f *IntrospectionConfigFactory) engineConfigDataSources() (planDataSources 
 				FieldNames: []string{"fields", "enumValues"},
 			},
 		},
-		Factory: &introspection_datasource.Factory{IntrospectionData: &data},
+		Factory: introspection_datasource.NewFactory(&data),
 		Custom:  json.RawMessage{},
 	}
 
