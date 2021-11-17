@@ -212,7 +212,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 
 	t.Run("introspection", func(t *testing.T) {
 		schema := heroWithArgumentSchema(t)
-		factory := NewIntrospectionConfigFactory(schema)
+		factory, _ := NewIntrospectionConfigFactory(schema)
 
 		t.Run("execute introspection query", runWithoutError(
 			ExecutionEngineV2TestCase{
