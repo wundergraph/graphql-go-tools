@@ -52,6 +52,8 @@ const (
 )
 
 func TestIntrospectionDataSourcePlanning(t *testing.T) {
+	dataSourceIdentifier := []byte("introspection_datasource.Source")
+
 	planConfiguration := plan.Configuration{
 		DataSources: []plan.DataSourceConfiguration{
 			{
@@ -101,7 +103,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 						BufferId:             0,
 						Input:                `{"request_type":2,"type_name":"$$0$$"}`,
 						DataSource:           &Source{},
-						DataSourceIdentifier: []byte("introspection_datasource.Source"),
+						DataSourceIdentifier: dataSourceIdentifier,
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:               []string{"a"},
@@ -161,7 +163,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 						BufferId:             0,
 						Input:                `{"request_type":1}`,
 						DataSource:           &Source{},
-						DataSourceIdentifier: []byte("introspection_datasource.Source"),
+						DataSourceIdentifier: dataSourceIdentifier,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -215,7 +217,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 						BufferId:             0,
 						Input:                `{"request_type":2,"type_name":"$$0$$"}`,
 						DataSource:           &Source{},
-						DataSourceIdentifier: []byte("introspection_datasource.Source"),
+						DataSourceIdentifier: dataSourceIdentifier,
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:               []string{"a"},
@@ -252,7 +254,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 													RenderAsPlainValue: true,
 												},
 											),
-											DataSourceIdentifier: []byte("introspection_datasource.Source"),
+											DataSourceIdentifier: dataSourceIdentifier,
 										},
 										&resolve.SingleFetch{
 											BufferId:   2,
@@ -269,7 +271,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 													RenderAsPlainValue: true,
 												},
 											),
-											DataSourceIdentifier: []byte("introspection_datasource.Source"),
+											DataSourceIdentifier: dataSourceIdentifier,
 										},
 									},
 								},
