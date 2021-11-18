@@ -19,29 +19,56 @@ func MergeDefinitionWithBaseSchema(definition *ast.Document) error {
 	return handleSchema(definition)
 }
 
+// var NoQueryRootTypeErr = errors.New("query root type must be provided")
+
 func handleSchema(definition *ast.Document) error {
-	if err := addSchemaDefinition(definition); err != nil {
-		return err
+	// hasSchemaDef := definition.HasSchemaDefinition()
+	//
+	// // if we have schema definition
+	// // but do not have a query root operation type definition
+	// // return an error
+	// if hasSchemaDef {
+	// 	schemaDefRef := definition.SchemaDefinitionRef()
+	// 	schemaDef := definition.SchemaDefinitions[schemaDefRef]
+	//
+	// 	hasQueryRootDef := false
+	// 	for _, ref := range schemaDef.RootOperationTypeDefinitions.Refs {
+	// 		if definition.RootOperationTypeDefinitions[ref].OperationType == ast.OperationTypeQuery {
+	// 			hasQueryRootDef = true
+	// 			break
+	// 		}
+	// 	}
+	//
+	// 	if !hasQueryRootDef {
+	// 		return NoQueryRootTypeErr
+	// 	}
+	// }
+
+	var queryNodeRef int
+	queryNode, hasQueryNode := findQueryNode(definition)
+	if hasQueryNode {
+		queryNodeRef = queryNode.Ref
+	} else {
+		queryNodeRef = definition.ImportObjectTypeDefinition("Query", "", nil, nil)
 	}
 
-	queryNode, ok := findQueryNode(definition)
-	if !ok {
-		return nil
-	}
-
-	if err := addIntrospectionQueryFields(definition, queryNode.Ref); err != nil {
-		return err
-	}
+	addSchemaDefinition(definition)
+	addMissingRootOperationTypeDefinitions(definition)
+	addIntrospectionQueryFields(definition, queryNodeRef)
 
 	return nil
 }
 
-func addSchemaDefinition(definition *ast.Document) error {
+func addSchemaDefinition(definition *ast.Document) {
 	if definition.HasSchemaDefinition() {
-		return nil
+		return
 	}
 
 	schemaDefinition := ast.SchemaDefinition{}
+	definition.AddSchemaDefinitionRootNode(schemaDefinition)
+}
+
+func addMissingRootOperationTypeDefinitions(definition *ast.Document) {
 	var rootOperationTypeRefs []int
 
 	for i := range definition.RootNodes {
@@ -50,26 +77,32 @@ func addSchemaDefinition(definition *ast.Document) error {
 
 			switch {
 			case bytes.Equal(typeName, []byte("Query")):
-				ref := definition.CreateRootOperationTypeDefinition(ast.OperationTypeQuery, i)
-				rootOperationTypeRefs = append(rootOperationTypeRefs, ref)
+				rootOperationTypeRefs = createRootOperationTypeIfNotExists(definition, rootOperationTypeRefs, ast.OperationTypeQuery, i)
 			case bytes.Equal(typeName, []byte("Mutation")):
-				ref := definition.CreateRootOperationTypeDefinition(ast.OperationTypeMutation, i)
-				rootOperationTypeRefs = append(rootOperationTypeRefs, ref)
+				rootOperationTypeRefs = createRootOperationTypeIfNotExists(definition, rootOperationTypeRefs, ast.OperationTypeMutation, i)
 			case bytes.Equal(typeName, []byte("Subscription")):
-				ref := definition.CreateRootOperationTypeDefinition(ast.OperationTypeSubscription, i)
-				rootOperationTypeRefs = append(rootOperationTypeRefs, ref)
+				rootOperationTypeRefs = createRootOperationTypeIfNotExists(definition, rootOperationTypeRefs, ast.OperationTypeSubscription, i)
 			default:
 				continue
 			}
 		}
 	}
 
-	schemaDefinition.AddRootOperationTypeDefinitionRefs(rootOperationTypeRefs...)
-	definition.AddSchemaDefinitionRootNode(schemaDefinition)
-	return nil
+	definition.SchemaDefinitions[definition.SchemaDefinitionRef()].AddRootOperationTypeDefinitionRefs(rootOperationTypeRefs...)
 }
 
-func addIntrospectionQueryFields(definition *ast.Document, objectTypeDefinitionRef int) error {
+func createRootOperationTypeIfNotExists(definition *ast.Document, rootOperationTypeRefs []int, operationType ast.OperationType, nodeRef int) []int {
+	for i := range definition.RootOperationTypeDefinitions {
+		if definition.RootOperationTypeDefinitions[i].OperationType == operationType {
+			return rootOperationTypeRefs
+		}
+	}
+
+	ref := definition.CreateRootOperationTypeDefinition(operationType, nodeRef)
+	return append(rootOperationTypeRefs, ref)
+}
+
+func addIntrospectionQueryFields(definition *ast.Document, objectTypeDefinitionRef int) {
 	var fieldRefs []int
 	if !definition.ObjectTypeDefinitionHasField(objectTypeDefinitionRef, []byte("__schema")) {
 		fieldRefs = append(fieldRefs, addSchemaField(definition))
@@ -80,7 +113,7 @@ func addIntrospectionQueryFields(definition *ast.Document, objectTypeDefinitionR
 	}
 
 	definition.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs = append(definition.ObjectTypeDefinitions[objectTypeDefinitionRef].FieldsDefinition.Refs, fieldRefs...)
-	return nil
+	definition.ObjectTypeDefinitions[objectTypeDefinitionRef].HasFieldDefinitions = true
 }
 
 func addSchemaField(definition *ast.Document) (ref int) {
@@ -118,6 +151,10 @@ func addTypeField(definition *ast.Document) (ref int) {
 
 func findQueryNode(definition *ast.Document) (queryNode ast.Node, ok bool) {
 	queryNode, ok = definition.Index.FirstNodeByNameBytes(definition.Index.QueryTypeName)
+	if !ok {
+		queryNode, ok = definition.Index.FirstNodeByNameStr("Query")
+	}
+
 	return queryNode, ok
 }
 

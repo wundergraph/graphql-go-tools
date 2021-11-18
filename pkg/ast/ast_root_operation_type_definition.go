@@ -48,7 +48,7 @@ func (d *Document) RootOperationTypeDefinitionIsLastInSchemaDefinition(ref int, 
 	}
 }
 
-func (d *Document) CreateRootOperationTypeDefinition(operationType OperationType, rootNodeIndex int) (ref int) {
+func (d *Document) CreateRootOperationTypeDefinition(operationType OperationType, rootNodeRef int) (ref int) {
 	switch operationType {
 	case OperationTypeQuery:
 		d.Index.QueryTypeName = []byte("Query")
@@ -60,7 +60,7 @@ func (d *Document) CreateRootOperationTypeDefinition(operationType OperationType
 		return
 	}
 
-	nameRef := d.ObjectTypeDefinitionNameRef(d.RootNodes[rootNodeIndex].Ref)
+	nameRef := d.ObjectTypeDefinitionNameRef(d.RootNodes[rootNodeRef].Ref)
 	return d.AddRootOperationTypeDefinition(RootOperationTypeDefinition{
 		OperationType: operationType,
 		NamedType: Type{
