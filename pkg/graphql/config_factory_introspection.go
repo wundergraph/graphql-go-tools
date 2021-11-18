@@ -30,12 +30,12 @@ func NewIntrospectionConfigFactory(schema *Schema) (*IntrospectionConfigFactory,
 func (f *IntrospectionConfigFactory) engineConfigFieldConfigs() (planFields plan.FieldConfigurations) {
 	return plan.FieldConfigurations{
 		{
-			TypeName:              "Query",
+			TypeName:              f.introspectionData.Schema.QueryType.Name,
 			FieldName:             "__schema",
 			DisableDefaultMapping: true,
 		},
 		{
-			TypeName:              "Query",
+			TypeName:              f.introspectionData.Schema.QueryType.Name,
 			FieldName:             "__type",
 			DisableDefaultMapping: true,
 		},
