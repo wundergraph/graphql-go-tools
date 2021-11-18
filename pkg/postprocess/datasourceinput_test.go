@@ -131,7 +131,7 @@ func TestDataSourceInput_Process(t *testing.T) {
 							},
 							{
 								SegmentType:        resolve.VariableSegmentType,
-								VariableSource:     resolve.VariableSourceRequestHeader,
+								VariableKind:       resolve.HeaderVariableKind,
 								VariableSourcePath: []string{"Authorization"},
 							},
 							{
@@ -158,7 +158,7 @@ func TestDataSourceInput_Process(t *testing.T) {
 										},
 										{
 											SegmentType:        resolve.VariableSegmentType,
-											VariableSource:     resolve.VariableSourceObject,
+											VariableKind:       resolve.ObjectVariableKind,
 											VariableSourcePath: []string{"id"},
 										},
 										{
@@ -220,7 +220,7 @@ func TestDataSourceInput_Process(t *testing.T) {
 																	},
 																	{
 																		SegmentType:        resolve.VariableSegmentType,
-																		VariableSource:     resolve.VariableSourceObject,
+																		VariableKind:       resolve.ObjectVariableKind,
 																		VariableSourcePath: []string{"upc"},
 																	},
 																	{
@@ -291,7 +291,7 @@ func TestDataSourceInput_Subscription_Process(t *testing.T) {
 						},
 						{
 							SegmentType:        resolve.VariableSegmentType,
-							VariableSource:     resolve.VariableSourceRequestHeader,
+							VariableKind:       resolve.HeaderVariableKind,
 							VariableSourcePath: []string{"Authorization"},
 						},
 						{

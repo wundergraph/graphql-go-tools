@@ -266,7 +266,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						{
 							SegmentType:        VariableSegmentType,
-							VariableSource:     VariableSourceContext,
+							VariableKind:       ContextVariableKind,
 							VariableSourcePath: []string{"id"},
 							VariableValueType:  jsonparser.Number,
 						},
@@ -751,7 +751,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 									},
 									{
 										SegmentType:                  VariableSegmentType,
-										VariableSource:               VariableSourceObject,
+										VariableKind:                 ObjectVariableKind,
 										VariableSourcePath:           []string{"id"},
 										VariableValueType:            jsonparser.Number,
 										RenderVariableAsGraphQLValue: true,
@@ -1067,7 +1067,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		}, Context{Context: context.Background()}, `{"errors":[{"message":"errorMessage1"},{"message":"errorMessage2"}],"data":{"name":null}}`
 	}))
 	t.Run("not nullable object in nullable field", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
-		return  &GraphQLResponse{
+		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: false,
 				Fetch: &SingleFetch{
@@ -1081,13 +1081,13 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						Name:      []byte("nullableField"),
 						Value: &Object{
 							Nullable: true,
-							Path: []string{"nullable_field"},
+							Path:     []string{"nullable_field"},
 							Fields: []*Field{
 								{
 									Name: []byte("notNullableField"),
 									Value: &Object{
 										Nullable: false,
-										Path: []string{"not_nullable_field"},
+										Path:     []string{"not_nullable_field"},
 										Fields: []*Field{
 											{
 												Name: []byte("someField"),
@@ -1460,7 +1460,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 									{
 										SegmentType:        VariableSegmentType,
-										VariableSource:     VariableSourceContext,
+										VariableKind:       ContextVariableKind,
 										VariableSourcePath: []string{"thirdArg"},
 										VariableValueType:  jsonparser.Number,
 									},
@@ -1470,7 +1470,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 									{
 										SegmentType:        VariableSegmentType,
-										VariableSource:     VariableSourceContext,
+										VariableKind:       ContextVariableKind,
 										VariableSourcePath: []string{"firstArg"},
 										VariableValueType:  jsonparser.String,
 									},
@@ -1504,7 +1504,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 									{
 										SegmentType:        VariableSegmentType,
-										VariableSource:     VariableSourceContext,
+										VariableKind:       ContextVariableKind,
 										VariableSourcePath: []string{"fourthArg"},
 										VariableValueType:  jsonparser.Number,
 									},
@@ -1514,7 +1514,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 									{
 										SegmentType:        VariableSegmentType,
-										VariableSource:     VariableSourceContext,
+										VariableKind:       ContextVariableKind,
 										VariableSourcePath: []string{"secondArg"},
 										VariableValueType:  jsonparser.Boolean,
 									},
@@ -1742,7 +1742,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										},
 										{
 											SegmentType:                  VariableSegmentType,
-											VariableSource:               VariableSourceObject,
+											VariableKind:                 ObjectVariableKind,
 											VariableSourcePath:           []string{"id"},
 											VariableValueType:            jsonparser.String,
 											RenderVariableAsGraphQLValue: true,
@@ -1805,7 +1805,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	},
 																	{
 																		SegmentType:                  VariableSegmentType,
-																		VariableSource:               VariableSourceObject,
+																		VariableKind:                 ObjectVariableKind,
 																		VariableSourcePath:           []string{"upc"},
 																		VariableValueType:            jsonparser.String,
 																		RenderVariableAsGraphQLValue: true,
@@ -1943,7 +1943,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 											},
 											{
 												SegmentType:                  VariableSegmentType,
-												VariableSource:               VariableSourceObject,
+												VariableKind:                 ObjectVariableKind,
 												VariableSourcePath:           []string{"id"},
 												VariableValueType:            jsonparser.Number,
 												RenderVariableAsGraphQLValue: true,
@@ -2009,7 +2009,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																		},
 																		{
 																			SegmentType:                  VariableSegmentType,
-																			VariableSource:               VariableSourceObject,
+																			VariableKind:                 ObjectVariableKind,
 																			VariableSourcePath:           []string{"upc"},
 																			VariableValueType:            jsonparser.String,
 																			RenderVariableAsGraphQLValue: true,
@@ -2147,7 +2147,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 											},
 											{
 												SegmentType:                  VariableSegmentType,
-												VariableSource:               VariableSourceObject,
+												VariableKind:                 ObjectVariableKind,
 												VariableSourcePath:           []string{"id"},
 												VariableValueType:            jsonparser.Number,
 												RenderVariableAsGraphQLValue: true,
@@ -2210,7 +2210,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																		},
 																		{
 																			SegmentType:                  VariableSegmentType,
-																			VariableSource:               VariableSourceObject,
+																			VariableKind:                 ObjectVariableKind,
 																			VariableSourcePath:           []string{"upc"},
 																			VariableValueType:            jsonparser.String,
 																			RenderVariableAsGraphQLValue: true,
@@ -2304,7 +2304,7 @@ func TestResolver_WithHeader(t *testing.T) {
 							Segments: []TemplateSegment{
 								{
 									SegmentType:        VariableSegmentType,
-									VariableSource:     VariableSourceRequestHeader,
+									VariableKind:       HeaderVariableKind,
 									VariableSourcePath: []string{tc.variable},
 								},
 							},
@@ -2472,7 +2472,7 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 								},
 								{
 									SegmentType:        VariableSegmentType,
-									VariableSource:     VariableSourceContext,
+									VariableKind:       ContextVariableKind,
 									VariableSourcePath: []string{"thirdArg"},
 								},
 								{
@@ -2481,7 +2481,7 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 								},
 								{
 									SegmentType:        VariableSegmentType,
-									VariableSource:     VariableSourceContext,
+									VariableKind:       ContextVariableKind,
 									VariableSourcePath: []string{"firstArg"},
 								},
 								{
@@ -2511,7 +2511,7 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 								},
 								{
 									SegmentType:        VariableSegmentType,
-									VariableSource:     VariableSourceContext,
+									VariableKind:       ContextVariableKind,
 									VariableSourcePath: []string{"fourthArg"},
 								},
 								{
@@ -2520,7 +2520,7 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 								},
 								{
 									SegmentType:        VariableSegmentType,
-									VariableSource:     VariableSourceContext,
+									VariableKind:       ContextVariableKind,
 									VariableSourcePath: []string{"secondArg"},
 								},
 								{
@@ -2730,7 +2730,7 @@ func TestInputTemplate_Render(t *testing.T) {
 			Segments: []TemplateSegment{
 				{
 					SegmentType:        VariableSegmentType,
-					VariableSource:     VariableSourceContext,
+					VariableKind:       ContextVariableKind,
 					VariableSourcePath: sourcePath,
 					VariableValueType:  valueType,
 				},
@@ -2790,7 +2790,7 @@ func TestInputTemplate_Render(t *testing.T) {
 			Segments: []TemplateSegment{
 				{
 					SegmentType:                 VariableSegmentType,
-					VariableSource:              VariableSourceContext,
+					VariableKind:                ContextVariableKind,
 					VariableSourcePath:          []string{"a"},
 					VariableValueType:           jsonparser.Array,
 					VariableValueArrayValueType: jsonparser.String,
@@ -2812,7 +2812,7 @@ func TestInputTemplate_Render(t *testing.T) {
 			Segments: []TemplateSegment{
 				{
 					SegmentType:                 VariableSegmentType,
-					VariableSource:              VariableSourceContext,
+					VariableKind:                ContextVariableKind,
 					VariableSourcePath:          []string{"a"},
 					VariableValueType:           jsonparser.Array,
 					VariableValueArrayValueType: jsonparser.Number,
@@ -2834,7 +2834,7 @@ func TestInputTemplate_Render(t *testing.T) {
 			Segments: []TemplateSegment{
 				{
 					SegmentType:                 VariableSegmentType,
-					VariableSource:              VariableSourceContext,
+					VariableKind:                ContextVariableKind,
 					VariableSourcePath:          []string{"a"},
 					VariableValueType:           jsonparser.Array,
 					VariableValueArrayValueType: jsonparser.Number,

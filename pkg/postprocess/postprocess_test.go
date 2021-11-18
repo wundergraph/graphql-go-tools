@@ -40,7 +40,7 @@ func TestDefaultProcessor_Process(t *testing.T) {
 										Segments: []resolve.TemplateSegment{
 											{
 												SegmentType:        resolve.VariableSegmentType,
-												VariableSource:     resolve.VariableSourceObject,
+												VariableKind:       resolve.ObjectVariableKind,
 												VariableSourcePath: []string{"id"},
 											},
 										},
@@ -129,7 +129,7 @@ func TestDefaultProcessor_Process(t *testing.T) {
 							Segments: []resolve.TemplateSegment{
 								{
 									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceObject,
+									VariableKind:       resolve.ObjectVariableKind,
 									VariableSourcePath: []string{"id"},
 								},
 							},
@@ -356,7 +356,7 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 								},
 								{
 									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceObject,
+									VariableKind:       resolve.ObjectVariableKind,
 									VariableSourcePath: []string{"id"},
 								},
 								{
@@ -397,7 +397,7 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 													},
 													{
 														SegmentType:        resolve.VariableSegmentType,
-														VariableSource:     resolve.VariableSourceObject,
+														VariableKind:       resolve.ObjectVariableKind,
 														VariableSourcePath: []string{"upc"},
 													},
 													{

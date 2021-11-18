@@ -39,7 +39,7 @@ func TestProcessDefer_Process(t *testing.T) {
 										Segments: []resolve.TemplateSegment{
 											{
 												SegmentType:        resolve.VariableSegmentType,
-												VariableSource:     resolve.VariableSourceObject,
+												VariableKind:       resolve.ObjectVariableKind,
 												VariableSourcePath: []string{"id"},
 											},
 										},
@@ -150,7 +150,7 @@ func TestProcessDefer_Process(t *testing.T) {
 							Segments: []resolve.TemplateSegment{
 								{
 									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceObject,
+									VariableKind:       resolve.ObjectVariableKind,
 									VariableSourcePath: []string{"id"},
 								},
 							},
@@ -213,7 +213,7 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 										Segments: []resolve.TemplateSegment{
 											{
 												SegmentType:        resolve.VariableSegmentType,
-												VariableSource:     resolve.VariableSourceObject,
+												VariableKind:       resolve.ObjectVariableKind,
 												VariableSourcePath: []string{"id"},
 											},
 										},
@@ -247,7 +247,7 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 														Segments: []resolve.TemplateSegment{
 															{
 																SegmentType:        resolve.VariableSegmentType,
-																VariableSource:     resolve.VariableSourceObject,
+																VariableKind:       resolve.ObjectVariableKind,
 																VariableSourcePath: []string{"id"},
 															},
 														},
@@ -361,7 +361,7 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 							Segments: []resolve.TemplateSegment{
 								{
 									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceObject,
+									VariableKind:       resolve.ObjectVariableKind,
 									VariableSourcePath: []string{"id"},
 								},
 							},
@@ -405,7 +405,7 @@ func TestProcessDefer_Process_Nested(t *testing.T) {
 							Segments: []resolve.TemplateSegment{
 								{
 									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceObject,
+									VariableKind:       resolve.ObjectVariableKind,
 									VariableSourcePath: []string{"id"},
 								},
 							},
@@ -467,7 +467,7 @@ func TestProcessDefer_Process_KeepFetchIfUsedUndeferred(t *testing.T) {
 										Segments: []resolve.TemplateSegment{
 											{
 												SegmentType:        resolve.VariableSegmentType,
-												VariableSource:     resolve.VariableSourceObject,
+												VariableKind:       resolve.ObjectVariableKind,
 												VariableSourcePath: []string{"id"},
 											},
 										},
@@ -568,7 +568,7 @@ func TestProcessDefer_Process_KeepFetchIfUsedUndeferred(t *testing.T) {
 											Segments: []resolve.TemplateSegment{
 												{
 													SegmentType:        resolve.VariableSegmentType,
-													VariableSource:     resolve.VariableSourceObject,
+													VariableKind:       resolve.ObjectVariableKind,
 													VariableSourcePath: []string{"id"},
 												},
 											},
@@ -690,7 +690,7 @@ func TestProcessDefer_Process_ParallelFetch(t *testing.T) {
 												Segments: []resolve.TemplateSegment{
 													{
 														SegmentType:        resolve.VariableSegmentType,
-														VariableSource:     resolve.VariableSourceObject,
+														VariableKind:       resolve.ObjectVariableKind,
 														VariableSourcePath: []string{"id"},
 													},
 												},
@@ -809,7 +809,7 @@ func TestProcessDefer_Process_ParallelFetch(t *testing.T) {
 							Segments: []resolve.TemplateSegment{
 								{
 									SegmentType:        resolve.VariableSegmentType,
-									VariableSource:     resolve.VariableSourceObject,
+									VariableKind:       resolve.ObjectVariableKind,
 									VariableSourcePath: []string{"id"},
 								},
 							},
@@ -871,7 +871,7 @@ func TestProcessDefer_Process_ShouldSkipWithoutDefer(t *testing.T) {
 											Segments: []resolve.TemplateSegment{
 												{
 													SegmentType:        resolve.VariableSegmentType,
-													VariableSource:     resolve.VariableSourceObject,
+													VariableKind:       resolve.ObjectVariableKind,
 													VariableSourcePath: []string{"id"},
 												},
 											},

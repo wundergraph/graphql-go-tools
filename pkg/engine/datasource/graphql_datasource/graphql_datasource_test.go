@@ -2965,7 +2965,7 @@ func BenchmarkFederationBatching(b *testing.B) {
 										},
 										{
 											SegmentType:                  resolve.VariableSegmentType,
-											VariableSource:               resolve.VariableSourceObject,
+											VariableKind:                 resolve.ObjectVariableKind,
 											VariableSourcePath:           []string{"id"},
 											VariableValueType:            jsonparser.Number,
 											RenderVariableAsGraphQLValue: true,
@@ -3032,7 +3032,7 @@ func BenchmarkFederationBatching(b *testing.B) {
 																	},
 																	{
 																		SegmentType:                  resolve.VariableSegmentType,
-																		VariableSource:               resolve.VariableSourceObject,
+																		VariableKind:                 resolve.ObjectVariableKind,
 																		VariableSourcePath:           []string{"upc"},
 																		VariableValueType:            jsonparser.String,
 																		RenderVariableAsGraphQLValue: true,

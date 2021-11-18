@@ -415,7 +415,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 	))
 
 	t.Run("execute operation with array input type", runWithoutError(ExecutionEngineV2TestCase{
-		schema:           heroWithArgumentSchema(t),
+		schema: heroWithArgumentSchema(t),
 		operation: func(t *testing.T) Request {
 			return Request{
 				OperationName: "MyHeroes",
@@ -427,7 +427,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					}`,
 			}
 		},
-		dataSources:      []plan.DataSourceConfiguration{
+		dataSources: []plan.DataSourceConfiguration{
 			{
 				RootNodes: []plan.TypeField{
 					{TypeName: "Query", FieldNames: []string{"heroes"}},
@@ -449,14 +449,14 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				}),
 			},
 		},
-		fields:           []plan.FieldConfiguration{
+		fields: []plan.FieldConfiguration{
 			{
-				TypeName:              "Query",
-				FieldName:             "heroes",
-				Path:                  []string{"heroes"},
+				TypeName:  "Query",
+				FieldName: "heroes",
+				Path:      []string{"heroes"},
 				Arguments: []plan.ArgumentConfiguration{
 					{
-						Name:         "names",
+						Name:       "names",
 						SourceType: plan.FieldArgumentSource,
 					},
 				},

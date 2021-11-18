@@ -47,7 +47,7 @@ func TestWithoutDefer(t *testing.T) {
 									Segments: []TemplateSegment{
 										{
 											SegmentType:                  VariableSegmentType,
-											VariableSource:               VariableSourceObject,
+											VariableKind:                 ObjectVariableKind,
 											VariableSourcePath:           []string{"id"},
 											RenderVariableAsGraphQLValue: true,
 											VariableValueType:            jsonparser.Number,
@@ -224,7 +224,7 @@ func TestDefer(t *testing.T) {
 						Segments: []TemplateSegment{
 							{
 								SegmentType:                  VariableSegmentType,
-								VariableSource:               VariableSourceObject,
+								VariableKind:                 ObjectVariableKind,
 								VariableSourcePath:           []string{"id"},
 								VariableValueType:            jsonparser.Number,
 								RenderVariableAsGraphQLValue: true,
@@ -361,7 +361,7 @@ func BenchmarkDefer(b *testing.B) {
 						Segments: []TemplateSegment{
 							{
 								SegmentType:        VariableSegmentType,
-								VariableSource:     VariableSourceObject,
+								VariableKind:       ObjectVariableKind,
 								VariableSourcePath: []string{"id"},
 							},
 						},

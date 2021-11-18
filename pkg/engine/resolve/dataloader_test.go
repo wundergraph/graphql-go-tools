@@ -139,7 +139,7 @@ func TestDataLoader_Load(t *testing.T) {
 					},
 					{
 						SegmentType:                  VariableSegmentType,
-						VariableSource:               VariableSourceObject,
+						VariableKind:                 ObjectVariableKind,
 						VariableSourcePath:           []string{"id"},
 						VariableValueType:            jsonparser.Number,
 						RenderVariableAsGraphQLValue: true,
@@ -200,7 +200,7 @@ func TestDataLoader_Load(t *testing.T) {
 						},
 						{
 							SegmentType:        VariableSegmentType,
-							VariableSource:     VariableSourceObject,
+							VariableKind:       ObjectVariableKind,
 							VariableSourcePath: []string{"id"},
 						},
 						{
@@ -248,7 +248,7 @@ func TestDataLoader_Load(t *testing.T) {
 					},
 					{
 						SegmentType:        VariableSegmentType,
-						VariableSource:     VariableSourceObject,
+						VariableKind:       ObjectVariableKind,
 						VariableSourcePath: []string{"id"},
 					},
 					{
@@ -278,7 +278,7 @@ func TestDataLoader_Load(t *testing.T) {
 					},
 					{
 						SegmentType:        VariableSegmentType,
-						VariableSource:     VariableSourceObject,
+						VariableKind:       ObjectVariableKind,
 						VariableSourcePath: []string{"id"},
 					},
 					{
@@ -308,7 +308,7 @@ func TestDataLoader_Load(t *testing.T) {
 					},
 					{
 						SegmentType:        VariableSegmentType,
-						VariableSource:     VariableSourceObject,
+						VariableKind:       ObjectVariableKind,
 						VariableSourcePath: []string{"id"},
 					},
 					{
@@ -363,7 +363,7 @@ func TestDataLoader_Load(t *testing.T) {
 					},
 					{
 						SegmentType:                  VariableSegmentType,
-						VariableSource:               VariableSourceObject,
+						VariableKind:                 ObjectVariableKind,
 						VariableSourcePath:           []string{"id"},
 						VariableValueType:            jsonparser.Number,
 						RenderVariableAsGraphQLValue: true,
@@ -420,7 +420,7 @@ func TestDataLoader_Load(t *testing.T) {
 					},
 					{
 						SegmentType:                  VariableSegmentType,
-						VariableSource:               VariableSourceObject,
+						VariableKind:                 ObjectVariableKind,
 						VariableSourcePath:           []string{"id"},
 						VariableValueType:            jsonparser.Number,
 						RenderVariableAsGraphQLValue: true,
@@ -501,7 +501,7 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 						},
 						{
 							SegmentType:                  VariableSegmentType,
-							VariableSource:               VariableSourceObject,
+							VariableKind:                 ObjectVariableKind,
 							VariableSourcePath:           []string{"upc"},
 							VariableValueType:            jsonparser.String,
 							RenderVariableAsGraphQLValue: true,
@@ -536,7 +536,7 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 						},
 						{
 							SegmentType:        VariableSegmentType,
-							VariableSource:     VariableSourceObject,
+							VariableKind:       ObjectVariableKind,
 							VariableSourcePath: []string{"upc"},
 						},
 						{
@@ -598,7 +598,7 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 							},
 							{
 								SegmentType:                  VariableSegmentType,
-								VariableSource:               VariableSourceObject,
+								VariableKind:                 ObjectVariableKind,
 								VariableSourcePath:           []string{"upc"},
 								VariableValueType:            jsonparser.String,
 								RenderVariableAsGraphQLValue: true,

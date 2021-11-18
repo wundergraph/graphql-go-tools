@@ -344,7 +344,7 @@ func TestStreamAndDefer(t *testing.T) {
 						Segments: []TemplateSegment{
 							{
 								SegmentType:                  VariableSegmentType,
-								VariableSource:               VariableSourceObject,
+								VariableKind:                 ObjectVariableKind,
 								VariableSourcePath:           []string{"id"},
 								RenderVariableAsGraphQLValue: true,
 								VariableValueType:            jsonparser.Number,
