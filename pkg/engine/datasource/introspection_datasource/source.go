@@ -25,31 +25,35 @@ func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error
 
 	switch req.RequestType {
 	case TypeRequestType:
-		return s.singleType(w, *req.TypeName)
+		return s.singleType(w, req.TypeName)
 	case TypeEnumValuesRequestType:
-		return s.enumValuesForType(w, *req.OnTypeName, req.IncludeDeprecated)
+		return s.enumValuesForType(w, req.OnTypeName, req.IncludeDeprecated)
 	case TypeFieldsRequestType:
-		return s.fieldsForType(w, *req.OnTypeName, req.IncludeDeprecated)
+		return s.fieldsForType(w, req.OnTypeName, req.IncludeDeprecated)
 	}
 
 	return json.NewEncoder(w).Encode(s.introspectionData.Schema)
 }
 
-func (s *Source) typeInfo(typeName string) *introspection.FullType {
+func (s *Source) typeInfo(typeName *string) *introspection.FullType {
+	if typeName == nil {
+		return &introspection.FullType{}
+	}
+
 	for _, fullType := range s.introspectionData.Schema.Types {
-		if fullType.Name == typeName {
+		if fullType.Name == *typeName {
 			return &fullType
 		}
 	}
 	return &introspection.FullType{}
 }
 
-func (s *Source) singleType(w io.Writer, typeName string) error {
+func (s *Source) singleType(w io.Writer, typeName *string) error {
 	typeInfo := s.typeInfo(typeName)
 	return json.NewEncoder(w).Encode(typeInfo)
 }
 
-func (s *Source) fieldsForType(w io.Writer, typeName string, includeDeprecated bool) error {
+func (s *Source) fieldsForType(w io.Writer, typeName *string, includeDeprecated bool) error {
 	typeInfo := s.typeInfo(typeName)
 
 	if includeDeprecated {
@@ -66,7 +70,7 @@ func (s *Source) fieldsForType(w io.Writer, typeName string, includeDeprecated b
 	return json.NewEncoder(w).Encode(fields)
 }
 
-func (s *Source) enumValuesForType(w io.Writer, typeName string, includeDeprecated bool) error {
+func (s *Source) enumValuesForType(w io.Writer, typeName *string, includeDeprecated bool) error {
 	typeInfo := s.typeInfo(typeName)
 
 	if includeDeprecated {
