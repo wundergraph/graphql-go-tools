@@ -14,6 +14,13 @@ const (
 	TypeEnumValuesRequestType
 )
 
+const (
+	schemaFieldName     = "__schema"
+	typeFieldName       = "__type"
+	fieldsFieldName     = "fields"
+	enumValuesFieldName = "enumValues"
+)
+
 type introspectionInput struct {
 	RequestType       requestType `json:"request_type"`
 	OnTypeName        *string     `json:"on_type_name"`
@@ -36,14 +43,14 @@ func buildInput(fieldName string) string {
 	buf.Write(lBrace)
 
 	switch fieldName {
-	case "__type":
+	case typeFieldName:
 		writeRequestTypeField(buf, TypeRequestType)
 		buf.Write(comma)
 		buf.Write(typeNameField)
-	case "fields":
+	case fieldsFieldName:
 		writeRequestTypeField(buf, TypeFieldsRequestType)
 		writeOnTypeFields(buf)
-	case "enumValues":
+	case enumValuesFieldName:
 		writeRequestTypeField(buf, TypeEnumValuesRequestType)
 		writeOnTypeFields(buf)
 	default:

@@ -1,0 +1,50 @@
+{
+  "kind": "OBJECT",
+  "name": "Query",
+  "description": "",
+  "fields": [
+    {
+      "name": "me",
+      "description": "",
+      "args": [],
+      "type": {
+        "kind": "OBJECT",
+        "name": "Droid",
+        "ofType": null
+      },
+      "isDeprecated": true,
+      "deprecationReason": "No longer supported"
+    },
+    {
+      "name": "droid",
+      "description": "",
+      "args": [
+        {
+          "name": "id",
+          "description": "",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "ID",
+              "ofType": null
+            }
+          },
+          "defaultValue": null
+        }
+      ],
+      "type": {
+        "kind": "OBJECT",
+        "name": "Droid",
+        "ofType": null
+      },
+      "isDeprecated": false,
+      "deprecationReason": null
+    }
+  ],
+  "inputFields": [],
+  "interfaces": [],
+  "enumValues": [],
+  "possibleTypes": []
+}
