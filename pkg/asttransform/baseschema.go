@@ -19,31 +19,7 @@ func MergeDefinitionWithBaseSchema(definition *ast.Document) error {
 	return handleSchema(definition)
 }
 
-// var NoQueryRootTypeErr = errors.New("query root type must be provided")
-
 func handleSchema(definition *ast.Document) error {
-	// hasSchemaDef := definition.HasSchemaDefinition()
-	//
-	// // if we have schema definition
-	// // but do not have a query root operation type definition
-	// // return an error
-	// if hasSchemaDef {
-	// 	schemaDefRef := definition.SchemaDefinitionRef()
-	// 	schemaDef := definition.SchemaDefinitions[schemaDefRef]
-	//
-	// 	hasQueryRootDef := false
-	// 	for _, ref := range schemaDef.RootOperationTypeDefinitions.Refs {
-	// 		if definition.RootOperationTypeDefinitions[ref].OperationType == ast.OperationTypeQuery {
-	// 			hasQueryRootDef = true
-	// 			break
-	// 		}
-	// 	}
-	//
-	// 	if !hasQueryRootDef {
-	// 		return NoQueryRootTypeErr
-	// 	}
-	// }
-
 	var queryNodeRef int
 	queryNode, hasQueryNode := findQueryNode(definition)
 	if hasQueryNode {
