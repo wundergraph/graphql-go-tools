@@ -243,6 +243,29 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			},
 		))
 
+		t.Run("execute type introspection query for not existing type", runWithoutError(
+			ExecutionEngineV2TestCase{
+				schema: schema,
+				operation: func(t *testing.T) Request {
+					return Request{
+						OperationName: "myIntrospection",
+						Query: `
+							query myIntrospection(){
+								__type(name: "NotExisting") {
+									name
+									kind
+									fields {
+										name
+									}
+								}
+							}
+						`,
+					}
+				},
+				expectedResponse: `{"data":{"__type":null}}`,
+			},
+		))
+
 		t.Run("execute type introspection query with deprecated fields", runWithoutError(
 			ExecutionEngineV2TestCase{
 				schema: schema,

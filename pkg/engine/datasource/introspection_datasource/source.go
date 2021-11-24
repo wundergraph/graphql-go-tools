@@ -9,6 +9,10 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 )
 
+var (
+	null = []byte("null")
+)
+
 type Source struct {
 	introspectionData *introspection.Data
 }
@@ -37,7 +41,7 @@ func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error
 
 func (s *Source) typeInfo(typeName *string) *introspection.FullType {
 	if typeName == nil {
-		return &introspection.FullType{}
+		return nil
 	}
 
 	for _, fullType := range s.introspectionData.Schema.Types {
@@ -45,16 +49,28 @@ func (s *Source) typeInfo(typeName *string) *introspection.FullType {
 			return &fullType
 		}
 	}
-	return &introspection.FullType{}
+	return nil
+}
+
+func (s *Source) writeNull(w io.Writer) error {
+	_, err := w.Write(null)
+	return err
 }
 
 func (s *Source) singleType(w io.Writer, typeName *string) error {
 	typeInfo := s.typeInfo(typeName)
+	if typeInfo == nil {
+		return s.writeNull(w)
+	}
+
 	return json.NewEncoder(w).Encode(typeInfo)
 }
 
 func (s *Source) fieldsForType(w io.Writer, typeName *string, includeDeprecated bool) error {
 	typeInfo := s.typeInfo(typeName)
+	if typeInfo == nil {
+		return s.writeNull(w)
+	}
 
 	if includeDeprecated {
 		return json.NewEncoder(w).Encode(typeInfo.Fields)
@@ -72,6 +88,9 @@ func (s *Source) fieldsForType(w io.Writer, typeName *string, includeDeprecated 
 
 func (s *Source) enumValuesForType(w io.Writer, typeName *string, includeDeprecated bool) error {
 	typeInfo := s.typeInfo(typeName)
+	if typeInfo == nil {
+		return s.writeNull(w)
+	}
 
 	if includeDeprecated {
 		return json.NewEncoder(w).Encode(typeInfo.EnumValues)
