@@ -25,22 +25,6 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	isIntrospection, err := gqlRequest.IsIntrospectionQuery()
-	if err != nil {
-		g.log.Error("IsIntrospectionQuery", log.Error(err))
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	if isIntrospection {
-		if err = g.schema.IntrospectionResponse(w); err != nil {
-			g.log.Error("schema.IsIntrospectionQuery", log.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-
-		return
-	}
-
 	buf := bytes.NewBuffer(make([]byte, 0, 4096))
 	resultWriter := graphql.NewEngineResultWriterFromBuffer(buf)
 	if err = g.engine.Execute(r.Context(), &gqlRequest, &resultWriter); err != nil {

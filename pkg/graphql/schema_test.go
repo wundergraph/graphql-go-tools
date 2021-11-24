@@ -76,7 +76,7 @@ func TestSchema_Normalize(t *testing.T) {
 func TestSchema_HasQueryType(t *testing.T) {
 	run := func(schema string, expectation bool) func(t *testing.T) {
 		return func(t *testing.T) {
-			parsedSchema, err := NewSchemaFromString(schema)
+			parsedSchema, err := createSchema([]byte(schema), false)
 			require.NoError(t, err)
 
 			result := parsedSchema.HasQueryType()
@@ -84,23 +84,25 @@ func TestSchema_HasQueryType(t *testing.T) {
 		}
 	}
 
-	t.Run("should return false when there is no query type present", run(`
+	t.Run("schema without base defition", func(t *testing.T) {
+		t.Run("should return false when there is no query type present", run(`
 				schema {
 					mutation: Mutation
 				}
 				type Mutation {
 					save: Boolean!
 				}`, false),
-	)
+		)
 
-	t.Run("should return true when there is a query type present", run(`
+		t.Run("should return true when there is a query type present", run(`
 				schema {
 					query: Query
 				}
 				type Query {
 					hello: String!
 				}`, true),
-	)
+		)
+	})
 }
 
 func TestSchema_QueryTypeName(t *testing.T) {
@@ -114,13 +116,13 @@ func TestSchema_QueryTypeName(t *testing.T) {
 		}
 	}
 
-	t.Run("should return empty string when no query type is present", run(`
+	t.Run("should return default query name when no query type is present", run(`
 				schema {
 					mutation: Mutation
 				}
 				type Mutation {
 					save: Boolean!
-				}`, ""),
+				}`, "Query"),
 	)
 
 	t.Run("should return 'Query' when there is a query type named 'Query'", run(`
