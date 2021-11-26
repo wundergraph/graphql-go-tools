@@ -249,7 +249,307 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}))
-
+	t.Run("Query with renamed root fields", RunTest(renamedStarWarsSchema, `
+		query MyQuery($id: ID!){
+			api_droid(id: $id){
+				name
+				aliased: name
+				friends {
+					name
+				}
+				primaryFunction
+			}
+			api_hero {
+				name
+				... on Human_api {
+					height
+				}
+			}
+			api_stringList
+			renamed: api_nestedStringList
+			api_search(name: "r2d2") {
+				... on Droid_api {
+					primaryFunction
+				}
+			}
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){api_droid: droid(id: $id){name aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search {__typename ... on Droid {primaryFunction}}}","variables":{"id":$$0$$}}}`,
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path:                 []string{"id"},
+							JsonValueType:        jsonparser.String,
+							RenderAsGraphQLValue: true,
+						},
+						&resolve.HeaderVariable{
+							Path: []string{"Authorization"},
+						},
+					),
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("api_droid"),
+						Position: resolve.Position{
+							Line:   3,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Path:     []string{"api_droid"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("name"),
+									Value: &resolve.String{
+										Path: []string{"name"},
+									},
+									Position: resolve.Position{
+										Line:   4,
+										Column: 5,
+									},
+								},
+								{
+									Name: []byte("aliased"),
+									Value: &resolve.String{
+										Path: []string{"aliased"},
+									},
+									Position: resolve.Position{
+										Line:   5,
+										Column: 5,
+									},
+								},
+								{
+									Name: []byte("friends"),
+									Position: resolve.Position{
+										Line:   6,
+										Column: 5,
+									},
+									Value: &resolve.Array{
+										Nullable: true,
+										Path:     []string{"friends"},
+										Item: &resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Path: []string{"name"},
+													},
+													Position: resolve.Position{
+														Line:   7,
+														Column: 6,
+													},
+												},
+											},
+										},
+									},
+								},
+								{
+									Name: []byte("primaryFunction"),
+									Value: &resolve.String{
+										Path: []string{"primaryFunction"},
+									},
+									Position: resolve.Position{
+										Line:   9,
+										Column: 5,
+									},
+								},
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("api_hero"),
+						Position: resolve.Position{
+							Line:   11,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Path:     []string{"api_hero"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("name"),
+									Value: &resolve.String{
+										Path: []string{"name"},
+									},
+									Position: resolve.Position{
+										Line:   12,
+										Column: 5,
+									},
+								},
+								{
+									Name: []byte("height"),
+									Value: &resolve.String{
+										Path: []string{"height"},
+									},
+									Position: resolve.Position{
+										Line:   14,
+										Column: 6,
+									},
+									OnTypeName: []byte("Human"),
+								},
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("api_stringList"),
+						Position: resolve.Position{
+							Line:   17,
+							Column: 4,
+						},
+						Value: &resolve.Array{
+							Nullable: true,
+							Path:     []string{"api_stringList"},
+							Item: &resolve.String{
+								Nullable: true,
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("renamed"),
+						Position: resolve.Position{
+							Line:   18,
+							Column: 4,
+						},
+						Value: &resolve.Array{
+							Nullable: true,
+							Path:     []string{"renamed"},
+							Item: &resolve.String{
+								Nullable: true,
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("api_search"),
+						Position: resolve.Position{
+							Line:   19,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Nullable: true,
+							Path:     []string{"api_search"},
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("primaryFunction"),
+									Value: &resolve.String{
+										Path: []string{"primaryFunction"},
+									},
+									Position: resolve.Position{
+										Line:   21,
+										Column: 6,
+									},
+									OnTypeName: []byte("Droid"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"api_droid", "api_hero", "api_stringList", "api_nestedStringList", "api_search"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Character_api",
+						FieldNames: []string{"name", "friends"},
+					},
+					{
+						TypeName:   "Human_api",
+						FieldNames: []string{"name", "height", "friends"},
+					},
+					{
+						TypeName:   "Droid_api",
+						FieldNames: []string{"name", "primaryFunction", "friends"},
+					},
+					{
+						TypeName:   "SearchResult_api",
+						FieldNames: []string{"name", "height", "primaryFunction", "friends"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+						Header: http.Header{
+							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
+							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
+						},
+					},
+					UpstreamSchema: starWarsSchema,
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "api_droid",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+				Path: []string{"droid"},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "api_hero",
+				Path:      []string{"hero"},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "api_stringList",
+				Path:      []string{"stringList"},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "api_nestedStringList",
+				Path:      []string{"nestedStringList"},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "api_search",
+				Path:      []string{"search"},
+			},
+		},
+		Types: []plan.TypeConfiguration{
+			{
+				TypeName: "Human_api",
+				RenameTo: "Human",
+			},
+			{
+				TypeName: "Droid_api",
+				RenameTo: "Droid",
+			},
+			{
+				TypeName: "SearchResult_api",
+				RenameTo: "SearchResult",
+			},
+		},
+	}))
 	t.Run("Query with array input", RunTest(subgraphTestSchema, `
 		query($representations: [_Any!]!) {
 			_entities(representations: $representations){
@@ -2644,6 +2944,470 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		}))
+
+	t.Run("federation with renamed schema", RunTest(renamedFederationTestSchema,
+		`	query MyReviews {
+						api_me {
+							id
+							username
+							reviews {
+								body
+								author {
+									id
+									username
+								}	
+								product {
+									name
+									price
+									reviews {
+										body
+										author {
+											id
+											username
+										}
+									}
+								}
+							}
+						}
+					}`,
+		"MyReviews",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:              0,
+						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{api_me: me {id username}}"}}`,
+						DataSource:            &Source{},
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("api_me"),
+							Position: resolve.Position{
+								Line:   2,
+								Column: 7,
+							},
+							Value: &resolve.Object{
+								Fetch: &resolve.BatchFetch{
+									Fetch: &resolve.SingleFetch{
+										BufferId: 1,
+										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body author {id username} product {upc}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:                 []string{"id"},
+												JsonValueType:        jsonparser.String,
+												RenderAsGraphQLValue: true,
+											},
+										),
+										DataSource:           &Source{},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
+										ProcessResponseConfig: resolve.ProcessResponseConfig{
+											ExtractGraphqlResponse:    true,
+											ExtractFederationEntities: true,
+										},
+									},
+									BatchFactory: batchFactory,
+								},
+								Path:     []string{"api_me"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("id"),
+										Value: &resolve.String{
+											Path: []string{"id"},
+										},
+										Position: resolve.Position{
+											Line:   3,
+											Column: 8,
+										},
+									},
+									{
+										Name: []byte("username"),
+										Value: &resolve.String{
+											Path: []string{"username"},
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 8,
+										},
+									},
+									{
+										HasBuffer: true,
+										BufferID:  1,
+										Name:      []byte("reviews"),
+										Position: resolve.Position{
+											Line:   5,
+											Column: 8,
+										},
+										Value: &resolve.Array{
+											Path:     []string{"reviews"},
+											Nullable: true,
+											Item: &resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("body"),
+														Value: &resolve.String{
+															Path: []string{"body"},
+														},
+														Position: resolve.Position{
+															Line:   6,
+															Column: 9,
+														},
+													},
+													{
+														Name: []byte("author"),
+														Position: resolve.Position{
+															Line:   7,
+															Column: 9,
+														},
+														Value: &resolve.Object{
+															Path: []string{"author"},
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.String{
+																		Path: []string{"id"},
+																	},
+																	Position: resolve.Position{
+																		Line:   8,
+																		Column: 10,
+																	},
+																},
+																{
+																	Name: []byte("username"),
+																	Value: &resolve.String{
+																		Path: []string{"username"},
+																	},
+																	Position: resolve.Position{
+																		Line:   9,
+																		Column: 10,
+																	},
+																},
+															},
+														},
+													},
+													{
+														Name: []byte("product"),
+														Position: resolve.Position{
+															Line:   11,
+															Column: 9,
+														},
+														Value: &resolve.Object{
+															Path: []string{"product"},
+															Fetch: &resolve.ParallelFetch{
+																Fetches: []resolve.Fetch{
+																	&resolve.BatchFetch{
+																		Fetch: &resolve.SingleFetch{
+																			BufferId:   2,
+																			Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"name":$$1$$,"upc":$$0$$,"__typename":"Product"}]}}}`,
+																			DataSource: &Source{},
+																			Variables: resolve.NewVariables(
+																				&resolve.ObjectVariable{
+																					Path:                 []string{"upc"},
+																					JsonValueType:        jsonparser.String,
+																					RenderAsGraphQLValue: true,
+																				},
+																				&resolve.ObjectVariable{
+																					Path:                 []string{"name"},
+																					JsonValueType:        jsonparser.String,
+																					RenderAsGraphQLValue: true,
+																				},
+																			),
+																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
+																			ProcessResponseConfig: resolve.ProcessResponseConfig{
+																				ExtractGraphqlResponse:    true,
+																				ExtractFederationEntities: true,
+																			},
+																		},
+																		BatchFactory: batchFactory,
+																	},
+																	&resolve.BatchFetch{
+																		Fetch: &resolve.SingleFetch{
+																			BufferId: 3,
+																			Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {id username}}}}}","variables":{"representations":[{"name":$$1$$,"upc":$$0$$,"__typename":"Product"}]}}}`,
+																			Variables: resolve.NewVariables(
+																				&resolve.ObjectVariable{
+																					Path:                 []string{"upc"},
+																					JsonValueType:        jsonparser.String,
+																					RenderAsGraphQLValue: true,
+																				},
+																				&resolve.ObjectVariable{
+																					Path:                 []string{"name"},
+																					JsonValueType:        jsonparser.String,
+																					RenderAsGraphQLValue: true,
+																				},
+																			),
+																			DataSource:           &Source{},
+																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
+																			ProcessResponseConfig: resolve.ProcessResponseConfig{
+																				ExtractGraphqlResponse:    true,
+																				ExtractFederationEntities: true,
+																			},
+																		},
+																		BatchFactory: batchFactory,
+																	},
+																},
+															},
+															Fields: []*resolve.Field{
+																{
+																	HasBuffer: true,
+																	BufferID:  2,
+																	Name:      []byte("name"),
+																	Value: &resolve.String{
+																		Path: []string{"name"},
+																	},
+																	Position: resolve.Position{
+																		Line:   12,
+																		Column: 10,
+																	},
+																},
+																{
+																	HasBuffer: true,
+																	BufferID:  2,
+																	Name:      []byte("price"),
+																	Value: &resolve.Integer{
+																		Path: []string{"price"},
+																	},
+																	Position: resolve.Position{
+																		Line:   13,
+																		Column: 10,
+																	},
+																},
+																{
+																	HasBuffer: true,
+																	BufferID:  3,
+																	Name:      []byte("reviews"),
+																	Position: resolve.Position{
+																		Line:   14,
+																		Column: 10,
+																	},
+																	Value: &resolve.Array{
+																		Nullable: true,
+																		Path:     []string{"reviews"},
+																		Item: &resolve.Object{
+																			Nullable: true,
+																			Fields: []*resolve.Field{
+																				{
+																					Name: []byte("body"),
+																					Value: &resolve.String{
+																						Path: []string{"body"},
+																					},
+																					Position: resolve.Position{
+																						Line:   15,
+																						Column: 11,
+																					},
+																				},
+																				{
+																					Name: []byte("author"),
+																					Position: resolve.Position{
+																						Line:   16,
+																						Column: 11,
+																					},
+																					Value: &resolve.Object{
+																						Path: []string{"author"},
+																						Fields: []*resolve.Field{
+																							{
+																								Name: []byte("id"),
+																								Value: &resolve.String{
+																									Path: []string{"id"},
+																								},
+																								Position: resolve.Position{
+																									Line:   17,
+																									Column: 12,
+																								},
+																							},
+																							{
+																								Name: []byte("username"),
+																								Value: &resolve.String{
+																									Path: []string{"username"},
+																								},
+																								Position: resolve.Position{
+																									Line:   18,
+																									Column: 12,
+																								},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"api_me"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User_api",
+							FieldNames: []string{"id", "username"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://user.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "extend type Query {api_me: User_api} type User_api @key(fields: \"id\"){ id: ID! username: String!}",
+						},
+						//UpstreamSchema: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! username: String!}",
+						UpstreamSchema: federationTestSchema,
+					}),
+					Factory: federationFactory,
+				},
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"api_topProducts"},
+						},
+						{
+							TypeName:   "Subscription",
+							FieldNames: []string{"api_updatedPrice"},
+						},
+						{
+							TypeName:   "Product_api",
+							FieldNames: []string{"upc", "name", "price"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Product_api",
+							FieldNames: []string{"upc", "name", "price"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://product.service",
+						},
+						Subscription: SubscriptionConfiguration{
+							URL: "ws://product.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "extend type Query {api_topProducts(first: Int = 5): [Product_api]} type Product_api @key(fields: \"upc\") @key(fields: \"name\"){upc: String! name: String! price: Int!}",
+						},
+						//UpstreamSchema: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") @key(fields: \"name\"){upc: String! name: String! price: Int!}",
+						UpstreamSchema: federationTestSchema,
+					}),
+					Factory: federationFactory,
+				},
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User_api",
+							FieldNames: []string{"reviews"},
+						},
+						{
+							TypeName:   "Product_api",
+							FieldNames: []string{"reviews"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Review_api",
+							FieldNames: []string{"body", "author", "product"},
+						},
+						{
+							TypeName:   "User_api",
+							FieldNames: []string{"id", "username"},
+						},
+						{
+							TypeName:   "Product_api",
+							FieldNames: []string{"upc"},
+						},
+					},
+					Factory: federationFactory,
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://review.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "type Review_api { body: String! author: User_api! @provides(fields: \"username\") product: Product_api! } extend type User_api @key(fields: \"id\") { id: ID! @external reviews: [Review_api] } extend type Product_api @key(fields: \"upc\") @key(fields: \"name\") { upc: String! @external name: String! reviews: [Review_api] }",
+						},
+						//UpstreamSchema: "type Review { body: String! author: User! @provides(fields: \"username\") product: Product! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] } extend type Product @key(fields: \"upc\") @key(fields: \"name\") { upc: String! @external name: String! reviews: [Review] }",
+						UpstreamSchema: federationTestSchema,
+					}),
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "topProducts_api",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "first",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+					Path: []string{"topProducts"},
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "api_me",
+					Path:      []string{"me"},
+				},
+				{
+					TypeName:       "User_api",
+					FieldName:      "reviews",
+					RequiresFields: []string{"id"},
+				},
+				{
+					TypeName:       "Product_api",
+					FieldName:      "name",
+					RequiresFields: []string{"upc"},
+				},
+				{
+					TypeName:       "Product_api",
+					FieldName:      "price",
+					RequiresFields: []string{"upc"},
+				},
+				{
+					TypeName:       "Product_api",
+					FieldName:      "reviews",
+					RequiresFields: []string{"upc"},
+				},
+			},
+			Types: []plan.TypeConfiguration{
+				{
+					TypeName: "User_api",
+					RenameTo: "User",
+				},
+				{
+					TypeName: "Product_api",
+					RenameTo: "Product",
+				},
+				{
+					TypeName: "Review_api",
+					RenameTo: "Review",
+				},
+			},
+		}))
 }
 
 var errSubscriptionClientFail = errors.New("subscription client fail error")
@@ -3180,6 +3944,70 @@ type Droid implements Character {
 }
 
 type Startship {
+    name: String!
+    length: Float!
+}`
+
+const renamedStarWarsSchema = `
+union SearchResult_api = Human_api | Droid_api | Starship_api
+
+schema {
+    query: Query
+    mutation: Mutation
+    subscription: Subscription
+}
+
+type Query {
+    api_hero: Character_api
+    api_droid(id: ID!): Droid_api
+    api_search(name: String!): SearchResult_api
+	api_stringList: [String]
+	api_nestedStringList: [String]
+}
+
+type Mutation {
+	createReview(episode: Episode_api!, review: ReviewInput_api!): Review_api
+}
+
+type Subscription {
+    remainingJedis: Int!
+}
+
+input ReviewInput_api {
+    stars: Int!
+    commentary: String
+}
+
+type Review_api {
+    id: ID!
+    stars: Int!
+    commentary: String
+}
+
+enum Episode_api {
+    NEWHOPE
+    EMPIRE
+    JEDI
+}
+
+interface Character_api {
+    name: String!
+    friends: [Character_api]
+}
+
+type Human_api implements Character_api {
+    name: String!
+    height: String!
+    friends: [Character_api]
+}
+
+type Droid_api implements Character_api {
+    name: String!
+    primaryFunction: String!
+    friends: [Character_api]
+}
+
+type Startship_api {
     name: String!
     length: Float!
 }`
@@ -3754,6 +4582,40 @@ type User {
   id: ID!
   username: String!
   reviews: [Review]
+}
+`
+
+const renamedFederationTestSchema = `
+scalar String
+scalar Int
+scalar ID
+
+schema {
+	query: Query
+}
+
+type Product_api {
+  upc: String!
+  name: String!
+  price: Int!
+  reviews: [Review_api]
+}
+
+type Query {
+  api_me: User_api
+  api_topProducts(first: Int = 5): [Product_api]
+}
+
+type Review_api {
+  body: String!
+  author: User_api!
+  product: Product_api!
+}
+
+type User_api {
+  id: ID!
+  username: String!
+  reviews: [Review_api]
 }
 `
 
