@@ -248,18 +248,9 @@ func (p *Planner) EnterInlineFragment(ref int) {
 		return
 	}
 
-	typeConditionStr := string(typeCondition)
-
-	for i := range p.visitor.Config.Types {
-		if p.visitor.Config.Types[i].TypeName == typeConditionStr {
-			typeCondition = []byte(p.visitor.Config.Types[i].RenameTo)
-			break
-		}
-	}
-
 	inlineFragment := p.upstreamOperation.AddInlineFragment(ast.InlineFragment{
 		TypeCondition: ast.TypeCondition{
-			Type: p.upstreamOperation.AddNamedType(typeCondition),
+			Type: p.upstreamOperation.AddNamedType(p.visitor.Config.Types.RenameTypeNameOnMatchBytes(typeCondition)),
 		},
 	})
 
@@ -387,7 +378,9 @@ func (p *Planner) addRepresentationsVariable() {
 		return
 	}
 
-	representationsJson, _ := sjson.SetRawBytes(nil, "__typename", []byte("\""+p.lastFieldEnclosingTypeName+"\""))
+	onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchStr(p.lastFieldEnclosingTypeName)
+
+	representationsJson, _ := sjson.SetRawBytes(nil, "__typename", []byte("\""+onTypeName+"\""))
 	for i := range fields {
 		objectVariable := &resolve.ObjectVariable{
 			Path:                 []string{fields[i]},
@@ -468,7 +461,8 @@ func (p *Planner) fieldDefinition(fieldName, typeName string) *ast.FieldDefiniti
 
 func (p *Planner) addOneTypeInlineFragment() {
 	selectionSet := p.upstreamOperation.AddSelectionSet()
-	typeRef := p.upstreamOperation.AddNamedType([]byte(p.lastFieldEnclosingTypeName))
+	onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchBytes([]byte(p.lastFieldEnclosingTypeName))
+	typeRef := p.upstreamOperation.AddNamedType(onTypeName)
 	inlineFragment := p.upstreamOperation.AddInlineFragment(ast.InlineFragment{
 		HasSelections: true,
 		SelectionSet:  selectionSet.Ref,
@@ -761,6 +755,10 @@ func (p *Planner) printOperation() []byte {
 		return nil
 	}
 
+	if p.config.UpstreamSchema != "" {
+		baseSchema = p.config.UpstreamSchema
+	}
+
 	federationSchema, err := federation.BuildFederationSchema(baseSchema, p.config.Federation.ServiceSDL)
 	if err != nil {
 		p.visitor.Walker.StopWithInternalErr(err)
@@ -784,14 +782,14 @@ func (p *Planner) printOperation() []byte {
 	// creates a copy of operation and schema to be able to safely modify them
 	// if an upstream schema was supplied, we use it to validate and normalize against
 	// otherwise, normalization would fail because the downstream schema doesn't contain the upstream fields
-	if p.config.UpstreamSchema != "" {
+	if !p.config.Federation.Enabled && p.config.UpstreamSchema != "" {
 		definition.Input.ResetInputString(p.config.UpstreamSchema)
-		definitionParser.Parse(definition,report)
+		definitionParser.Parse(definition, report)
 		if report.HasErrors() {
 			p.stopWithError("unable to parse upstream schema")
 			return nil
 		}
-		if err := asttransform.MergeDefinitionWithBaseSchema(definition);err != nil {
+		if err := asttransform.MergeDefinitionWithBaseSchema(definition); err != nil {
 			p.stopWithError("unable to merge upstream schema with base schema")
 			return nil
 		}
@@ -808,7 +806,7 @@ func (p *Planner) printOperation() []byte {
 	// we have to replace a query type with a current root type
 	p.replaceQueryType(definition)
 
-	finalSchema,err := astprinter.PrintStringIndent(definition,nil,"  ")
+	finalSchema, err := astprinter.PrintStringIndent(definition, nil, "  ")
 	if err != nil {
 		_ = finalSchema
 		p.stopWithError("printing final schema failed")

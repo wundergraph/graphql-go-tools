@@ -30,7 +30,28 @@ type Configuration struct {
 	DefaultFlushIntervalMillis int64
 	DataSources                []DataSourceConfiguration
 	Fields                     FieldConfigurations
-	Types                      []TypeConfiguration
+	Types                      TypeConfigurations
+}
+
+type TypeConfigurations []TypeConfiguration
+
+func (t *TypeConfigurations) RenameTypeNameOnMatchStr (typeName string) string {
+	for i := range *t {
+		if (*t)[i].TypeName == typeName {
+			return (*t)[i].RenameTo
+		}
+	}
+	return typeName
+}
+
+func (t *TypeConfigurations) RenameTypeNameOnMatchBytes (typeName []byte) []byte {
+	str := string(typeName)
+	for i := range *t {
+		if (*t)[i].TypeName == str {
+			return []byte((*t)[i].RenameTo)
+		}
+	}
+	return typeName
 }
 
 type TypeConfiguration struct {
@@ -482,13 +503,8 @@ func (v *Visitor) resolveOnTypeName() []byte {
 	if inlineFragment.Kind != ast.NodeKindInlineFragment {
 		return nil
 	}
-	typeName := string(v.Operation.InlineFragmentTypeConditionName(inlineFragment.Ref))
-	for i := range v.Config.Types {
-		if v.Config.Types[i].TypeName == typeName {
-			return []byte(v.Config.Types[i].RenameTo)
-		}
-	}
-	return []byte(typeName)
+	typeName := v.Operation.InlineFragmentTypeConditionName(inlineFragment.Ref)
+	return v.Config.Types.RenameTypeNameOnMatchBytes(typeName)
 }
 
 func (v *Visitor) LeaveField(ref int) {
