@@ -17,17 +17,11 @@ const (
 )
 
 type TemplateSegment struct {
-	SegmentType                  SegmentType
-	Data                         []byte
-	VariableKind                 VariableKind
-	VariableSourcePath           []string
-	VariableValueType            jsonparser.ValueType
-	VariableValueArrayValueType  jsonparser.ValueType
-	RenderVariableAsArrayCSV     bool
-	RenderVariableAsPlainValue   bool
-	RenderVariableAsGraphQLValue bool
-	OmitObjectKeyQuotes          bool
-	EscapeQuotes                 bool
+	SegmentType        SegmentType
+	Data               []byte
+	VariableKind       VariableKind
+	VariableSourcePath []string
+	Renderer           VariableRenderer
 }
 
 type InputTemplate struct {
@@ -64,14 +58,7 @@ func (i *InputTemplate) renderObjectVariable(variables []byte, segment TemplateS
 		preparedInput.WriteBytes(literal.NULL)
 		return nil
 	}
-	if segment.RenderVariableAsPlainValue {
-		preparedInput.WriteBytes(value)
-		return nil
-	}
-	if segment.RenderVariableAsArrayCSV && segment.VariableValueType == jsonparser.Array {
-		return renderArrayCSV(value, segment.VariableValueArrayValueType, preparedInput)
-	}
-	return renderGraphQLValue(value, segment.VariableValueType, segment.OmitObjectKeyQuotes, segment.EscapeQuotes, preparedInput)
+	return segment.Renderer.RenderVariable(value, preparedInput)
 }
 
 func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {
@@ -80,14 +67,7 @@ func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegm
 		preparedInput.WriteBytes(literal.NULL)
 		return nil
 	}
-	if segment.RenderVariableAsPlainValue {
-		preparedInput.WriteBytes(value)
-		return nil
-	}
-	if segment.RenderVariableAsArrayCSV && segment.VariableValueType == jsonparser.Array {
-		return renderArrayCSV(value, segment.VariableValueArrayValueType, preparedInput)
-	}
-	return renderGraphQLValue(value, segment.VariableValueType, segment.OmitObjectKeyQuotes, segment.EscapeQuotes, preparedInput)
+	return segment.Renderer.RenderVariable(value, preparedInput)
 }
 
 func renderArrayCSV(data []byte, valueType jsonparser.ValueType, buf *fastbuffer.FastBuffer) error {

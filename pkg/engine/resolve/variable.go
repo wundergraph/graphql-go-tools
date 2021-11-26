@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"io"
 	"strconv"
 
 	"github.com/buger/jsonparser"
@@ -15,15 +16,34 @@ const (
 	HeaderVariableKind
 )
 
+type VariableRenderer interface {
+	RenderVariable(data []byte, out io.Writer) error
+}
+
+type PlainVariableRenderer struct {
+}
+
+func (p *PlainVariableRenderer) RenderVariable(data []byte, out io.Writer) error {
+	return 
+}
+
+type GraphQLVariableRenderer struct {
+}
+
+func (g *GraphQLVariableRenderer) RenderVariable(data []byte, out io.Writer) error {
+
+}
+
+type CsvVariableRenderer struct {
+}
+
+func (c *CsvVariableRenderer) RenderVariable(data []byte, out io.Writer) error {
+
+}
+
 type ContextVariable struct {
-	Path                 []string
-	JsonValueType        jsonparser.ValueType
-	ArrayJsonValueType   jsonparser.ValueType
-	RenderAsArrayCSV     bool
-	RenderAsPlainValue   bool
-	RenderAsGraphQLValue bool
-	OmitObjectKeyQuotes  bool
-	EscapeQuotes         bool
+	Path     []string
+	Renderer VariableRenderer
 }
 
 func (c *ContextVariable) SetJsonValueType(operation, definition *ast.Document, typeRef int) {
@@ -236,4 +256,8 @@ func (v *Variables) AddVariable(variable Variable) (name string, exists bool) {
 	i := strconv.Itoa(index)
 	name = variablePrefixSuffix + i + variablePrefixSuffix
 	return
+}
+
+type VariableSchema struct {
+
 }
