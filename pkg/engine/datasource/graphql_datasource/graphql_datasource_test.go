@@ -267,6 +267,11 @@ func TestGraphQLDataSource(t *testing.T) {
 			}
 			api_stringList
 			renamed: api_nestedStringList
+			api_search(name: "r2d2") {
+				... on Droid_api {
+					primaryFunction
+				}
+			}
 		}
 	`, "MyQuery", &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
@@ -274,8 +279,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
 					BufferId:   0,
-					//
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){api_droid: droid(id: $id){name aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList}","variables":{"id":$$0$$}}}`,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){api_droid: droid(id: $id){name aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search {__typename ... on Droid {primaryFunction}}}","variables":{"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:                 []string{"id"},
@@ -429,6 +433,32 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("api_search"),
+						Position: resolve.Position{
+							Line:   19,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Nullable: true,
+							Path:     []string{"api_search"},
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("primaryFunction"),
+									Value: &resolve.String{
+										Path: []string{"primaryFunction"},
+									},
+									Position: resolve.Position{
+										Line:   21,
+										Column: 6,
+									},
+									OnTypeName: []byte("Droid"),
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -438,7 +468,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				RootNodes: []plan.TypeField{
 					{
 						TypeName:   "Query",
-						FieldNames: []string{"api_droid", "api_hero", "api_stringList", "api_nestedStringList"},
+						FieldNames: []string{"api_droid", "api_hero", "api_stringList", "api_nestedStringList","api_search"},
 					},
 				},
 				ChildNodes: []plan.TypeField{
@@ -453,6 +483,10 @@ func TestGraphQLDataSource(t *testing.T) {
 					{
 						TypeName:   "Droid_api",
 						FieldNames: []string{"name", "primaryFunction", "friends"},
+					},
+					{
+						TypeName:   "SearchResult_api",
+						FieldNames: []string{"name", "height", "primaryFunction", "friends"},
 					},
 				},
 				Factory: &Factory{},
@@ -495,11 +529,24 @@ func TestGraphQLDataSource(t *testing.T) {
 				FieldName: "api_nestedStringList",
 				Path:      []string{"nestedStringList"},
 			},
+			{
+				TypeName: "Query",
+				FieldName: "api_search",
+				Path: []string{"search"},
+			},
 		},
 		Types: []plan.TypeConfiguration{
 			{
 				TypeName: "Human_api",
 				RenameTo: "Human",
+			},
+			{
+				TypeName: "Droid_api",
+				RenameTo: "Droid",
+			},
+			{
+				TypeName: "SearchResult_api",
+				RenameTo: "SearchResult",
 			},
 		},
 	}))
