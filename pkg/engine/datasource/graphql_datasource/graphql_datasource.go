@@ -248,6 +248,15 @@ func (p *Planner) EnterInlineFragment(ref int) {
 		return
 	}
 
+	typeConditionStr := string(typeCondition)
+
+	for i := range p.visitor.Config.Types {
+		if p.visitor.Config.Types[i].TypeName == typeConditionStr {
+			typeCondition = []byte(p.visitor.Config.Types[i].RenameTo)
+			break
+		}
+	}
+
 	inlineFragment := p.upstreamOperation.AddInlineFragment(ast.InlineFragment{
 		TypeCondition: ast.TypeCondition{
 			Type: p.upstreamOperation.AddNamedType(typeCondition),

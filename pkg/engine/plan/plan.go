@@ -30,6 +30,18 @@ type Configuration struct {
 	DefaultFlushIntervalMillis int64
 	DataSources                []DataSourceConfiguration
 	Fields                     FieldConfigurations
+	Types                      []TypeConfiguration
+}
+
+type TypeConfiguration struct {
+	TypeName string
+	// RenameTo modifies the TypeName
+	// so that a downstream Operation can contain a different TypeName than the upstream Schema
+	// e.g. if the downstream Operation contains { ... on Human_api { height } }
+	// the upstream Operation can be rewritten to { ... on Human { height }}
+	// by setting RenameTo to Human
+	// This way, Types can be suffixed / renamed in downstream Schemas while keeping the contract with the upstream ok
+	RenameTo string
 }
 
 type FieldConfigurations []FieldConfiguration
@@ -470,7 +482,13 @@ func (v *Visitor) resolveOnTypeName() []byte {
 	if inlineFragment.Kind != ast.NodeKindInlineFragment {
 		return nil
 	}
-	return v.Operation.InlineFragmentTypeConditionName(inlineFragment.Ref)
+	typeName := string(v.Operation.InlineFragmentTypeConditionName(inlineFragment.Ref))
+	for i := range v.Config.Types {
+		if v.Config.Types[i].TypeName == typeName {
+			return []byte(v.Config.Types[i].RenameTo)
+		}
+	}
+	return []byte(typeName)
 }
 
 func (v *Visitor) LeaveField(ref int) {

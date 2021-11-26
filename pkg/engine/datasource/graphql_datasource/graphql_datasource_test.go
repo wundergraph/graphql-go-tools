@@ -261,6 +261,9 @@ func TestGraphQLDataSource(t *testing.T) {
 			}
 			api_hero {
 				name
+				... on Human_api {
+					height
+				}
 			}
 			api_stringList
 			renamed: api_nestedStringList
@@ -272,7 +275,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					DataSource: &Source{},
 					BufferId:   0,
 					//
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){api_droid: droid(id: $id){name aliased: name friends {name} primaryFunction} api_hero: hero {name} api_stringList: stringList renamed: nestedStringList}","variables":{"id":$$0$$}}}`,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){api_droid: droid(id: $id){name aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList}","variables":{"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:                 []string{"id"},
@@ -380,6 +383,17 @@ func TestGraphQLDataSource(t *testing.T) {
 										Column: 5,
 									},
 								},
+								{
+									Name: []byte("height"),
+									Value: &resolve.String{
+										Path: []string{"height"},
+									},
+									Position: resolve.Position{
+										Line:   14,
+										Column: 6,
+									},
+									OnTypeName: []byte("Human"),
+								},
 							},
 						},
 					},
@@ -388,7 +402,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						BufferID:  0,
 						Name:      []byte("api_stringList"),
 						Position: resolve.Position{
-							Line:   14,
+							Line:   17,
 							Column: 4,
 						},
 						Value: &resolve.Array{
@@ -404,7 +418,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						BufferID:  0,
 						Name:      []byte("renamed"),
 						Position: resolve.Position{
-							Line:   15,
+							Line:   18,
 							Column: 4,
 						},
 						Value: &resolve.Array{
@@ -429,15 +443,15 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 				ChildNodes: []plan.TypeField{
 					{
-						TypeName:   "Character",
+						TypeName:   "Character_api",
 						FieldNames: []string{"name", "friends"},
 					},
 					{
-						TypeName:   "Human",
+						TypeName:   "Human_api",
 						FieldNames: []string{"name", "height", "friends"},
 					},
 					{
-						TypeName:   "Droid",
+						TypeName:   "Droid_api",
 						FieldNames: []string{"name", "primaryFunction", "friends"},
 					},
 				},
@@ -480,6 +494,12 @@ func TestGraphQLDataSource(t *testing.T) {
 				TypeName:  "Query",
 				FieldName: "api_nestedStringList",
 				Path:      []string{"nestedStringList"},
+			},
+		},
+		Types: []plan.TypeConfiguration{
+			{
+				TypeName: "Human_api",
+				RenameTo: "Human",
 			},
 		},
 	}))
@@ -3418,7 +3438,7 @@ type Startship {
 }`
 
 const renamedStarWarsSchema = `
-union SearchResult = Human | Droid | Starship
+union SearchResult_api = Human_api | Droid_api | Starship_api
 
 schema {
     query: Query
@@ -3427,56 +3447,56 @@ schema {
 }
 
 type Query {
-    api_hero: Character
-    api_droid(id: ID!): Droid
-    api_search(name: String!): SearchResult
+    api_hero: Character_api
+    api_droid(id: ID!): Droid_api
+    api_search(name: String!): SearchResult_api
 	api_stringList: [String]
 	api_nestedStringList: [String]
 }
 
 type Mutation {
-	createReview(episode: Episode!, review: ReviewInput!): Review
+	createReview(episode: Episode_api!, review: ReviewInput_api!): Review_api
 }
 
 type Subscription {
     remainingJedis: Int!
 }
 
-input ReviewInput {
+input ReviewInput_api {
     stars: Int!
     commentary: String
 }
 
-type Review {
+type Review_api {
     id: ID!
     stars: Int!
     commentary: String
 }
 
-enum Episode {
+enum Episode_api {
     NEWHOPE
     EMPIRE
     JEDI
 }
 
-interface Character {
+interface Character_api {
     name: String!
-    friends: [Character]
+    friends: [Character_api]
 }
 
-type Human implements Character {
+type Human_api implements Character_api {
     name: String!
     height: String!
-    friends: [Character]
+    friends: [Character_api]
 }
 
-type Droid implements Character {
+type Droid_api implements Character_api {
     name: String!
     primaryFunction: String!
-    friends: [Character]
+    friends: [Character_api]
 }
 
-type Startship {
+type Startship_api {
     name: String!
     length: Float!
 }`
