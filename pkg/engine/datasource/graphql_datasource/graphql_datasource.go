@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/tidwall/sjson"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
@@ -80,9 +81,10 @@ func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 }
 
 type Configuration struct {
-	Fetch        FetchConfiguration
-	Subscription SubscriptionConfiguration
-	Federation   FederationConfiguration
+	Fetch          FetchConfiguration
+	Subscription   SubscriptionConfiguration
+	Federation     FederationConfiguration
+	UpstreamSchema string
 }
 
 func ConfigJson(config Configuration) json.RawMessage {
@@ -760,27 +762,49 @@ func (p *Planner) printOperation() []byte {
 	operation := ast.NewDocument()
 	definition := ast.NewDocument()
 	report := &operationreport.Report{}
-	parser := astparser.NewParser()
+	operationParser := astparser.NewParser()
+	definitionParser := astparser.NewParser()
 
-	// creates a copy of operation and schema to be able to safely modify them
-	definition.Input.ResetInputString(federationSchema)
 	operation.Input.ResetInputBytes(rawQuery)
-
-	parser.Parse(operation, report)
+	operationParser.Parse(operation, report)
 	if report.HasErrors() {
 		p.stopWithError(parseDocumentFailedErrMsg, "operation")
 		return nil
 	}
 
-	parser.Parse(definition, report)
-	if report.HasErrors() {
-		p.stopWithError(parseDocumentFailedErrMsg, "definition")
-		return nil
+	// creates a copy of operation and schema to be able to safely modify them
+	// if an upstream schema was supplied, we use it to validate and normalize against
+	// otherwise, normalization would fail because the downstream schema doesn't contain the upstream fields
+	if p.config.UpstreamSchema != "" {
+		definition.Input.ResetInputString(p.config.UpstreamSchema)
+		definitionParser.Parse(definition,report)
+		if report.HasErrors() {
+			p.stopWithError("unable to parse upstream schema")
+			return nil
+		}
+		if err := asttransform.MergeDefinitionWithBaseSchema(definition);err != nil {
+			p.stopWithError("unable to merge upstream schema with base schema")
+			return nil
+		}
+	} else {
+		definition.Input.ResetInputString(federationSchema)
+		definitionParser.Parse(definition, report)
+		if report.HasErrors() {
+			p.stopWithError(parseDocumentFailedErrMsg, "definition")
+			return nil
+		}
 	}
 
 	// When datasource is nested and definition query type do not contain operation field
 	// we have to replace a query type with a current root type
 	p.replaceQueryType(definition)
+
+	finalSchema,err := astprinter.PrintStringIndent(definition,nil,"  ")
+	if err != nil {
+		_ = finalSchema
+		p.stopWithError("printing final schema failed")
+		return nil
+	}
 
 	// normalize upstream operation
 	if !p.normalizeOperation(operation, definition, report) {
@@ -922,7 +946,7 @@ func (p *Planner) addField(ref int) {
 		isDesiredField := p.visitor.Config.Fields[i].TypeName == typeName &&
 			p.visitor.Config.Fields[i].FieldName == fieldName
 
-		// chech that we are on a desired field and field path contains a single element - mapping is plain
+		// check that we are on a desired field and field path contains a single element - mapping is plain
 		if isDesiredField && len(p.visitor.Config.Fields[i].Path) == 1 {
 			// define alias when mapping path differs from fieldName and no alias has been defined
 			if p.visitor.Config.Fields[i].Path[0] != fieldName && !alias.IsDefined {

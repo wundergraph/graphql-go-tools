@@ -249,7 +249,240 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}))
-
+	t.Run("Query with renamed root fields", RunTest(renamedStarWarsSchema, `
+		query MyQuery($id: ID!){
+			api_droid(id: $id){
+				name
+				aliased: name
+				friends {
+					name
+				}
+				primaryFunction
+			}
+			api_hero {
+				name
+			}
+			api_stringList
+			renamed: api_nestedStringList
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					//
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){api_droid: droid(id: $id){name aliased: name friends {name} primaryFunction} api_hero: hero {name} api_stringList: stringList renamed: nestedStringList}","variables":{"id":$$0$$}}}`,
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path:                 []string{"id"},
+							JsonValueType:        jsonparser.String,
+							RenderAsGraphQLValue: true,
+						},
+						&resolve.HeaderVariable{
+							Path: []string{"Authorization"},
+						},
+					),
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("api_droid"),
+						Position: resolve.Position{
+							Line:   3,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Path:     []string{"api_droid"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("name"),
+									Value: &resolve.String{
+										Path: []string{"name"},
+									},
+									Position: resolve.Position{
+										Line:   4,
+										Column: 5,
+									},
+								},
+								{
+									Name: []byte("aliased"),
+									Value: &resolve.String{
+										Path: []string{"aliased"},
+									},
+									Position: resolve.Position{
+										Line:   5,
+										Column: 5,
+									},
+								},
+								{
+									Name: []byte("friends"),
+									Position: resolve.Position{
+										Line:   6,
+										Column: 5,
+									},
+									Value: &resolve.Array{
+										Nullable: true,
+										Path:     []string{"friends"},
+										Item: &resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Path: []string{"name"},
+													},
+													Position: resolve.Position{
+														Line:   7,
+														Column: 6,
+													},
+												},
+											},
+										},
+									},
+								},
+								{
+									Name: []byte("primaryFunction"),
+									Value: &resolve.String{
+										Path: []string{"primaryFunction"},
+									},
+									Position: resolve.Position{
+										Line:   9,
+										Column: 5,
+									},
+								},
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("api_hero"),
+						Position: resolve.Position{
+							Line:   11,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Path:     []string{"api_hero"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("name"),
+									Value: &resolve.String{
+										Path: []string{"name"},
+									},
+									Position: resolve.Position{
+										Line:   12,
+										Column: 5,
+									},
+								},
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("api_stringList"),
+						Position: resolve.Position{
+							Line:   14,
+							Column: 4,
+						},
+						Value: &resolve.Array{
+							Nullable: true,
+							Path: []string{"api_stringList"},
+							Item: &resolve.String{
+								Nullable: true,
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("renamed"),
+						Position: resolve.Position{
+							Line:   15,
+							Column: 4,
+						},
+						Value: &resolve.Array{
+							Nullable: true,
+							Path:     []string{"renamed"},
+							Item: &resolve.String{
+								Nullable: true,
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"api_droid", "api_hero", "api_stringList", "api_nestedStringList"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Character",
+						FieldNames: []string{"name", "friends"},
+					},
+					{
+						TypeName:   "Human",
+						FieldNames: []string{"name", "height", "friends"},
+					},
+					{
+						TypeName:   "Droid",
+						FieldNames: []string{"name", "primaryFunction", "friends"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+						Header: http.Header{
+							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
+							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
+						},
+					},
+					UpstreamSchema: starWarsSchema,
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "api_droid",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+				Path: []string{"droid"},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "api_hero",
+				Path:      []string{"hero"},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "api_stringList",
+				Path:      []string{"stringList"},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "api_nestedStringList",
+				Path:      []string{"nestedStringList"},
+			},
+		},
+	}))
 	t.Run("Query with array input", RunTest(subgraphTestSchema, `
 		query($representations: [_Any!]!) {
 			_entities(representations: $representations){
@@ -3135,6 +3368,70 @@ type Query {
     search(name: String!): SearchResult
 	stringList: [String]
 	nestedStringList: [String]
+}
+
+type Mutation {
+	createReview(episode: Episode!, review: ReviewInput!): Review
+}
+
+type Subscription {
+    remainingJedis: Int!
+}
+
+input ReviewInput {
+    stars: Int!
+    commentary: String
+}
+
+type Review {
+    id: ID!
+    stars: Int!
+    commentary: String
+}
+
+enum Episode {
+    NEWHOPE
+    EMPIRE
+    JEDI
+}
+
+interface Character {
+    name: String!
+    friends: [Character]
+}
+
+type Human implements Character {
+    name: String!
+    height: String!
+    friends: [Character]
+}
+
+type Droid implements Character {
+    name: String!
+    primaryFunction: String!
+    friends: [Character]
+}
+
+type Startship {
+    name: String!
+    length: Float!
+}`
+
+const renamedStarWarsSchema = `
+union SearchResult = Human | Droid | Starship
+
+schema {
+    query: Query
+    mutation: Mutation
+    subscription: Subscription
+}
+
+type Query {
+    api_hero: Character
+    api_droid(id: ID!): Droid
+    api_search(name: String!): SearchResult
+	api_stringList: [String]
+	api_nestedStringList: [String]
 }
 
 type Mutation {
