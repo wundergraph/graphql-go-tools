@@ -250,7 +250,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 	}))
 	t.Run("Query with renamed root fields", RunTest(renamedStarWarsSchema, `
-		query MyQuery($id: ID!){
+		query MyQuery($id: ID! $input: SearchInput_api!){
 			api_droid(id: $id){
 				name
 				aliased: name
@@ -272,6 +272,11 @@ func TestGraphQLDataSource(t *testing.T) {
 					primaryFunction
 				}
 			}
+			api_searchWithInput(input: $input) {
+				... on Droid_api {
+					primaryFunction
+				}
+			}
 		}
 	`, "MyQuery", &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
@@ -279,11 +284,16 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
 					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){api_droid: droid(id: $id){name aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search {__typename ... on Droid {primaryFunction}}}","variables":{"id":$$0$$}}}`,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $input: SearchInput!){api_droid: droid(id: $id){name aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search {__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}}}","variables":{"input":$$1$$,"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:                 []string{"id"},
 							JsonValueType:        jsonparser.String,
+							RenderAsGraphQLValue: true,
+						},
+						&resolve.ContextVariable{
+							Path:                 []string{"input"},
+							JsonValueType:        jsonparser.Object,
 							RenderAsGraphQLValue: true,
 						},
 						&resolve.HeaderVariable{
@@ -459,6 +469,32 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("api_searchWithInput"),
+						Position: resolve.Position{
+							Line:   24,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Nullable: true,
+							Path:     []string{"api_searchWithInput"},
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("primaryFunction"),
+									Value: &resolve.String{
+										Path: []string{"primaryFunction"},
+									},
+									Position: resolve.Position{
+										Line:   26,
+										Column: 6,
+									},
+									OnTypeName: []byte("Droid"),
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -468,7 +504,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				RootNodes: []plan.TypeField{
 					{
 						TypeName:   "Query",
-						FieldNames: []string{"api_droid", "api_hero", "api_stringList", "api_nestedStringList", "api_search"},
+						FieldNames: []string{"api_droid", "api_hero", "api_stringList", "api_nestedStringList", "api_search","api_searchWithInput"},
 					},
 				},
 				ChildNodes: []plan.TypeField{
@@ -534,6 +570,17 @@ func TestGraphQLDataSource(t *testing.T) {
 				FieldName: "api_search",
 				Path:      []string{"search"},
 			},
+			{
+				TypeName:  "Query",
+				FieldName: "api_searchWithInput",
+				Path:      []string{"searchWithInput"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "input",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
 		},
 		Types: []plan.TypeConfiguration{
 			{
@@ -547,6 +594,10 @@ func TestGraphQLDataSource(t *testing.T) {
 			{
 				TypeName: "SearchResult_api",
 				RenameTo: "SearchResult",
+			},
+			{
+				TypeName: "SearchInput_api",
+				RenameTo: "SearchInput",
 			},
 		},
 	}))
@@ -3897,8 +3948,13 @@ type Query {
     hero: Character
     droid(id: ID!): Droid
     search(name: String!): SearchResult
+    searchWithInput(input: SearchInput!): SearchResult
 	stringList: [String]
 	nestedStringList: [String]
+}
+
+input SearchInput {
+	name: String
 }
 
 type Mutation {
@@ -3961,8 +4017,13 @@ type Query {
     api_hero: Character_api
     api_droid(id: ID!): Droid_api
     api_search(name: String!): SearchResult_api
+    api_searchWithInput(input: SearchInput_api!): SearchResult_api
 	api_stringList: [String]
 	api_nestedStringList: [String]
+}
+
+input SearchInput_api {
+	name: String
 }
 
 type Mutation {
