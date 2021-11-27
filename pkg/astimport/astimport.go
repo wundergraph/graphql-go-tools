@@ -33,6 +33,25 @@ func (i *Importer) ImportType(ref int, from, to *ast.Document) int {
 	return len(to.Types) - 1
 }
 
+func (i *Importer) ImportTypeWithRename(ref int, from, to *ast.Document, renameTo string) int {
+
+	astType := ast.Type{
+		TypeKind: from.Types[ref].TypeKind,
+		OfType:   -1,
+	}
+
+	if astType.TypeKind == ast.TypeKindNamed {
+		astType.Name = to.Input.AppendInputString(renameTo)
+	}
+
+	if from.Types[ref].OfType != -1 {
+		astType.OfType = i.ImportTypeWithRename(from.Types[ref].OfType, from, to, renameTo)
+	}
+
+	to.Types = append(to.Types, astType)
+	return len(to.Types) - 1
+}
+
 func (i *Importer) ImportValue(fromValue ast.Value, from, to *ast.Document) (value ast.Value) {
 	value.Kind = fromValue.Kind
 

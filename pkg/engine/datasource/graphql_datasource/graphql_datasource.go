@@ -608,7 +608,9 @@ func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamField
 		if !p.visitor.Operation.VariableValueNameBytes(ref).Equals(variableName) {
 			continue
 		}
-		importedType := p.visitor.Importer.ImportType(p.visitor.Operation.VariableDefinitions[i].Type, p.visitor.Operation, p.upstreamOperation)
+		typeName := p.visitor.Operation.ResolveTypeNameString(p.visitor.Operation.VariableDefinitions[i].Type)
+		typeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(typeName)
+		importedType := p.visitor.Importer.ImportTypeWithRename(p.visitor.Operation.VariableDefinitions[i].Type, p.visitor.Operation, p.upstreamOperation, typeName)
 		p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValueRef, importedType)
 	}
 
@@ -721,7 +723,11 @@ func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRe
 	variableName := p.upstreamOperation.GenerateUnusedVariableDefinitionName(p.nodes[0].Ref)
 	variableValue, argument := p.upstreamOperation.AddVariableValueArgument([]byte(argumentConfiguration.Name), variableName)
 	p.upstreamOperation.AddArgumentToField(upstreamFieldRef, argument)
-	importedType := p.visitor.Importer.ImportType(argumentType, p.visitor.Definition, p.upstreamOperation)
+
+	typeName := p.visitor.Operation.ResolveTypeNameString(argumentType)
+	typeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(typeName)
+
+	importedType := p.visitor.Importer.ImportTypeWithRename(argumentType, p.visitor.Definition, p.upstreamOperation,typeName)
 	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
 
 	objectVariableName, exists := p.variables.AddVariable(&resolve.ObjectVariable{
