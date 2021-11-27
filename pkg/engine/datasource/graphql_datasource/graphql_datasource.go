@@ -405,8 +405,10 @@ func (p *Planner) addRepresentationsVariable() {
 func (p *Planner) selectFederationKeyFields(doc *ast.Document) []string {
 	var directiveRefs []int
 
+	onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchStr(p.lastFieldEnclosingTypeName)
+
 	for i := range doc.ObjectTypeExtensions {
-		if p.lastFieldEnclosingTypeName == doc.ObjectTypeExtensionNameString(i) {
+		if onTypeName == doc.ObjectTypeExtensionNameString(i) {
 			for _, j := range doc.ObjectTypeExtensions[i].Directives.Refs {
 				if doc.DirectiveNameString(j) == "key" {
 					directiveRefs = append(directiveRefs, j)
@@ -415,8 +417,9 @@ func (p *Planner) selectFederationKeyFields(doc *ast.Document) []string {
 			break
 		}
 	}
+
 	for i := range doc.ObjectTypeDefinitions {
-		if p.lastFieldEnclosingTypeName == doc.ObjectTypeDefinitionNameString(i) {
+		if onTypeName == doc.ObjectTypeDefinitionNameString(i) {
 			for _, j := range doc.ObjectTypeDefinitions[i].Directives.Refs {
 				if doc.DirectiveNameString(j) == "key" {
 					directiveRefs = append(directiveRefs, j)
@@ -804,6 +807,10 @@ func (p *Planner) printOperation() []byte {
 		definitionParser.Parse(definition, report)
 		if report.HasErrors() {
 			p.stopWithError(parseDocumentFailedErrMsg, "definition")
+			return nil
+		}
+		if err := asttransform.MergeDefinitionWithBaseSchema(definition); err != nil {
+			p.stopWithError("unable to merge upstream schema with base schema")
 			return nil
 		}
 	}
