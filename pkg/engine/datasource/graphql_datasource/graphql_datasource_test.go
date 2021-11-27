@@ -3323,9 +3323,8 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "extend type Query {api_me: User_api} type User_api @key(fields: \"id\"){ id: ID! username: String!}",
+							ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! username: String!}",
 						},
-						//UpstreamSchema: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! username: String!}",
 						UpstreamSchema: federationTestSchema,
 					}),
 					Factory: federationFactory,
@@ -3360,9 +3359,8 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "extend type Query {api_topProducts(first: Int = 5): [Product_api]} type Product_api @key(fields: \"upc\") @key(fields: \"name\"){upc: String! name: String! price: Int!}",
+							ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") @key(fields: \"name\"){upc: String! name: String! price: Int!}",
 						},
-						//UpstreamSchema: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") @key(fields: \"name\"){upc: String! name: String! price: Int!}",
 						UpstreamSchema: federationTestSchema,
 					}),
 					Factory: federationFactory,
@@ -3399,9 +3397,8 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "type Review_api { body: String! author: User_api! @provides(fields: \"username\") product: Product_api! } extend type User_api @key(fields: \"id\") { id: ID! @external reviews: [Review_api] } extend type Product_api @key(fields: \"upc\") @key(fields: \"name\") { upc: String! @external name: String! reviews: [Review_api] }",
+							ServiceSDL: "type Review { body: String! author: User! @provides(fields: \"username\") product: Product! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] } extend type Product @key(fields: \"upc\") @key(fields: \"name\") { upc: String! @external name: String! reviews: [Review] }",
 						},
-						//UpstreamSchema: "type Review { body: String! author: User! @provides(fields: \"username\") product: Product! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] } extend type Product @key(fields: \"upc\") @key(fields: \"name\") { upc: String! @external name: String! reviews: [Review] }",
 						UpstreamSchema: federationTestSchema,
 					}),
 				},
