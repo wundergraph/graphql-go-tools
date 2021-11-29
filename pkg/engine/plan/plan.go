@@ -33,9 +33,35 @@ type Configuration struct {
 	Types                      TypeConfigurations
 }
 
+type DirectiveConfigurations []DirectiveConfiguration
+
+func (d *DirectiveConfigurations) RenameTypeNameOnMatchStr(directiveName string) string {
+	for i := range *d {
+		if (*d)[i].DirectiveName == directiveName {
+			return (*d)[i].RenameTo
+		}
+	}
+	return directiveName
+}
+
+func (d *DirectiveConfigurations) RenameTypeNameOnMatchBytes(directiveName []byte) []byte {
+	str := string(directiveName)
+	for i := range *d {
+		if (*d)[i].DirectiveName == str {
+			return []byte((*d)[i].RenameTo)
+		}
+	}
+	return directiveName
+}
+
+type DirectiveConfiguration struct {
+	DirectiveName string
+	RenameTo      string
+}
+
 type TypeConfigurations []TypeConfiguration
 
-func (t *TypeConfigurations) RenameTypeNameOnMatchStr (typeName string) string {
+func (t *TypeConfigurations) RenameTypeNameOnMatchStr(typeName string) string {
 	for i := range *t {
 		if (*t)[i].TypeName == typeName {
 			return (*t)[i].RenameTo
@@ -44,7 +70,7 @@ func (t *TypeConfigurations) RenameTypeNameOnMatchStr (typeName string) string {
 	return typeName
 }
 
-func (t *TypeConfigurations) RenameTypeNameOnMatchBytes (typeName []byte) []byte {
+func (t *TypeConfigurations) RenameTypeNameOnMatchBytes(typeName []byte) []byte {
 	str := string(typeName)
 	for i := range *t {
 		if (*t)[i].TypeName == str {
@@ -117,6 +143,7 @@ type ArgumentConfiguration struct {
 type DataSourceConfiguration struct {
 	RootNodes  []TypeField
 	ChildNodes []TypeField
+	Directives DirectiveConfigurations
 	Factory    PlannerFactory
 	Custom     json.RawMessage
 }
@@ -254,9 +281,9 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningWalker.RegisterEnterDirectiveVisitor(p.planningVisitor)
 
 	for key := range p.planningVisitor.planners {
-		custom := p.planningVisitor.planners[key].dataSourceConfiguration.Custom
+		config := p.planningVisitor.planners[key].dataSourceConfiguration
 		isNested := p.planningVisitor.planners[key].isNestedPlanner()
-		err := p.planningVisitor.planners[key].planner.Register(p.planningVisitor, custom, isNested)
+		err := p.planningVisitor.planners[key].planner.Register(p.planningVisitor,config, isNested)
 		if err != nil {
 			p.planningWalker.StopWithInternalErr(err)
 		}
@@ -966,7 +993,7 @@ type DataSourcePlanningBehavior struct {
 }
 
 type DataSourcePlanner interface {
-	Register(visitor *Visitor, customConfiguration json.RawMessage, isNested bool) error
+	Register(visitor *Visitor, configuration DataSourceConfiguration, isNested bool) error
 	ConfigureFetch() FetchConfiguration
 	ConfigureSubscription() SubscriptionConfiguration
 	DataSourcePlanningBehavior() DataSourcePlanningBehavior
