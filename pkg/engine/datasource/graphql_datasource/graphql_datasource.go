@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/tidwall/sjson"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
@@ -24,24 +25,64 @@ import (
 )
 
 type Planner struct {
-	visitor                    *plan.Visitor
-	config                     Configuration
-	upstreamOperation          *ast.Document
-	upstreamVariables          []byte
-	nodes                      []ast.Node
-	variables                  resolve.Variables
-	lastFieldEnclosingTypeName string
-	disallowSingleFlight       bool
-	hasFederationRoot          bool
-	extractEntities            bool
-	fetchClient                *http.Client
-	subscriptionClient         GraphQLSubscriptionClient
-	isNested                   bool   // isNested - flags that datasource is nested e.g. field with datasource is not on a query type
-	rootTypeName               string // rootTypeName - holds name of top level type
-	rootFieldName              string // rootFieldName - holds name of root type field
-	rootFieldRef               int    // rootFieldRef - holds ref of root type field
-	argTypeRef                 int    // argTypeRef - holds current argument type ref from the definition
-	batchFactory               resolve.DataSourceBatchFactory
+	visitor                            *plan.Visitor
+	dataSourceConfig                   plan.DataSourceConfiguration
+	config                             Configuration
+	upstreamOperation                  *ast.Document
+	upstreamVariables                  []byte
+	nodes                              []ast.Node
+	variables                          resolve.Variables
+	lastFieldEnclosingTypeName         string
+	disallowSingleFlight               bool
+	hasFederationRoot                  bool
+	extractEntities                    bool
+	fetchClient                        *http.Client
+	subscriptionClient                 GraphQLSubscriptionClient
+	isNested                           bool   // isNested - flags that datasource is nested e.g. field with datasource is not on a query type
+	rootTypeName                       string // rootTypeName - holds name of top level type
+	rootFieldName                      string // rootFieldName - holds name of root type field
+	rootFieldRef                       int    // rootFieldRef - holds ref of root type field
+	argTypeRef                         int    // argTypeRef - holds current argument type ref from the definition
+	batchFactory                       resolve.DataSourceBatchFactory
+	upstreamDefinition                 *ast.Document
+	currentVariableDefinition          int
+	addDirectivesToVariableDefinitions map[int][]int
+}
+
+func (p *Planner) EnterVariableDefinition(ref int) {
+	p.currentVariableDefinition = ref
+}
+
+func (p *Planner) LeaveVariableDefinition(_ int) {
+	p.currentVariableDefinition = -1
+}
+
+func (p *Planner) EnterDirective(ref int) {
+	parent := p.nodes[len(p.nodes)-1]
+	if parent.Kind == ast.NodeKindOperationDefinition && p.currentVariableDefinition != -1 {
+		name := p.visitor.Operation.VariableDefinitionNameString(p.currentVariableDefinition)
+		_ = name
+		p.addDirectivesToVariableDefinitions[p.currentVariableDefinition] = append(p.addDirectivesToVariableDefinitions[p.currentVariableDefinition], ref)
+		return
+	}
+	p.addDirectiveToNode(ref, parent)
+}
+
+func (p *Planner) addDirectiveToNode(directiveRef int, node ast.Node) {
+	directiveName := p.visitor.Operation.DirectiveNameString(directiveRef)
+	operationType := ast.OperationTypeQuery
+	if !p.isNested {
+		operationType = p.visitor.Operation.OperationDefinitions[p.visitor.Walker.Ancestors[0].Ref].OperationType
+	}
+	if !p.visitor.Definition.DirectiveIsAllowedOnNodeKind(directiveName, node.Kind, operationType) {
+		return
+	}
+	upstreamDirectiveName := p.dataSourceConfig.Directives.RenameTypeNameOnMatchStr(directiveName)
+	if p.upstreamDefinition != nil && !p.upstreamDefinition.DirectiveIsAllowedOnNodeKind(upstreamDirectiveName, node.Kind, operationType) {
+		return
+	}
+	directive := p.visitor.Importer.ImportDirectiveWithRename(directiveRef, upstreamDirectiveName, p.visitor.Operation, p.upstreamOperation)
+	p.upstreamOperation.AddDirectiveToNode(directive, node)
 }
 
 func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
@@ -80,9 +121,10 @@ func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 }
 
 type Configuration struct {
-	Fetch        FetchConfiguration
-	Subscription SubscriptionConfiguration
-	Federation   FederationConfiguration
+	Fetch          FetchConfiguration
+	Subscription   SubscriptionConfiguration
+	Federation     FederationConfiguration
+	UpstreamSchema string
 }
 
 func ConfigJson(config Configuration) json.RawMessage {
@@ -111,7 +153,7 @@ func (c *Configuration) ApplyDefaults() {
 	}
 }
 
-func (p *Planner) Register(visitor *plan.Visitor, config json.RawMessage, isNested bool) error {
+func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration, isNested bool) error {
 	p.visitor = visitor
 	p.visitor.Walker.RegisterDocumentVisitor(p)
 	p.visitor.Walker.RegisterFieldVisitor(p)
@@ -119,8 +161,11 @@ func (p *Planner) Register(visitor *plan.Visitor, config json.RawMessage, isNest
 	p.visitor.Walker.RegisterSelectionSetVisitor(p)
 	p.visitor.Walker.RegisterEnterArgumentVisitor(p)
 	p.visitor.Walker.RegisterInlineFragmentVisitor(p)
+	p.visitor.Walker.RegisterEnterDirectiveVisitor(p)
+	p.visitor.Walker.RegisterVariableDefinitionVisitor(p)
 
-	err := json.Unmarshal(config, &p.config)
+	p.dataSourceConfig = configuration
+	err := json.Unmarshal(configuration.Custom, &p.config)
 	if err != nil {
 		return err
 	}
@@ -248,7 +293,7 @@ func (p *Planner) EnterInlineFragment(ref int) {
 
 	inlineFragment := p.upstreamOperation.AddInlineFragment(ast.InlineFragment{
 		TypeCondition: ast.TypeCondition{
-			Type: p.upstreamOperation.AddNamedType(typeCondition),
+			Type: p.upstreamOperation.AddNamedType(p.visitor.Config.Types.RenameTypeNameOnMatchBytes(typeCondition)),
 		},
 	})
 
@@ -339,6 +384,26 @@ func (p *Planner) EnterDocument(operation, definition *ast.Document) {
 
 	// reset info about arg type
 	p.argTypeRef = -1
+
+	p.addDirectivesToVariableDefinitions = map[int][]int{}
+
+	p.upstreamDefinition = nil
+	if p.config.UpstreamSchema != "" {
+		p.upstreamDefinition = ast.NewDocument()
+		p.upstreamDefinition.Input.ResetInputString(p.config.UpstreamSchema)
+		parser := astparser.NewParser()
+		var report operationreport.Report
+		parser.Parse(p.upstreamDefinition, &report)
+		if report.HasErrors() {
+			p.visitor.Walker.StopWithInternalErr(report)
+			return
+		}
+		err := asttransform.MergeDefinitionWithBaseSchema(p.upstreamDefinition)
+		if err != nil {
+			p.visitor.Walker.StopWithInternalErr(err)
+			return
+		}
+	}
 }
 
 func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
@@ -376,7 +441,9 @@ func (p *Planner) addRepresentationsVariable() {
 		return
 	}
 
-	representationsJson, _ := sjson.SetRawBytes(nil, "__typename", []byte("\""+p.lastFieldEnclosingTypeName+"\""))
+	onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchStr(p.lastFieldEnclosingTypeName)
+
+	representationsJson, _ := sjson.SetRawBytes(nil, "__typename", []byte("\""+onTypeName+"\""))
 	for i := range fields {
 		objectVariable := &resolve.ObjectVariable{
 			Path:                 []string{fields[i]},
@@ -401,8 +468,10 @@ func (p *Planner) addRepresentationsVariable() {
 func (p *Planner) selectFederationKeyFields(doc *ast.Document) []string {
 	var directiveRefs []int
 
+	onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchStr(p.lastFieldEnclosingTypeName)
+
 	for i := range doc.ObjectTypeExtensions {
-		if p.lastFieldEnclosingTypeName == doc.ObjectTypeExtensionNameString(i) {
+		if onTypeName == doc.ObjectTypeExtensionNameString(i) {
 			for _, j := range doc.ObjectTypeExtensions[i].Directives.Refs {
 				if doc.DirectiveNameString(j) == "key" {
 					directiveRefs = append(directiveRefs, j)
@@ -411,8 +480,9 @@ func (p *Planner) selectFederationKeyFields(doc *ast.Document) []string {
 			break
 		}
 	}
+
 	for i := range doc.ObjectTypeDefinitions {
-		if p.lastFieldEnclosingTypeName == doc.ObjectTypeDefinitionNameString(i) {
+		if onTypeName == doc.ObjectTypeDefinitionNameString(i) {
 			for _, j := range doc.ObjectTypeDefinitions[i].Directives.Refs {
 				if doc.DirectiveNameString(j) == "key" {
 					directiveRefs = append(directiveRefs, j)
@@ -457,7 +527,8 @@ func (p *Planner) fieldDefinition(fieldName, typeName string) *ast.FieldDefiniti
 
 func (p *Planner) addOneTypeInlineFragment() {
 	selectionSet := p.upstreamOperation.AddSelectionSet()
-	typeRef := p.upstreamOperation.AddNamedType([]byte(p.lastFieldEnclosingTypeName))
+	onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchBytes([]byte(p.lastFieldEnclosingTypeName))
+	typeRef := p.upstreamOperation.AddNamedType(onTypeName)
 	inlineFragment := p.upstreamOperation.AddInlineFragment(ast.InlineFragment{
 		HasSelections: true,
 		SelectionSet:  selectionSet.Ref,
@@ -551,6 +622,7 @@ func (p *Planner) storeArgType(typeName, fieldName, argName string) {
 			for _, argDefRef := range p.visitor.Definition.FieldDefinitions[fieldDefRef].ArgumentsDefinition.Refs {
 				if bytes.Equal(p.visitor.Definition.InputValueDefinitionNameBytes(argDefRef), []byte(argName)) {
 					p.argTypeRef = p.visitor.Definition.ResolveListOrNameType(p.visitor.Definition.InputValueDefinitions[argDefRef].Type)
+					return
 				}
 			}
 		}
@@ -603,8 +675,16 @@ func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamField
 		if !p.visitor.Operation.VariableValueNameBytes(ref).Equals(variableName) {
 			continue
 		}
-		importedType := p.visitor.Importer.ImportType(p.visitor.Operation.VariableDefinitions[i].Type, p.visitor.Operation, p.upstreamOperation)
+		typeName := p.visitor.Operation.ResolveTypeNameString(p.visitor.Operation.VariableDefinitions[i].Type)
+		typeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(typeName)
+		importedType := p.visitor.Importer.ImportTypeWithRename(p.visitor.Operation.VariableDefinitions[i].Type, p.visitor.Operation, p.upstreamOperation, typeName)
 		p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValueRef, importedType)
+
+		if add, ok := p.addDirectivesToVariableDefinitions[i]; ok {
+			for _, directive := range add {
+				p.addDirectiveToNode(directive, ast.Node{Kind: ast.NodeKindVariableDefinition, Ref: i})
+			}
+		}
 	}
 
 	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
@@ -716,7 +796,11 @@ func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRe
 	variableName := p.upstreamOperation.GenerateUnusedVariableDefinitionName(p.nodes[0].Ref)
 	variableValue, argument := p.upstreamOperation.AddVariableValueArgument([]byte(argumentConfiguration.Name), variableName)
 	p.upstreamOperation.AddArgumentToField(upstreamFieldRef, argument)
-	importedType := p.visitor.Importer.ImportType(argumentType, p.visitor.Definition, p.upstreamOperation)
+
+	typeName := p.visitor.Operation.ResolveTypeNameString(argumentType)
+	typeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(typeName)
+
+	importedType := p.visitor.Importer.ImportTypeWithRename(argumentType, p.visitor.Definition, p.upstreamOperation, typeName)
 	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
 
 	objectVariableName, exists := p.variables.AddVariable(&resolve.ObjectVariable{
@@ -750,6 +834,10 @@ func (p *Planner) printOperation() []byte {
 		return nil
 	}
 
+	if p.config.UpstreamSchema != "" {
+		baseSchema = p.config.UpstreamSchema
+	}
+
 	federationSchema, err := federation.BuildFederationSchema(baseSchema, p.config.Federation.ServiceSDL)
 	if err != nil {
 		p.visitor.Walker.StopWithInternalErr(err)
@@ -760,27 +848,53 @@ func (p *Planner) printOperation() []byte {
 	operation := ast.NewDocument()
 	definition := ast.NewDocument()
 	report := &operationreport.Report{}
-	parser := astparser.NewParser()
+	operationParser := astparser.NewParser()
+	definitionParser := astparser.NewParser()
 
-	// creates a copy of operation and schema to be able to safely modify them
-	definition.Input.ResetInputString(federationSchema)
 	operation.Input.ResetInputBytes(rawQuery)
-
-	parser.Parse(operation, report)
+	operationParser.Parse(operation, report)
 	if report.HasErrors() {
 		p.stopWithError(parseDocumentFailedErrMsg, "operation")
 		return nil
 	}
 
-	parser.Parse(definition, report)
-	if report.HasErrors() {
-		p.stopWithError(parseDocumentFailedErrMsg, "definition")
-		return nil
+	// creates a copy of operation and schema to be able to safely modify them
+	// if an upstream schema was supplied, we use it to validate and normalize against
+	// otherwise, normalization would fail because the downstream schema doesn't contain the upstream fields
+	if !p.config.Federation.Enabled && p.config.UpstreamSchema != "" {
+		definition.Input.ResetInputString(p.config.UpstreamSchema)
+		definitionParser.Parse(definition, report)
+		if report.HasErrors() {
+			p.stopWithError("unable to parse upstream schema")
+			return nil
+		}
+		if err := asttransform.MergeDefinitionWithBaseSchema(definition); err != nil {
+			p.stopWithError("unable to merge upstream schema with base schema")
+			return nil
+		}
+	} else {
+		definition.Input.ResetInputString(federationSchema)
+		definitionParser.Parse(definition, report)
+		if report.HasErrors() {
+			p.stopWithError(parseDocumentFailedErrMsg, "definition")
+			return nil
+		}
+		if err := asttransform.MergeDefinitionWithBaseSchema(definition); err != nil {
+			p.stopWithError("unable to merge upstream schema with base schema")
+			return nil
+		}
 	}
 
 	// When datasource is nested and definition query type do not contain operation field
 	// we have to replace a query type with a current root type
 	p.replaceQueryType(definition)
+
+	finalSchema, err := astprinter.PrintStringIndent(definition, nil, "  ")
+	if err != nil {
+		_ = finalSchema
+		p.stopWithError("printing final schema failed")
+		return nil
+	}
 
 	// normalize upstream operation
 	if !p.normalizeOperation(operation, definition, report) {
@@ -922,7 +1036,7 @@ func (p *Planner) addField(ref int) {
 		isDesiredField := p.visitor.Config.Fields[i].TypeName == typeName &&
 			p.visitor.Config.Fields[i].FieldName == fieldName
 
-		// chech that we are on a desired field and field path contains a single element - mapping is plain
+		// check that we are on a desired field and field path contains a single element - mapping is plain
 		if isDesiredField && len(p.visitor.Config.Fields[i].Path) == 1 {
 			// define alias when mapping path differs from fieldName and no alias has been defined
 			if p.visitor.Config.Fields[i].Path[0] != fieldName && !alias.IsDefined {

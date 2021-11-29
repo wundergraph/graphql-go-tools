@@ -39,8 +39,8 @@ func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 	}
 }
 
-func (p *Planner) Register(visitor *plan.Visitor, customConfiguration json.RawMessage, isNested bool) error {
-	return json.Unmarshal(customConfiguration, &p.config)
+func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration, isNested bool) error {
+	return json.Unmarshal(configuration.Custom, &p.config)
 }
 
 func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
