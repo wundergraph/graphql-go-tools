@@ -14,6 +14,29 @@ import (
 type Importer struct {
 }
 
+func (i *Importer) ImportDirective(ref int, from, to *ast.Document) int {
+	name := string(from.Input.ByteSlice(from.Directives[ref].Name))
+	args := i.ImportArguments(from.Directives[ref].Arguments.Refs, from, to)
+	return to.AddDirective(ast.Directive{
+		Name:         to.Input.AppendInputString(name),
+		HasArguments: len(args) != 0,
+		Arguments: ast.ArgumentList{
+			Refs: args,
+		},
+	})
+}
+
+func (i *Importer) ImportDirectiveWithRename(ref int, renameTo string, from, to *ast.Document) int {
+	args := i.ImportArguments(from.Directives[ref].Arguments.Refs, from, to)
+	return to.AddDirective(ast.Directive{
+		Name:         to.Input.AppendInputString(renameTo),
+		HasArguments: len(args) != 0,
+		Arguments: ast.ArgumentList{
+			Refs: args,
+		},
+	})
+}
+
 func (i *Importer) ImportType(ref int, from, to *ast.Document) int {
 
 	astType := ast.Type{

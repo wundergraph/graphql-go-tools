@@ -77,11 +77,11 @@ type QueryConfiguration struct {
 	Value string `json:"value"`
 }
 
-func (p *Planner) Register(visitor *plan.Visitor, customConfiguration json.RawMessage, isNested bool) error {
+func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration, isNested bool) error {
 	p.v = visitor
 	visitor.Walker.RegisterEnterFieldVisitor(p)
 	visitor.Walker.RegisterEnterOperationVisitor(p)
-	return json.Unmarshal(customConfiguration, &p.config)
+	return json.Unmarshal(configuration.Custom, &p.config)
 }
 
 func (p *Planner) EnterField(ref int) {

@@ -25,24 +25,64 @@ import (
 )
 
 type Planner struct {
-	visitor                    *plan.Visitor
-	config                     Configuration
-	upstreamOperation          *ast.Document
-	upstreamVariables          []byte
-	nodes                      []ast.Node
-	variables                  resolve.Variables
-	lastFieldEnclosingTypeName string
-	disallowSingleFlight       bool
-	hasFederationRoot          bool
-	extractEntities            bool
-	fetchClient                *http.Client
-	subscriptionClient         GraphQLSubscriptionClient
-	isNested                   bool   // isNested - flags that datasource is nested e.g. field with datasource is not on a query type
-	rootTypeName               string // rootTypeName - holds name of top level type
-	rootFieldName              string // rootFieldName - holds name of root type field
-	rootFieldRef               int    // rootFieldRef - holds ref of root type field
-	argTypeRef                 int    // argTypeRef - holds current argument type ref from the definition
-	batchFactory               resolve.DataSourceBatchFactory
+	visitor                            *plan.Visitor
+	dataSourceConfig                   plan.DataSourceConfiguration
+	config                             Configuration
+	upstreamOperation                  *ast.Document
+	upstreamVariables                  []byte
+	nodes                              []ast.Node
+	variables                          resolve.Variables
+	lastFieldEnclosingTypeName         string
+	disallowSingleFlight               bool
+	hasFederationRoot                  bool
+	extractEntities                    bool
+	fetchClient                        *http.Client
+	subscriptionClient                 GraphQLSubscriptionClient
+	isNested                           bool   // isNested - flags that datasource is nested e.g. field with datasource is not on a query type
+	rootTypeName                       string // rootTypeName - holds name of top level type
+	rootFieldName                      string // rootFieldName - holds name of root type field
+	rootFieldRef                       int    // rootFieldRef - holds ref of root type field
+	argTypeRef                         int    // argTypeRef - holds current argument type ref from the definition
+	batchFactory                       resolve.DataSourceBatchFactory
+	upstreamDefinition                 *ast.Document
+	currentVariableDefinition          int
+	addDirectivesToVariableDefinitions map[int][]int
+}
+
+func (p *Planner) EnterVariableDefinition(ref int) {
+	p.currentVariableDefinition = ref
+}
+
+func (p *Planner) LeaveVariableDefinition(_ int) {
+	p.currentVariableDefinition = -1
+}
+
+func (p *Planner) EnterDirective(ref int) {
+	parent := p.nodes[len(p.nodes)-1]
+	if parent.Kind == ast.NodeKindOperationDefinition && p.currentVariableDefinition != -1 {
+		name := p.visitor.Operation.VariableDefinitionNameString(p.currentVariableDefinition)
+		_ = name
+		p.addDirectivesToVariableDefinitions[p.currentVariableDefinition] = append(p.addDirectivesToVariableDefinitions[p.currentVariableDefinition], ref)
+		return
+	}
+	p.addDirectiveToNode(ref, parent)
+}
+
+func (p *Planner) addDirectiveToNode(directiveRef int, node ast.Node) {
+	directiveName := p.visitor.Operation.DirectiveNameString(directiveRef)
+	operationType := ast.OperationTypeQuery
+	if !p.isNested {
+		operationType = p.visitor.Operation.OperationDefinitions[p.visitor.Walker.Ancestors[0].Ref].OperationType
+	}
+	if !p.visitor.Definition.DirectiveIsAllowedOnNodeKind(directiveName, node.Kind, operationType) {
+		return
+	}
+	upstreamDirectiveName := p.dataSourceConfig.Directives.RenameTypeNameOnMatchStr(directiveName)
+	if p.upstreamDefinition != nil && !p.upstreamDefinition.DirectiveIsAllowedOnNodeKind(upstreamDirectiveName, node.Kind, operationType) {
+		return
+	}
+	directive := p.visitor.Importer.ImportDirectiveWithRename(directiveRef, upstreamDirectiveName, p.visitor.Operation, p.upstreamOperation)
+	p.upstreamOperation.AddDirectiveToNode(directive, node)
 }
 
 func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
@@ -113,7 +153,7 @@ func (c *Configuration) ApplyDefaults() {
 	}
 }
 
-func (p *Planner) Register(visitor *plan.Visitor, config json.RawMessage, isNested bool) error {
+func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration, isNested bool) error {
 	p.visitor = visitor
 	p.visitor.Walker.RegisterDocumentVisitor(p)
 	p.visitor.Walker.RegisterFieldVisitor(p)
@@ -121,8 +161,11 @@ func (p *Planner) Register(visitor *plan.Visitor, config json.RawMessage, isNest
 	p.visitor.Walker.RegisterSelectionSetVisitor(p)
 	p.visitor.Walker.RegisterEnterArgumentVisitor(p)
 	p.visitor.Walker.RegisterInlineFragmentVisitor(p)
+	p.visitor.Walker.RegisterEnterDirectiveVisitor(p)
+	p.visitor.Walker.RegisterVariableDefinitionVisitor(p)
 
-	err := json.Unmarshal(config, &p.config)
+	p.dataSourceConfig = configuration
+	err := json.Unmarshal(configuration.Custom, &p.config)
 	if err != nil {
 		return err
 	}
@@ -341,6 +384,26 @@ func (p *Planner) EnterDocument(operation, definition *ast.Document) {
 
 	// reset info about arg type
 	p.argTypeRef = -1
+
+	p.addDirectivesToVariableDefinitions = map[int][]int{}
+
+	p.upstreamDefinition = nil
+	if p.config.UpstreamSchema != "" {
+		p.upstreamDefinition = ast.NewDocument()
+		p.upstreamDefinition.Input.ResetInputString(p.config.UpstreamSchema)
+		parser := astparser.NewParser()
+		var report operationreport.Report
+		parser.Parse(p.upstreamDefinition, &report)
+		if report.HasErrors() {
+			p.visitor.Walker.StopWithInternalErr(report)
+			return
+		}
+		err := asttransform.MergeDefinitionWithBaseSchema(p.upstreamDefinition)
+		if err != nil {
+			p.visitor.Walker.StopWithInternalErr(err)
+			return
+		}
+	}
 }
 
 func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
@@ -559,6 +622,7 @@ func (p *Planner) storeArgType(typeName, fieldName, argName string) {
 			for _, argDefRef := range p.visitor.Definition.FieldDefinitions[fieldDefRef].ArgumentsDefinition.Refs {
 				if bytes.Equal(p.visitor.Definition.InputValueDefinitionNameBytes(argDefRef), []byte(argName)) {
 					p.argTypeRef = p.visitor.Definition.ResolveListOrNameType(p.visitor.Definition.InputValueDefinitions[argDefRef].Type)
+					return
 				}
 			}
 		}
@@ -615,6 +679,12 @@ func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamField
 		typeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(typeName)
 		importedType := p.visitor.Importer.ImportTypeWithRename(p.visitor.Operation.VariableDefinitions[i].Type, p.visitor.Operation, p.upstreamOperation, typeName)
 		p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValueRef, importedType)
+
+		if add, ok := p.addDirectivesToVariableDefinitions[i]; ok {
+			for _, directive := range add {
+				p.addDirectiveToNode(directive, ast.Node{Kind: ast.NodeKindVariableDefinition, Ref: i})
+			}
+		}
 	}
 
 	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
@@ -730,7 +800,7 @@ func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRe
 	typeName := p.visitor.Operation.ResolveTypeNameString(argumentType)
 	typeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(typeName)
 
-	importedType := p.visitor.Importer.ImportTypeWithRename(argumentType, p.visitor.Definition, p.upstreamOperation,typeName)
+	importedType := p.visitor.Importer.ImportTypeWithRename(argumentType, p.visitor.Definition, p.upstreamOperation, typeName)
 	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
 
 	objectVariableName, exists := p.variables.AddVariable(&resolve.ObjectVariable{

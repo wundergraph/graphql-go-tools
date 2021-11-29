@@ -250,9 +250,9 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 	}))
 	t.Run("Query with renamed root fields", RunTest(renamedStarWarsSchema, `
-		query MyQuery($id: ID! $input: SearchInput_api!){
+		query MyQuery($id: ID! $input: SearchInput_api! @api_onVariable ) @otherapi_undefined @api_onOperation {
 			api_droid(id: $id){
-				name
+				name @api_format
 				aliased: name
 				friends {
 					name
@@ -284,7 +284,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
 					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $input: SearchInput!){api_droid: droid(id: $id){name aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search {__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}}}","variables":{"input":$$1$$,"id":$$0$$}}}`,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $input: SearchInput! @onVariable )@onOperation {api_droid: droid(id: $id){name @format aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search {__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}}}","variables":{"input":$$1$$,"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:                 []string{"id"},
@@ -504,7 +504,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				RootNodes: []plan.TypeField{
 					{
 						TypeName:   "Query",
-						FieldNames: []string{"api_droid", "api_hero", "api_stringList", "api_nestedStringList", "api_search","api_searchWithInput"},
+						FieldNames: []string{"api_droid", "api_hero", "api_stringList", "api_nestedStringList", "api_search", "api_searchWithInput"},
 					},
 				},
 				ChildNodes: []plan.TypeField{
@@ -525,6 +525,20 @@ func TestGraphQLDataSource(t *testing.T) {
 						FieldNames: []string{"name", "height", "primaryFunction", "friends"},
 					},
 				},
+				Directives: []plan.DirectiveConfiguration{
+					{
+						DirectiveName: "api_format",
+						RenameTo: "format",
+					},
+					{
+						DirectiveName: "api_onOperation",
+						RenameTo: "onOperation",
+					},
+					{
+						DirectiveName: "api_onVariable",
+						RenameTo: "onVariable",
+					},
+				},
 				Factory: &Factory{},
 				Custom: ConfigJson(Configuration{
 					Fetch: FetchConfiguration{
@@ -534,7 +548,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
 						},
 					},
-					UpstreamSchema: starWarsSchema,
+					UpstreamSchema:          starWarsSchema,
 				}),
 			},
 		},
@@ -3935,6 +3949,10 @@ func BenchmarkFederationBatching(b *testing.B) {
 const starWarsSchema = `
 union SearchResult = Human | Droid | Starship
 
+directive @format on FIELD
+directive @onOperation on QUERY
+directive @onVariable on VARIABLE_DEFINITION
+
 schema {
     query: Query
     mutation: Mutation
@@ -4003,6 +4021,11 @@ type Startship {
 
 const renamedStarWarsSchema = `
 union SearchResult_api = Human_api | Droid_api | Starship_api
+
+directive @api_format on FIELD
+directive @otherapi_undefined on QUERY
+directive @api_onOperation on QUERY
+directive @api_onVariable on VARIABLE_DEFINITION
 
 schema {
     query: Query

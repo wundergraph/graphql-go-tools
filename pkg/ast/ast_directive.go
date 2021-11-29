@@ -126,3 +126,77 @@ func (d *Document) ImportDirective(name string, argRefs []int) (ref int) {
 
 	return d.AddDirective(directive)
 }
+
+func (d *Document) AddDirectiveToNode(directiveRef int, node Node) bool {
+	switch node.Kind {
+	case NodeKindField:
+		d.Fields[node.Ref].Directives.Refs = append(d.Fields[node.Ref].Directives.Refs, directiveRef)
+		d.Fields[node.Ref].HasDirectives = true
+		return true
+	case NodeKindVariableDefinition:
+		d.VariableDefinitions[node.Ref].Directives.Refs = append(d.VariableDefinitions[node.Ref].Directives.Refs, directiveRef)
+		d.VariableDefinitions[node.Ref].HasDirectives = true
+		return true
+	case NodeKindOperationDefinition:
+		d.OperationDefinitions[node.Ref].Directives.Refs = append(d.OperationDefinitions[node.Ref].Directives.Refs, directiveRef)
+		d.OperationDefinitions[node.Ref].HasDirectives = true
+		return true
+	case NodeKindInputValueDefinition:
+		d.InputValueDefinitions[node.Ref].Directives.Refs = append(d.InputValueDefinitions[node.Ref].Directives.Refs, directiveRef)
+		d.InputValueDefinitions[node.Ref].HasDirectives = true
+		return true
+	case NodeKindInlineFragment:
+		d.InlineFragments[node.Ref].Directives.Refs = append(d.InlineFragments[node.Ref].Directives.Refs, directiveRef)
+		d.InlineFragments[node.Ref].HasDirectives = true
+		return true
+	case NodeKindFragmentSpread:
+		d.FragmentSpreads[node.Ref].Directives.Refs = append(d.FragmentSpreads[node.Ref].Directives.Refs, directiveRef)
+		d.FragmentSpreads[node.Ref].HasDirectives = true
+		return true
+	case NodeKindFragmentDefinition:
+		d.FragmentDefinitions[node.Ref].Directives.Refs = append(d.FragmentDefinitions[node.Ref].Directives.Refs, directiveRef)
+		return true
+	default:
+		return false
+	}
+}
+
+func (d *Document) DirectiveIsAllowedOnNodeKind(directiveName string, kind NodeKind, operationType OperationType) bool {
+	definition, ok := d.DirectiveDefinitionByName(directiveName)
+	if !ok {
+		return false
+	}
+
+	switch kind {
+	case NodeKindOperationDefinition:
+		switch operationType {
+		case OperationTypeQuery:
+			return d.DirectiveDefinitions[definition].DirectiveLocations.Get(ExecutableDirectiveLocationQuery)
+		case OperationTypeMutation:
+			return d.DirectiveDefinitions[definition].DirectiveLocations.Get(ExecutableDirectiveLocationMutation)
+		case OperationTypeSubscription:
+			return d.DirectiveDefinitions[definition].DirectiveLocations.Get(ExecutableDirectiveLocationSubscription)
+		}
+	case NodeKindField:
+		return d.DirectiveDefinitions[definition].DirectiveLocations.Get(ExecutableDirectiveLocationField)
+	case NodeKindFragmentDefinition:
+		return d.DirectiveDefinitions[definition].DirectiveLocations.Get(ExecutableDirectiveLocationFragmentDefinition)
+	case NodeKindFragmentSpread:
+		return d.DirectiveDefinitions[definition].DirectiveLocations.Get(ExecutableDirectiveLocationFragmentSpread)
+	case NodeKindInlineFragment:
+		return d.DirectiveDefinitions[definition].DirectiveLocations.Get(ExecutableDirectiveLocationInlineFragment)
+	case NodeKindVariableDefinition:
+		return d.DirectiveDefinitions[definition].DirectiveLocations.Get(ExecutableDirectiveLocationVariableDefinition)
+	}
+
+	return false
+}
+
+func (d *Document) DirectiveDefinitionByName(name string) (int, bool) {
+	for i := range d.DirectiveDefinitions {
+		if name == d.Input.ByteSliceString(d.DirectiveDefinitions[i].Name) {
+			return i, true
+		}
+	}
+	return -1, false
+}
