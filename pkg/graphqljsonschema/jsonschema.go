@@ -1,4 +1,4 @@
-package jsonschema
+package graphqljsonschema
 
 import (
 	"context"
@@ -81,6 +81,14 @@ func NewValidatorFromSchema(schema JsonSchema) (*Validator,error) {
 	return NewValidatorFromString(string(s))
 }
 
+func MustNewValidatorFromSchema(schema JsonSchema) *Validator {
+	s,err := json.Marshal(schema)
+	if err != nil {
+		panic(err)
+	}
+	return MustNewValidatorFromString(string(s))
+}
+
 func NewValidatorFromString(schema string) (*Validator,error) {
 	var validator Validator
 	err := json.Unmarshal([]byte(schema),&validator.schema)
@@ -88,6 +96,15 @@ func NewValidatorFromString(schema string) (*Validator,error) {
 		return nil,err
 	}
 	return &validator,nil
+}
+
+func MustNewValidatorFromString(schema string) *Validator {
+	var validator Validator
+	err := json.Unmarshal([]byte(schema),&validator.schema)
+	if err != nil {
+		panic(err)
+	}
+	return &validator
 }
 
 func (v *Validator) Validate(ctx context.Context, inputJSON []byte) bool {

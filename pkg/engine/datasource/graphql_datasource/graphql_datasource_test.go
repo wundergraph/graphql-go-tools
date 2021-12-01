@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqljsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -49,9 +50,11 @@ func TestGraphQLDataSource(t *testing.T) {
 					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
-							Path:                 []string{"id"},
-							JsonValueType:        jsonparser.String,
-							RenderAsGraphQLValue: true,
+							Path: []string{"id"},
+							Renderer: resolve.NewGraphQLVariableRenderer(
+								graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+								jsonparser.String,
+							),
 						},
 						&resolve.HeaderVariable{
 							Path: []string{"Authorization"},
@@ -287,14 +290,18 @@ func TestGraphQLDataSource(t *testing.T) {
 					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $input: SearchInput! @onVariable )@onOperation {api_droid: droid(id: $id){name @format aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search {__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}}}","variables":{"input":$$1$$,"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
-							Path:                 []string{"id"},
-							JsonValueType:        jsonparser.String,
-							RenderAsGraphQLValue: true,
+							Path: []string{"id"},
+							Renderer: resolve.NewGraphQLVariableRenderer(
+								graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+								jsonparser.String,
+							),
 						},
 						&resolve.ContextVariable{
-							Path:                 []string{"input"},
-							JsonValueType:        jsonparser.Object,
-							RenderAsGraphQLValue: true,
+							Path: []string{"input"},
+							Renderer: resolve.NewGraphQLVariableRenderer(
+								graphqljsonschema.MustNewValidatorFromString(`{"type":"object"}`),
+								jsonparser.Object,
+							),
 						},
 						&resolve.HeaderVariable{
 							Path: []string{"Authorization"},
@@ -528,15 +535,15 @@ func TestGraphQLDataSource(t *testing.T) {
 				Directives: []plan.DirectiveConfiguration{
 					{
 						DirectiveName: "api_format",
-						RenameTo: "format",
+						RenameTo:      "format",
 					},
 					{
 						DirectiveName: "api_onOperation",
-						RenameTo: "onOperation",
+						RenameTo:      "onOperation",
 					},
 					{
 						DirectiveName: "api_onVariable",
-						RenameTo: "onVariable",
+						RenameTo:      "onVariable",
 					},
 				},
 				Factory: &Factory{},
@@ -548,7 +555,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
 						},
 					},
-					UpstreamSchema:          starWarsSchema,
+					UpstreamSchema: starWarsSchema,
 				}),
 			},
 		},
@@ -638,10 +645,11 @@ func TestGraphQLDataSource(t *testing.T) {
 					Input:      `{"method":"POST","url":"https://subgraph-reviews/query","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {username id}}}}}","variables":{"representations":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
-							Path:                 []string{"representations"},
-							JsonValueType:        jsonparser.Array,
-							ArrayJsonValueType:   jsonparser.Object,
-							RenderAsGraphQLValue: true,
+							Path: []string{"representations"},
+							Renderer: resolve.NewGraphQLVariableRenderer(
+								graphqljsonschema.MustNewValidatorFromString(`{"type":"array","items":{"type":"object"}}`),
+								jsonparser.Array,
+							),
 						},
 					),
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -824,10 +832,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:                 []string{"droidIDs"},
-								JsonValueType:        jsonparser.Array,
-								ArrayJsonValueType:   jsonparser.String,
-								RenderAsGraphQLValue: true,
+								Path: []string{"droidIDs"},
+								Renderer: resolve.NewGraphQLVariableRenderer(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"array","items":{"type":"string"}}`),
+									jsonparser.Array,
+								),
 							},
 						),
 						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -897,9 +906,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:                 []string{"droidID"},
-								JsonValueType:        jsonparser.String,
-								RenderAsGraphQLValue: true,
+								Path: []string{"droidID"},
+								Renderer: resolve.NewGraphQLVariableRenderer(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+									jsonparser.String,
+								),
 							},
 						),
 						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -963,9 +974,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:                 []string{"birthdate"},
-								JsonValueType:        jsonparser.String,
-								RenderAsGraphQLValue: true,
+								Path: []string{"birthdate"},
+								Renderer: resolve.NewGraphQLVariableRenderer(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+									jsonparser.String,
+								),
 							},
 						),
 						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -1023,9 +1036,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:                 []string{"name"},
-								JsonValueType:        jsonparser.String,
-								RenderAsGraphQLValue: true,
+								Path: []string{"name"},
+								Renderer: resolve.NewGraphQLVariableRenderer(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+									jsonparser.String,
+								),
 							},
 						),
 						DisallowSingleFlight:  true,
@@ -1134,14 +1149,18 @@ func TestGraphQLDataSource(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:                 []string{"a"},
-								JsonValueType:        jsonparser.String,
-								RenderAsGraphQLValue: true,
+								Path: []string{"a"},
+								Renderer: resolve.NewGraphQLVariableRenderer(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+									jsonparser.String,
+								),
 							},
 							&resolve.ContextVariable{
-								Path:                 []string{"b"},
-								JsonValueType:        jsonparser.String,
-								RenderAsGraphQLValue: true,
+								Path: []string{"b"},
+								Renderer: resolve.NewGraphQLVariableRenderer(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+									jsonparser.String,
+								),
 							},
 						),
 						DisallowSingleFlight:  false,
@@ -1249,14 +1268,18 @@ func TestGraphQLDataSource(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:                 []string{"a"},
-								JsonValueType:        jsonparser.String,
-								RenderAsGraphQLValue: true,
+								Path: []string{"a"},
+								Renderer: resolve.NewGraphQLVariableRenderer(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+									jsonparser.String,
+								),
 							},
 							&resolve.ContextVariable{
-								Path:                 []string{"b"},
-								JsonValueType:        jsonparser.String,
-								RenderAsGraphQLValue: true,
+								Path: []string{"b"},
+								Renderer: resolve.NewGraphQLVariableRenderer(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+									jsonparser.String,
+								),
 							},
 						),
 						DisallowSingleFlight:  false,
@@ -1392,14 +1415,18 @@ func TestGraphQLDataSource(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:                 []string{"a"},
-								JsonValueType:        jsonparser.String,
-								RenderAsGraphQLValue: true,
+								Path: []string{"a"},
+								Renderer: resolve.NewGraphQLVariableRenderer(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+									jsonparser.String,
+								),
 							},
 							&resolve.ContextVariable{
-								Path:                 []string{"b"},
-								JsonValueType:        jsonparser.String,
-								RenderAsGraphQLValue: true,
+								Path: []string{"b"},
+								Renderer: resolve.NewGraphQLVariableRenderer(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+									jsonparser.String,
+								),
 							},
 						),
 						DisallowSingleFlight:  false,
@@ -1571,14 +1598,18 @@ func TestGraphQLDataSource(t *testing.T) {
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
-										Path:                 []string{"firstArg"},
-										JsonValueType:        jsonparser.String,
-										RenderAsGraphQLValue: true,
+										Path: []string{"firstArg"},
+										Renderer: resolve.NewGraphQLVariableRenderer(
+											graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+											jsonparser.String,
+										),
 									},
 									&resolve.ContextVariable{
-										Path:                 []string{"thirdArg"},
-										JsonValueType:        jsonparser.Number,
-										RenderAsGraphQLValue: true,
+										Path: []string{"thirdArg"},
+										Renderer: resolve.NewGraphQLVariableRenderer(
+											graphqljsonschema.MustNewValidatorFromString(`{"type":"number"}`),
+											jsonparser.String,
+										),
 									},
 								),
 								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -1590,14 +1621,18 @@ func TestGraphQLDataSource(t *testing.T) {
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
-										Path:                 []string{"secondArg"},
-										JsonValueType:        jsonparser.Boolean,
-										RenderAsGraphQLValue: true,
+										Path: []string{"secondArg"},
+										Renderer: resolve.NewGraphQLVariableRenderer(
+											graphqljsonschema.MustNewValidatorFromString(`{"type":"boolean"}`),
+											jsonparser.Boolean,
+										),
 									},
 									&resolve.ContextVariable{
-										Path:                 []string{"fourthArg"},
-										JsonValueType:        jsonparser.Number,
-										RenderAsGraphQLValue: true,
+										Path: []string{"fourthArg"},
+										Renderer: resolve.NewGraphQLVariableRenderer(
+											graphqljsonschema.MustNewValidatorFromString(`{"type":"number"}`),
+											jsonparser.Number,
+										),
 									},
 								),
 								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -1683,8 +1718,11 @@ func TestGraphQLDataSource(t *testing.T) {
 									Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOneResponse: serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":$$0$$}}}`,
 									Variables: resolve.NewVariables(
 										&resolve.ObjectVariable{
-											Path:                 []string{"serviceOneField"},
-											RenderAsGraphQLValue: true,
+											Path: []string{"serviceOneField"},
+											Renderer: resolve.NewGraphQLVariableRenderer(
+												graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+												jsonparser.String,
+											),
 										},
 									),
 									DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -1977,19 +2015,25 @@ func TestGraphQLDataSource(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:                 []string{"title"},
-								JsonValueType:        jsonparser.String,
-								RenderAsGraphQLValue: true,
+								Path: []string{"title"},
+								Renderer: resolve.NewGraphQLVariableRenderer(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+									jsonparser.String,
+								),
 							},
 							&resolve.ContextVariable{
-								Path:                 []string{"completed"},
-								JsonValueType:        jsonparser.Boolean,
-								RenderAsGraphQLValue: true,
+								Path: []string{"completed"},
+								Renderer: resolve.NewGraphQLVariableRenderer(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"boolean"}`),
+									jsonparser.Boolean,
+								),
 							},
 							&resolve.ContextVariable{
-								Path:                 []string{"name"},
-								JsonValueType:        jsonparser.String,
-								RenderAsGraphQLValue: true,
+								Path: []string{"name"},
+								Renderer: resolve.NewGraphQLVariableRenderer(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+									jsonparser.String,
+								),
 							},
 						),
 						DisallowSingleFlight:  true,
@@ -2147,14 +2191,18 @@ func TestGraphQLDataSource(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:                 []string{"id"},
-								JsonValueType:        jsonparser.String,
-								RenderAsGraphQLValue: true,
+								Path: []string{"id"},
+								Renderer: resolve.NewGraphQLVariableRenderer(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+									jsonparser.String,
+								),
 							},
 							&resolve.ContextVariable{
-								Path:                 []string{"name"},
-								JsonValueType:        jsonparser.String,
-								RenderAsGraphQLValue: true,
+								Path: []string{"name"},
+								Renderer: resolve.NewGraphQLVariableRenderer(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+									jsonparser.String,
+								),
 							},
 						),
 						DisallowSingleFlight:  true,
@@ -2295,14 +2343,18 @@ func TestGraphQLDataSource(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:                 []string{"name"},
-								JsonValueType:        jsonparser.String,
-								RenderAsGraphQLValue: true,
+								Path: []string{"name"},
+								Renderer: resolve.NewGraphQLVariableRenderer(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+									jsonparser.String,
+								),
 							},
 							&resolve.ContextVariable{
-								Path:                 []string{"personal"},
-								JsonValueType:        jsonparser.Boolean,
-								RenderAsGraphQLValue: true,
+								Path: []string{"personal"},
+								Renderer: resolve.NewGraphQLVariableRenderer(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"boolean"}`),
+									jsonparser.Boolean,
+								),
 							},
 						),
 						DisallowSingleFlight:  true,
@@ -2512,9 +2564,11 @@ func TestGraphQLDataSource(t *testing.T) {
 				Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription($a: String){foo(bar: $a)}","variables":{"a":$$0$$}}}`),
 				Variables: resolve.NewVariables(
 					&resolve.ContextVariable{
-						Path:                 []string{"a"},
-						JsonValueType:        jsonparser.String,
-						RenderAsGraphQLValue: true,
+						Path: []string{"a"},
+						Renderer: resolve.NewGraphQLVariableRenderer(
+							graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+							jsonparser.String,
+						),
 					},
 				),
 				Source: &SubscriptionSource{
@@ -2624,9 +2678,11 @@ func TestGraphQLDataSource(t *testing.T) {
 										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body author {id username} product {upc}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
-												Path:                 []string{"id"},
-												JsonValueType:        jsonparser.String,
-												RenderAsGraphQLValue: true,
+												Path: []string{"id"},
+												Renderer: resolve.NewGraphQLVariableRenderer(
+													graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+													jsonparser.String,
+												),
 											},
 										),
 										DataSource:           &Source{},
@@ -2734,14 +2790,18 @@ func TestGraphQLDataSource(t *testing.T) {
 																			DataSource: &Source{},
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
-																					Path:                 []string{"upc"},
-																					JsonValueType:        jsonparser.String,
-																					RenderAsGraphQLValue: true,
+																					Path: []string{"upc"},
+																					Renderer: resolve.NewGraphQLVariableRenderer(
+																						graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+																						jsonparser.String,
+																					),
 																				},
 																				&resolve.ObjectVariable{
-																					Path:                 []string{"name"},
-																					JsonValueType:        jsonparser.String,
-																					RenderAsGraphQLValue: true,
+																					Path: []string{"name"},
+																					Renderer: resolve.NewGraphQLVariableRenderer(
+																						graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+																						jsonparser.String,
+																					),
 																				},
 																			),
 																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -2758,14 +2818,18 @@ func TestGraphQLDataSource(t *testing.T) {
 																			Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {id username}}}}}","variables":{"representations":[{"name":$$1$$,"upc":$$0$$,"__typename":"Product"}]}}}`,
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
-																					Path:                 []string{"upc"},
-																					JsonValueType:        jsonparser.String,
-																					RenderAsGraphQLValue: true,
+																					Path: []string{"upc"},
+																					Renderer: resolve.NewGraphQLVariableRenderer(
+																						graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+																						jsonparser.String,
+																					),
 																				},
 																				&resolve.ObjectVariable{
-																					Path:                 []string{"name"},
-																					JsonValueType:        jsonparser.String,
-																					RenderAsGraphQLValue: true,
+																					Path: []string{"name"},
+																					Renderer: resolve.NewGraphQLVariableRenderer(
+																						graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+																						jsonparser.String,
+																					),
 																				},
 																			),
 																			DataSource:           &Source{},
@@ -3062,9 +3126,11 @@ func TestGraphQLDataSource(t *testing.T) {
 										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body author {id username} product {upc}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
-												Path:                 []string{"id"},
-												JsonValueType:        jsonparser.String,
-												RenderAsGraphQLValue: true,
+												Path: []string{"id"},
+												Renderer: resolve.NewGraphQLVariableRenderer(
+													graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+													jsonparser.String,
+												),
 											},
 										),
 										DataSource:           &Source{},
@@ -3172,14 +3238,18 @@ func TestGraphQLDataSource(t *testing.T) {
 																			DataSource: &Source{},
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
-																					Path:                 []string{"upc"},
-																					JsonValueType:        jsonparser.String,
-																					RenderAsGraphQLValue: true,
+																					Path: []string{"upc"},
+																					Renderer: resolve.NewGraphQLVariableRenderer(
+																						graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+																						jsonparser.String,
+																					),
 																				},
 																				&resolve.ObjectVariable{
-																					Path:                 []string{"name"},
-																					JsonValueType:        jsonparser.String,
-																					RenderAsGraphQLValue: true,
+																					Path: []string{"name"},
+																					Renderer: resolve.NewGraphQLVariableRenderer(
+																						graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+																						jsonparser.String,
+																					),
 																				},
 																			),
 																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -3196,14 +3266,18 @@ func TestGraphQLDataSource(t *testing.T) {
 																			Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {id username}}}}}","variables":{"representations":[{"name":$$1$$,"upc":$$0$$,"__typename":"Product"}]}}}`,
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
-																					Path:                 []string{"upc"},
-																					JsonValueType:        jsonparser.String,
-																					RenderAsGraphQLValue: true,
+																					Path: []string{"upc"},
+																					Renderer: resolve.NewGraphQLVariableRenderer(
+																						graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+																						jsonparser.String,
+																					),
 																				},
 																				&resolve.ObjectVariable{
-																					Path:                 []string{"name"},
-																					JsonValueType:        jsonparser.String,
-																					RenderAsGraphQLValue: true,
+																					Path: []string{"name"},
+																					Renderer: resolve.NewGraphQLVariableRenderer(
+																						graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+																						jsonparser.String,
+																					),
 																				},
 																			),
 																			DataSource:           &Source{},
@@ -3790,11 +3864,13 @@ func BenchmarkFederationBatching(b *testing.B) {
 											SegmentType: resolve.StaticSegmentType,
 										},
 										{
-											SegmentType:                  resolve.VariableSegmentType,
-											VariableKind:                 resolve.ObjectVariableKind,
-											VariableSourcePath:           []string{"id"},
-											VariableValueType:            jsonparser.Number,
-											RenderVariableAsGraphQLValue: true,
+											SegmentType:        resolve.VariableSegmentType,
+											VariableKind:       resolve.ObjectVariableKind,
+											VariableSourcePath: []string{"id"},
+											Renderer: resolve.NewGraphQLVariableRenderer(
+												graphqljsonschema.MustNewValidatorFromString(`{"type":"number"}`),
+												jsonparser.Number,
+											),
 										},
 										{
 											Data:        []byte(`","__typename":"User"}]}}}`),
@@ -3857,11 +3933,13 @@ func BenchmarkFederationBatching(b *testing.B) {
 																		SegmentType: resolve.StaticSegmentType,
 																	},
 																	{
-																		SegmentType:                  resolve.VariableSegmentType,
-																		VariableKind:                 resolve.ObjectVariableKind,
-																		VariableSourcePath:           []string{"upc"},
-																		VariableValueType:            jsonparser.String,
-																		RenderVariableAsGraphQLValue: true,
+																		SegmentType:        resolve.VariableSegmentType,
+																		VariableKind:       resolve.ObjectVariableKind,
+																		VariableSourcePath: []string{"upc"},
+																		Renderer: resolve.NewGraphQLVariableRenderer(
+																			graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+																			jsonparser.String,
+																		),
 																	},
 																	{
 																		Data:        []byte(`,"__typename":"Product"}]}}}`),

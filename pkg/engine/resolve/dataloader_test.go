@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/buger/jsonparser"
 	"github.com/golang/mock/gomock"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqljsonschema"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -141,8 +141,9 @@ func TestDataLoader_Load(t *testing.T) {
 						SegmentType:                  VariableSegmentType,
 						VariableKind:                 ObjectVariableKind,
 						VariableSourcePath:           []string{"id"},
-						VariableValueType:            jsonparser.Number,
-						RenderVariableAsGraphQLValue: true,
+						Renderer: NewPlainVariableRendererWithValidation(
+							graphqljsonschema.MustNewValidatorFromString(`{"type":"number"}`),
+						),
 					},
 					{
 						Data:        []byte(`}}`),
@@ -365,8 +366,9 @@ func TestDataLoader_Load(t *testing.T) {
 						SegmentType:                  VariableSegmentType,
 						VariableKind:                 ObjectVariableKind,
 						VariableSourcePath:           []string{"id"},
-						VariableValueType:            jsonparser.Number,
-						RenderVariableAsGraphQLValue: true,
+						Renderer: NewPlainVariableRendererWithValidation(
+							graphqljsonschema.MustNewValidatorFromString(`{"type":"number"}`),
+						),
 					},
 					{
 						Data:        []byte(`}}`),
@@ -422,8 +424,9 @@ func TestDataLoader_Load(t *testing.T) {
 						SegmentType:                  VariableSegmentType,
 						VariableKind:                 ObjectVariableKind,
 						VariableSourcePath:           []string{"id"},
-						VariableValueType:            jsonparser.Number,
-						RenderVariableAsGraphQLValue: true,
+						Renderer: NewPlainVariableRendererWithValidation(
+							graphqljsonschema.MustNewValidatorFromString(`{"type":"number"}`),
+						),
 					},
 					{
 						Data:        []byte(`}}`),
@@ -503,8 +506,9 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 							SegmentType:                  VariableSegmentType,
 							VariableKind:                 ObjectVariableKind,
 							VariableSourcePath:           []string{"upc"},
-							VariableValueType:            jsonparser.String,
-							RenderVariableAsGraphQLValue: true,
+							Renderer: NewPlainVariableRendererWithValidation(
+								graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+							),
 						},
 						{
 							Data:        []byte(`,"__typename":"Product"}]}}}`),
@@ -597,11 +601,12 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 								SegmentType: StaticSegmentType,
 							},
 							{
-								SegmentType:                  VariableSegmentType,
-								VariableKind:                 ObjectVariableKind,
-								VariableSourcePath:           []string{"upc"},
-								VariableValueType:            jsonparser.String,
-								RenderVariableAsGraphQLValue: true,
+								SegmentType:        VariableSegmentType,
+								VariableKind:       ObjectVariableKind,
+								VariableSourcePath: []string{"upc"},
+								Renderer: NewPlainVariableRendererWithValidation(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+								),
 							},
 							{
 								Data:        []byte(`,"__typename":"Product"}]}}}`),

@@ -283,7 +283,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	for key := range p.planningVisitor.planners {
 		config := p.planningVisitor.planners[key].dataSourceConfiguration
 		isNested := p.planningVisitor.planners[key].isNestedPlanner()
-		err := p.planningVisitor.planners[key].planner.Register(p.planningVisitor,config, isNested)
+		err := p.planningVisitor.planners[key].planner.Register(p.planningVisitor, config, isNested)
 		if err != nil {
 			p.planningWalker.StopWithInternalErr(err)
 		}
@@ -790,8 +790,8 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 		switch parts[0] {
 		case "object":
 			variable := &resolve.ObjectVariable{
-				Path:               path,
-				RenderAsPlainValue: true,
+				Path:     path,
+				Renderer: resolve.NewPlainVariableRenderer(),
 			}
 			variableName, _ = variables.AddVariable(variable)
 		case "arguments":
@@ -816,20 +816,20 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 				break
 			}
 			variableTypeRef := v.Operation.VariableDefinitions[variableDefinition].Type
-			variable.SetJsonValueType(v.Operation, v.Definition, variableTypeRef)
 
-			variable.RenderAsPlainValue = true
 			if fieldConfig, ok := v.fieldConfigs[config.fieldRef]; ok {
 				if argumentConfig := fieldConfig.Arguments.ForName(argumentName); argumentConfig != nil {
 					switch argumentConfig.RenderConfig {
 					case RenderArgumentAsArrayCSV:
-						variable.RenderAsArrayCSV = true
-						variable.RenderAsPlainValue = false
+						variable.Renderer = resolve.NewCSVVariableRendererFromTypeRef(v.Operation, variableTypeRef)
 					case RenderArgumentDefault:
-						variable.RenderAsPlainValue = true
+						variable.Renderer = resolve.NewPlainVariableRenderer()
 					case RenderArgumentAsGraphQLValue:
-						variable.RenderAsGraphQLValue = true
-						variable.RenderAsPlainValue = false
+						renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(v.Operation, variableTypeRef)
+						if err != nil {
+							break
+						}
+						variable.Renderer = renderer
 					}
 				}
 			}

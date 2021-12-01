@@ -446,14 +446,17 @@ func (p *Planner) addRepresentationsVariable() {
 	representationsJson, _ := sjson.SetRawBytes(nil, "__typename", []byte("\""+onTypeName+"\""))
 	for i := range fields {
 		objectVariable := &resolve.ObjectVariable{
-			Path:                 []string{fields[i]},
-			RenderAsGraphQLValue: true,
+			Path: []string{fields[i]},
 		}
 		fieldDef := p.fieldDefinition(fields[i], p.lastFieldEnclosingTypeName)
 		if fieldDef == nil {
 			continue
 		}
-		objectVariable.SetJsonValueType(p.visitor.Definition, fieldDef.Type)
+		renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(p.visitor.Definition, fieldDef.Type)
+		if err != nil {
+			continue
+		}
+		objectVariable.Renderer = renderer
 		variable, exists := p.variables.AddVariable(objectVariable)
 		if exists {
 			continue
@@ -656,11 +659,21 @@ func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamField
 	variableName := p.visitor.Operation.VariableValueNameBytes(value.Ref)
 	variableNameStr := p.visitor.Operation.VariableValueNameString(value.Ref)
 
-	contextVariable := &resolve.ContextVariable{
-		Path:                 []string{variableNameStr},
-		RenderAsGraphQLValue: true,
+	argumentDefinition, ok := p.visitor.Walker.ArgumentInputValueDefinition(fieldArgument)
+	if !ok {
+		return
 	}
-	contextVariable.SetJsonValueType(p.visitor.Definition, p.visitor.Definition, p.argTypeRef)
+
+	argumentType := p.visitor.Definition.InputValueDefinitionType(argumentDefinition)
+	renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(p.visitor.Definition, argumentType)
+	if err != nil {
+		return
+	}
+
+	contextVariable := &resolve.ContextVariable{
+		Path:     []string{variableNameStr},
+		Renderer: renderer,
+	}
 
 	contextVariableName, exists := p.variables.AddVariable(contextVariable)
 	variableValueRef, argRef := p.upstreamOperation.AddVariableValueArgument([]byte(argumentName), variableName) // add the argument to the field, but don't redefine it
@@ -759,11 +772,13 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, sourcePath 
 
 	fieldType := p.resolveNestedArgumentType(fieldName)
 	contextVariable := &resolve.ContextVariable{
-		Path:                 append(sourcePath, variableNameStr),
-		RenderAsGraphQLValue: true,
+		Path: append(sourcePath, variableNameStr),
 	}
-	contextVariable.SetJsonValueType(p.visitor.Definition, p.visitor.Definition, fieldType)
-
+	renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(p.visitor.Definition, fieldType)
+	if err != nil {
+		return
+	}
+	contextVariable.Renderer = renderer
 	contextVariableName, variableExists := p.variables.AddVariable(contextVariable)
 	if variableExists {
 		return
@@ -803,10 +818,17 @@ func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRe
 	importedType := p.visitor.Importer.ImportTypeWithRename(argumentType, p.visitor.Definition, p.upstreamOperation, typeName)
 	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
 
-	objectVariableName, exists := p.variables.AddVariable(&resolve.ObjectVariable{
-		Path:                 argumentConfiguration.SourcePath,
-		RenderAsGraphQLValue: true,
-	})
+	renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(p.visitor.Definition, argumentType)
+	if err != nil {
+		return
+	}
+
+	variable := &resolve.ObjectVariable{
+		Path:     argumentConfiguration.SourcePath,
+		Renderer: renderer,
+	}
+
+	objectVariableName, exists := p.variables.AddVariable(variable)
 	if !exists {
 		p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, string(variableName), []byte(objectVariableName))
 	}

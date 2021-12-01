@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/buger/jsonparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphqljsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -140,8 +141,8 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 									DataSource: &Source{},
 									Variables: resolve.NewVariables(
 										&resolve.ObjectVariable{
-											Path:               []string{"name"},
-											RenderAsPlainValue: true,
+											Path:     []string{"name"},
+											Renderer: resolve.NewPlainVariableRenderer(),
 										},
 									),
 									DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -258,14 +259,16 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:               []string{"idVariable"},
-								JsonValueType:      jsonparser.String,
-								RenderAsPlainValue: true,
+								Path: []string{"idVariable"},
+								Renderer: resolve.NewPlainVariableRendererWithValidation(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+								),
 							},
 							&resolve.ContextVariable{
 								Path:               []string{"a"},
-								JsonValueType:      jsonparser.String,
-								RenderAsPlainValue: true,
+								Renderer: resolve.NewPlainVariableRendererWithValidation(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+								),
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -340,13 +343,15 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path:               []string{"idVariable"},
-										JsonValueType:      jsonparser.String,
-										RenderAsPlainValue: true,
+										Renderer: resolve.NewPlainVariableRendererWithValidation(
+											graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+										),
 									},
 									&resolve.ContextVariable{
 										Path:               []string{"a"},
-										JsonValueType:      jsonparser.String,
-										RenderAsPlainValue: true,
+										Renderer: resolve.NewPlainVariableRendererWithValidation(
+											graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+										),
 									},
 								),
 								DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -358,13 +363,15 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path:               []string{"idVariable"},
-										JsonValueType:      jsonparser.String,
-										RenderAsPlainValue: true,
+										Renderer: resolve.NewPlainVariableRendererWithValidation(
+											graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+										),
 									},
 									&resolve.ContextVariable{
 										Path:               []string{"d"},
-										JsonValueType:      jsonparser.String,
-										RenderAsPlainValue: true,
+										Renderer: resolve.NewPlainVariableRendererWithValidation(
+											graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+										),
 									},
 								),
 								DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -391,8 +398,9 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											Variables: resolve.NewVariables(
 												&resolve.ContextVariable{
 													Path:               []string{"b"},
-													JsonValueType:      jsonparser.String,
-													RenderAsPlainValue: true,
+													Renderer: resolve.NewPlainVariableRendererWithValidation(
+														graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+													),
 												},
 											),
 											DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -404,8 +412,9 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											Variables: resolve.NewVariables(
 												&resolve.ContextVariable{
 													Path:               []string{"c"},
-													JsonValueType:      jsonparser.String,
-													RenderAsPlainValue: true,
+													Renderer: resolve.NewPlainVariableRendererWithValidation(
+														graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+													),
 												},
 											),
 											DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -538,13 +547,15 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:               []string{"a"},
-								JsonValueType:      jsonparser.String,
-								RenderAsPlainValue: true,
+								Renderer: resolve.NewPlainVariableRendererWithValidation(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+								),
 							},
 							&resolve.ContextVariable{
 								Path:               []string{"b"},
-								JsonValueType:      jsonparser.String,
-								RenderAsPlainValue: true,
+								Renderer: resolve.NewPlainVariableRendererWithValidation(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+								),
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -832,13 +843,15 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:               []string{"a"},
-								JsonValueType:      jsonparser.String,
-								RenderAsPlainValue: true,
+								Renderer: resolve.NewPlainVariableRendererWithValidation(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+								),
 							},
 							&resolve.ContextVariable{
 								Path:               []string{"idVariable"},
-								JsonValueType:      jsonparser.String,
-								RenderAsPlainValue: true,
+								Renderer: resolve.NewPlainVariableRendererWithValidation(
+									graphqljsonschema.MustNewValidatorFromString(`{"type":"string"}`),
+								),
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -933,9 +946,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:               []string{"a"},
-								JsonValueType:      jsonparser.Array,
-								ArrayJsonValueType: jsonparser.String,
-								RenderAsPlainValue: true,
+								Renderer: resolve.NewCSVVariableRenderer(jsonparser.String),
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -1014,9 +1025,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:               []string{"a"},
-								JsonValueType:      jsonparser.Array,
-								ArrayJsonValueType: jsonparser.String,
-								RenderAsArrayCSV:   true,
+								Renderer: resolve.NewCSVVariableRenderer(jsonparser.String),
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
