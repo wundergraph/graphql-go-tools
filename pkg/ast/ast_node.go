@@ -29,7 +29,6 @@ func (n *Node) IsExtensionKind() bool {
 }
 
 func (d *Document) NodeNameBytes(node Node) ByteSlice {
-
 	var ref ByteSliceReference
 
 	switch node.Kind {
@@ -55,6 +54,8 @@ func (d *Document) NodeNameBytes(node Node) ByteSlice {
 		ref = d.ObjectTypeExtensions[node.Ref].Name
 	case NodeKindInterfaceTypeExtension:
 		ref = d.InterfaceTypeExtensions[node.Ref].Name
+	case NodeKindUnionTypeExtension:
+		ref = d.UnionTypeExtensions[node.Ref].Name
 	case NodeKindEnumTypeExtension:
 		ref = d.EnumTypeExtensions[node.Ref].Name
 	}
@@ -85,6 +86,16 @@ func (d *Document) NodeNameString(node Node) string {
 }
 
 // Node directives
+
+// NodeHasDirectiveByNameString returns whether the given node has a directive with the given name as string.
+func (d *Document) NodeHasDirectiveByNameString(node Node, directiveName string) bool {
+	for _, directiveRef := range d.NodeDirectives(node) {
+		if d.DirectiveNameString(directiveRef) == directiveName {
+			return true
+		}
+	}
+	return false
+}
 
 func (d *Document) NodeDirectives(node Node) []int {
 	switch node.Kind {
@@ -336,7 +347,6 @@ func (d *Document) InputValueDefinitionIsLast(inputValue int, ancestor Node) boo
 // Node misc
 
 func (d *Document) NodeImplementsInterface(node Node, interfaceNode Node) bool {
-
 	nodeFields := d.NodeFieldDefinitions(node)
 	interfaceFields := d.NodeFieldDefinitions(interfaceNode)
 
@@ -384,7 +394,6 @@ func (d *Document) RemoveNodeFromNode(remove, from Node) {
 }
 
 func (d *Document) RemoveNodeFromSelectionSet(set int, node Node) {
-
 	var selectionKind SelectionKind
 
 	switch node.Kind {
@@ -407,6 +416,34 @@ func (d *Document) RemoveNodeFromSelectionSet(set int, node Node) {
 	}
 }
 
+// NodeInterfaceRefs returns the interfaces implemented by the given node (this is
+// only applicable to object kinds).
+// Returns nil if node kind is not an object kind.
+func (d *Document) NodeInterfaceRefs(node Node) (refs []int) {
+	switch node.Kind {
+	case NodeKindObjectTypeDefinition:
+		return d.ObjectTypeDefinitions[node.Ref].ImplementsInterfaces.Refs
+	case NodeKindObjectTypeExtension:
+		return d.ObjectTypeExtensions[node.Ref].ImplementsInterfaces.Refs
+	default:
+		return nil
+	}
+}
+
+// NodeUnionMemberRefs returns the union members of the given node (this is only
+// applicable to union kinds).
+// Returns nil if node kind is not an object kind.
+func (d *Document) NodeUnionMemberRefs(node Node) (refs []int) {
+	switch node.Kind {
+	case NodeKindUnionTypeDefinition:
+		return d.UnionTypeDefinitions[node.Ref].UnionMemberTypes.Refs
+	case NodeKindUnionTypeExtension:
+		return d.UnionTypeExtensions[node.Ref].UnionMemberTypes.Refs
+	default:
+		return nil
+	}
+}
+
 // Node fragments
 
 func (d *Document) NodeFragmentIsAllowedOnNode(fragmentNode, onNode Node) bool {
@@ -423,7 +460,6 @@ func (d *Document) NodeFragmentIsAllowedOnNode(fragmentNode, onNode Node) bool {
 }
 
 func (d *Document) NodeFragmentIsAllowedOnInterfaceTypeDefinition(fragmentNode, interfaceTypeNode Node) bool {
-
 	switch fragmentNode.Kind {
 	case NodeKindObjectTypeDefinition:
 		return d.NodeImplementsInterface(fragmentNode, interfaceTypeNode)
@@ -437,7 +473,6 @@ func (d *Document) NodeFragmentIsAllowedOnInterfaceTypeDefinition(fragmentNode, 
 }
 
 func (d *Document) NodeFragmentIsAllowedOnUnionTypeDefinition(fragmentNode, unionTypeNode Node) bool {
-
 	switch fragmentNode.Kind {
 	case NodeKindObjectTypeDefinition:
 		return d.NodeIsUnionMember(fragmentNode, unionTypeNode)
@@ -451,7 +486,6 @@ func (d *Document) NodeFragmentIsAllowedOnUnionTypeDefinition(fragmentNode, unio
 }
 
 func (d *Document) NodeFragmentIsAllowedOnObjectTypeDefinition(fragmentNode, objectTypeNode Node) bool {
-
 	switch fragmentNode.Kind {
 	case NodeKindObjectTypeDefinition:
 		return bytes.Equal(d.ObjectTypeDefinitionNameBytes(fragmentNode.Ref), d.ObjectTypeDefinitionNameBytes(objectTypeNode.Ref))
