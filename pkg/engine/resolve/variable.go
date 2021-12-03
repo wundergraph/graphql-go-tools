@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"strconv"
@@ -25,26 +26,19 @@ const (
 )
 
 type VariableRenderer interface {
-	RenderVariable(data []byte, out io.Writer) error
+	RenderVariable(ctx context.Context, data []byte, out io.Writer) error
 }
 
-func NewPlainVariableRenderer() *PlainVariableRenderer {
-	return &PlainVariableRenderer{}
+type JSONVariableRenderer struct {
+	JSONSchema    string
+	Kind          string
+	validator     *graphqljsonschema.Validator
+	rootValueType jsonparser.ValueType
 }
 
-func NewPlainVariableRendererWithValidation(validator *graphqljsonschema.Validator) *PlainVariableRenderer {
-	return &PlainVariableRenderer{
-		validator: validator,
-	}
-}
-
-type PlainVariableRenderer struct {
-	validator *graphqljsonschema.Validator
-}
-
-func (p *PlainVariableRenderer) RenderVariable(data []byte, out io.Writer) error {
-	if p.validator != nil {
-		valid := p.validator.Validate(context.Background(), data)
+func (r *JSONVariableRenderer) RenderVariable(ctx context.Context, data []byte, out io.Writer) error {
+	if r.validator != nil {
+		valid := r.validator.Validate(ctx, data)
 		if !valid {
 			return ErrInvalidJsonSchema
 		}
@@ -53,20 +47,120 @@ func (p *PlainVariableRenderer) RenderVariable(data []byte, out io.Writer) error
 	return err
 }
 
-func NewGraphQLVariableRendererFromTypeRef(definition *ast.Document, typeRef int) (*GraphQLVariableRenderer, error) {
-	jsonSchema := graphqljsonschema.FromTypeRef(definition, typeRef)
+func NewJSONVariableRenderer() *JSONVariableRenderer {
+	return &JSONVariableRenderer{
+		Kind: "json",
+	}
+}
+
+func NewJSONVariableRendererWithValidation(jsonSchema string) *JSONVariableRenderer {
+	validator := graphqljsonschema.MustNewValidatorFromString(jsonSchema)
+	return &JSONVariableRenderer{
+		Kind:       "jsonWithValidation",
+		JSONSchema: jsonSchema,
+		validator:  validator,
+	}
+}
+
+func NewJSONVariableRendererWithValidationFromTypeRef(operation, definition *ast.Document, typeRef int) (*JSONVariableRenderer, error) {
+	jsonSchema := graphqljsonschema.FromTypeRef(operation, definition, typeRef)
 	validator, err := graphqljsonschema.NewValidatorFromSchema(jsonSchema)
 	if err != nil {
 		return nil, err
 	}
-	return &GraphQLVariableRenderer{
+	schemaBytes, err := json.Marshal(jsonSchema)
+	if err != nil {
+		return nil, err
+	}
+	return &JSONVariableRenderer{
+		Kind:          "jsonWithValidation",
+		JSONSchema:    string(schemaBytes),
 		validator:     validator,
 		rootValueType: getJSONRootType(definition, typeRef),
 	}, nil
 }
 
-func NewGraphQLVariableRenderer(validator *graphqljsonschema.Validator, rootValueType jsonparser.ValueType) *GraphQLVariableRenderer {
+func NewPlainVariableRenderer() *PlainVariableRenderer {
+	return &PlainVariableRenderer{
+		Kind: "plain",
+	}
+}
+
+func NewPlainVariableRendererWithValidation(jsonSchema string) *PlainVariableRenderer {
+	validator := graphqljsonschema.MustNewValidatorFromString(jsonSchema)
+	return &PlainVariableRenderer{
+		Kind:       "plainWithValidation",
+		JSONSchema: jsonSchema,
+		validator:  validator,
+	}
+}
+
+func NewPlainVariableRendererWithValidationFromTypeRef(operation, definition *ast.Document, typeRef int) (*PlainVariableRenderer, error) {
+	jsonSchema := graphqljsonschema.FromTypeRef(operation, definition, typeRef)
+	validator, err := graphqljsonschema.NewValidatorFromSchema(jsonSchema)
+	if err != nil {
+		return nil, err
+	}
+	schemaBytes, err := json.Marshal(jsonSchema)
+	if err != nil {
+		return nil, err
+	}
+	return &PlainVariableRenderer{
+		Kind:          "plainWithValidation",
+		JSONSchema:    string(schemaBytes),
+		validator:     validator,
+		rootValueType: getJSONRootType(definition, typeRef),
+	}, nil
+}
+
+type PlainVariableRenderer struct {
+	JSONSchema    string
+	Kind          string
+	validator     *graphqljsonschema.Validator
+	rootValueType jsonparser.ValueType
+}
+
+func (p *PlainVariableRenderer) RenderVariable(ctx context.Context, data []byte, out io.Writer) error {
+	if p.validator != nil {
+		valid := p.validator.Validate(ctx, data)
+		if !valid {
+			return ErrInvalidJsonSchema
+		}
+	}
+	if p.rootValueType == jsonparser.String {
+		data = data[1:len(data)-1]
+	}
+	_, err := out.Write(data)
+	return err
+}
+
+func NewGraphQLVariableRendererFromTypeRef(operation, definition *ast.Document, typeRef int) (*GraphQLVariableRenderer, error) {
+	jsonSchema := graphqljsonschema.FromTypeRef(operation, definition, typeRef)
+	validator, err := graphqljsonschema.NewValidatorFromSchema(jsonSchema)
+	if err != nil {
+		return nil, err
+	}
+	schemaBytes, err := json.Marshal(jsonSchema)
+	if err != nil {
+		return nil, err
+	}
 	return &GraphQLVariableRenderer{
+		Kind:          "graphqlWithValidation",
+		JSONSchema:    string(schemaBytes),
+		validator:     validator,
+		rootValueType: getJSONRootType(definition, typeRef),
+	}, nil
+}
+
+func NewGraphQLVariableRenderer(jsonSchema string) *GraphQLVariableRenderer {
+	validator := graphqljsonschema.MustNewValidatorFromString(jsonSchema)
+	rootValueType, err := graphqljsonschema.TopLevelType(jsonSchema)
+	if err != nil {
+		panic(err)
+	}
+	return &GraphQLVariableRenderer{
+		Kind:          "graphqlWithValidation",
+		JSONSchema:    jsonSchema,
 		validator:     validator,
 		rootValueType: rootValueType,
 	}
@@ -99,14 +193,19 @@ func getJSONRootType(definition *ast.Document, typeRef int) jsonparser.ValueType
 }
 
 type GraphQLVariableRenderer struct {
+	JSONSchema    string
+	Kind          string
 	validator     *graphqljsonschema.Validator
 	rootValueType jsonparser.ValueType
 }
 
-func (g *GraphQLVariableRenderer) RenderVariable(data []byte, out io.Writer) error {
-	valid := g.validator.Validate(context.Background(), data)
+func (g *GraphQLVariableRenderer) RenderVariable(ctx context.Context, data []byte, out io.Writer) error {
+	valid := g.validator.Validate(ctx, data)
 	if !valid {
 		return ErrInvalidJsonSchema
+	}
+	if g.rootValueType == jsonparser.String {
+		data = data[1 : len(data)-1]
 	}
 	return g.renderGraphQLValue(data, g.rootValueType, out)
 }
@@ -114,10 +213,8 @@ func (g *GraphQLVariableRenderer) RenderVariable(data []byte, out io.Writer) err
 func (g *GraphQLVariableRenderer) renderGraphQLValue(data []byte, valueType jsonparser.ValueType, out io.Writer) (err error) {
 	switch valueType {
 	case jsonparser.String:
-		_, _ = out.Write(literal.BACKSLASH)
 		_, _ = out.Write(literal.QUOTE)
 		_, _ = out.Write(data)
-		_, _ = out.Write(literal.BACKSLASH)
 		_, _ = out.Write(literal.QUOTE)
 	case jsonparser.Object:
 		_, _ = out.Write(literal.LBRACE)
@@ -167,21 +264,24 @@ func (g *GraphQLVariableRenderer) renderGraphQLValue(data []byte, valueType json
 
 func NewCSVVariableRenderer(arrayValueType jsonparser.ValueType) *CSVVariableRenderer {
 	return &CSVVariableRenderer{
+		Kind:           "csv",
 		arrayValueType: arrayValueType,
 	}
 }
 
 func NewCSVVariableRendererFromTypeRef(definition *ast.Document, typeRef int) *CSVVariableRenderer {
 	return &CSVVariableRenderer{
+		Kind:           "csv",
 		arrayValueType: getJSONRootType(definition, typeRef),
 	}
 }
 
 type CSVVariableRenderer struct {
+	Kind           string
 	arrayValueType jsonparser.ValueType
 }
 
-func (c *CSVVariableRenderer) RenderVariable(data []byte, out io.Writer) error {
+func (c *CSVVariableRenderer) RenderVariable(_ context.Context, data []byte, out io.Writer) error {
 	isFirst := true
 	_, err := jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 		if dataType != c.arrayValueType {

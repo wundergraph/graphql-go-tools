@@ -6,43 +6,59 @@ import (
 	"testing"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/stretchr/testify/assert"
 )
 
-func runTest(schema, inputType, inputField string, inputJSON, expectedJsonSchema string, expectedValid bool) func(t *testing.T) {
+func runTest(schema, operation, expectedJsonSchema string, valid []string, invalid []string) func(t *testing.T) {
 	return func(t *testing.T) {
 		definition := unsafeparser.ParseGraphqlDocumentString(schema)
-		node, ok := definition.Index.FirstNodeByNameStr(inputType)
-		assert.True(t, ok)
-		assert.Equal(t, ast.NodeKindInputObjectTypeDefinition, node.Kind)
-		inputValueDefinitionRef := definition.InputObjectTypeDefinitionInputValueDefinitionByName(node.Ref, []byte(inputField))
-		inputValueDefinition := definition.InputValueDefinitions[inputValueDefinitionRef]
-		jsonSchemaDefinition := FromTypeRef(&definition, inputValueDefinition.Type)
+		operationDoc := unsafeparser.ParseGraphqlDocumentString(operation)
+
+		variableDefinition := operationDoc.OperationDefinitions[0].VariableDefinitions.Refs[0]
+		varType := operationDoc.VariableDefinitions[variableDefinition].Type
+
+		jsonSchemaDefinition := FromTypeRef(&operationDoc, &definition, varType)
 		actualSchema, err := json.Marshal(jsonSchemaDefinition)
 		assert.NoError(t, err)
-		var expected interface{}
-		err = json.Unmarshal([]byte(expectedJsonSchema), &expected)
-		assert.NoError(t, err)
-		expectedClean, err := json.Marshal(expected)
-		assert.NoError(t, err)
-		assert.Equal(t, string(expectedClean), string(actualSchema))
+		assert.Equal(t, expectedJsonSchema, string(actualSchema))
 
 		validator, err := NewValidatorFromString(string(actualSchema))
 		assert.NoError(t, err)
 
-		actualValid := validator.Validate(context.Background(), []byte(inputJSON))
-		assert.Equal(t, expectedValid, actualValid)
+		for _, input := range valid {
+			assert.True(t, validator.Validate(context.Background(), []byte(input)))
+		}
+
+		for _, input := range invalid {
+			assert.False(t, validator.Validate(context.Background(), []byte(input)))
+		}
 	}
 }
 
 func TestJsonSchema(t *testing.T) {
 	t.Run("string", runTest(
 		`scalar String input Test { str: String }`,
-		"Test",
-		"str",
-		`"validString"`,
+		`query ($input: Test){}`,
+		`{"type":"object","properties":{"str":{"type":"string"}},"additionalProperties":false}`,
+		[]string{
+			`{"str":"validString"}`,
+		},
+		[]string{
+			`{"str":true}`,
+		},
+	))
+	t.Run("string", runTest(
+		`scalar String input Test { str: String }`,
+		`query ($input: String){}`,
 		`{"type":"string"}`,
-		true,
+		[]string{
+			`"validString"`,
+		},
+		[]string{
+			`null`,
+			`false`,
+			`true`,
+			`nope`,
+		},
 	))
 }

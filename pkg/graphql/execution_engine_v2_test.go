@@ -601,7 +601,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					Arguments: []plan.ArgumentConfiguration{
 						{
 							Name:         "name",
-							RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							RenderConfig: plan.RenderArgumentAsJSONValue,
 						},
 					},
 				},

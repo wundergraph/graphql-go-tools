@@ -8,10 +8,8 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/buger/jsonparser"
 	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/golang/mock/gomock"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqljsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -50,10 +48,7 @@ func TestWithoutDefer(t *testing.T) {
 											SegmentType:                  VariableSegmentType,
 											VariableKind:                 ObjectVariableKind,
 											VariableSourcePath:           []string{"id"},
-											Renderer: NewGraphQLVariableRenderer(
-												graphqljsonschema.MustNewValidatorFromString(`{"type":"number"}`),
-												jsonparser.Number,
-											),
+											Renderer: NewGraphQLVariableRenderer(`{"type":"number"}`),
 										},
 									},
 								},
@@ -229,10 +224,7 @@ func TestDefer(t *testing.T) {
 								SegmentType:                  VariableSegmentType,
 								VariableKind:                 ObjectVariableKind,
 								VariableSourcePath:           []string{"id"},
-								Renderer: NewGraphQLVariableRenderer(
-									graphqljsonschema.MustNewValidatorFromString(`{"type":"number"}`),
-									jsonparser.Number,
-								),
+								Renderer: NewGraphQLVariableRenderer(`{"type":"number"}`),
 							},
 						},
 					},

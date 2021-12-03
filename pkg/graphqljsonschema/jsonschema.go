@@ -4,28 +4,33 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/buger/jsonparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/qri-io/jsonschema"
 )
 
-func FromTypeRef(definition *ast.Document, typeRef int) JsonSchema {
-	t := definition.Types[typeRef]
+func FromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
+	t := operation.Types[typeRef]
 	switch t.TypeKind {
 	case ast.TypeKindList:
-		itemSchema := FromTypeRef(definition, t.OfType)
-		if definition.TypeIsNonNull(typeRef) {
+		itemSchema := FromTypeRef(operation, definition, t.OfType)
+		if operation.TypeIsNonNull(typeRef) {
 			min := 1
 			return NewArray(itemSchema, &min)
 		}
 		return NewArray(itemSchema, nil)
 	case ast.TypeKindNonNull:
-		return FromTypeRef(definition, t.OfType)
+		return FromTypeRef(operation, definition, t.OfType)
 	case ast.TypeKindNamed:
-		name := definition.Input.ByteSliceString(t.Name)
-		if definition.TypeIsEnum(typeRef, definition) {
+		name := operation.Input.ByteSliceString(t.Name)
+		typeDefinitionNode, ok := definition.Index.FirstNodeByNameStr(name)
+		if !ok {
+			return nil
+		}
+		if typeDefinitionNode.Kind == ast.NodeKindEnumTypeDefinition {
 			return NewString()
 		}
-		if definition.TypeIsScalar(typeRef, definition) {
+		if typeDefinitionNode.Kind == ast.NodeKindScalarTypeDefinition {
 			switch name {
 			case "Boolean":
 				return NewBoolean()
@@ -46,7 +51,7 @@ func FromTypeRef(definition *ast.Document, typeRef int) JsonSchema {
 				for _, ref := range definition.InputObjectTypeDefinitions[node.Ref].InputFieldsDefinition.Refs {
 					fieldName := definition.Input.ByteSliceString(definition.InputValueDefinitions[ref].Name)
 					fieldType := definition.InputValueDefinitions[ref].Type
-					fieldSchema := FromTypeRef(definition, fieldType)
+					fieldSchema := FromTypeRef(definition, definition, fieldType)
 					object.Properties[fieldName] = fieldSchema
 					if definition.TypeIsNonNull(fieldType) {
 						object.Required = append(object.Required, fieldName)
@@ -56,7 +61,7 @@ func FromTypeRef(definition *ast.Document, typeRef int) JsonSchema {
 				for _, ref := range definition.ObjectTypeDefinitions[node.Ref].FieldsDefinition.Refs {
 					fieldName := definition.Input.ByteSliceString(definition.FieldDefinitions[ref].Name)
 					fieldType := definition.FieldDefinitions[ref].Type
-					fieldSchema := FromTypeRef(definition, fieldType)
+					fieldSchema := FromTypeRef(definition, definition, fieldType)
 					object.Properties[fieldName] = fieldSchema
 					if definition.TypeIsNonNull(fieldType) {
 						object.Required = append(object.Required, fieldName)
@@ -73,42 +78,68 @@ type Validator struct {
 	schema jsonschema.Schema
 }
 
-func NewValidatorFromSchema(schema JsonSchema) (*Validator,error) {
-	s,err := json.Marshal(schema)
+func NewValidatorFromSchema(schema JsonSchema) (*Validator, error) {
+	s, err := json.Marshal(schema)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 	return NewValidatorFromString(string(s))
 }
 
 func MustNewValidatorFromSchema(schema JsonSchema) *Validator {
-	s,err := json.Marshal(schema)
+	s, err := json.Marshal(schema)
 	if err != nil {
 		panic(err)
 	}
 	return MustNewValidatorFromString(string(s))
 }
 
-func NewValidatorFromString(schema string) (*Validator,error) {
+func NewValidatorFromString(schema string) (*Validator, error) {
 	var validator Validator
-	err := json.Unmarshal([]byte(schema),&validator.schema)
+	err := json.Unmarshal([]byte(schema), &validator.schema)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
-	return &validator,nil
+	return &validator, nil
 }
 
 func MustNewValidatorFromString(schema string) *Validator {
 	var validator Validator
-	err := json.Unmarshal([]byte(schema),&validator.schema)
+	err := json.Unmarshal([]byte(schema), &validator.schema)
 	if err != nil {
 		panic(err)
 	}
 	return &validator
 }
 
+func TopLevelType(schema string) (jsonparser.ValueType, error) {
+	var jsonSchema jsonschema.Schema
+	err := json.Unmarshal([]byte(schema), &jsonSchema)
+	if err != nil {
+		return jsonparser.Unknown, err
+	}
+	switch jsonSchema.TopLevelType() {
+	case "boolean":
+		return jsonparser.Boolean, nil
+	case "string":
+		return jsonparser.String, nil
+	case "object":
+		return jsonparser.Object, nil
+	case "number":
+		return jsonparser.Number, nil
+	case "integer":
+		return jsonparser.Number, nil
+	case "null":
+		return jsonparser.Null, nil
+	case "array":
+		return jsonparser.Array, nil
+	default:
+		return jsonparser.NotExist, nil
+	}
+}
+
 func (v *Validator) Validate(ctx context.Context, inputJSON []byte) bool {
-	errs,err := v.schema.ValidateBytes(ctx, inputJSON)
+	errs, err := v.schema.ValidateBytes(ctx, inputJSON)
 	return err == nil && len(errs) == 0
 }
 
@@ -187,7 +218,7 @@ type Object struct {
 	Type                 string                `json:"type"`
 	Properties           map[string]JsonSchema `json:"properties,omitempty"`
 	Required             []string              `json:"required,omitempty"`
-	AdditionalProperties bool                  `json:"additionalProperties,omitempty"`
+	AdditionalProperties bool                  `json:"additionalProperties"`
 }
 
 func (_ Object) Kind() Kind {
@@ -196,8 +227,9 @@ func (_ Object) Kind() Kind {
 
 func NewObject() Object {
 	return Object{
-		Type:       "object",
-		Properties: map[string]JsonSchema{},
+		Type:                 "object",
+		Properties:           map[string]JsonSchema{},
+		AdditionalProperties: false,
 	}
 }
 

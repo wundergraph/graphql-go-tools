@@ -452,7 +452,7 @@ func (p *Planner) addRepresentationsVariable() {
 		if fieldDef == nil {
 			continue
 		}
-		renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(p.visitor.Definition, fieldDef.Type)
+		renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(p.visitor.Definition,p.visitor.Definition, fieldDef.Type)
 		if err != nil {
 			continue
 		}
@@ -659,13 +659,15 @@ func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamField
 	variableName := p.visitor.Operation.VariableValueNameBytes(value.Ref)
 	variableNameStr := p.visitor.Operation.VariableValueNameString(value.Ref)
 
-	argumentDefinition, ok := p.visitor.Walker.ArgumentInputValueDefinition(fieldArgument)
-	if !ok {
+	fieldName := p.visitor.Operation.FieldNameBytes(downstreamFieldRef)
+	argumentDefinition := p.visitor.Definition.NodeFieldDefinitionArgumentDefinitionByName(p.visitor.Walker.EnclosingTypeDefinition, fieldName, []byte(argumentName))
+
+	if argumentDefinition == -1 {
 		return
 	}
 
 	argumentType := p.visitor.Definition.InputValueDefinitionType(argumentDefinition)
-	renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(p.visitor.Definition, argumentType)
+	renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(p.visitor.Definition, p.visitor.Definition, argumentType)
 	if err != nil {
 		return
 	}
@@ -774,7 +776,7 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, sourcePath 
 	contextVariable := &resolve.ContextVariable{
 		Path: append(sourcePath, variableNameStr),
 	}
-	renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(p.visitor.Definition, fieldType)
+	renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(p.visitor.Definition, p.visitor.Definition, fieldType)
 	if err != nil {
 		return
 	}
@@ -818,7 +820,7 @@ func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRe
 	importedType := p.visitor.Importer.ImportTypeWithRename(argumentType, p.visitor.Definition, p.upstreamOperation, typeName)
 	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
 
-	renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(p.visitor.Definition, argumentType)
+	renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(p.visitor.Definition, p.visitor.Definition, argumentType)
 	if err != nil {
 		return
 	}

@@ -131,6 +131,7 @@ const (
 	RenderArgumentDefault        ArgumentRenderConfig = ""
 	RenderArgumentAsArrayCSV     ArgumentRenderConfig = "render_argument_as_array_csv"
 	RenderArgumentAsGraphQLValue ArgumentRenderConfig = "render_argument_as_graphql_value"
+	RenderArgumentAsJSONValue    ArgumentRenderConfig = "render_argument_as_json_value"
 )
 
 type ArgumentConfiguration struct {
@@ -823,15 +824,33 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 					case RenderArgumentAsArrayCSV:
 						variable.Renderer = resolve.NewCSVVariableRendererFromTypeRef(v.Operation, variableTypeRef)
 					case RenderArgumentDefault:
-						variable.Renderer = resolve.NewPlainVariableRenderer()
+						renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(v.Operation, v.Definition, variableTypeRef)
+						if err != nil {
+							break
+						}
+						variable.Renderer = renderer
 					case RenderArgumentAsGraphQLValue:
-						renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(v.Operation, variableTypeRef)
+						renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(v.Operation, v.Definition, variableTypeRef)
+						if err != nil {
+							break
+						}
+						variable.Renderer = renderer
+					case RenderArgumentAsJSONValue:
+						renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(v.Operation, v.Definition, variableTypeRef)
 						if err != nil {
 							break
 						}
 						variable.Renderer = renderer
 					}
 				}
+			}
+
+			if variable.Renderer == nil {
+				renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(v.Operation, v.Definition, variableTypeRef)
+				if err != nil {
+					break
+				}
+				variable.Renderer = renderer
 			}
 
 			variableName, _ = variables.AddVariable(variable)

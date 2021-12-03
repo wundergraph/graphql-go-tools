@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"context"
 	"fmt"
 	"net/textproto"
 
@@ -36,7 +37,7 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuf
 		case VariableSegmentType:
 			switch i.Segments[j].VariableKind {
 			case ObjectVariableKind:
-				err = i.renderObjectVariable(data, i.Segments[j], preparedInput)
+				err = i.renderObjectVariable(ctx, data, i.Segments[j], preparedInput)
 			case ContextVariableKind:
 				err = i.renderContextVariable(ctx, i.Segments[j], preparedInput)
 			case HeaderVariableKind:
@@ -52,25 +53,29 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuf
 	return
 }
 
-func (i *InputTemplate) renderObjectVariable(variables []byte, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {
-	value, valueType, _, err := jsonparser.Get(variables, segment.VariableSourcePath...)
+func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []byte, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {
+	value, valueType, offset, err := jsonparser.Get(variables, segment.VariableSourcePath...)
 	if err != nil || valueType == jsonparser.Null {
 		preparedInput.WriteBytes(literal.NULL)
 		return nil
 	}
-	return segment.Renderer.RenderVariable(value, preparedInput)
+	if valueType == jsonparser.String {
+		value = variables[offset-len(value)-2:offset]
+	}
+	return segment.Renderer.RenderVariable(ctx, value, preparedInput)
 }
 
 func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {
-	value, valueType, _, err := jsonparser.Get(ctx.Variables, segment.VariableSourcePath...)
+	value, valueType, offset, err := jsonparser.Get(ctx.Variables, segment.VariableSourcePath...)
 	if err != nil || valueType == jsonparser.Null {
 		preparedInput.WriteBytes(literal.NULL)
 		return nil
 	}
-	return segment.Renderer.RenderVariable(value, preparedInput)
+	if valueType == jsonparser.String {
+		value = ctx.Variables[offset-len(value)-2:offset]
+	}
+	return segment.Renderer.RenderVariable(ctx, value, preparedInput)
 }
-
-
 
 func (i *InputTemplate) renderHeaderVariable(ctx *Context, path []string, preparedInput *fastbuffer.FastBuffer) error {
 	if len(path) != 1 {
