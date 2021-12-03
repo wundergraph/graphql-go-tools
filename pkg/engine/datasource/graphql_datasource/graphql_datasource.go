@@ -425,7 +425,7 @@ func (p *Planner) handleFederation() {
 }
 
 func (p *Planner) addRepresentationsVariable() {
-	// "variables\":{\"representations\":[{\"upc\":\"$$0$$\",\"__typename\":\"Product\"}]}}
+	// "variables\":{\"representations\":[{\"upc\":\$$0$$\,\"__typename\":\"Product\"}]}}
 	parser := astparser.NewParser()
 	doc := ast.NewDocument()
 	doc.Input.ResetInputString(p.config.Federation.ServiceSDL)

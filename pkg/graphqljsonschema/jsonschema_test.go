@@ -36,7 +36,7 @@ func runTest(schema, operation, expectedJsonSchema string, valid []string, inval
 }
 
 func TestJsonSchema(t *testing.T) {
-	t.Run("string", runTest(
+	t.Run("object", runTest(
 		`scalar String input Test { str: String }`,
 		`query ($input: Test){}`,
 		`{"type":"object","properties":{"str":{"type":"string"}},"additionalProperties":false}`,
@@ -59,6 +59,20 @@ func TestJsonSchema(t *testing.T) {
 			`false`,
 			`true`,
 			`nope`,
+		},
+	))
+	t.Run("nested object", runTest(
+		`scalar String scalar Boolean input Test { str: String! nested: Nested } input Nested { boo: Boolean }`,
+		`query ($input: Test){}`,
+		`{"type":"object","properties":{"nested":{"type":"object","properties":{"boo":{"type":"boolean"}},"additionalProperties":false},"str":{"type":"string"}},"required":["str"],"additionalProperties":false}`,
+		[]string{
+			`{"str":"validString"}`,
+			`{"str":"validString","nested":{"boo":true}}`,
+		},
+		[]string{
+			`{"str":true}`,
+			`{"nested":{"boo":true}}`,
+			`{"str":"validString","nested":{"boo":123}}`,
 		},
 	))
 }

@@ -25,10 +25,17 @@ const (
 	HeaderVariableKind
 )
 
+// VariableRenderer is the interface to allow custom implementations of rendering Variables
+// Depending on where a Variable is being used, a different method for rendering is required
+// E.g. a Variable needs to be rendered conforming to the GraphQL specification, when used within a GraphQL Query
+// If a Variable is used within a JSON Object, the contents need to be rendered as a JSON Object
 type VariableRenderer interface {
 	RenderVariable(ctx context.Context, data []byte, out io.Writer) error
 }
 
+// JSONVariableRenderer is an implementation of VariableRenderer
+// It renders the provided data as JSON
+// If configured, it also does a JSON Validation Check before rendering
 type JSONVariableRenderer struct {
 	JSONSchema    string
 	Kind          string
@@ -62,6 +69,8 @@ func NewJSONVariableRendererWithValidation(jsonSchema string) *JSONVariableRende
 	}
 }
 
+// NewJSONVariableRendererWithValidationFromTypeRef creates a new JSONVariableRenderer
+// The argument typeRef must exist on the operation ast.Document, otherwise it will panic!
 func NewJSONVariableRendererWithValidationFromTypeRef(operation, definition *ast.Document, typeRef int) (*JSONVariableRenderer, error) {
 	jsonSchema := graphqljsonschema.FromTypeRef(operation, definition, typeRef)
 	validator, err := graphqljsonschema.NewValidatorFromSchema(jsonSchema)
@@ -95,6 +104,8 @@ func NewPlainVariableRendererWithValidation(jsonSchema string) *PlainVariableRen
 	}
 }
 
+// NewPlainVariableRendererWithValidationFromTypeRef creates a new PlainVariableRenderer
+// The argument typeRef must exist on the operation ast.Document, otherwise it will panic!
 func NewPlainVariableRendererWithValidationFromTypeRef(operation, definition *ast.Document, typeRef int) (*PlainVariableRenderer, error) {
 	jsonSchema := graphqljsonschema.FromTypeRef(operation, definition, typeRef)
 	validator, err := graphqljsonschema.NewValidatorFromSchema(jsonSchema)
@@ -113,6 +124,11 @@ func NewPlainVariableRendererWithValidationFromTypeRef(operation, definition *as
 	}, nil
 }
 
+// PlainVariableRenderer is an implementation of VariableRenderer
+// It renders the provided data as plain text
+// E.g. a provided JSON string of "foo" will be rendered as foo, without quotes.
+// If a nested JSON Object is provided, it will be rendered as is.
+// This renderer can be used e.g. to render the provided scalar into a URL.
 type PlainVariableRenderer struct {
 	JSONSchema    string
 	Kind          string
@@ -134,6 +150,8 @@ func (p *PlainVariableRenderer) RenderVariable(ctx context.Context, data []byte,
 	return err
 }
 
+// NewGraphQLVariableRendererFromTypeRef creates a new GraphQLVariableRenderer
+// The argument typeRef must exist on the operation ast.Document, otherwise it will panic!
 func NewGraphQLVariableRendererFromTypeRef(operation, definition *ast.Document, typeRef int) (*GraphQLVariableRenderer, error) {
 	jsonSchema := graphqljsonschema.FromTypeRef(operation, definition, typeRef)
 	validator, err := graphqljsonschema.NewValidatorFromSchema(jsonSchema)
@@ -192,6 +210,8 @@ func getJSONRootType(definition *ast.Document, typeRef int) jsonparser.ValueType
 	return jsonparser.Object
 }
 
+// GraphQLVariableRenderer is an implementation of VariableRenderer
+// It renders variables according to the GraphQL Specification
 type GraphQLVariableRenderer struct {
 	JSONSchema    string
 	Kind          string
@@ -276,6 +296,8 @@ func NewCSVVariableRendererFromTypeRef(definition *ast.Document, typeRef int) *C
 	}
 }
 
+// CSVVariableRenderer is an implementation of VariableRenderer
+// It renders the provided list of values as comma separated values in plaintext (no JSON encoding of values)
 type CSVVariableRenderer struct {
 	Kind           string
 	arrayValueType jsonparser.ValueType
