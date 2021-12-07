@@ -2,7 +2,6 @@ package plan
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"testing"
 
@@ -99,7 +98,7 @@ func (f *FakePlanner) EnterDocument(operation, definition *ast.Document) {
 
 }
 
-func (f *FakePlanner) Register(visitor *Visitor, customConfiguration json.RawMessage, isNested bool) error {
+func (f *FakePlanner) Register(visitor *Visitor, configuration DataSourceConfiguration, isNested bool) error {
 	visitor.Walker.RegisterEnterDocumentVisitor(f)
 	return nil
 }

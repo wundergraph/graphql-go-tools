@@ -14,6 +14,29 @@ import (
 type Importer struct {
 }
 
+func (i *Importer) ImportDirective(ref int, from, to *ast.Document) int {
+	name := string(from.Input.ByteSlice(from.Directives[ref].Name))
+	args := i.ImportArguments(from.Directives[ref].Arguments.Refs, from, to)
+	return to.AddDirective(ast.Directive{
+		Name:         to.Input.AppendInputString(name),
+		HasArguments: len(args) != 0,
+		Arguments: ast.ArgumentList{
+			Refs: args,
+		},
+	})
+}
+
+func (i *Importer) ImportDirectiveWithRename(ref int, renameTo string, from, to *ast.Document) int {
+	args := i.ImportArguments(from.Directives[ref].Arguments.Refs, from, to)
+	return to.AddDirective(ast.Directive{
+		Name:         to.Input.AppendInputString(renameTo),
+		HasArguments: len(args) != 0,
+		Arguments: ast.ArgumentList{
+			Refs: args,
+		},
+	})
+}
+
 func (i *Importer) ImportType(ref int, from, to *ast.Document) int {
 
 	astType := ast.Type{
@@ -27,6 +50,25 @@ func (i *Importer) ImportType(ref int, from, to *ast.Document) int {
 
 	if from.Types[ref].OfType != -1 {
 		astType.OfType = i.ImportType(from.Types[ref].OfType, from, to)
+	}
+
+	to.Types = append(to.Types, astType)
+	return len(to.Types) - 1
+}
+
+func (i *Importer) ImportTypeWithRename(ref int, from, to *ast.Document, renameTo string) int {
+
+	astType := ast.Type{
+		TypeKind: from.Types[ref].TypeKind,
+		OfType:   -1,
+	}
+
+	if astType.TypeKind == ast.TypeKindNamed {
+		astType.Name = to.Input.AppendInputString(renameTo)
+	}
+
+	if from.Types[ref].OfType != -1 {
+		astType.OfType = i.ImportTypeWithRename(from.Types[ref].OfType, from, to, renameTo)
 	}
 
 	to.Types = append(to.Types, astType)

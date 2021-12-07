@@ -30,6 +30,65 @@ type Configuration struct {
 	DefaultFlushIntervalMillis int64
 	DataSources                []DataSourceConfiguration
 	Fields                     FieldConfigurations
+	Types                      TypeConfigurations
+}
+
+type DirectiveConfigurations []DirectiveConfiguration
+
+func (d *DirectiveConfigurations) RenameTypeNameOnMatchStr(directiveName string) string {
+	for i := range *d {
+		if (*d)[i].DirectiveName == directiveName {
+			return (*d)[i].RenameTo
+		}
+	}
+	return directiveName
+}
+
+func (d *DirectiveConfigurations) RenameTypeNameOnMatchBytes(directiveName []byte) []byte {
+	str := string(directiveName)
+	for i := range *d {
+		if (*d)[i].DirectiveName == str {
+			return []byte((*d)[i].RenameTo)
+		}
+	}
+	return directiveName
+}
+
+type DirectiveConfiguration struct {
+	DirectiveName string
+	RenameTo      string
+}
+
+type TypeConfigurations []TypeConfiguration
+
+func (t *TypeConfigurations) RenameTypeNameOnMatchStr(typeName string) string {
+	for i := range *t {
+		if (*t)[i].TypeName == typeName {
+			return (*t)[i].RenameTo
+		}
+	}
+	return typeName
+}
+
+func (t *TypeConfigurations) RenameTypeNameOnMatchBytes(typeName []byte) []byte {
+	str := string(typeName)
+	for i := range *t {
+		if (*t)[i].TypeName == str {
+			return []byte((*t)[i].RenameTo)
+		}
+	}
+	return typeName
+}
+
+type TypeConfiguration struct {
+	TypeName string
+	// RenameTo modifies the TypeName
+	// so that a downstream Operation can contain a different TypeName than the upstream Schema
+	// e.g. if the downstream Operation contains { ... on Human_api { height } }
+	// the upstream Operation can be rewritten to { ... on Human { height }}
+	// by setting RenameTo to Human
+	// This way, Types can be suffixed / renamed in downstream Schemas while keeping the contract with the upstream ok
+	RenameTo string
 }
 
 type FieldConfigurations []FieldConfiguration
@@ -92,6 +151,7 @@ type DataSourceConfiguration struct {
 	// They are always required for the Graphql datasources cause each field could have it's own datasource
 	// For any single point datasource like HTTP/REST or GRPC we could not request less fields, as we always get a full response
 	ChildNodes []TypeField
+	Directives DirectiveConfigurations
 	Factory    PlannerFactory
 	Custom     json.RawMessage
 }
@@ -229,9 +289,9 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningWalker.RegisterEnterDirectiveVisitor(p.planningVisitor)
 
 	for key := range p.planningVisitor.planners {
-		custom := p.planningVisitor.planners[key].dataSourceConfiguration.Custom
+		config := p.planningVisitor.planners[key].dataSourceConfiguration
 		isNested := p.planningVisitor.planners[key].isNestedPlanner()
-		err := p.planningVisitor.planners[key].planner.Register(p.planningVisitor, custom, isNested)
+		err := p.planningVisitor.planners[key].planner.Register(p.planningVisitor,config, isNested)
 		if err != nil {
 			p.planningWalker.StopWithInternalErr(err)
 		}
@@ -478,7 +538,8 @@ func (v *Visitor) resolveOnTypeName() []byte {
 	if inlineFragment.Kind != ast.NodeKindInlineFragment {
 		return nil
 	}
-	return v.Operation.InlineFragmentTypeConditionName(inlineFragment.Ref)
+	typeName := v.Operation.InlineFragmentTypeConditionName(inlineFragment.Ref)
+	return v.Config.Types.RenameTypeNameOnMatchBytes(typeName)
 }
 
 func (v *Visitor) LeaveField(ref int) {
@@ -940,7 +1001,7 @@ type DataSourcePlanningBehavior struct {
 }
 
 type DataSourcePlanner interface {
-	Register(visitor *Visitor, customConfiguration json.RawMessage, isNested bool) error
+	Register(visitor *Visitor, configuration DataSourceConfiguration, isNested bool) error
 	ConfigureFetch() FetchConfiguration
 	ConfigureSubscription() SubscriptionConfiguration
 	DataSourcePlanningBehavior() DataSourcePlanningBehavior

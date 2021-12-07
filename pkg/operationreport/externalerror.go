@@ -33,6 +33,31 @@ func ErrTypeUndefined(typeName ast.ByteSlice) (err ExternalError) {
 	return err
 }
 
+func ErrScalarTypeUndefined(scalarName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("scalar not defined: %s", scalarName)
+	return err
+}
+
+func ErrInterfaceTypeUndefined(interfaceName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("interface type not defined: %s", interfaceName)
+	return err
+}
+
+func ErrUnionTypeUndefined(unionName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("union type not defined: %s", unionName)
+	return err
+}
+
+func ErrEnumTypeUndefined(enumName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("enum type not defined: %s", enumName)
+	return err
+}
+
+func ErrInputObjectTypeUndefined(inputObjectName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("input object type not defined: %s", inputObjectName)
+	return err
+}
+
 func ErrTypeNameMustBeUnique(typeName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf("there can be only one type named '%s'", typeName)
 	return err
