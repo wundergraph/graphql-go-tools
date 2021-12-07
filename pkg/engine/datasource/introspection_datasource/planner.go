@@ -1,8 +1,6 @@
 package introspection_datasource
 
 import (
-	"encoding/json"
-
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 )
@@ -11,6 +9,12 @@ type Planner struct {
 	introspectionData *introspection.Data
 	v                 *plan.Visitor
 	rootField         int
+}
+
+func (p *Planner) Register(visitor *plan.Visitor, _ plan.DataSourceConfiguration, _ bool) error {
+	p.v = visitor
+	visitor.Walker.RegisterEnterFieldVisitor(p)
+	return nil
 }
 
 func (p *Planner) DownstreamResponseFieldAlias(_ int) (alias string, exists bool) {
@@ -23,12 +27,6 @@ func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 		MergeAliasedRootNodes:      false,
 		OverrideFieldPathFromAlias: false,
 	}
-}
-
-func (p *Planner) Register(visitor *plan.Visitor, _ json.RawMessage, _ bool) error {
-	p.v = visitor
-	visitor.Walker.RegisterEnterFieldVisitor(p)
-	return nil
 }
 
 func (p *Planner) EnterField(ref int) {
