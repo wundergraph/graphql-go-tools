@@ -46,8 +46,6 @@ func TestSource_Load(t *testing.T) {
 
 		t.Run("no deprecated", run(`{"request_type":3,"on_type_name":"Query","include_deprecated":false}`, `fields_without_deprecated`))
 
-		t.Run("fallback to no deprecated with corrupted input", run(`{"request_type":3,"on_type_name":"Query","include_deprecated":}`, `fields_without_deprecated`))
-
 		t.Run("of not existing type", run(`{"request_type":3,"on_type_name":"NotExisting","include_deprecated":true}`, `not_existing_type`))
 	})
 
@@ -55,8 +53,6 @@ func TestSource_Load(t *testing.T) {
 		t.Run("include deprecated", run(`{"request_type":4,"on_type_name":"Episode","include_deprecated":true}`, `enum_values_with_deprecated`))
 
 		t.Run("no deprecated", run(`{"request_type":4,"on_type_name":"Episode","include_deprecated":false}`, `enum_values_without_deprecated`))
-
-		t.Run("fallback to no deprecated with corrupted input", run(`{"request_type":4,"on_type_name":"Episode","include_deprecated":}`, `enum_values_without_deprecated`))
 
 		t.Run("of not existing type", run(`{"request_type":4,"on_type_name":"NotExisting","include_deprecated":true}`, `not_existing_type`))
 	})
