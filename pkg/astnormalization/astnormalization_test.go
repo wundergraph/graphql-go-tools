@@ -312,7 +312,14 @@ var mustString = func(str string, err error) string {
 	return str
 }
 
-var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeVariablesFunc, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string) {
+type registerNormalizeFunc func(walker *astvisitor.Walker)
+type registerNormalizeVariablesFunc func(walker *astvisitor.Walker) *variablesExtractionVisitor
+type registerNormalizeVariablesDefaulValueFunc func(walker *astvisitor.Walker) *variablesDefaultValueExtractionVisitor
+type registerNormalizeDeleteVariablesFunc func(walker *astvisitor.Walker) *deleteUnusedVariablesVisitor
+
+var runWithVariablesAssert = func(t *testing.T, registerVisitor func(walker *astvisitor.Walker), definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string) {
+	t.Helper()
+
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
 	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
 	if err != nil {
@@ -328,8 +335,7 @@ var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeVariabl
 		operationDocument.Input.Variables = []byte(variablesInput)
 	}
 
-	visitor := normalizeFunc(&walker)
-	visitor.operationName = []byte(operationName)
+	registerVisitor(&walker)
 
 	walker.Walk(&operationDocument, &definitionDocument, &report)
 
@@ -344,36 +350,31 @@ var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeVariabl
 	assert.Equal(t, expectedVariables, actualVariables)
 }
 
+var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeVariablesFunc, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string) {
+	t.Helper()
+
+	runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
+		visitor := normalizeFunc(walker)
+		visitor.operationName = []byte(operationName)
+	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables)
+}
+
+var runWithVariablesDefaultValues = func(t *testing.T, normalizeFunc registerNormalizeVariablesDefaulValueFunc, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string) {
+	t.Helper()
+
+	runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
+		visitor := normalizeFunc(walker)
+		visitor.operationName = []byte(operationName)
+	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables)
+}
+
 var runWithDeleteUnusedVariables = func(t *testing.T, normalizeFunc registerNormalizeDeleteVariablesFunc, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string) {
-	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
-	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
-	if err != nil {
-		panic(err)
-	}
+	t.Helper()
 
-	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
-	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
-	report := operationreport.Report{}
-	walker := astvisitor.NewWalker(48)
-
-	if variablesInput != "" {
-		operationDocument.Input.Variables = []byte(variablesInput)
-	}
-
-	visitor := normalizeFunc(&walker)
-	visitor.operationName = []byte(operationName)
-
-	walker.Walk(&operationDocument, &definitionDocument, &report)
-
-	if report.HasErrors() {
-		panic(report.Error())
-	}
-
-	actualAST := mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
-	expectedAST := mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
-	assert.Equal(t, expectedAST, actualAST)
-	actualVariables := string(operationDocument.Input.Variables)
-	assert.Equal(t, expectedVariables, actualVariables)
+	runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
+		visitor := normalizeFunc(walker)
+		visitor.operationName = []byte(operationName)
+	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables)
 }
 
 var run = func(normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string) {
