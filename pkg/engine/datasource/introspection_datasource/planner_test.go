@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/buger/jsonparser"
-
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
@@ -107,8 +105,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:               []string{"a"},
-								JsonValueType:      jsonparser.String,
-								RenderAsPlainValue: true,
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
 							},
 						),
 					},
@@ -221,8 +218,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:               []string{"a"},
-								JsonValueType:      jsonparser.String,
-								RenderAsPlainValue: true,
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
 							},
 						),
 					},
@@ -246,12 +242,11 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
 													Path:               []string{"name"},
-													RenderAsPlainValue: true,
+													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
 												},
 												&resolve.ContextVariable{
 													Path:               []string{"b"},
-													JsonValueType:      jsonparser.Boolean,
-													RenderAsPlainValue: true,
+													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"boolean"}`),
 												},
 											),
 											DataSourceIdentifier: dataSourceIdentifier,
@@ -263,12 +258,11 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
 													Path:               []string{"name"},
-													RenderAsPlainValue: true,
+													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
 												},
 												&resolve.ContextVariable{
 													Path:               []string{"c"},
-													JsonValueType:      jsonparser.Boolean,
-													RenderAsPlainValue: true,
+													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"boolean"}`),
 												},
 											),
 											DataSourceIdentifier: dataSourceIdentifier,
