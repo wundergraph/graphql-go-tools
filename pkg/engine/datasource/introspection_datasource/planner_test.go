@@ -1,12 +1,12 @@
 package introspection_datasource
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 )
 
 const (
@@ -52,45 +52,16 @@ const (
 func TestIntrospectionDataSourcePlanning(t *testing.T) {
 	dataSourceIdentifier := []byte("introspection_datasource.Source")
 
+	introspectionData := &introspection.Data{}
+	introspectionData.Schema.QueryType = &introspection.TypeName{Name: "Query"}
+
+	cfgFactory := IntrospectionConfigFactory{introspectionData: introspectionData}
+	introspectionDataSource := cfgFactory.BuildDataSourceConfiguration()
+	introspectionDataSource.Factory = &Factory{}
+
 	planConfiguration := plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"__schema", "__type"},
-					},
-					{
-						TypeName:   "__Type",
-						FieldNames: []string{"fields", "enumValues"},
-					},
-				},
-				Factory: &Factory{},
-				Custom:  json.RawMessage{},
-			},
-		},
-		Fields: plan.FieldConfigurations{
-			{
-				TypeName:              "Query",
-				FieldName:             "__schema",
-				DisableDefaultMapping: true,
-			},
-			{
-				TypeName:              "Query",
-				FieldName:             "__type",
-				DisableDefaultMapping: true,
-			},
-			{
-				TypeName:              "__Type",
-				FieldName:             "fields",
-				DisableDefaultMapping: true,
-			},
-			{
-				TypeName:              "__Type",
-				FieldName:             "enumValues",
-				DisableDefaultMapping: true,
-			},
-		},
+		DataSources: []plan.DataSourceConfiguration{introspectionDataSource},
+		Fields:      cfgFactory.BuildFieldConfigurations(),
 	}
 
 	t.Run("type introspection request", datasourcetesting.RunTest(schema, typeIntrospection, "",
@@ -104,7 +75,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 						DataSourceIdentifier: dataSourceIdentifier,
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:               []string{"a"},
+								Path:     []string{"a"},
 								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
 							},
 						),
@@ -217,7 +188,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 						DataSourceIdentifier: dataSourceIdentifier,
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:               []string{"a"},
+								Path:     []string{"a"},
 								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
 							},
 						),
@@ -241,11 +212,11 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 											DataSource: &Source{},
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
-													Path:               []string{"name"},
-													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+													Path:     []string{"name"},
+													Renderer: resolve.NewPlainVariableRenderer(),
 												},
 												&resolve.ContextVariable{
-													Path:               []string{"b"},
+													Path:     []string{"b"},
 													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"boolean"}`),
 												},
 											),
@@ -257,11 +228,11 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 											DataSource: &Source{},
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
-													Path:               []string{"name"},
-													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+													Path:     []string{"name"},
+													Renderer: resolve.NewPlainVariableRenderer(),
 												},
 												&resolve.ContextVariable{
-													Path:               []string{"c"},
+													Path:     []string{"c"},
 													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"boolean"}`),
 												},
 											),

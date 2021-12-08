@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/buger/jsonparser"
+
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphqljsonschema"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
@@ -144,7 +145,7 @@ func (p *PlainVariableRenderer) RenderVariable(ctx context.Context, data []byte,
 		}
 	}
 	if p.rootValueType == jsonparser.String {
-		data = data[1:len(data)-1]
+		data = data[1 : len(data)-1]
 	}
 	_, err := out.Write(data)
 	return err
