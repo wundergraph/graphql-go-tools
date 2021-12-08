@@ -830,7 +830,7 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 				if argumentConfig := fieldConfig.Arguments.ForName(argumentName); argumentConfig != nil {
 					switch argumentConfig.RenderConfig {
 					case RenderArgumentAsArrayCSV:
-						variable.Renderer = resolve.NewCSVVariableRendererFromTypeRef(v.Operation, variableTypeRef)
+						variable.Renderer = resolve.NewCSVVariableRendererFromTypeRef(v.Operation, v.Definition, variableTypeRef)
 					case RenderArgumentDefault:
 						renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(v.Operation, v.Definition, variableTypeRef)
 						if err != nil {
