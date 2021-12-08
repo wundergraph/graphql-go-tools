@@ -40,7 +40,7 @@ func TestProcessStream_Process(t *testing.T) {
 										Segments: []resolve.TemplateSegment{
 											{
 												SegmentType:        resolve.VariableSegmentType,
-												VariableSource:     resolve.VariableSourceObject,
+												VariableKind:       resolve.ObjectVariableKind,
 												VariableSourcePath: []string{"id"},
 											},
 										},
@@ -128,7 +128,7 @@ func TestProcessStream_Process(t *testing.T) {
 								Segments: []resolve.TemplateSegment{
 									{
 										SegmentType:        resolve.VariableSegmentType,
-										VariableSource:     resolve.VariableSourceObject,
+										VariableKind:       resolve.ObjectVariableKind,
 										VariableSourcePath: []string{"id"},
 									},
 								},
@@ -214,7 +214,7 @@ func TestProcessStream_Process_BatchSize_1(t *testing.T) {
 										Segments: []resolve.TemplateSegment{
 											{
 												SegmentType:        resolve.VariableSegmentType,
-												VariableSource:     resolve.VariableSourceObject,
+												VariableKind:       resolve.ObjectVariableKind,
 												VariableSourcePath: []string{"id"},
 											},
 										},
@@ -293,7 +293,7 @@ func TestProcessStream_Process_BatchSize_1(t *testing.T) {
 											Segments: []resolve.TemplateSegment{
 												{
 													SegmentType:        resolve.VariableSegmentType,
-													VariableSource:     resolve.VariableSourceObject,
+													VariableKind:       resolve.ObjectVariableKind,
 													VariableSourcePath: []string{"id"},
 												},
 											},
@@ -355,7 +355,7 @@ func TestProcessStream_Process_BatchSize_1(t *testing.T) {
 								Segments: []resolve.TemplateSegment{
 									{
 										SegmentType:        resolve.VariableSegmentType,
-										VariableSource:     resolve.VariableSourceObject,
+										VariableKind:       resolve.ObjectVariableKind,
 										VariableSourcePath: []string{"id"},
 									},
 								},

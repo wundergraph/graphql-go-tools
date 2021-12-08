@@ -241,7 +241,6 @@ func (d *Document) ResolveListOrNameType(ref int) (typeRef int) {
 	for (graphqlType.TypeKind != TypeKindNamed) && (graphqlType.TypeKind != TypeKindList) {
 		typeRef = graphqlType.OfType
 		graphqlType = d.Types[typeRef]
-
 	}
 	return
 }

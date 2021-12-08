@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/buger/jsonparser"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
@@ -139,10 +138,9 @@ func TestDataLoader_Load(t *testing.T) {
 					},
 					{
 						SegmentType:                  VariableSegmentType,
-						VariableSource:               VariableSourceObject,
+						VariableKind:                 ObjectVariableKind,
 						VariableSourcePath:           []string{"id"},
-						VariableValueType:            jsonparser.Number,
-						RenderVariableAsGraphQLValue: true,
+						Renderer: NewPlainVariableRendererWithValidation(`{"type":"number"}`),
 					},
 					{
 						Data:        []byte(`}}`),
@@ -200,8 +198,9 @@ func TestDataLoader_Load(t *testing.T) {
 						},
 						{
 							SegmentType:        VariableSegmentType,
-							VariableSource:     VariableSourceObject,
+							VariableKind:       ObjectVariableKind,
 							VariableSourcePath: []string{"id"},
+							Renderer: NewJSONVariableRendererWithValidation(`{"type":"number"}`),
 						},
 						{
 							Data:        []byte(`}}`),
@@ -248,7 +247,7 @@ func TestDataLoader_Load(t *testing.T) {
 					},
 					{
 						SegmentType:        VariableSegmentType,
-						VariableSource:     VariableSourceObject,
+						VariableKind:       ObjectVariableKind,
 						VariableSourcePath: []string{"id"},
 					},
 					{
@@ -278,7 +277,7 @@ func TestDataLoader_Load(t *testing.T) {
 					},
 					{
 						SegmentType:        VariableSegmentType,
-						VariableSource:     VariableSourceObject,
+						VariableKind:       ObjectVariableKind,
 						VariableSourcePath: []string{"id"},
 					},
 					{
@@ -308,7 +307,7 @@ func TestDataLoader_Load(t *testing.T) {
 					},
 					{
 						SegmentType:        VariableSegmentType,
-						VariableSource:     VariableSourceObject,
+						VariableKind:       ObjectVariableKind,
 						VariableSourcePath: []string{"id"},
 					},
 					{
@@ -363,10 +362,9 @@ func TestDataLoader_Load(t *testing.T) {
 					},
 					{
 						SegmentType:                  VariableSegmentType,
-						VariableSource:               VariableSourceObject,
+						VariableKind:                 ObjectVariableKind,
 						VariableSourcePath:           []string{"id"},
-						VariableValueType:            jsonparser.Number,
-						RenderVariableAsGraphQLValue: true,
+						Renderer: NewJSONVariableRendererWithValidation(`{"type":"number"}`),
 					},
 					{
 						Data:        []byte(`}}`),
@@ -420,10 +418,9 @@ func TestDataLoader_Load(t *testing.T) {
 					},
 					{
 						SegmentType:                  VariableSegmentType,
-						VariableSource:               VariableSourceObject,
+						VariableKind:                 ObjectVariableKind,
 						VariableSourcePath:           []string{"id"},
-						VariableValueType:            jsonparser.Number,
-						RenderVariableAsGraphQLValue: true,
+						Renderer: NewJSONVariableRendererWithValidation(`{"type":"number"}`),
 					},
 					{
 						Data:        []byte(`}}`),
@@ -501,10 +498,9 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 						},
 						{
 							SegmentType:                  VariableSegmentType,
-							VariableSource:               VariableSourceObject,
+							VariableKind:                 ObjectVariableKind,
 							VariableSourcePath:           []string{"upc"},
-							VariableValueType:            jsonparser.String,
-							RenderVariableAsGraphQLValue: true,
+							Renderer: NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 						},
 						{
 							Data:        []byte(`,"__typename":"Product"}]}}}`),
@@ -536,7 +532,7 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 						},
 						{
 							SegmentType:        VariableSegmentType,
-							VariableSource:     VariableSourceObject,
+							VariableKind:       ObjectVariableKind,
 							VariableSourcePath: []string{"upc"},
 						},
 						{
@@ -597,11 +593,10 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 								SegmentType: StaticSegmentType,
 							},
 							{
-								SegmentType:                  VariableSegmentType,
-								VariableSource:               VariableSourceObject,
-								VariableSourcePath:           []string{"upc"},
-								VariableValueType:            jsonparser.String,
-								RenderVariableAsGraphQLValue: true,
+								SegmentType:        VariableSegmentType,
+								VariableKind:       ObjectVariableKind,
+								VariableSourcePath: []string{"upc"},
+								Renderer: NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 							},
 							{
 								Data:        []byte(`,"__typename":"Product"}]}}}`),
