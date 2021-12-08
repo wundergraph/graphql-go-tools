@@ -280,6 +280,7 @@ func (p *Parser) parseRootOperationTypeDefinitionList(list *ast.RootOperationTyp
 				NamedType: ast.Type{
 					TypeKind: ast.TypeKindNamed,
 					Name:     namedType.Literal,
+					OfType:   -1,
 				},
 			}
 
@@ -737,12 +738,7 @@ func (p *Parser) parseImplementsInterfaces() (list ast.TypeList) {
 				acceptIdent = false
 				acceptAnd = true
 				name := p.read()
-				astType := ast.Type{
-					TypeKind: ast.TypeKindNamed,
-					Name:     name.Literal,
-				}
-				p.document.Types = append(p.document.Types, astType)
-				ref := len(p.document.Types) - 1
+				ref := p.document.AddNamedTypeByNameRef(name.Literal)
 				if cap(list.Refs) == 0 {
 					list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 				}
@@ -835,12 +831,8 @@ func (p *Parser) parseFieldDefinition() int {
 
 func (p *Parser) parseNamedType() (ref int) {
 	ident := p.mustRead(keyword.IDENT)
-	namedType := ast.Type{
-		TypeKind: ast.TypeKindNamed,
-		Name:     ident.Literal,
-	}
-	p.document.Types = append(p.document.Types, namedType)
-	return len(p.document.Types) - 1
+
+	return p.document.AddNamedTypeByNameRef(ident.Literal)
 }
 
 func (p *Parser) ParseType() (ref int) {
@@ -848,32 +840,14 @@ func (p *Parser) ParseType() (ref int) {
 	first := p.peek()
 
 	if first == keyword.IDENT {
-
-		namedType := ast.Type{
-			TypeKind: ast.TypeKindNamed,
-			Name:     p.read().Literal,
-			OfType:   -1,
-		}
-
-		p.document.Types = append(p.document.Types, namedType)
-		ref = len(p.document.Types) - 1
-
+		ref = p.document.AddNamedTypeByNameRef(p.read().Literal)
 	} else if first == keyword.LBRACK {
 
 		openList := p.read()
 		ofType := p.ParseType()
 		closeList := p.mustRead(keyword.RBRACK)
 
-		listType := ast.Type{
-			TypeKind: ast.TypeKindList,
-			Open:     openList.TextPosition,
-			Close:    closeList.TextPosition,
-			OfType:   ofType,
-		}
-
-		p.document.Types = append(p.document.Types, listType)
-		ref = len(p.document.Types) - 1
-
+		ref = p.document.AddListTypeWithPosition(ofType, openList.TextPosition, closeList.TextPosition)
 	} else {
 		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.LBRACK)
 		return
@@ -881,19 +855,13 @@ func (p *Parser) ParseType() (ref int) {
 
 	next := p.peek()
 	if next == keyword.BANG {
-		nonNull := ast.Type{
-			TypeKind: ast.TypeKindNonNull,
-			Bang:     p.read().TextPosition,
-			OfType:   ref,
-		}
-
+		bangPosition := p.read().TextPosition
 		if p.peek() == keyword.BANG {
 			p.errUnexpectedToken(p.read())
 			return
 		}
 
-		p.document.Types = append(p.document.Types, nonNull)
-		ref = len(p.document.Types) - 1
+		ref = p.document.AddNonNullTypeWithPosition(ref, bangPosition)
 	}
 
 	return
@@ -1104,13 +1072,8 @@ func (p *Parser) parseUnionMemberTypes() (list ast.TypeList) {
 
 				ident := p.read()
 
-				namedType := ast.Type{
-					TypeKind: ast.TypeKindNamed,
-					Name:     ident.Literal,
-				}
+				ref := p.document.AddNamedTypeByNameRef(ident.Literal)
 
-				p.document.Types = append(p.document.Types, namedType)
-				ref := len(p.document.Types) - 1
 				if cap(list.Refs) == 0 {
 					list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 				}

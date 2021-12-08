@@ -578,21 +578,11 @@ func (p *Planner) addEntitiesSelectionSet() {
 
 func (p *Planner) addRepresentationsVariableDefinition() {
 	anyType := p.upstreamOperation.AddNamedType([]byte("_Any"))
-	nonNullAnyType := p.upstreamOperation.AddType(ast.Type{
-		TypeKind: ast.TypeKindNonNull,
-		OfType:   anyType,
-	})
-	listOfNonNullAnyType := p.upstreamOperation.AddType(ast.Type{
-		TypeKind: ast.TypeKindList,
-		OfType:   nonNullAnyType,
-	})
-	nonNullListOfNonNullAnyType := p.upstreamOperation.AddType(ast.Type{
-		TypeKind: ast.TypeKindNonNull,
-		OfType:   listOfNonNullAnyType,
-	})
-	representationsVariable := p.upstreamOperation.AddVariableValue(ast.VariableValue{
-		Name: p.upstreamOperation.Input.AppendInputBytes([]byte("representations")),
-	})
+	nonNullAnyType := p.upstreamOperation.AddNonNullType(anyType)
+	listOfNonNullAnyType := p.upstreamOperation.AddListType(nonNullAnyType)
+	nonNullListOfNonNullAnyType := p.upstreamOperation.AddNonNullType(listOfNonNullAnyType)
+
+	representationsVariable := p.upstreamOperation.ImportVariableValue([]byte("representations"))
 	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, representationsVariable, nonNullListOfNonNullAnyType)
 }
 

@@ -103,12 +103,14 @@ func (f FieldConfigurations) ForTypeField(typeName, fieldName string) *FieldConf
 }
 
 type FieldConfiguration struct {
-	TypeName              string
-	FieldName             string
+	TypeName  string
+	FieldName string
+	// DisableDefaultMapping - instructs planner whether to use path mapping coming from Path field
 	DisableDefaultMapping bool
-	Path                  []string
-	Arguments             ArgumentsConfigurations
-	RequiresFields        []string
+	// Path - represents a json path to lookup for a field value in response json
+	Path           []string
+	Arguments      ArgumentsConfigurations
+	RequiresFields []string
 }
 
 type ArgumentsConfigurations []ArgumentConfiguration
@@ -141,7 +143,13 @@ type ArgumentConfiguration struct {
 }
 
 type DataSourceConfiguration struct {
-	RootNodes  []TypeField
+	// RootNodes - defines the nodes where the responsibility of the DataSource begins
+	// When you enter a node and it is not a child node
+	// when you have entered into a field which representing data source - it means that we starting a new planning stage
+	RootNodes []TypeField
+	// ChildNodes - describes additional fields which will be requested along with fields which has a datasources
+	// They are always required for the Graphql datasources cause each field could have it's own datasource
+	// For any single point datasource like HTTP/REST or GRPC we could not request less fields, as we always get a full response
 	ChildNodes []TypeField
 	Directives DirectiveConfigurations
 	Factory    PlannerFactory

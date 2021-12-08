@@ -128,15 +128,12 @@ func (s *Schema) Document() []byte {
 	return s.rawSchema
 }
 
+// HasQueryType TODO: should be deprecated?
 func (s *Schema) HasQueryType() bool {
 	return len(s.document.Index.QueryTypeName) > 0
 }
 
 func (s *Schema) QueryTypeName() string {
-	if !s.HasQueryType() {
-		return ""
-	}
-
 	return string(s.document.Index.QueryTypeName)
 }
 
@@ -184,6 +181,7 @@ func (s *Schema) Validate() (result ValidationResult, err error) {
 	}, nil
 }
 
+// IntrospectionResponse - writes full schema introspection response into writer
 func (s *Schema) IntrospectionResponse(out io.Writer) error {
 	var (
 		introspectionData = struct {

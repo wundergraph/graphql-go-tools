@@ -226,17 +226,9 @@ func (j *JsonConverter) importInputField(field InputValue) (ref int, err error) 
 func (j *JsonConverter) importType(typeRef TypeRef) (ref int) {
 	switch typeRef.Kind {
 	case LIST:
-		listType := ast.Type{
-			TypeKind: ast.TypeKindList,
-			OfType:   j.importType(*typeRef.OfType),
-		}
-		return j.doc.AddType(listType)
+		return j.doc.AddListType(j.importType(*typeRef.OfType))
 	case NONNULL:
-		nonNullType := ast.Type{
-			TypeKind: ast.TypeKindNonNull,
-			OfType:   j.importType(*typeRef.OfType),
-		}
-		return j.doc.AddType(nonNullType)
+		return j.doc.AddNonNullType(j.importType(*typeRef.OfType))
 	}
 
 	return j.doc.AddNamedType([]byte(*typeRef.Name))

@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	defaultInrospectionQueryName = "IntrospectionQuery"
-	schemaFieldName              = "__schema"
+	schemaIntrospectionFieldName = "__schema"
+	typeIntrospectionFieldName   = "__type"
 )
 
 type OperationType ast.OperationType
@@ -114,10 +114,6 @@ func (r *Request) IsIntrospectionQuery() (result bool, err error) {
 		return false, report
 	}
 
-	if r.OperationName == defaultInrospectionQueryName {
-		return true, nil
-	}
-
 	if len(r.document.RootNodes) == 0 {
 		return
 	}
@@ -145,7 +141,13 @@ func (r *Request) IsIntrospectionQuery() (result bool, err error) {
 		return
 	}
 
-	return r.document.FieldNameUnsafeString(selection.Ref) == schemaFieldName, nil
+	fieldName := r.document.FieldNameUnsafeString(selection.Ref)
+	switch fieldName {
+	case schemaIntrospectionFieldName, typeIntrospectionFieldName:
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func (r *Request) OperationType() (OperationType, error) {

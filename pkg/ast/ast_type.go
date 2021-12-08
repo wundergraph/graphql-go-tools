@@ -76,22 +76,47 @@ func (d *Document) AddType(t Type) (ref int) {
 	return len(d.Types) - 1
 }
 
-func (d *Document) AddNamedType(name []byte) (ref int) {
-	nameRef := d.Input.AppendInputBytes(name)
-	d.Types = append(d.Types, Type{
+func (d *Document) AddNamedTypeByNameRef(nameRef ByteSliceReference) (ref int) {
+	return d.AddType(Type{
 		TypeKind: TypeKindNamed,
 		Name:     nameRef,
+		OfType:   -1,
 	})
-	return len(d.Types) - 1
+}
+
+func (d *Document) AddNamedType(name []byte) (ref int) {
+	nameRef := d.Input.AppendInputBytes(name)
+	return d.AddNamedTypeByNameRef(nameRef)
+}
+
+func (d *Document) AddListType(ofType int) (ref int) {
+	return d.AddListTypeWithPosition(ofType, position.Position{}, position.Position{})
+}
+
+func (d *Document) AddListTypeWithPosition(ofType int, open position.Position, close position.Position) (ref int) {
+	return d.AddType(Type{
+		TypeKind: TypeKindList,
+		Open:     open,
+		Close:    close,
+		OfType:   ofType,
+	})
+}
+
+func (d *Document) AddNonNullType(ofType int) (ref int) {
+	return d.AddNonNullTypeWithPosition(ofType, position.Position{})
+}
+
+func (d *Document) AddNonNullTypeWithPosition(ofType int, bang position.Position) (ref int) {
+	return d.AddType(Type{
+		TypeKind: TypeKindNonNull,
+		Bang:     bang,
+		OfType:   ofType,
+	})
 }
 
 func (d *Document) AddNonNullNamedType(name []byte) (ref int) {
 	namedRef := d.AddNamedType(name)
-	d.Types = append(d.Types, Type{
-		TypeKind: TypeKindNonNull,
-		OfType:   namedRef,
-	})
-	return len(d.Types) - 1
+	return d.AddNonNullType(namedRef)
 }
 
 func (d *Document) TypesAreEqualDeep(left int, right int) bool {

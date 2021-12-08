@@ -7,7 +7,7 @@ schema {
 }
 
 type Query {
-    hero: Character
+    hero: Character @deprecated
     droid(id: ID!): Droid
     search(name: String!): SearchResult
 }
@@ -34,7 +34,7 @@ type Review {
 enum Episode {
     NEWHOPE
     EMPIRE
-    JEDI
+    JEDI @deprecated
 }
 
 interface Character {
@@ -44,7 +44,7 @@ interface Character {
 
 type Human implements Character {
     name: String!
-    height: String!
+    height: String! @deprecated
     friends: [Character]
 }
 
