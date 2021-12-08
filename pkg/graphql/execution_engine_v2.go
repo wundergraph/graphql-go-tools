@@ -13,6 +13,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jensneuse/abstractlogger"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/introspection_datasource"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
@@ -199,13 +200,13 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 	}
 	fetcher := resolve.NewFetcher(engineConfig.dataLoaderConfig.EnableSingleFlightLoader)
 
-	introspectionCfg, err := NewIntrospectionConfigFactory(engineConfig.schema)
+	introspectionCfg, err := introspection_datasource.NewIntrospectionConfigFactory(&engineConfig.schema.document)
 	if err != nil {
 		return nil, err
 	}
 
-	engineConfig.AddDataSource(introspectionCfg.engineConfigDataSource())
-	for _, fieldCfg := range introspectionCfg.engineConfigFieldConfigs() {
+	engineConfig.AddDataSource(introspectionCfg.BuildDataSourceConfiguration())
+	for _, fieldCfg := range introspectionCfg.BuildFieldConfigurations() {
 		engineConfig.AddFieldConfiguration(fieldCfg)
 	}
 

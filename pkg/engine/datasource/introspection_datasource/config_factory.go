@@ -1,9 +1,9 @@
-package graphql
+package introspection_datasource
 
 import (
 	"encoding/json"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/introspection_datasource"
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -13,13 +13,13 @@ type IntrospectionConfigFactory struct {
 	introspectionData *introspection.Data
 }
 
-func NewIntrospectionConfigFactory(schema *Schema) (*IntrospectionConfigFactory, error) {
+func NewIntrospectionConfigFactory(schema *ast.Document) (*IntrospectionConfigFactory, error) {
 	var (
 		data   introspection.Data
 		report operationreport.Report
 	)
 	gen := introspection.NewGenerator()
-	gen.Generate(&schema.document, &report, &data)
+	gen.Generate(schema, &report, &data)
 	if report.HasErrors() {
 		return nil, report
 	}
@@ -27,7 +27,7 @@ func NewIntrospectionConfigFactory(schema *Schema) (*IntrospectionConfigFactory,
 	return &IntrospectionConfigFactory{introspectionData: &data}, nil
 }
 
-func (f *IntrospectionConfigFactory) engineConfigFieldConfigs() (planFields plan.FieldConfigurations) {
+func (f *IntrospectionConfigFactory) BuildFieldConfigurations() (planFields plan.FieldConfigurations) {
 	return plan.FieldConfigurations{
 		{
 			TypeName:              f.introspectionData.Schema.QueryType.Name,
@@ -52,7 +52,7 @@ func (f *IntrospectionConfigFactory) engineConfigFieldConfigs() (planFields plan
 	}
 }
 
-func (f *IntrospectionConfigFactory) engineConfigDataSource() plan.DataSourceConfiguration {
+func (f *IntrospectionConfigFactory) BuildDataSourceConfiguration() plan.DataSourceConfiguration {
 	return plan.DataSourceConfiguration{
 		RootNodes: []plan.TypeField{
 			{
@@ -64,7 +64,7 @@ func (f *IntrospectionConfigFactory) engineConfigDataSource() plan.DataSourceCon
 				FieldNames: []string{"fields", "enumValues"},
 			},
 		},
-		Factory: introspection_datasource.NewFactory(f.introspectionData),
+		Factory: NewFactory(f.introspectionData),
 		Custom:  json.RawMessage{},
 	}
 }
