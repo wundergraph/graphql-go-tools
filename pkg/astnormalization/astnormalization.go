@@ -167,6 +167,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	mergeInlineFragments(&other)
 	mergeFieldSelections(&other)
 	deduplicateFields(&other)
+	extractVariablesDefaultValue(&other)
 	if o.options.extractVariables {
 		o.variablesExtraction = extractVariables(&other)
 	}

@@ -203,6 +203,15 @@ func TestNormalizeOperation(t *testing.T) {
 				textCounter
 			}`, ``, ``)
 	})
+
+	t.Run("default values", func(t *testing.T) {
+		run(t, testDefinition, `
+			query {
+				simple
+			}`, `query($a: String) {
+			  simple(input: $a)
+			}`, ``, `{"a":"foo"}`)
+	})
 }
 
 func TestOperationNormalizer_NormalizeOperation(t *testing.T) {
@@ -502,6 +511,7 @@ type Query {
   	booleanList(booleanListArg: [Boolean!]): Boolean
 	extra: Extra
 	field: Field
+	simple(input: String = "foo"): String
 }
 
 type ValidArguments {
