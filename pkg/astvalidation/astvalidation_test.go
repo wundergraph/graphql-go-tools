@@ -2043,7 +2043,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: true) @include(if: true)
 							}`,
-					ValidArguments(), Valid)
+					ValidArguments(), Valid, withDisableNormalization())
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(`
@@ -2807,7 +2807,7 @@ func TestExecutionValidation(t *testing.T) {
 							query goodComplexDefaultValue($search: ComplexInput = { name: 123 }) {
 								findDog(complex: $search)
 							}`,
-					Values(), Invalid)
+					Values(), Invalid, withDisableNormalization())
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(`query goodComplexDefaultValue($search: ComplexInput = { name: "123" }) {
@@ -2915,13 +2915,13 @@ func TestExecutionValidation(t *testing.T) {
 				run(`query goodComplexDefaultValue($search: ComplexNonOptionalInput = { name: null }) {
 									findDogNonOptional(complex: $search)
 								}`,
-					Values(), Invalid)
+					Values(), Invalid, withDisableNormalization())
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(`query goodComplexDefaultValue($search: ComplexNonOptionalInput = {}) {
 									findDogNonOptional(complex: $search)
 								}`,
-					Values(), Invalid)
+					Values(), Invalid, withDisableNormalization())
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(`query goodComplexDefaultValue {
@@ -3597,7 +3597,7 @@ func TestExecutionValidation(t *testing.T) {
 										nonNullBooleanArgField(nonNullBooleanArg: $booleanArg)
 									}
 								}`,
-					ValidArguments(), Valid)
+					ValidArguments(), Valid, withDisableNormalization())
 			})
 			t.Run("complex values", func(t *testing.T) {
 				runWithDefinition(wundergraphSchema, `

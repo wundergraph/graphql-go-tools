@@ -44,7 +44,7 @@ func createTestRoundTripper(t *testing.T, testCase roundTripperTestCase) testRou
 				receivedBodyBytes, err = ioutil.ReadAll(req.Body)
 				require.NoError(t, err)
 			}
-			require.Equal(t, testCase.expectedBody, string(receivedBodyBytes))
+			require.Equal(t, testCase.expectedBody, string(receivedBodyBytes), "roundTripperTestCase body do not match")
 		}
 
 		body := bytes.NewBuffer([]byte(testCase.sendResponseBody))
@@ -321,6 +321,8 @@ func heroWithArgumentSchema(t *testing.T) *Schema {
 	schemaString := `
 		type Query {
 			hero(name: String): String
+			heroDefault(name: String = "Any"): String
+			heroDefaultRequired(name: String! = "AnyRequired"): String
 			heroes(names: [String!]!): [String!]
 		}`
 

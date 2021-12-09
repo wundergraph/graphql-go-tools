@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/buger/jsonparser"
+
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphqljsonschema"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
@@ -71,8 +72,8 @@ func NewJSONVariableRendererWithValidation(jsonSchema string) *JSONVariableRende
 
 // NewJSONVariableRendererWithValidationFromTypeRef creates a new JSONVariableRenderer
 // The argument typeRef must exist on the operation ast.Document, otherwise it will panic!
-func NewJSONVariableRendererWithValidationFromTypeRef(operation, definition *ast.Document, typeRef int) (*JSONVariableRenderer, error) {
-	jsonSchema := graphqljsonschema.FromTypeRef(operation, definition, typeRef)
+func NewJSONVariableRendererWithValidationFromTypeRef(operation, definition *ast.Document, variableTypeRef int) (*JSONVariableRenderer, error) {
+	jsonSchema := graphqljsonschema.FromTypeRef(operation, definition, variableTypeRef)
 	validator, err := graphqljsonschema.NewValidatorFromSchema(jsonSchema)
 	if err != nil {
 		return nil, err
@@ -85,7 +86,7 @@ func NewJSONVariableRendererWithValidationFromTypeRef(operation, definition *ast
 		Kind:          "jsonWithValidation",
 		JSONSchema:    string(schemaBytes),
 		validator:     validator,
-		rootValueType: getJSONRootType(definition, typeRef),
+		rootValueType: getJSONRootType(operation, definition, variableTypeRef),
 	}, nil
 }
 
@@ -106,8 +107,8 @@ func NewPlainVariableRendererWithValidation(jsonSchema string) *PlainVariableRen
 
 // NewPlainVariableRendererWithValidationFromTypeRef creates a new PlainVariableRenderer
 // The argument typeRef must exist on the operation ast.Document, otherwise it will panic!
-func NewPlainVariableRendererWithValidationFromTypeRef(operation, definition *ast.Document, typeRef int) (*PlainVariableRenderer, error) {
-	jsonSchema := graphqljsonschema.FromTypeRef(operation, definition, typeRef)
+func NewPlainVariableRendererWithValidationFromTypeRef(operation, definition *ast.Document, variableTypeRef int) (*PlainVariableRenderer, error) {
+	jsonSchema := graphqljsonschema.FromTypeRef(operation, definition, variableTypeRef)
 	validator, err := graphqljsonschema.NewValidatorFromSchema(jsonSchema)
 	if err != nil {
 		return nil, err
@@ -116,11 +117,12 @@ func NewPlainVariableRendererWithValidationFromTypeRef(operation, definition *as
 	if err != nil {
 		return nil, err
 	}
+	rootValueType := getJSONRootType(operation, definition, variableTypeRef)
 	return &PlainVariableRenderer{
 		Kind:          "plainWithValidation",
 		JSONSchema:    string(schemaBytes),
 		validator:     validator,
-		rootValueType: getJSONRootType(definition, typeRef),
+		rootValueType: rootValueType,
 	}, nil
 }
 
@@ -144,7 +146,7 @@ func (p *PlainVariableRenderer) RenderVariable(ctx context.Context, data []byte,
 		}
 	}
 	if p.rootValueType == jsonparser.String {
-		data = data[1:len(data)-1]
+		data = data[1 : len(data)-1]
 	}
 	_, err := out.Write(data)
 	return err
@@ -152,8 +154,8 @@ func (p *PlainVariableRenderer) RenderVariable(ctx context.Context, data []byte,
 
 // NewGraphQLVariableRendererFromTypeRef creates a new GraphQLVariableRenderer
 // The argument typeRef must exist on the operation ast.Document, otherwise it will panic!
-func NewGraphQLVariableRendererFromTypeRef(operation, definition *ast.Document, typeRef int) (*GraphQLVariableRenderer, error) {
-	jsonSchema := graphqljsonschema.FromTypeRef(operation, definition, typeRef)
+func NewGraphQLVariableRendererFromTypeRef(operation, definition *ast.Document, variableTypeRef int) (*GraphQLVariableRenderer, error) {
+	jsonSchema := graphqljsonschema.FromTypeRef(operation, definition, variableTypeRef)
 	validator, err := graphqljsonschema.NewValidatorFromSchema(jsonSchema)
 	if err != nil {
 		return nil, err
@@ -166,10 +168,11 @@ func NewGraphQLVariableRendererFromTypeRef(operation, definition *ast.Document, 
 		Kind:          "graphqlWithValidation",
 		JSONSchema:    string(schemaBytes),
 		validator:     validator,
-		rootValueType: getJSONRootType(definition, typeRef),
+		rootValueType: getJSONRootType(operation, definition, variableTypeRef),
 	}, nil
 }
 
+// NewGraphQLVariableRenderer - to be used in tests only
 func NewGraphQLVariableRenderer(jsonSchema string) *GraphQLVariableRenderer {
 	validator := graphqljsonschema.MustNewValidatorFromString(jsonSchema)
 	rootValueType, err := graphqljsonschema.TopLevelType(jsonSchema)
@@ -184,16 +187,25 @@ func NewGraphQLVariableRenderer(jsonSchema string) *GraphQLVariableRenderer {
 	}
 }
 
-func getJSONRootType(definition *ast.Document, typeRef int) jsonparser.ValueType {
-	typeRef = definition.ResolveListOrNameType(typeRef)
-	if definition.TypeIsList(typeRef) {
+func getJSONRootType(operation, definition *ast.Document, variableTypeRef int) jsonparser.ValueType {
+	variableTypeRef = operation.ResolveListOrNameType(variableTypeRef)
+	if operation.TypeIsList(variableTypeRef) {
 		return jsonparser.Array
 	}
-	if definition.TypeIsEnum(typeRef, definition) {
+
+	name := operation.TypeNameString(variableTypeRef)
+	node, exists := definition.Index.FirstNodeByNameStr(name)
+	if !exists {
+		return jsonparser.Unknown
+	}
+
+	defTypeRef := node.Ref
+
+	if node.Kind == ast.NodeKindEnumTypeDefinition {
 		return jsonparser.String
 	}
-	if definition.TypeIsScalar(typeRef, definition) {
-		typeName := definition.TypeNameString(typeRef)
+	if node.Kind == ast.NodeKindScalarTypeDefinition {
+		typeName := definition.ScalarTypeDefinitionNameString(defTypeRef)
 		switch typeName {
 		case "Boolean":
 			return jsonparser.Boolean
@@ -289,10 +301,10 @@ func NewCSVVariableRenderer(arrayValueType jsonparser.ValueType) *CSVVariableRen
 	}
 }
 
-func NewCSVVariableRendererFromTypeRef(definition *ast.Document, typeRef int) *CSVVariableRenderer {
+func NewCSVVariableRendererFromTypeRef(operation, definition *ast.Document, variableTypeRef int) *CSVVariableRenderer {
 	return &CSVVariableRenderer{
 		Kind:           "csv",
-		arrayValueType: getJSONRootType(definition, typeRef),
+		arrayValueType: getJSONRootType(operation, definition, variableTypeRef),
 	}
 }
 

@@ -53,7 +53,9 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		actualBytes, _ := json.MarshalIndent(actualPlan, "", "  ")
 		expectedBytes, _ := json.MarshalIndent(expectedPlan, "", "  ")
 
-		assert.Equal(t, string(expectedBytes), string(actualBytes))
+		if !assert.Equal(t, string(expectedBytes), string(actualBytes)) {
+			assert.Equal(t, expectedPlan, actualPlan)
+		}
 
 		for _, extraCheck := range extraChecks {
 			extraCheck(t, op, actualPlan)

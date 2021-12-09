@@ -33,6 +33,14 @@ func (d *Document) VariableDefinitionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.VariableValueNameBytes(d.VariableDefinitions[ref].VariableValue.Ref))
 }
 
+func (d *Document) VariableDefinitionHasDefaultValue(ref int) bool {
+	return d.VariableDefinitions[ref].DefaultValue.IsDefined
+}
+
+func (d *Document) VariableDefinitionDefaultValue(ref int) Value {
+	return d.VariableDefinitions[ref].DefaultValue.Value
+}
+
 func (d *Document) VariableDefinitionByNameAndOperation(operationDefinition int, name ByteSlice) (definition int, exists bool) {
 	if !d.OperationDefinitions[operationDefinition].HasVariableDefinitions {
 		return -1, false

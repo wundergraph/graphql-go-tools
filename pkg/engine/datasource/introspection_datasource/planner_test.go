@@ -1,14 +1,12 @@
 package introspection_datasource
 
 import (
-	"encoding/json"
 	"testing"
-
-	"github.com/buger/jsonparser"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
 )
 
 const (
@@ -54,45 +52,16 @@ const (
 func TestIntrospectionDataSourcePlanning(t *testing.T) {
 	dataSourceIdentifier := []byte("introspection_datasource.Source")
 
+	introspectionData := &introspection.Data{}
+	introspectionData.Schema.QueryType = &introspection.TypeName{Name: "Query"}
+
+	cfgFactory := IntrospectionConfigFactory{introspectionData: introspectionData}
+	introspectionDataSource := cfgFactory.BuildDataSourceConfiguration()
+	introspectionDataSource.Factory = &Factory{}
+
 	planConfiguration := plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"__schema", "__type"},
-					},
-					{
-						TypeName:   "__Type",
-						FieldNames: []string{"fields", "enumValues"},
-					},
-				},
-				Factory: &Factory{},
-				Custom:  json.RawMessage{},
-			},
-		},
-		Fields: plan.FieldConfigurations{
-			{
-				TypeName:              "Query",
-				FieldName:             "__schema",
-				DisableDefaultMapping: true,
-			},
-			{
-				TypeName:              "Query",
-				FieldName:             "__type",
-				DisableDefaultMapping: true,
-			},
-			{
-				TypeName:              "__Type",
-				FieldName:             "fields",
-				DisableDefaultMapping: true,
-			},
-			{
-				TypeName:              "__Type",
-				FieldName:             "enumValues",
-				DisableDefaultMapping: true,
-			},
-		},
+		DataSources: []plan.DataSourceConfiguration{introspectionDataSource},
+		Fields:      cfgFactory.BuildFieldConfigurations(),
 	}
 
 	t.Run("type introspection request", datasourcetesting.RunTest(schema, typeIntrospection, "",
@@ -106,9 +75,8 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 						DataSourceIdentifier: dataSourceIdentifier,
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:               []string{"a"},
-								JsonValueType:      jsonparser.String,
-								RenderAsPlainValue: true,
+								Path:     []string{"a"},
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
 							},
 						),
 					},
@@ -220,9 +188,8 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 						DataSourceIdentifier: dataSourceIdentifier,
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
-								Path:               []string{"a"},
-								JsonValueType:      jsonparser.String,
-								RenderAsPlainValue: true,
+								Path:     []string{"a"},
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
 							},
 						),
 					},
@@ -241,34 +208,32 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 									Fetches: []resolve.Fetch{
 										&resolve.SingleFetch{
 											BufferId:   1,
-											Input:      `{"request_type":3,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
+											Input:      `{"request_type":3,"on_type_name":$$0$$,"include_deprecated":$$1$$}`,
 											DataSource: &Source{},
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
-													Path:               []string{"name"},
-													RenderAsPlainValue: true,
+													Path:     []string{"name"},
+													Renderer: resolve.NewPlainVariableRenderer(),
 												},
 												&resolve.ContextVariable{
-													Path:               []string{"b"},
-													JsonValueType:      jsonparser.Boolean,
-													RenderAsPlainValue: true,
+													Path:     []string{"b"},
+													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"boolean"}`),
 												},
 											),
 											DataSourceIdentifier: dataSourceIdentifier,
 										},
 										&resolve.SingleFetch{
 											BufferId:   2,
-											Input:      `{"request_type":4,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
+											Input:      `{"request_type":4,"on_type_name":$$0$$,"include_deprecated":$$1$$}`,
 											DataSource: &Source{},
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
-													Path:               []string{"name"},
-													RenderAsPlainValue: true,
+													Path:     []string{"name"},
+													Renderer: resolve.NewPlainVariableRenderer(),
 												},
 												&resolve.ContextVariable{
-													Path:               []string{"c"},
-													JsonValueType:      jsonparser.Boolean,
-													RenderAsPlainValue: true,
+													Path:     []string{"c"},
+													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"boolean"}`),
 												},
 											),
 											DataSourceIdentifier: dataSourceIdentifier,

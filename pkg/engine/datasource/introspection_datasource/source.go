@@ -1,7 +1,6 @@
 package introspection_datasource
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -18,10 +17,6 @@ type Source struct {
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
-	// fix corrupted input json
-	// TODO: remove when default argument value bug will be fixed
-	input = bytes.Replace(input, []byte(`"include_deprecated":}`), []byte(`"include_deprecated":false}`), 1)
-
 	var req introspectionInput
 	if err := json.Unmarshal(input, &req); err != nil {
 		return err

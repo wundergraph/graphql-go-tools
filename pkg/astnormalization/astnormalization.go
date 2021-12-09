@@ -86,12 +86,6 @@ func NormalizeNamedOperation(operation, definition *ast.Document, operationName 
 	normalizer.NormalizeNamedOperation(operation, definition, operationName, report)
 }
 
-type registerNormalizeFunc func(walker *astvisitor.Walker)
-
-type registerNormalizeVariablesFunc func(walker *astvisitor.Walker) *variablesExtractionVisitor
-
-type registerNormalizeDeleteVariablesFunc func(walker *astvisitor.Walker) *deleteUnusedVariablesVisitor
-
 // OperationNormalizer walks a given AST and applies all registered rules
 type OperationNormalizer struct {
 	operationWalkers     []*astvisitor.Walker
@@ -173,6 +167,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	mergeInlineFragments(&other)
 	mergeFieldSelections(&other)
 	deduplicateFields(&other)
+	extractVariablesDefaultValue(&other)
 	if o.options.extractVariables {
 		o.variablesExtraction = extractVariables(&other)
 	}
