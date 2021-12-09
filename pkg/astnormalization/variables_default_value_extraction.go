@@ -69,6 +69,9 @@ func (v *variablesDefaultValueExtractionVisitor) EnterVariableDefinition(ref int
 
 	variableName := v.operation.VariableDefinitionNameString(ref)
 
+	// remove variable DefaultValue from operation
+	v.operation.VariableDefinitions[ref].DefaultValue.IsDefined = false
+
 	// skip when variable was provided
 	_, _, _, err := jsonparser.Get(v.operation.Input.Variables, variableName)
 	if err == nil {
@@ -85,7 +88,6 @@ func (v *variablesDefaultValueExtractionVisitor) EnterVariableDefinition(ref int
 		v.StopWithInternalErr(err)
 		return
 	}
-
 }
 
 func (v *variablesDefaultValueExtractionVisitor) EnterOperationDefinition(ref int) {

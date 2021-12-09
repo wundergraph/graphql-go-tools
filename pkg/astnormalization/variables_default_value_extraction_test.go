@@ -54,7 +54,7 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 			mutation simple($in: String = "bar" ) {
 			  simple(input: $in)
 			}`, "", `
-			mutation simple($in: String = "bar") {
+			mutation simple($in: String) {
 			  simple(input: $in)
 			}`, ``, `{"in":"bar"}`)
 		})
@@ -63,7 +63,7 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 			mutation simple($in: String = "bar" ) {
 			  simple(input: $in)
 			}`, "", `
-			mutation simple($in: String = "bar") {
+			mutation simple($in: String) {
 			  simple(input: $in)
 			}`, `{"in":"foo"}`, `{"in":"foo"}`)
 		})
@@ -74,7 +74,7 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 			mutation simple($a: String = "bar", $b: String = "bazz") {
 			  mixed(a: $a, b: $b)
 			}`, "", `
-			mutation simple($a: String = "bar", $b: String = "bazz", $c: String) {
+			mutation simple($a: String, $b: String, $c: String) {
 			  mixed(a: $a, b: $b, input: $c)
 			}`, `{"a":"aaa"}`, `{"c":"foo","b":"bazz","a":"aaa"}`)
 	})
