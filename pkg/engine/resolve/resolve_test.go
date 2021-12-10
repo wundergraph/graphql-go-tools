@@ -1743,7 +1743,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 											SegmentType:        VariableSegmentType,
 											VariableKind:       ObjectVariableKind,
 											VariableSourcePath: []string{"id"},
-											Renderer:           NewGraphQLVariableRenderer(`{"type":"string"}`),
+											Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 										},
 										{
 											Data:        []byte(`,"__typename":"User"}]}}}`),
@@ -1805,7 +1805,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																		SegmentType:        VariableSegmentType,
 																		VariableKind:       ObjectVariableKind,
 																		VariableSourcePath: []string{"upc"},
-																		Renderer:           NewGraphQLVariableRenderer(`{"type":"string"}`),
+																		Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 																	},
 																	{
 																		Data:        []byte(`,"__typename":"Product"}]}}}`),
@@ -1862,7 +1862,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		reviewBatchFactory := NewMockDataSourceBatchFactory(ctrl)
 		reviewBatchFactory.EXPECT().
 			CreateBatch([][]byte{
-				//      {"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}
 				[]byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`),
 			}).
 			Return(NewFakeDataSourceBatch(
@@ -1886,9 +1885,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		productBatchFactory.EXPECT().
 			CreateBatch(
 				[][]byte{
-					//      {"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}}
 					[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}}`),
-					//      {"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}}}
 					[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}}}`),
 				},
 			).Return(NewFakeDataSourceBatch(
@@ -1945,7 +1942,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 												SegmentType:        VariableSegmentType,
 												VariableKind:       ObjectVariableKind,
 												VariableSourcePath: []string{"id"},
-												Renderer:           NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+												Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 											},
 											{
 												Data:        []byte(`,"__typename":"User"}]}}}`),
@@ -2010,7 +2007,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																			SegmentType:        VariableSegmentType,
 																			VariableKind:       ObjectVariableKind,
 																			VariableSourcePath: []string{"upc"},
-																			Renderer:           NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+																			Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 																		},
 																		{
 																			Data:        []byte(`,"__typename":"Product"}]}}}`),

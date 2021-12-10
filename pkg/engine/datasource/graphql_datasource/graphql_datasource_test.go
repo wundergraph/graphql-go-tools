@@ -49,7 +49,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"id"},
-							Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 						},
 						&resolve.HeaderVariable{
 							Path: []string{"Authorization"},
@@ -286,11 +286,11 @@ func TestGraphQLDataSource(t *testing.T) {
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"id"},
-							Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 						},
 						&resolve.ContextVariable{
 							Path:     []string{"input"},
-							Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"object","properties":{"name":{"type":"string"}},"additionalProperties":false}`),
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"object","properties":{"name":{"type":"string"}},"additionalProperties":false}`),
 						},
 						&resolve.HeaderVariable{
 							Path: []string{"Authorization"},
@@ -635,7 +635,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"representations"},
-							Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"array","item":{"type":"object","additionalProperties":false}}`),
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"array","item":{"type":"object","additionalProperties":false}}`),
 						},
 					),
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -819,7 +819,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"droidIDs"},
-								Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"array","item":{"type":"string"}}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"array","item":{"type":"string"}}`),
 							},
 						),
 						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -890,7 +890,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"droidID"},
-								Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 							},
 						),
 						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -955,7 +955,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"birthdate"},
-								Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 							},
 						),
 						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -1014,7 +1014,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"name"},
-								Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 							},
 						),
 						DisallowSingleFlight:  true,
@@ -1124,11 +1124,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"b"},
-								Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 							},
 						),
 						DisallowSingleFlight:  false,
@@ -1237,11 +1237,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"b"},
-								Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 							},
 						),
 						DisallowSingleFlight:  false,
@@ -1378,11 +1378,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"b"},
-								Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 							},
 						),
 						DisallowSingleFlight:  false,
@@ -1555,11 +1555,11 @@ func TestGraphQLDataSource(t *testing.T) {
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path:     []string{"firstArg"},
-										Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 									},
 									&resolve.ContextVariable{
 										Path:     []string{"thirdArg"},
-										Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"integer"}`),
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"integer"}`),
 									},
 								),
 								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -1572,11 +1572,11 @@ func TestGraphQLDataSource(t *testing.T) {
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path:     []string{"secondArg"},
-										Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"boolean"}`),
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
 									},
 									&resolve.ContextVariable{
 										Path:     []string{"fourthArg"},
-										Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"number"}`),
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"number"}`),
 									},
 								),
 								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -1663,7 +1663,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Variables: resolve.NewVariables(
 										&resolve.ObjectVariable{
 											Path:     []string{"serviceOneField"},
-											Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 										},
 									),
 									DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -1957,15 +1957,15 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"title"},
-								Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"completed"},
-								Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"boolean"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"name"},
-								Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 							},
 						),
 						DisallowSingleFlight:  true,
@@ -2124,11 +2124,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"id"},
-								Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"name"},
-								Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 							},
 						),
 						DisallowSingleFlight:  true,
@@ -2270,11 +2270,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"name"},
-								Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"personal"},
-								Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"boolean"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
 							},
 						),
 						DisallowSingleFlight:  true,
@@ -2485,7 +2485,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Variables: resolve.NewVariables(
 					&resolve.ContextVariable{
 						Path:     []string{"a"},
-						Renderer: resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+						Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 					},
 				),
 				Source: &SubscriptionSource{
@@ -3754,7 +3754,7 @@ func BenchmarkFederationBatching(b *testing.B) {
 											SegmentType:        resolve.VariableSegmentType,
 											VariableKind:       resolve.ObjectVariableKind,
 											VariableSourcePath: []string{"id"},
-											Renderer:           resolve.NewGraphQLVariableRenderer(`{"type":"number"}`),
+											Renderer:           resolve.NewJSONVariableRendererWithValidation(`{"type":"number"}`),
 										},
 										{
 											Data:        []byte(`","__typename":"User"}]}}}`),
@@ -3820,7 +3820,7 @@ func BenchmarkFederationBatching(b *testing.B) {
 																		SegmentType:        resolve.VariableSegmentType,
 																		VariableKind:       resolve.ObjectVariableKind,
 																		VariableSourcePath: []string{"upc"},
-																		Renderer:           resolve.NewGraphQLVariableRenderer(`{"type":"string"}`),
+																		Renderer:           resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 																	},
 																	{
 																		Data:        []byte(`,"__typename":"Product"}]}}}`),
