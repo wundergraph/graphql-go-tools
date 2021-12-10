@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"regexp"
 	"strings"
@@ -372,12 +373,13 @@ type objectFields struct {
 }
 
 type objectFetchConfiguration struct {
-	object         *resolve.Object
-	trigger        *resolve.GraphQLSubscriptionTrigger
-	planner        DataSourcePlanner
-	bufferID       int
-	isSubscription bool
-	fieldRef       int
+	object             *resolve.Object
+	trigger            *resolve.GraphQLSubscriptionTrigger
+	planner            DataSourcePlanner
+	bufferID           int
+	isSubscription     bool
+	fieldRef           int
+	fieldDefinitionRef int
 }
 
 func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor interface{}) bool {
@@ -811,7 +813,18 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 			}
 			value := v.Operation.ArgumentValue(arg)
 			if value.Kind != ast.ValueKindVariable {
-				break
+				inputValueDefinition := -1
+				for _, ref := range v.Definition.FieldDefinitions[config.fieldDefinitionRef].ArgumentsDefinition.Refs {
+					inputFieldName := v.Definition.Input.ByteSliceString(v.Definition.InputValueDefinitions[ref].Name)
+					if inputFieldName == argumentName {
+						inputValueDefinition = ref
+						break
+					}
+				}
+				if inputValueDefinition == -1 {
+					return "null"
+				}
+				return v.renderJSONValueTemplate(value, variables, inputValueDefinition)
 			}
 			variableValue := v.Operation.VariableValueNameString(value.Ref)
 			if !v.Operation.OperationDefinitionHasVariableDefinition(v.operationDefinition, variableValue) {
@@ -876,6 +889,61 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 		}
 		return variableName
 	})
+}
+
+func (v *Visitor) renderJSONValueTemplate(value ast.Value, variables *resolve.Variables, inputValueDefinition int) (out string) {
+	switch value.Kind {
+	case ast.ValueKindList:
+		out += "["
+		addComma := false
+		for _, ref := range v.Operation.ListValues[value.Ref].Refs {
+			if addComma {
+				out += ","
+			} else {
+				addComma = true
+			}
+			listValue := v.Operation.Values[ref]
+			out += v.renderJSONValueTemplate(listValue, variables, inputValueDefinition)
+		}
+		out += "]"
+	case ast.ValueKindObject:
+		out += "{"
+		addComma := false
+		for _, ref := range v.Operation.ObjectValues[value.Ref].Refs {
+			fieldName := v.Operation.Input.ByteSlice(v.Operation.ObjectFields[ref].Name)
+			fieldValue := v.Operation.ObjectFields[ref].Value
+			typeName := v.Definition.ResolveTypeNameString(v.Definition.InputValueDefinitions[inputValueDefinition].Type)
+			typeDefinitionNode, ok := v.Definition.Index.FirstNodeByNameStr(typeName)
+			if !ok {
+				continue
+			}
+			objectFieldDefinition, ok := v.Definition.NodeInputFieldDefinitionByName(typeDefinitionNode, fieldName)
+			if !ok {
+				continue
+			}
+			if addComma {
+				out += ","
+			} else {
+				addComma = true
+			}
+			out += fmt.Sprintf("\"%s\":", string(fieldName))
+			out += v.renderJSONValueTemplate(fieldValue, variables, objectFieldDefinition)
+		}
+		out += "}"
+	case ast.ValueKindVariable:
+		variablePath := v.Operation.VariableValueNameString(value.Ref)
+		inputType := v.Definition.InputValueDefinitions[inputValueDefinition].Type
+		renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(v.Definition, v.Definition, inputType)
+		if err != nil {
+			renderer = resolve.NewJSONVariableRenderer()
+		}
+		variableName, _ := variables.AddVariable(&resolve.ContextVariable{
+			Path:     []string{variablePath},
+			Renderer: renderer,
+		})
+		out += variableName
+	}
+	return
 }
 
 func (v *Visitor) configureSubscription(config objectFetchConfiguration) {
@@ -1235,11 +1303,16 @@ func (c *configurationVisitor) EnterField(ref int) {
 				},
 				dataSourceConfiguration: config,
 			})
+			fieldDefinition, ok := c.walker.FieldDefinition(ref)
+			if !ok {
+				continue
+			}
 			c.fetches = append(c.fetches, objectFetchConfiguration{
-				bufferID:       bufferID,
-				planner:        planner,
-				isSubscription: isSubscription,
-				fieldRef:       ref,
+				bufferID:           bufferID,
+				planner:            planner,
+				isSubscription:     isSubscription,
+				fieldRef:           ref,
+				fieldDefinitionRef: fieldDefinition,
 			})
 			return
 		}

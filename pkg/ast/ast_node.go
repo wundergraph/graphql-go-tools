@@ -286,6 +286,28 @@ func (d *Document) NodeFieldDefinitions(node Node) []int {
 	}
 }
 
+func (d *Document) NodeInputFieldDefinitions(node Node) []int {
+	switch node.Kind {
+	case NodeKindInputObjectTypeDefinition:
+		return d.InputObjectTypeDefinitions[node.Ref].InputFieldsDefinition.Refs
+	default:
+		return nil
+	}
+}
+
+func (d *Document) NodeInputFieldDefinitionByName(node Node, name ByteSlice) (int, bool) {
+	switch node.Kind {
+	case NodeKindInputObjectTypeDefinition:
+		refs := d.InputObjectTypeDefinitions[node.Ref].InputFieldsDefinition.Refs
+		for _, ref := range refs {
+			if bytes.Equal(d.Input.ByteSlice(d.InputValueDefinitions[ref].Name), name) {
+				return ref, true
+			}
+		}
+	}
+	return 0, false
+}
+
 func (d *Document) NodeFieldDefinitionByName(node Node, fieldName ByteSlice) (definition int, exists bool) {
 	for _, i := range d.NodeFieldDefinitions(node) {
 		if bytes.Equal(d.Input.ByteSlice(d.FieldDefinitions[i].Name), fieldName) {
