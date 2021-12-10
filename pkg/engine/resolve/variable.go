@@ -245,8 +245,10 @@ func (g *GraphQLVariableRenderer) RenderVariable(ctx context.Context, data []byt
 func (g *GraphQLVariableRenderer) renderGraphQLValue(data []byte, valueType jsonparser.ValueType, out io.Writer) (err error) {
 	switch valueType {
 	case jsonparser.String:
+		_, _ = out.Write(literal.BACKSLASH)
 		_, _ = out.Write(literal.QUOTE)
 		_, _ = out.Write(data)
+		_, _ = out.Write(literal.BACKSLASH)
 		_, _ = out.Write(literal.QUOTE)
 	case jsonparser.Object:
 		_, _ = out.Write(literal.LBRACE)

@@ -657,7 +657,7 @@ func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamField
 	}
 
 	argumentType := p.visitor.Definition.InputValueDefinitionType(argumentDefinition)
-	renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(p.visitor.Definition, p.visitor.Definition, argumentType)
+	renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(p.visitor.Definition, p.visitor.Definition, argumentType)
 	if err != nil {
 		return
 	}
@@ -766,7 +766,7 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, sourcePath 
 	contextVariable := &resolve.ContextVariable{
 		Path: append(sourcePath, variableNameStr),
 	}
-	renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(p.visitor.Definition, p.visitor.Definition, fieldType)
+	renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(p.visitor.Definition, p.visitor.Definition, fieldType)
 	if err != nil {
 		return
 	}
@@ -810,7 +810,7 @@ func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRe
 	importedType := p.visitor.Importer.ImportTypeWithRename(argumentType, p.visitor.Definition, p.upstreamOperation, typeName)
 	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
 
-	renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(p.visitor.Definition, p.visitor.Definition, argumentType)
+	renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(p.visitor.Definition, p.visitor.Definition, argumentType)
 	if err != nil {
 		return
 	}
