@@ -2848,4 +2848,32 @@ func TestInputTemplate_Render(t *testing.T) {
 		out := buf.String()
 		assert.Equal(t, "[1,2,3]", out)
 	})
+	t.Run("json render with value missing", func(t *testing.T) {
+		template := InputTemplate{
+			Segments: []TemplateSegment{
+				{
+					SegmentType: StaticSegmentType,
+					Data: []byte(`{"key":`),
+				},
+				{
+					SegmentType:        VariableSegmentType,
+					VariableKind:       ContextVariableKind,
+					VariableSourcePath: []string{"a"},
+					Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+				},
+				{
+					SegmentType: StaticSegmentType,
+					Data: []byte(`}`),
+				},
+			},
+		}
+		ctx := &Context{
+			Variables: []byte(""),
+		}
+		buf := fastbuffer.New()
+		err := template.Render(ctx, nil, buf)
+		assert.NoError(t, err)
+		out := buf.String()
+		assert.Equal(t, `{"key":null}`, out)
+	})
 }

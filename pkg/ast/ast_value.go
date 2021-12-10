@@ -50,6 +50,41 @@ func (d *Document) ValueContentString(value Value) string {
 	return unsafebytes.BytesToString(d.ValueContentBytes(value))
 }
 
+func (d *Document) ValueContainsVariable(value Value) bool {
+	switch value.Kind {
+	case ValueKindEnum:
+		return false
+	case ValueKindBoolean:
+		return false
+	case ValueKindFloat:
+		return false
+	case ValueKindList:
+		for _, ref := range d.ListValues[value.Ref].Refs {
+			if d.ValueContainsVariable(d.Value(ref)) {
+				return true
+			}
+		}
+		return false
+	case ValueKindObject:
+		for _, ref := range d.ObjectValues[value.Ref].Refs {
+			if d.ValueContainsVariable(d.ObjectFields[ref].Value) {
+				return true
+			}
+		}
+		return false
+	case ValueKindInteger:
+		return false
+	case ValueKindNull:
+		return false
+	case ValueKindString:
+		return false
+	case ValueKindVariable:
+		return true
+	default:
+		return false
+	}
+}
+
 func (d *Document) ValueToJSON(value Value) ([]byte, error) {
 	switch value.Kind {
 	case ValueKindNull:

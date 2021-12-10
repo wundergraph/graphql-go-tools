@@ -325,6 +325,96 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 			},
 		},
 	))
+	t.Run("post request with nested JSON body", datasourcetesting.RunTest(authSchema, `
+		mutation Login ($phoneNumber: String! $a: String) {
+			Login: postPasswordlessStart(
+				postPasswordlessStartInput: {
+					applicationId: $a
+					loginId: $phoneNumber
+				}
+			) {
+				code
+			}
+		}
+`, "Login",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"body":{"applicationId":$$0$$,"loginId":$$1$$},"method":"POST","url":"https://example.com/passwordless_start"}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"a"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+							},
+							&resolve.ContextVariable{
+								Path:     []string{"phoneNumber"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+							},
+						),
+						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisallowSingleFlight: true,
+					},
+					Fields: []*resolve.Field{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Name:      []byte("Login"),
+							Position: resolve.Position{
+								Line: 3,
+								Column: 4,
+							},
+							Value: &resolve.Object{
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("code"),
+										Value: &resolve.String{
+											Path:     []string{"code"},
+											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   9,
+											Column: 5,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Mutation",
+							FieldNames: []string{"postPasswordlessStart"},
+						},
+					},
+					Custom: ConfigJSON(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "https://example.com/passwordless_start",
+							Method: "POST",
+							Body: "{{ .arguments.postPasswordlessStartInput }}",
+						},
+					}),
+					Factory: &Factory{},
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:              "Mutation",
+					FieldName:             "postPasswordlessStart",
+					DisableDefaultMapping: true,
+				},
+			},
+		},
+	))
 	t.Run("get request with duplicated argument and alias", datasourcetesting.RunTest(schema, duplicatedArgumentOperationWithAlias, "ArgumentQuery",
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
@@ -1157,3 +1247,51 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 		runTests(t, source)
 	})
 }
+
+const authSchema = `
+type Mutation {
+  postPasswordlessStart(postPasswordlessStartInput: postPasswordlessStartInput): PostPasswordlessStart
+  postPasswordlessStartList(postPasswordlessStartInput: [postPasswordlessStartInput]): PostPasswordlessStart
+  postPasswordlessLogin(postPasswordlessLoginInput: postPasswordlessLoginInput): PostPasswordlessLogin
+}
+
+type PostPasswordlessStart {
+  code: String
+}
+
+input postPasswordlessStartInput {
+  applicationId: String
+  loginId: String
+  nested: postPasswordlessStartInput
+}
+
+type PostPasswordlessLogin {
+  refreshToken: String
+  token: String
+  user: User
+}
+
+type User {
+  username: String
+  verified: Boolean
+  firstName: String
+  lastName: String
+  email: String
+  mobilePhone: String
+  timezone: String
+}
+
+input postPasswordlessLoginInput {
+  code: String
+  ipAddress: String
+  metaData: MetaDataInput
+}
+
+input MetaDataInput {
+  device: DeviceInput
+}
+
+input DeviceInput {
+  name: String
+}
+`

@@ -53,7 +53,7 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		actualBytes, _ := json.MarshalIndent(actualPlan, "", "  ")
 		expectedBytes, _ := json.MarshalIndent(expectedPlan, "", "  ")
 
-		if !assert.Equal(t, string(expectedBytes), string(actualBytes)) {
+		if string(expectedBytes) != string(actualBytes) {
 			assert.Equal(t, expectedPlan, actualPlan)
 		}
 

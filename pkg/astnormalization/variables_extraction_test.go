@@ -151,6 +151,123 @@ func TestVariablesExtraction(t *testing.T) {
 			  }
 			}`, ``, ``)
 	})
+	t.Run("complex nesting", func(t *testing.T) {
+		runWithVariables(t, extractVariables, authSchema, `
+			mutation Login ($phoneNumber: String!) {
+				Login: postPasswordlessStart(
+					postPasswordlessStartInput: {
+						applicationId: "123"
+						loginId: $phoneNumber
+					}
+				) {
+					code
+				}
+			}`, "Login", `
+			mutation Login ($phoneNumber: String! $a: String) {
+				Login: postPasswordlessStart(
+					postPasswordlessStartInput: {
+						applicationId: $a
+						loginId: $phoneNumber
+					}
+				) {
+					code
+				}
+			}`, ``, `{"a":"123"}`)
+	})
+	t.Run("complex nesting with existing variable", func(t *testing.T) {
+		runWithVariables(t, extractVariables, authSchema, `
+			mutation Login ($phoneNumber: String!) {
+				Login: postPasswordlessStart(
+					postPasswordlessStartInput: {
+						applicationId: "123"
+						loginId: $phoneNumber
+					}
+				) {
+					code
+				}
+			}`, "Login", `
+			mutation Login ($phoneNumber: String! $a: String) {
+				Login: postPasswordlessStart(
+					postPasswordlessStartInput: {
+						applicationId: $a
+						loginId: $phoneNumber
+					}
+				) {
+					code
+				}
+			}`, `{"phoneNumber":"456"}`, `{"a":"123","phoneNumber":"456"}`)
+	})
+	t.Run("complex nesting with deep nesting", func(t *testing.T) {
+		runWithVariables(t, extractVariables, authSchema, `
+			mutation Login ($phoneNumber: String!) {
+				Login: postPasswordlessStart(
+					postPasswordlessStartInput: {
+						nested: {
+							applicationId: "123"
+							loginId: $phoneNumber
+						}
+					}
+				) {
+					code
+				}
+			}`, "Login", `
+			mutation Login ($phoneNumber: String! $a: String) {
+				Login: postPasswordlessStart(
+					postPasswordlessStartInput: {
+						nested: {
+							applicationId: $a
+							loginId: $phoneNumber
+						}
+					}
+				) {
+					code
+				}
+			}`, `{"phoneNumber":"456"}`, `{"a":"123","phoneNumber":"456"}`)
+	})
+	t.Run("complex nesting with deep nesting and lists", func(t *testing.T) {
+		runWithVariables(t, extractVariables, authSchema, `
+			mutation Login ($phoneNumber: String!) {
+				Login: postPasswordlessStartList(
+					postPasswordlessStartInput: [{
+						nested: {
+							applicationId: "123"
+							loginId: $phoneNumber
+						}
+					}]
+				) {
+					code
+				}
+			}`, "Login", `
+			mutation Login ($phoneNumber: String! $a: String) {
+				Login: postPasswordlessStartList(
+					postPasswordlessStartInput: [{
+						nested: {
+							applicationId: $a
+							loginId: $phoneNumber
+						}
+					}]
+				) {
+					code
+				}
+			}`, `{"phoneNumber":"456"}`, `{"a":"123","phoneNumber":"456"}`)
+	})
+	t.Run("complex nesting with variable in list", func(t *testing.T) {
+		runWithVariables(t, extractVariables, authSchema, `
+			mutation Login ($input: postPasswordlessStartInput!) {
+				Login: postPasswordlessStartList(
+					postPasswordlessStartInput: [$input]
+				) {
+					code
+				}
+			}`, "Login", `
+			mutation Login ($input: postPasswordlessStartInput!) {
+				Login: postPasswordlessStartList(
+					postPasswordlessStartInput: [$input]
+				) {
+					code
+				}
+			}`, ``, ``)
+	})
 }
 
 const forumExampleSchema = `
@@ -197,5 +314,53 @@ type Post {
   title: String!
   body: String!
   userByAuthorId: User
+}
+`
+
+const authSchema = `
+type Mutation {
+  postPasswordlessStart(postPasswordlessStartInput: postPasswordlessStartInput): PostPasswordlessStart
+  postPasswordlessStartList(postPasswordlessStartInput: [postPasswordlessStartInput]): PostPasswordlessStart
+  postPasswordlessLogin(postPasswordlessLoginInput: postPasswordlessLoginInput): PostPasswordlessLogin
+}
+
+type PostPasswordlessStart {
+  code: String
+}
+
+input postPasswordlessStartInput {
+  applicationId: String
+  loginId: String
+  nested: postPasswordlessStartInput
+}
+
+type PostPasswordlessLogin {
+  refreshToken: String
+  token: String
+  user: User
+}
+
+type User {
+  username: String
+  verified: Boolean
+  firstName: String
+  lastName: String
+  email: String
+  mobilePhone: String
+  timezone: String
+}
+
+input postPasswordlessLoginInput {
+  code: String
+  ipAddress: String
+  metaData: MetaDataInput
+}
+
+input MetaDataInput {
+  device: DeviceInput
+}
+
+input DeviceInput {
+  name: String
 }
 `
