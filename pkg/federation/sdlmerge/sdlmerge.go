@@ -38,8 +38,12 @@ func MergeSDLs(SDLs ...string) (string, error) {
 	if report.HasErrors() {
 		return "", fmt.Errorf("parse graphql document string: %s", report.Error())
 	}
-	// we don't expect this normalization to return error if none was returned above
+
 	astnormalization.NormalizeSubgraphSDL(&doc, &report)
+	if report.HasErrors() {
+		return "", fmt.Errorf("merge ast: %s", report.Error())
+	}
+
 	if err := MergeAST(&doc); err != nil {
 		return "", fmt.Errorf("merge ast: %s", err.Error())
 	}
@@ -63,8 +67,8 @@ func (m *normalizer) setupWalkers() {
 			newExtendInterfaceTypeDefinition(),
 			newExtendUnionTypeDefinition(),
 			newExtendObjectTypeDefinition(),
-			newRemoveMergedTypeExtensions(),
 			newRemoveEmptyObjectTypeDefinition(),
+			newRemoveMergedTypeExtensions(),
 		},
 		// visitors for clean up federated duplicated fields and directives
 		{

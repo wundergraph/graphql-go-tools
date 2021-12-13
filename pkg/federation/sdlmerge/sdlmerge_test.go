@@ -52,15 +52,36 @@ func mustString(str string, err error) string {
 }
 
 func TestMergeSDLs(t *testing.T) {
-	got, err := MergeSDLs(accountSchema, productSchema, reviewSchema, likeSchema, disLikeSchema)
-	if err != nil {
-		t.Fatal(err)
+	runMergeTest := func(expectedSchema string, sdls ...string) func(t *testing.T) {
+		return func(t *testing.T) {
+			t.Helper()
+
+			got, err := MergeSDLs(sdls...)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedSchema)
+			want := mustString(astprinter.PrintString(&expectedOutputDocument, nil))
+
+			assert.Equal(t, want, got)
+		}
 	}
 
-	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(federatedSchema)
-	want := mustString(astprinter.PrintString(&expectedOutputDocument, nil))
+	t.Run("should merge all sdls successfully", runMergeTest(
+		federatedSchema,
+		accountSchema, productSchema, reviewSchema, likeSchema, disLikeSchema, paymentSchema, onlinePaymentSchema, classicPaymentSchema,
+	))
 
-	assert.Equal(t, want, got)
+	t.Run("should merge product and review sdl and leave `extend type User` in the schema", runMergeTest(
+		productAndReviewFederatedSchema,
+		productSchema, reviewSchema,
+	))
+
+	t.Run("should merge product and extends directives sdl and leave the type extension definition in the schema", runMergeTest(
+		productAndExtendsDirectivesFederatedSchema,
+		productSchema, extendsDirectivesSchema,
+	))
 }
 
 const (
@@ -124,6 +145,36 @@ const (
 			isDislike: Boolean!
 		}
 	`
+	paymentSchema = `
+		interface PaymentType {
+			name: String!
+		}
+	`
+	onlinePaymentSchema = `
+		interface PaymentType @extends {
+			email: String!
+		}
+	`
+	classicPaymentSchema = `
+		extend interface PaymentType {
+			number: String!
+		}
+	`
+	extendsDirectivesSchema = `
+		type Comment {
+			body: String!
+			author: User!
+		}
+
+		type User @extends @key(fields: "id") {
+			id: ID! @external
+			comments: [Comment]
+		}
+
+		interface PaymentType @extends {
+			name: String!
+		}
+	`
 	federatedSchema = `
 		type Query {
 			me: User
@@ -159,6 +210,66 @@ const (
 			productId: ID!
 			userId: ID!
 			isDislike: Boolean!
+		}
+
+		interface PaymentType {
+			name: String!
+			email: String!
+			number: String!
+		}
+	`
+
+	productAndReviewFederatedSchema = `
+		type Query {
+			topProducts(first: Int = 5): [Product]
+		}
+
+		type Subscription {
+			review: Review!
+		}
+		
+		type Product {
+			upc: String!
+			name: String!
+			price: Int!
+			reviews: [Review]
+		}
+
+		type Review {
+			body: String!
+			author: User!
+			product: Product!
+		}
+		
+		extend type User @key(fields: "id") {
+			id: ID! @external
+			reviews: [Review]
+		}
+	`
+
+	productAndExtendsDirectivesFederatedSchema = `
+		type Query {
+			topProducts(first: Int = 5): [Product]
+		}
+		
+		type Product {
+			upc: String!
+			name: String!
+			price: Int!
+		}
+
+		type Comment {
+			body: String!
+			author: User!
+		}
+
+		extend type User @key(fields: "id") {
+			id: ID! @external
+			comments: [Comment]
+		}
+
+		extend interface PaymentType {
+			name: String!
 		}
 	`
 )

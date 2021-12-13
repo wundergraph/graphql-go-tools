@@ -3,7 +3,9 @@ package ast
 import (
 	"testing"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func emptyIndex() Index {
@@ -181,5 +183,43 @@ func TestIndex_RemoveNodeByName(t *testing.T) {
 			},
 		}
 		assert.Equal(t, expectedIdx, idx)
+	})
+}
+
+func TestIndex_ReplaceNode(t *testing.T) {
+	t.Run("should replace node (kind) with a new node", func(t *testing.T) {
+		idx := emptyIndex()
+
+		unrelatedNode := Node{
+			Kind: NodeKindObjectTypeDefinition,
+			Ref:  5,
+		}
+		nodeBefore := Node{
+			Kind: NodeKindObjectTypeDefinition,
+			Ref:  1,
+		}
+
+		idx.AddNodeStr("User", unrelatedNode)
+		idx.AddNodeStr("User", nodeBefore)
+		expectedIndexBefore := Index{
+			nodes: map[uint64][]Node{
+				xxhash.Sum64String("User"): {unrelatedNode, nodeBefore},
+			},
+		}
+
+		require.Equal(t, expectedIndexBefore, idx)
+
+		newNode := Node{
+			Kind: NodeKindObjectTypeExtension,
+			Ref:  2,
+		}
+		idx.ReplaceNode([]byte("User"), nodeBefore, newNode)
+		expectedIndexAfter := Index{
+			nodes: map[uint64][]Node{
+				xxhash.Sum64String("User"): {unrelatedNode, newNode},
+			},
+		}
+
+		assert.Equal(t, expectedIndexAfter, idx)
 	})
 }

@@ -71,4 +71,18 @@ func TestRemoveTypeExtensions(t *testing.T) {
 			newExtendInterfaceTypeDefinition(),
 			newRemoveMergedTypeExtensions())
 	})
+	t.Run("keep not merged type extension", func(t *testing.T) {
+		runMany(t, `
+				extend type User { 
+					field: String! 
+				}
+		`, `
+				extend type User { 
+					field: String! 
+				}
+		`,
+			newExtendInterfaceTypeDefinition(),
+			newRemoveMergedTypeExtensions(),
+		)
+	})
 }

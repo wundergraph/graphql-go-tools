@@ -125,6 +125,22 @@ func (i *Index) RemoveNodeByName(name []byte) {
 	}
 }
 
+func (i *Index) ReplaceNode(name []byte, oldNode Node, newNode Node) {
+	nodes, ok := i.nodes[xxhash.Sum64(name)]
+	if !ok {
+		return
+	}
+
+	for i := range nodes {
+		if nodes[i].Kind != oldNode.Kind || nodes[i].Ref != oldNode.Ref {
+			continue
+		}
+
+		nodes[i].Kind = newNode.Kind
+		nodes[i].Ref = newNode.Ref
+	}
+}
+
 func (i *Index) IsRootOperationTypeNameBytes(typeName []byte) bool {
 	if len(typeName) == 0 {
 		return false
