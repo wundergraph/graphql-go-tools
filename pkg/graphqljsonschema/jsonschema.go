@@ -34,14 +34,16 @@ func FromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
 			switch name {
 			case "Boolean":
 				return NewBoolean()
-			case "String", "Date", "ID":
+			case "String", "ID":
 				return NewString()
 			case "Int":
 				return NewInteger()
 			case "Float":
 				return NewNumber()
 			case "_Any":
-				return NewObject()
+				return NewObjectAny()
+			default:
+				return NewString()
 			}
 		}
 		object := NewObject()
@@ -230,6 +232,14 @@ func NewObject() Object {
 		Type:                 "object",
 		Properties:           map[string]JsonSchema{},
 		AdditionalProperties: false,
+	}
+}
+
+func NewObjectAny() Object {
+	return Object{
+		Type:                 "object",
+		Properties:           map[string]JsonSchema{},
+		AdditionalProperties: true,
 	}
 }
 
