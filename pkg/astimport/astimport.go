@@ -179,6 +179,26 @@ func (i *Importer) ImportVariableDefinition(ref int, from, to *ast.Document) int
 	return len(to.VariableDefinitions) - 1
 }
 
+func (i *Importer) ImportVariableDefinitionWithRename(ref int, from, to *ast.Document, renameTo string) int {
+
+	variableDefinition := ast.VariableDefinition{
+		VariableValue: i.ImportValue(from.VariableDefinitions[ref].VariableValue, from, to),
+		Type:          i.ImportTypeWithRename(from.VariableDefinitions[ref].Type, from, to, renameTo),
+		DefaultValue: ast.DefaultValue{
+			IsDefined: from.VariableDefinitions[ref].DefaultValue.IsDefined,
+		},
+		// HasDirectives: false, //TODO: implement import directives
+		// Directives:    ast.DirectiveList{},
+	}
+
+	if from.VariableDefinitions[ref].DefaultValue.IsDefined {
+		variableDefinition.DefaultValue.Value = i.ImportValue(from.VariableDefinitions[ref].DefaultValue.Value, from, to)
+	}
+
+	to.VariableDefinitions = append(to.VariableDefinitions, variableDefinition)
+	return len(to.VariableDefinitions) - 1
+}
+
 func (i *Importer) ImportVariableDefinitions(refs []int, from, to *ast.Document) []int {
 	definitions := make([]int, len(refs))
 	for j, k := range refs {

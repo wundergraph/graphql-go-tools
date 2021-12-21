@@ -43,7 +43,7 @@ func FromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
 			case "_Any":
 				return NewObjectAny()
 			default:
-				return NewString()
+				return NewAny()
 			}
 		}
 		object := NewObject()
@@ -154,10 +154,21 @@ const (
 	IntegerKind
 	ObjectKind
 	ArrayKind
+	AnyKind
 )
 
 type JsonSchema interface {
 	Kind() Kind
+}
+
+type Any struct {}
+
+func NewAny() Any {
+	return Any{}
+}
+
+func (a Any) Kind() Kind {
+	return AnyKind
 }
 
 type String struct {
