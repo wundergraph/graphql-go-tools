@@ -149,7 +149,6 @@ func (v *variablesExtractionVisitor) traverseValue(value ast.Value, argRef, inpu
 					continue
 				}
 				v.extractObjectValue(ref, fieldValue, objectFieldDefinition)
-				return
 			}
 		}
 	}
