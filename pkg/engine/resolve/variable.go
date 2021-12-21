@@ -41,7 +41,7 @@ type JSONVariableRenderer struct {
 	JSONSchema    string
 	Kind          string
 	validator     *graphqljsonschema.Validator
-	rootValueType jsonparser.ValueType
+	rootValueType JsonRootType
 }
 
 func (r *JSONVariableRenderer) RenderVariable(ctx context.Context, data []byte, out io.Writer) error {
@@ -135,7 +135,7 @@ type PlainVariableRenderer struct {
 	JSONSchema    string
 	Kind          string
 	validator     *graphqljsonschema.Validator
-	rootValueType jsonparser.ValueType
+	rootValueType JsonRootType
 }
 
 func (p *PlainVariableRenderer) RenderVariable(ctx context.Context, data []byte, out io.Writer) error {
@@ -145,7 +145,17 @@ func (p *PlainVariableRenderer) RenderVariable(ctx context.Context, data []byte,
 			return ErrInvalidJsonSchema
 		}
 	}
-	if p.rootValueType == jsonparser.String {
+	desiredType := jsonparser.Unknown
+	switch p.rootValueType.Kind {
+	case JsonRootTypeKindSingle:
+		desiredType = p.rootValueType.Value
+	case JsonRootTypeKindMultiple:
+		_, tt, _, _ := jsonparser.Get(data)
+		if p.rootValueType.Satisfies(tt) {
+			desiredType = tt
+		}
+	}
+	if desiredType == jsonparser.String {
 		data = data[1 : len(data)-1]
 	}
 	_, err := out.Write(data)
@@ -180,46 +190,110 @@ func NewGraphQLVariableRenderer(jsonSchema string) *GraphQLVariableRenderer {
 		panic(err)
 	}
 	return &GraphQLVariableRenderer{
-		Kind:          "graphqlWithValidation",
-		JSONSchema:    jsonSchema,
-		validator:     validator,
-		rootValueType: rootValueType,
+		Kind:       "graphqlWithValidation",
+		JSONSchema: jsonSchema,
+		validator:  validator,
+		rootValueType: JsonRootType{
+			Value: rootValueType,
+			Kind:  JsonRootTypeKindSingle,
+		},
 	}
 }
 
-func getJSONRootType(operation, definition *ast.Document, variableTypeRef int) jsonparser.ValueType {
+type JsonRootTypeKind int
+
+const (
+	JsonRootTypeKindSingle JsonRootTypeKind = iota
+	JsonRootTypeKindMultiple
+)
+
+type JsonRootType struct {
+	Value  jsonparser.ValueType
+	Values []jsonparser.ValueType
+	Kind   JsonRootTypeKind
+}
+
+func (t JsonRootType) Satisfies(dataType jsonparser.ValueType) bool {
+	switch t.Kind {
+	case JsonRootTypeKindSingle:
+		return dataType == t.Value
+	case JsonRootTypeKindMultiple:
+		for _, valueType := range t.Values {
+			if dataType == valueType {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func getJSONRootType(operation, definition *ast.Document, variableTypeRef int) JsonRootType {
 	variableTypeRef = operation.ResolveListOrNameType(variableTypeRef)
 	if operation.TypeIsList(variableTypeRef) {
-		return jsonparser.Array
+		return JsonRootType{
+			Value: jsonparser.Array,
+			Kind:  JsonRootTypeKindSingle,
+		}
 	}
 
 	name := operation.TypeNameString(variableTypeRef)
 	node, exists := definition.Index.FirstNodeByNameStr(name)
 	if !exists {
-		return jsonparser.Unknown
+		return JsonRootType{
+			Value: jsonparser.Unknown,
+			Kind:  JsonRootTypeKindSingle,
+		}
 	}
 
 	defTypeRef := node.Ref
 
 	if node.Kind == ast.NodeKindEnumTypeDefinition {
-		return jsonparser.String
+		return JsonRootType{
+			Value: jsonparser.String,
+			Kind:  JsonRootTypeKindSingle,
+		}
 	}
 	if node.Kind == ast.NodeKindScalarTypeDefinition {
 		typeName := definition.ScalarTypeDefinitionNameString(defTypeRef)
 		switch typeName {
 		case "Boolean":
-			return jsonparser.Boolean
+			return JsonRootType{
+				Value: jsonparser.Boolean,
+				Kind:  JsonRootTypeKindSingle,
+			}
 		case "Int", "Float":
-			return jsonparser.Number
-		case "String", "Date", "ID":
-			return jsonparser.String
+			return JsonRootType{
+				Value: jsonparser.Number,
+				Kind:  JsonRootTypeKindSingle,
+			}
+		case "ID":
+			return JsonRootType{
+				Values: []jsonparser.ValueType{jsonparser.String, jsonparser.Number},
+				Kind:   JsonRootTypeKindMultiple,
+			}
+		case "String", "Date":
+			return JsonRootType{
+				Value: jsonparser.String,
+				Kind:  JsonRootTypeKindSingle,
+			}
 		case "_Any":
-			return jsonparser.Object
+			return JsonRootType{
+				Value: jsonparser.Object,
+				Kind:  JsonRootTypeKindSingle,
+			}
 		default:
-			return jsonparser.String
+			return JsonRootType{
+				Value: jsonparser.String,
+				Kind:  JsonRootTypeKindSingle,
+			}
 		}
 	}
-	return jsonparser.Object
+
+	return JsonRootType{
+		Value: jsonparser.Object,
+		Kind:  JsonRootTypeKindSingle,
+	}
 }
 
 // GraphQLVariableRenderer is an implementation of VariableRenderer
@@ -228,7 +302,7 @@ type GraphQLVariableRenderer struct {
 	JSONSchema    string
 	Kind          string
 	validator     *graphqljsonschema.Validator
-	rootValueType jsonparser.ValueType
+	rootValueType JsonRootType
 }
 
 func (g *GraphQLVariableRenderer) RenderVariable(ctx context.Context, data []byte, out io.Writer) error {
@@ -236,10 +310,22 @@ func (g *GraphQLVariableRenderer) RenderVariable(ctx context.Context, data []byt
 	if !valid {
 		return ErrInvalidJsonSchema
 	}
-	if g.rootValueType == jsonparser.String {
+
+	desiredType := jsonparser.Unknown
+	switch g.rootValueType.Kind {
+	case JsonRootTypeKindSingle:
+		desiredType = g.rootValueType.Value
+	case JsonRootTypeKindMultiple:
+		_, tt, _, _ := jsonparser.Get(data)
+		if g.rootValueType.Satisfies(tt) {
+			desiredType = tt
+		}
+	}
+	if desiredType == jsonparser.String {
 		data = data[1 : len(data)-1]
 	}
-	return g.renderGraphQLValue(data, g.rootValueType, out)
+
+	return g.renderGraphQLValue(data, desiredType, out)
 }
 
 func (g *GraphQLVariableRenderer) renderGraphQLValue(data []byte, valueType jsonparser.ValueType, out io.Writer) (err error) {
@@ -296,7 +382,7 @@ func (g *GraphQLVariableRenderer) renderGraphQLValue(data []byte, valueType json
 	return
 }
 
-func NewCSVVariableRenderer(arrayValueType jsonparser.ValueType) *CSVVariableRenderer {
+func NewCSVVariableRenderer(arrayValueType JsonRootType) *CSVVariableRenderer {
 	return &CSVVariableRenderer{
 		Kind:           "csv",
 		arrayValueType: arrayValueType,
@@ -311,18 +397,19 @@ func NewCSVVariableRendererFromTypeRef(operation, definition *ast.Document, vari
 }
 
 // CSVVariableRenderer is an implementation of VariableRenderer
-// It renders the provided list of values as comma separated values in plaintext (no JSON encoding of values)
+// It renders the provided list of Values as comma separated Values in plaintext (no JSON encoding of Values)
 type CSVVariableRenderer struct {
 	Kind           string
-	arrayValueType jsonparser.ValueType
+	arrayValueType JsonRootType
 }
 
 func (c *CSVVariableRenderer) RenderVariable(_ context.Context, data []byte, out io.Writer) error {
 	isFirst := true
 	_, err := jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-		if dataType != c.arrayValueType {
+		if !c.arrayValueType.Satisfies(dataType) {
 			return
 		}
+
 		if isFirst {
 			isFirst = false
 		} else {
