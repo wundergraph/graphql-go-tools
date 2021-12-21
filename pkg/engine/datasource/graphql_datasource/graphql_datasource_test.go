@@ -248,7 +248,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 	}))
 	t.Run("Query with renamed root fields", RunTest(renamedStarWarsSchema, `
-		query MyQuery($id: ID! $input: SearchInput_api! @api_onVariable ) @otherapi_undefined @api_onOperation {
+		query MyQuery($id: ID! $input: SearchInput_api! @api_onVariable $options: JSON_api) @otherapi_undefined @api_onOperation {
 			api_droid(id: $id){
 				name @api_format
 				aliased: name
@@ -275,6 +275,13 @@ func TestGraphQLDataSource(t *testing.T) {
 					primaryFunction
 				}
 			}
+			withOptions: api_searchWithInput(input: {
+				options: $options
+			}) {
+				... on Droid_api {
+					primaryFunction
+				}
+			}
 		}
 	`, "MyQuery", &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
@@ -282,7 +289,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
 					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $input: SearchInput! @onVariable )@onOperation {api_droid: droid(id: $id){name @format aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search {__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}}}","variables":{"input":$$1$$,"id":$$0$$}}}`,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$3$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $input: SearchInput! @onVariable, $options: JSON)@onOperation {api_droid: droid(id: $id){name @format aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search {__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}} withOptions: searchWithInput(input: {options: $options}){__typename ... on Droid {primaryFunction}}}","variables":{"options":$$2$$,"input":$$1$$,"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"id"},
@@ -290,7 +297,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						&resolve.ContextVariable{
 							Path:     []string{"input"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"object","properties":{"name":{"type":"string"}},"additionalProperties":false}`),
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"object","properties":{"name":{"type":"string"},"options":{}},"additionalProperties":false}`),
+						},
+						&resolve.ContextVariable{
+							Path:     []string{"options"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{}`),
 						},
 						&resolve.HeaderVariable{
 							Path: []string{"Authorization"},
@@ -491,6 +502,32 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("withOptions"),
+						Position: resolve.Position{
+							Line:   29,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Nullable: true,
+							Path:     []string{"withOptions"},
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("primaryFunction"),
+									Value: &resolve.String{
+										Path: []string{"primaryFunction"},
+									},
+									Position: resolve.Position{
+										Line:   33,
+										Column: 6,
+									},
+									OnTypeName: []byte("Droid"),
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -608,6 +645,10 @@ func TestGraphQLDataSource(t *testing.T) {
 			{
 				TypeName: "SearchInput_api",
 				RenameTo: "SearchInput",
+			},
+			{
+				TypeName: "JSON_api",
+				RenameTo: "JSON",
 			},
 		},
 	}))
@@ -955,7 +996,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"birthdate"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{}`),
 							},
 						),
 						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -3986,6 +4027,8 @@ directive @otherapi_undefined on QUERY
 directive @api_onOperation on QUERY
 directive @api_onVariable on VARIABLE_DEFINITION
 
+scalar JSON_api
+
 schema {
     query: Query
     mutation: Mutation
@@ -4003,6 +4046,7 @@ type Query {
 
 input SearchInput_api {
 	name: String
+	options: JSON_api
 }
 
 type Mutation {
