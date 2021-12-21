@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 )
 
 func runTest(schema, operation, expectedJsonSchema string, valid []string, invalid []string) func(t *testing.T) {
@@ -51,6 +52,20 @@ func TestJsonSchema(t *testing.T) {
 		`scalar String input Test { str: String }`,
 		`query ($input: String){}`,
 		`{"type":"string"}`,
+		[]string{
+			`"validString"`,
+		},
+		[]string{
+			`null`,
+			`false`,
+			`true`,
+			`nope`,
+		},
+	))
+	t.Run("id", runTest(
+		`scalar ID input Test { str: String }`,
+		`query ($input: ID){}`,
+		`{"type":["string","integer"]}`,
 		[]string{
 			`"validString"`,
 		},
