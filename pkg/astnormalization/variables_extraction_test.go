@@ -395,7 +395,6 @@ input DeviceInput {
 `
 
 const nexusSchema = `
-
 type Mutation {
     postPasswordlessStart(postPasswordlessStartInput: postPasswordlessStartInput): PostPasswordlessStartResponse
     postPasswordlessLogin(postPasswordlessLoginInput: postPasswordlessLoginInput): PostPasswordlessLoginResponse

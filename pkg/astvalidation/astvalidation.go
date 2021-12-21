@@ -792,7 +792,8 @@ func (v *valuesVisitor) valueSatisfiesInputValueDefinitionType(value ast.Value, 
 		}
 		return v.valueSatisfiesInputValueDefinitionType(value, v.definition.Types[definitionTypeRef].OfType)
 	case ast.TypeKindNamed:
-		node, exists := v.definition.Index.FirstNodeByNameBytes(v.definition.ResolveTypeNameBytes(definitionTypeRef))
+		typeName := v.definition.ResolveTypeNameBytes(definitionTypeRef)
+		node, exists := v.definition.Index.FirstNodeByNameBytes(typeName)
 		if !exists {
 			return false
 		}
@@ -805,6 +806,24 @@ func (v *valuesVisitor) valueSatisfiesInputValueDefinitionType(value ast.Value, 
 }
 
 func (v *valuesVisitor) valueSatisfiesListType(value ast.Value, listType int) bool {
+
+	if value.Kind == ast.ValueKindVariable {
+		variableName := v.operation.VariableValueNameBytes(value.Ref)
+		variableDefinition, exists := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref, variableName)
+		if !exists {
+			return false
+		}
+		actualType := v.operation.VariableDefinitions[variableDefinition].Type
+		expectedType := v.importer.ImportType(listType, v.definition, v.operation)
+		if v.operation.Types[actualType].TypeKind == ast.TypeKindNonNull {
+			actualType = v.operation.Types[actualType].OfType
+		}
+		if v.operation.Types[actualType].TypeKind == ast.TypeKindList {
+			actualType = v.operation.Types[actualType].OfType
+		}
+		return v.operation.TypesAreEqualDeep(expectedType, actualType)
+	}
+
 	if value.Kind != ast.ValueKindList {
 		return false
 	}
