@@ -2741,15 +2741,11 @@ func TestGraphQLDataSource(t *testing.T) {
 																	&resolve.BatchFetch{
 																		Fetch: &resolve.SingleFetch{
 																			BufferId:   2,
-																			Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"name":$$1$$,"upc":$$0$$,"__typename":"Product"}]}}}`,
+																			Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
 																			DataSource: &Source{},
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
 																					Path:     []string{"upc"},
-																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
-																				},
-																				&resolve.ObjectVariable{
-																					Path:     []string{"name"},
 																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 																				},
 																			),
@@ -2764,14 +2760,10 @@ func TestGraphQLDataSource(t *testing.T) {
 																	&resolve.BatchFetch{
 																		Fetch: &resolve.SingleFetch{
 																			BufferId: 3,
-																			Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {id username}}}}}","variables":{"representations":[{"name":$$1$$,"upc":$$0$$,"__typename":"Product"}]}}}`,
+																			Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {id username}}}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
 																					Path:     []string{"upc"},
-																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
-																				},
-																				&resolve.ObjectVariable{
-																					Path:     []string{"name"},
 																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 																				},
 																			),
@@ -2941,7 +2933,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") @key(fields: \"name\"){upc: String! name: String! price: Int!}",
+							ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") {upc: String! price: Int!}",
 						},
 					}),
 					Factory: federationFactory,
@@ -2978,7 +2970,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "type Review { body: String! author: User! @provides(fields: \"username\") product: Product! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] } extend type Product @key(fields: \"upc\") @key(fields: \"name\") { upc: String! @external name: String! reviews: [Review] }",
+							ServiceSDL: "type Review { body: String! author: User! @provides(fields: \"username\") product: Product! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] } extend type Product @key(fields: \"upc\") { upc: String! @external reviews: [Review] }",
 						},
 					}),
 				},
@@ -3013,6 +3005,162 @@ func TestGraphQLDataSource(t *testing.T) {
 					TypeName:       "Product",
 					FieldName:      "reviews",
 					RequiresFields: []string{"upc"},
+				},
+			},
+		}))
+
+	t.Run("federated entity with requires", RunTest(requiredFieldTestSchema,
+		`	query QueryWithRequiredFields {
+						serviceOne {
+							serviceTwoFieldOne  # @requires(fields: "serviceOneFieldOne")
+							serviceTwoFieldTwo  # @requires(fields: "serviceOneFieldTwo")
+						}
+					}`,
+		"QueryWithRequiredFields",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId: 0,
+						// Should fetch the federation key as well as all the required fields.
+						Input:                 `{"method":"POST","url":"http://one.service","body":{"query":"{serviceOne {id serviceOneFieldOne serviceOneFieldTwo}}"}}`,
+						DataSource:            &Source{},
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("serviceOne"),
+							Position: resolve.Position{
+								Line:   2,
+								Column: 7,
+							},
+							Value: &resolve.Object{
+								Fetch: &resolve.BatchFetch{
+									Fetch: &resolve.SingleFetch{
+										BufferId: 1,
+										// The required fields are present in the representations.
+										Input: `{"method":"POST","url":"http://two.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on ServiceOneType {serviceTwoFieldOne serviceTwoFieldTwo}}}","variables":{"representations":[{"serviceOneFieldTwo":$$2$$,"serviceOneFieldOne":$$1$$,"id":$$0$$,"__typename":"ServiceOneType"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+											},
+											&resolve.ObjectVariable{
+												Path:     []string{"serviceOneFieldOne"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+											},
+											&resolve.ObjectVariable{
+												Path:     []string{"serviceOneFieldTwo"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+											},
+										),
+										DataSource:           &Source{},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
+										ProcessResponseConfig: resolve.ProcessResponseConfig{
+											ExtractGraphqlResponse:    true,
+											ExtractFederationEntities: true,
+										},
+									},
+									BatchFactory: batchFactory,
+								},
+								Path:     []string{"serviceOne"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										HasBuffer: true,
+										BufferID:  1,
+										Name:      []byte("serviceTwoFieldOne"),
+										Position: resolve.Position{
+											Line:   3,
+											Column: 8,
+										},
+										Value: &resolve.String{
+											Path: []string{"serviceTwoFieldOne"},
+										},
+									},
+									{
+										HasBuffer: true,
+										BufferID:  1,
+										Name:      []byte("serviceTwoFieldTwo"),
+										Position: resolve.Position{
+											Line:   4,
+											Column: 8,
+										},
+										Value: &resolve.String{
+											Path: []string{"serviceTwoFieldTwo"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"serviceOne"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "ServiceOneType",
+							FieldNames: []string{"id", "serviceOneFieldOne", "serviceOneFieldTwo"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://one.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "extend type Query {serviceOne: ServiceOneType} type ServiceOneType @key(fields: \"id\"){ id: ID! serviceOneFieldOne: String! serviceOneFieldTwo: String!}",
+						},
+					}),
+					Factory: federationFactory,
+				},
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "ServiceOneType",
+							FieldNames: []string{"serviceTwoFieldOne", "serviceTwoFieldTwo"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "ServiceOneType",
+							FieldNames: []string{"id", "serviceOneFieldOne", "serviceOneFieldTwo"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://two.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "extend type ServiceOneType @key(fields: \"id\") { id: ID! @external serviceOneFieldOne: String! @external serviceOneFieldTwo: String! @external serviceTwoFieldOne: String! @requires(fields: \"serviceOneFieldOne\") serviceTwoFieldTwo: String! @requires(fields: \"serviceOneFieldTwo\")}",
+						},
+					}),
+					Factory: federationFactory,
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:       "ServiceOneType",
+					FieldName:      "serviceTwoFieldOne",
+					RequiresFields: []string{"id", "serviceOneFieldOne"},
+				},
+				{
+					TypeName:       "ServiceOneType",
+					FieldName:      "serviceTwoFieldTwo",
+					RequiresFields: []string{"id", "serviceOneFieldTwo"},
 				},
 			},
 		}))
@@ -3174,15 +3322,11 @@ func TestGraphQLDataSource(t *testing.T) {
 																	&resolve.BatchFetch{
 																		Fetch: &resolve.SingleFetch{
 																			BufferId:   2,
-																			Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"name":$$1$$,"upc":$$0$$,"__typename":"Product"}]}}}`,
+																			Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
 																			DataSource: &Source{},
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
 																					Path:     []string{"upc"},
-																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
-																				},
-																				&resolve.ObjectVariable{
-																					Path:     []string{"name"},
 																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 																				},
 																			),
@@ -3197,14 +3341,10 @@ func TestGraphQLDataSource(t *testing.T) {
 																	&resolve.BatchFetch{
 																		Fetch: &resolve.SingleFetch{
 																			BufferId: 3,
-																			Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {id username}}}}}","variables":{"representations":[{"name":$$1$$,"upc":$$0$$,"__typename":"Product"}]}}}`,
+																			Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {id username}}}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
 																					Path:     []string{"upc"},
-																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
-																				},
-																				&resolve.ObjectVariable{
-																					Path:     []string{"name"},
 																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 																				},
 																			),
@@ -3375,7 +3515,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") @key(fields: \"name\"){upc: String! name: String! price: Int!}",
+							ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") {upc: String! price: Int!}",
 						},
 						UpstreamSchema: federationTestSchema,
 					}),
@@ -3413,7 +3553,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "type Review { body: String! author: User! @provides(fields: \"username\") product: Product! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] } extend type Product @key(fields: \"upc\") @key(fields: \"name\") { upc: String! @external name: String! reviews: [Review] }",
+							ServiceSDL: "type Review { body: String! author: User! @provides(fields: \"username\") product: Product! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] } extend type Product @key(fields: \"upc\") { upc: String! @external reviews: [Review] }",
 						},
 						UpstreamSchema: federationTestSchema,
 					}),
@@ -3746,7 +3886,6 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 }
 
 func BenchmarkFederationBatching(b *testing.B) {
-
 	userService := FakeDataSource(`{"data":{"me": {"id": "1234","username": "Me","__typename": "User"}}}`)
 	reviewsService := FakeDataSource(`{"data":{"_entities":[{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}]}}`)
 	productsService := FakeDataSource(`{"data":{"_entities":[{"name": "Trilby"},{"name": "Fedora"}]}}`)
@@ -4700,6 +4839,28 @@ type User_api {
   id: ID!
   username: String!
   reviews: [Review_api]
+}
+`
+
+const requiredFieldTestSchema = `
+scalar String
+scalar ID
+
+schema {
+	query: Query
+}
+
+type Query {
+  serviceOne: ServiceOneType
+}
+
+type ServiceOneType {
+  id: ID!
+  serviceOneFieldOne: String!
+  serviceOneFieldTwo: String!
+
+  serviceTwoFieldOne: String!
+  serviceTwoFieldTwo: String!
 }
 `
 
