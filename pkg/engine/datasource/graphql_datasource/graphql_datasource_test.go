@@ -247,6 +247,281 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}))
+	t.Run("simple named Query", RunTest(starWarsSchemaWithExportDirective, `
+		query MyQuery($id: ID! $heroName: String!){
+			droid(id: $id){
+				name
+				aliased: name
+				friends {
+					name
+				}
+				primaryFunction
+			}
+			hero {
+				name @export(as: "heroName")
+			}
+			search(name: $heroName) {
+				... on Droid {
+					primaryFunction
+				}
+			}
+			stringList
+			nestedStringList
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $heroName: String!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} search(name: $heroName){__typename ... on Droid {primaryFunction}} stringList nestedStringList}","variables":{"heroName":$$1$$,"id":$$0$$}}}`,
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path:     []string{"id"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+						},
+						&resolve.ContextVariable{
+							Path:     []string{"heroName"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+						},
+						&resolve.HeaderVariable{
+							Path: []string{"Authorization"},
+						},
+					),
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("droid"),
+						Position: resolve.Position{
+							Line:   3,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Path:     []string{"droid"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("name"),
+									Value: &resolve.String{
+										Path: []string{"name"},
+									},
+									Position: resolve.Position{
+										Line:   4,
+										Column: 5,
+									},
+								},
+								{
+									Name: []byte("aliased"),
+									Value: &resolve.String{
+										Path: []string{"aliased"},
+									},
+									Position: resolve.Position{
+										Line:   5,
+										Column: 5,
+									},
+								},
+								{
+									Name: []byte("friends"),
+									Position: resolve.Position{
+										Line:   6,
+										Column: 5,
+									},
+									Value: &resolve.Array{
+										Nullable: true,
+										Path:     []string{"friends"},
+										Item: &resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Path: []string{"name"},
+													},
+													Position: resolve.Position{
+														Line:   7,
+														Column: 6,
+													},
+												},
+											},
+										},
+									},
+								},
+								{
+									Name: []byte("primaryFunction"),
+									Value: &resolve.String{
+										Path: []string{"primaryFunction"},
+									},
+									Position: resolve.Position{
+										Line:   9,
+										Column: 5,
+									},
+								},
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("hero"),
+						Position: resolve.Position{
+							Line:   11,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Path:     []string{"hero"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("name"),
+									Value: &resolve.String{
+										Path: []string{"name"},
+										Export: &resolve.FieldExport{
+											Path: []string{"heroName"},
+											AsString: true,
+										},
+									},
+									Position: resolve.Position{
+										Line:   12,
+										Column: 5,
+									},
+								},
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("search"),
+						Position: resolve.Position{
+							Line:   14,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Nullable: true,
+							Path:     []string{"search"},
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("primaryFunction"),
+									Value: &resolve.String{
+										Path: []string{"primaryFunction"},
+									},
+									Position: resolve.Position{
+										Line:   16,
+										Column: 6,
+									},
+									OnTypeName: []byte("Droid"),
+								},
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("stringList"),
+						Position: resolve.Position{
+							Line:   19,
+							Column: 4,
+						},
+						Value: &resolve.Array{
+							Nullable: true,
+							Item: &resolve.String{
+								Nullable: true,
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("nestedStringList"),
+						Position: resolve.Position{
+							Line:   20,
+							Column: 4,
+						},
+						Value: &resolve.Array{
+							Nullable: true,
+							Path:     []string{"nestedStringList"},
+							Item: &resolve.String{
+								Nullable: true,
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"droid", "hero", "stringList", "nestedStringList","search"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Character",
+						FieldNames: []string{"name", "friends"},
+					},
+					{
+						TypeName:   "Human",
+						FieldNames: []string{"name", "height", "friends"},
+					},
+					{
+						TypeName:   "Droid",
+						FieldNames: []string{"name", "primaryFunction", "friends"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+						Header: http.Header{
+							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
+							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
+						},
+					},
+					UpstreamSchema: starWarsSchema,
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "droid",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:              "Query",
+				FieldName:             "stringList",
+				DisableDefaultMapping: true,
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "nestedStringList",
+				Path:      []string{"nestedStringList"},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "search",
+				Path:      []string{"search"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "name",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+	}))
 	t.Run("Query with renamed root fields", RunTest(renamedStarWarsSchema, `
 		query MyQuery($id: ID! $input: SearchInput_api! @api_onVariable $options: JSON_api) @otherapi_undefined @api_onOperation {
 			api_droid(id: $id){
@@ -3952,6 +4227,83 @@ union SearchResult = Human | Droid | Starship
 directive @format on FIELD
 directive @onOperation on QUERY
 directive @onVariable on VARIABLE_DEFINITION
+
+schema {
+    query: Query
+    mutation: Mutation
+    subscription: Subscription
+}
+
+type Query {
+    hero: Character
+    droid(id: ID!): Droid
+    search(name: String!): SearchResult
+    searchWithInput(input: SearchInput!): SearchResult
+	stringList: [String]
+	nestedStringList: [String]
+}
+
+input SearchInput {
+	name: String
+}
+
+type Mutation {
+	createReview(episode: Episode!, review: ReviewInput!): Review
+}
+
+type Subscription {
+    remainingJedis: Int!
+}
+
+input ReviewInput {
+    stars: Int!
+    commentary: String
+}
+
+type Review {
+    id: ID!
+    stars: Int!
+    commentary: String
+}
+
+enum Episode {
+    NEWHOPE
+    EMPIRE
+    JEDI
+}
+
+interface Character {
+    name: String!
+    friends: [Character]
+}
+
+type Human implements Character {
+    name: String!
+    height: String!
+    friends: [Character]
+}
+
+type Droid implements Character {
+    name: String!
+    primaryFunction: String!
+    friends: [Character]
+}
+
+type Startship {
+    name: String!
+    length: Float!
+}`
+
+const starWarsSchemaWithExportDirective = `
+union SearchResult = Human | Droid | Starship
+
+directive @format on FIELD
+directive @onOperation on QUERY
+directive @onVariable on VARIABLE_DEFINITION
+
+directive @export (
+	as: String!
+) on FIELD
 
 schema {
     query: Query

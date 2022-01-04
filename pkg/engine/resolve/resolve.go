@@ -400,13 +400,13 @@ func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *Bu
 		r.resolveNull(bufPair.Data)
 		return
 	case *String:
-		return r.resolveString(n, data, bufPair)
+		return r.resolveString(ctx, n, data, bufPair)
 	case *Boolean:
-		return r.resolveBoolean(n, data, bufPair)
+		return r.resolveBoolean(ctx, n, data, bufPair)
 	case *Integer:
-		return r.resolveInteger(n, data, bufPair)
+		return r.resolveInteger(ctx, n, data, bufPair)
 	case *Float:
-		return r.resolveFloat(n, data, bufPair)
+		return r.resolveFloat(ctx, n, data, bufPair)
 	case *EmptyObject:
 		r.resolveEmptyObject(bufPair.Data)
 		return
@@ -855,7 +855,17 @@ func (r *Resolver) resolveArrayAsynchronous(ctx *Context, array *Array, arrayIte
 	return
 }
 
-func (r *Resolver) resolveInteger(integer *Integer, data []byte, integerBuf *BufPair) error {
+func (r *Resolver) exportField(ctx *Context, export *FieldExport, value []byte) {
+	if export == nil {
+		return
+	}
+	if export.AsString {
+		value = append(literal.QUOTE, append(value, literal.QUOTE...)...)
+	}
+	ctx.Variables, _ = jsonparser.Set(ctx.Variables, value, export.Path...)
+}
+
+func (r *Resolver) resolveInteger(ctx *Context, integer *Integer, data []byte, integerBuf *BufPair) error {
 	value, dataType, _, err := jsonparser.Get(data, integer.Path...)
 	if err != nil || dataType != jsonparser.Number {
 		if !integer.Nullable {
@@ -865,10 +875,11 @@ func (r *Resolver) resolveInteger(integer *Integer, data []byte, integerBuf *Buf
 		return nil
 	}
 	integerBuf.Data.WriteBytes(value)
+	r.exportField(ctx, integer.Export, value)
 	return nil
 }
 
-func (r *Resolver) resolveFloat(floatValue *Float, data []byte, floatBuf *BufPair) error {
+func (r *Resolver) resolveFloat(ctx *Context, floatValue *Float, data []byte, floatBuf *BufPair) error {
 	value, dataType, _, err := jsonparser.Get(data, floatValue.Path...)
 	if err != nil || dataType != jsonparser.Number {
 		if !floatValue.Nullable {
@@ -878,10 +889,11 @@ func (r *Resolver) resolveFloat(floatValue *Float, data []byte, floatBuf *BufPai
 		return nil
 	}
 	floatBuf.Data.WriteBytes(value)
+	r.exportField(ctx, floatValue.Export, value)
 	return nil
 }
 
-func (r *Resolver) resolveBoolean(boolean *Boolean, data []byte, booleanBuf *BufPair) error {
+func (r *Resolver) resolveBoolean(ctx *Context, boolean *Boolean, data []byte, booleanBuf *BufPair) error {
 	value, valueType, _, err := jsonparser.Get(data, boolean.Path...)
 	if err != nil || valueType != jsonparser.Boolean {
 		if !boolean.Nullable {
@@ -891,10 +903,11 @@ func (r *Resolver) resolveBoolean(boolean *Boolean, data []byte, booleanBuf *Buf
 		return nil
 	}
 	booleanBuf.Data.WriteBytes(value)
+	r.exportField(ctx, boolean.Export, value)
 	return nil
 }
 
-func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) error {
+func (r *Resolver) resolveString(ctx *Context, str *String, data []byte, stringBuf *BufPair) error {
 	var (
 		value     []byte
 		valueType jsonparser.ValueType
@@ -916,6 +929,7 @@ func (r *Resolver) resolveString(str *String, data []byte, stringBuf *BufPair) e
 	stringBuf.Data.WriteBytes(quote)
 	stringBuf.Data.WriteBytes(value)
 	stringBuf.Data.WriteBytes(quote)
+	r.exportField(ctx, str.Export, value)
 	return nil
 }
 
@@ -1297,9 +1311,17 @@ func (_ *BatchFetch) FetchKind() FetchKind {
 	return FetchKindBatch
 }
 
+// FieldExport takes the value of the field during evaluation (rendering of the field)
+// and stores it in the variables using the Path as JSON pointer.
+type FieldExport struct {
+	Path     []string
+	AsString bool
+}
+
 type String struct {
 	Path     []string
 	Nullable bool
+	Export   *FieldExport
 }
 
 func (_ *String) NodeKind() NodeKind {
@@ -1309,6 +1331,7 @@ func (_ *String) NodeKind() NodeKind {
 type Boolean struct {
 	Path     []string
 	Nullable bool
+	Export   *FieldExport
 }
 
 func (_ *Boolean) NodeKind() NodeKind {
@@ -1318,6 +1341,7 @@ func (_ *Boolean) NodeKind() NodeKind {
 type Float struct {
 	Path     []string
 	Nullable bool
+	Export   *FieldExport
 }
 
 func (_ *Float) NodeKind() NodeKind {
@@ -1327,6 +1351,7 @@ func (_ *Float) NodeKind() NodeKind {
 type Integer struct {
 	Path     []string
 	Nullable bool
+	Export   *FieldExport
 }
 
 func (_ *Integer) NodeKind() NodeKind {
