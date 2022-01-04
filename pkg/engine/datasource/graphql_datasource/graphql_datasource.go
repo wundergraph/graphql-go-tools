@@ -907,13 +907,6 @@ func (p *Planner) printOperation() []byte {
 	// we have to replace a query type with a current root type
 	p.replaceQueryType(definition)
 
-	finalSchema, err := astprinter.PrintStringIndent(definition, nil, "  ")
-	if err != nil {
-		_ = finalSchema
-		p.stopWithError("printing final schema failed")
-		return nil
-	}
-
 	// normalize upstream operation
 	if !p.normalizeOperation(operation, definition, report) {
 		p.stopWithError(normalizationFailedErrMsg)

@@ -51,7 +51,7 @@ func (s *schemaBuilder) extendQueryTypeWithFederationFields(schema string) strin
 	}
 	queryTypeName := doc.Index.QueryTypeName.String()
 	if queryTypeName == "" {
-		return schema
+		queryTypeName = "Query"
 	}
 	for i := range doc.ObjectTypeDefinitions {
 		name := doc.ObjectTypeDefinitionNameString(i)
