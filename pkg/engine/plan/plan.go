@@ -590,31 +590,37 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 		}
 		switch typeDefinitionNode.Kind {
 		case ast.NodeKindScalarTypeDefinition:
+			fieldExport := v.resolveFieldExport(fieldRef)
 			switch typeName {
 			case "String":
 				return &resolve.String{
 					Path:     path,
 					Nullable: nullable,
+					Export:   fieldExport,
 				}
 			case "Boolean":
 				return &resolve.Boolean{
 					Path:     path,
 					Nullable: nullable,
+					Export:   fieldExport,
 				}
 			case "Int":
 				return &resolve.Integer{
 					Path:     path,
 					Nullable: nullable,
+					Export:   fieldExport,
 				}
 			case "Float":
 				return &resolve.Float{
 					Path:     path,
 					Nullable: nullable,
+					Export:   fieldExport,
 				}
 			default:
 				return &resolve.String{
 					Path:     path,
 					Nullable: nullable,
+					Export:   fieldExport,
 				}
 			}
 		case ast.NodeKindEnumTypeDefinition:
@@ -641,6 +647,42 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 		}
 	default:
 		return &resolve.Null{}
+	}
+}
+
+func (v *Visitor) resolveFieldExport(fieldRef int) *resolve.FieldExport {
+	if !v.Operation.Fields[fieldRef].HasDirectives {
+		return nil
+	}
+	exportAs := ""
+	for _, ref := range v.Operation.Fields[fieldRef].Directives.Refs {
+		if v.Operation.Input.ByteSliceString(v.Operation.Directives[ref].Name) == "export" {
+			value, ok := v.Operation.DirectiveArgumentValueByName(ref, []byte("as"))
+			if !ok {
+				continue
+			}
+			if value.Kind != ast.ValueKindString {
+				continue
+			}
+			exportAs = v.Operation.StringValueContentString(value.Ref)
+		}
+	}
+	if exportAs == "" {
+		return nil
+	}
+	variableDefinition, ok := v.Operation.VariableDefinitionByNameAndOperation(v.Walker.Ancestors[0].Ref, []byte(exportAs))
+	if !ok {
+		return nil
+	}
+	typeName := v.Operation.ResolveTypeNameString(v.Operation.VariableDefinitions[variableDefinition].Type)
+	if typeName == "String" {
+		return &resolve.FieldExport{
+			Path:     []string{exportAs},
+			AsString: true,
+		}
+	}
+	return &resolve.FieldExport{
+		Path: []string{exportAs},
 	}
 }
 
