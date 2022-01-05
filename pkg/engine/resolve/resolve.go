@@ -1201,10 +1201,10 @@ func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedIn
 }
 
 func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) error {
-	if r.dataLoaderEnabled {
+	fmt.Printf("resolveSingleFetch: input: %s, disableDataLoader: %v\n", preparedInput.String(), fetch.DisableDataLoader)
+	if r.dataLoaderEnabled && !fetch.DisableDataLoader {
 		return ctx.dataLoader.Load(ctx, fetch, buf)
 	}
-
 	return r.fetcher.Fetch(ctx, fetch, preparedInput, buf)
 }
 
@@ -1280,6 +1280,7 @@ type SingleFetch struct {
 	// If the resolver allows SingleFlight it's up the each individual DataSource Planner to decide whether an Operation
 	// should be allowed to use SingleFlight
 	DisallowSingleFlight  bool
+	DisableDataLoader     bool
 	InputTemplate         InputTemplate
 	DataSourceIdentifier  []byte
 	ProcessResponseConfig ProcessResponseConfig

@@ -39,14 +39,16 @@ func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 	}
 }
 
-func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration, isNested bool) error {
+func (p *Planner) Register(_ *plan.Visitor, configuration plan.DataSourceConfiguration, _ bool) error {
 	return json.Unmarshal(configuration.Custom, &p.config)
 }
 
 func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	return plan.FetchConfiguration{
-		Input:      p.config.Data,
-		DataSource: Source{},
+		Input:                p.config.Data,
+		DataSource:           Source{},
+		DisableDataLoader:    true,
+		DisallowSingleFlight: true,
 	}
 }
 
