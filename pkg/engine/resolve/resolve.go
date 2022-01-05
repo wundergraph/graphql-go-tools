@@ -1201,7 +1201,6 @@ func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedIn
 }
 
 func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) error {
-	fmt.Printf("resolveSingleFetch: input: %s, disableDataLoader: %v\n", preparedInput.String(), fetch.DisableDataLoader)
 	if r.dataLoaderEnabled && !fetch.DisableDataLoader {
 		return ctx.dataLoader.Load(ctx, fetch, buf)
 	}
