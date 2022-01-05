@@ -365,6 +365,7 @@ type Visitor struct {
 	fieldBuffers          map[int]int
 	skipFieldPaths        []string
 	fieldConfigs          map[int]*FieldConfiguration
+	exportedVariables     map[string]struct{}
 }
 
 type objectFields struct {
@@ -674,6 +675,7 @@ func (v *Visitor) resolveFieldExport(fieldRef int) *resolve.FieldExport {
 	if !ok {
 		return nil
 	}
+	v.exportedVariables[exportAs] = struct{}{}
 	typeName := v.Operation.ResolveTypeNameString(v.Operation.VariableDefinitions[variableDefinition].Type)
 	if typeName == "String" {
 		return &resolve.FieldExport{
@@ -683,6 +685,42 @@ func (v *Visitor) resolveFieldExport(fieldRef int) *resolve.FieldExport {
 	}
 	return &resolve.FieldExport{
 		Path: []string{exportAs},
+	}
+}
+
+func (v *Visitor) fieldRequiresExportedVariable(fieldRef int) bool {
+	for _, arg := range v.Operation.Fields[fieldRef].Arguments.Refs {
+		if v.valueRequiresExportedVariable(v.Operation.Arguments[arg].Value) {
+			return true
+		}
+	}
+	return false
+}
+
+func (v *Visitor) valueRequiresExportedVariable(value ast.Value) bool {
+	switch value.Kind {
+	case ast.ValueKindVariable:
+		name := v.Operation.VariableValueNameString(value.Ref)
+		if _, ok := v.exportedVariables[name]; ok {
+			return true
+		}
+		return false
+	case ast.ValueKindList:
+		for _, ref := range v.Operation.ListValues[value.Ref].Refs {
+			if v.valueRequiresExportedVariable(v.Operation.Values[ref]) {
+				return true
+			}
+		}
+		return false
+	case ast.ValueKindObject:
+		for _, ref := range v.Operation.ObjectValues[value.Ref].Refs {
+			if v.valueRequiresExportedVariable(v.Operation.ObjectFieldValue(ref)) {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
 	}
 }
 
@@ -774,6 +812,7 @@ func (v *Visitor) resolveFieldPath(ref int) []string {
 func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.Operation, v.Definition = operation, definition
 	v.fieldConfigs = map[int]*FieldConfiguration{}
+	v.exportedVariables = map[string]struct{}{}
 }
 
 func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {
@@ -1043,6 +1082,16 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external Fet
 		DisallowSingleFlight:  external.DisallowSingleFlight,
 		DataSourceIdentifier:  []byte(dataSourceType),
 		ProcessResponseConfig: external.ProcessResponseConfig,
+		DisableDataLoader:     external.DisableDataLoader,
+	}
+
+	// if a field depends on an exported variable, data loader needs to be disabled
+	// this is because the data loader will render all input templates before all fields are evaluated
+	// exporting field values into a variable depends on the field being evaluated first
+	// for that reason, if a field depends on an exported variable, data loader needs to be disabled
+	disableDataLoader := v.fieldRequiresExportedVariable(internal.fieldRef)
+	if disableDataLoader {
+		singleFetch.DisableDataLoader = true
 	}
 
 	if !external.BatchConfig.AllowBatch {
@@ -1169,6 +1218,10 @@ type FetchConfiguration struct {
 	Variables             resolve.Variables
 	DataSource            resolve.DataSource
 	DisallowSingleFlight  bool
+	// DisableDataLoader will configure the Resolver to not use DataLoader
+	// If this is set to false, the planner might still decide to override it,
+	// e.g. if a field depends on an exported variable which doesn't work with DataLoader
+	DisableDataLoader     bool
 	ProcessResponseConfig resolve.ProcessResponseConfig
 	BatchConfig           BatchConfig
 }

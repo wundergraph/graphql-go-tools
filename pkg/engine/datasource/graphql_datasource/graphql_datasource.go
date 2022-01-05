@@ -210,7 +210,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 			ExtractGraphqlResponse:    true,
 			ExtractFederationEntities: p.extractEntities,
 		},
-		BatchConfig: batchConfig,
+		BatchConfig:      batchConfig,
 	}
 }
 
@@ -452,7 +452,7 @@ func (p *Planner) addRepresentationsVariable() {
 		if fieldDef == nil {
 			continue
 		}
-		renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(p.visitor.Definition,p.visitor.Definition, fieldDef.Type)
+		renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(p.visitor.Definition, p.visitor.Definition, fieldDef.Type)
 		if err != nil {
 			continue
 		}
@@ -763,7 +763,7 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, sourcePath 
 	variableDefinitionTypeName := p.visitor.Operation.ResolveTypeNameString(p.visitor.Operation.VariableDefinitions[variableDefinition].Type)
 	variableDefinitionTypeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(variableDefinitionTypeName)
 
-	importedVariableDefinition := p.visitor.Importer.ImportVariableDefinitionWithRename(variableDefinition, p.visitor.Operation, p.upstreamOperation,variableDefinitionTypeName)
+	importedVariableDefinition := p.visitor.Importer.ImportVariableDefinitionWithRename(variableDefinition, p.visitor.Operation, p.upstreamOperation, variableDefinitionTypeName)
 	p.upstreamOperation.AddImportedVariableDefinitionToOperationDefinition(p.nodes[0].Ref, importedVariableDefinition)
 
 	fieldType := p.resolveNestedArgumentType(fieldName)

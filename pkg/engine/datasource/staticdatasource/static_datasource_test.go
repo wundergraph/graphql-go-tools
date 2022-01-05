@@ -37,6 +37,8 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 						Input:                "world",
 						DataSource:           Source{},
 						DataSourceIdentifier: []byte("staticdatasource.Source"),
+						DisableDataLoader:    true,
+						DisallowSingleFlight: true,
 					},
 				},
 			},

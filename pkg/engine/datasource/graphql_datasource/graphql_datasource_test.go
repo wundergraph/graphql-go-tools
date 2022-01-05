@@ -247,7 +247,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}))
-	t.Run("simple named Query", RunTest(starWarsSchemaWithExportDirective, `
+	t.Run("exported field", RunTest(starWarsSchemaWithExportDirective, `
 		query MyQuery($id: ID! $heroName: String!){
 			droid(id: $id){
 				name
