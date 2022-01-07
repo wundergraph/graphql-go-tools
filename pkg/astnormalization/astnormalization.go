@@ -163,6 +163,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	directiveIncludeSkip(&fragmentInline)
 
 	other := astvisitor.NewWalker(48)
+	inputCoercionForList(&other)
 	removeSelfAliasing(&other)
 	mergeInlineFragments(&other)
 	mergeFieldSelections(&other)
