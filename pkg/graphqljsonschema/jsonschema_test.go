@@ -75,4 +75,18 @@ func TestJsonSchema(t *testing.T) {
 			`{"str":"validString","nested":{"boo":123}}`,
 		},
 	))
+	t.Run("recursive object", runTest(
+		`scalar String scalar Boolean input Test { str: String! nested: Nested } input Nested { boo: Boolean recursive: Test }`,
+		`query ($input: Test){}`,
+		`{"type":"object","properties":{"nested":{"type":"object","properties":{"boo":{"type":"boolean"},"recursive":{"type":"object","properties":{"nested":{"type":"object","properties":{"boo":{"type":"boolean"},"recursive":{"type":"object","properties":{"nested":{"type":"object","properties":{"boo":{"type":"boolean"},"recursive":{"type":"object","additionalProperties":false}},"additionalProperties":false},"str":{"type":"string"}},"required":["str"],"additionalProperties":false}},"additionalProperties":false},"str":{"type":"string"}},"required":["str"],"additionalProperties":false}},"additionalProperties":false},"str":{"type":"string"}},"required":["str"],"additionalProperties":false}`,
+		[]string{
+			`{"str":"validString"}`,
+			`{"str":"validString","nested":{"boo":true}}`,
+		},
+		[]string{
+			`{"str":true}`,
+			`{"nested":{"boo":true}}`,
+			`{"str":"validString","nested":{"boo":123}}`,
+		},
+	))
 }

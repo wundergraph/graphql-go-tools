@@ -10,10 +10,26 @@ import (
 )
 
 func FromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
+	resolver := &fromTypeRefResolver{
+		visitedTypes: map[int]int{},
+	}
+	return resolver.fromTypeRef(operation, definition, typeRef)
+}
+
+type fromTypeRefResolver struct {
+	visitedTypes map[int]int
+}
+
+func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
+	if visited := r.visitedTypes[typeRef]; visited != 0 {
+		r.visitedTypes[typeRef] = r.visitedTypes[typeRef] + 1
+	} else {
+		r.visitedTypes[typeRef] = 1
+	}
 	t := operation.Types[typeRef]
 	switch t.TypeKind {
 	case ast.TypeKindList:
-		itemSchema := FromTypeRef(operation, definition, t.OfType)
+		itemSchema := r.fromTypeRef(operation, definition, t.OfType)
 		if operation.TypeIsNonNull(typeRef) {
 			min := 1
 			return NewArray(itemSchema, &min)
@@ -53,7 +69,10 @@ func FromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
 				for _, ref := range definition.InputObjectTypeDefinitions[node.Ref].InputFieldsDefinition.Refs {
 					fieldName := definition.Input.ByteSliceString(definition.InputValueDefinitions[ref].Name)
 					fieldType := definition.InputValueDefinitions[ref].Type
-					fieldSchema := FromTypeRef(definition, definition, fieldType)
+					if r.visitedTypes[fieldType] > 2 {
+						continue
+					}
+					fieldSchema := r.fromTypeRef(definition, definition, fieldType)
 					object.Properties[fieldName] = fieldSchema
 					if definition.TypeIsNonNull(fieldType) {
 						object.Required = append(object.Required, fieldName)
@@ -63,7 +82,10 @@ func FromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
 				for _, ref := range definition.ObjectTypeDefinitions[node.Ref].FieldsDefinition.Refs {
 					fieldName := definition.Input.ByteSliceString(definition.FieldDefinitions[ref].Name)
 					fieldType := definition.FieldDefinitions[ref].Type
-					fieldSchema := FromTypeRef(definition, definition, fieldType)
+					if r.visitedTypes[fieldType] > 2 {
+						continue
+					}
+					fieldSchema := r.fromTypeRef(definition, definition, fieldType)
 					object.Properties[fieldName] = fieldSchema
 					if definition.TypeIsNonNull(fieldType) {
 						object.Required = append(object.Required, fieldName)
@@ -161,7 +183,7 @@ type JsonSchema interface {
 	Kind() Kind
 }
 
-type Any struct {}
+type Any struct{}
 
 func NewAny() Any {
 	return Any{}
