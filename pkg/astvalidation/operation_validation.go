@@ -1,5 +1,3 @@
-//go:generate stringer -type=ValidationState -output astvalidation_string.go
-
 // Package astvalidation implements the validation rules specified in the GraphQL specification.
 package astvalidation
 
