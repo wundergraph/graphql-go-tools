@@ -63,7 +63,7 @@ func (f *fragmentsVisitor) EnterInlineFragment(ref int) {
 
 	typeName := f.operation.InlineFragmentTypeConditionName(ref)
 
-	node, exists := f.definition.Index.FirstNodeByNameBytes(typeName)
+	node, exists := f.definition.Index.FirstNonExtensionNodeByNameBytes(typeName)
 	if !exists {
 		f.StopWithExternalErr(operationreport.ErrTypeUndefined(typeName))
 		return
