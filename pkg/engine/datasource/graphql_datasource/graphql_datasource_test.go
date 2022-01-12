@@ -278,7 +278,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"id"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 						},
 						&resolve.ContextVariable{
 							Path:     []string{"heroName"},
@@ -380,7 +380,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"name"},
 										Export: &resolve.FieldExport{
-											Path: []string{"heroName"},
+											Path:     []string{"heroName"},
 											AsString: true,
 										},
 									},
@@ -458,7 +458,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				RootNodes: []plan.TypeField{
 					{
 						TypeName:   "Query",
-						FieldNames: []string{"droid", "hero", "stringList", "nestedStringList","search"},
+						FieldNames: []string{"droid", "hero", "stringList", "nestedStringList", "search"},
 					},
 				},
 				ChildNodes: []plan.TypeField{
