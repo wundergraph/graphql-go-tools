@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 
 	"github.com/buger/jsonparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/qri-io/jsonschema"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 )
 
 func FromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
@@ -50,8 +51,10 @@ func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, t
 			switch name {
 			case "Boolean":
 				return NewBoolean()
-			case "String", "ID":
+			case "String":
 				return NewString()
+			case "ID":
+				return NewID()
 			case "Int":
 				return NewInteger()
 			case "Float":
@@ -177,6 +180,7 @@ const (
 	ObjectKind
 	ArrayKind
 	AnyKind
+	IDKind
 )
 
 type JsonSchema interface {
@@ -204,6 +208,20 @@ func (_ String) Kind() Kind {
 func NewString() String {
 	return String{
 		Type: "string",
+	}
+}
+
+type ID struct {
+	Type []string `json:"type"`
+}
+
+func (_ ID) Kind() Kind {
+	return IDKind
+}
+
+func NewID() ID {
+	return ID{
+		Type: []string{"string", "integer"},
 	}
 }
 
