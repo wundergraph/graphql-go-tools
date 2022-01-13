@@ -145,19 +145,9 @@ func (p *PlainVariableRenderer) RenderVariable(ctx context.Context, data []byte,
 			return ErrInvalidJsonSchema
 		}
 	}
-	desiredType := jsonparser.Unknown
-	switch p.rootValueType.Kind {
-	case JsonRootTypeKindSingle:
-		desiredType = p.rootValueType.Value
-	case JsonRootTypeKindMultiple:
-		_, tt, _, _ := jsonparser.Get(data)
-		if p.rootValueType.Satisfies(tt) {
-			desiredType = tt
-		}
-	}
-	if desiredType == jsonparser.String {
-		data = data[1 : len(data)-1]
-	}
+
+	data, _ = extractStringWithQuotes(p.rootValueType, data)
+
 	_, err := out.Write(data)
 	return err
 }
@@ -311,19 +301,8 @@ func (g *GraphQLVariableRenderer) RenderVariable(ctx context.Context, data []byt
 		return ErrInvalidJsonSchema
 	}
 
-	desiredType := jsonparser.Unknown
-	switch g.rootValueType.Kind {
-	case JsonRootTypeKindSingle:
-		desiredType = g.rootValueType.Value
-	case JsonRootTypeKindMultiple:
-		_, tt, _, _ := jsonparser.Get(data)
-		if g.rootValueType.Satisfies(tt) {
-			desiredType = tt
-		}
-	}
-	if desiredType == jsonparser.String {
-		data = data[1 : len(data)-1]
-	}
+	var desiredType jsonparser.ValueType
+	data, desiredType = extractStringWithQuotes(g.rootValueType, data)
 
 	return g.renderGraphQLValue(data, desiredType, out)
 }
@@ -573,4 +552,21 @@ func (v *Variables) AddVariable(variable Variable) (name string, exists bool) {
 }
 
 type VariableSchema struct {
+}
+
+func extractStringWithQuotes(rootValueType JsonRootType, data []byte) ([]byte, jsonparser.ValueType) {
+	desiredType := jsonparser.Unknown
+	switch rootValueType.Kind {
+	case JsonRootTypeKindSingle:
+		desiredType = rootValueType.Value
+	case JsonRootTypeKindMultiple:
+		_, tt, _, _ := jsonparser.Get(data)
+		if rootValueType.Satisfies(tt) {
+			desiredType = tt
+		}
+	}
+	if desiredType == jsonparser.String {
+		return data[1 : len(data)-1], desiredType
+	}
+	return data, desiredType
 }
