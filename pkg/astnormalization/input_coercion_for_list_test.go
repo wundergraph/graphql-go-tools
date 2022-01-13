@@ -1,14 +1,7 @@
 package astnormalization
 
 import (
-	"fmt"
 	"testing"
-
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"github.com/stretchr/testify/require"
 )
 
 const inputCoercionForListDefinition = `
@@ -21,43 +14,20 @@ type Character {
 	name: String
 }
 
+type Input {
+	foo: String
+}
+
 type Query {
+	characterById(id: Int): Character
 	nestedList(ids: [[Int]]): [Character]
 	charactersByIds(ids: [Int]): [Character]
-
+	characterByInput(input: Input): [Character]
+	charactersByInputs(inputs: [Input]): [Character]
 }`
 
 func TestInputCoercion(t *testing.T) {
-	runWithReport := func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation string) *operationreport.Report {
-		definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
-		err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
-		if err != nil {
-			panic(err)
-		}
-
-		operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
-		report := operationreport.Report{}
-		walker := astvisitor.NewWalker(48)
-
-		normalizeFunc(&walker)
-
-		walker.Walk(&operationDocument, &definitionDocument, &report)
-		return &report
-	}
-
-	t.Run("Incorrect item value", func(t *testing.T) {
-		report := runWithReport(t, inputCoercionForList, inputCoercionForListDefinition, `
-				query{
-					charactersByIds(ids: "foobar") {
-    					id
-    					name
-  					}
-				}`)
-		require.True(t, report.HasErrors())
-		require.Equal(t, fmt.Sprintf("internal: %s", errIncorrectItemValue), report.Error())
-	})
-
-	t.Run("Convert to list", func(t *testing.T) {
+	t.Run("convert integer to list of integer", func(t *testing.T) {
 		run(inputCoercionForList, inputCoercionForListDefinition, `
 				query{
 					charactersByIds(ids: 1) {
@@ -74,7 +44,7 @@ func TestInputCoercion(t *testing.T) {
 				}`)
 	})
 
-	t.Run("List of integers", func(t *testing.T) {
+	t.Run("list of integers", func(t *testing.T) {
 		run(inputCoercionForList, inputCoercionForListDefinition, `
 				query{
 					charactersByIds(ids: [1, 2, 3]) {
@@ -91,20 +61,7 @@ func TestInputCoercion(t *testing.T) {
 				}`)
 	})
 
-	t.Run("Incorrect item value", func(t *testing.T) {
-		report := runWithReport(t, inputCoercionForList, inputCoercionForListDefinition, `
-				query{
-					charactersByIds(ids: [1, "b", true]) {
-    					id
-    					name
-  					}
-				}`,
-		)
-		require.True(t, report.HasErrors())
-		require.Equal(t, fmt.Sprintf("internal: %s", errIncorrectItemValue), report.Error())
-	})
-
-	t.Run("Nested list", func(t *testing.T) {
+	t.Run("nested list of integers", func(t *testing.T) {
 		run(inputCoercionForList, inputCoercionForListDefinition, `
 				query{
 					nestedList(ids: [[1], [2, 3]]) {
@@ -121,19 +78,7 @@ func TestInputCoercion(t *testing.T) {
 				}`)
 	})
 
-	t.Run("Nested list, but incorrect item value", func(t *testing.T) {
-		report := runWithReport(t, inputCoercionForList, inputCoercionForListDefinition, `
-				query{
-					nestedList(ids: [1, 2, 3]) {
-    					id
-    					name
-  					}
-				}`)
-		require.True(t, report.HasErrors())
-		require.Equal(t, fmt.Sprintf("internal: %s", errIncorrectItemValue), report.Error())
-	})
-
-	t.Run("null value", func(t *testing.T) {
+	t.Run("list of integers with null value", func(t *testing.T) {
 		run(inputCoercionForList, inputCoercionForListDefinition, `
 				query{
 					charactersByIds(ids: null) {
@@ -150,7 +95,7 @@ func TestInputCoercion(t *testing.T) {
 				}`)
 	})
 
-	t.Run("nested list, but null value", func(t *testing.T) {
+	t.Run("nested list with null value", func(t *testing.T) {
 		run(inputCoercionForList, inputCoercionForListDefinition, `
 				query{
 					nestedList(ids: null) {
@@ -167,7 +112,7 @@ func TestInputCoercion(t *testing.T) {
 				}`)
 	})
 
-	t.Run("nested list, but integer value", func(t *testing.T) {
+	t.Run("convert integer to nested list of integer", func(t *testing.T) {
 		run(inputCoercionForList, inputCoercionForListDefinition, `
 				query{
 					nestedList(ids: 1) {
@@ -184,15 +129,145 @@ func TestInputCoercion(t *testing.T) {
 				}`)
 	})
 
-	t.Run("nested list, but list value", func(t *testing.T) {
-		report := runWithReport(t, inputCoercionForList, inputCoercionForListDefinition, `
-				query{
-					nestedList(ids: [1]) {
+	t.Run("integer argument without modification", func(t *testing.T) {
+		run(inputCoercionForList, inputCoercionForListDefinition, `
+				query($id: Int){
+					characterById(id: 1) {
     					id
     					name
   					}
+				}`,
+			`
+				query($id: Int){
+					characterById(id: 1) {
+						id
+						name
+					}
 				}`)
-		require.True(t, report.HasErrors())
-		require.Equal(t, fmt.Sprintf("internal: %s", errIncorrectItemValue), report.Error())
+	})
+
+	t.Run("convert integer variable to list of integers", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+			query($ids: [Int]){
+				charactersByIds(ids: $ids) {
+					id
+					name
+				}
+			}`,
+			``,
+			`
+			query($ids: [Int]){
+				charactersByIds(ids: $ids) {
+					id
+					name
+				}
+			}`, `{"ids":1}`, `{"ids":[1]}`)
+	})
+
+	t.Run("convert integer variable to nested list of integers", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+			query($ids: [[Int]]){
+				nestedList(ids: $ids) {
+					id
+					name
+				}
+			}`,
+			``,
+			`
+			query($ids: [[Int]]){
+				nestedList(ids: $ids) {
+					id
+					name
+				}
+			}`, `{"ids": 1}`, `{"ids": [[1]]}`)
+	})
+
+	t.Run("convert object type to list of object type", func(t *testing.T) {
+		run(inputCoercionForList, inputCoercionForListDefinition, `
+				query{
+					charactersByInputs(inputs: {foo: "bar"}) {
+    					id
+    					name
+  					}
+				}`,
+			`
+				query{
+					charactersByInputs(inputs: [{foo: "bar"}]) {
+						id
+						name
+					}
+				}`)
+	})
+
+	t.Run("convert object type to list of object type with variable definition", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+				query($inputs: [Input]){
+						charactersByInputs(inputs: $inputs) {
+							id
+							name
+						}
+				}`,
+			``,
+			`
+				query($inputs: [Input]){
+					charactersByInputs(inputs: $inputs) {
+						id
+						name
+					}
+				}`, `{"inputs": {"foo": "bar"}}`, `{"inputs": [{"foo": "bar"}]}`)
+	})
+
+	t.Run("object type definition", func(t *testing.T) {
+		run(inputCoercionForList, inputCoercionForListDefinition, `
+				query{
+					characterByInput(input: {foo: "bar"}) {
+    					id
+    					name
+  					}
+				}`,
+			`
+				query{
+					characterByInput(input: {foo: "bar"}) {
+						id
+						name
+					}
+				}`)
+	})
+
+	t.Run("object type definition with variables", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+				query($input: Input){
+					charactersByInputs(input: $input) {
+						id
+						name
+					}
+				}`,
+			``,
+			`
+				query($input: Input){
+					charactersByInputs(input: $input) {
+						id
+						name
+					}
+				}`, `{"inputs": {"foo": "bar"}}`, `{"inputs": {"foo": "bar"}}`,
+		)
+	})
+
+	t.Run("handle non-existent variable", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+			query($ids: [[Int]]){
+				nestedList(ids: $ids) {
+					id
+					name
+				}
+			}`,
+			``,
+			`
+			query($ids: [[Int]]){
+				nestedList(ids: $ids) {
+					id
+					name
+				}
+			}`, `{"foo": "bar"}`, `{"foo": "bar"}`)
 	})
 }

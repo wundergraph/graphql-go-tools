@@ -1,15 +1,14 @@
 package astnormalization
 
 import (
-	"fmt"
+	"github.com/buger/jsonparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/jensneuse/graphql-go-tools/pkg/pool"
+	"github.com/tidwall/sjson"
 )
-
-// TODO: Take a look at this https://www.graphql.de/blog/scalars-in-depth/#input-coercion
-
-var errIncorrectItemValue = fmt.Errorf("incorrect item value")
 
 func inputCoercionForList(walker *astvisitor.Walker) {
 	visitor := inputCoercionForListVisitor{
@@ -17,130 +16,19 @@ func inputCoercionForList(walker *astvisitor.Walker) {
 	}
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterArgumentVisitor(&visitor)
+	walker.RegisterEnterVariableDefinitionVisitor(&visitor)
 }
 
 type inputCoercionForListVisitor struct {
 	*astvisitor.Walker
-	importer   astimport.Importer
-	operation  *ast.Document
-	definition *ast.Document
-}
-
-func (i *inputCoercionForListVisitor) valueSatisfiesScalar(value ast.Value, scalar int) bool {
-	scalarName := i.definition.ScalarTypeDefinitionNameString(scalar)
-	if value.Kind == ast.ValueKindVariable {
-		variableName := i.operation.VariableValueNameBytes(value.Ref)
-		variableDefinition, exists := i.operation.VariableDefinitionByNameAndOperation(i.Ancestors[0].Ref, variableName)
-		if !exists {
-			return false
-		}
-		variableTypeRef := i.operation.VariableDefinitions[variableDefinition].Type
-		typeName := i.operation.ResolveTypeNameString(variableTypeRef)
-		return scalarName == typeName
-	}
-	switch scalarName {
-	case "Boolean":
-		return value.Kind == ast.ValueKindBoolean
-	case "Int":
-		return value.Kind == ast.ValueKindInteger
-	case "Float":
-		return value.Kind == ast.ValueKindFloat || value.Kind == ast.ValueKindInteger
-	default:
-		return value.Kind == ast.ValueKindString
-	}
-}
-
-func (i *inputCoercionForListVisitor) valueSatisfiesTypeDefinitionNode(value ast.Value, node ast.Node) bool {
-	switch node.Kind {
-	//case ast.NodeKindEnumTypeDefinition:
-	//	return v.valueSatisfiesEnum(value, node)
-	case ast.NodeKindScalarTypeDefinition:
-		return i.valueSatisfiesScalar(value, node.Ref)
-	//case ast.NodeKindInputObjectTypeDefinition:
-	//	return v.valueSatisfiesInputObjectTypeDefinition(value, node.Ref)
-	default:
-		return false
-	}
-}
-
-func (i *inputCoercionForListVisitor) valueSatisfiesListType(value ast.Value, listType int) bool {
-	if value.Kind == ast.ValueKindVariable {
-		variableName := i.operation.VariableValueNameBytes(value.Ref)
-		variableDefinition, exists := i.operation.VariableDefinitionByNameAndOperation(i.Ancestors[0].Ref, variableName)
-		if !exists {
-			return false
-		}
-		actualType := i.operation.VariableDefinitions[variableDefinition].Type
-		expectedType := i.importer.ImportType(listType, i.definition, i.operation)
-		if i.operation.Types[actualType].TypeKind == ast.TypeKindNonNull {
-			actualType = i.operation.Types[actualType].OfType
-		}
-		if i.operation.Types[actualType].TypeKind == ast.TypeKindList {
-			actualType = i.operation.Types[actualType].OfType
-		}
-		return i.operation.TypesAreEqualDeep(expectedType, actualType)
-	}
-
-	if value.Kind != ast.ValueKindList {
-		return false
-	}
-
-	if i.definition.Types[listType].TypeKind == ast.TypeKindNonNull {
-		if len(i.operation.ListValues[value.Ref].Refs) == 0 {
-			return false
-		}
-		listType = i.definition.Types[listType].OfType
-	}
-
-	for _, ref := range i.operation.ListValues[value.Ref].Refs {
-		listValue := i.operation.Value(ref)
-		if !i.valueSatisfiesInputValueDefinitionType(listValue, listType) {
-			return false
-		}
-	}
-
-	return true
-}
-
-func (i *inputCoercionForListVisitor) valueSatisfiesInputValueDefinitionType(value ast.Value, definitionTypeRef int) bool {
-	switch i.definition.Types[definitionTypeRef].TypeKind {
-	case ast.TypeKindNonNull:
-		switch value.Kind {
-		case ast.ValueKindNull:
-			return false
-		case ast.ValueKindVariable:
-			variableName := i.operation.VariableValueNameBytes(value.Ref)
-			variableDefinition, exists := i.operation.VariableDefinitionByNameAndOperation(i.Ancestors[0].Ref, variableName)
-			if !exists {
-				return false
-			}
-			variableTypeRef := i.operation.VariableDefinitions[variableDefinition].Type
-			importedDefinitionType := i.importer.ImportType(definitionTypeRef, i.definition, i.operation)
-			if !i.operation.TypesAreEqualDeep(importedDefinitionType, variableTypeRef) {
-				return false
-			}
-		}
-		return i.valueSatisfiesInputValueDefinitionType(value, i.definition.Types[definitionTypeRef].OfType)
-	case ast.TypeKindNamed:
-		typeName := i.definition.ResolveTypeNameBytes(definitionTypeRef)
-		node, exists := i.definition.Index.FirstNodeByNameBytes(typeName)
-		if !exists {
-			return false
-		}
-		return i.valueSatisfiesTypeDefinitionNode(value, node)
-	case ast.TypeKindList:
-		return i.valueSatisfiesListType(value, i.definition.Types[definitionTypeRef].OfType)
-	default:
-		return false
-	}
+	importer            astimport.Importer
+	operation           *ast.Document
+	definition          *ast.Document
+	operationDefinition int
 }
 
 func (i *inputCoercionForListVisitor) inputCoercionForList(value ast.Value, ref, defType int) {
 	l := ast.ListValue{}
-	if !i.valueSatisfiesInputValueDefinitionType(value, defType) {
-		i.StopWithInternalErr(errIncorrectItemValue)
-		return
-	}
 	l.Refs = append(l.Refs, i.operation.ListValues[value.Ref].Refs...)
 	listRef := i.operation.AddListValue(l)
 	listValue := ast.Value{
@@ -166,8 +54,8 @@ func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 	value := i.operation.Arguments[ref].Value
 
 	l := ast.ListValue{}
-	switch i.operation.Arguments[ref].Value.Kind {
-	case ast.ValueKindNull:
+	switch value.Kind {
+	case ast.ValueKindNull, ast.ValueKindVariable:
 		return
 	case ast.ValueKindList:
 		i.inputCoercionForList(value, ref, defType)
@@ -189,10 +77,6 @@ func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 			}
 			break
 		}
-		if !i.valueSatisfiesInputValueDefinitionType(value, definitionTypeRef) {
-			i.StopWithInternalErr(errIncorrectItemValue)
-			return
-		}
 		l.Refs = []int{latestRef}
 		listRef := i.operation.AddListValue(l)
 		listValue := ast.Value{
@@ -205,4 +89,65 @@ func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 
 func (i *inputCoercionForListVisitor) EnterDocument(operation, definition *ast.Document) {
 	i.operation, i.definition = operation, definition
+}
+
+func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
+	variableNameString := i.operation.VariableDefinitionNameString(ref)
+	variableDefinition, exists := i.operation.VariableDefinitionByNameAndOperation(i.operationDefinition, i.operation.VariableValueNameBytes(ref))
+	if !exists {
+		return
+	}
+	variableTypeRef := i.operation.VariableDefinitions[variableDefinition].Type
+	variableTypeRef = i.operation.ResolveListOrNameType(variableTypeRef)
+
+	if !i.operation.TypeIsList(variableTypeRef) {
+		return
+	}
+
+	value, dataType, _, err := jsonparser.Get(i.operation.Input.Variables, variableNameString)
+	if err == jsonparser.KeyPathNotFoundError {
+		return
+	}
+	if err != nil {
+		i.StopWithInternalErr(err)
+		return
+	}
+	if dataType == jsonparser.Array {
+		return
+	}
+
+	var nestingDepth int
+	ofType := variableTypeRef
+	for {
+		first := i.operation.Types[ofType]
+		if first.OfType == -1 {
+			break
+		}
+		ofType = first.OfType
+		nestingDepth++
+	}
+
+	out := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(out)
+
+	for idx := 0; idx < (nestingDepth*2)+1; idx++ {
+		switch {
+		case idx < nestingDepth:
+			out.Write(literal.LBRACK)
+		case idx == nestingDepth:
+			out.Write(value)
+		default:
+			out.Write(literal.RBRACK)
+		}
+	}
+
+	i.operation.Input.Variables, err = sjson.SetRawBytes(i.operation.Input.Variables, variableNameString, out.Bytes())
+	if err != nil {
+		i.StopWithInternalErr(err)
+		return
+	}
+}
+
+func (i *inputCoercionForListVisitor) EnterOperationDefinition(ref int) {
+	i.operationDefinition = ref
 }
