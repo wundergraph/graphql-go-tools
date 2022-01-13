@@ -247,7 +247,16 @@ func (g *GraphQLVariableRenderer) renderGraphQLValue(data []byte, valueType json
 	case jsonparser.String:
 		_, _ = out.Write(literal.BACKSLASH)
 		_, _ = out.Write(literal.QUOTE)
-		_, _ = out.Write(data)
+		for i := range data {
+			switch data[i] {
+			case '"':
+				_, _ = out.Write(literal.BACKSLASH)
+				_, _ = out.Write(literal.BACKSLASH)
+				_, _ = out.Write(literal.QUOTE)
+			default:
+				_, _ = out.Write(data[i : i+1])
+			}
+		}
 		_, _ = out.Write(literal.BACKSLASH)
 		_, _ = out.Write(literal.QUOTE)
 	case jsonparser.Object:
