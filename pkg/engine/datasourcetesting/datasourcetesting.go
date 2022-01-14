@@ -60,6 +60,5 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		for _, extraCheck := range extraChecks {
 			extraCheck(t, op, actualPlan)
 		}
-
 	}
 }
