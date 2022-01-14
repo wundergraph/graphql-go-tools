@@ -27,18 +27,6 @@ type inputCoercionForListVisitor struct {
 	operationDefinition int
 }
 
-func (i *inputCoercionForListVisitor) inputCoercionForList(value ast.Value, ref, defType int) {
-	l := ast.ListValue{}
-	l.Refs = append(l.Refs, i.operation.ListValues[value.Ref].Refs...)
-	listRef := i.operation.AddListValue(l)
-	listValue := ast.Value{
-		Kind: ast.ValueKindList,
-		Ref:  listRef,
-	}
-	i.operation.AddValue(i.operation.Arguments[ref].Value)
-	i.operation.Arguments[ref].Value = listValue
-}
-
 func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 	defRef, ok := i.ArgumentInputValueDefinition(ref)
 	if !ok {
@@ -55,27 +43,26 @@ func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 
 	l := ast.ListValue{}
 	switch value.Kind {
-	case ast.ValueKindNull, ast.ValueKindVariable:
+	case ast.ValueKindNull, ast.ValueKindVariable, ast.ValueKindList:
 		return
-	case ast.ValueKindList:
-		i.inputCoercionForList(value, ref, defType)
 	default:
 		var latestRef = i.operation.AddValue(i.operation.Arguments[ref].Value)
 		var definitionTypeRef = defType
 		for {
 			definitionTypeRef = i.definition.Types[definitionTypeRef].OfType
-			if i.definition.Types[definitionTypeRef].TypeKind == ast.TypeKindList {
-				innerList := ast.ListValue{}
-				innerList.Refs = []int{latestRef}
-				listRef := i.operation.AddListValue(innerList)
-				listValue := ast.Value{
-					Kind: ast.ValueKindList,
-					Ref:  listRef,
-				}
-				latestRef = i.operation.AddValue(listValue)
-				continue
+			if i.definition.Types[definitionTypeRef].TypeKind != ast.TypeKindList {
+				break
 			}
-			break
+
+			// Build a nested list
+			innerList := ast.ListValue{}
+			innerList.Refs = []int{latestRef}
+			listRef := i.operation.AddListValue(innerList)
+			listValue := ast.Value{
+				Kind: ast.ValueKindList,
+				Ref:  listRef,
+			}
+			latestRef = i.operation.AddValue(listValue)
 		}
 		l.Refs = []int{latestRef}
 		listRef := i.operation.AddListValue(l)
@@ -113,9 +100,13 @@ func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 		return
 	}
 	if dataType == jsonparser.Array {
+		// We don't want to build nested lists using lists.
+		// It's an invalid input.
 		return
 	}
 
+	// Calculate the nesting depth of variable definition
+	// For example: [[Int]], nestingDepth = 2
 	var nestingDepth int
 	ofType := variableTypeRef
 	for {
@@ -130,6 +121,7 @@ func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 	out := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(out)
 
+	// value type is a non-array. Let's build an array from it.
 	for idx := 0; idx < (nestingDepth*2)+1; idx++ {
 		switch {
 		case idx < nestingDepth:

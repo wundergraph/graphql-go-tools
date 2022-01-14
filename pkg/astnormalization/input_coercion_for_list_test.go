@@ -146,6 +146,24 @@ func TestInputCoercion(t *testing.T) {
 				}`)
 	})
 
+	t.Run("integer variable as input", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+			query($id: Int){
+				characterById(id: $id) {
+					id
+					name
+				}
+			}`,
+			``,
+			`
+			query($id: Int){
+				characterById(id: $id) {
+					id
+					name
+				}
+			}`, `{"id":1}`, `{"id":1}`)
+	})
+
 	t.Run("convert integer variable to list of integers", func(t *testing.T) {
 		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
 			query($ids: [Int]){
@@ -162,6 +180,24 @@ func TestInputCoercion(t *testing.T) {
 					name
 				}
 			}`, `{"ids":1}`, `{"ids":[1]}`)
+	})
+
+	t.Run("send list of integers as variable input", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+			query($ids: [Int]){
+				charactersByIds(ids: $ids) {
+					id
+					name
+				}
+			}`,
+			``,
+			`
+			query($ids: [Int]){
+				charactersByIds(ids: $ids) {
+					id
+					name
+				}
+			}`, `{"ids":[1]}`, `{"ids":[1]}`)
 	})
 
 	t.Run("convert integer variable to nested list of integers", func(t *testing.T) {
