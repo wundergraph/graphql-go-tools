@@ -3,7 +3,6 @@ package astnormalization
 import (
 	"github.com/buger/jsonparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/pool"
@@ -21,7 +20,6 @@ func inputCoercionForList(walker *astvisitor.Walker) {
 
 type inputCoercionForListVisitor struct {
 	*astvisitor.Walker
-	importer            astimport.Importer
 	operation           *ast.Document
 	definition          *ast.Document
 	operationDefinition int
