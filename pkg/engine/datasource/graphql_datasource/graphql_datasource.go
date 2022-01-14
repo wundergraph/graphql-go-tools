@@ -141,9 +141,10 @@ func (p *Planner) addDirectiveToNode(directiveRef int, node ast.Node) {
 
 			// Add the variable to the upstream operation. Be sure to map the
 			// downstream type to the upstream type, if needed.
+			upstreamVariable := p.upstreamOperation.ImportVariableValue(variableName)
 			upstreamTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchStr(typeName)
 			importedType := p.visitor.Importer.ImportTypeWithRename(p.visitor.Operation.VariableDefinitions[i].Type, p.visitor.Operation, p.upstreamOperation, upstreamTypeName)
-			p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, value.Ref, importedType)
+			p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, upstreamVariable, importedType)
 
 			// Also copy any variable directives in the downstream operation to
 			// the upstream operation.
