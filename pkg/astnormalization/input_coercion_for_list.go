@@ -41,9 +41,11 @@ func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 
 	argumentListValue := ast.ListValue{}
 	switch argumentValue.Kind {
-	case ast.ValueKindNull, ast.ValueKindVariable, ast.ValueKindList:
-		return
-	default:
+	case ast.ValueKindString,
+		ast.ValueKindBoolean,
+		ast.ValueKindInteger,
+		ast.ValueKindFloat,
+		ast.ValueKindObject:
 		var latestRef = i.operation.AddValue(i.operation.Arguments[ref].Value)
 		var definitionTypeRef = defType
 		for {
@@ -69,6 +71,7 @@ func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 			Ref:  listRef,
 		}
 		i.operation.Arguments[ref].Value = listValue
+	default:
 	}
 }
 
