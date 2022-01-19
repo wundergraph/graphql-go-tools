@@ -20,9 +20,9 @@ func inputCoercionForList(walker *astvisitor.Walker) {
 
 type inputCoercionForListVisitor struct {
 	*astvisitor.Walker
-	operation           *ast.Document
-	definition          *ast.Document
-	operationDefinition int
+	operation              *ast.Document
+	definition             *ast.Document
+	operationDefinitionRef int
 }
 
 func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
@@ -37,10 +37,10 @@ func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 		return
 	}
 
-	value := i.operation.Arguments[ref].Value
+	argumentValue := i.operation.Arguments[ref].Value
 
-	l := ast.ListValue{}
-	switch value.Kind {
+	argumentListValue := ast.ListValue{}
+	switch argumentValue.Kind {
 	case ast.ValueKindNull, ast.ValueKindVariable, ast.ValueKindList:
 		return
 	default:
@@ -55,15 +55,15 @@ func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 			// Build a nested list
 			innerList := ast.ListValue{}
 			innerList.Refs = []int{latestRef}
-			listRef := i.operation.AddListValue(innerList)
+			innerListRef := i.operation.AddListValue(innerList)
 			listValue := ast.Value{
 				Kind: ast.ValueKindList,
-				Ref:  listRef,
+				Ref:  innerListRef,
 			}
 			latestRef = i.operation.AddValue(listValue)
 		}
-		l.Refs = []int{latestRef}
-		listRef := i.operation.AddListValue(l)
+		argumentListValue.Refs = []int{latestRef}
+		listRef := i.operation.AddListValue(argumentListValue)
 		listValue := ast.Value{
 			Kind: ast.ValueKindList,
 			Ref:  listRef,
@@ -78,7 +78,7 @@ func (i *inputCoercionForListVisitor) EnterDocument(operation, definition *ast.D
 
 func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 	variableNameString := i.operation.VariableDefinitionNameString(ref)
-	variableDefinition, exists := i.operation.VariableDefinitionByNameAndOperation(i.operationDefinition, i.operation.VariableValueNameBytes(ref))
+	variableDefinition, exists := i.operation.VariableDefinitionByNameAndOperation(i.operationDefinitionRef, i.operation.VariableValueNameBytes(ref))
 	if !exists {
 		return
 	}
@@ -139,5 +139,5 @@ func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 }
 
 func (i *inputCoercionForListVisitor) EnterOperationDefinition(ref int) {
-	i.operationDefinition = ref
+	i.operationDefinitionRef = ref
 }
