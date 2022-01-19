@@ -32,7 +32,6 @@ func (v *validArgumentsVisitor) EnterDocument(operation, definition *ast.Documen
 }
 
 func (v *validArgumentsVisitor) EnterArgument(ref int) {
-
 	definition, exists := v.ArgumentInputValueDefinition(ref)
 
 	if !exists {
@@ -47,7 +46,6 @@ func (v *validArgumentsVisitor) EnterArgument(ref int) {
 }
 
 func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(value ast.Value, inputValueDefinition int) {
-
 	var satisfied bool
 
 	switch value.Kind {
@@ -156,7 +154,6 @@ func (v *validArgumentsVisitor) nullValueSatisfiesInputValueDefinition(inputValu
 }
 
 func (v *validArgumentsVisitor) enumValueSatisfiesInputValueDefinition(enumValue, inputValueDefinition int) bool {
-
 	definitionTypeName := v.definition.ResolveTypeNameBytes(v.definition.InputValueDefinitions[inputValueDefinition].Type)
 	node, exists := v.definition.Index.FirstNodeByNameBytes(definitionTypeName)
 	if !exists {
@@ -187,35 +184,51 @@ func (v *validArgumentsVisitor) variableValueSatisfiesInputValueDefinition(varia
 }
 
 func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationType int, definitionType int, hasDefaultValue bool) bool {
+	opKind := v.operation.Types[operationType].TypeKind
+	defKind := v.definition.Types[definitionType].TypeKind
 
-	if operationType == -1 || definitionType == -1 {
-		return false
-	}
-
-	if v.operation.Types[operationType].TypeKind != ast.TypeKindNonNull &&
-		v.definition.Types[definitionType].TypeKind == ast.TypeKindNonNull &&
-		hasDefaultValue &&
-		v.definition.Types[definitionType].OfType != -1 {
+	// A nullable op type is compatible with a non-null def type if the def has
+	// a default value. Strip the def non-null and continue comparing. This
+	// logic is only valid before any unnesting of types occurs, which is why
+	// it's outside the for loop below.
+	//
+	// Example:
+	// Op:  someField(arg: Boolean): String
+	// Def: someField(arg: Boolean! = false): String  #  Boolean! -> Boolean
+	if opKind != ast.TypeKindNonNull && defKind == ast.TypeKindNonNull && hasDefaultValue {
 		definitionType = v.definition.Types[definitionType].OfType
 	}
 
-	if v.operation.Types[operationType].TypeKind == ast.TypeKindNonNull &&
-		v.definition.Types[definitionType].TypeKind != ast.TypeKindNonNull &&
-		v.operation.Types[operationType].OfType != -1 {
-		operationType = v.operation.Types[operationType].OfType
-	}
-
+	// Unnest the op and def arg types until a named type is reached,
+	// then compare.
 	for {
 		if operationType == -1 || definitionType == -1 {
 			return false
 		}
-		if v.operation.Types[operationType].TypeKind != v.definition.Types[definitionType].TypeKind {
+		opKind = v.operation.Types[operationType].TypeKind
+		defKind = v.definition.Types[definitionType].TypeKind
+
+		// If the op arg type is stricter than the def arg type, that's okay.
+		// Strip the op non-null and continue comparing.
+		//
+		// Example:
+		// Op:  someField(arg: Boolean!): String  # Boolean! -> Boolean
+		// Def: someField(arg: Boolean): String
+		if opKind == ast.TypeKindNonNull && defKind != ast.TypeKindNonNull {
+			operationType = v.operation.Types[operationType].OfType
+			continue
+		}
+
+		if opKind != defKind {
 			return false
 		}
-		if v.operation.Types[operationType].TypeKind == ast.TypeKindNamed {
+		if opKind == ast.TypeKindNamed {
+			// defKind is also a named type because at this point both kinds
+			// are the same! Compare the names.
 			return bytes.Equal(v.operation.Input.ByteSlice(v.operation.Types[operationType].Name),
 				v.definition.Input.ByteSlice(v.definition.Types[definitionType].Name))
 		}
+		// Both types are non-null or list. Unnest and continue comparing.
 		operationType = v.operation.Types[operationType].OfType
 		definitionType = v.definition.Types[definitionType].OfType
 	}
