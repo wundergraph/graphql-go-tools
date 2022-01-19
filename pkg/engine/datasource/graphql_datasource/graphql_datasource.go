@@ -81,8 +81,83 @@ func (p *Planner) addDirectiveToNode(directiveRef int, node ast.Node) {
 	if p.upstreamDefinition != nil && !p.upstreamDefinition.DirectiveIsAllowedOnNodeKind(upstreamDirectiveName, node.Kind, operationType) {
 		return
 	}
-	directive := p.visitor.Importer.ImportDirectiveWithRename(directiveRef, upstreamDirectiveName, p.visitor.Operation, p.upstreamOperation)
-	p.upstreamOperation.AddDirectiveToNode(directive, node)
+	upstreamDirective := p.visitor.Importer.ImportDirectiveWithRename(directiveRef, upstreamDirectiveName, p.visitor.Operation, p.upstreamOperation)
+	p.upstreamOperation.AddDirectiveToNode(upstreamDirective, node)
+
+	// The directive is allowed on the node, so we know it exists.
+	directive := p.visitor.Operation.Directives[directiveRef]
+
+	var variables []ast.Value
+
+	// Collect all the variable arguments.
+	if directive.HasArguments {
+		for _, argument := range directive.Arguments.Refs {
+			value := p.visitor.Operation.ArgumentValue(argument)
+			// TODO: also handle literal values that CONTAIN variables
+			if value.Kind == ast.ValueKindVariable {
+				variables = append(variables, value)
+			}
+		}
+	}
+
+	// Process each variable, adding it to the upstream operation and
+	// variables, if it hasn't already been added. Note: instead of looking
+	// up the type of the corresponding argument on the directive definition,
+	// this code assumes the type of the variable as defined in the operation
+	// is correct and uses the same (possibly mapped) type for the upstream
+	// operation.
+	for _, value := range variables {
+		variableName := p.visitor.Operation.VariableValueNameBytes(value.Ref)
+
+		for _, i := range p.visitor.Operation.OperationDefinitions[p.visitor.Walker.Ancestors[0].Ref].VariableDefinitions.Refs {
+			// Find the variable declaration in the downstream operation.
+			ref := p.visitor.Operation.VariableDefinitions[i].VariableValue.Ref
+			if !p.visitor.Operation.VariableValueNameBytes(ref).Equals(variableName) {
+				continue
+			}
+
+			// Look up the variable type.
+			variableType := p.visitor.Operation.VariableDefinitions[i].Type
+			typeName := p.visitor.Operation.ResolveTypeNameString(variableType)
+
+			renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(p.visitor.Operation, p.visitor.Definition, variableType)
+			if err != nil {
+				continue
+			}
+
+			contextVariable := &resolve.ContextVariable{
+				Path:     []string{string(variableName)},
+				Renderer: renderer,
+			}
+
+			// Try to add the variable to the set of upstream variables.
+			contextVariableName, exists := p.variables.AddVariable(contextVariable)
+
+			// If the variable already exists, it also already exists in the
+			// upstream operation; there's nothing to add!
+			if exists {
+				continue
+			}
+
+			// Add the variable to the upstream operation. Be sure to map the
+			// downstream type to the upstream type, if needed.
+			upstreamVariable := p.upstreamOperation.ImportVariableValue(variableName)
+			upstreamTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchStr(typeName)
+			importedType := p.visitor.Importer.ImportTypeWithRename(p.visitor.Operation.VariableDefinitions[i].Type, p.visitor.Operation, p.upstreamOperation, upstreamTypeName)
+			p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, upstreamVariable, importedType)
+
+			// Also copy any variable directives in the downstream operation to
+			// the upstream operation.
+			if add, ok := p.addDirectivesToVariableDefinitions[i]; ok {
+				for _, directive := range add {
+					p.addDirectiveToNode(directive, ast.Node{Kind: ast.NodeKindVariableDefinition, Ref: i})
+				}
+			}
+
+			// And finally add the variable to the upstream variables JSON.
+			p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, string(variableName), []byte(contextVariableName))
+		}
+	}
 }
 
 func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
