@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/tidwall/sjson"
@@ -30,6 +29,7 @@ type Planner struct {
 	config                             Configuration
 	upstreamOperation                  *ast.Document
 	upstreamVariables                  []byte
+	representationsJson                []byte
 	nodes                              []ast.Node
 	variables                          resolve.Variables
 	lastFieldEnclosingTypeName         string
@@ -86,7 +86,6 @@ func (p *Planner) addDirectiveToNode(directiveRef int, node ast.Node) {
 }
 
 func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
-
 	// If there's no alias but the downstream Query re-uses the same path on different root fields,
 	// we rewrite the downstream Query using an alias so that we can have an aliased Query to the upstream
 	// while keeping a non aliased Query to the downstream but with a path rewrite on an existing root field.
@@ -177,7 +176,6 @@ func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceC
 }
 
 func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
-
 	var input []byte
 	input = httpclient.SetInputBodyWithPath(input, p.upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
@@ -215,7 +213,6 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 }
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
-
 	input := httpclient.SetInputBodyWithPath(nil, p.upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
 	input = httpclient.SetInputURL(input, []byte(p.config.Subscription.URL))
@@ -285,7 +282,6 @@ func (p *Planner) LeaveSelectionSet(ref int) {
 }
 
 func (p *Planner) EnterInlineFragment(ref int) {
-
 	typeCondition := p.visitor.Operation.InlineFragmentTypeConditionName(ref)
 	if typeCondition == nil {
 		return
@@ -324,7 +320,6 @@ func (p *Planner) LeaveInlineFragment(ref int) {
 }
 
 func (p *Planner) EnterField(ref int) {
-
 	fieldName := p.visitor.Operation.FieldNameString(ref)
 
 	// store root field name and ref
@@ -339,16 +334,22 @@ func (p *Planner) EnterField(ref int) {
 
 	p.lastFieldEnclosingTypeName = p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
 
-	p.handleFederation()
-	p.addField(ref)
-
-	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
 	typeName := p.lastFieldEnclosingTypeName
 
 	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(typeName, fieldName)
 	if fieldConfiguration == nil {
+		p.addField(ref)
 		return
 	}
+
+	// Note: federated fields always have a field configuration because at
+	// least the federation key for the type the field lives on is required
+	// (and required fields are specified in the configuration).
+	p.handleFederation(fieldConfiguration)
+	p.addField(ref)
+
+	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
+
 	for i := range fieldConfiguration.Arguments {
 		argumentConfiguration := fieldConfiguration.Arguments[i]
 		p.configureArgument(upstreamFieldRef, ref, *fieldConfiguration, argumentConfiguration)
@@ -361,7 +362,6 @@ func (p *Planner) LeaveField(ref int) {
 }
 
 func (p *Planner) EnterArgument(ref int) {
-
 }
 
 func (p *Planner) EnterDocument(operation, definition *ast.Document) {
@@ -373,6 +373,7 @@ func (p *Planner) EnterDocument(operation, definition *ast.Document) {
 	p.nodes = p.nodes[:0]
 	p.upstreamVariables = nil
 	p.variables = p.variables[:0]
+	p.representationsJson = p.representationsJson[:0]
 	p.disallowSingleFlight = false
 	p.hasFederationRoot = false
 	p.extractEntities = false
@@ -407,24 +408,39 @@ func (p *Planner) EnterDocument(operation, definition *ast.Document) {
 }
 
 func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
-
 }
 
-func (p *Planner) handleFederation() {
-	if !p.config.Federation.Enabled || // federation must be enabled
-		p.hasFederationRoot || // should not already have federation root field
-		!p.isNestedRequest() { // must be nested, otherwise it's a regular query
+func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
+	if !p.config.Federation.Enabled { // federation must be enabled
+		return
+	}
+	// If there's no federation root and this isn't a nested request, this
+	// isn't a federated field and there's nothing to do.
+	if !p.hasFederationRoot && !p.isNestedRequest() {
+		return
+	}
+	// If a federated root is already present, the representations variable has
+	// already been added. Update it to include information for the additional
+	// field. NOTE: only the first federated field has isNestedRequest set to
+	// true. Subsequent fields use hasFederationRoot to determine federation
+	// status.
+	if p.hasFederationRoot {
+		// Ideally the "representations" variable could be set once in
+		// LeaveDocument, but ConfigureFetch is called before this visitor's
+		// LeaveDocument is called. (Updating the visitor logic to call
+		// LeaveDocument in reverse registration order would fix this issue.)
+		p.updateRepresentationsVariable(fieldConfig)
 		return
 	}
 	p.hasFederationRoot = true
 	// query($representations: [_Any!]!){_entities(representations: $representations){... on Product
-	p.addRepresentationsVariableDefinition() // $representations: [_Any!]!
-	p.addEntitiesSelectionSet()              // {_entities(representations: $representations)
-	p.addOneTypeInlineFragment()             // ... on Product
-	p.addRepresentationsVariable()           // "variables\":{\"representations\":[{\"upc\":\"$$0$$\",\"__typename\":\"Product\"}]}}
+	p.addRepresentationsVariableDefinition()     // $representations: [_Any!]!
+	p.addEntitiesSelectionSet()                  // {_entities(representations: $representations)
+	p.addOneTypeInlineFragment()                 // ... on Product
+	p.updateRepresentationsVariable(fieldConfig) // "variables\":{\"representations\":[{\"upc\":\"$$0$$\",\"__typename\":\"Product\"}]}}
 }
 
-func (p *Planner) addRepresentationsVariable() {
+func (p *Planner) updateRepresentationsVariable(fieldConfig *plan.FieldConfiguration) {
 	// "variables\":{\"representations\":[{\"upc\":\$$0$$\,\"__typename\":\"Product\"}]}}
 	parser := astparser.NewParser()
 	doc := ast.NewDocument()
@@ -436,14 +452,19 @@ func (p *Planner) addRepresentationsVariable() {
 		return
 	}
 
-	fields := p.selectFederationKeyFields(doc)
+	// RequiresFields includes `@requires` fields as well as federation keys
+	// for the type containing the field currently being visited.
+	fields := fieldConfig.RequiresFields
 	if len(fields) == 0 {
 		return
 	}
 
 	onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchStr(p.lastFieldEnclosingTypeName)
 
-	representationsJson, _ := sjson.SetRawBytes(nil, "__typename", []byte("\""+onTypeName+"\""))
+	if len(p.representationsJson) == 0 {
+		p.representationsJson, _ = sjson.SetRawBytes(nil, "__typename", []byte("\""+onTypeName+"\""))
+	}
+
 	for i := range fields {
 		objectVariable := &resolve.ObjectVariable{
 			Path: []string{fields[i]},
@@ -461,61 +482,13 @@ func (p *Planner) addRepresentationsVariable() {
 		if exists {
 			continue
 		}
-		representationsJson, _ = sjson.SetRawBytes(representationsJson, fields[i], []byte(variable))
+		p.representationsJson, _ = sjson.SetRawBytes(p.representationsJson, fields[i], []byte(variable))
 	}
-	representationsJson = append([]byte("["), append(representationsJson, []byte("]")...)...)
+	representationsJson := append([]byte("["), append(p.representationsJson, []byte("]")...)...)
 	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", representationsJson)
 	p.extractEntities = true
 }
 
-func (p *Planner) selectFederationKeyFields(doc *ast.Document) []string {
-	var directiveRefs []int
-
-	onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchStr(p.lastFieldEnclosingTypeName)
-
-	for i := range doc.ObjectTypeExtensions {
-		if onTypeName == doc.ObjectTypeExtensionNameString(i) {
-			for _, j := range doc.ObjectTypeExtensions[i].Directives.Refs {
-				if doc.DirectiveNameString(j) == "key" {
-					directiveRefs = append(directiveRefs, j)
-				}
-			}
-			break
-		}
-	}
-
-	for i := range doc.ObjectTypeDefinitions {
-		if onTypeName == doc.ObjectTypeDefinitionNameString(i) {
-			for _, j := range doc.ObjectTypeDefinitions[i].Directives.Refs {
-				if doc.DirectiveNameString(j) == "key" {
-					directiveRefs = append(directiveRefs, j)
-				}
-			}
-			break
-		}
-	}
-
-	if len(directiveRefs) == 0 {
-		return nil
-	}
-
-	var fields []string
-
-	for _, directiveRef := range directiveRefs {
-		value, exists := doc.DirectiveArgumentValueByName(directiveRef, []byte("fields"))
-		if !exists {
-			continue
-		}
-		if value.Kind != ast.ValueKindString {
-			continue
-		}
-
-		fieldsStr := doc.StringValueContentString(value.Ref)
-		fields = append(fields, strings.Split(fieldsStr, " ")...)
-	}
-
-	return fields
-}
 func (p *Planner) fieldDefinition(fieldName, typeName string) *ast.FieldDefinition {
 	node, ok := p.visitor.Definition.Index.FirstNodeByNameStr(typeName)
 	if !ok {
@@ -547,7 +520,6 @@ func (p *Planner) addOneTypeInlineFragment() {
 }
 
 func (p *Planner) addEntitiesSelectionSet() {
-
 	// $representations
 	representationsLiteral := p.upstreamOperation.Input.AppendInputString("representations")
 	representationsVariable := p.upstreamOperation.AddVariableValue(ast.VariableValue{
@@ -837,7 +809,6 @@ const (
 
 // printOperation - prints normalized upstream operation
 func (p *Planner) printOperation() []byte {
-
 	buf := &bytes.Buffer{}
 
 	err := astprinter.Print(p.upstreamOperation, nil, buf)
@@ -1017,7 +988,6 @@ func (p *Planner) replaceQueryType(definition *ast.Document) {
 
 // normalizeOperation - normalizes operation against definition.
 func (p *Planner) normalizeOperation(operation, definition *ast.Document, report *operationreport.Report) (ok bool) {
-
 	report.Reset()
 	normalizer := astnormalization.NewWithOpts(
 		astnormalization.WithExtractVariables(),
