@@ -112,7 +112,7 @@ func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 	ofType := variableTypeRef
 	for {
 		first := i.operation.Types[ofType]
-		if first.OfType == -1 {
+		if first.OfType == ast.InvalidRef {
 			break
 		}
 		ofType = first.OfType
