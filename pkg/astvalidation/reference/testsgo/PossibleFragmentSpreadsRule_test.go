@@ -5,6 +5,7 @@ import (
 )
 
 func TestPossibleFragmentSpreadsRule(t *testing.T) {
+	t.Skip()
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
 		return ExpectValidationErrors(t, "PossibleFragmentSpreadsRule", queryStr)

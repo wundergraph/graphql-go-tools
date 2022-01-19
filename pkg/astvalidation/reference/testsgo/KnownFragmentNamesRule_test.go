@@ -5,6 +5,7 @@ import (
 )
 
 func TestKnownFragmentNamesRule(t *testing.T) {
+	t.Skip()
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
 		return ExpectValidationErrors(t, "KnownFragmentNamesRule", queryStr)

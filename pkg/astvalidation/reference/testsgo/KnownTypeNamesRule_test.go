@@ -5,6 +5,7 @@ import (
 )
 
 func TestKnownTypeNamesRule(t *testing.T) {
+	t.Skip()
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
 		return ExpectValidationErrors(t, "KnownTypeNamesRule", queryStr)

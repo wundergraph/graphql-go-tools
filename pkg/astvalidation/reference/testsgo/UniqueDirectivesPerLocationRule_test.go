@@ -5,6 +5,7 @@ import (
 )
 
 func TestUniqueDirectivesPerLocationRule(t *testing.T) {
+	t.Skip()
 
 	extensionSDL := `
   directive @directive on FIELD | FRAGMENT_DEFINITION
