@@ -3321,7 +3321,7 @@ func TestGraphQLDataSource(t *testing.T) {
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
 												Path:     []string{"id"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 											},
 											&resolve.ObjectVariable{
 												Path:     []string{"serviceOneFieldOne"},
