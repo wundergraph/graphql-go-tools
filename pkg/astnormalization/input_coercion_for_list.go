@@ -50,6 +50,9 @@ func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 		var definitionTypeRef = defType
 		for {
 			definitionTypeRef = i.definition.Types[definitionTypeRef].OfType
+			if definitionTypeRef == ast.InvalidRef {
+				break
+			}
 			if i.definition.Types[definitionTypeRef].TypeKind != ast.TypeKindList {
 				break
 			}
