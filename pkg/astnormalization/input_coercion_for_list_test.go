@@ -26,7 +26,7 @@ type Query {
 	charactersByInputs(inputs: [Input]): [Character]
 }`
 
-func TestInputCoercion(t *testing.T) {
+func TestInputCoercionForList(t *testing.T) {
 	t.Run("convert integer to list of integer", func(t *testing.T) {
 		run(inputCoercionForList, inputCoercionForListDefinition, `
 				query{
