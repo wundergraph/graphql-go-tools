@@ -706,6 +706,10 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 		data, _, _, _ = jsonparser.Get(data, array.Path...)
 	}
 
+	if array.UnescapeResponseJson {
+		data = bytes.ReplaceAll(data, []byte(`\"`), []byte(`"`))
+	}
+
 	if bytes.Equal(data, emptyArray) {
 		r.resolveEmptyArray(arrayBuf.Data)
 		return
@@ -926,6 +930,14 @@ func (r *Resolver) resolveString(ctx *Context, str *String, data []byte, stringB
 	if value == nil && !str.Nullable {
 		return errNonNullableFieldValueIsNull
 	}
+
+	if str.UnescapeResponseJson {
+		value = bytes.ReplaceAll(value, []byte(`\"`), []byte(`"`))
+		stringBuf.Data.WriteBytes(value)
+		r.exportField(ctx, str.Export, value)
+		return nil
+	}
+
 	stringBuf.Data.WriteBytes(quote)
 	stringBuf.Data.WriteBytes(value)
 	stringBuf.Data.WriteBytes(quote)
@@ -997,6 +1009,10 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 
 		ctx.addResponseElements(object.Path)
 		defer ctx.removeResponseLastElements(object.Path)
+	}
+
+	if object.UnescapeResponseJson {
+		data = bytes.ReplaceAll(data, []byte(`\"`), []byte(`"`))
 	}
 
 	var set *resultSet
@@ -1211,7 +1227,8 @@ type Object struct {
 	Nullable bool
 	Path     []string
 	Fields   []*Field
-	Fetch    Fetch
+	Fetch                Fetch
+	UnescapeResponseJson bool
 }
 
 func (_ *Object) NodeKind() NodeKind {
@@ -1322,6 +1339,7 @@ type String struct {
 	Path     []string
 	Nullable bool
 	Export   *FieldExport
+	UnescapeResponseJson bool
 }
 
 func (_ *String) NodeKind() NodeKind {
@@ -1364,6 +1382,7 @@ type Array struct {
 	ResolveAsynchronous bool
 	Item                Node
 	Stream              Stream
+	UnescapeResponseJson bool
 }
 
 type Stream struct {
