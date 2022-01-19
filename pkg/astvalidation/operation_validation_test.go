@@ -33,7 +33,6 @@ func withExpectNormalizationError() option {
 }
 
 func TestExecutionValidation(t *testing.T) {
-
 	must := func(err error) {
 		if report, ok := err.(operationreport.Report); ok {
 			if report.HasErrors() {
@@ -59,7 +58,6 @@ func TestExecutionValidation(t *testing.T) {
 	}
 
 	runWithDefinition := func(definitionInput, operationInput string, rule Rule, expectation ValidationState, opts ...option) {
-
 		var options options
 		for _, opt := range opts {
 			opt(&options)
@@ -3535,50 +3533,93 @@ func TestExecutionValidation(t *testing.T) {
 								}`,
 					ValidArguments(), Invalid)
 			})
+			// Non-null types are compatible with nullable types.
 			t.Run("172", func(t *testing.T) {
-				run(`query nonNullListToList($nonNullBooleanList: [Boolean]!) {
+				run(`query nonNullListToList($nonNullListOfBoolean: [Boolean]!) {
 								arguments {
-									booleanListArgField(booleanListArg: $nonNullBooleanList)
+									nonNullListOfBooleanArgField(nonNullListOfBooleanArg: $nonNullListOfBoolean)
 								}
 							}`,
 					ValidArguments(), Valid)
 			})
 			t.Run("172 variant", func(t *testing.T) {
-				run(`query nonNullListToList {
+				run(`query listToList($listOfBoolean: [Boolean]) {
 									arguments {
-										booleanListArgField(booleanListArg: [true,false,true])
+										listOfBooleanArgField(listOfBooleanArg: $listOfBoolean)
+									}
+								}`,
+					ValidArguments(), Valid)
+			})
+			t.Run("172 variant", func(t *testing.T) {
+				run(`query listOfNonNullToList($listOfNonNullBoolean: [Boolean!]) {
+									arguments {
+										listOfBooleanArgField(listOfBooleanArg: $listOfNonNullBoolean)
+									}
+								}`,
+					ValidArguments(), Valid)
+			})
+			t.Run("172 variant", func(t *testing.T) {
+				run(`query nonNullListOfNonNullToList($nonNullListOfNonNullBoolean: [Boolean!]!) {
+									arguments {
+										listOfBooleanArgField(listOfBooleanArg: $nonNullListOfNonNullBoolean)
+									}
+								}`,
+					ValidArguments(), Valid)
+			})
+			t.Run("172 variant", func(t *testing.T) {
+				run(`query nonNullListToListLiteral {
+									arguments {
+										nonNullListOfBooleanArgField(nonNullListOfBooleanArg: [true,false,true])
 									}
 								}`,
 					Values(), Valid)
 			})
+			// Types in lists must match
 			t.Run("172 variant", func(t *testing.T) {
-				run(`query nonNullListToList {
+				run(`query listContainingIncorrectType {
 									arguments {
-										booleanListArgField(booleanListArg: [true,false,"123"])
+										nonNullListOfBooleanArgField(nonNullListOfBooleanArg: [true,false,"123"])
 									}
 								}`,
 					Values(), Invalid)
 			})
 			t.Run("172 variant", func(t *testing.T) {
-				run(`query nonNullListToList {
+				run(`query listContainingIncorrectType {
 									arguments {
-										booleanListArgField(booleanListArg: [true,false,123])
+										nonNullListOfBooleanArgField(nonNullListOfBooleanArg: [true,false,123])
 									}
 								}`,
 					Values(), Invalid)
 			})
+			// Nullable types are NOT compatible with non-null types.
 			t.Run("172 variant", func(t *testing.T) {
-				run(`query nonNullListToList($nonNullBooleanList: [Boolean]) {
+				run(`query listToListOfNonNull($listOfBoolean: [Boolean]) {
 									arguments {
-										booleanListArgField(booleanListArg: $nonNullBooleanList)
+										listOfNonNullBooleanArgField(listOfNonNullBooleanArg: $listOfBoolean)
+									}
+								}`,
+					ValidArguments(), Invalid)
+			})
+			t.Run("172 variant", func(t *testing.T) {
+				run(`query nonNullListToListOfNonNull($nonNullListOfBoolean: [Boolean]!) {
+									arguments {
+										listOfNonNullBooleanArgField(listOfNonNullBooleanArg: $nonNullListOfBoolean)
+									}
+								}`,
+					ValidArguments(), Invalid)
+			})
+			t.Run("172 variant", func(t *testing.T) {
+				run(`query listOfNonNullToNonNullList($listOfNonNullBoolean: [Boolean!]) {
+									arguments {
+										nonNullListOfBooleanArgField(nonNullListOfBooleanArg: $listOfNonNullBoolean)
 									}
 								}`,
 					ValidArguments(), Invalid)
 			})
 			t.Run("173", func(t *testing.T) {
-				run(`query listToNonNullList($booleanList: [Boolean]) {
+				run(`query listToNonNullList($listOfBoolean: [Boolean]) {
 									arguments {
-										nonNullBooleanListField(nonNullBooleanListArg: $booleanList)
+										nonNullListOfBooleanArgField(nonNullListOfBooleanArg: $listOfBoolean)
 									}
 								}`,
 					ValidArguments(), Invalid)
@@ -3586,7 +3627,7 @@ func TestExecutionValidation(t *testing.T) {
 			t.Run("174", func(t *testing.T) {
 				run(`query booleanArgQueryWithDefault($booleanArg: Boolean) {
 									arguments {
-										optionalNonNullBooleanArgField(optionalBooleanArg: $booleanArg)
+										nonNullBooleanWithDefaultArgField(nonNullBooleanWithDefaultArg: $booleanArg)
 									}
 								}`,
 					ValidArguments(), Valid)
@@ -3742,7 +3783,6 @@ func TestValidationEdgeCases(t *testing.T) {
 }
 
 func BenchmarkValidation(b *testing.B) {
-
 	must := func(err error) {
 		if err != nil {
 			panic(err)
@@ -3757,7 +3797,6 @@ func BenchmarkValidation(b *testing.B) {
 	}
 
 	run := func(b *testing.B, definition, operation string, state ValidationState) {
-
 		op, def := mustDocument(astparser.ParseGraphqlDocumentString(operation)), mustDocument(astparser.ParseGraphqlDocumentString(definition))
 		report := operationreport.Report{}
 		astnormalization.NormalizeOperation(&op, &def, &report)
@@ -4288,13 +4327,15 @@ type Arguments {
 
 type ValidArguments {
 	multipleReqs(x: Int!, y: Int!): Int!
-	booleanArgField(booleanArg: Boolean): Boolean
 	floatArgField(floatArg: Float): Float
 	intArgField(intArg: Int): Int
-	nonNullBooleanArgField(nonNullBooleanArg: Boolean!): Boolean!
-	nonNullBooleanListField(nonNullBooleanListArg: [Boolean]!): Boolean!
-	booleanListArgField(booleanListArg: [Boolean]!): [Boolean]
-	optionalNonNullBooleanArgField(optionalBooleanArg: Boolean! = false): Boolean!
+	booleanArgField(booleanArg: Boolean): String
+	nonNullBooleanArgField(nonNullBooleanArg: Boolean!): String
+	listOfBooleanArgField(listOfBooleanArg: [Boolean]): String
+	listOfNonNullBooleanArgField(listOfNonNullBooleanArg: [Boolean!]): String
+	nonNullListOfBooleanArgField(nonNullListOfBooleanArg: [Boolean]!): String
+	nonNullListOfNonNullBooleanArgField(nonNullListOfNonNullBooleanArg: [Boolean!]!): String
+	nonNullBooleanWithDefaultArgField(nonNullBooleanWithDefaultArg: Boolean! = false): String
 }
 
 enum DogCommand { SIT, DOWN, HEEL }
