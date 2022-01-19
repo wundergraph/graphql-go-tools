@@ -3475,6 +3475,203 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		}))
 
+	t.Run("federation with variables and renamed types", RunTest(federationTestSchema,
+		`	query MyReviews($publicOnly: Boolean!, $someSkipCondition: Boolean!) {
+						me {
+							reviews {
+								body
+								notes @skip(if: $someSkipCondition)
+								likes(filterToPublicOnly: $publicOnly)
+							}
+						}
+					}`,
+		"MyReviews",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:              0,
+						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{me {id}}"}}`,
+						DataSource:            &Source{},
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("me"),
+							Position: resolve.Position{
+								Line:   2,
+								Column: 7,
+							},
+							Value: &resolve.Object{
+								Fetch: &resolve.BatchFetch{
+									Fetch: &resolve.SingleFetch{
+										BufferId: 1,
+										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: XBoolean!, $publicOnly: XBoolean!){_entities(representations: $representations){... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"publicOnly":$$2$$,"someSkipCondition":$$1$$,"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+											&resolve.ContextVariable{
+												Path:     []string{"someSkipCondition"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+											},
+											&resolve.ContextVariable{
+												Path:     []string{"publicOnly"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+											},
+										),
+										DataSource:           &Source{},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
+										ProcessResponseConfig: resolve.ProcessResponseConfig{
+											ExtractGraphqlResponse:    true,
+											ExtractFederationEntities: true,
+										},
+									},
+									BatchFactory: batchFactory,
+								},
+								Path:     []string{"me"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										HasBuffer: true,
+										BufferID:  1,
+										Name:      []byte("reviews"),
+										Position: resolve.Position{
+											Line:   3,
+											Column: 8,
+										},
+										Value: &resolve.Array{
+											Path:     []string{"reviews"},
+											Nullable: true,
+											Item: &resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("body"),
+														Value: &resolve.String{
+															Path: []string{"body"},
+														},
+														Position: resolve.Position{
+															Line:   4,
+															Column: 9,
+														},
+													},
+													{
+														Name: []byte("notes"),
+														Value: &resolve.String{
+															Path:     []string{"notes"},
+															Nullable: true,
+														},
+														Position: resolve.Position{
+															Line:   5,
+															Column: 9,
+														},
+													},
+													{
+														Name: []byte("likes"),
+														Value: &resolve.String{
+															Path: []string{"likes"},
+														},
+														Position: resolve.Position{
+															Line:   6,
+															Column: 9,
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"me"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://user.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
+						},
+					}),
+					Factory: federationFactory,
+				},
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"reviews"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Review",
+							FieldNames: []string{"body", "notes", "likes"},
+						},
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id"},
+						},
+					},
+					Factory: federationFactory,
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://review.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "type Review { body: String! notes: String likes(filterToPublicOnly: Boolean): Int! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
+						},
+					}),
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:       "User",
+					FieldName:      "reviews",
+					RequiresFields: []string{"id"},
+				},
+				{
+					TypeName:  "Review",
+					FieldName: "likes",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "filterToPublicOnly",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+			},
+			Types: []plan.TypeConfiguration{
+				{
+					TypeName: "Boolean",
+					RenameTo: "XBoolean",
+				},
+			},
+		}))
+
 	t.Run("federated entity with requires", RunTest(requiredFieldTestSchema,
 		`	query QueryWithRequiredFields {
 						serviceOne {
