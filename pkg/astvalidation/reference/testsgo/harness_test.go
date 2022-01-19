@@ -68,7 +68,7 @@ func definitionValidatorFor(rule string) *astvalidation.DefinitionValidator {
 	if !ok {
 		return astvalidation.DefaultDefinitionValidator()
 	}
-	return astvalidation.NewDefinitionValidator(rules)
+	return astvalidation.NewDefinitionValidator(rules...)
 }
 
 // Loc - local type representing location of validation error message

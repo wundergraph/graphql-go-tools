@@ -244,6 +244,8 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("duplicate directives on SDL extensions", func(t *testing.T) {
+			t.Skip("Parser do not support repeatable directives")
+
 			ExpectSDLErrors(t, `
       directive @nonRepeatable on
         SCHEMA | SCALAR | OBJECT | INTERFACE | UNION | INPUT_OBJECT
@@ -302,6 +304,8 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("duplicate directives between SDL definitions and extensions", func(t *testing.T) {
+			t.Skip("Parser do not support repeatable directives")
+
 			ExpectSDLErrors(t, `
       directive @nonRepeatable on SCHEMA
 
