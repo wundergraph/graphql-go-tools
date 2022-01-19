@@ -123,15 +123,14 @@ func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 	defer pool.BytesBuffer.Put(out)
 
 	// value type is a non-array. Let's build an array from it.
-	for idx := 0; idx < (nestingDepth*2)+1; idx++ {
-		switch {
-		case idx < nestingDepth:
-			out.Write(literal.LBRACK)
-		case idx == nestingDepth:
-			out.Write(value)
-		default:
-			out.Write(literal.RBRACK)
-		}
+	for i := 0; i < nestingDepth; i++ {
+		out.Write(literal.LBRACK)
+	}
+
+	out.Write(value)
+
+	for i := 0; i < nestingDepth; i++ {
+		out.Write(literal.RBRACK)
 	}
 
 	i.operation.Input.Variables, err = sjson.SetRawBytes(i.operation.Input.Variables, variableNameString, out.Bytes())
