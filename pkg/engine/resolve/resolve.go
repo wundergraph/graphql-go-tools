@@ -1224,11 +1224,11 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 }
 
 type Object struct {
-	Nullable bool
-	Path     []string
-	Fields   []*Field
+	Nullable             bool
+	Path                 []string
+	Fields               []*Field
 	Fetch                Fetch
-	UnescapeResponseJson bool
+	UnescapeResponseJson bool `json:"unescape_response_json,omitempty"`
 }
 
 func (_ *Object) NodeKind() NodeKind {
@@ -1336,10 +1336,10 @@ type FieldExport struct {
 }
 
 type String struct {
-	Path     []string
-	Nullable bool
-	Export   *FieldExport
-	UnescapeResponseJson bool
+	Path                 []string
+	Nullable             bool
+	Export               *FieldExport `json:"export,omitempty"`
+	UnescapeResponseJson bool `json:"unescape_response_json,omitempty"`
 }
 
 func (_ *String) NodeKind() NodeKind {
@@ -1349,7 +1349,7 @@ func (_ *String) NodeKind() NodeKind {
 type Boolean struct {
 	Path     []string
 	Nullable bool
-	Export   *FieldExport
+	Export   *FieldExport `json:"export,omitempty"`
 }
 
 func (_ *Boolean) NodeKind() NodeKind {
@@ -1359,7 +1359,7 @@ func (_ *Boolean) NodeKind() NodeKind {
 type Float struct {
 	Path     []string
 	Nullable bool
-	Export   *FieldExport
+	Export   *FieldExport `json:"export,omitempty"`
 }
 
 func (_ *Float) NodeKind() NodeKind {
@@ -1369,7 +1369,7 @@ func (_ *Float) NodeKind() NodeKind {
 type Integer struct {
 	Path     []string
 	Nullable bool
-	Export   *FieldExport
+	Export   *FieldExport `json:"export,omitempty"`
 }
 
 func (_ *Integer) NodeKind() NodeKind {
@@ -1377,12 +1377,12 @@ func (_ *Integer) NodeKind() NodeKind {
 }
 
 type Array struct {
-	Path                []string
-	Nullable            bool
-	ResolveAsynchronous bool
-	Item                Node
-	Stream              Stream
-	UnescapeResponseJson bool
+	Path                 []string
+	Nullable             bool
+	ResolveAsynchronous  bool
+	Item                 Node
+	Stream               Stream
+	UnescapeResponseJson bool `json:"unescape_response_json,omitempty"`
 }
 
 type Stream struct {
