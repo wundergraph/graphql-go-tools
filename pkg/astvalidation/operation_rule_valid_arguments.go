@@ -33,7 +33,7 @@ func (v *validArgumentsVisitor) EnterDocument(operation, definition *ast.Documen
 }
 
 func (v *validArgumentsVisitor) EnterArgument(ref int) {
-	definition, exists := v.ArgumentInputValueDefinition(ref)
+	definitionRef, exists := v.ArgumentInputValueDefinition(ref)
 
 	if !exists {
 		argumentName := v.operation.ArgumentNameBytes(ref)
@@ -43,15 +43,19 @@ func (v *validArgumentsVisitor) EnterArgument(ref int) {
 	}
 
 	value := v.operation.ArgumentValue(ref)
-	v.validateIfValueSatisfiesInputFieldDefinition(value, definition)
+	v.validateIfValueSatisfiesInputFieldDefinition(value, definitionRef)
 }
 
-func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(value ast.Value, inputValueDefinition int) {
-	var satisfied bool
+func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(value ast.Value, inputValueDefinitionRef int) {
+	var (
+		satisfied             bool
+		operationTypeRef      int
+		variableDefinitionRef int
+	)
 
 	switch value.Kind {
 	case ast.ValueKindVariable:
-		satisfied = v.variableValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinition)
+		satisfied, operationTypeRef, variableDefinitionRef = v.variableValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinitionRef)
 	case ast.ValueKindEnum,
 		ast.ValueKindNull,
 		ast.ValueKindBoolean,
@@ -76,29 +80,33 @@ func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(val
 		return
 	}
 
-	typeRef := v.definition.InputValueDefinitionType(inputValueDefinition)
-
-	printedType, err := v.definition.PrintTypeBytes(typeRef, nil)
+	typeRef := v.definition.InputValueDefinitionType(inputValueDefinitionRef)
+	expectedTypeName, err := v.definition.PrintTypeBytes(typeRef, nil)
 	if v.HandleInternalErr(err) {
 		return
 	}
 
-	v.StopWithExternalErr(operationreport.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType))
-}
-
-func (v *validArgumentsVisitor) variableValueSatisfiesInputValueDefinition(variableValue, inputValueDefinition int) bool {
-	variableName := v.operation.VariableValueNameBytes(variableValue)
-	variableDefinition, exists := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref, variableName)
-	if !exists {
-		return false
+	actualTypeName, err := v.operation.PrintTypeBytes(operationTypeRef, nil)
+	if v.HandleInternalErr(err) {
+		return
 	}
 
-	operationType := v.operation.VariableDefinitions[variableDefinition].Type
-	definitionType := v.definition.InputValueDefinitions[inputValueDefinition].Type
-	hasDefaultValue := v.operation.VariableDefinitions[variableDefinition].DefaultValue.IsDefined ||
+	v.StopWithExternalErr(operationreport.ErrVariableTypeDoesntSatisfyInputValueDefinition(printedValue, actualTypeName, expectedTypeName, value.Position, v.operation.VariableDefinitions[variableDefinitionRef].VariableValue.Position))
+}
+
+func (v *validArgumentsVisitor) variableValueSatisfiesInputValueDefinition(variableValue, inputValueDefinition int) (satisfies bool, operationTypeRef int, variableDefRef int) {
+	variableName := v.operation.VariableValueNameBytes(variableValue)
+	variableDefinitionRef, exists := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref, variableName)
+	if !exists {
+		return false, ast.InvalidRef, variableDefinitionRef
+	}
+
+	operationTypeRef = v.operation.VariableDefinitions[variableDefinitionRef].Type
+	definitionTypeRef := v.definition.InputValueDefinitions[inputValueDefinition].Type
+	hasDefaultValue := v.operation.VariableDefinitions[variableDefinitionRef].DefaultValue.IsDefined ||
 		v.definition.InputValueDefinitions[inputValueDefinition].DefaultValue.IsDefined
 
-	return v.operationTypeSatisfiesDefinitionType(operationType, definitionType, hasDefaultValue)
+	return v.operationTypeSatisfiesDefinitionType(operationTypeRef, definitionTypeRef, hasDefaultValue), operationTypeRef, variableDefinitionRef
 }
 
 func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationType int, definitionType int, hasDefaultValue bool) bool {

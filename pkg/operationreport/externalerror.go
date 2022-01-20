@@ -1,10 +1,13 @@
 package operationreport
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/graphqlerrors"
+	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
+	"github.com/wundergraph/graphql-go-tools/pkg/lexer/position"
 )
 
 type ExternalError struct {
@@ -129,13 +132,54 @@ func ErrArgumentNotDefinedOnNode(argName, node ast.ByteSlice) (err ExternalError
 	return err
 }
 
-func ErrValueDoesntSatisfyInputValueDefinition(value, inputType ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("value: %s doesn't satisfy inputType: %s", value, inputType)
+func ErrValueDoesntSatisfyInputValueDefinition(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	var msg string
+
+	// TODO: temporary ugly solution
+
+	if bytes.Equal(inputType, literal.STRING) {
+		msg = "a non string"
+	}
+	if bytes.Equal(inputType, literal.INT) {
+		msg = "non-integer"
+	}
+	if bytes.Equal(inputType, literal.FLOAT) {
+		msg = "non numeric"
+	}
+	if bytes.Equal(inputType, literal.BOOLEAN) {
+		msg = "a non boolean"
+	}
+	if bytes.Equal(inputType, literal.BOOLEAN) {
+		msg = "a non boolean"
+	}
+
+	if bytes.Equal(inputType, literal.ID) {
+		msg = "a non-string and non-integer"
+	}
+
+	err.Message = fmt.Sprintf("%s cannot represent %s value: %s", inputType, msg, value)
+	err.Locations = []graphqlerrors.Location{
+		{
+			Line:   position.LineStart,
+			Column: position.CharStart,
+		},
+	}
+
 	return err
 }
 
-func ErrVariableTypeDoesntSatisfyInputValueDefinition(value, inputType ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("value: %s doesn't satisfy inputType: %s", value, inputType)
+func ErrVariableTypeDoesntSatisfyInputValueDefinition(value, inputType, expectedType ast.ByteSlice, valuePos, variableDefinitionPos position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`Variable "%v" of type "%v" used in position expecting type "%v".`, value, inputType, expectedType)
+	err.Locations = []graphqlerrors.Location{
+		{
+			Line:   variableDefinitionPos.LineStart,
+			Column: variableDefinitionPos.CharStart,
+		},
+		{
+			Line:   valuePos.LineStart,
+			Column: valuePos.CharStart,
+		},
+	}
 	return err
 }
 

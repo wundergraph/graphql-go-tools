@@ -69,7 +69,7 @@ func (v *valuesVisitor) EnterArgument(ref int) {
 			return
 		}
 
-		v.StopWithExternalErr(operationreport.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType))
+		v.StopWithExternalErr(operationreport.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType, value.Position))
 		return
 	}
 }
