@@ -10,7 +10,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
-// ValidArguments validates if arguments are valid
+// ValidArguments validates if arguments are valid: arguments names are known and variables has compatible types
+// deep variables comparison is handled by Values
 func ValidArguments() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := validArgumentsVisitor{
@@ -51,20 +52,15 @@ func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(val
 	switch value.Kind {
 	case ast.ValueKindVariable:
 		satisfied = v.variableValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinition)
-	case ast.ValueKindEnum:
-		satisfied = v.enumValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinition)
-	case ast.ValueKindNull:
-		satisfied = v.nullValueSatisfiesInputValueDefinition(inputValueDefinition)
-	case ast.ValueKindBoolean:
-		satisfied = v.booleanValueSatisfiesInputValueDefinition(inputValueDefinition)
-	case ast.ValueKindInteger:
-		satisfied = v.intValueSatisfiesInputValueDefinition(value, inputValueDefinition)
-	case ast.ValueKindString:
-		satisfied = v.stringValueSatisfiesInputValueDefinition(value, inputValueDefinition)
-	case ast.ValueKindFloat:
-		satisfied = v.floatValueSatisfiesInputValueDefinition(value, inputValueDefinition)
-	case ast.ValueKindObject, ast.ValueKindList:
-		// object- and list values are covered by Values() / valuesVisitor
+	case ast.ValueKindEnum,
+		ast.ValueKindNull,
+		ast.ValueKindBoolean,
+		ast.ValueKindInteger,
+		ast.ValueKindString,
+		ast.ValueKindFloat,
+		ast.ValueKindObject,
+		ast.ValueKindList:
+		// this types of values are covered by Values() / valuesVisitor
 		return
 	default:
 		v.StopWithInternalErr(fmt.Errorf("validateIfValueSatisfiesInputFieldDefinition: not implemented for value.Kind: %s", value.Kind))
@@ -88,85 +84,6 @@ func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(val
 	}
 
 	v.StopWithExternalErr(operationreport.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType))
-}
-
-func (v *validArgumentsVisitor) floatValueSatisfiesInputValueDefinition(value ast.Value, inputValueDefinition int) bool {
-	inputType := v.definition.Types[v.definition.InputValueDefinitionType(inputValueDefinition)]
-	if inputType.TypeKind == ast.TypeKindNonNull {
-		inputType = v.definition.Types[inputType.OfType]
-	}
-	if inputType.TypeKind != ast.TypeKindNamed {
-		return false
-	}
-	if !bytes.Equal(v.definition.Input.ByteSlice(inputType.Name), literal.FLOAT) {
-		return false
-	}
-	return true
-}
-
-func (v *validArgumentsVisitor) stringValueSatisfiesInputValueDefinition(value ast.Value, inputValueDefinition int) bool {
-	inputType := v.definition.Types[v.definition.InputValueDefinitionType(inputValueDefinition)]
-	if inputType.TypeKind == ast.TypeKindNonNull {
-		inputType = v.definition.Types[inputType.OfType]
-	}
-	if inputType.TypeKind != ast.TypeKindNamed {
-		return false
-	}
-
-	inputTypeName := v.definition.Input.ByteSlice(inputType.Name)
-	if !bytes.Equal(inputTypeName, literal.STRING) && !bytes.Equal(inputTypeName, literal.ID) {
-		return false
-	}
-	return true
-}
-
-func (v *validArgumentsVisitor) intValueSatisfiesInputValueDefinition(value ast.Value, inputValueDefinition int) bool {
-	inputType := v.definition.Types[v.definition.InputValueDefinitionType(inputValueDefinition)]
-	if inputType.TypeKind == ast.TypeKindNonNull {
-		inputType = v.definition.Types[inputType.OfType]
-	}
-	if inputType.TypeKind != ast.TypeKindNamed {
-		return false
-	}
-	if !(bytes.Equal(v.definition.Input.ByteSlice(inputType.Name), literal.INT) ||
-		bytes.Equal(v.definition.Input.ByteSlice(inputType.Name), literal.ID)) {
-		return false
-	}
-	return true
-}
-
-func (v *validArgumentsVisitor) booleanValueSatisfiesInputValueDefinition(inputValueDefinition int) bool {
-	inputType := v.definition.Types[v.definition.InputValueDefinitionType(inputValueDefinition)]
-	if inputType.TypeKind == ast.TypeKindNonNull {
-		inputType = v.definition.Types[inputType.OfType]
-	}
-	if inputType.TypeKind != ast.TypeKindNamed {
-		return false
-	}
-	if !bytes.Equal(v.definition.Input.ByteSlice(inputType.Name), literal.BOOLEAN) {
-		return false
-	}
-	return true
-}
-
-func (v *validArgumentsVisitor) nullValueSatisfiesInputValueDefinition(inputValueDefinition int) bool {
-	inputType := v.definition.Types[v.definition.InputValueDefinitionType(inputValueDefinition)]
-	return inputType.TypeKind != ast.TypeKindNonNull
-}
-
-func (v *validArgumentsVisitor) enumValueSatisfiesInputValueDefinition(enumValue, inputValueDefinition int) bool {
-	definitionTypeName := v.definition.ResolveTypeNameBytes(v.definition.InputValueDefinitions[inputValueDefinition].Type)
-	node, exists := v.definition.Index.FirstNodeByNameBytes(definitionTypeName)
-	if !exists {
-		return false
-	}
-
-	if node.Kind != ast.NodeKindEnumTypeDefinition {
-		return false
-	}
-
-	enumValueName := v.operation.Input.ByteSlice(v.operation.EnumValueName(enumValue))
-	return v.definition.EnumTypeDefinitionContainsEnumValue(node.Ref, enumValueName)
 }
 
 func (v *validArgumentsVisitor) variableValueSatisfiesInputValueDefinition(variableValue, inputValueDefinition int) bool {
