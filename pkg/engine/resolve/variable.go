@@ -172,6 +172,31 @@ func NewGraphQLVariableRendererFromTypeRef(operation, definition *ast.Document, 
 	}, nil
 }
 
+func NewGraphQLVariableRendererFromTypeRefWithOverrides(operation, definition *ast.Document, variableTypeRef int, overrides map[string]graphqljsonschema.JsonSchema) (*GraphQLVariableRenderer, error) {
+	jsonSchema := graphqljsonschema.FromTypeRefWithOverrides(operation, definition, variableTypeRef,overrides)
+	validator, err := graphqljsonschema.NewValidatorFromSchema(jsonSchema)
+	if err != nil {
+		return nil, err
+	}
+	schemaBytes, err := json.Marshal(jsonSchema)
+	if err != nil {
+		return nil, err
+	}
+	return &GraphQLVariableRenderer{
+		Kind:          "graphqlWithValidation",
+		JSONSchema:    string(schemaBytes),
+		validator:     validator,
+		rootValueType: getJSONRootType(operation, definition, variableTypeRef),
+	}, nil
+}
+
+func NewGraphQLVariableRendererFromTypeRefWithoutValidation(operation, definition *ast.Document, variableTypeRef int) (*GraphQLVariableRenderer, error) {
+	return &GraphQLVariableRenderer{
+		Kind:          "graphqlWithValidation",
+		rootValueType: getJSONRootType(operation, definition, variableTypeRef),
+	}, nil
+}
+
 // NewGraphQLVariableRenderer - to be used in tests only
 func NewGraphQLVariableRenderer(jsonSchema string) *GraphQLVariableRenderer {
 	validator := graphqljsonschema.MustNewValidatorFromString(jsonSchema)
@@ -295,10 +320,18 @@ type GraphQLVariableRenderer struct {
 	rootValueType JsonRootType
 }
 
+// add renderer that renders both variable name and variable value
+// before rendering, evaluate if the value contains null values
+// if an object contains only null values, set the object to null
+// do this recursively until reaching the root of the object
+
+
 func (g *GraphQLVariableRenderer) RenderVariable(ctx context.Context, data []byte, out io.Writer) error {
-	valid := g.validator.Validate(ctx, data)
-	if !valid {
-		return ErrInvalidJsonSchema
+	if g.validator != nil {
+		valid := g.validator.Validate(ctx, data)
+		if !valid {
+			return ErrInvalidJsonSchema
+		}
 	}
 
 	var desiredType jsonparser.ValueType
