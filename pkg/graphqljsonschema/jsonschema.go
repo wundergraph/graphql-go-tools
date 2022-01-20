@@ -12,21 +12,28 @@ import (
 
 func FromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
 	resolver := &fromTypeRefResolver{
-		visitedTypes: map[int]int{},
+		overrides: map[string]JsonSchema{},
+	}
+	return resolver.fromTypeRef(operation, definition, typeRef)
+}
+
+func FromTypeRefWithOverrides(operation, definition *ast.Document, typeRef int, overrides map[string]JsonSchema) JsonSchema {
+	resolver := &fromTypeRefResolver{
+		overrides: overrides,
 	}
 	return resolver.fromTypeRef(operation, definition, typeRef)
 }
 
 type fromTypeRefResolver struct {
-	visitedTypes map[int]int
+	overrides map[string]JsonSchema
+	depth int
 }
 
 func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
-	if visited := r.visitedTypes[typeRef]; visited != 0 {
-		r.visitedTypes[typeRef] = r.visitedTypes[typeRef] + 1
-	} else {
-		r.visitedTypes[typeRef] = 1
-	}
+	r.depth++
+	defer func() {
+		r.depth--
+	}()
 	t := operation.Types[typeRef]
 	switch t.TypeKind {
 	case ast.TypeKindList:
@@ -37,9 +44,13 @@ func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, t
 		}
 		return NewArray(itemSchema, nil)
 	case ast.TypeKindNonNull:
-		return FromTypeRef(operation, definition, t.OfType)
+		out := r.fromTypeRef(operation, definition, t.OfType)
+		return out
 	case ast.TypeKindNamed:
 		name := operation.Input.ByteSliceString(t.Name)
+		if schema, ok := r.overrides[name]; ok {
+			return schema
+		}
 		typeDefinitionNode, ok := definition.Index.FirstNodeByNameStr(name)
 		if !ok {
 			return nil
@@ -65,6 +76,9 @@ func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, t
 				return NewAny()
 			}
 		}
+		if r.depth > 5 {
+			return NewObject()
+		}
 		object := NewObject()
 		if node, ok := definition.Index.FirstNodeByNameStr(name); ok {
 			switch node.Kind {
@@ -72,9 +86,6 @@ func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, t
 				for _, ref := range definition.InputObjectTypeDefinitions[node.Ref].InputFieldsDefinition.Refs {
 					fieldName := definition.Input.ByteSliceString(definition.InputValueDefinitions[ref].Name)
 					fieldType := definition.InputValueDefinitions[ref].Type
-					if r.visitedTypes[fieldType] > 2 {
-						continue
-					}
 					fieldSchema := r.fromTypeRef(definition, definition, fieldType)
 					object.Properties[fieldName] = fieldSchema
 					if definition.TypeIsNonNull(fieldType) {
@@ -85,9 +96,6 @@ func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, t
 				for _, ref := range definition.ObjectTypeDefinitions[node.Ref].FieldsDefinition.Refs {
 					fieldName := definition.Input.ByteSliceString(definition.FieldDefinitions[ref].Name)
 					fieldType := definition.FieldDefinitions[ref].Type
-					if r.visitedTypes[fieldType] > 2 {
-						continue
-					}
 					fieldSchema := r.fromTypeRef(definition, definition, fieldType)
 					object.Properties[fieldName] = fieldSchema
 					if definition.TypeIsNonNull(fieldType) {
