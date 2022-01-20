@@ -134,6 +134,11 @@ func ErrValueDoesntSatisfyInputValueDefinition(value, inputType ast.ByteSlice) (
 	return err
 }
 
+func ErrVariableTypeDoesntSatisfyInputValueDefinition(value, inputType ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("value: %s doesn't satisfy inputType: %s", value, inputType)
+	return err
+}
+
 func ErrVariableNotDefinedOnOperation(variableName, operationName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf("variable: %s not defined on operation: %s", variableName, operationName)
 	return err

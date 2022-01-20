@@ -423,29 +423,29 @@ func (p *Parser) ParseValue() (value ast.Value) {
 	switch next {
 	case keyword.STRING, keyword.BLOCKSTRING:
 		value.Kind = ast.ValueKindString
-		value.Ref = p.parseStringValue()
+		value.Ref, value.Position = p.parseStringValue()
 	case keyword.IDENT:
 		key := p.identKeywordSliceRef(literal)
 		switch key {
 		case identkeyword.TRUE, identkeyword.FALSE:
 			value.Kind = ast.ValueKindBoolean
-			value.Ref = p.parseBooleanValue()
+			value.Ref, value.Position = p.parseBooleanValue()
 		case identkeyword.NULL:
 			value.Kind = ast.ValueKindNull
-			p.read()
+			value.Position = p.read().TextPosition
 		default:
 			value.Kind = ast.ValueKindEnum
-			value.Ref = p.parseEnumValue()
+			value.Ref, value.Position = p.parseEnumValue()
 		}
 	case keyword.DOLLAR:
 		value.Kind = ast.ValueKindVariable
-		value.Ref = p.parseVariableValue()
+		value.Ref, value.Position = p.parseVariableValue()
 	case keyword.INTEGER:
 		value.Kind = ast.ValueKindInteger
-		value.Ref = p.parseIntegerValue(nil)
+		value.Ref, value.Position = p.parseIntegerValue(nil)
 	case keyword.FLOAT:
 		value.Kind = ast.ValueKindFloat
-		value.Ref = p.parseFloatValue(nil)
+		value.Ref, value.Position = p.parseFloatValue(nil)
 	case keyword.SUB:
 		value = p.parseNegativeNumberValue()
 	case keyword.LBRACK:
@@ -531,10 +531,12 @@ func (p *Parser) parseNegativeNumberValue() (value ast.Value) {
 	switch p.peek() {
 	case keyword.INTEGER:
 		value.Kind = ast.ValueKindInteger
-		value.Ref = p.parseIntegerValue(&negativeSign)
+		value.Ref, _ = p.parseIntegerValue(&negativeSign)
+		value.Position = negativeSign
 	case keyword.FLOAT:
 		value.Kind = ast.ValueKindFloat
-		value.Ref = p.parseFloatValue(&negativeSign)
+		value.Ref, _ = p.parseFloatValue(&negativeSign)
+		value.Position = negativeSign
 	default:
 		p.errUnexpectedToken(p.read(), keyword.INTEGER, keyword.FLOAT)
 	}
@@ -542,13 +544,13 @@ func (p *Parser) parseNegativeNumberValue() (value ast.Value) {
 	return
 }
 
-func (p *Parser) parseFloatValue(negativeSign *position.Position) int {
+func (p *Parser) parseFloatValue(negativeSign *position.Position) (ref int, pos position.Position) {
 
 	value := p.mustRead(keyword.FLOAT)
 
 	if negativeSign != nil && negativeSign.CharEnd != value.TextPosition.CharStart {
 		p.errUnexpectedToken(value)
-		return -1
+		return -1, position.Position{}
 	}
 
 	floatValue := ast.FloatValue{
@@ -560,16 +562,16 @@ func (p *Parser) parseFloatValue(negativeSign *position.Position) int {
 	}
 
 	p.document.FloatValues = append(p.document.FloatValues, floatValue)
-	return len(p.document.FloatValues) - 1
+	return len(p.document.FloatValues) - 1, value.TextPosition
 }
 
-func (p *Parser) parseIntegerValue(negativeSign *position.Position) int {
+func (p *Parser) parseIntegerValue(negativeSign *position.Position) (ref int, pos position.Position) {
 
 	value := p.mustRead(keyword.INTEGER)
 
 	if negativeSign != nil && negativeSign.CharEnd != value.TextPosition.CharStart {
 		p.errUnexpectedToken(value)
-		return -1
+		return -1, position.Position{}
 	}
 
 	intValue := ast.IntValue{
@@ -581,10 +583,10 @@ func (p *Parser) parseIntegerValue(negativeSign *position.Position) int {
 	}
 
 	p.document.IntValues = append(p.document.IntValues, intValue)
-	return len(p.document.IntValues) - 1
+	return len(p.document.IntValues) - 1, value.TextPosition
 }
 
-func (p *Parser) parseVariableValue() int {
+func (p *Parser) parseVariableValue() (ref int, pos position.Position) {
 	dollar := p.mustRead(keyword.DOLLAR)
 	var value token.Token
 
@@ -594,12 +596,12 @@ func (p *Parser) parseVariableValue() int {
 		value = p.read()
 	default:
 		p.errUnexpectedToken(p.read(), keyword.IDENT)
-		return -1
+		return ast.InvalidRef, position.Position{}
 	}
 
 	if dollar.TextPosition.CharEnd != value.TextPosition.CharStart {
 		p.errUnexpectedToken(p.read(), keyword.IDENT)
-		return -1
+		return ast.InvalidRef, position.Position{}
 	}
 
 	variable := ast.VariableValue{
@@ -608,43 +610,45 @@ func (p *Parser) parseVariableValue() int {
 	}
 
 	p.document.VariableValues = append(p.document.VariableValues, variable)
-	return len(p.document.VariableValues) - 1
+	return len(p.document.VariableValues) - 1, dollar.TextPosition
 }
 
-func (p *Parser) parseBooleanValue() int {
+func (p *Parser) parseBooleanValue() (ref int, pos position.Position) {
 	value := p.read()
 	identKey := p.identKeywordToken(value)
 	switch identKey {
 	case identkeyword.FALSE:
-		return 0
+		return 0, value.TextPosition
 	case identkeyword.TRUE:
-		return 1
+		return 1, value.TextPosition
 	default:
 		p.errUnexpectedIdentKey(value, identKey, identkeyword.TRUE, identkeyword.FALSE)
-		return -1
+		return ast.InvalidRef, position.Position{}
 	}
 }
 
-func (p *Parser) parseEnumValue() int {
+func (p *Parser) parseEnumValue() (ref int, pos position.Position) {
+	value := p.mustRead(keyword.IDENT)
+
 	enum := ast.EnumValue{
-		Name: p.mustRead(keyword.IDENT).Literal,
+		Name: value.Literal,
 	}
-	p.document.EnumValues = append(p.document.EnumValues, enum)
-	return len(p.document.EnumValues) - 1
+
+	return p.document.AddEnumValue(enum), value.TextPosition
 }
 
-func (p *Parser) parseStringValue() int {
+func (p *Parser) parseStringValue() (ref int, pos position.Position) {
 	value := p.read()
 	if value.Keyword != keyword.STRING && value.Keyword != keyword.BLOCKSTRING {
 		p.errUnexpectedToken(value, keyword.STRING, keyword.BLOCKSTRING)
-		return -1
+		return ast.InvalidRef, position.Position{}
 	}
 	stringValue := ast.StringValue{
 		Content:     value.Literal,
 		BlockString: value.Keyword == keyword.BLOCKSTRING,
 	}
-	p.document.StringValues = append(p.document.StringValues, stringValue)
-	return len(p.document.StringValues) - 1
+
+	return p.document.AddStringValue(stringValue), value.TextPosition
 }
 
 func (p *Parser) parseObjectTypeDefinition(description *ast.Description) {
@@ -1517,7 +1521,7 @@ func (p *Parser) parseVariableDefinition() int {
 	var variableDefinition ast.VariableDefinition
 
 	variableDefinition.VariableValue.Kind = ast.ValueKindVariable
-	variableDefinition.VariableValue.Ref = p.parseVariableValue()
+	variableDefinition.VariableValue.Ref, variableDefinition.VariableValue.Position = p.parseVariableValue()
 
 	variableDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
 	variableDefinition.Type = p.ParseType()

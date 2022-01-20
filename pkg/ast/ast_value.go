@@ -28,8 +28,9 @@ const (
 )
 
 type Value struct {
-	Kind ValueKind // e.g. 100 or "Bar"
-	Ref  int
+	Kind     ValueKind // e.g. 100 or "Bar"
+	Ref      int
+	Position position.Position
 }
 
 func (d *Document) CopyValue(ref int) int {
