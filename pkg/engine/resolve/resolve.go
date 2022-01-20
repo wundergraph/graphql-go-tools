@@ -920,6 +920,13 @@ func (r *Resolver) resolveString(ctx *Context, str *String, data []byte, stringB
 
 	value, valueType, _, err = jsonparser.Get(data, str.Path...)
 	if err != nil || valueType != jsonparser.String {
+		if err == nil && str.UnescapeResponseJson {
+			switch valueType {
+			case jsonparser.Object, jsonparser.Array, jsonparser.Boolean, jsonparser.Number, jsonparser.Null:
+				stringBuf.Data.WriteBytes(value)
+				return nil
+			}
+		}
 		if !str.Nullable {
 			return errNonNullableFieldValueIsNull
 		}
@@ -1339,7 +1346,7 @@ type String struct {
 	Path                 []string
 	Nullable             bool
 	Export               *FieldExport `json:"export,omitempty"`
-	UnescapeResponseJson bool `json:"unescape_response_json,omitempty"`
+	UnescapeResponseJson bool         `json:"unescape_response_json,omitempty"`
 }
 
 func (_ *String) NodeKind() NodeKind {
