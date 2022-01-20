@@ -275,6 +275,8 @@ func (v *valuesVisitor) valueSatisfiesScalar(value ast.Value, scalar int) bool {
 		return scalarName == typeName
 	}
 	switch scalarName {
+	case "ID":
+		return value.Kind == ast.ValueKindString || value.Kind == ast.ValueKindInteger
 	case "Boolean":
 		return value.Kind == ast.ValueKindBoolean
 	case "Int":

@@ -128,7 +128,8 @@ func (v *validArgumentsVisitor) intValueSatisfiesInputValueDefinition(value ast.
 	if inputType.TypeKind != ast.TypeKindNamed {
 		return false
 	}
-	if !bytes.Equal(v.definition.Input.ByteSlice(inputType.Name), literal.INT) {
+	if !(bytes.Equal(v.definition.Input.ByteSlice(inputType.Name), literal.INT) ||
+		bytes.Equal(v.definition.Input.ByteSlice(inputType.Name), literal.ID)) {
 		return false
 	}
 	return true

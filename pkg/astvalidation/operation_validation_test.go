@@ -2248,6 +2248,16 @@ func TestExecutionValidation(t *testing.T) {
 					}`,
 					Valid, ValidArguments(), Values())
 			})
+			t.Run("ID as arg given as integer", func(t *testing.T) {
+				runManyRulesWithDefinition(countriesDefinition, `{
+						country(code: 11) {
+							code
+							name
+						}
+					}`,
+					Valid, ValidArguments(), Values())
+			})
+
 		})
 		t.Run("5.4.2 Argument Uniqueness", func(t *testing.T) {
 			t.Run("121 variant", func(t *testing.T) {
