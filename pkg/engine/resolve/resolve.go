@@ -706,6 +706,10 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 		data, _, _, _ = jsonparser.Get(data, array.Path...)
 	}
 
+	if array.UnescapeResponseJson {
+		data = bytes.ReplaceAll(data, []byte(`\"`), []byte(`"`))
+	}
+
 	if bytes.Equal(data, emptyArray) {
 		r.resolveEmptyArray(arrayBuf.Data)
 		return
@@ -916,6 +920,13 @@ func (r *Resolver) resolveString(ctx *Context, str *String, data []byte, stringB
 
 	value, valueType, _, err = jsonparser.Get(data, str.Path...)
 	if err != nil || valueType != jsonparser.String {
+		if err == nil && str.UnescapeResponseJson {
+			switch valueType {
+			case jsonparser.Object, jsonparser.Array, jsonparser.Boolean, jsonparser.Number, jsonparser.Null:
+				stringBuf.Data.WriteBytes(value)
+				return nil
+			}
+		}
 		if !str.Nullable {
 			return errNonNullableFieldValueIsNull
 		}
@@ -926,6 +937,14 @@ func (r *Resolver) resolveString(ctx *Context, str *String, data []byte, stringB
 	if value == nil && !str.Nullable {
 		return errNonNullableFieldValueIsNull
 	}
+
+	if str.UnescapeResponseJson {
+		value = bytes.ReplaceAll(value, []byte(`\"`), []byte(`"`))
+		stringBuf.Data.WriteBytes(value)
+		r.exportField(ctx, str.Export, value)
+		return nil
+	}
+
 	stringBuf.Data.WriteBytes(quote)
 	stringBuf.Data.WriteBytes(value)
 	stringBuf.Data.WriteBytes(quote)
@@ -997,6 +1016,10 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 
 		ctx.addResponseElements(object.Path)
 		defer ctx.removeResponseLastElements(object.Path)
+	}
+
+	if object.UnescapeResponseJson {
+		data = bytes.ReplaceAll(data, []byte(`\"`), []byte(`"`))
 	}
 
 	var set *resultSet
@@ -1208,10 +1231,11 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 }
 
 type Object struct {
-	Nullable bool
-	Path     []string
-	Fields   []*Field
-	Fetch    Fetch
+	Nullable             bool
+	Path                 []string
+	Fields               []*Field
+	Fetch                Fetch
+	UnescapeResponseJson bool `json:"unescape_response_json,omitempty"`
 }
 
 func (_ *Object) NodeKind() NodeKind {
@@ -1319,9 +1343,10 @@ type FieldExport struct {
 }
 
 type String struct {
-	Path     []string
-	Nullable bool
-	Export   *FieldExport
+	Path                 []string
+	Nullable             bool
+	Export               *FieldExport `json:"export,omitempty"`
+	UnescapeResponseJson bool         `json:"unescape_response_json,omitempty"`
 }
 
 func (_ *String) NodeKind() NodeKind {
@@ -1331,7 +1356,7 @@ func (_ *String) NodeKind() NodeKind {
 type Boolean struct {
 	Path     []string
 	Nullable bool
-	Export   *FieldExport
+	Export   *FieldExport `json:"export,omitempty"`
 }
 
 func (_ *Boolean) NodeKind() NodeKind {
@@ -1341,7 +1366,7 @@ func (_ *Boolean) NodeKind() NodeKind {
 type Float struct {
 	Path     []string
 	Nullable bool
-	Export   *FieldExport
+	Export   *FieldExport `json:"export,omitempty"`
 }
 
 func (_ *Float) NodeKind() NodeKind {
@@ -1351,7 +1376,7 @@ func (_ *Float) NodeKind() NodeKind {
 type Integer struct {
 	Path     []string
 	Nullable bool
-	Export   *FieldExport
+	Export   *FieldExport `json:"export,omitempty"`
 }
 
 func (_ *Integer) NodeKind() NodeKind {
@@ -1359,11 +1384,12 @@ func (_ *Integer) NodeKind() NodeKind {
 }
 
 type Array struct {
-	Path                []string
-	Nullable            bool
-	ResolveAsynchronous bool
-	Item                Node
-	Stream              Stream
+	Path                 []string
+	Nullable             bool
+	ResolveAsynchronous  bool
+	Item                 Node
+	Stream               Stream
+	UnescapeResponseJson bool `json:"unescape_response_json,omitempty"`
 }
 
 type Stream struct {

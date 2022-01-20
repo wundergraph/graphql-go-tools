@@ -247,6 +247,190 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}))
+	t.Run("selections on interface type", RunTest(interfaceSelectionSchema, `
+		query MyQuery {
+			user {
+				id
+				displayName
+			}
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("user"),
+						Position: resolve.Position{
+							Line:   3,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Path:     []string{"user"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("id"),
+									Value: &resolve.String{
+										Path: []string{"id"},
+									},
+									Position: resolve.Position{
+										Line:   4,
+										Column: 5,
+									},
+								},
+								{
+									Name: []byte("displayName"),
+									Value: &resolve.String{
+										Path: []string{"displayName"},
+									},
+									Position: resolve.Position{
+										Line:   5,
+										Column: 5,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"user"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "displayName","isLoggedIn"},
+					},
+					{
+						TypeName:   "RegisteredUser",
+						FieldNames: []string{"id", "displayName","isLoggedIn"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{},
+	}))
+	t.Run("selections on interface type with object type interface", RunTest(interfaceSelectionSchema, `
+		query MyQuery {
+			user {
+				id
+				displayName
+				... on RegisteredUser {
+					hasVerifiedEmail
+				}
+			}
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName __typename ... on RegisteredUser {hasVerifiedEmail}}}"}}`,
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("user"),
+						Position: resolve.Position{
+							Line:   3,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Path:     []string{"user"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("id"),
+									Value: &resolve.String{
+										Path: []string{"id"},
+									},
+									Position: resolve.Position{
+										Line:   4,
+										Column: 5,
+									},
+								},
+								{
+									Name: []byte("displayName"),
+									Value: &resolve.String{
+										Path: []string{"displayName"},
+									},
+									Position: resolve.Position{
+										Line:   5,
+										Column: 5,
+									},
+								},
+								{
+									Name: []byte("hasVerifiedEmail"),
+									Value: &resolve.Boolean{
+										Path: []string{"hasVerifiedEmail"},
+									},
+									Position: resolve.Position{
+										Line:   7,
+										Column: 6,
+									},
+									OnTypeName: []byte("RegisteredUser"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"user"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "displayName","isLoggedIn"},
+					},
+					{
+						TypeName:   "RegisteredUser",
+						FieldNames: []string{"id", "displayName","isLoggedIn","hasVerifiedEmail"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{},
+	}))
 	t.Run("exported field", RunTest(starWarsSchemaWithExportDirective, `
 		query MyQuery($id: ID! $heroName: String!){
 			droid(id: $id){
@@ -3016,15 +3200,11 @@ func TestGraphQLDataSource(t *testing.T) {
 																	&resolve.BatchFetch{
 																		Fetch: &resolve.SingleFetch{
 																			BufferId:   2,
-																			Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"name":$$1$$,"upc":$$0$$,"__typename":"Product"}]}}}`,
+																			Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
 																			DataSource: &Source{},
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
 																					Path:     []string{"upc"},
-																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
-																				},
-																				&resolve.ObjectVariable{
-																					Path:     []string{"name"},
 																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 																				},
 																			),
@@ -3039,14 +3219,10 @@ func TestGraphQLDataSource(t *testing.T) {
 																	&resolve.BatchFetch{
 																		Fetch: &resolve.SingleFetch{
 																			BufferId: 3,
-																			Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {id username}}}}}","variables":{"representations":[{"name":$$1$$,"upc":$$0$$,"__typename":"Product"}]}}}`,
+																			Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {id username}}}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
 																					Path:     []string{"upc"},
-																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
-																				},
-																				&resolve.ObjectVariable{
-																					Path:     []string{"name"},
 																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 																				},
 																			),
@@ -3216,7 +3392,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") @key(fields: \"name\"){upc: String! name: String! price: Int!}",
+							ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") {upc: String! price: Int!}",
 						},
 					}),
 					Factory: federationFactory,
@@ -3253,7 +3429,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "type Review { body: String! author: User! @provides(fields: \"username\") product: Product! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] } extend type Product @key(fields: \"upc\") @key(fields: \"name\") { upc: String! @external name: String! reviews: [Review] }",
+							ServiceSDL: "type Review { body: String! author: User! @provides(fields: \"username\") product: Product! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] } extend type Product @key(fields: \"upc\") { upc: String! @external reviews: [Review] }",
 						},
 					}),
 				},
@@ -3288,6 +3464,550 @@ func TestGraphQLDataSource(t *testing.T) {
 					TypeName:       "Product",
 					FieldName:      "reviews",
 					RequiresFields: []string{"upc"},
+				},
+			},
+		}))
+
+	t.Run("federation with variables", RunTest(federationTestSchema,
+		`	query MyReviews($publicOnly: Boolean!, $someSkipCondition: Boolean!) {
+						me {
+							reviews {
+								body
+								notes @skip(if: $someSkipCondition)
+								likes(filterToPublicOnly: $publicOnly)
+							}
+						}
+					}`,
+		"MyReviews",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:              0,
+						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{me {id}}"}}`,
+						DataSource:            &Source{},
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("me"),
+							Position: resolve.Position{
+								Line:   2,
+								Column: 7,
+							},
+							Value: &resolve.Object{
+								Fetch: &resolve.BatchFetch{
+									Fetch: &resolve.SingleFetch{
+										BufferId: 1,
+										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: Boolean!){_entities(representations: $representations){... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"publicOnly":$$2$$,"someSkipCondition":$$1$$,"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+											&resolve.ContextVariable{
+												Path:     []string{"someSkipCondition"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+											},
+											&resolve.ContextVariable{
+												Path:     []string{"publicOnly"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+											},
+										),
+										DataSource:           &Source{},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
+										ProcessResponseConfig: resolve.ProcessResponseConfig{
+											ExtractGraphqlResponse:    true,
+											ExtractFederationEntities: true,
+										},
+									},
+									BatchFactory: batchFactory,
+								},
+								Path:     []string{"me"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										HasBuffer: true,
+										BufferID:  1,
+										Name:      []byte("reviews"),
+										Position: resolve.Position{
+											Line:   3,
+											Column: 8,
+										},
+										Value: &resolve.Array{
+											Path:     []string{"reviews"},
+											Nullable: true,
+											Item: &resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("body"),
+														Value: &resolve.String{
+															Path: []string{"body"},
+														},
+														Position: resolve.Position{
+															Line:   4,
+															Column: 9,
+														},
+													},
+													{
+														Name: []byte("notes"),
+														Value: &resolve.String{
+															Path:     []string{"notes"},
+															Nullable: true,
+														},
+														Position: resolve.Position{
+															Line:   5,
+															Column: 9,
+														},
+													},
+													{
+														Name: []byte("likes"),
+														Value: &resolve.String{
+															Path: []string{"likes"},
+														},
+														Position: resolve.Position{
+															Line:   6,
+															Column: 9,
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"me"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://user.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
+						},
+					}),
+					Factory: federationFactory,
+				},
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"reviews"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Review",
+							FieldNames: []string{"body", "notes", "likes"},
+						},
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id"},
+						},
+					},
+					Factory: federationFactory,
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://review.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "type Review { body: String! notes: String likes(filterToPublicOnly: Boolean): Int! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
+						},
+					}),
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:       "User",
+					FieldName:      "reviews",
+					RequiresFields: []string{"id"},
+				},
+				{
+					TypeName:  "Review",
+					FieldName: "likes",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "filterToPublicOnly",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+			},
+		}))
+
+	t.Run("federation with variables and renamed types", RunTest(federationTestSchema,
+		`	query MyReviews($publicOnly: Boolean!, $someSkipCondition: Boolean!) {
+						me {
+							reviews {
+								body
+								notes @skip(if: $someSkipCondition)
+								likes(filterToPublicOnly: $publicOnly)
+							}
+						}
+					}`,
+		"MyReviews",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:              0,
+						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{me {id}}"}}`,
+						DataSource:            &Source{},
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("me"),
+							Position: resolve.Position{
+								Line:   2,
+								Column: 7,
+							},
+							Value: &resolve.Object{
+								Fetch: &resolve.BatchFetch{
+									Fetch: &resolve.SingleFetch{
+										BufferId: 1,
+										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: XBoolean!, $publicOnly: XBoolean!){_entities(representations: $representations){... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"publicOnly":$$2$$,"someSkipCondition":$$1$$,"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+											&resolve.ContextVariable{
+												Path:     []string{"someSkipCondition"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+											},
+											&resolve.ContextVariable{
+												Path:     []string{"publicOnly"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+											},
+										),
+										DataSource:           &Source{},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
+										ProcessResponseConfig: resolve.ProcessResponseConfig{
+											ExtractGraphqlResponse:    true,
+											ExtractFederationEntities: true,
+										},
+									},
+									BatchFactory: batchFactory,
+								},
+								Path:     []string{"me"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										HasBuffer: true,
+										BufferID:  1,
+										Name:      []byte("reviews"),
+										Position: resolve.Position{
+											Line:   3,
+											Column: 8,
+										},
+										Value: &resolve.Array{
+											Path:     []string{"reviews"},
+											Nullable: true,
+											Item: &resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("body"),
+														Value: &resolve.String{
+															Path: []string{"body"},
+														},
+														Position: resolve.Position{
+															Line:   4,
+															Column: 9,
+														},
+													},
+													{
+														Name: []byte("notes"),
+														Value: &resolve.String{
+															Path:     []string{"notes"},
+															Nullable: true,
+														},
+														Position: resolve.Position{
+															Line:   5,
+															Column: 9,
+														},
+													},
+													{
+														Name: []byte("likes"),
+														Value: &resolve.String{
+															Path: []string{"likes"},
+														},
+														Position: resolve.Position{
+															Line:   6,
+															Column: 9,
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"me"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://user.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
+						},
+					}),
+					Factory: federationFactory,
+				},
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"reviews"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Review",
+							FieldNames: []string{"body", "notes", "likes"},
+						},
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id"},
+						},
+					},
+					Factory: federationFactory,
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://review.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "type Review { body: String! notes: String likes(filterToPublicOnly: Boolean): Int! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
+						},
+					}),
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:       "User",
+					FieldName:      "reviews",
+					RequiresFields: []string{"id"},
+				},
+				{
+					TypeName:  "Review",
+					FieldName: "likes",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "filterToPublicOnly",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+			},
+			Types: []plan.TypeConfiguration{
+				{
+					TypeName: "Boolean",
+					RenameTo: "XBoolean",
+				},
+			},
+		}))
+
+	t.Run("federated entity with requires", RunTest(requiredFieldTestSchema,
+		`	query QueryWithRequiredFields {
+						serviceOne {
+							serviceTwoFieldOne  # @requires(fields: "serviceOneFieldOne")
+							serviceTwoFieldTwo  # @requires(fields: "serviceOneFieldTwo")
+						}
+					}`,
+		"QueryWithRequiredFields",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId: 0,
+						// Should fetch the federation key as well as all the required fields.
+						Input:                 `{"method":"POST","url":"http://one.service","body":{"query":"{serviceOne {id serviceOneFieldOne serviceOneFieldTwo}}"}}`,
+						DataSource:            &Source{},
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("serviceOne"),
+							Position: resolve.Position{
+								Line:   2,
+								Column: 7,
+							},
+							Value: &resolve.Object{
+								Fetch: &resolve.BatchFetch{
+									Fetch: &resolve.SingleFetch{
+										BufferId: 1,
+										// The required fields are present in the representations.
+										Input: `{"method":"POST","url":"http://two.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on ServiceOneType {serviceTwoFieldOne serviceTwoFieldTwo}}}","variables":{"representations":[{"serviceOneFieldTwo":$$2$$,"serviceOneFieldOne":$$1$$,"id":$$0$$,"__typename":"ServiceOneType"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+											&resolve.ObjectVariable{
+												Path:     []string{"serviceOneFieldOne"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+											},
+											&resolve.ObjectVariable{
+												Path:     []string{"serviceOneFieldTwo"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+											},
+										),
+										DataSource:           &Source{},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
+										ProcessResponseConfig: resolve.ProcessResponseConfig{
+											ExtractGraphqlResponse:    true,
+											ExtractFederationEntities: true,
+										},
+									},
+									BatchFactory: batchFactory,
+								},
+								Path:     []string{"serviceOne"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										HasBuffer: true,
+										BufferID:  1,
+										Name:      []byte("serviceTwoFieldOne"),
+										Position: resolve.Position{
+											Line:   3,
+											Column: 8,
+										},
+										Value: &resolve.String{
+											Path: []string{"serviceTwoFieldOne"},
+										},
+									},
+									{
+										HasBuffer: true,
+										BufferID:  1,
+										Name:      []byte("serviceTwoFieldTwo"),
+										Position: resolve.Position{
+											Line:   4,
+											Column: 8,
+										},
+										Value: &resolve.String{
+											Path: []string{"serviceTwoFieldTwo"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"serviceOne"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "ServiceOneType",
+							FieldNames: []string{"id", "serviceOneFieldOne", "serviceOneFieldTwo"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://one.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "extend type Query {serviceOne: ServiceOneType} type ServiceOneType @key(fields: \"id\"){ id: ID! serviceOneFieldOne: String! serviceOneFieldTwo: String!}",
+						},
+					}),
+					Factory: federationFactory,
+				},
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "ServiceOneType",
+							FieldNames: []string{"serviceTwoFieldOne", "serviceTwoFieldTwo"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "ServiceOneType",
+							FieldNames: []string{"id", "serviceOneFieldOne", "serviceOneFieldTwo"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://two.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "extend type ServiceOneType @key(fields: \"id\") { id: ID! @external serviceOneFieldOne: String! @external serviceOneFieldTwo: String! @external serviceTwoFieldOne: String! @requires(fields: \"serviceOneFieldOne\") serviceTwoFieldTwo: String! @requires(fields: \"serviceOneFieldTwo\")}",
+						},
+					}),
+					Factory: federationFactory,
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:       "ServiceOneType",
+					FieldName:      "serviceTwoFieldOne",
+					RequiresFields: []string{"id", "serviceOneFieldOne"},
+				},
+				{
+					TypeName:       "ServiceOneType",
+					FieldName:      "serviceTwoFieldTwo",
+					RequiresFields: []string{"id", "serviceOneFieldTwo"},
 				},
 			},
 		}))
@@ -3449,15 +4169,11 @@ func TestGraphQLDataSource(t *testing.T) {
 																	&resolve.BatchFetch{
 																		Fetch: &resolve.SingleFetch{
 																			BufferId:   2,
-																			Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"name":$$1$$,"upc":$$0$$,"__typename":"Product"}]}}}`,
+																			Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
 																			DataSource: &Source{},
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
 																					Path:     []string{"upc"},
-																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
-																				},
-																				&resolve.ObjectVariable{
-																					Path:     []string{"name"},
 																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 																				},
 																			),
@@ -3472,14 +4188,10 @@ func TestGraphQLDataSource(t *testing.T) {
 																	&resolve.BatchFetch{
 																		Fetch: &resolve.SingleFetch{
 																			BufferId: 3,
-																			Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {id username}}}}}","variables":{"representations":[{"name":$$1$$,"upc":$$0$$,"__typename":"Product"}]}}}`,
+																			Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {reviews {body author {id username}}}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
 																					Path:     []string{"upc"},
-																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
-																				},
-																				&resolve.ObjectVariable{
-																					Path:     []string{"name"},
 																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 																				},
 																			),
@@ -3650,7 +4362,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") @key(fields: \"name\"){upc: String! name: String! price: Int!}",
+							ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") {upc: String! price: Int!}",
 						},
 						UpstreamSchema: federationTestSchema,
 					}),
@@ -3688,7 +4400,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "type Review { body: String! author: User! @provides(fields: \"username\") product: Product! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] } extend type Product @key(fields: \"upc\") @key(fields: \"name\") { upc: String! @external name: String! reviews: [Review] }",
+							ServiceSDL: "type Review { body: String! author: User! @provides(fields: \"username\") product: Product! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] } extend type Product @key(fields: \"upc\") { upc: String! @external reviews: [Review] }",
 						},
 						UpstreamSchema: federationTestSchema,
 					}),
@@ -4021,7 +4733,6 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 }
 
 func BenchmarkFederationBatching(b *testing.B) {
-
 	userService := FakeDataSource(`{"data":{"me": {"id": "1234","username": "Me","__typename": "User"}}}`)
 	reviewsService := FakeDataSource(`{"data":{"_entities":[{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}]}}`)
 	productsService := FakeDataSource(`{"data":{"_entities":[{"name": "Trilby"},{"name": "Fedora"}]}}`)
@@ -4220,6 +4931,33 @@ func BenchmarkFederationBatching(b *testing.B) {
 		}
 	})
 }
+
+const interfaceSelectionSchema = `
+
+scalar String
+scalar Boolean
+
+schema {
+	query: Query
+}
+
+type Query {
+	user: User
+}
+
+interface User {
+    id: ID!
+    displayName: String!
+    isLoggedIn: Boolean!
+}
+
+type RegisteredUser implements User {
+    id: ID!
+    displayName: String!
+    isLoggedIn: Boolean!
+	hasVerifiedEmail: Boolean!
+}
+`
 
 const starWarsSchema = `
 union SearchResult = Human | Droid | Starship
@@ -5012,6 +5750,8 @@ type Review {
   body: String!
   author: User!
   product: Product!
+  notes: String
+  likes(filterToPublicOnly: Boolean): Int!
 }
 
 type User {
@@ -5052,6 +5792,28 @@ type User_api {
   id: ID!
   username: String!
   reviews: [Review_api]
+}
+`
+
+const requiredFieldTestSchema = `
+scalar String
+scalar ID
+
+schema {
+	query: Query
+}
+
+type Query {
+  serviceOne: ServiceOneType
+}
+
+type ServiceOneType {
+  id: ID!
+  serviceOneFieldOne: String!
+  serviceOneFieldTwo: String!
+
+  serviceTwoFieldOne: String!
+  serviceTwoFieldTwo: String!
 }
 `
 
