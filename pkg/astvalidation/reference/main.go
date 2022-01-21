@@ -245,7 +245,7 @@ func (c *Converter) transformLine(line string) (out string, skip bool) {
 		out = c.transformHelperFunctions(line)
 
 	// rewrite calls to test helpers
-	case !strings.Contains(line, ":=") && regexp.MustCompile("expect.*\\(").MatchString(line):
+	case !strings.Contains(line, ":=") && regexp.MustCompile(`expect.*\(`).MatchString(line):
 		transformedLine := c.transformUsageOfHelperFunctions(line)
 		out, skip = c.transformLine(transformedLine)
 
