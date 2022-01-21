@@ -179,10 +179,9 @@ func ExtendSchema(schema string, sdlStr string) string {
 	parser := astparser.NewParser()
 	report := operationreport.Report{}
 	parser.Parse(&definition, &report)
-	// TODO: handle error
 
 	res, _ := astprinter.PrintStringIndent(&definition, nil, "  ")
-	// TODO: handle error
+
 	return res
 }
 
@@ -191,10 +190,8 @@ func prepareSchema(schema string) ast.Document {
 	if report.HasErrors() {
 		panic(report.Error())
 	}
-	// require.False(t, report.HasErrors())
 
-	asttransform.MergeDefinitionWithBaseSchema(&definition)
-	// require.NoError(t, err)
+	_ = asttransform.MergeDefinitionWithBaseSchema(&definition)
 
 	return definition
 }
@@ -241,7 +238,6 @@ func hasReportError(t *testing.T, report operationreport.Report) MessageCompare 
 			messages = append(messages, actualError.message)
 		}
 
-		// TODO check that error has msg
 		assert.Contains(t, messages, msg)
 	}
 }
