@@ -258,9 +258,9 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
+					DataSource:            &Source{},
+					BufferId:              0,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
@@ -315,11 +315,11 @@ func TestGraphQLDataSource(t *testing.T) {
 				ChildNodes: []plan.TypeField{
 					{
 						TypeName:   "User",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 					{
 						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 				},
 				Factory: &Factory{},
@@ -346,9 +346,9 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName __typename ... on RegisteredUser {hasVerifiedEmail}}}"}}`,
+					DataSource:            &Source{},
+					BufferId:              0,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName __typename ... on RegisteredUser {hasVerifiedEmail}}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
@@ -414,11 +414,11 @@ func TestGraphQLDataSource(t *testing.T) {
 				ChildNodes: []plan.TypeField{
 					{
 						TypeName:   "User",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 					{
 						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName","isLoggedIn","hasVerifiedEmail"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn", "hasVerifiedEmail"},
 					},
 				},
 				Factory: &Factory{},

@@ -224,29 +224,27 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 	}, nil
 }
 
-func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, writer resolve.FlushWriter, options ...ExecutionOptionsV2) error {
+func (e *ExecutionEngineV2) prepareExecutionContext(ctx context.Context, operation *Request, options ...ExecutionOptionsV2) (*internalExecutionContext, plan.Plan, error) {
 	if !operation.IsNormalized() {
 		result, err := operation.Normalize(e.config.schema)
 		if err != nil {
-			return err
+			return nil, nil, err
 		}
 
 		if !result.Successful {
-			return result.Errors
+			return nil, nil, result.Errors
 		}
 	}
 
 	result, err := operation.ValidateForSchema(e.config.schema)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	if !result.Valid {
-		return result.Errors
+		return nil, nil, result.Errors
 	}
 
 	execContext := e.getExecutionCtx()
-	defer e.putExecutionCtx(execContext)
-
 	execContext.prepare(ctx, operation.Variables, operation.request)
 
 	for i := range options {
@@ -256,7 +254,19 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 	var report operationreport.Report
 	cachedPlan := e.getCachedPlan(execContext, &operation.document, &e.config.schema.document, operation.OperationName, &report)
 	if report.HasErrors() {
-		return report
+		return execContext, cachedPlan, report
+	}
+
+	return execContext, cachedPlan, nil
+}
+
+func (e *ExecutionEngineV2) ExecuteAndReturnPlan(ctx context.Context, operation *Request, writer resolve.FlushWriter, options ...ExecutionOptionsV2) (plan.Plan, error) {
+	execContext, cachedPlan, err := e.prepareExecutionContext(ctx, operation, options...)
+	if execContext != nil {
+		defer e.putExecutionCtx(execContext)
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	switch p := cachedPlan.(type) {
@@ -265,14 +275,30 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 	case *plan.SubscriptionResponsePlan:
 		err = e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
 	default:
-		return errors.New("execution of operation is not possible")
+		return nil, errors.New("execution of operation is not possible")
 	}
+
+	return cachedPlan, err
+}
+
+func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, writer resolve.FlushWriter, options ...ExecutionOptionsV2) error {
+	_, err := e.ExecuteAndReturnPlan(ctx, operation, writer, options...)
 
 	return err
 }
 
-func (e *ExecutionEngineV2) getCachedPlan(ctx *internalExecutionContext, operation, definition *ast.Document, operationName string, report *operationreport.Report) plan.Plan {
+func (e *ExecutionEngineV2) GetPlan(ctx context.Context, operation *Request, options ...ExecutionOptionsV2) (plan.Plan, error) {
+	execContext, cachedPlan, err := e.prepareExecutionContext(ctx, operation, options...)
+	if execContext != nil {
+		defer e.putExecutionCtx(execContext)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return cachedPlan, nil
+}
 
+func (e *ExecutionEngineV2) getCachedPlan(ctx *internalExecutionContext, operation, definition *ast.Document, operationName string, report *operationreport.Report) plan.Plan {
 	hash := pool.Hash64.Get()
 	hash.Reset()
 	defer pool.Hash64.Put(hash)

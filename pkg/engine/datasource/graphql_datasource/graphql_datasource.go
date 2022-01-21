@@ -207,8 +207,9 @@ func ConfigJson(config Configuration) json.RawMessage {
 }
 
 type FederationConfiguration struct {
-	Enabled    bool
-	ServiceSDL string
+	Enabled     bool
+	ServiceSDL  string
+	ServiceName string // For pretty printed query plan info
 }
 
 type SubscriptionConfiguration struct {
@@ -275,7 +276,8 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	return plan.FetchConfiguration{
 		Input: string(input),
 		DataSource: &Source{
-			httpClient: p.fetchClient,
+			httpClient:  p.fetchClient,
+			ServiceName: p.config.Federation.ServiceName,
 		},
 		Variables:            p.variables,
 		DisallowSingleFlight: p.disallowSingleFlight,
@@ -283,7 +285,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 			ExtractGraphqlResponse:    true,
 			ExtractFederationEntities: p.extractEntities,
 		},
-		BatchConfig:      batchConfig,
+		BatchConfig: batchConfig,
 	}
 }
 
@@ -1145,7 +1147,8 @@ func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 }
 
 type Source struct {
-	httpClient *http.Client
+	httpClient  *http.Client
+	ServiceName string
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err error) {
