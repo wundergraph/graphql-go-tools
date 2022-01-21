@@ -10,6 +10,7 @@ type Query {
     hero: Character @deprecated
     droid(id: ID!): Droid
     search(name: String!): SearchResult
+    droidsByIds(ids: [ID]): [Droid]
 }
 
 type Mutation {

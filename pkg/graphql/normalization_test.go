@@ -178,6 +178,47 @@ query Search {
     }
 }`)
 	})
+
+	t.Run("input coercion for lists with variable extraction", func(t *testing.T) {
+		request := Request{
+			OperationName: "GetDroidsByIds",
+			Variables:     stringify(map[string]interface{}{}),
+			Query:         `query GetDroidsByIds { droidsByIds(ids: 1) { name }}`,
+		}
+		runNormalization(t, &request, `{"a":[1]}`, `query GetDroidsByIds($a: [ID]){
+    droidsByIds(ids: $a){
+        name
+    }
+}`)
+	})
+
+	t.Run("input coercion for lists without variables", func(t *testing.T) {
+		request := Request{
+			OperationName: "droidsByIds",
+			Variables:     stringify(map[string]interface{}{}),
+			Query:         `query { droidsByIds(ids: 1) { name }}`,
+		}
+		runNormalization(t, &request, `{}`, `{
+    droidsByIds(ids: [1]){
+        name
+    }
+}`)
+	})
+
+	t.Run("input coercion for lists with variables", func(t *testing.T) {
+		request := Request{
+			OperationName: "droidsByIds",
+			Variables: stringify(map[string]interface{}{
+				"ids": 1,
+			}),
+			Query: `query($ids: [Int]) {droidsByIds(ids: $ids) { name }}`,
+		}
+		runNormalization(t, &request, `{"ids":[1]}`, `query($ids: [Int]){
+    droidsByIds(ids: $ids){
+        name
+    }
+}`)
+	})
 }
 
 func Test_normalizationResultFromReport(t *testing.T) {
