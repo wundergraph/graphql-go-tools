@@ -421,10 +421,6 @@ func (c *Converter) transformUsageOfHelperFunctions(line string) (out string) {
 		out = strings.ReplaceAll(line,
 			"expectValid(", "ExpectValid(t,")
 
-	case strings.Contains(line, "expectSDLErrors("):
-		out = strings.ReplaceAll(line,
-			"expectValid(", "ExpectSDLErrors(t,")
-
 	case strings.Contains(line, "expectValidSDL("):
 		out = strings.ReplaceAll(line,
 			"expectValidSDL(", "ExpectValidSDL(t,")
