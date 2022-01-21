@@ -781,8 +781,6 @@ func (p *Parser) parseFieldDefinitionList() (list ast.FieldDefinitionList) {
 				refsInitialized = true
 			}
 			list.Refs = append(list.Refs, ref)
-		case keyword.COMMENT:
-			p.read()
 		default:
 			p.errUnexpectedToken(p.read())
 			return
