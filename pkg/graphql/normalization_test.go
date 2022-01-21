@@ -4,11 +4,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeprinter"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRequest_Normalize(t *testing.T) {
@@ -49,10 +49,9 @@ func TestRequest_Normalize(t *testing.T) {
 		assert.Equal(t, normalizedOperation, op)
 	})
 
-	runNormalization := func(t *testing.T, request *Request, expectedVars string, expectedNormalizedOperation string) {
+	runNormalizationWithSchema := func(t *testing.T, schema *Schema, request *Request, expectedVars string, expectedNormalizedOperation string) {
 		t.Helper()
 
-		schema := starwarsSchema(t)
 		documentBeforeNormalization := request.document
 
 		result, err := request.Normalize(schema)
@@ -64,6 +63,14 @@ func TestRequest_Normalize(t *testing.T) {
 
 		op := unsafeprinter.PrettyPrint(&request.document, nil)
 		assert.Equal(t, expectedNormalizedOperation, op)
+	}
+
+	runNormalization := func(t *testing.T, request *Request, expectedVars string, expectedNormalizedOperation string) {
+		t.Helper()
+
+		schema := starwarsSchema(t)
+
+		runNormalizationWithSchema(t, schema, request, expectedVars, expectedNormalizedOperation)
 	}
 
 	t.Run("should successfully normalize single query with arguments", func(t *testing.T) {
@@ -179,42 +186,45 @@ query Search {
 }`)
 	})
 
-	t.Run("input coercion for lists with variable extraction", func(t *testing.T) {
+	t.Run("input coercion for lists without variables", func(t *testing.T) {
+		schema := inputCoercionForListSchema(t)
 		request := Request{
-			OperationName: "GetDroidsByIds",
+			OperationName: "charactersByIds",
 			Variables:     stringify(map[string]interface{}{}),
-			Query:         `query GetDroidsByIds { droidsByIds(ids: 1) { name }}`,
+			Query:         `query { charactersByIds(ids: 1) { name }}`,
 		}
-		runNormalization(t, &request, `{"a":[1]}`, `query GetDroidsByIds($a: [ID]){
-    droidsByIds(ids: $a){
+		runNormalizationWithSchema(t, schema, &request, `{}`, `{
+    charactersByIds(ids: [1]){
         name
     }
 }`)
 	})
 
-	t.Run("input coercion for lists without variables", func(t *testing.T) {
+	t.Run("input coercion for lists with variable extraction", func(t *testing.T) {
+		schema := inputCoercionForListSchema(t)
 		request := Request{
-			OperationName: "droidsByIds",
+			OperationName: "GetCharactersByIds",
 			Variables:     stringify(map[string]interface{}{}),
-			Query:         `query { droidsByIds(ids: 1) { name }}`,
+			Query:         `query GetCharactersByIds { charactersByIds(ids: 1) { name }}`,
 		}
-		runNormalization(t, &request, `{}`, `{
-    droidsByIds(ids: [1]){
+		runNormalizationWithSchema(t, schema, &request, `{"a":[1]}`, `query GetCharactersByIds($a: [Int]){
+    charactersByIds(ids: $a){
         name
     }
 }`)
 	})
 
 	t.Run("input coercion for lists with variables", func(t *testing.T) {
+		schema := inputCoercionForListSchema(t)
 		request := Request{
-			OperationName: "droidsByIds",
+			OperationName: "charactersByIds",
 			Variables: stringify(map[string]interface{}{
 				"ids": 1,
 			}),
-			Query: `query($ids: [Int]) {droidsByIds(ids: $ids) { name }}`,
+			Query: `query($ids: [Int]) {charactersByIds(ids: $ids) { name }}`,
 		}
-		runNormalization(t, &request, `{"ids":[1]}`, `query($ids: [Int]){
-    droidsByIds(ids: $ids){
+		runNormalizationWithSchema(t, schema, &request, `{"ids":[1]}`, `query($ids: [Int]){
+    charactersByIds(ids: $ids){
         name
     }
 }`)
@@ -250,4 +260,23 @@ func Test_normalizationResultFromReport(t *testing.T) {
 		assert.Equal(t, result.Errors.Count(), 1)
 		assert.Equal(t, "graphql error", result.Errors.(RequestErrors)[0].Message)
 	})
+}
+
+func inputCoercionForListSchema(t *testing.T) *Schema {
+	schemaString := `schema {
+	query: Query
+}
+
+type Character {
+	id: Int
+	name: String
+}
+
+type Query {
+	charactersByIds(ids: [Int]): [Character]
+}`
+
+	schema, err := NewSchemaFromString(schemaString)
+	require.NoError(t, err)
+	return schema
 }
