@@ -553,6 +553,104 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		expectedResponse: `{"data":{"heroes":["Human","Droid"]}}`,
 	}))
 
+	t.Run("execute operation and apply input coercion for lists without variables", runWithoutError(ExecutionEngineV2TestCase{
+		schema: inputCoercionForListSchema(t),
+		operation: func(t *testing.T) Request {
+			return Request{
+				OperationName: "",
+				Variables:     stringify(map[string]interface{}{}),
+				Query: `query{
+						charactersByIds(ids: 1) {
+							name
+						}
+					}`,
+			}
+		},
+		dataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Query", FieldNames: []string{"charactersByIds"}},
+				},
+				Factory: &graphql_datasource.Factory{
+					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "example.com",
+						expectedPath:     "/",
+						expectedBody:     `{"query":"query($a: [Int]){charactersByIds(ids: $a)}","variables":{"a":[1]}}`,
+						sendResponseBody: `{"data":{"charactersByIds":[{"name": "Luke"}]}}`,
+						sendStatusCode:   200,
+					}),
+				},
+				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+					Fetch: graphql_datasource.FetchConfiguration{
+						URL:    "https://example.com/",
+						Method: "POST",
+					},
+				}),
+			},
+		},
+		fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "charactersByIds",
+				Path:      []string{"charactersByIds"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "ids",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		expectedResponse: `{"data":{"charactersByIds":[{"name":"Luke"}]}}`,
+	}))
+
+	t.Run("execute operation and apply input coercion for lists with variable extraction", runWithoutError(ExecutionEngineV2TestCase{
+		schema: inputCoercionForListSchema(t),
+		operation: func(t *testing.T) Request {
+			return Request{
+				OperationName: "GetCharactersByIds",
+				Variables:     stringify(map[string]interface{}{}),
+				Query:         `query GetCharactersByIds { charactersByIds(ids: 1) { name } }`,
+			}
+		},
+		dataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Query", FieldNames: []string{"charactersByIds"}},
+				},
+				Factory: &graphql_datasource.Factory{
+					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "example.com",
+						expectedPath:     "/",
+						expectedBody:     `{"query":"query($a: [Int]){charactersByIds(ids: $a)}","variables":{"a":[1]}}`,
+						sendResponseBody: `{"data":{"charactersByIds":[{"name": "Luke"}]}}`,
+						sendStatusCode:   200,
+					}),
+				},
+				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+					Fetch: graphql_datasource.FetchConfiguration{
+						URL:    "https://example.com/",
+						Method: "POST",
+					},
+				}),
+			},
+		},
+		fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "charactersByIds",
+				Path:      []string{"charactersByIds"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "ids",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		expectedResponse: `{"data":{"charactersByIds":[{"name":"Luke"}]}}`,
+	}))
+
 	t.Run("execute operation with arguments", runWithoutError(
 		ExecutionEngineV2TestCase{
 			schema:    starwarsSchema(t),
