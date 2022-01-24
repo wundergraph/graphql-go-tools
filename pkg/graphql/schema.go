@@ -295,10 +295,10 @@ func (s *Schema) GetAllNestedFieldChildrenFromTypeField(typeName string, fieldNa
 	if len(fields) == 0 {
 		return nil
 	}
+	childNodes := make([]TypeFields, 0)
+	s.findInterfaceImplementations(node, &childNodes, skipFieldFuncs...)
 	for _, ref := range fields {
 		if fieldName == s.document.FieldDefinitionNameString(ref) {
-			childNodes := make([]TypeFields, 0)
-			s.findInterfacesFields(node, &childNodes, skipFieldFuncs...)
 			fieldTypeName := s.document.FieldDefinitionTypeNode(ref).NameString(&s.document)
 			s.findNestedFieldChildren(fieldTypeName, &childNodes, skipFieldFuncs...)
 			return childNodes
@@ -308,22 +308,22 @@ func (s *Schema) GetAllNestedFieldChildrenFromTypeField(typeName string, fieldNa
 	return nil
 }
 
-func (s *Schema) findInterfacesFields(node ast.Node, childNodes *[]TypeFields, skipFieldFuncs ...SkipFieldFunc) {
-	switch node.Kind {
-	case ast.NodeKindObjectTypeDefinition:
-		objectTypeDefinition := s.document.ObjectTypeDefinitions[node.Ref]
-		for i := 0; i < len(objectTypeDefinition.ImplementsInterfaces.Refs); i++ {
-			ref := objectTypeDefinition.ImplementsInterfaces.Refs[i]
-			interfaceTypeName := s.document.TypeNameString(ref)
-			s.findNestedFieldChildren(interfaceTypeName, childNodes, skipFieldFuncs...)
+func (s *Schema) findInterfaceImplementations(node ast.Node, childNodes *[]TypeFields, skipFieldFuncs ...SkipFieldFunc) {
+	if node.Kind != ast.NodeKindInterfaceTypeDefinition {
+		return
+	}
+
+	implementingNodes := s.document.InterfaceTypeDefinitionImplementedByRootNodes(node.Ref)
+	for i := 0; i < len(implementingNodes); i++ {
+		var typeName string
+		switch implementingNodes[i].Kind {
+		case ast.NodeKindObjectTypeDefinition:
+			typeName = s.document.ObjectTypeDefinitionNameString(implementingNodes[i].Ref)
+		case ast.NodeKindInterfaceTypeDefinition:
+			typeName = s.document.InterfaceTypeDefinitionNameString(implementingNodes[i].Ref)
 		}
-	case ast.NodeKindInterfaceTypeDefinition:
-		interfaceTypeDefinition := s.document.InterfaceTypeDefinitions[node.Ref]
-		for i := 0; i < len(interfaceTypeDefinition.ImplementsInterfaces.Refs); i++ {
-			ref := interfaceTypeDefinition.ImplementsInterfaces.Refs[i]
-			interfaceTypeName := s.document.TypeNameString(ref)
-			s.findNestedFieldChildren(interfaceTypeName, childNodes, skipFieldFuncs...)
-		}
+
+		s.findNestedFieldChildren(typeName, childNodes, skipFieldFuncs...)
 	}
 }
 
@@ -333,7 +333,7 @@ func (s *Schema) findNestedFieldChildren(typeName string, childNodes *[]TypeFiel
 		return
 	}
 
-	s.findInterfacesFields(node, childNodes, skipFieldFuncs...)
+	s.findInterfaceImplementations(node, childNodes, skipFieldFuncs...)
 	for _, ref := range fields {
 		fieldName := s.document.FieldDefinitionNameString(ref)
 		if len(skipFieldFuncs) > 0 {

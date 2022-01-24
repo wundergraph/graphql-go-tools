@@ -517,9 +517,21 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Query", "withChildren")
 		expectedTypeFields := []TypeFields{
 			{
-				TypeName:   "IDType",
-				FieldNames: []string{"id"},
+				TypeName:   "WithChildren",
+				FieldNames: []string{"id", "name", "nested"},
 			},
+			{
+				TypeName:   "Nested",
+				FieldNames: []string{"id", "name"},
+			},
+		}
+
+		assert.Equal(t, expectedTypeFields, typeFields)
+	})
+
+	t.Run("should get field children without skip function on field with interface type", func(t *testing.T) {
+		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Query", "idType")
+		expectedTypeFields := []TypeFields{
 			{
 				TypeName:   "WithChildren",
 				FieldNames: []string{"id", "name", "nested"},
@@ -527,6 +539,10 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 			{
 				TypeName:   "Nested",
 				FieldNames: []string{"id", "name"},
+			},
+			{
+				TypeName:   "IDType",
+				FieldNames: []string{"id"},
 			},
 		}
 
@@ -547,10 +563,6 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Query", "withChildren", NewIsDataSourceConfigV2RootFieldSkipFunc(dataSources))
 		expectedTypeFields := []TypeFields{
 			{
-				TypeName:   "IDType",
-				FieldNames: []string{"id"},
-			},
-			{
 				TypeName:   "WithChildren",
 				FieldNames: []string{"id", "name"},
 			},
@@ -565,14 +577,6 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 
 		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Query", "countries")
 		expectedTypeFields := []TypeFields{
-			{
-				TypeName:   "CodeType",
-				FieldNames: []string{"code"},
-			},
-			{
-				TypeName:   "CodeNameType",
-				FieldNames: []string{"code", "name"},
-			},
 			{
 				TypeName:   "Country",
 				FieldNames: []string{"code", "name", "native", "phone", "continent", "capital", "currency", "languages", "emoji", "emojiU", "states"},
@@ -593,6 +597,41 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 
 		assert.Equal(t, expectedTypeFields, typeFields)
 	})
+
+	t.Run("should get field children from schema with recursive references on field with interface type", func(t *testing.T) {
+		schema, err = NewSchemaFromString(countriesSchema)
+		require.NoError(t, err)
+
+		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Query", "codeType")
+		expectedTypeFields := []TypeFields{
+			{
+				TypeName:   "Continent",
+				FieldNames: []string{"code", "name", "countries"},
+			},
+			{
+				TypeName:   "Country",
+				FieldNames: []string{"code", "name", "native", "phone", "continent", "capital", "currency", "languages", "emoji", "emojiU", "states"},
+			},
+			{
+				TypeName:   "Language",
+				FieldNames: []string{"code", "name", "native", "rtl"},
+			},
+			{
+				TypeName:   "State",
+				FieldNames: []string{"code", "name", "country"},
+			},
+			{
+				TypeName:   "CodeNameType",
+				FieldNames: []string{"code", "name"},
+			},
+			{
+				TypeName:   "CodeType",
+				FieldNames: []string{"code"},
+			},
+		}
+
+		assert.Equal(t, expectedTypeFields, typeFields)
+	})
 }
 
 var invalidSchema = `type Query {
@@ -606,6 +645,7 @@ type Query {
 	withChildren: WithChildren
 	singleArgLevel1(lvl: int): SingleArgLevel1
 	_entities(representations: [_Any!]!): [_Entity]!
+	idType: IDType!
 }
 
 extend type Query {
@@ -703,6 +743,7 @@ type Query {
   country(code: ID!): Country
   languages(filter: LanguageFilterInput): [Language!]!
   language(code: ID!): Language
+  codeType: CodeType!
 }
 
 type State {
