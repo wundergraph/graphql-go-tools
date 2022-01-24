@@ -608,9 +608,11 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		schema: inputCoercionForListSchema(t),
 		operation: func(t *testing.T) Request {
 			return Request{
-				OperationName: "GetCharactersByIds",
-				Variables:     stringify(map[string]interface{}{}),
-				Query:         `query GetCharactersByIds { charactersByIds(ids: 1) { name } }`,
+				OperationName: "",
+				Variables: stringify(map[string]interface{}{
+					"ids": 1,
+				}),
+				Query: `query($ids: [Int]) { charactersByIds(ids: $ids) { name } }`,
 			}
 		},
 		dataSources: []plan.DataSourceConfiguration{
@@ -622,7 +624,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
-						expectedBody:     `{"query":"query($a: [Int]){charactersByIds(ids: $a)}","variables":{"a":[1]}}`,
+						expectedBody:     `{"query":"query($ids: [Int]){charactersByIds(ids: $ids)}","variables":{"ids":[1]}}`,
 						sendResponseBody: `{"data":{"charactersByIds":[{"name": "Luke"}]}}`,
 						sendStatusCode:   200,
 					}),
