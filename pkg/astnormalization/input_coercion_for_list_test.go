@@ -29,19 +29,19 @@ type Query {
 func TestInputCoercionForList(t *testing.T) {
 	t.Run("convert integer to list of integer", func(t *testing.T) {
 		run(inputCoercionForList, inputCoercionForListDefinition, `
-				query{
-					charactersByIds(ids: 1) {
-    					id
-    					name
-  					}
-				}`,
+					query{
+							charactersByIds(ids: 1) {
+								id
+								name
+							}
+					}`,
 			`
-				query{
-					charactersByIds(ids: [1]) {
-						id
-						name
-					}
-				}`)
+					query{
+							charactersByIds(ids: [1]) {
+								id
+								name
+							}
+					}`)
 	})
 
 	t.Run("list of integers", func(t *testing.T) {
