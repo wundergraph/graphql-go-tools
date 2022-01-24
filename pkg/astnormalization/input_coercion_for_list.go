@@ -103,10 +103,12 @@ func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 		i.StopWithInternalErr(err)
 		return
 	}
-	if dataType == jsonparser.Array {
-		// We don't want to build nested lists using lists.
-		// It's an invalid input.
+
+	switch dataType {
+	case jsonparser.Array,
+		jsonparser.Null:
 		return
+	default:
 	}
 
 	// Calculate the nesting depth of variable definition

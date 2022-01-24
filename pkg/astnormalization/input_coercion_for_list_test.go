@@ -181,6 +181,24 @@ query ($ids: [Int]) {
 }`, `{"ids":1}`, `{"ids":[1]}`)
 	})
 
+	t.Run("null as variable for list of integers", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+query ($ids: [Int]) {
+  charactersByIds(ids: $ids) {
+    id
+    name
+  }
+}`,
+			``,
+			`
+query ($ids: [Int]) {
+  charactersByIds(ids: $ids) {
+    id
+    name
+  }
+}`, `{"ids":null}`, `{"ids":null}`)
+	})
+
 	t.Run("send list of integers as variable input", func(t *testing.T) {
 		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
 query ($ids: [Int]) {
@@ -215,6 +233,24 @@ query ($ids: [[Int]]) {
     name
   }
 }`, `{"ids": 1}`, `{"ids": [[1]]}`)
+	})
+
+	t.Run("null as variable for nested list of integers", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+query ($ids: [[Int]]) {
+  nestedList(ids: $ids) {
+    id
+    name
+  }
+}`,
+			``,
+			`
+query ($ids: [[Int]]) {
+  nestedList(ids: $ids) {
+    id
+    name
+  }
+}`, `{"ids":null}`, `{"ids":null}`)
 	})
 
 	t.Run("convert object type to list of object type", func(t *testing.T) {
