@@ -271,6 +271,29 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		}),
 		expectedResponse: `{"data":{"hero":"Human"}}`,
 	}))
+
+	t.Run("execute query and apply input coercion for lists", runWithoutError(testCase{
+		schema: inputCoercionForListSchema(t),
+		request: func(t *testing.T) Request {
+			return Request{
+				OperationName: "charactersByIds",
+				Variables: stringify(map[string]interface{}{
+					"ids": 1,
+				}),
+				Query: `query($ids: [Int]) {charactersByIds(ids: $ids) { name }}`,
+			}
+		},
+		plannerConfig: inputCoercionHttpJsonDataSource,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     `{ "ids": [1] }`,
+			sendResponseBody: `{"charactersByIds":[{"name": "Luke"}]}`,
+			sendStatusCode:   200,
+		}),
+		preExecutionTasks: normalizeAndValidatePreExecutionTasks,
+		expectedResponse:  `{"data":{"charactersByIds":[{"name":"Luke"}]}}`,
+	}))
 }
 
 func normalizeAndValidatePreExecutionTasks(t *testing.T, request Request, schema *Schema, engine *ExecutionEngine) {
@@ -514,6 +537,37 @@ var movieHttpJsonDataSource = datasource.PlannerConfiguration{
 						}(),
 						DefaultTypeName: func() *string {
 							typeName := "Movie"
+							return &typeName
+						}(),
+					})
+					return data
+				}(),
+			},
+		},
+	},
+}
+
+var inputCoercionHttpJsonDataSource = datasource.PlannerConfiguration{
+	TypeFieldConfigurations: []datasource.TypeFieldConfiguration{
+		{
+			TypeName:  "Query",
+			FieldName: "charactersByIds",
+			Mapping: &datasource.MappingConfiguration{
+				Disabled: false,
+				Path:     "charactersByIds",
+			},
+			DataSource: datasource.SourceConfig{
+				Name: "HttpJsonDataSource",
+				Config: func() []byte {
+					data, _ := json.Marshal(datasource.HttpJsonDataSourceConfig{
+						URL: "example.com/",
+						Method: func() *string {
+							method := "GET"
+							return &method
+						}(),
+						Body: stringPtr(`{ "ids": {{ .arguments.ids }} }`),
+						DefaultTypeName: func() *string {
+							typeName := "Character"
 							return &typeName
 						}(),
 					})
