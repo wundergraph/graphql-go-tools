@@ -24,6 +24,10 @@ type Query {
 	charactersByIds(ids: [Int]): [Character]
 	characterByInput(input: Input): [Character]
 	charactersByInputs(inputs: [Input]): [Character]
+	charactersByIdsNonNull(ids: [Int]!): [Character]
+	charactersByIdsNonNullInteger(ids: [Int!]!): [Character]
+	nestedListNonNull(ids: [[Int!]!]!): [Character]
+	innerListNonNull(ids: [[Int]!]): [Character]
 }`
 
 func TestInputCoercionForList(t *testing.T) {
@@ -340,5 +344,129 @@ query ($ids: [[Int]]) {
     name
   }
 }`, `{"foo": "bar"}`, `{"foo": "bar"}`)
+	})
+
+	t.Run("convert integer to list of integer, non-null", func(t *testing.T) {
+		run(inputCoercionForList, inputCoercionForListDefinition, `
+query {
+  charactersByIdsNonNull(ids: 1) {
+    id
+    name
+  }
+}`,
+			`
+query {
+  charactersByIdsNonNull(ids: [1]) {
+    id
+    name
+  }
+}`)
+	})
+
+	t.Run("convert integer to list of integer, non-null integer", func(t *testing.T) {
+		run(inputCoercionForList, inputCoercionForListDefinition, `
+query {
+  charactersByIdsNonNullInteger(ids: 1) {
+    id
+    name
+  }
+}`,
+			`
+query {
+  charactersByIdsNonNullInteger(ids: [1]) {
+    id
+    name
+  }
+}`)
+	})
+
+	t.Run("send list of integers as variable input, non-null list", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+query ($ids: [Int]!) {
+  charactersByIdsNonNull(ids: $ids) {
+    id
+    name
+  }
+}`,
+			``,
+			`
+query ($ids: [Int]!) {
+  charactersByIdsNonNull(ids: $ids) {
+    id
+    name
+  }
+}`, `{"ids":[1]}`, `{"ids":[1]}`)
+	})
+
+	t.Run("convert integer to nested list of integer, non-null", func(t *testing.T) {
+		run(inputCoercionForList, inputCoercionForListDefinition, `
+query {
+  nestedListNonNull(ids: 1) {
+    id
+    name
+  }
+}`,
+			`
+query {
+  nestedListNonNull(ids: [[1]]) {
+    id
+    name
+  }
+}`)
+	})
+
+	t.Run("convert integer to nested list of integer, inner list non-null", func(t *testing.T) {
+		run(inputCoercionForList, inputCoercionForListDefinition, `
+query {
+  innerListNonNull(ids: 1) {
+    id
+    name
+  }
+}`,
+			`
+query {
+  innerListNonNull(ids: [[1]]) {
+    id
+    name
+  }
+}`)
+	})
+
+	t.Run("send list of integers as variable input, non-null", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+query ($ids: [[Int!]!]!) {
+  nestedListNonNull(ids: $ids) {
+    id
+    name
+  }
+}`,
+			``,
+			`
+query ($ids: [[Int!]!]!) {
+  nestedListNonNull(ids: $ids) {
+    id
+    name
+  }
+}`, `{"ids":1}`, `{"ids":[[1]]}`)
+	})
+
+	t.Run("send list of integers as variable input", func(t *testing.T) {
+		// [1] is an invalid input for nestedList(ids: [[Int]]). It should be handled by the
+		// validator.
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+query ($ids: [[Int]]) {
+  nestedList(ids: $ids) {
+    id
+    name
+  }
+}`,
+			``,
+			`
+query ($ids: [[Int]]) {
+  nestedList(ids: $ids) {
+    id
+    name
+  }
+}`, `{"ids":[1]}`, `{"ids":[1]}`)
 	})
 }

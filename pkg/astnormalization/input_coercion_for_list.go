@@ -1,6 +1,7 @@
 package astnormalization
 
 import (
+	"fmt"
 	"github.com/buger/jsonparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
@@ -32,14 +33,14 @@ func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 	}
 
 	defType := i.definition.InputValueDefinitions[defRef].Type
+
 	typeKind := i.definition.Types[defType].TypeKind
-	if typeKind != ast.TypeKindList {
+	if typeKind != ast.TypeKindList && typeKind != ast.TypeKindNonNull {
 		return
 	}
 
 	argumentValue := i.operation.Arguments[ref].Value
-
-	argumentListValue := ast.ListValue{}
+	var latestValue ast.Value
 	switch argumentValue.Kind {
 	case ast.ValueKindString,
 		ast.ValueKindBoolean,
@@ -49,31 +50,30 @@ func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 		var latestRef = i.operation.AddValue(i.operation.Arguments[ref].Value)
 		var definitionTypeRef = defType
 		for {
-			definitionTypeRef = i.definition.Types[definitionTypeRef].OfType
-			if definitionTypeRef == ast.InvalidRef {
-				break
-			}
-			if i.definition.Types[definitionTypeRef].TypeKind != ast.TypeKindList {
+			definitionType := i.definition.Types[definitionTypeRef]
+			if definitionType.OfType == ast.InvalidRef {
 				break
 			}
 
-			// Build a nested list
-			innerList := ast.ListValue{}
-			innerList.Refs = []int{latestRef}
-			innerListRef := i.operation.AddListValue(innerList)
-			listValue := ast.Value{
-				Kind: ast.ValueKindList,
-				Ref:  innerListRef,
+			switch definitionType.TypeKind {
+			case ast.TypeKindList:
+				// Build a nested list
+				innerList := ast.ListValue{}
+				innerList.Refs = []int{latestRef}
+				innerListRef := i.operation.AddListValue(innerList)
+				listValue := ast.Value{
+					Kind: ast.ValueKindList,
+					Ref:  innerListRef,
+				}
+				latestValue = listValue
+				latestRef = i.operation.AddValue(listValue)
+				definitionTypeRef = definitionType.OfType
+			case ast.TypeKindNonNull:
+				definitionTypeRef = definitionType.OfType
+			default:
 			}
-			latestRef = i.operation.AddValue(listValue)
 		}
-		argumentListValue.Refs = []int{latestRef}
-		listRef := i.operation.AddListValue(argumentListValue)
-		listValue := ast.Value{
-			Kind: ast.ValueKindList,
-			Ref:  listRef,
-		}
-		i.operation.Arguments[ref].Value = listValue
+		i.operation.Arguments[ref].Value = latestValue
 	default:
 	}
 }
@@ -120,9 +120,17 @@ func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 		if first.OfType == ast.InvalidRef {
 			break
 		}
+
 		ofType = first.OfType
-		nestingDepth++
+
+		switch first.TypeKind {
+		case ast.TypeKindList:
+			nestingDepth++
+		default:
+			continue
+		}
 	}
+	fmt.Println(nestingDepth)
 
 	out := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(out)
