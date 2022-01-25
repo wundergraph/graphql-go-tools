@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
@@ -55,11 +56,11 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 
 		if string(expectedBytes) != string(actualBytes) {
 			assert.Equal(t, expectedPlan, actualPlan)
+			t.Error(cmp.Diff(string(expectedBytes), string(actualBytes)))
 		}
 
 		for _, extraCheck := range extraChecks {
 			extraCheck(t, op, actualPlan)
 		}
-
 	}
 }

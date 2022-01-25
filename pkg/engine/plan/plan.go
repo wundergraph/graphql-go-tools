@@ -109,9 +109,14 @@ type FieldConfiguration struct {
 	// DisableDefaultMapping - instructs planner whether to use path mapping coming from Path field
 	DisableDefaultMapping bool
 	// Path - represents a json path to lookup for a field value in response json
-	Path           []string
-	Arguments      ArgumentsConfigurations
-	RequiresFields []string
+	Path                 []string
+	Arguments            ArgumentsConfigurations
+	RequiresFields       []string
+	// UnescapeResponseJson set to true will allow fields (String,List,Object)
+	// to be resolved from an escaped JSON string
+	// e.g. {"response":"{\"foo\":\"bar\"}"} will be returned as {"foo":"bar"} when path is "response"
+	// This way, it is possible to resolve a JSON string as part of the response without extra String encoding of the JSON
+	UnescapeResponseJson bool
 }
 
 type ArgumentsConfigurations []ArgumentConfiguration
@@ -513,7 +518,7 @@ func (v *Visitor) EnterField(ref int) {
 	bufferID, hasBuffer := v.fieldBuffers[ref]
 	v.currentField = &resolve.Field{
 		Name:       fieldAliasOrName,
-		Value:      v.resolveFieldValue(ref, fieldDefinitionType, true, path),
+		Value:      v.resolveFieldValue(ref, fieldDefinitionType, true, path,false),
 		HasBuffer:  hasBuffer,
 		BufferID:   bufferID,
 		OnTypeName: v.resolveOnTypeName(),
@@ -571,17 +576,27 @@ func (v *Visitor) skipField(ref int) bool {
 	return false
 }
 
-func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path []string) resolve.Node {
+func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path []string, isList bool) resolve.Node {
 	ofType := v.Definition.Types[typeRef].OfType
+
+	fieldName := v.Operation.FieldNameString(fieldRef)
+	enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
+	fieldConfig := v.Config.Fields.ForTypeField(enclosingTypeName, fieldName)
+	unescapeResponseJson := false
+	if !isList && fieldConfig != nil {
+		unescapeResponseJson = fieldConfig.UnescapeResponseJson
+	}
+
 	switch v.Definition.Types[typeRef].TypeKind {
 	case ast.TypeKindNonNull:
-		return v.resolveFieldValue(fieldRef, ofType, false, path)
+		return v.resolveFieldValue(fieldRef, ofType, false, path,false)
 	case ast.TypeKindList:
-		listItem := v.resolveFieldValue(fieldRef, ofType, true, nil)
+		listItem := v.resolveFieldValue(fieldRef, ofType, true, nil,true)
 		return &resolve.Array{
 			Nullable: nullable,
 			Path:     path,
 			Item:     listItem,
+			UnescapeResponseJson: unescapeResponseJson,
 		}
 	case ast.TypeKindNamed:
 		typeName := v.Definition.ResolveTypeNameString(typeRef)
@@ -598,6 +613,7 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 					Path:     path,
 					Nullable: nullable,
 					Export:   fieldExport,
+					UnescapeResponseJson: unescapeResponseJson,
 				}
 			case "Boolean":
 				return &resolve.Boolean{
@@ -622,18 +638,21 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 					Path:     path,
 					Nullable: nullable,
 					Export:   fieldExport,
+					UnescapeResponseJson: unescapeResponseJson,
 				}
 			}
 		case ast.NodeKindEnumTypeDefinition:
 			return &resolve.String{
 				Path:     path,
 				Nullable: nullable,
+				UnescapeResponseJson: unescapeResponseJson,
 			}
 		case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
 			object := &resolve.Object{
-				Nullable: nullable,
-				Path:     path,
-				Fields:   []*resolve.Field{},
+				Nullable:             nullable,
+				Path:                 path,
+				Fields:               []*resolve.Field{},
+				UnescapeResponseJson: unescapeResponseJson,
 			}
 			v.objects = append(v.objects, object)
 			v.Walker.Defer(func() {
@@ -1214,10 +1233,10 @@ type SubscriptionConfiguration struct {
 }
 
 type FetchConfiguration struct {
-	Input                 string
-	Variables             resolve.Variables
-	DataSource            resolve.DataSource
-	DisallowSingleFlight  bool
+	Input                string
+	Variables            resolve.Variables
+	DataSource           resolve.DataSource
+	DisallowSingleFlight bool
 	// DisableDataLoader will configure the Resolver to not use DataLoader
 	// If this is set to false, the planner might still decide to override it,
 	// e.g. if a field depends on an exported variable which doesn't work with DataLoader

@@ -5,24 +5,52 @@ import (
 	"encoding/json"
 
 	"github.com/buger/jsonparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/qri-io/jsonschema"
+
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 )
 
 func FromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
+	resolver := &fromTypeRefResolver{
+		overrides: map[string]JsonSchema{},
+	}
+	return resolver.fromTypeRef(operation, definition, typeRef)
+}
+
+func FromTypeRefWithOverrides(operation, definition *ast.Document, typeRef int, overrides map[string]JsonSchema) JsonSchema {
+	resolver := &fromTypeRefResolver{
+		overrides: overrides,
+	}
+	return resolver.fromTypeRef(operation, definition, typeRef)
+}
+
+type fromTypeRefResolver struct {
+	overrides map[string]JsonSchema
+	depth int
+}
+
+func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
+	r.depth++
+	defer func() {
+		r.depth--
+	}()
 	t := operation.Types[typeRef]
 	switch t.TypeKind {
 	case ast.TypeKindList:
-		itemSchema := FromTypeRef(operation, definition, t.OfType)
+		itemSchema := r.fromTypeRef(operation, definition, t.OfType)
 		if operation.TypeIsNonNull(typeRef) {
 			min := 1
 			return NewArray(itemSchema, &min)
 		}
 		return NewArray(itemSchema, nil)
 	case ast.TypeKindNonNull:
-		return FromTypeRef(operation, definition, t.OfType)
+		out := r.fromTypeRef(operation, definition, t.OfType)
+		return out
 	case ast.TypeKindNamed:
 		name := operation.Input.ByteSliceString(t.Name)
+		if schema, ok := r.overrides[name]; ok {
+			return schema
+		}
 		typeDefinitionNode, ok := definition.Index.FirstNodeByNameStr(name)
 		if !ok {
 			return nil
@@ -34,8 +62,10 @@ func FromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
 			switch name {
 			case "Boolean":
 				return NewBoolean()
-			case "String", "ID":
+			case "String":
 				return NewString()
+			case "ID":
+				return NewID()
 			case "Int":
 				return NewInteger()
 			case "Float":
@@ -46,6 +76,9 @@ func FromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
 				return NewAny()
 			}
 		}
+		if r.depth > 5 {
+			return NewObject()
+		}
 		object := NewObject()
 		if node, ok := definition.Index.FirstNodeByNameStr(name); ok {
 			switch node.Kind {
@@ -53,7 +86,7 @@ func FromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
 				for _, ref := range definition.InputObjectTypeDefinitions[node.Ref].InputFieldsDefinition.Refs {
 					fieldName := definition.Input.ByteSliceString(definition.InputValueDefinitions[ref].Name)
 					fieldType := definition.InputValueDefinitions[ref].Type
-					fieldSchema := FromTypeRef(definition, definition, fieldType)
+					fieldSchema := r.fromTypeRef(definition, definition, fieldType)
 					object.Properties[fieldName] = fieldSchema
 					if definition.TypeIsNonNull(fieldType) {
 						object.Required = append(object.Required, fieldName)
@@ -63,7 +96,7 @@ func FromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
 				for _, ref := range definition.ObjectTypeDefinitions[node.Ref].FieldsDefinition.Refs {
 					fieldName := definition.Input.ByteSliceString(definition.FieldDefinitions[ref].Name)
 					fieldType := definition.FieldDefinitions[ref].Type
-					fieldSchema := FromTypeRef(definition, definition, fieldType)
+					fieldSchema := r.fromTypeRef(definition, definition, fieldType)
 					object.Properties[fieldName] = fieldSchema
 					if definition.TypeIsNonNull(fieldType) {
 						object.Required = append(object.Required, fieldName)
@@ -155,13 +188,14 @@ const (
 	ObjectKind
 	ArrayKind
 	AnyKind
+	IDKind
 )
 
 type JsonSchema interface {
 	Kind() Kind
 }
 
-type Any struct {}
+type Any struct{}
 
 func NewAny() Any {
 	return Any{}
@@ -182,6 +216,20 @@ func (_ String) Kind() Kind {
 func NewString() String {
 	return String{
 		Type: "string",
+	}
+}
+
+type ID struct {
+	Type []string `json:"type"`
+}
+
+func (_ ID) Kind() Kind {
+	return IDKind
+}
+
+func NewID() ID {
+	return ID{
+		Type: []string{"string", "integer"},
 	}
 }
 

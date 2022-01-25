@@ -529,6 +529,26 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 		assert.Equal(t, expectedTypeFields, typeFields)
 	})
 
+	t.Run("should get field children without skip function on field with interface type", func(t *testing.T) {
+		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Query", "idType")
+		expectedTypeFields := []TypeFields{
+			{
+				TypeName:   "WithChildren",
+				FieldNames: []string{"id", "name", "nested"},
+			},
+			{
+				TypeName:   "Nested",
+				FieldNames: []string{"id", "name"},
+			},
+			{
+				TypeName:   "IDType",
+				FieldNames: []string{"id"},
+			},
+		}
+
+		assert.Equal(t, expectedTypeFields, typeFields)
+	})
+
 	t.Run("should get field children with skip function for engine v2 data source config", func(t *testing.T) {
 		dataSources := []plan.DataSourceConfiguration{
 			{
@@ -577,6 +597,41 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 
 		assert.Equal(t, expectedTypeFields, typeFields)
 	})
+
+	t.Run("should get field children from schema with recursive references on field with interface type", func(t *testing.T) {
+		schema, err = NewSchemaFromString(countriesSchema)
+		require.NoError(t, err)
+
+		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Query", "codeType")
+		expectedTypeFields := []TypeFields{
+			{
+				TypeName:   "Continent",
+				FieldNames: []string{"code", "name", "countries"},
+			},
+			{
+				TypeName:   "Country",
+				FieldNames: []string{"code", "name", "native", "phone", "continent", "capital", "currency", "languages", "emoji", "emojiU", "states"},
+			},
+			{
+				TypeName:   "Language",
+				FieldNames: []string{"code", "name", "native", "rtl"},
+			},
+			{
+				TypeName:   "State",
+				FieldNames: []string{"code", "name", "country"},
+			},
+			{
+				TypeName:   "CodeNameType",
+				FieldNames: []string{"code", "name"},
+			},
+			{
+				TypeName:   "CodeType",
+				FieldNames: []string{"code"},
+			},
+		}
+
+		assert.Equal(t, expectedTypeFields, typeFields)
+	})
 }
 
 var invalidSchema = `type Query {
@@ -590,19 +645,24 @@ type Query {
 	withChildren: WithChildren
 	singleArgLevel1(lvl: int): SingleArgLevel1
 	_entities(representations: [_Any!]!): [_Entity]!
+	idType: IDType!
 }
 
 extend type Query {
 	multiArgLevel1(lvl: int, number: int): MultiArgLevel1
 }
 
-type WithChildren { 
+interface IDType {
+	id: ID!
+}
+
+type WithChildren implements IDType { 
 	id: ID!
 	name: String
 	nested: Nested
-} 
+}
 
-type Nested { 
+type Nested implements IDType { 
 	id: ID! 
 	name: String! 
 } 
@@ -621,12 +681,21 @@ schema {
 	query: Query
 }
 
+interface CodeType {
+	code: ID!
+}
+
+interface CodeNameType implements CodeType {
+	code: ID!
+	name: String!
+}
+
 enum CacheControlScope {
   PUBLIC
   PRIVATE
 }
 
-type Continent {
+type Continent implements CodeNameType & CodeType {
   code: ID!
   name: String!
   countries: [Country!]!
@@ -636,7 +705,7 @@ input ContinentFilterInput {
   code: StringQueryOperatorInput
 }
 
-type Country {
+type Country implements CodeNameType & CodeType {
   code: ID!
   name: String!
   native: String!
@@ -674,6 +743,7 @@ type Query {
   country(code: ID!): Country
   languages(filter: LanguageFilterInput): [Language!]!
   language(code: ID!): Language
+  codeType: CodeType!
 }
 
 type State {

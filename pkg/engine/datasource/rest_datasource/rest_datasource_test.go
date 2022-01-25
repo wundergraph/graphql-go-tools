@@ -363,7 +363,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							HasBuffer: true,
 							Name:      []byte("Login"),
 							Position: resolve.Position{
-								Line: 3,
+								Line:   3,
 								Column: 4,
 							},
 							Value: &resolve.Object{
@@ -400,7 +400,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Fetch: FetchConfiguration{
 							URL:    "https://example.com/passwordless_start",
 							Method: "POST",
-							Body: "{{ .arguments.postPasswordlessStartInput }}",
+							Body:   "{{ .arguments.postPasswordlessStartInput }}",
 						},
 					}),
 					Factory: &Factory{},
@@ -1090,7 +1090,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewCSVVariableRenderer(jsonparser.String),
+								Renderer: resolve.NewCSVVariableRenderer(resolve.JsonRootType{Value: jsonparser.String}),
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
