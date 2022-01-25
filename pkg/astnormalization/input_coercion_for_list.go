@@ -2,6 +2,7 @@ package astnormalization
 
 import (
 	"fmt"
+
 	"github.com/buger/jsonparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
