@@ -36,9 +36,6 @@ func (v *validArgumentsVisitor) EnterArgument(ref int) {
 	definitionRef, exists := v.ArgumentInputValueDefinition(ref)
 
 	if !exists {
-		argumentName := v.operation.ArgumentNameBytes(ref)
-		ancestorName := v.AncestorNameBytes()
-		v.StopWithExternalErr(operationreport.ErrArgumentNotDefinedOnNode(argumentName, ancestorName))
 		return
 	}
 
@@ -103,15 +100,20 @@ func (v *validArgumentsVisitor) variableValueSatisfiesInputValueDefinition(varia
 
 	operationTypeRef = v.operation.VariableDefinitions[variableDefinitionRef].Type
 	definitionTypeRef := v.definition.InputValueDefinitions[inputValueDefinition].Type
-	hasDefaultValue := v.operation.VariableDefinitions[variableDefinitionRef].DefaultValue.IsDefined ||
-		v.definition.InputValueDefinitions[inputValueDefinition].DefaultValue.IsDefined
+
+	hasDefaultValue := v.validDefaultValue(v.operation.VariableDefinitions[variableDefinitionRef].DefaultValue) ||
+		v.validDefaultValue(v.definition.InputValueDefinitions[inputValueDefinition].DefaultValue)
 
 	return v.operationTypeSatisfiesDefinitionType(operationTypeRef, definitionTypeRef, hasDefaultValue), operationTypeRef, variableDefinitionRef
 }
 
-func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationType int, definitionType int, hasDefaultValue bool) bool {
-	opKind := v.operation.Types[operationType].TypeKind
-	defKind := v.definition.Types[definitionType].TypeKind
+func (v *validArgumentsVisitor) validDefaultValue(value ast.DefaultValue) bool {
+	return value.IsDefined && value.Value.Kind != ast.ValueKindNull
+}
+
+func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationTypeRef int, definitionTypeRef int, hasDefaultValue bool) bool {
+	opKind := v.operation.Types[operationTypeRef].TypeKind
+	defKind := v.definition.Types[definitionTypeRef].TypeKind
 
 	// A nullable op type is compatible with a non-null def type if the def has
 	// a default value. Strip the def non-null and continue comparing. This
@@ -122,17 +124,17 @@ func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationTy
 	// Op:  someField(arg: Boolean): String
 	// Def: someField(arg: Boolean! = false): String  #  Boolean! -> Boolean
 	if opKind != ast.TypeKindNonNull && defKind == ast.TypeKindNonNull && hasDefaultValue {
-		definitionType = v.definition.Types[definitionType].OfType
+		definitionTypeRef = v.definition.Types[definitionTypeRef].OfType
 	}
 
 	// Unnest the op and def arg types until a named type is reached,
 	// then compare.
 	for {
-		if operationType == -1 || definitionType == -1 {
+		if operationTypeRef == -1 || definitionTypeRef == -1 {
 			return false
 		}
-		opKind = v.operation.Types[operationType].TypeKind
-		defKind = v.definition.Types[definitionType].TypeKind
+		opKind = v.operation.Types[operationTypeRef].TypeKind
+		defKind = v.definition.Types[definitionTypeRef].TypeKind
 
 		// If the op arg type is stricter than the def arg type, that's okay.
 		// Strip the op non-null and continue comparing.
@@ -141,7 +143,7 @@ func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationTy
 		// Op:  someField(arg: Boolean!): String  # Boolean! -> Boolean
 		// Def: someField(arg: Boolean): String
 		if opKind == ast.TypeKindNonNull && defKind != ast.TypeKindNonNull {
-			operationType = v.operation.Types[operationType].OfType
+			operationTypeRef = v.operation.Types[operationTypeRef].OfType
 			continue
 		}
 
@@ -151,11 +153,12 @@ func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationTy
 		if opKind == ast.TypeKindNamed {
 			// defKind is also a named type because at this point both kinds
 			// are the same! Compare the names.
-			return bytes.Equal(v.operation.Input.ByteSlice(v.operation.Types[operationType].Name),
-				v.definition.Input.ByteSlice(v.definition.Types[definitionType].Name))
+
+			return bytes.Equal(v.operation.Input.ByteSlice(v.operation.Types[operationTypeRef].Name),
+				v.definition.Input.ByteSlice(v.definition.Types[definitionTypeRef].Name))
 		}
 		// Both types are non-null or list. Unnest and continue comparing.
-		operationType = v.operation.Types[operationType].OfType
-		definitionType = v.definition.Types[definitionType].OfType
+		operationTypeRef = v.operation.Types[operationTypeRef].OfType
+		definitionTypeRef = v.definition.Types[definitionTypeRef].OfType
 	}
 }
