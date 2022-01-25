@@ -193,8 +193,6 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("Int => Int! within nested fragment", func(t *testing.T) {
-			t.Skip("Panic: possibly unsupported case")
-
 			ExpectErrors(t, `
       fragment outerFrag on ComplicatedArgs {
         ...nonNullIntArgFieldFrag

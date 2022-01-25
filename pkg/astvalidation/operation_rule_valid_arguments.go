@@ -92,8 +92,7 @@ func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(val
 }
 
 func (v *validArgumentsVisitor) variableValueSatisfiesInputValueDefinition(variableValue, inputValueDefinition int) (satisfies bool, operationTypeRef int, variableDefRef int) {
-	variableName := v.operation.VariableValueNameBytes(variableValue)
-	variableDefinitionRef, exists := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref, variableName)
+	variableDefinitionRef, exists := v.variableDefinition(variableValue)
 	if !exists {
 		return false, ast.InvalidRef, variableDefinitionRef
 	}
@@ -105,6 +104,23 @@ func (v *validArgumentsVisitor) variableValueSatisfiesInputValueDefinition(varia
 		v.validDefaultValue(v.definition.InputValueDefinitions[inputValueDefinition].DefaultValue)
 
 	return v.operationTypeSatisfiesDefinitionType(operationTypeRef, definitionTypeRef, hasDefaultValue), operationTypeRef, variableDefinitionRef
+}
+
+func (v *validArgumentsVisitor) variableDefinition(variableValueRef int) (ref int, exists bool) {
+	variableName := v.operation.VariableValueNameBytes(variableValueRef)
+
+	if v.Ancestors[0].Kind == ast.NodeKindOperationDefinition {
+		return v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref, variableName)
+	}
+
+	for opDefRef := 0; opDefRef < len(v.operation.OperationDefinitions); opDefRef++ {
+		ref, exists = v.operation.VariableDefinitionByNameAndOperation(opDefRef, variableName)
+		if exists {
+			return
+		}
+	}
+
+	return ast.InvalidRef, false
 }
 
 func (v *validArgumentsVisitor) validDefaultValue(value ast.DefaultValue) bool {
