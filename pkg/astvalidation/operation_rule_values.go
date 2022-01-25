@@ -73,7 +73,7 @@ func (v *valuesVisitor) valueSatisfiesInputValueDefinitionType(value ast.Value, 
 func (v *valuesVisitor) valuesSatisfiesNonNullType(value ast.Value, definitionTypeRef int) {
 	switch value.Kind {
 	case ast.ValueKindNull:
-		v.handleTypeError(value, definitionTypeRef)
+		v.handleUnexpectedNullError(value, definitionTypeRef)
 		return
 	case ast.ValueKindVariable:
 		variableTypeRef, _, ok := v.operationVariableType(value.Ref)
@@ -297,4 +297,13 @@ func (v *valuesVisitor) handleTypeError(value ast.Value, definitionTypeRef int) 
 	}
 
 	v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType, value.Position))
+}
+
+func (v *valuesVisitor) handleUnexpectedNullError(value ast.Value, definitionTypeRef int) {
+	printedType, err := v.definition.PrintTypeBytes(definitionTypeRef, nil)
+	if v.HandleInternalErr(err) {
+		return
+	}
+
+	v.Report.AddExternalError(operationreport.ErrNullValueDoesntSatisfyInputValueDefinition(printedType, value.Position))
 }

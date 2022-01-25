@@ -143,7 +143,21 @@ const (
 	NotAnEnumMemberErrMsg   = `Value "JUGGLE" does not exist in "%s" enum.`
 
 	WrongEnumValueCase = `\"sit\" does not exist in \"DogCommand\" enum. Did you mean the enum value \"SIT\"?`
+
+	NullValueErrMsg = `Expected value of type "%s", found null.`
 )
+
+func ErrNullValueDoesntSatisfyInputValueDefinition(inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NullValueErrMsg, inputType)
+	err.Locations = []graphqlerrors.Location{
+		{
+			Line:   position.LineStart,
+			Column: position.CharStart,
+		},
+	}
+
+	return err
+}
 
 func ErrValueDoesntSatisfyInputValueDefinition(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
 	var msg string
