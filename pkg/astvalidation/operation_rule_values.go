@@ -126,8 +126,12 @@ func (v *valuesVisitor) valueSatisfiesListType(value ast.Value, definitionTypeRe
 		}
 	}
 
+	if value.Kind == ast.ValueKindNull {
+		return
+	}
+
 	if value.Kind != ast.ValueKindList {
-		v.handleTypeError(value, definitionTypeRef)
+		v.valueSatisfiesInputValueDefinitionType(value, listItemType)
 		return
 	}
 
