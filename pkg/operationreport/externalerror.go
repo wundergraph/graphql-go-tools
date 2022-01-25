@@ -140,15 +140,37 @@ const (
 	NotBoolErrMsg           = "%s cannot represent a non boolean value: %s"
 	NotIDErrMsg             = "%s cannot represent a non-string and non-integer value: %s"
 	NotEnumErrMsg           = `Enum "%s" cannot represent non-enum value: %s.`
-	NotAnEnumMemberErrMsg   = `Value "JUGGLE" does not exist in "%s" enum.`
-
-	WrongEnumValueCase = `\"sit\" does not exist in \"DogCommand\" enum. Did you mean the enum value \"SIT\"?`
+	NotAnEnumMemberErrMsg   = `Value "%s" does not exist in "%s" enum.`
 
 	NullValueErrMsg = `Expected value of type "%s", found null.`
 )
 
 func ErrNullValueDoesntSatisfyInputValueDefinition(inputType ast.ByteSlice, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(NullValueErrMsg, inputType)
+	err.Locations = []graphqlerrors.Location{
+		{
+			Line:   position.LineStart,
+			Column: position.CharStart,
+		},
+	}
+
+	return err
+}
+
+func ErrValueDoesntSatisfyEnum(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NotEnumErrMsg, inputType, value)
+	err.Locations = []graphqlerrors.Location{
+		{
+			Line:   position.LineStart,
+			Column: position.CharStart,
+		},
+	}
+
+	return err
+}
+
+func ErrValueDoesntExistsInEnum(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NotAnEnumMemberErrMsg, value, inputType)
 	err.Locations = []graphqlerrors.Location{
 		{
 			Line:   position.LineStart,
@@ -173,8 +195,6 @@ func ErrValueDoesntSatisfyInputValueDefinition(value, inputType ast.ByteSlice, p
 		msg = fmt.Sprintf(NotBoolErrMsg, inputType, value)
 	case bytes.Equal(literal.ID, inputType):
 		msg = fmt.Sprintf(NotIDErrMsg, inputType, value)
-	case bytes.Equal(literal.ENUM, inputType):
-		msg = fmt.Sprintf(NotEnumErrMsg, inputType, value)
 	default:
 		msg = fmt.Sprintf(NotCompatibleTypeErrMsg, inputType, value)
 	}

@@ -489,6 +489,23 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
         }
       `)([]Err{
 					{
+						message:   `Enum "DogCommand" cannot represent non-enum value: "SIT".`,
+						locations: []Loc{{line: 4, column: 41}},
+					},
+				})
+			})
+
+			t.Run("String into Enum with suggestions", func(t *testing.T) {
+				t.Skip(NotSupportedSuggestionsSkipMsg)
+
+				ExpectErrors(t, `
+        {
+          dog {
+            doesKnowCommand(dogCommand: "SIT")
+          }
+        }
+      `)([]Err{
+					{
 						message:   `Enum "DogCommand" cannot represent non-enum value: "SIT". Did you mean the enum value "SIT"?`,
 						locations: []Loc{{line: 4, column: 41}},
 					},
@@ -526,6 +543,23 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 			})
 
 			t.Run("Different case Enum Value into Enum", func(t *testing.T) {
+				ExpectErrors(t, `
+        {
+          dog {
+            doesKnowCommand(dogCommand: sit)
+          }
+        }
+      `)([]Err{
+					{
+						message:   `Value "sit" does not exist in "DogCommand" enum.`,
+						locations: []Loc{{line: 4, column: 41}},
+					},
+				})
+			})
+
+			t.Run("Different case Enum Value into Enum with suggestions", func(t *testing.T) {
+				t.Skip(NotSupportedSuggestionsSkipMsg)
+
 				ExpectErrors(t, `
         {
           dog {

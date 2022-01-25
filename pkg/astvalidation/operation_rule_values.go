@@ -102,9 +102,8 @@ func (v *valuesVisitor) valuesSatisfiesNamedType(value ast.Value, definitionType
 		v.handleTypeError(value, definitionTypeRef)
 		return
 	}
-	if !v.valueSatisfiesTypeDefinitionNode(value, node) {
-		v.handleTypeError(value, definitionTypeRef)
-	}
+
+	v.valueSatisfiesTypeDefinitionNode(value, definitionTypeRef, node)
 }
 
 func (v *valuesVisitor) valueSatisfiesListType(value ast.Value, definitionTypeRef int, listItemType int) {
@@ -146,33 +145,44 @@ func (v *valuesVisitor) valueSatisfiesListType(value ast.Value, definitionTypeRe
 	}
 }
 
-func (v *valuesVisitor) valueSatisfiesTypeDefinitionNode(value ast.Value, node ast.Node) bool {
+func (v *valuesVisitor) valueSatisfiesTypeDefinitionNode(value ast.Value, definitionTypeRef int, node ast.Node) {
 	switch node.Kind {
 	case ast.NodeKindEnumTypeDefinition:
-		return v.valueSatisfiesEnum(value, node)
+		v.valueSatisfiesEnum(value, definitionTypeRef, node)
 	case ast.NodeKindScalarTypeDefinition:
-		return v.valueSatisfiesScalar(value, node.Ref)
+		if !v.valueSatisfiesScalar(value, node.Ref) {
+			v.handleTypeError(value, definitionTypeRef)
+		}
 	case ast.NodeKindInputObjectTypeDefinition:
-		return v.valueSatisfiesInputObjectTypeDefinition(value, node.Ref)
-	default:
-		return false
+		if !v.valueSatisfiesInputObjectTypeDefinition(value, node.Ref) {
+			v.handleTypeError(value, definitionTypeRef)
+		}
 	}
 }
 
-func (v *valuesVisitor) valueSatisfiesEnum(value ast.Value, node ast.Node) bool {
+func (v *valuesVisitor) valueSatisfiesEnum(value ast.Value, definitionTypeRef int, node ast.Node) {
 	if value.Kind == ast.ValueKindVariable {
 		_, actualTypeName, ok := v.operationVariableType(value.Ref)
 		if !ok {
-			return false
+			v.handleUnexpectedEnumValueError(value, definitionTypeRef)
+			return
 		}
 		expectedTypeName := node.NameBytes(v.definition)
-		return bytes.Equal(actualTypeName, expectedTypeName)
+
+		if !bytes.Equal(actualTypeName, expectedTypeName) {
+			v.handleUnexpectedEnumValueError(value, definitionTypeRef)
+			return
+		}
 	}
 	if value.Kind != ast.ValueKindEnum {
-		return false
+		v.handleUnexpectedEnumValueError(value, definitionTypeRef)
+		return
 	}
 	enumValue := v.operation.EnumValueNameBytes(value.Ref)
-	return v.definition.EnumTypeDefinitionContainsEnumValue(node.Ref, enumValue)
+
+	if !v.definition.EnumTypeDefinitionContainsEnumValue(node.Ref, enumValue) {
+		v.handleNotExistingEnumValueError(value, definitionTypeRef)
+	}
 }
 
 func (v *valuesVisitor) valueSatisfiesScalar(value ast.Value, scalar int) bool {
@@ -306,4 +316,34 @@ func (v *valuesVisitor) handleUnexpectedNullError(value ast.Value, definitionTyp
 	}
 
 	v.Report.AddExternalError(operationreport.ErrNullValueDoesntSatisfyInputValueDefinition(printedType, value.Position))
+}
+
+func (v *valuesVisitor) handleUnexpectedEnumValueError(value ast.Value, definitionTypeRef int) {
+	printedValue, err := v.operation.PrintValueBytes(value, nil)
+	if v.HandleInternalErr(err) {
+		return
+	}
+
+	underlyingType := v.definition.ResolveUnderlyingType(definitionTypeRef)
+	printedType, err := v.definition.PrintTypeBytes(underlyingType, nil)
+	if v.HandleInternalErr(err) {
+		return
+	}
+
+	v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyEnum(printedValue, printedType, value.Position))
+}
+
+func (v *valuesVisitor) handleNotExistingEnumValueError(value ast.Value, definitionTypeRef int) {
+	printedValue, err := v.operation.PrintValueBytes(value, nil)
+	if v.HandleInternalErr(err) {
+		return
+	}
+
+	underlyingType := v.definition.ResolveUnderlyingType(definitionTypeRef)
+	printedType, err := v.definition.PrintTypeBytes(underlyingType, nil)
+	if v.HandleInternalErr(err) {
+		return
+	}
+
+	v.Report.AddExternalError(operationreport.ErrValueDoesntExistsInEnum(printedValue, printedType, value.Position))
 }
