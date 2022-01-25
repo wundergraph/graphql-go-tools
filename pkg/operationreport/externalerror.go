@@ -132,32 +132,40 @@ func ErrArgumentNotDefinedOnNode(argName, node ast.ByteSlice) (err ExternalError
 	return err
 }
 
+const (
+	NotCompatibleTypeErrMsg = "%s cannot represent value: %s"
+	NotStringErrMsg         = "%s cannot represent a non string value: %s"
+	NotIntegerErrMsg        = "%s cannot represent non-integer value: %s"
+	NotFloatErrMsg          = "%s cannot represent non numeric value: %s"
+	NotBoolErrMsg           = "%s cannot represent a non boolean value: %s"
+	NotIDErrMsg             = "%s cannot represent a non-string and non-integer value: %s"
+	NotEnumErrMsg           = `Enum "%s" cannot represent non-enum value: %s.`
+	NotAnEnumMemberErrMsg   = `Value "JUGGLE" does not exist in "%s" enum.`
+
+	WrongEnumValueCase = `\"sit\" does not exist in \"DogCommand\" enum. Did you mean the enum value \"SIT\"?`
+)
+
 func ErrValueDoesntSatisfyInputValueDefinition(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
 	var msg string
 
-	// TODO: temporary ugly solution
-
-	if bytes.Equal(inputType, literal.STRING) {
-		msg = "a non string"
-	}
-	if bytes.Equal(inputType, literal.INT) {
-		msg = "non-integer"
-	}
-	if bytes.Equal(inputType, literal.FLOAT) {
-		msg = "non numeric"
-	}
-	if bytes.Equal(inputType, literal.BOOLEAN) {
-		msg = "a non boolean"
-	}
-	if bytes.Equal(inputType, literal.BOOLEAN) {
-		msg = "a non boolean"
-	}
-
-	if bytes.Equal(inputType, literal.ID) {
-		msg = "a non-string and non-integer"
+	switch {
+	case bytes.Equal(literal.STRING, inputType):
+		msg = fmt.Sprintf(NotStringErrMsg, inputType, value)
+	case bytes.Equal(literal.INT, inputType):
+		msg = fmt.Sprintf(NotIntegerErrMsg, inputType, value)
+	case bytes.Equal(literal.FLOAT, inputType):
+		msg = fmt.Sprintf(NotFloatErrMsg, inputType, value)
+	case bytes.Equal(literal.BOOLEAN, inputType):
+		msg = fmt.Sprintf(NotBoolErrMsg, inputType, value)
+	case bytes.Equal(literal.ID, inputType):
+		msg = fmt.Sprintf(NotIDErrMsg, inputType, value)
+	case bytes.Equal(literal.ENUM, inputType):
+		msg = fmt.Sprintf(NotEnumErrMsg, inputType, value)
+	default:
+		msg = fmt.Sprintf(NotCompatibleTypeErrMsg, inputType, value)
 	}
 
-	err.Message = fmt.Sprintf("%s cannot represent %s value: %s", inputType, msg, value)
+	err.Message = msg
 	err.Locations = []graphqlerrors.Location{
 		{
 			Line:   position.LineStart,
