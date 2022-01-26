@@ -2704,7 +2704,7 @@ func TestExecutionValidation(t *testing.T) {
 									}`,
 							Fragments(), Invalid)
 					})
-					t.Run("142", func(t *testing.T) {
+					t.Run("142 variant", func(t *testing.T) {
 						run(` fragment humanOrAlienFragment on HumanOrAlien {
 										... on Cat {
 											meowVolume
@@ -2725,6 +2725,23 @@ func TestExecutionValidation(t *testing.T) {
 										...dogOrHumanFragment
 									}
 									fragment dogOrHumanFragment on DogOrHuman {
+										... on Dog {
+											barkVolume
+										}
+									}`,
+							Fragments(), Valid)
+					})
+					t.Run("143 variant", func(t *testing.T) {
+						run(`
+									{
+										dog {
+											...interfaceWithUnion
+										}
+									}
+									fragment interfaceWithUnion on DogOrHuman {
+										...petFragment
+									}
+									fragment petFragment on Pet {
 										... on Dog {
 											barkVolume
 										}

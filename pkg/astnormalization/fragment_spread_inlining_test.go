@@ -372,6 +372,45 @@ func TestInlineFragments(t *testing.T) {
 					}
 				}`)
 	})
+	t.Run("inline fragment inside interface inside union inside type", func(t *testing.T) {
+		run(fragmentSpreadInline, testDefinition, `
+				{
+					dog {
+						...interfaceWithUnion
+					}
+				}
+				fragment interfaceWithUnion on DogOrHuman {
+					...petFragment
+				}
+				fragment petFragment on Pet {
+					... on Dog {
+						barkVolume
+					}
+				}`, `
+				{
+					dog {
+						... on DogOrHuman {
+							... on Pet {
+								... on Dog {
+									barkVolume
+								}
+							}
+						}
+					}
+				}
+				fragment interfaceWithUnion on DogOrHuman {
+					... on Pet {
+						... on Dog {
+							barkVolume
+						}
+					}
+				}
+				fragment petFragment on Pet {
+					... on Dog {
+						barkVolume
+					}
+				}`)
+	})
 	t.Run("non intersecting interfaces shouldn't merge", func(t *testing.T) {
 		run(fragmentSpreadInline, testDefinition, `
 				{
