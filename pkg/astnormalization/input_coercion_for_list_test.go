@@ -28,6 +28,7 @@ type Query {
 	charactersByIdsNonNullInteger(ids: [Int!]!): [Character]
 	nestedListNonNull(ids: [[Int!]!]!): [Character]
 	innerListNonNull(ids: [[Int]!]): [Character]
+	characterByIdNonNullInteger(id: Int!): Character	
 }`
 
 func TestInputCoercionForList(t *testing.T) {
@@ -165,6 +166,76 @@ query ($id: Int) {
     name
   }
 }`, `{"id":1}`, `{"id":1}`)
+	})
+
+	t.Run("non-null integer argument without modification", func(t *testing.T) {
+		run(inputCoercionForList, inputCoercionForListDefinition, `
+query{
+  characterByIdNonNullInteger(id: 1) {
+    id
+    name
+  }
+}`,
+			`
+query{
+  characterByIdNonNullInteger(id: 1) {
+    id
+    name
+  }
+}`)
+	})
+
+	t.Run("non-null integer variable as input", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+query ($id: Int!) {
+  characterByIdNonNullInteger(id: $id) {
+    id
+    name
+  }
+}`,
+			``,
+			`
+query ($id: Int!) {
+  characterByIdNonNullInteger(id: $id) {
+    id
+    name
+  }
+}`, `{"id":1}`, `{"id":1}`)
+	})
+
+	t.Run("do not modify null as variable input", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+query ($id: Int!) {
+  characterByIdNonNullInteger(id: $id) {
+    id
+    name
+  }
+}`,
+			``,
+			`
+query ($id: Int!) {
+  characterByIdNonNullInteger(id: $id) {
+    id
+    name
+  }
+}`, `{"id":null}`, `{"id":null}`)
+	})
+
+	t.Run("do not modify null as argument", func(t *testing.T) {
+		run(inputCoercionForList, inputCoercionForListDefinition, `
+query{
+  characterByIdNonNullInteger(id: null) {
+    id
+    name
+  }
+}`,
+			`
+query{
+  characterByIdNonNullInteger(id: null) {
+    id
+    name
+  }
+}`)
 	})
 
 	t.Run("convert integer variable to list of integers", func(t *testing.T) {
@@ -450,7 +521,7 @@ query ($ids: [[Int!]!]!) {
 }`, `{"ids":1}`, `{"ids":[[1]]}`)
 	})
 
-	t.Run("send list of integers as variable input", func(t *testing.T) {
+	t.Run("send list of integers as variable input, remains untouched", func(t *testing.T) {
 		// [1] is an invalid input for nestedList(ids: [[Int]]). It should be handled by the
 		// validator.
 		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
