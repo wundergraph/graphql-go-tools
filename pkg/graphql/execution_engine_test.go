@@ -309,7 +309,7 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
 			expectedHost:     "example.com",
 			expectedPath:     "/",
-			expectedBody:     `{}`,
+			expectedBody:     `{ "ids":  }`,
 			sendResponseBody: `{"charactersByIds":[{"name": "Luke"}]}`,
 			sendStatusCode:   200,
 		}),
