@@ -10,7 +10,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
-// ValidArguments validates if arguments are valid: arguments names are known and variables has compatible types
+// ValidArguments validates if arguments are valid: values and variables has compatible types
 // deep variables comparison is handled by Values
 func ValidArguments() Rule {
 	return func(walker *astvisitor.Walker) {

@@ -2201,7 +2201,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment invalidArgName on Dog {
 								doesKnowCommand(command: CLEAN_UP_HOUSE)
 							}`,
-					ValidArguments(), Invalid)
+					KnownArguments(), Invalid)
 			})
 			t.Run("118 variant", func(t *testing.T) {
 				run(`	
@@ -2220,7 +2220,7 @@ func TestExecutionValidation(t *testing.T) {
 									fragment invalidArgName on Dog {
 										isHousetrained(atOtherHomes: true) @include(unless: false)
 									}`,
-					ValidArguments(), Invalid)
+					KnownArguments(), Invalid)
 			})
 			t.Run("121", func(t *testing.T) {
 				run(`	fragment multipleArgs on ValidArguments {
@@ -2237,7 +2237,7 @@ func TestExecutionValidation(t *testing.T) {
 									name
 								}
 							}`,
-					ValidArguments(), Invalid)
+					KnownArguments(), Invalid)
 			})
 			t.Run("ID as arg given as string", func(t *testing.T) {
 				runManyRulesWithDefinition(countriesDefinition, `{
