@@ -294,6 +294,28 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		preExecutionTasks: normalizeAndValidatePreExecutionTasks,
 		expectedResponse:  `{"data":{"charactersByIds":[{"name":"Luke"}]}}`,
 	}))
+
+	t.Run("execute query and apply input coercion for lists with inline integer value", runWithoutError(testCase{
+		schema: inputCoercionForListSchema(t),
+		request: func(t *testing.T) Request {
+			return Request{
+				OperationName: "charactersByIds",
+				Variables:     stringify(map[string]interface{}{}),
+				// the library would fail to parse the query without input coercion.
+				Query: `query($ids: [Int]) {charactersByIds(ids: 1) { name }}`,
+			}
+		},
+		plannerConfig: inputCoercionHttpJsonDataSource,
+		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     `{}`,
+			sendResponseBody: `{"charactersByIds":[{"name": "Luke"}]}`,
+			sendStatusCode:   200,
+		}),
+		preExecutionTasks: normalizeAndValidatePreExecutionTasks,
+		expectedResponse:  `{"data":{"charactersByIds":[{"name":"Luke"}]}}`,
+	}))
 }
 
 func normalizeAndValidatePreExecutionTasks(t *testing.T, request Request, schema *Schema, engine *ExecutionEngine) {
