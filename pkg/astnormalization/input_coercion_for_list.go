@@ -142,17 +142,34 @@ func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 	defer pool.BytesBuffer.Put(out)
 
 	// value type is a non-array. Let's build an array from it.
-	for i := 0; i < nestingDepth; i++ {
-		out.Write(literal.LBRACK)
+	for idx := 0; idx < nestingDepth; idx++ {
+		_, err := out.Write(literal.LBRACK)
+		if err != nil {
+			i.StopWithInternalErr(err)
+			return
+		}
 	}
 
-	out.Write(value)
-
-	for i := 0; i < nestingDepth; i++ {
-		out.Write(literal.RBRACK)
+	_, err = out.Write(value)
+	if err != nil {
+		i.StopWithInternalErr(err)
+		return
 	}
 
-	i.operation.Input.Variables, err = sjson.SetRawBytes(i.operation.Input.Variables, variableNameString, out.Bytes())
+	for idx := 0; idx < nestingDepth; idx++ {
+		_, err = out.Write(literal.RBRACK)
+		if err != nil {
+			i.StopWithInternalErr(err)
+			return
+		}
+	}
+
+	// Use a new slice before putting it into the variables.
+	// If we use the `out` buffer here, another pool user could re-use
+	// it and manipulate the variables.
+	data := make([]byte, out.Len())
+	copy(data, out.Bytes())
+	i.operation.Input.Variables, err = sjson.SetRawBytes(i.operation.Input.Variables, variableNameString, data)
 	if err != nil {
 		i.StopWithInternalErr(err)
 		return
