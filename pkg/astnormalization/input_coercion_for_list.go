@@ -33,12 +33,19 @@ func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 
 	defType := i.definition.InputValueDefinitions[defRef].Type
 
-	definition := i.definition.Types[defType]
-	typeKind := definition.TypeKind
+	// Check the definition here.
+	//
+	// If it is not a TypeKindList or TypeKindNonNull, stop the operation.
+	// Because we only implement input coercion for lists. Please note that
+	// the type kind can be a non-null list.
+	definitionType := i.definition.Types[defType]
+	typeKind := definitionType.TypeKind
 	switch typeKind {
 	case ast.TypeKindList:
 	case ast.TypeKindNonNull:
-		innerType := i.definition.Types[definition.OfType]
+		innerType := i.definition.Types[definitionType.OfType]
+		// We are only looking for lists. If the definition type is
+		// a non-null list, go on. Otherwise, stop the operation.
 		if innerType.TypeKind != ast.TypeKindList {
 			return
 		}
@@ -46,6 +53,8 @@ func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 		return
 	}
 
+	// Check the argument value kind here.
+	// Only work for scalar/object types in EnterArgument.
 	argumentValue := i.operation.Arguments[ref].Value
 	var latestValue ast.Value
 	switch argumentValue.Kind {
@@ -57,6 +66,7 @@ func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 		var latestRef = i.operation.AddValue(i.operation.Arguments[ref].Value)
 		var definitionTypeRef = defType
 		for {
+			// Build a list from scalar/object type here.
 			definitionType := i.definition.Types[definitionTypeRef]
 			if definitionType.OfType == ast.InvalidRef {
 				break
@@ -64,7 +74,7 @@ func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 
 			switch definitionType.TypeKind {
 			case ast.TypeKindList:
-				// Build a nested list
+				// Put the value into a list here.
 				innerList := ast.ListValue{}
 				innerList.Refs = []int{latestRef}
 				innerListRef := i.operation.AddListValue(innerList)
@@ -76,12 +86,19 @@ func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 				latestRef = i.operation.AddValue(listValue)
 				definitionTypeRef = definitionType.OfType
 			case ast.TypeKindNonNull:
+				// Non-null type of what?
 				definitionTypeRef = definitionType.OfType
 			default:
 			}
 		}
 		i.operation.Arguments[ref].Value = latestValue
 	default:
+		// Possible value kinds:
+		// * ValueKindList
+		// * ValueKindEnum
+		// * ValueKindVariable
+		//
+		// Only works with scalar types or object types.
 	}
 }
 
@@ -98,12 +115,15 @@ func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 	variableTypeRef := i.operation.VariableDefinitions[variableDefinition].Type
 	variableTypeRef = i.operation.ResolveListOrNameType(variableTypeRef)
 
+	// If the variable type is not a list, stop the operation.
 	if !i.operation.TypeIsList(variableTypeRef) {
 		return
 	}
 
 	value, dataType, _, err := jsonparser.Get(i.operation.Input.Variables, variableNameString)
 	if err == jsonparser.KeyPathNotFoundError {
+		// If the user doesn't provide any variable with that name,
+		// there is no need for coercion. Stop the operation
 		return
 	}
 	if err != nil {
@@ -111,6 +131,9 @@ func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 		return
 	}
 
+	// Build arrays from scalar/object types. If the variable type is an array or null,
+	// stop the operation.
+	// Take a look at that table: https://spec.graphql.org/October2021/#sec-List.Input-Coercion
 	switch dataType {
 	case jsonparser.Array,
 		jsonparser.Null:
@@ -163,6 +186,8 @@ func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 			return
 		}
 	}
+
+	// We built a JSON array from the given variable here.
 
 	// Use a new slice before putting it into the variables.
 	// If we use the `out` buffer here, another pool user could re-use
