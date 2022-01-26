@@ -43,7 +43,6 @@ func (f *fragmentSpreadInlineVisitor) LeaveDocument(operation, definition *ast.D
 }
 
 func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
-
 	parentTypeName := f.definition.NodeNameBytes(f.EnclosingTypeDefinition)
 
 	fragmentDefinitionRef, exists := f.operation.FragmentDefinitionRef(f.operation.FragmentSpreadNameBytes(ref))
@@ -66,6 +65,7 @@ func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 	var fragmentTypeImplementsEnclosingType bool
 	var fragmentTypeIsMemberOfEnclosingUnionType bool
 	var fragmentUnionIntersectsEnclosingInterface bool
+	var fragmentInterfaceIntersectsEnclosingUnion bool
 
 	if fragmentNode.Kind == ast.NodeKindInterfaceTypeDefinition && f.EnclosingTypeDefinition.Kind == ast.NodeKindObjectTypeDefinition {
 		enclosingTypeImplementsFragmentType = f.definition.NodeImplementsInterface(f.EnclosingTypeDefinition, fragmentNode)
@@ -81,6 +81,10 @@ func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 
 	if f.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition && fragmentNode.Kind == ast.NodeKindUnionTypeDefinition {
 		fragmentUnionIntersectsEnclosingInterface = f.definition.UnionNodeIntersectsInterfaceNode(fragmentNode, f.EnclosingTypeDefinition)
+	}
+
+	if f.EnclosingTypeDefinition.Kind == ast.NodeKindUnionTypeDefinition && fragmentNode.Kind == ast.NodeKindInterfaceTypeDefinition {
+		fragmentInterfaceIntersectsEnclosingUnion = f.definition.UnionNodeIntersectsInterfaceNode(f.EnclosingTypeDefinition, fragmentNode)
 	}
 
 	if f.EnclosingTypeDefinition.Kind == ast.NodeKindUnionTypeDefinition {
@@ -105,7 +109,7 @@ func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 	switch {
 	case fragmentTypeEqualsParentType || enclosingTypeImplementsFragmentType:
 		f.transformer.ReplaceFragmentSpread(precedence, selectionSet, ref, replaceWith)
-	case fragmentTypeImplementsEnclosingType || fragmentTypeIsMemberOfEnclosingUnionType || enclosingTypeIsMemberOfFragmentUnion || fragmentUnionIntersectsEnclosingInterface:
+	case fragmentTypeImplementsEnclosingType || fragmentTypeIsMemberOfEnclosingUnionType || enclosingTypeIsMemberOfFragmentUnion || fragmentUnionIntersectsEnclosingInterface || fragmentInterfaceIntersectsEnclosingUnion:
 		f.transformer.ReplaceFragmentSpreadWithInlineFragment(precedence, selectionSet, ref, replaceWith, typeCondition)
 	}
 }
