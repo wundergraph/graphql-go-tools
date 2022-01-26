@@ -1,8 +1,6 @@
 package astnormalization
 
 import (
-	"fmt"
-
 	"github.com/buger/jsonparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
@@ -131,7 +129,6 @@ func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 			continue
 		}
 	}
-	fmt.Println(nestingDepth)
 
 	out := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(out)
