@@ -33,8 +33,16 @@ func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 
 	defType := i.definition.InputValueDefinitions[defRef].Type
 
-	typeKind := i.definition.Types[defType].TypeKind
-	if typeKind != ast.TypeKindList && typeKind != ast.TypeKindNonNull {
+	definition := i.definition.Types[defType]
+	typeKind := definition.TypeKind
+	switch typeKind {
+	case ast.TypeKindList:
+	case ast.TypeKindNonNull:
+		innerType := i.definition.Types[definition.OfType]
+		if innerType.TypeKind != ast.TypeKindList {
+			return
+		}
+	default:
 		return
 	}
 
