@@ -417,7 +417,7 @@ query ($ids: [[Int]]) {
 }`, `{"foo": "bar"}`, `{"foo": "bar"}`)
 	})
 
-	t.Run("convert integer to list of integer, non-null", func(t *testing.T) {
+	t.Run("convert integer to list of integer, non-null list", func(t *testing.T) {
 		run(inputCoercionForList, inputCoercionForListDefinition, `
 query {
   charactersByIdsNonNull(ids: 1) {
@@ -451,6 +451,24 @@ query {
 }`)
 	})
 
+	t.Run("send list of integers as variable input, non-null integer", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+query ($ids: [Int!]) {
+  charactersByIdsNonNullInteger(ids: $ids) {
+    id
+    name
+  }
+}`,
+			``,
+			`
+query ($ids: [Int!]) {
+  charactersByIdsNonNullInteger(ids: $ids) {
+    id
+    name
+  }
+}`, `{"ids":[1]}`, `{"ids":[1]}`)
+	})
+
 	t.Run("send list of integers as variable input, non-null list", func(t *testing.T) {
 		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
 query ($ids: [Int]!) {
@@ -469,7 +487,7 @@ query ($ids: [Int]!) {
 }`, `{"ids":[1]}`, `{"ids":[1]}`)
 	})
 
-	t.Run("convert integer to nested list of integer, non-null", func(t *testing.T) {
+	t.Run("convert integer to nested list of integer, non-null nested list", func(t *testing.T) {
 		run(inputCoercionForList, inputCoercionForListDefinition, `
 query {
   nestedListNonNull(ids: 1) {
@@ -486,7 +504,7 @@ query {
 }`)
 	})
 
-	t.Run("convert integer to nested list of integer, inner list non-null", func(t *testing.T) {
+	t.Run("convert integer to nested list of integer, non-null inner list", func(t *testing.T) {
 		run(inputCoercionForList, inputCoercionForListDefinition, `
 query {
   innerListNonNull(ids: 1) {
@@ -503,7 +521,7 @@ query {
 }`)
 	})
 
-	t.Run("send list of integers as variable input, non-null", func(t *testing.T) {
+	t.Run("send list of integers as variable input, non-null nested list", func(t *testing.T) {
 		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
 query ($ids: [[Int!]!]!) {
   nestedListNonNull(ids: $ids) {
@@ -539,5 +557,110 @@ query ($ids: [[Int]]) {
     name
   }
 }`, `{"ids":[1]}`, `{"ids":[1]}`)
+	})
+
+	t.Run("send null as variable to nestedListNonNull", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+query ($ids: [[Int!]!]!) {
+  nestedListNonNull(ids: $ids) {
+    id
+    name
+  }
+}`,
+			``,
+			`
+query ($ids: [[Int!]!]!) {
+  nestedListNonNull(ids: $ids) {
+    id
+    name
+  }
+}`, `{"ids":null}`, `{"ids":null}`)
+	})
+
+	t.Run("send inline null to charactersByIdsNonNull", func(t *testing.T) {
+		run(inputCoercionForList, inputCoercionForListDefinition, `
+query {
+  charactersByIdsNonNull(ids: null) {
+    id
+    name
+  }
+}`,
+			`
+query {
+  charactersByIdsNonNull(ids: null) {
+    id
+    name
+  }
+}`)
+	})
+
+	t.Run("send null as variable to charactersByIdsNonNull", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+query ($ids: [Int]!) {
+  charactersByIdsNonNull(ids: $ids) {
+    id
+    name
+  }
+}`,
+			``,
+			`
+query ($ids: [Int]!) {
+  charactersByIdsNonNull(ids: $ids) {
+    id
+    name
+  }
+}`, `{"ids":null}`, `{"ids":null}`)
+	})
+
+	t.Run("send inline null to nestedListNonNull", func(t *testing.T) {
+		run(inputCoercionForList, inputCoercionForListDefinition, `
+query {
+  nestedListNonNull(ids: null) {
+    id
+    name
+  }
+}`,
+			`
+query {
+  nestedListNonNull(ids: null) {
+    id
+    name
+  }
+}`)
+	})
+
+	t.Run("send inline null to charactersByIdsNonNullInteger", func(t *testing.T) {
+		run(inputCoercionForList, inputCoercionForListDefinition, `
+query {
+  charactersByIdsNonNullInteger(ids: null) {
+    id
+    name
+  }
+}`,
+			`
+query {
+  charactersByIdsNonNullInteger(ids: null) {
+    id
+    name
+  }
+}`)
+	})
+
+	t.Run("send null as variable to charactersByIdsNonNullInteger", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+query ($ids: [Int!]) {
+  charactersByIdsNonNullInteger(ids: $ids) {
+    id
+    name
+  }
+}`,
+			``,
+			`
+query ($ids: [Int!]) {
+  charactersByIdsNonNullInteger(ids: $ids) {
+    id
+    name
+  }
+}`, `{"ids":null}`, `{"ids":null}`)
 	})
 }
