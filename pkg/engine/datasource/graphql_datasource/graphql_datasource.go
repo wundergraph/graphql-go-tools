@@ -815,9 +815,6 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, sourcePath 
 	variableDefinitionTypeName := p.visitor.Operation.ResolveTypeNameString(p.visitor.Operation.VariableDefinitions[variableDefinition].Type)
 	variableDefinitionTypeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(variableDefinitionTypeName)
 
-	importedVariableDefinition := p.visitor.Importer.ImportVariableDefinitionWithRename(variableDefinition, p.visitor.Operation, p.upstreamOperation, variableDefinitionTypeName)
-	p.upstreamOperation.AddImportedVariableDefinitionToOperationDefinition(p.nodes[0].Ref, importedVariableDefinition)
-
 	fieldType := p.resolveNestedArgumentType(fieldName)
 	contextVariable := &resolve.ContextVariable{
 		Path: append(sourcePath, variableNameStr),
@@ -831,6 +828,10 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, sourcePath 
 	if variableExists {
 		return
 	}
+
+	importedVariableDefinition := p.visitor.Importer.ImportVariableDefinitionWithRename(variableDefinition, p.visitor.Operation, p.upstreamOperation, variableDefinitionTypeName)
+	p.upstreamOperation.AddImportedVariableDefinitionToOperationDefinition(p.nodes[0].Ref, importedVariableDefinition)
+
 	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
 }
 

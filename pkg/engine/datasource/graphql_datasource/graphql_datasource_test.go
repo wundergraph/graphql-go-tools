@@ -1242,6 +1242,104 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 		Fields: []plan.FieldConfiguration{},
 	}))
+	t.Run("variable at top level and recursively", RunTest(variableSchema, `
+		query MyQuery($name: String!){
+            user(name: $name){
+                normalized(data: {name: $name})
+            }
+        }
+    `, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($name: String!){user(name: $name){normalized(data: {name: $name})}}","variables":{"name":$$0$$}}}`,
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path:     []string{"name"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+						},
+					),
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("user"),
+						Position: resolve.Position{
+							Line:   3,
+							Column: 13,
+						},
+						Value: &resolve.Object{
+							Path:     []string{"user"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("normalized"),
+									Value: &resolve.String{
+										Path: []string{"normalized"},
+									},
+									Position: resolve.Position{
+										Line:   4,
+										Column: 17,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"user"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"normalized"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+					},
+					UpstreamSchema: variableSchema,
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "user",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "name",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "User",
+				FieldName: "normalized",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "data",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+	}))
 	t.Run("exported field", RunTest(starWarsSchemaWithExportDirective, `
 		query MyQuery($id: ID! $heroName: String!){
 			droid(id: $id){
@@ -5771,6 +5869,27 @@ type RegisteredUser implements User {
     displayName: String!
     isLoggedIn: Boolean!
 	hasVerifiedEmail: Boolean!
+}
+`
+
+const variableSchema = `
+
+scalar String
+
+schema {
+	query: Query
+}
+
+type Query {
+	user(name: String!): User
+}
+
+type User {
+    normalized(data: NormalizedDataInput!): String!
+}
+
+input NormalizedDataInput {
+    name: String!
 }
 `
 
