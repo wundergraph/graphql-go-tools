@@ -111,13 +111,13 @@ func TestDataLoader_Load(t *testing.T) {
 				actual := string(input)
 				switch {
 				case strings.Contains(actual, "11"):
-					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"userId":11}}`
+					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id username }","variables":{"userId":11}}`
 					assert.Equal(t, expected, actual)
 					pair := NewBufPair()
 					pair.Data.WriteString(`{"user": {"id":11, "username": "Username 11"}}`)
 					return writeGraphqlResponse(pair, w, false)
 				case strings.Contains(actual, "22"):
-					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"userId":22}}`
+					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id username }","variables":{"userId":22}}`
 					assert.Equal(t, expected, actual)
 					pair := NewBufPair()
 					pair.Data.WriteString(`{"user": {"id":22, "username": "Username 22"}}`)
@@ -133,14 +133,14 @@ func TestDataLoader_Load(t *testing.T) {
 			InputTemplate: InputTemplate{
 				Segments: []TemplateSegment{
 					{
-						Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"userId":`),
+						Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id username }","variables":{"userId":`),
 						SegmentType: StaticSegmentType,
 					},
 					{
-						SegmentType:                  VariableSegmentType,
-						VariableKind:                 ObjectVariableKind,
-						VariableSourcePath:           []string{"id"},
-						Renderer: NewPlainVariableRendererWithValidation(`{"type":"number"}`),
+						SegmentType:        VariableSegmentType,
+						VariableKind:       ObjectVariableKind,
+						VariableSourcePath: []string{"id"},
+						Renderer:           NewPlainVariableRendererWithValidation(`{"type":"number"}`),
 					},
 					{
 						Data:        []byte(`}}`),
@@ -172,7 +172,7 @@ func TestDataLoader_Load(t *testing.T) {
 				actual := string(input)
 				switch {
 				case strings.Contains(actual, "11"):
-					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":11}}`
+					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id username }","variables":{"$userId":11}}`
 					assert.Equal(t, expected, actual)
 					pair := NewBufPair()
 					pair.Data.WriteString(`{"user": {"id":11, "username": "Username 11"}}`)
@@ -193,14 +193,14 @@ func TestDataLoader_Load(t *testing.T) {
 				InputTemplate: InputTemplate{
 					Segments: []TemplateSegment{
 						{
-							Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":`),
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id username }","variables":{"$userId":`),
 							SegmentType: StaticSegmentType,
 						},
 						{
 							SegmentType:        VariableSegmentType,
 							VariableKind:       ObjectVariableKind,
 							VariableSourcePath: []string{"id"},
-							Renderer: NewJSONVariableRendererWithValidation(`{"type":"number"}`),
+							Renderer:           NewJSONVariableRendererWithValidation(`{"type":"number"}`),
 						},
 						{
 							Data:        []byte(`}}`),
@@ -242,7 +242,7 @@ func TestDataLoader_Load(t *testing.T) {
 			InputTemplate: InputTemplate{
 				Segments: []TemplateSegment{
 					{
-						Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":`),
+						Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id username }","variables":{"$userId":`),
 						SegmentType: StaticSegmentType,
 					},
 					{
@@ -272,7 +272,7 @@ func TestDataLoader_Load(t *testing.T) {
 			InputTemplate: InputTemplate{
 				Segments: []TemplateSegment{
 					{
-						Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":`),
+						Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id username }","variables":{"$userId":`),
 						SegmentType: StaticSegmentType,
 					},
 					{
@@ -302,7 +302,7 @@ func TestDataLoader_Load(t *testing.T) {
 			InputTemplate: InputTemplate{
 				Segments: []TemplateSegment{
 					{
-						Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":`),
+						Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id username }","variables":{"$userId":`),
 						SegmentType: StaticSegmentType,
 					},
 					{
@@ -335,13 +335,13 @@ func TestDataLoader_Load(t *testing.T) {
 				actual := string(input)
 				switch {
 				case strings.Contains(actual, "11"):
-					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":11}}`
+					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id username }","variables":{"$userId":11}}`
 					assert.Equal(t, expected, actual)
 					pair := NewBufPair()
 					pair.Data.WriteString(`{"user": {"id":11, "username": "Username 11"}}`)
 					return writeGraphqlResponse(pair, w, false)
 				case strings.Contains(actual, "22"):
-					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":22}}`
+					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id username }","variables":{"$userId":22}}`
 					assert.Equal(t, expected, actual)
 					pair := NewBufPair()
 					pair.Data.WriteString(`{"user": {"id":22, "username": "Username 22"}}`)
@@ -357,14 +357,14 @@ func TestDataLoader_Load(t *testing.T) {
 			InputTemplate: InputTemplate{
 				Segments: []TemplateSegment{
 					{
-						Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":`),
+						Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id username }","variables":{"$userId":`),
 						SegmentType: StaticSegmentType,
 					},
 					{
-						SegmentType:                  VariableSegmentType,
-						VariableKind:                 ObjectVariableKind,
-						VariableSourcePath:           []string{"id"},
-						Renderer: NewJSONVariableRendererWithValidation(`{"type":"number"}`),
+						SegmentType:        VariableSegmentType,
+						VariableKind:       ObjectVariableKind,
+						VariableSourcePath: []string{"id"},
+						Renderer:           NewJSONVariableRendererWithValidation(`{"type":"number"}`),
 					},
 					{
 						Data:        []byte(`}}`),
@@ -391,13 +391,13 @@ func TestDataLoader_Load(t *testing.T) {
 				actual := string(input)
 				switch {
 				case strings.Contains(actual, "11"):
-					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":11}}`
+					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id username }","variables":{"$userId":11}}`
 					assert.Equal(t, expected, actual)
 					pair := NewBufPair()
 					pair.Data.WriteString(`{"user": {"id":11, "username": "Username 11"}}`)
 					return writeGraphqlResponse(pair, w, false)
 				case strings.Contains(actual, "22"):
-					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":22}}`
+					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id username }","variables":{"$userId":22}}`
 					assert.Equal(t, expected, actual)
 					pair := NewBufPair()
 					pair.Data.WriteString(`{"user": {"id":22, "username": "Username 22"}}`)
@@ -413,14 +413,14 @@ func TestDataLoader_Load(t *testing.T) {
 			InputTemplate: InputTemplate{
 				Segments: []TemplateSegment{
 					{
-						Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id name }","variables":{"$userId":`),
+						Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"query($userId: ID!){user(id: $userId){ id username }","variables":{"$userId":`),
 						SegmentType: StaticSegmentType,
 					},
 					{
-						SegmentType:                  VariableSegmentType,
-						VariableKind:                 ObjectVariableKind,
-						VariableSourcePath:           []string{"id"},
-						Renderer: NewJSONVariableRendererWithValidation(`{"type":"number"}`),
+						SegmentType:        VariableSegmentType,
+						VariableKind:       ObjectVariableKind,
+						VariableSourcePath: []string{"id"},
+						Renderer:           NewJSONVariableRendererWithValidation(`{"type":"number"}`),
 					},
 					{
 						Data:        []byte(`}}`),
@@ -497,10 +497,10 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 							SegmentType: StaticSegmentType,
 						},
 						{
-							SegmentType:                  VariableSegmentType,
-							VariableKind:                 ObjectVariableKind,
-							VariableSourcePath:           []string{"upc"},
-							Renderer: NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+							SegmentType:        VariableSegmentType,
+							VariableKind:       ObjectVariableKind,
+							VariableSourcePath: []string{"upc"},
+							Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 						},
 						{
 							Data:        []byte(`,"__typename":"Product"}]}}}`),
@@ -512,6 +512,72 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 			},
 			BatchFactory: batchFactory,
 		}, &Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}}, `{"name": "Trilby"}`
+	}))
+
+	t.Run("deeply nested fetch with varying fields", testFn(map[int]fetchState{
+		1: &batchFetchState{
+			nextIdx:    0,
+			fetchError: nil,
+			// The fetch is to fill in additional engine information.
+			results: []*BufPair{
+				newBufPair(`{"vehicle": {"__typename": "Car", "color": "black", "engine": {"model": "x"}}}`, ``),
+				newBufPair(`{"vehicle": {"__typename": "Bicycle", "color": "yellow"}}`, ``),
+				newBufPair(`{"vehicle": {"__typename": "Car", "color": "black", "engine": {"model": "y"}}}`, ``),
+			},
+		},
+	}, func(t *testing.T, ctrl *gomock.Controller) (fetch *BatchFetch, ctx *Context, expectedOutput string) {
+		batchFactory := NewMockDataSourceBatchFactory(ctrl)
+		batchFactory.EXPECT().
+			CreateBatch(
+				[][]byte{
+					[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Engine {horsepower}}}","variables":{"representations":[{"model":"x","__typename":"Engine"}]}}}`),
+					[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Engine {horsepower}}}","variables":{"representations":[{"model":"y","__typename":"Engine"}]}}}`),
+				},
+			).Return(NewFakeDataSourceBatch(
+			`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Engine {horsepower}}}","variables":{"representations":[{"model":"x","__typename":"Engine"},{"model":"y","__typename":"Engine"}]}}}`,
+			[]resultedBufPair{
+				{data: `{"horsepower": 200}`},
+				{data: `{"horsepower": 400}`},
+			}), nil)
+
+		carService := NewMockDataSource(ctrl)
+		carService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Engine {horsepower}}}","variables":{"representations":[{"model":"x","__typename":"Engine"},{"model":"y","__typename":"Engine"}]}}}`
+				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
+				pair.Data.WriteString(`[{"horsepower": 200},{"horsepower": 400}]`)
+				return writeGraphqlResponse(pair, w, false)
+			}).
+			Return(nil)
+
+		return &BatchFetch{
+			Fetch: &SingleFetch{
+				BufferId: 2,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Engine {horsepower}}}","variables":{"representations":[{"model":`),
+							SegmentType: StaticSegmentType,
+						},
+						{
+							SegmentType:        VariableSegmentType,
+							VariableKind:       ObjectVariableKind,
+							VariableSourcePath: []string{"model"},
+							Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+						},
+						{
+							Data:        []byte(`,"__typename":"Engine"}]}}}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				DataSource: carService,
+			},
+			BatchFactory: batchFactory,
+		}, &Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"vehicle", "engine"}}, `{"horsepower": 200}`
 	}))
 
 	t.Run("doesn't requires nested request", testFn(map[int]fetchState{
@@ -596,7 +662,7 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 								SegmentType:        VariableSegmentType,
 								VariableKind:       ObjectVariableKind,
 								VariableSourcePath: []string{"upc"},
-								Renderer: NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 							},
 							{
 								Data:        []byte(`,"__typename":"Product"}]}}}`),
