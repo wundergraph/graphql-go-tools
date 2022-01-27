@@ -3614,6 +3614,13 @@ func (w *Walker) FieldDefinition(field int) (definition int, exists bool) {
 	return w.definition.NodeFieldDefinitionByName(w.EnclosingTypeDefinition, fieldName)
 }
 
+func (w *Walker) Ancestor() ast.Node {
+	if len(w.Ancestors) == 0 {
+		return ast.InvalidNode
+	}
+	return w.Ancestors[len(w.Ancestors)-1]
+}
+
 func (w *Walker) AncestorNameBytes() ast.ByteSlice {
 	if len(w.Ancestors) == 0 {
 		return nil

@@ -14,12 +14,24 @@ func KnownArguments() Rule {
 		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterArgumentVisitor(&visitor)
+		walker.RegisterEnterFieldVisitor(&visitor)
 	}
 }
 
 type knownArgumentsVisitor struct {
 	*astvisitor.Walker
 	operation, definition *ast.Document
+	enclosingNode         ast.Node
+}
+
+func (v *knownArgumentsVisitor) EnterField(ref int) {
+	_, exists := v.FieldDefinition(ref)
+	if !exists {
+		v.SkipNode() // ignore arguments of not existing fields
+		return
+	}
+
+	v.enclosingNode = v.EnclosingTypeDefinition
 }
 
 func (v *knownArgumentsVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -28,12 +40,23 @@ func (v *knownArgumentsVisitor) EnterDocument(operation, definition *ast.Documen
 }
 
 func (v *knownArgumentsVisitor) EnterArgument(ref int) {
-	definitionRef, exists := v.ArgumentInputValueDefinition(ref)
-	_ = definitionRef // TODO: provide location for this error
+	_, exists := v.ArgumentInputValueDefinition(ref)
+	if exists {
+		return
+	}
 
-	if !exists {
-		argumentName := v.operation.ArgumentNameBytes(ref)
-		ancestorName := v.AncestorNameBytes()
-		v.StopWithExternalErr(operationreport.ErrArgumentNotDefinedOnNode(argumentName, ancestorName))
+	ancestor := v.Ancestor()
+	ancestorName := v.AncestorNameBytes()
+
+	argumentName := v.operation.ArgumentNameBytes(ref)
+	argumentPosition := v.operation.Arguments[ref].Position
+
+	switch ancestor.Kind {
+	case ast.NodeKindField:
+		objectTypeDefName := v.definition.ObjectTypeDefinitionNameBytes(v.enclosingNode.Ref)
+
+		v.Report.AddExternalError(operationreport.ErrArgumentNotDefinedOnField(argumentName, objectTypeDefName, ancestorName, argumentPosition))
+	case ast.NodeKindDirective:
+		v.Report.AddExternalError(operationreport.ErrArgumentNotDefinedOnDirective(argumentName, ancestorName, argumentPosition))
 	}
 }

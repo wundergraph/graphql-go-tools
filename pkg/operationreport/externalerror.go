@@ -127,22 +127,40 @@ func ErrMissingFieldSelectionOnNonScalar(fieldName, enclosingTypeName ast.ByteSl
 	return err
 }
 
-func ErrArgumentNotDefinedOnNode(argName, node ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("argument: %s not defined on node: %s", argName, node)
+func ErrArgumentNotDefinedOnDirective(argName, directiveName ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(UnknownArgumentOnDirective, argName, directiveName)
+	err.Locations = []graphqlerrors.Location{
+		{
+			Line:   position.LineStart,
+			Column: position.CharStart,
+		},
+	}
+	return err
+}
+
+func ErrArgumentNotDefinedOnField(argName, typeName, fieldName ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(UnknownArgumentOnField, argName, typeName, fieldName)
+	err.Locations = []graphqlerrors.Location{
+		{
+			Line:   position.LineStart,
+			Column: position.CharStart,
+		},
+	}
 	return err
 }
 
 const (
-	NotCompatibleTypeErrMsg = "%s cannot represent value: %s"
-	NotStringErrMsg         = "%s cannot represent a non string value: %s"
-	NotIntegerErrMsg        = "%s cannot represent non-integer value: %s"
-	NotFloatErrMsg          = "%s cannot represent non numeric value: %s"
-	NotBoolErrMsg           = "%s cannot represent a non boolean value: %s"
-	NotIDErrMsg             = "%s cannot represent a non-string and non-integer value: %s"
-	NotEnumErrMsg           = `Enum "%s" cannot represent non-enum value: %s.`
-	NotAnEnumMemberErrMsg   = `Value "%s" does not exist in "%s" enum.`
-
-	NullValueErrMsg = `Expected value of type "%s", found null.`
+	NotCompatibleTypeErrMsg    = "%s cannot represent value: %s"
+	NotStringErrMsg            = "%s cannot represent a non string value: %s"
+	NotIntegerErrMsg           = "%s cannot represent non-integer value: %s"
+	NotFloatErrMsg             = "%s cannot represent non numeric value: %s"
+	NotBoolErrMsg              = "%s cannot represent a non boolean value: %s"
+	NotIDErrMsg                = "%s cannot represent a non-string and non-integer value: %s"
+	NotEnumErrMsg              = `Enum "%s" cannot represent non-enum value: %s.`
+	NotAnEnumMemberErrMsg      = `Value "%s" does not exist in "%s" enum.`
+	NullValueErrMsg            = `Expected value of type "%s", found null.`
+	UnknownArgumentOnDirective = `Unknown argument "%s" on directive "@%s".`
+	UnknownArgumentOnField     = `Unknown argument "%s" on field "%s.%s".`
 )
 
 func ErrNullValueDoesntSatisfyInputValueDefinition(inputType ast.ByteSlice, position position.Position) (err ExternalError) {

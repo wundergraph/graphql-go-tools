@@ -389,9 +389,10 @@ Loop:
 		value := p.ParseValue()
 
 		argument := ast.Argument{
-			Name:  name.Literal,
-			Colon: colon.TextPosition,
-			Value: value,
+			Name:     name.Literal,
+			Colon:    colon.TextPosition,
+			Value:    value,
+			Position: name.TextPosition,
 		}
 
 		p.document.Arguments = append(p.document.Arguments, argument)
