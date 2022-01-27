@@ -13,6 +13,8 @@ type Node struct {
 	Ref  int
 }
 
+var InvalidNode = Node{Kind: NodeKindUnknown, Ref: InvalidRef}
+
 func (n *Node) IsExtensionKind() bool {
 	switch n.Kind {
 	case NodeKindSchemaExtension,
@@ -314,7 +316,7 @@ func (d *Document) NodeFieldDefinitionByName(node Node, fieldName ByteSlice) (de
 			return i, true
 		}
 	}
-	return
+	return InvalidRef, false
 }
 
 func (d *Document) NodeFieldDefinitionArgumentDefinitionByName(node Node, fieldName, argumentName ByteSlice) int {
