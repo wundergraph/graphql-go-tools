@@ -178,7 +178,7 @@ func (c *complexityVisitor) EnterArgument(ref int) {
 }
 
 func (c *complexityVisitor) EnterField(ref int) {
-	definition, exists := c.FieldDefinitionWithExists(ref)
+	definition, exists := c.FieldDefinition(ref)
 	if !exists {
 		return
 	}

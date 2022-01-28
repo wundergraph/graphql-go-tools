@@ -134,14 +134,22 @@ func (p *planningVisitor) LeaveInlineFragment(ref int) {
 }
 
 func (p *planningVisitor) EnterField(ref int) {
+	fieldName := p.operation.FieldNameUnsafeString(ref)
 
 	definition, exists := p.FieldDefinition(ref)
 	if !exists {
-		return
+		if fieldName != "__typename" {
+			return
+		}
+
+		// UGLY FIX
+		// Document.NodeFieldDefinitionByName was returning 0 as a definition index when it was not exists
+		// old implementation of Walker.FieldDefinition method was calculating exists = index != -1 which was always true
+		// this old wrong behaviour was allowing to plan __typename field resolving
+		definition = 0
 	}
 
 	typeName := p.definition.NodeResolverTypeNameString(p.EnclosingTypeDefinition, p.Path)
-	fieldName := p.operation.FieldNameUnsafeString(ref)
 
 	plannerFactory := p.base.Config.DataSourcePlannerFactoryForTypeField(typeName, fieldName)
 	if plannerFactory != nil {
