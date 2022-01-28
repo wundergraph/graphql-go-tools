@@ -4,11 +4,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
-	"github.com/stretchr/testify/assert"
 )
 
 // Create a new document with initialized slices.
@@ -319,13 +320,13 @@ func TestDocument_NodeByName(t *testing.T) {
 
 		t.Run("NodeByName", func(t *testing.T) {
 			node, exists := doc.NodeByName([]byte("NotExisting"))
-			assert.Equal(t, ast.Node{}, node)
+			assert.Equal(t, ast.InvalidNode, node)
 			assert.False(t, exists)
 		})
 
 		t.Run("NodeByNameStr", func(t *testing.T) {
 			node, exists := doc.NodeByNameStr("NotExisting")
-			assert.Equal(t, ast.Node{}, node)
+			assert.Equal(t, ast.InvalidNode, node)
 			assert.False(t, exists)
 		})
 	})
