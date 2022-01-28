@@ -161,10 +161,11 @@ func (v *valuesVisitor) valueSatisfiesTypeDefinitionNode(value ast.Value, defini
 	case ast.NodeKindEnumTypeDefinition:
 		return v.valueSatisfiesEnum(value, definitionTypeRef, node)
 	case ast.NodeKindScalarTypeDefinition:
-		if !v.valueSatisfiesScalar(value, node.Ref) {
+		satisfiesScalar := v.valueSatisfiesScalar(value, node.Ref)
+		if !satisfiesScalar {
 			v.handleTypeError(value, definitionTypeRef)
-			return false
 		}
+		return satisfiesScalar
 	case ast.NodeKindInputObjectTypeDefinition:
 		return v.valueSatisfiesInputObjectTypeDefinition(value, definitionTypeRef, node.Ref)
 	}
