@@ -10,6 +10,21 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/position"
 )
 
+const (
+	NotCompatibleTypeErrMsg          = "%s cannot represent value: %s"
+	NotStringErrMsg                  = "%s cannot represent a non string value: %s"
+	NotIntegerErrMsg                 = "%s cannot represent non-integer value: %s"
+	NotFloatErrMsg                   = "%s cannot represent non numeric value: %s"
+	NotBoolErrMsg                    = "%s cannot represent a non boolean value: %s"
+	NotIDErrMsg                      = "%s cannot represent a non-string and non-integer value: %s"
+	NotEnumErrMsg                    = `Enum "%s" cannot represent non-enum value: %s.`
+	NotAnEnumMemberErrMsg            = `Value "%s" does not exist in "%s" enum.`
+	NullValueErrMsg                  = `Expected value of type "%s", found null.`
+	UnknownArgumentOnDirectiveErrMsg = `Unknown argument "%s" on directive "@%s".`
+	UnknownArgumentOnFieldErrMsg     = `Unknown argument "%s" on field "%s.%s".`
+	VariableIsNotInputTypeErrMsg     = `Variable "$%s" cannot be non-input type "%s".`
+)
+
 type ExternalError struct {
 	Message   string                   `json:"message"`
 	Path      ast.Path                 `json:"path"`
@@ -128,7 +143,7 @@ func ErrMissingFieldSelectionOnNonScalar(fieldName, enclosingTypeName ast.ByteSl
 }
 
 func ErrArgumentNotDefinedOnDirective(argName, directiveName ast.ByteSlice, position position.Position) (err ExternalError) {
-	err.Message = fmt.Sprintf(UnknownArgumentOnDirective, argName, directiveName)
+	err.Message = fmt.Sprintf(UnknownArgumentOnDirectiveErrMsg, argName, directiveName)
 	err.Locations = []graphqlerrors.Location{
 		{
 			Line:   position.LineStart,
@@ -139,7 +154,7 @@ func ErrArgumentNotDefinedOnDirective(argName, directiveName ast.ByteSlice, posi
 }
 
 func ErrArgumentNotDefinedOnField(argName, typeName, fieldName ast.ByteSlice, position position.Position) (err ExternalError) {
-	err.Message = fmt.Sprintf(UnknownArgumentOnField, argName, typeName, fieldName)
+	err.Message = fmt.Sprintf(UnknownArgumentOnFieldErrMsg, argName, typeName, fieldName)
 	err.Locations = []graphqlerrors.Location{
 		{
 			Line:   position.LineStart,
@@ -148,20 +163,6 @@ func ErrArgumentNotDefinedOnField(argName, typeName, fieldName ast.ByteSlice, po
 	}
 	return err
 }
-
-const (
-	NotCompatibleTypeErrMsg    = "%s cannot represent value: %s"
-	NotStringErrMsg            = "%s cannot represent a non string value: %s"
-	NotIntegerErrMsg           = "%s cannot represent non-integer value: %s"
-	NotFloatErrMsg             = "%s cannot represent non numeric value: %s"
-	NotBoolErrMsg              = "%s cannot represent a non boolean value: %s"
-	NotIDErrMsg                = "%s cannot represent a non-string and non-integer value: %s"
-	NotEnumErrMsg              = `Enum "%s" cannot represent non-enum value: %s.`
-	NotAnEnumMemberErrMsg      = `Value "%s" does not exist in "%s" enum.`
-	NullValueErrMsg            = `Expected value of type "%s", found null.`
-	UnknownArgumentOnDirective = `Unknown argument "%s" on directive "@%s".`
-	UnknownArgumentOnField     = `Unknown argument "%s" on field "%s.%s".`
-)
 
 func ErrNullValueDoesntSatisfyInputValueDefinition(inputType ast.ByteSlice, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(NullValueErrMsg, inputType)
@@ -263,8 +264,15 @@ func ErrVariableNotDefinedOnArgument(variableName, argumentName ast.ByteSlice) (
 	return err
 }
 
-func ErrVariableOfTypeIsNoValidInputValue(variableName, ofTypeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("variable: %s of type: %s is no valid input value type", variableName, ofTypeName)
+func ErrVariableOfTypeIsNoValidInputValue(variableName, ofTypeName ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(VariableIsNotInputTypeErrMsg, variableName, ofTypeName)
+	err.Locations = []graphqlerrors.Location{
+		{
+			Line:   position.LineStart,
+			Column: position.CharStart,
+		},
+	}
+
 	return err
 }
 

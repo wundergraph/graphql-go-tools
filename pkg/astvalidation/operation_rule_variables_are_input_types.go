@@ -36,7 +36,14 @@ func (v *variablesAreInputTypesVisitor) EnterVariableDefinition(ref int) {
 		return
 	default:
 		variableName := v.operation.VariableDefinitionNameBytes(ref)
-		v.StopWithExternalErr(operationreport.ErrVariableOfTypeIsNoValidInputValue(variableName, typeName))
+		variableTypePos := v.operation.Types[v.operation.VariableDefinitions[ref].Type].Position
+
+		printedType, err := v.operation.PrintTypeBytes(v.operation.VariableDefinitions[ref].Type, nil)
+		if v.HandleInternalErr(err) {
+			return
+		}
+
+		v.Report.AddExternalError(operationreport.ErrVariableOfTypeIsNoValidInputValue(variableName, printedType, variableTypePos))
 		return
 	}
 }

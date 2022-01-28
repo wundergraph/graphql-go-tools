@@ -743,7 +743,7 @@ func (p *Parser) parseImplementsInterfaces() (list ast.TypeList) {
 				acceptIdent = false
 				acceptAnd = true
 				name := p.read()
-				ref := p.document.AddNamedTypeByNameRef(name.Literal)
+				ref := p.document.AddNamedTypeWithPosition(name.Literal, name.TextPosition)
 				if cap(list.Refs) == 0 {
 					list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 				}
@@ -837,7 +837,7 @@ func (p *Parser) parseFieldDefinition() int {
 func (p *Parser) parseNamedType() (ref int) {
 	ident := p.mustRead(keyword.IDENT)
 
-	return p.document.AddNamedTypeByNameRef(ident.Literal)
+	return p.document.AddNamedTypeWithPosition(ident.Literal, ident.TextPosition)
 }
 
 func (p *Parser) ParseType() (ref int) {
@@ -845,7 +845,8 @@ func (p *Parser) ParseType() (ref int) {
 	first := p.peek()
 
 	if first == keyword.IDENT {
-		ref = p.document.AddNamedTypeByNameRef(p.read().Literal)
+		tok := p.read()
+		ref = p.document.AddNamedTypeWithPosition(tok.Literal, tok.TextPosition)
 	} else if first == keyword.LBRACK {
 
 		openList := p.read()
@@ -866,7 +867,7 @@ func (p *Parser) ParseType() (ref int) {
 			return
 		}
 
-		ref = p.document.AddNonNullTypeWithPosition(ref, bangPosition)
+		ref = p.document.AddNonNullTypeWithBangPosition(ref, bangPosition)
 	}
 
 	return
@@ -1077,7 +1078,7 @@ func (p *Parser) parseUnionMemberTypes() (list ast.TypeList) {
 
 				ident := p.read()
 
-				ref := p.document.AddNamedTypeByNameRef(ident.Literal)
+				ref := p.document.AddNamedTypeWithPosition(ident.Literal, ident.TextPosition)
 
 				if cap(list.Refs) == 0 {
 					list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
