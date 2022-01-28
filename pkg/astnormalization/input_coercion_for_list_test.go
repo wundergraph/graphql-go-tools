@@ -18,6 +18,12 @@ type Input {
 	foo: String
 }
 
+type InputWithList {
+	foo: String
+	list: [InputWithList]
+	nested: InputWithList
+}
+
 type Query {
 	characterById(id: Int): Character
 	nestedList(ids: [[Int]]): [Character]
@@ -28,7 +34,8 @@ type Query {
 	charactersByIdsNonNullInteger(ids: [Int!]!): [Character]
 	nestedListNonNull(ids: [[Int!]!]!): [Character]
 	innerListNonNull(ids: [[Int]!]): [Character]
-	characterByIdNonNullInteger(id: Int!): Character	
+	characterByIdNonNullInteger(id: Int!): Character
+	inputWithList(input: InputWithList): Character
 }`
 
 func TestInputCoercionForList(t *testing.T) {
@@ -662,5 +669,39 @@ query ($ids: [Int!]) {
     name
   }
 }`, `{"ids":null}`, `{"ids":null}`)
+	})
+	t.Run("nested variables", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+query ($input: InputWithList) {
+  inputWithList(input: $input) {
+    id
+    name
+  }
+}`,
+			``,
+			`
+query ($input: InputWithList) {
+  inputWithList(input: $input) {
+    id
+    name
+  }
+}`, `{"input":{"list":{"foo":"bar","input":{"foo":"bar2","input":{"nested":{"foo":"bar3","list":{"foo":"bar4"}}}}}}}`, `{"input":{"list":[{"foo":"bar","input":[{"foo":"bar2","input":{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}]}]}}`)
+	})
+	t.Run("nested test with inline values", func(t *testing.T) {
+		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+query {
+  inputWithList(input: {list:{foo:"bar",input:{foo:"bar2",input:{nested:{foo:"bar3",list:{foo:"bar4"}}}}}}) {
+    id
+    name
+  }
+}`,
+			``,
+			`
+query ($input: InputWithList) {
+  inputWithList(input: $input) {
+    id
+    name
+  }
+}`, `{}`, `{"a":{"list":[{"foo":"bar","input":[{"foo":"bar2","input":{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}]}]}}`)
 	})
 }
