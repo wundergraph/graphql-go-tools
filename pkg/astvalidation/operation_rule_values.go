@@ -246,7 +246,7 @@ func (v *valuesVisitor) valueSatisfiesInputObjectTypeDefinition(value ast.Value,
 	valid := true
 
 	for _, i := range v.definition.InputObjectTypeDefinitions[inputObjectTypeDefinition].InputFieldsDefinition.Refs {
-		if !v.objectValueSatisfiesInputValueDefinition(value, i) {
+		if !v.objectValueSatisfiesInputValueDefinition(value, inputObjectTypeDefinition, i) {
 			valid = false
 		}
 	}
@@ -301,7 +301,7 @@ func (v *valuesVisitor) objectFieldDefined(objectField, inputObjectTypeDefinitio
 	return false
 }
 
-func (v *valuesVisitor) objectValueSatisfiesInputValueDefinition(objectValue ast.Value, inputValueDefinition int) bool {
+func (v *valuesVisitor) objectValueSatisfiesInputValueDefinition(objectValue ast.Value, inputObjectDefinition, inputValueDefinition int) bool {
 
 	name := v.definition.InputValueDefinitionNameBytes(inputValueDefinition)
 	definitionTypeRef := v.definition.InputValueDefinitionType(inputValueDefinition)
@@ -315,7 +315,7 @@ func (v *valuesVisitor) objectValueSatisfiesInputValueDefinition(objectValue ast
 
 	// argument is not present on object value, if arg is optional it's still ok, otherwise not satisfied
 	if !v.definition.InputValueDefinitionArgumentIsOptional(inputValueDefinition) {
-		v.handleTypeError(objectValue, definitionTypeRef)
+		v.handleMissingRequiredFieldOfInputObjectError(objectValue, name, inputObjectDefinition, inputValueDefinition)
 		return false
 	}
 
@@ -386,4 +386,18 @@ func (v *valuesVisitor) handleNotExistingEnumValueError(value ast.Value, definit
 	}
 
 	v.Report.AddExternalError(operationreport.ErrValueDoesntExistsInEnum(printedValue, printedType, value.Position))
+}
+
+func (v *valuesVisitor) handleMissingRequiredFieldOfInputObjectError(value ast.Value, fieldName ast.ByteSlice, inputObjectDefinition, inputValueDefinition int) {
+	printedType, err := v.definition.PrintTypeBytes(v.definition.InputValueDefinitions[inputValueDefinition].Type, nil)
+	if v.HandleInternalErr(err) {
+		return
+	}
+
+	v.Report.AddExternalError(operationreport.ErrMissingRequiredFieldOfInputObject(
+		v.definition.InputObjectTypeDefinitionNameBytes(inputObjectDefinition),
+		fieldName,
+		printedType,
+		value.Position,
+	))
 }

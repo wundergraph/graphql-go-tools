@@ -454,7 +454,7 @@ func (p *Parser) ParseValue() (value ast.Value) {
 		value.Ref = p.parseValueList()
 	case keyword.LBRACE:
 		value.Kind = ast.ValueKindObject
-		value.Ref = p.parseObjectValue()
+		value.Ref, value.Position = p.parseObjectValue()
 	default:
 		p.errUnexpectedToken(p.read())
 	}
@@ -462,7 +462,7 @@ func (p *Parser) ParseValue() (value ast.Value) {
 	return
 }
 
-func (p *Parser) parseObjectValue() int {
+func (p *Parser) parseObjectValue() (ref int, pos position.Position) {
 	var objectValue ast.ObjectValue
 	objectValue.LBRACE = p.mustRead(keyword.LBRACE).TextPosition
 
@@ -471,8 +471,7 @@ func (p *Parser) parseObjectValue() int {
 		switch next {
 		case keyword.RBRACE:
 			objectValue.RBRACE = p.read().TextPosition
-			p.document.ObjectValues = append(p.document.ObjectValues, objectValue)
-			return len(p.document.ObjectValues) - 1
+			return p.document.AddObjectValue(objectValue), objectValue.LBRACE
 		case keyword.IDENT:
 			ref := p.parseObjectField()
 			if cap(objectValue.Refs) == 0 {
@@ -481,11 +480,11 @@ func (p *Parser) parseObjectValue() int {
 			objectValue.Refs = append(objectValue.Refs, ref)
 		default:
 			p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.RBRACE)
-			return -1
+			return ast.InvalidRef, position.Position{}
 		}
 
 		if p.report.HasErrors() {
-			return -1
+			return ast.InvalidRef, position.Position{}
 		}
 	}
 }
@@ -551,7 +550,7 @@ func (p *Parser) parseFloatValue(negativeSign *position.Position) (ref int, pos 
 
 	if negativeSign != nil && negativeSign.CharEnd != value.TextPosition.CharStart {
 		p.errUnexpectedToken(value)
-		return -1, position.Position{}
+		return ast.InvalidRef, position.Position{}
 	}
 
 	floatValue := ast.FloatValue{
@@ -562,8 +561,7 @@ func (p *Parser) parseFloatValue(negativeSign *position.Position) (ref int, pos 
 		floatValue.NegativeSign = *negativeSign
 	}
 
-	p.document.FloatValues = append(p.document.FloatValues, floatValue)
-	return len(p.document.FloatValues) - 1, value.TextPosition
+	return p.document.AddFloatValue(floatValue), value.TextPosition
 }
 
 func (p *Parser) parseIntegerValue(negativeSign *position.Position) (ref int, pos position.Position) {
