@@ -176,6 +176,7 @@ type __Directive {
     description: String
     locations: [__DirectiveLocation!]!
     args: [__InputValue!]!
+    isRepeatable: Boolean!
 }
 
 """
