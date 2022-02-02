@@ -832,7 +832,6 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				expectedResponse: `{"data":{"heroDefault":"R2D2","heroDefaultRequired":"R2D2"}}`,
 			},
 		))
-
 	})
 
 	t.Run("execute query with data source on field with interface return type", runWithoutError(
@@ -855,7 +854,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{codeType {code __typename ... on Country {name}}}"}`,
+							expectedBody:     `{"query":"{codeType {__typename code ... on Country {name}}}"}`,
 							sendResponseBody: `{"data":{"codeType":{"__typename":"Country","code":"de","name":"Germany"}}}`,
 							sendStatusCode:   200,
 						}),
@@ -1044,7 +1043,6 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 }
 
 func TestExecutionEngineV2_FederationAndSubscription_IntegrationTest(t *testing.T) {
-
 	runIntegration := func(t *testing.T, enableDataLoader bool, secondRun bool) {
 		t.Helper()
 		ctx, cancelFn := context.WithCancel(context.Background())
@@ -1181,7 +1179,6 @@ subscription UpdatedPrice {
 			}
 		})
 		*/
-
 	}
 
 	t.Run("federation", func(t *testing.T) {
@@ -1225,7 +1222,6 @@ func (a *afterFetchHook) OnError(ctx resolve.HookContext, output []byte, singleF
 }
 
 func TestExecutionWithOptions(t *testing.T) {
-
 	closer := make(chan struct{})
 	defer close(closer)
 
@@ -1398,7 +1394,6 @@ func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 }
 
 func BenchmarkExecutionEngineV2(b *testing.B) {
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -1473,7 +1468,6 @@ func BenchmarkExecutionEngineV2(b *testing.B) {
 			pool.Put(bc)
 		}
 	})
-
 }
 
 type federationSetup struct {

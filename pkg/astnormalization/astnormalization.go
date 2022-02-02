@@ -125,10 +125,11 @@ func NewWithOpts(opts ...Option) *OperationNormalizer {
 }
 
 type options struct {
-	removeFragmentDefinitions bool
-	extractVariables          bool
-	removeUnusedVariables     bool
-	normalizeDefinition       bool
+	removeFragmentDefinitions    bool
+	extractVariables             bool
+	removeUnusedVariables        bool
+	normalizeDefinition          bool
+	deleteInvalidInlineFragments bool
 }
 
 type Option func(options *options)
@@ -157,6 +158,12 @@ func WithNormalizeDefinition() Option {
 	}
 }
 
+func WithDeleteInvalidInlineFragments() Option {
+	return func(options *options) {
+		options.deleteInvalidInlineFragments = true
+	}
+}
+
 func (o *OperationNormalizer) setupOperationWalkers() {
 	fragmentInline := astvisitor.NewWalker(48)
 	fragmentSpreadInline(&fragmentInline)
@@ -176,6 +183,9 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 	if o.options.removeUnusedVariables {
 		deleteUnusedVariables(&other)
+	}
+	if o.options.deleteInvalidInlineFragments {
+		deleteInvalidInlineFragments(&other)
 	}
 	o.operationWalkers = append(o.operationWalkers, &fragmentInline, &other)
 }

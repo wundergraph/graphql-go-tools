@@ -283,7 +283,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 			ExtractGraphqlResponse:    true,
 			ExtractFederationEntities: p.extractEntities,
 		},
-		BatchConfig:      batchConfig,
+		BatchConfig: batchConfig,
 	}
 }
 
@@ -323,6 +323,10 @@ func (p *Planner) LeaveOperationDefinition(ref int) {
 }
 
 func (p *Planner) EnterSelectionSet(ref int) {
+	// If this is the first node below the parent path being visited by this
+	// planner, set up federation if needed.
+	p.handleFederation(nil)
+
 	parent := p.nodes[len(p.nodes)-1]
 	set := p.upstreamOperation.AddSelectionSet()
 	switch parent.Kind {
@@ -335,21 +339,39 @@ func (p *Planner) EnterSelectionSet(ref int) {
 	case ast.NodeKindInlineFragment:
 		p.upstreamOperation.InlineFragments[parent.Ref].HasSelections = true
 		p.upstreamOperation.InlineFragments[parent.Ref].SelectionSet = set.Ref
+	default:
+		panic(fmt.Sprintf("unexpected parent kind: %v", parent.Kind))
 	}
 	p.nodes = append(p.nodes, set)
-	for _, selectionRef := range p.visitor.Operation.SelectionSets[ref].SelectionRefs {
-		if p.visitor.Operation.Selections[selectionRef].Kind == ast.SelectionKindField {
-			if p.visitor.Operation.FieldNameUnsafeString(p.visitor.Operation.Selections[selectionRef].Ref) == "__typename" {
-				field := p.upstreamOperation.AddField(ast.Field{
-					Name: p.upstreamOperation.Input.AppendInputString("__typename"),
-				})
-				p.upstreamOperation.AddSelection(set.Ref, ast.Selection{
-					Ref:  field.Ref,
-					Kind: ast.SelectionKindField,
-				})
+
+	switch p.visitor.Walker.EnclosingTypeDefinition.Kind {
+	case ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
+		// Always include __typename in abstract type selection sets. This is
+		// done because child fields may be federated and __typename will be
+		// needed for representations. While it would be possible to determine
+		// exactly when __typename is needed, there's no harm in just always
+		// including it.
+		p.addTypenameToSelectionSet(set.Ref)
+	default:
+		// Otherwise, include __typename if explicitly requested.
+		for _, selectionRef := range p.visitor.Operation.SelectionSets[ref].SelectionRefs {
+			if p.visitor.Operation.Selections[selectionRef].Kind == ast.SelectionKindField {
+				if p.visitor.Operation.FieldNameUnsafeString(p.visitor.Operation.Selections[selectionRef].Ref) == "__typename" {
+					p.addTypenameToSelectionSet(set.Ref)
+				}
 			}
 		}
 	}
+}
+
+func (p *Planner) addTypenameToSelectionSet(selectionSet int) {
+	field := p.upstreamOperation.AddField(ast.Field{
+		Name: p.upstreamOperation.Input.AppendInputString("__typename"),
+	})
+	p.upstreamOperation.AddSelection(selectionSet, ast.Selection{
+		Ref:  field.Ref,
+		Kind: ast.SelectionKindField,
+	})
 }
 
 func (p *Planner) LeaveSelectionSet(ref int) {
@@ -357,6 +379,10 @@ func (p *Planner) LeaveSelectionSet(ref int) {
 }
 
 func (p *Planner) EnterInlineFragment(ref int) {
+	// If this is the first node below the parent path being visited by this
+	// planner, set up federation if needed.
+	p.handleFederation(nil)
+
 	typeCondition := p.visitor.Operation.InlineFragmentTypeConditionName(ref)
 	if typeCondition == nil {
 		return
@@ -373,15 +399,11 @@ func (p *Planner) EnterInlineFragment(ref int) {
 		Ref:  inlineFragment,
 	}
 
-	// add __typename field to selection set which contains typeCondition
-	// so that the resolver can distinguish between the response types
-	typeNameField := p.upstreamOperation.AddField(ast.Field{
-		Name: p.upstreamOperation.Input.AppendInputBytes([]byte("__typename")),
-	})
-	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, ast.Selection{
-		Kind: ast.SelectionKindField,
-		Ref:  typeNameField.Ref,
-	})
+	// Add __typename to the selection set that *contains* the inline fragment
+	// so the resolver can distinguish between the response types. Note that we
+	// always add __typename to selection sets for abstract types. This covers
+	// the case where a fragment is used with concrete types.
+	p.addTypenameToSelectionSet(p.nodes[len(p.nodes)-1].Ref)
 
 	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, selection)
 	p.nodes = append(p.nodes, ast.Node{Kind: ast.NodeKindInlineFragment, Ref: inlineFragment})
@@ -411,19 +433,22 @@ func (p *Planner) EnterField(ref int) {
 
 	typeName := p.lastFieldEnclosingTypeName
 
-	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(typeName, fieldName)
-	if fieldConfiguration == nil {
-		p.addField(ref)
-		return
-	}
+	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(p.visitor.Walker.EnclosingTypeDefinition, p.visitor.Definition, typeName, fieldName)
 
-	// Note: federated fields always have a field configuration because at
-	// least the federation key for the type the field lives on is required
-	// (and required fields are specified in the configuration).
+	// If this is the first node below the parent path being visited by this
+	// planner, set up federation if needed.
+	//
+	// A nil federation configuration is OK.
 	p.handleFederation(fieldConfiguration)
+
+	// Then add the field.
 	p.addField(ref)
 
 	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
+
+	if fieldConfiguration == nil {
+		return
+	}
 
 	for i := range fieldConfiguration.Arguments {
 		argumentConfiguration := fieldConfiguration.Arguments[i]
@@ -511,7 +536,7 @@ func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
 	// query($representations: [_Any!]!){_entities(representations: $representations){... on Product
 	p.addRepresentationsVariableDefinition()     // $representations: [_Any!]!
 	p.addEntitiesSelectionSet()                  // {_entities(representations: $representations)
-	p.addOneTypeInlineFragment()                 // ... on Product
+	p.addOnTypeInlineFragments()                 // ... on Product
 	p.updateRepresentationsVariable(fieldConfig) // "variables\":{\"representations\":[{\"upc\":\"$$0$$\",\"__typename\":\"Product\"}]}}
 }
 
@@ -527,17 +552,38 @@ func (p *Planner) updateRepresentationsVariable(fieldConfig *plan.FieldConfigura
 		return
 	}
 
+	if len(p.representationsJson) == 0 {
+		isAbstract := false
+		switch p.visitor.Walker.LastFieldTypeDefinition.Kind {
+		case ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
+			isAbstract = true
+		}
+
+		if isAbstract {
+			objectVariable := &resolve.ObjectVariable{
+				Path: []string{"__typename"},
+			}
+			renderer := resolve.NewJSONVariableRenderer()
+			objectVariable.Renderer = renderer
+			variable, exists := p.variables.AddVariable(objectVariable)
+			if !exists {
+				p.representationsJson, _ = sjson.SetRawBytes(p.representationsJson, "__typename", []byte(variable))
+			}
+		} else {
+			onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchStr(p.lastFieldEnclosingTypeName)
+			p.representationsJson, _ = sjson.SetRawBytes(nil, "__typename", []byte("\""+onTypeName+"\""))
+		}
+	}
+
+	if fieldConfig == nil {
+		return
+	}
+
 	// RequiresFields includes `@requires` fields as well as federation keys
 	// for the type containing the field currently being visited.
 	fields := fieldConfig.RequiresFields
 	if len(fields) == 0 {
 		return
-	}
-
-	onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchStr(p.lastFieldEnclosingTypeName)
-
-	if len(p.representationsJson) == 0 {
-		p.representationsJson, _ = sjson.SetRawBytes(nil, "__typename", []byte("\""+onTypeName+"\""))
 	}
 
 	for i := range fields {
@@ -576,22 +622,55 @@ func (p *Planner) fieldDefinition(fieldName, typeName string) *ast.FieldDefiniti
 	return &p.visitor.Definition.FieldDefinitions[definition]
 }
 
-func (p *Planner) addOneTypeInlineFragment() {
+func (p *Planner) addOnTypeInlineFragments() {
+	var renamedOnTypeNames [][]byte
+
+	switch p.visitor.Walker.LastFieldTypeDefinition.Kind {
+	case ast.NodeKindInterfaceTypeDefinition:
+		nodes := p.visitor.Definition.InterfaceTypeDefinitionImplementedByRootNodes(p.visitor.Walker.LastFieldTypeDefinition.Ref)
+		for _, node := range nodes {
+			typeNameBytes := []byte(node.NameString(p.visitor.Definition))
+			renamedOnTypeNames = append(renamedOnTypeNames, p.visitor.Config.Types.RenameTypeNameOnMatchBytes(typeNameBytes))
+		}
+	case ast.NodeKindUnionTypeDefinition:
+		// Note: we don't need inline fragments for unions because union
+		// selection sets are already required to contain inline fragments for
+		// the relevant types. The existing inline fragments are used as is.
+		//
+		// Nothing to do.
+	default:
+		renamedOnTypeNames = [][]byte{
+			p.visitor.Config.Types.RenameTypeNameOnMatchBytes([]byte(p.lastFieldEnclosingTypeName)),
+		}
+	}
+
+	// Below, an inline fragment is added for each interface concrete type. As
+	// the visitor continues to visit nodes, the visit nodes need to be added
+	// to each of the selection sets. The parallel additions are made by
+	// sharing a single selection set between all the inline fragments; any
+	// addition shows up in all the fragments. This means that child inline
+	// fragments with type conditions that aren't compatible with the parent
+	// inline fragment may be added. This is okay. The invalid fragments are
+	// removed during normalization of the upstream operation.
 	selectionSet := p.upstreamOperation.AddSelectionSet()
-	onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchBytes([]byte(p.lastFieldEnclosingTypeName))
-	typeRef := p.upstreamOperation.AddNamedType(onTypeName)
-	inlineFragment := p.upstreamOperation.AddInlineFragment(ast.InlineFragment{
-		HasSelections: true,
-		SelectionSet:  selectionSet.Ref,
-		TypeCondition: ast.TypeCondition{
-			Type: typeRef,
-		},
-	})
-	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, ast.Selection{
-		Kind: ast.SelectionKindInlineFragment,
-		Ref:  inlineFragment,
-	})
-	p.nodes = append(p.nodes, selectionSet)
+
+	p.addTypenameToSelectionSet(p.nodes[len(p.nodes)-1].Ref)
+
+	for i, onTypeName := range renamedOnTypeNames {
+		typeRef := p.upstreamOperation.AddNamedType(onTypeName)
+		inlineFragment := p.upstreamOperation.AddInlineFragment(ast.InlineFragment{
+			HasSelections: true,
+			SelectionSet:  selectionSet.Ref,
+			TypeCondition: ast.TypeCondition{
+				Type: typeRef,
+			},
+		})
+		p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1-i].Ref, ast.Selection{
+			Kind: ast.SelectionKindInlineFragment,
+			Ref:  inlineFragment,
+		})
+		p.nodes = append(p.nodes, selectionSet)
+	}
 }
 
 func (p *Planner) addEntitiesSelectionSet() {
@@ -1068,6 +1147,7 @@ func (p *Planner) normalizeOperation(operation, definition *ast.Document, report
 		astnormalization.WithExtractVariables(),
 		astnormalization.WithRemoveFragmentDefinitions(),
 		astnormalization.WithRemoveUnusedVariables(),
+		astnormalization.WithDeleteInvalidInlineFragments(),
 	)
 	normalizer.NormalizeOperation(operation, definition, report)
 

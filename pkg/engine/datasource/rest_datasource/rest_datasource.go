@@ -89,7 +89,6 @@ func (p *Planner) EnterField(ref int) {
 }
 
 func (p *Planner) configureInput() []byte {
-
 	input := httpclient.SetInputURL(nil, []byte(p.config.Fetch.URL))
 	input = httpclient.SetInputMethod(input, []byte(p.config.Fetch.Method))
 	input = httpclient.SetInputBody(input, []byte(p.config.Fetch.Body))
@@ -122,9 +121,7 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 	return plan.SubscriptionConfiguration{}
 }
 
-var (
-	selectorRegex = regexp.MustCompile(`{{\s(.*?)\s}}`)
-)
+var selectorRegex = regexp.MustCompile(`{{\s(.*?)\s}}`)
 
 func (p *Planner) prepareQueryParams(field int, query []QueryConfiguration) []QueryConfiguration {
 	out := make([]QueryConfiguration, 0, len(query))

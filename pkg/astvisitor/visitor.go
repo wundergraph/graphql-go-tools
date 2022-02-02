@@ -26,6 +26,21 @@ type Walker struct {
 	// EnclosingTypeDefinition is the TypeDefinition Node of the parent object of the current callback
 	// e.g. if the current callback is a Field the EnclosingTypeDefinition will be the TypeDefinition of the parent object of such Field
 	EnclosingTypeDefinition ast.Node
+	// LastFieldTypeDefinition is the type definition of the last parent *field*.
+	// This is useful in cases where there's a query like:
+	//
+	// query {
+	//    pets {
+	//	    ... on Dog {
+	// 			name
+	//      }
+	//    }
+	// }
+	//
+	// and you want to know the last parent field type was "Pet" when
+	// processing the "name" field, as opposed to the last enclosing type,
+	// which in this case would be "Dog".
+	LastFieldTypeDefinition ast.Node
 	// SelectionsBefore is the slice of references to selections before the current selection
 	// This is only valid when inside a SelectionSet
 	SelectionsBefore []int
@@ -33,19 +48,20 @@ type Walker struct {
 	// This is only valid when inside a SelectionSet
 	SelectionsAfter []int
 	// Report is the object to collect errors when walking the AST
-	Report          *operationreport.Report
-	CurrentRef      int
-	CurrentKind     ast.NodeKind
-	document        *ast.Document
-	definition      *ast.Document
-	visitors        visitors
-	Depth           int
-	typeDefinitions []ast.Node
-	stop            bool
-	skip            bool
-	revisit         bool
-	filter          VisitorFilter
-	deferred        []func()
+	Report                   *operationreport.Report
+	CurrentRef               int
+	CurrentKind              ast.NodeKind
+	document                 *ast.Document
+	definition               *ast.Document
+	visitors                 visitors
+	Depth                    int
+	typeDefinitions          []ast.Node
+	lastFieldTypeDefinitions []ast.Node
+	stop                     bool
+	skip                     bool
+	revisit                  bool
+	filter                   VisitorFilter
+	deferred                 []func()
 }
 
 // NewWalker returns a fully initialized Walker
@@ -1294,6 +1310,7 @@ func (w *Walker) Walk(document, definition *ast.Document, report *operationrepor
 	w.Ancestors = w.Ancestors[:0]
 	w.Path = w.Path[:0]
 	w.typeDefinitions = w.typeDefinitions[:0]
+	w.lastFieldTypeDefinitions = w.lastFieldTypeDefinitions[:0]
 	w.document = document
 	w.definition = definition
 	w.Depth = 0
@@ -1318,7 +1335,6 @@ func (w *Walker) runDeferred() {
 }
 
 func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
-
 	w.Ancestors = append(w.Ancestors, ast.Node{
 		Kind: kind,
 		Ref:  ref,
@@ -1400,12 +1416,15 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 		w.StopWithExternalErr(operationreport.ErrTypeUndefined(typeName))
 		return
 	}
+	if kind == ast.NodeKindField {
+		w.LastFieldTypeDefinition = w.EnclosingTypeDefinition
+		w.lastFieldTypeDefinitions = append(w.lastFieldTypeDefinitions, w.LastFieldTypeDefinition)
+	}
 
 	w.typeDefinitions = append(w.typeDefinitions, w.EnclosingTypeDefinition)
 }
 
 func (w *Walker) removeLastAncestor() {
-
 	ancestor := w.Ancestors[len(w.Ancestors)-1]
 	w.Ancestors = w.Ancestors[:len(w.Ancestors)-1]
 
@@ -1424,6 +1443,12 @@ func (w *Walker) removeLastAncestor() {
 		w.Path = w.Path[:len(w.Path)-1]
 		w.typeDefinitions = w.typeDefinitions[:len(w.typeDefinitions)-1]
 		w.EnclosingTypeDefinition = w.typeDefinitions[len(w.typeDefinitions)-1]
+		w.lastFieldTypeDefinitions = w.lastFieldTypeDefinitions[:len(w.lastFieldTypeDefinitions)-1]
+		if len(w.lastFieldTypeDefinitions) > 0 {
+			w.LastFieldTypeDefinition = w.lastFieldTypeDefinitions[len(w.lastFieldTypeDefinitions)-1]
+		} else {
+			w.LastFieldTypeDefinition = ast.Node{}
+		}
 	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition:
 		w.EnclosingTypeDefinition.Ref = -1
 		w.EnclosingTypeDefinition.Kind = ast.NodeKindUnknown
@@ -1441,7 +1466,6 @@ func (w *Walker) decreaseDepth() {
 }
 
 func (w *Walker) walk() {
-
 	if w.document == nil {
 		w.Report.AddInternalError(ErrDocumentMustNotBeNil)
 		return
