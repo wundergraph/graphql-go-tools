@@ -1045,6 +1045,20 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 	first := true
 	for i := range object.Fields {
 
+		if object.Fields[i].Skip {
+			skip,err := jsonparser.GetBoolean(ctx.Variables,object.Fields[i].SkipVariableName)
+			if err == nil && skip {
+				continue
+			}
+		}
+
+		if object.Fields[i].Include {
+			include,err := jsonparser.GetBoolean(ctx.Variables,object.Fields[i].IncludeVariableName)
+			if err != nil || !include {
+				continue
+			}
+		}
+
 		var fieldData []byte
 		if set != nil && object.Fields[i].HasBuffer {
 			buffer, ok := set.buffers[object.Fields[i].BufferID]
@@ -1255,14 +1269,18 @@ func (_ *EmptyArray) NodeKind() NodeKind {
 }
 
 type Field struct {
-	Name       []byte
-	Value      Node
-	Position   Position
-	Defer      *DeferField
-	Stream     *StreamField
-	HasBuffer  bool
-	BufferID   int
-	OnTypeName []byte
+	Name                []byte
+	Value               Node
+	Position            Position
+	Defer               *DeferField
+	Stream              *StreamField
+	HasBuffer           bool
+	BufferID            int
+	OnTypeName          []byte
+	Skip                bool
+	SkipVariableName    string
+	Include             bool
+	IncludeVariableName string
 }
 
 type Position struct {
