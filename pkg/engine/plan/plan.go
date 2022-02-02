@@ -109,9 +109,9 @@ type FieldConfiguration struct {
 	// DisableDefaultMapping - instructs planner whether to use path mapping coming from Path field
 	DisableDefaultMapping bool
 	// Path - represents a json path to lookup for a field value in response json
-	Path                 []string
-	Arguments            ArgumentsConfigurations
-	RequiresFields       []string
+	Path           []string
+	Arguments      ArgumentsConfigurations
+	RequiresFields []string
 	// UnescapeResponseJson set to true will allow fields (String,List,Object)
 	// to be resolved from an escaped JSON string
 	// e.g. {"response":"{\"foo\":\"bar\"}"} will be returned as {"foo":"bar"} when path is "response"
@@ -516,9 +516,13 @@ func (v *Visitor) EnterField(ref int) {
 	path := v.resolveFieldPath(ref)
 	fieldDefinitionType := v.Definition.FieldDefinitionType(fieldDefinition)
 	bufferID, hasBuffer := v.fieldBuffers[ref]
+
+	skip, skipVariableName := v.resolveSkip(v.Operation.Fields[ref].Directives.Refs)
+	include, includeVariableName := v.resolveInclude(v.Operation.Fields[ref].Directives.Refs)
+
 	v.currentField = &resolve.Field{
 		Name:       fieldAliasOrName,
-		Value:      v.resolveFieldValue(ref, fieldDefinitionType, true, path,false),
+		Value:      v.resolveFieldValue(ref, fieldDefinitionType, true, path, false),
 		HasBuffer:  hasBuffer,
 		BufferID:   bufferID,
 		OnTypeName: v.resolveOnTypeName(),
@@ -526,6 +530,10 @@ func (v *Visitor) EnterField(ref int) {
 			Line:   v.Operation.Fields[ref].Position.LineStart,
 			Column: v.Operation.Fields[ref].Position.CharStart,
 		},
+		Skip:                skip,
+		SkipVariableName:    skipVariableName,
+		Include:             include,
+		IncludeVariableName: includeVariableName,
 	}
 
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
@@ -537,6 +545,34 @@ func (v *Visitor) EnterField(ref int) {
 		return
 	}
 	v.fieldConfigs[ref] = fieldConfig
+}
+
+func (v *Visitor) resolveSkip(directiveRefs []int) (bool, string) {
+	for _, i := range directiveRefs {
+		if v.Operation.DirectiveNameString(i) != "skip" {
+			continue
+		}
+		if value, ok := v.Operation.DirectiveArgumentValueByName(i, literal.IF); ok {
+			if value.Kind == ast.ValueKindVariable {
+				return true, v.Operation.VariableValueNameString(value.Ref)
+			}
+		}
+	}
+	return false, ""
+}
+
+func (v *Visitor) resolveInclude(directiveRefs []int) (bool, string) {
+	for _, i := range directiveRefs {
+		if v.Operation.DirectiveNameString(i) != "include" {
+			continue
+		}
+		if value, ok := v.Operation.DirectiveArgumentValueByName(i, literal.IF); ok {
+			if value.Kind == ast.ValueKindVariable {
+				return true, v.Operation.VariableValueNameString(value.Ref)
+			}
+		}
+	}
+	return false, ""
 }
 
 func (v *Visitor) resolveOnTypeName() []byte {
@@ -589,13 +625,13 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 
 	switch v.Definition.Types[typeRef].TypeKind {
 	case ast.TypeKindNonNull:
-		return v.resolveFieldValue(fieldRef, ofType, false, path,false)
+		return v.resolveFieldValue(fieldRef, ofType, false, path, false)
 	case ast.TypeKindList:
-		listItem := v.resolveFieldValue(fieldRef, ofType, true, nil,true)
+		listItem := v.resolveFieldValue(fieldRef, ofType, true, nil, true)
 		return &resolve.Array{
-			Nullable: nullable,
-			Path:     path,
-			Item:     listItem,
+			Nullable:             nullable,
+			Path:                 path,
+			Item:                 listItem,
 			UnescapeResponseJson: unescapeResponseJson,
 		}
 	case ast.TypeKindNamed:
@@ -610,9 +646,9 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			switch typeName {
 			case "String":
 				return &resolve.String{
-					Path:     path,
-					Nullable: nullable,
-					Export:   fieldExport,
+					Path:                 path,
+					Nullable:             nullable,
+					Export:               fieldExport,
 					UnescapeResponseJson: unescapeResponseJson,
 				}
 			case "Boolean":
@@ -635,16 +671,16 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 				}
 			default:
 				return &resolve.String{
-					Path:     path,
-					Nullable: nullable,
-					Export:   fieldExport,
+					Path:                 path,
+					Nullable:             nullable,
+					Export:               fieldExport,
 					UnescapeResponseJson: unescapeResponseJson,
 				}
 			}
 		case ast.NodeKindEnumTypeDefinition:
 			return &resolve.String{
-				Path:     path,
-				Nullable: nullable,
+				Path:                 path,
+				Nullable:             nullable,
 				UnescapeResponseJson: unescapeResponseJson,
 			}
 		case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:

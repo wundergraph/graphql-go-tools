@@ -332,6 +332,512 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 		Fields: []plan.FieldConfiguration{},
 	}))
+	t.Run("skip directive with variable", RunTest(interfaceSelectionSchema, `
+		query MyQuery ($skip: Boolean!) {
+			user {
+				id
+				displayName @skip(if: $skip)
+			}
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path: []string{"skip"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+						},
+					),
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("user"),
+						Position: resolve.Position{
+							Line:   3,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Path:     []string{"user"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("id"),
+									Value: &resolve.String{
+										Path: []string{"id"},
+									},
+									Position: resolve.Position{
+										Line:   4,
+										Column: 5,
+									},
+								},
+								{
+									Name: []byte("displayName"),
+									Value: &resolve.String{
+										Path: []string{"displayName"},
+									},
+									Position: resolve.Position{
+										Line:   5,
+										Column: 5,
+									},
+									Skip: true,
+									SkipVariableName: "skip",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"user"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "displayName","isLoggedIn"},
+					},
+					{
+						TypeName:   "RegisteredUser",
+						FieldNames: []string{"id", "displayName","isLoggedIn"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{},
+	}))
+	t.Run("skip directive with inline value true", RunTest(interfaceSelectionSchema, `
+		query MyQuery {
+			user {
+				id
+				displayName @skip(if: true)
+			}
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("user"),
+						Position: resolve.Position{
+							Line:   3,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Path:     []string{"user"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("id"),
+									Value: &resolve.String{
+										Path: []string{"id"},
+									},
+									Position: resolve.Position{
+										Line:   4,
+										Column: 5,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"user"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "displayName","isLoggedIn"},
+					},
+					{
+						TypeName:   "RegisteredUser",
+						FieldNames: []string{"id", "displayName","isLoggedIn"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{},
+	}))
+	t.Run("skip directive with inline value false", RunTest(interfaceSelectionSchema, `
+		query MyQuery {
+			user {
+				id
+				displayName @skip(if: false)
+			}
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("user"),
+						Position: resolve.Position{
+							Line:   3,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Path:     []string{"user"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("id"),
+									Value: &resolve.String{
+										Path: []string{"id"},
+									},
+									Position: resolve.Position{
+										Line:   4,
+										Column: 5,
+									},
+								},
+								{
+									Name: []byte("displayName"),
+									Value: &resolve.String{
+										Path: []string{"displayName"},
+									},
+									Position: resolve.Position{
+										Line:   5,
+										Column: 5,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"user"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "displayName","isLoggedIn"},
+					},
+					{
+						TypeName:   "RegisteredUser",
+						FieldNames: []string{"id", "displayName","isLoggedIn"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{},
+	}))
+	t.Run("include directive with variable", RunTest(interfaceSelectionSchema, `
+		query MyQuery ($include: Boolean!) {
+			user {
+				id
+				displayName @include(if: $include)
+			}
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {id displayName @include(if: $include)}}","variables":{"include":$$0$$}}}`,
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path: []string{"include"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+						},
+					),
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("user"),
+						Position: resolve.Position{
+							Line:   3,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Path:     []string{"user"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("id"),
+									Value: &resolve.String{
+										Path: []string{"id"},
+									},
+									Position: resolve.Position{
+										Line:   4,
+										Column: 5,
+									},
+								},
+								{
+									Name: []byte("displayName"),
+									Value: &resolve.String{
+										Path: []string{"displayName"},
+									},
+									Position: resolve.Position{
+										Line:   5,
+										Column: 5,
+									},
+									Include: true,
+									IncludeVariableName: "include",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"user"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "displayName","isLoggedIn"},
+					},
+					{
+						TypeName:   "RegisteredUser",
+						FieldNames: []string{"id", "displayName","isLoggedIn"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{},
+	}))
+	t.Run("include directive with inline value true", RunTest(interfaceSelectionSchema, `
+		query MyQuery {
+			user {
+				id
+				displayName @include(if: true)
+			}
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("user"),
+						Position: resolve.Position{
+							Line:   3,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Path:     []string{"user"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("id"),
+									Value: &resolve.String{
+										Path: []string{"id"},
+									},
+									Position: resolve.Position{
+										Line:   4,
+										Column: 5,
+									},
+								},
+								{
+									Name: []byte("displayName"),
+									Value: &resolve.String{
+										Path: []string{"displayName"},
+									},
+									Position: resolve.Position{
+										Line:   5,
+										Column: 5,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"user"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "displayName","isLoggedIn"},
+					},
+					{
+						TypeName:   "RegisteredUser",
+						FieldNames: []string{"id", "displayName","isLoggedIn"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{},
+	}))
+	t.Run("include directive with inline value false", RunTest(interfaceSelectionSchema, `
+		query MyQuery {
+			user {
+				id
+				displayName @include(if: false)
+			}
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("user"),
+						Position: resolve.Position{
+							Line:   3,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Path:     []string{"user"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("id"),
+									Value: &resolve.String{
+										Path: []string{"id"},
+									},
+									Position: resolve.Position{
+										Line:   4,
+										Column: 5,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"user"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "displayName","isLoggedIn"},
+					},
+					{
+						TypeName:   "RegisteredUser",
+						FieldNames: []string{"id", "displayName","isLoggedIn"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{},
+	}))
 	t.Run("selections on interface type with object type interface", RunTest(interfaceSelectionSchema, `
 		query MyQuery {
 			user {
@@ -3563,6 +4069,8 @@ func TestGraphQLDataSource(t *testing.T) {
 															Line:   5,
 															Column: 9,
 														},
+														Skip: true,
+														SkipVariableName: "someSkipCondition",
 													},
 													{
 														Name: []byte("likes"),
@@ -3754,6 +4262,8 @@ func TestGraphQLDataSource(t *testing.T) {
 															Line:   5,
 															Column: 9,
 														},
+														Skip: true,
+														SkipVariableName: "someSkipCondition",
 													},
 													{
 														Name: []byte("likes"),
