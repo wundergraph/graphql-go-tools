@@ -1045,15 +1045,15 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 	first := true
 	for i := range object.Fields {
 
-		if object.Fields[i].Skip {
-			skip,err := jsonparser.GetBoolean(ctx.Variables,object.Fields[i].SkipVariableName)
+		if object.Fields[i].SkipDirectiveDefined {
+			skip, err := jsonparser.GetBoolean(ctx.Variables, object.Fields[i].SkipVariableName)
 			if err == nil && skip {
 				continue
 			}
 		}
 
-		if object.Fields[i].Include {
-			include,err := jsonparser.GetBoolean(ctx.Variables,object.Fields[i].IncludeVariableName)
+		if object.Fields[i].IncludeDirectiveDefined {
+			include, err := jsonparser.GetBoolean(ctx.Variables, object.Fields[i].IncludeVariableName)
 			if err != nil || !include {
 				continue
 			}
@@ -1269,18 +1269,18 @@ func (_ *EmptyArray) NodeKind() NodeKind {
 }
 
 type Field struct {
-	Name                []byte
-	Value               Node
-	Position            Position
-	Defer               *DeferField
-	Stream              *StreamField
-	HasBuffer           bool
-	BufferID            int
-	OnTypeName          []byte
-	Skip                bool
-	SkipVariableName    string
-	Include             bool
-	IncludeVariableName string
+	Name                    []byte
+	Value                   Node
+	Position                Position
+	Defer                   *DeferField
+	Stream                  *StreamField
+	HasBuffer               bool
+	BufferID                int
+	OnTypeName              []byte
+	SkipDirectiveDefined    bool
+	SkipVariableName        string
+	IncludeDirectiveDefined bool
+	IncludeVariableName     string
 }
 
 type Position struct {

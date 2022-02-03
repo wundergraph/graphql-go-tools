@@ -567,10 +567,10 @@ func (v *Visitor) EnterField(ref int) {
 			Line:   v.Operation.Fields[ref].Position.LineStart,
 			Column: v.Operation.Fields[ref].Position.CharStart,
 		},
-		Skip:                skip,
-		SkipVariableName:    skipVariableName,
-		Include:             include,
-		IncludeVariableName: includeVariableName,
+		SkipDirectiveDefined:    skip,
+		SkipVariableName:        skipVariableName,
+		IncludeDirectiveDefined: include,
+		IncludeVariableName:     includeVariableName,
 	}
 
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
