@@ -109,9 +109,9 @@ type FieldConfiguration struct {
 	// DisableDefaultMapping - instructs planner whether to use path mapping coming from Path field
 	DisableDefaultMapping bool
 	// Path - represents a json path to lookup for a field value in response json
-	Path                 []string
-	Arguments            ArgumentsConfigurations
-	RequiresFields       []string
+	Path           []string
+	Arguments      ArgumentsConfigurations
+	RequiresFields []string
 	// UnescapeResponseJson set to true will allow fields (String,List,Object)
 	// to be resolved from an escaped JSON string
 	// e.g. {"response":"{\"foo\":\"bar\"}"} will be returned as {"foo":"bar"} when path is "response"
@@ -294,6 +294,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningWalker.RegisterFieldVisitor(p.planningVisitor)
 	p.planningWalker.RegisterSelectionSetVisitor(p.planningVisitor)
 	p.planningWalker.RegisterEnterDirectiveVisitor(p.planningVisitor)
+	p.planningWalker.RegisterInlineFragmentVisitor(p.planningVisitor)
 
 	for key := range p.planningVisitor.planners {
 		config := p.planningVisitor.planners[key].dataSourceConfiguration
@@ -371,6 +372,14 @@ type Visitor struct {
 	skipFieldPaths        []string
 	fieldConfigs          map[int]*FieldConfiguration
 	exportedVariables     map[string]struct{}
+	skipIncludeFields     map[int]skipIncludeField
+}
+
+type skipIncludeField struct {
+	skip                bool
+	skipVariableName    string
+	include             bool
+	includeVariableName string
 }
 
 type objectFields struct {
@@ -454,11 +463,39 @@ func (v *Visitor) EnterDirective(ref int) {
 	}
 }
 
-func (v *Visitor) LeaveSelectionSet(ref int) {
+func (v *Visitor) EnterInlineFragment(ref int) {
+	directives := v.Operation.InlineFragments[ref].Directives.Refs
+	skip, skipVariableName := v.resolveSkip(directives)
+	include, includeVariableName := v.resolveInclude(directives)
+	set := v.Operation.InlineFragments[ref].SelectionSet
+	if set == -1 {
+		return
+	}
+	for _, selection := range v.Operation.SelectionSets[set].SelectionRefs {
+		switch v.Operation.Selections[selection].Kind {
+		case ast.SelectionKindField:
+			ref := v.Operation.Selections[selection].Ref
+			if skip || include {
+				v.skipIncludeFields[ref] = skipIncludeField{
+					skip:                skip,
+					skipVariableName:    skipVariableName,
+					include:             include,
+					includeVariableName: includeVariableName,
+				}
+			}
+		}
+	}
+}
+
+func (v *Visitor) LeaveInlineFragment(ref int) {
 
 }
 
 func (v *Visitor) EnterSelectionSet(ref int) {
+
+}
+
+func (v *Visitor) LeaveSelectionSet(ref int) {
 
 }
 
@@ -516,9 +553,13 @@ func (v *Visitor) EnterField(ref int) {
 	path := v.resolveFieldPath(ref)
 	fieldDefinitionType := v.Definition.FieldDefinitionType(fieldDefinition)
 	bufferID, hasBuffer := v.fieldBuffers[ref]
+
+	skip, skipVariableName := v.resolveSkipForField(ref)
+	include, includeVariableName := v.resolveIncludeForField(ref)
+
 	v.currentField = &resolve.Field{
 		Name:       fieldAliasOrName,
-		Value:      v.resolveFieldValue(ref, fieldDefinitionType, true, path,false),
+		Value:      v.resolveFieldValue(ref, fieldDefinitionType, true, path, false),
 		HasBuffer:  hasBuffer,
 		BufferID:   bufferID,
 		OnTypeName: v.resolveOnTypeName(),
@@ -526,6 +567,10 @@ func (v *Visitor) EnterField(ref int) {
 			Line:   v.Operation.Fields[ref].Position.LineStart,
 			Column: v.Operation.Fields[ref].Position.CharStart,
 		},
+		SkipDirectiveDefined:    skip,
+		SkipVariableName:        skipVariableName,
+		IncludeDirectiveDefined: include,
+		IncludeVariableName:     includeVariableName,
 	}
 
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
@@ -537,6 +582,50 @@ func (v *Visitor) EnterField(ref int) {
 		return
 	}
 	v.fieldConfigs[ref] = fieldConfig
+}
+
+func (v *Visitor) resolveSkipForField(ref int) (bool, string) {
+	skipInclude,ok := v.skipIncludeFields[ref]
+	if ok {
+		return skipInclude.skip, skipInclude.skipVariableName
+	}
+	return v.resolveSkip(v.Operation.Fields[ref].Directives.Refs)
+}
+
+func (v *Visitor) resolveIncludeForField(ref int) (bool, string) {
+	skipInclude,ok := v.skipIncludeFields[ref]
+	if ok {
+		return skipInclude.include, skipInclude.includeVariableName
+	}
+	return v.resolveInclude(v.Operation.Fields[ref].Directives.Refs)
+}
+
+func (v *Visitor) resolveSkip(directiveRefs []int) (bool, string) {
+	for _, i := range directiveRefs {
+		if v.Operation.DirectiveNameString(i) != "skip" {
+			continue
+		}
+		if value, ok := v.Operation.DirectiveArgumentValueByName(i, literal.IF); ok {
+			if value.Kind == ast.ValueKindVariable {
+				return true, v.Operation.VariableValueNameString(value.Ref)
+			}
+		}
+	}
+	return false, ""
+}
+
+func (v *Visitor) resolveInclude(directiveRefs []int) (bool, string) {
+	for _, i := range directiveRefs {
+		if v.Operation.DirectiveNameString(i) != "include" {
+			continue
+		}
+		if value, ok := v.Operation.DirectiveArgumentValueByName(i, literal.IF); ok {
+			if value.Kind == ast.ValueKindVariable {
+				return true, v.Operation.VariableValueNameString(value.Ref)
+			}
+		}
+	}
+	return false, ""
 }
 
 func (v *Visitor) resolveOnTypeName() []byte {
@@ -589,13 +678,13 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 
 	switch v.Definition.Types[typeRef].TypeKind {
 	case ast.TypeKindNonNull:
-		return v.resolveFieldValue(fieldRef, ofType, false, path,false)
+		return v.resolveFieldValue(fieldRef, ofType, false, path, false)
 	case ast.TypeKindList:
-		listItem := v.resolveFieldValue(fieldRef, ofType, true, nil,true)
+		listItem := v.resolveFieldValue(fieldRef, ofType, true, nil, true)
 		return &resolve.Array{
-			Nullable: nullable,
-			Path:     path,
-			Item:     listItem,
+			Nullable:             nullable,
+			Path:                 path,
+			Item:                 listItem,
 			UnescapeResponseJson: unescapeResponseJson,
 		}
 	case ast.TypeKindNamed:
@@ -610,9 +699,9 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			switch typeName {
 			case "String":
 				return &resolve.String{
-					Path:     path,
-					Nullable: nullable,
-					Export:   fieldExport,
+					Path:                 path,
+					Nullable:             nullable,
+					Export:               fieldExport,
 					UnescapeResponseJson: unescapeResponseJson,
 				}
 			case "Boolean":
@@ -635,16 +724,16 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 				}
 			default:
 				return &resolve.String{
-					Path:     path,
-					Nullable: nullable,
-					Export:   fieldExport,
+					Path:                 path,
+					Nullable:             nullable,
+					Export:               fieldExport,
 					UnescapeResponseJson: unescapeResponseJson,
 				}
 			}
 		case ast.NodeKindEnumTypeDefinition:
 			return &resolve.String{
-				Path:     path,
-				Nullable: nullable,
+				Path:                 path,
+				Nullable:             nullable,
 				UnescapeResponseJson: unescapeResponseJson,
 			}
 		case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
@@ -832,6 +921,7 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.Operation, v.Definition = operation, definition
 	v.fieldConfigs = map[int]*FieldConfiguration{}
 	v.exportedVariables = map[string]struct{}{}
+	v.skipIncludeFields = map[int]skipIncludeField{}
 }
 
 func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {
