@@ -19,28 +19,29 @@ const (
 )
 
 const (
-	ExecutableDefinitionsRule        = "ExecutableDefinitionsRule"
-	FieldsOnCorrectTypeRule          = "FieldsOnCorrectTypeRule"
-	KnownArgumentNamesRule           = "KnownArgumentNamesRule"
-	KnownDirectivesRule              = "KnownDirectivesRule"
-	KnownTypeNamesRule               = "KnownTypeNamesRule"
-	LoneAnonymousOperationRule       = "LoneAnonymousOperationRule"
-	NoUndefinedVariablesRule         = "NoUndefinedVariablesRule"
-	NoUnusedVariablesRule            = "NoUnusedVariablesRule"
-	OverlappingFieldsCanBeMergedRule = "OverlappingFieldsCanBeMergedRule"
-	ProvidedRequiredArgumentsRule    = "ProvidedRequiredArgumentsRule"
-	SingleFieldSubscriptionsRule     = "SingleFieldSubscriptionsRule"
-	UniqueArgumentNamesRule          = "UniqueArgumentNamesRule"
-	UniqueDirectivesPerLocationRule  = "UniqueDirectivesPerLocationRule"
-	UniqueEnumValueNamesRule         = "UniqueEnumValueNamesRule"
-	UniqueFieldDefinitionNamesRule   = "UniqueFieldDefinitionNamesRule"
-	UniqueOperationNamesRule         = "UniqueOperationNamesRule"
-	UniqueOperationTypesRule         = "UniqueOperationTypesRule"
-	UniqueTypeNamesRule              = "UniqueTypeNamesRule"
-	UniqueVariableNamesRule          = "UniqueVariableNamesRule"
-	ValuesOfCorrectTypeRule          = "ValuesOfCorrectTypeRule"
-	VariablesAreInputTypesRule       = "VariablesAreInputTypesRule"
-	VariablesInAllowedPositionRule   = "VariablesInAllowedPositionRule"
+	ExecutableDefinitionsRule          = "ExecutableDefinitionsRule"
+	FieldsOnCorrectTypeRule            = "FieldsOnCorrectTypeRule"
+	KnownArgumentNamesRule             = "KnownArgumentNamesRule"
+	KnownArgumentNamesOnDirectivesRule = "KnownArgumentNamesOnDirectivesRule"
+	KnownDirectivesRule                = "KnownDirectivesRule"
+	KnownTypeNamesRule                 = "KnownTypeNamesRule"
+	LoneAnonymousOperationRule         = "LoneAnonymousOperationRule"
+	NoUndefinedVariablesRule           = "NoUndefinedVariablesRule"
+	NoUnusedVariablesRule              = "NoUnusedVariablesRule"
+	OverlappingFieldsCanBeMergedRule   = "OverlappingFieldsCanBeMergedRule"
+	ProvidedRequiredArgumentsRule      = "ProvidedRequiredArgumentsRule"
+	SingleFieldSubscriptionsRule       = "SingleFieldSubscriptionsRule"
+	UniqueArgumentNamesRule            = "UniqueArgumentNamesRule"
+	UniqueDirectivesPerLocationRule    = "UniqueDirectivesPerLocationRule"
+	UniqueEnumValueNamesRule           = "UniqueEnumValueNamesRule"
+	UniqueFieldDefinitionNamesRule     = "UniqueFieldDefinitionNamesRule"
+	UniqueOperationNamesRule           = "UniqueOperationNamesRule"
+	UniqueOperationTypesRule           = "UniqueOperationTypesRule"
+	UniqueTypeNamesRule                = "UniqueTypeNamesRule"
+	UniqueVariableNamesRule            = "UniqueVariableNamesRule"
+	ValuesOfCorrectTypeRule            = "ValuesOfCorrectTypeRule"
+	VariablesAreInputTypesRule         = "VariablesAreInputTypesRule"
+	VariablesInAllowedPositionRule     = "VariablesInAllowedPositionRule"
 
 	FragmentsOnCompositeTypesRule = "FragmentsOnCompositeTypesRule"
 	KnownFragmentNamesRule        = "KnownFragmentNamesRule"
@@ -57,28 +58,29 @@ const (
 )
 
 var rulesMap = map[string][]astvalidation.Rule{
-	ExecutableDefinitionsRule:        {astvalidation.DocumentContainsExecutableOperation()},
-	FieldsOnCorrectTypeRule:          {astvalidation.FieldSelections()},
-	KnownArgumentNamesRule:           {astvalidation.KnownArguments()},
-	KnownDirectivesRule:              {astvalidation.DirectivesAreDefined()},
-	KnownTypeNamesRule:               {astvalidation.KnownTypeNames()},
-	LoneAnonymousOperationRule:       {astvalidation.LoneAnonymousOperation()},
-	NoUndefinedVariablesRule:         {astvalidation.AllVariableUsesDefined()},
-	NoUnusedVariablesRule:            {astvalidation.AllVariablesUsed()},
-	OverlappingFieldsCanBeMergedRule: {astvalidation.FieldSelectionMerging()},
-	ProvidedRequiredArgumentsRule:    {astvalidation.RequiredArguments()},
-	SingleFieldSubscriptionsRule:     {astvalidation.SubscriptionSingleRootField()},
-	UniqueArgumentNamesRule:          {astvalidation.ArgumentUniqueness()},
-	UniqueDirectivesPerLocationRule:  {astvalidation.DirectivesAreUniquePerLocation()},
-	UniqueEnumValueNamesRule:         {astvalidation.UniqueEnumValueNames()},
-	UniqueFieldDefinitionNamesRule:   {astvalidation.UniqueFieldDefinitionNames()},
-	UniqueOperationNamesRule:         {astvalidation.OperationNameUniqueness()},
-	UniqueOperationTypesRule:         {astvalidation.UniqueOperationTypes()},
-	UniqueTypeNamesRule:              {astvalidation.UniqueTypeNames()},
-	UniqueVariableNamesRule:          {astvalidation.VariableUniqueness()},
-	ValuesOfCorrectTypeRule:          {astvalidation.Values()},
-	VariablesAreInputTypesRule:       {astvalidation.VariablesAreInputTypes()},
-	VariablesInAllowedPositionRule:   {astvalidation.ValidArguments()},
+	ExecutableDefinitionsRule:          {astvalidation.DocumentContainsExecutableOperation()},
+	FieldsOnCorrectTypeRule:            {astvalidation.FieldSelections()},
+	KnownArgumentNamesRule:             {astvalidation.KnownArguments()},
+	KnownArgumentNamesOnDirectivesRule: {},
+	KnownDirectivesRule:                {astvalidation.DirectivesAreDefined()},
+	KnownTypeNamesRule:                 {astvalidation.KnownTypeNames()},
+	LoneAnonymousOperationRule:         {astvalidation.LoneAnonymousOperation()},
+	NoUndefinedVariablesRule:           {astvalidation.AllVariableUsesDefined()},
+	NoUnusedVariablesRule:              {astvalidation.AllVariablesUsed()},
+	OverlappingFieldsCanBeMergedRule:   {astvalidation.FieldSelectionMerging()},
+	ProvidedRequiredArgumentsRule:      {astvalidation.RequiredArguments()},
+	SingleFieldSubscriptionsRule:       {astvalidation.SubscriptionSingleRootField()},
+	UniqueArgumentNamesRule:            {astvalidation.ArgumentUniqueness()},
+	UniqueDirectivesPerLocationRule:    {astvalidation.DirectivesAreUniquePerLocation()},
+	UniqueEnumValueNamesRule:           {astvalidation.UniqueEnumValueNames()},
+	UniqueFieldDefinitionNamesRule:     {astvalidation.UniqueFieldDefinitionNames()},
+	UniqueOperationNamesRule:           {astvalidation.OperationNameUniqueness()},
+	UniqueOperationTypesRule:           {astvalidation.UniqueOperationTypes()},
+	UniqueTypeNamesRule:                {astvalidation.UniqueTypeNames()},
+	UniqueVariableNamesRule:            {astvalidation.VariableUniqueness()},
+	ValuesOfCorrectTypeRule:            {astvalidation.Values()},
+	VariablesAreInputTypesRule:         {astvalidation.VariablesAreInputTypes()},
+	VariablesInAllowedPositionRule:     {astvalidation.ValidArguments()},
 
 	// fragments rules
 	FragmentsOnCompositeTypesRule: {astvalidation.Fragments()},
