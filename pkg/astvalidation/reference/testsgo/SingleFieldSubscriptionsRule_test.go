@@ -8,7 +8,7 @@ func TestSingleFieldSubscriptionsRule(t *testing.T) {
 	t.Skip()
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
-		return ExpectValidationErrors(t, "SingleFieldSubscriptionsRule", queryStr)
+		return ExpectValidationErrors(t, SingleFieldSubscriptionsRule, queryStr)
 	}
 
 	ExpectValid := func(t *testing.T, queryStr string) {

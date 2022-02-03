@@ -8,7 +8,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 	t.Skip()
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
-		return ExpectValidationErrors(t, "ValuesOfCorrectTypeRule", queryStr)
+		return ExpectValidationErrors(t, ValuesOfCorrectTypeRule, queryStr)
 	}
 
 	ExpectValid := func(t *testing.T, queryStr string) {

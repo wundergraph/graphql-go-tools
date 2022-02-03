@@ -18,7 +18,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
 		return ExpectValidationErrorsWithSchema(t,
 			schemaWithDirectives,
-			"UniqueDirectivesPerLocationRule",
+			UniqueDirectivesPerLocationRule,
 			queryStr,
 		)
 	}
@@ -34,7 +34,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		}
 		return ExpectSDLValidationErrors(t,
 			schema,
-			"UniqueDirectivesPerLocationRule",
+			UniqueDirectivesPerLocationRule,
 			sdlStr,
 		)
 	}
