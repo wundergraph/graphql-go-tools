@@ -301,7 +301,10 @@ func (c *Converter) transformLine(line string) (out string, skip bool) {
 
 		// handles closing slice when we are inside a multiline assertion
 	case strings.Contains(line, "],"):
-		if c.insideResultAssertion {
+		switch {
+		case c.insideMultilineString:
+			out = line
+		case c.insideResultAssertion:
 			out = strings.ReplaceAll(line, "],", `},`)
 		}
 
