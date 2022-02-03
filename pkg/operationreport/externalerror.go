@@ -14,8 +14,9 @@ const (
 	NotCompatibleTypeErrMsg           = "%s cannot represent value: %s"
 	NotStringErrMsg                   = "%s cannot represent a non string value: %s"
 	NotIntegerErrMsg                  = "%s cannot represent non-integer value: %s"
+	BigIntegerErrMsg                  = "%s cannot represent non 32-bit signed integer value: %s"
 	NotFloatErrMsg                    = "%s cannot represent non numeric value: %s"
-	NotBoolErrMsg                     = "%s cannot represent a non boolean value: %s"
+	NotBooleanErrMsg                  = "%s cannot represent a non boolean value: %s"
 	NotIDErrMsg                       = "%s cannot represent a non-string and non-integer value: %s"
 	NotEnumErrMsg                     = `Enum "%s" cannot represent non-enum value: %s.`
 	NotAnEnumMemberErrMsg             = `Value "%s" does not exist in "%s" enum.`
@@ -215,6 +216,13 @@ func ErrValueDoesntSatisfyInt(value, inputType ast.ByteSlice, position position.
 	return err
 }
 
+func ErrBigIntValueDoesntSatisfyInt(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(BigIntegerErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
 func ErrValueDoesntSatisfyFloat(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(NotFloatErrMsg, inputType, value)
 	err.Locations = LocationsFromPosition(position)
@@ -222,8 +230,8 @@ func ErrValueDoesntSatisfyFloat(value, inputType ast.ByteSlice, position positio
 	return err
 }
 
-func ErrValueDoesntSatisfyBool(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
-	err.Message = fmt.Sprintf(NotBoolErrMsg, inputType, value)
+func ErrValueDoesntSatisfyBoolean(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NotBooleanErrMsg, inputType, value)
 	err.Locations = LocationsFromPosition(position)
 
 	return err
@@ -245,7 +253,7 @@ func ErrValueDoesntSatisfyInputValueDefinition(value, inputType ast.ByteSlice, p
 	case bytes.Equal(literal.FLOAT, inputType):
 		return ErrValueDoesntSatisfyFloat(value, inputType, position)
 	case bytes.Equal(literal.BOOLEAN, inputType):
-		return ErrValueDoesntSatisfyBool(value, inputType, position)
+		return ErrValueDoesntSatisfyBoolean(value, inputType, position)
 	case bytes.Equal(literal.ID, inputType):
 		return ErrValueDoesntSatisfyID(value, inputType, position)
 	default:
