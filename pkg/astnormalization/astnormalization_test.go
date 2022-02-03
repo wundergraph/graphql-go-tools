@@ -212,6 +212,35 @@ func TestNormalizeOperation(t *testing.T) {
 			  simple(input: $a)
 			}`, ``, `{"a":"foo"}`)
 	})
+	t.Run("input list coercion inline", func(t *testing.T) {
+		run(t, inputCoercionForListDefinition, `
+			query Foo {
+			  inputWithList(input: {list:{foo:"bar",input:{foo:"bar2",input:{nested:{foo:"bar3",list:{foo:"bar4"}}}}}}) {
+				id
+				name
+			  }
+			}`, `query Foo($a: InputWithList) {
+			  inputWithList(input: $a) {
+				id
+				name
+			  }
+			}`, `{}`, `{"a":{"list":[{"foo":"bar","input":{"foo":"bar2","input":{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}}}]}}`)
+	})
+	t.Run("input list coercion with extracted variables", func(t *testing.T) {
+		run(t, inputCoercionForListDefinition, `
+			query ($input: InputWithListNestedList) {
+			  inputWithListNestedList(input: $input) {
+				id
+				name
+			  }
+			}`, `query ($input: InputWithListNestedList) {
+			  inputWithListNestedList(input: $input) {
+				id
+				name
+			  }
+			}`, `{"input":{"list":{"foo":"bar","list":{"foo":"bar2","list":{"nested":{"foo":"bar3","list":{"foo":"bar4"}}}}}}}`,
+			`{"input":{"list":[[{"foo":"bar","list":[[{"foo":"bar2","list":[[{"nested":{"foo":"bar3","list":[[{"foo":"bar4"}]]}}]]}]]}]]}}`)
+	})
 }
 
 func TestOperationNormalizer_NormalizeOperation(t *testing.T) {
@@ -350,6 +379,10 @@ var runWithVariablesAssert = func(t *testing.T, registerVisitor func(walker *ast
 		fn(&walker)
 	}
 
+	walker.Walk(&operationDocument, &definitionDocument, &report)
+	// we run this walker twice because some normalizers may depend on other normalizers
+	// walking twice ensures that all prerequisites are met
+	// additionally, walking twice also ensures that the normalizers are idempotent
 	walker.Walk(&operationDocument, &definitionDocument, &report)
 
 	if report.HasErrors() {

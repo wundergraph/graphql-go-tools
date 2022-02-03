@@ -162,6 +162,11 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	fragmentSpreadInline(&fragmentInline)
 	directiveIncludeSkip(&fragmentInline)
 
+	extractVariablesWalker := astvisitor.NewWalker(48)
+	if o.options.extractVariables {
+		o.variablesExtraction = extractVariables(&extractVariablesWalker)
+	}
+
 	other := astvisitor.NewWalker(48)
 	inputCoercionForList(&other)
 	removeSelfAliasing(&other)
@@ -169,16 +174,13 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	mergeFieldSelections(&other)
 	deduplicateFields(&other)
 	extractVariablesDefaultValue(&other)
-	if o.options.extractVariables {
-		o.variablesExtraction = extractVariables(&other)
-	}
 	if o.options.removeFragmentDefinitions {
 		removeFragmentDefinitions(&other)
 	}
 	if o.options.removeUnusedVariables {
 		deleteUnusedVariables(&other)
 	}
-	o.operationWalkers = append(o.operationWalkers, &fragmentInline, &other)
+	o.operationWalkers = append(o.operationWalkers, &fragmentInline, &extractVariablesWalker, &other)
 }
 
 func (o *OperationNormalizer) prepareDefinition(definition *ast.Document, report *operationreport.Report) {

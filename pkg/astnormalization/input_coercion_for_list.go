@@ -28,34 +28,6 @@ type inputCoercionForListVisitor struct {
 	operationDefinitionRef int
 }
 
-func (i *inputCoercionForListVisitor) inspectInputFieldType2(ref int, name string) (ast.TypeKind, int) {
-	inputDefRef := i.definition.InputValueDefinitions[ref].Type
-	typeName := i.definition.ResolveTypeNameBytes(inputDefRef)
-	node, exist := i.definition.Index.FirstNodeByNameBytes(typeName)
-	if !exist {
-		return ast.TypeKindNonNull, 0
-	}
-
-	for _, inputDefRef := range i.definition.InputObjectTypeDefinitions[node.Ref].InputFieldsDefinition.Refs {
-		typeRef := i.definition.InputValueDefinitions[inputDefRef].Type
-		typeName := i.definition.ResolveTypeNameString(typeRef)
-		_, ok := i.definition.Index.FirstNodeByNameStr(typeName)
-		if !ok {
-			break
-		}
-		typeDef := i.definition.Types[typeRef]
-		if typeDef.TypeKind == ast.TypeKindNonNull {
-			typeDef = i.definition.Types[typeDef.OfType]
-		}
-		if i.definition.InputValueDefinitionNameString(inputDefRef) == name {
-			// We need type reference in the caller to calculate nesting depth of the list.
-			return typeDef.TypeKind, typeRef
-		}
-	}
-
-	return ast.TypeKindUnknown, 0
-}
-
 func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
 	defRef, ok := i.ArgumentInputValueDefinition(ref)
 	if !ok {
