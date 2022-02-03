@@ -740,21 +740,19 @@ query ($input: InputWithListNestedList) {
 	})
 
 	t.Run("nested test with inline values", func(t *testing.T) {
-		t.Skip("not implemented yet")
-		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
-query {
+		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+query Foo {
   inputWithList(input: {list:{foo:"bar",input:{foo:"bar2",input:{nested:{foo:"bar3",list:{foo:"bar4"}}}}}}) {
     id
     name
   }
-}`,
-			``,
+}`, `Foo`,
 			`
-query ($input: InputWithList) {
-  inputWithList(input: $input) {
+query Foo($a: InputWithList) {
+  inputWithList(input: $a) {
     id
     name
   }
-}`, `{}`, `{"a":{"list":[{"foo":"bar","input":[{"foo":"bar2","input":{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}]}]}}`)
+}`, `{}`, `{"a":{"list":[{"foo":"bar","input":{"foo":"bar2","input":{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}}}]}}`, inputCoercionForList)
 	})
 }

@@ -326,7 +326,7 @@ type registerNormalizeVariablesFunc func(walker *astvisitor.Walker) *variablesEx
 type registerNormalizeVariablesDefaulValueFunc func(walker *astvisitor.Walker) *variablesDefaultValueExtractionVisitor
 type registerNormalizeDeleteVariablesFunc func(walker *astvisitor.Walker) *deleteUnusedVariablesVisitor
 
-var runWithVariablesAssert = func(t *testing.T, registerVisitor func(walker *astvisitor.Walker), definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string) {
+var runWithVariablesAssert = func(t *testing.T, registerVisitor func(walker *astvisitor.Walker), definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string, additionalNormalizers ...registerNormalizeFunc) {
 	t.Helper()
 
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
@@ -346,6 +346,10 @@ var runWithVariablesAssert = func(t *testing.T, registerVisitor func(walker *ast
 
 	registerVisitor(&walker)
 
+	for _, fn := range additionalNormalizers {
+		fn(&walker)
+	}
+
 	walker.Walk(&operationDocument, &definitionDocument, &report)
 
 	if report.HasErrors() {
@@ -359,13 +363,13 @@ var runWithVariablesAssert = func(t *testing.T, registerVisitor func(walker *ast
 	assert.Equal(t, expectedVariables, actualVariables)
 }
 
-var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeVariablesFunc, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string) {
+var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeVariablesFunc, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string, additionalNormalizers ...registerNormalizeFunc) {
 	t.Helper()
 
 	runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
 		visitor := normalizeFunc(walker)
 		visitor.operationName = []byte(operationName)
-	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables)
+	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables, additionalNormalizers...)
 }
 
 var runWithVariablesDefaultValues = func(t *testing.T, normalizeFunc registerNormalizeVariablesDefaulValueFunc, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string) {
