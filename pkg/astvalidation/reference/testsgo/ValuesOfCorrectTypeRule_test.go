@@ -5,6 +5,7 @@ import (
 )
 
 func TestValuesOfCorrectTypeRule(t *testing.T) {
+
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
 		return ExpectValidationErrors(t, ValuesOfCorrectTypeRule, queryStr)
 	}

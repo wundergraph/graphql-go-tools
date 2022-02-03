@@ -60,6 +60,44 @@ const (
 	PossibleTypeExtensionsRule = "PossibleTypeExtensionsRule"
 )
 
+const (
+	ExecutableDefinitionsRule        = "ExecutableDefinitionsRule"
+	FieldsOnCorrectTypeRule          = "FieldsOnCorrectTypeRule"
+	KnownArgumentNamesRule           = "KnownArgumentNamesRule"
+	KnownDirectivesRule              = "KnownDirectivesRule"
+	KnownTypeNamesRule               = "KnownTypeNamesRule"
+	LoneAnonymousOperationRule       = "LoneAnonymousOperationRule"
+	NoUndefinedVariablesRule         = "NoUndefinedVariablesRule"
+	NoUnusedVariablesRule            = "NoUnusedVariablesRule"
+	OverlappingFieldsCanBeMergedRule = "OverlappingFieldsCanBeMergedRule"
+	ProvidedRequiredArgumentsRule    = "ProvidedRequiredArgumentsRule"
+	SingleFieldSubscriptionsRule     = "SingleFieldSubscriptionsRule"
+	UniqueArgumentNamesRule          = "UniqueArgumentNamesRule"
+	UniqueDirectivesPerLocationRule  = "UniqueDirectivesPerLocationRule"
+	UniqueEnumValueNamesRule         = "UniqueEnumValueNamesRule"
+	UniqueFieldDefinitionNamesRule   = "UniqueFieldDefinitionNamesRule"
+	UniqueOperationNamesRule         = "UniqueOperationNamesRule"
+	UniqueOperationTypesRule         = "UniqueOperationTypesRule"
+	UniqueTypeNamesRule              = "UniqueTypeNamesRule"
+	UniqueVariableNamesRule          = "UniqueVariableNamesRule"
+	ValuesOfCorrectTypeRule          = "ValuesOfCorrectTypeRule"
+	VariablesAreInputTypesRule       = "VariablesAreInputTypesRule"
+	VariablesInAllowedPositionRule   = "VariablesInAllowedPositionRule"
+
+	FragmentsOnCompositeTypesRule = "FragmentsOnCompositeTypesRule"
+	KnownFragmentNamesRule        = "KnownFragmentNamesRule"
+	NoFragmentCyclesRule          = "NoFragmentCyclesRule"
+	NoUnusedFragmentsRule         = "NoUnusedFragmentsRule"
+	PossibleFragmentSpreadsRule   = "PossibleFragmentSpreadsRule"
+	UniqueFragmentNamesRule       = "UniqueFragmentNamesRule"
+
+	UniqueInputFieldNamesRule  = "UniqueInputFieldNamesRule"
+	UniqueDirectiveNamesRule   = "UniqueDirectiveNamesRule"
+	LoneSchemaDefinitionRule   = "LoneSchemaDefinitionRule"
+	ScalarLeafsRule            = "ScalarLeafsRule"
+	PossibleTypeExtensionsRule = "PossibleTypeExtensionsRule"
+)
+
 var rulesMap = map[string][]astvalidation.Rule{
 	ExecutableDefinitionsRule:                 {astvalidation.DocumentContainsExecutableOperation()},
 	FieldsOnCorrectTypeRule:                   {astvalidation.FieldSelections()},
