@@ -294,6 +294,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningWalker.RegisterFieldVisitor(p.planningVisitor)
 	p.planningWalker.RegisterSelectionSetVisitor(p.planningVisitor)
 	p.planningWalker.RegisterEnterDirectiveVisitor(p.planningVisitor)
+	p.planningWalker.RegisterInlineFragmentVisitor(p.planningVisitor)
 
 	for key := range p.planningVisitor.planners {
 		config := p.planningVisitor.planners[key].dataSourceConfiguration
@@ -371,6 +372,14 @@ type Visitor struct {
 	skipFieldPaths        []string
 	fieldConfigs          map[int]*FieldConfiguration
 	exportedVariables     map[string]struct{}
+	skipIncludeFields     map[int]skipIncludeField
+}
+
+type skipIncludeField struct {
+	skip                bool
+	skipVariableName    string
+	include             bool
+	includeVariableName string
 }
 
 type objectFields struct {
@@ -454,11 +463,39 @@ func (v *Visitor) EnterDirective(ref int) {
 	}
 }
 
-func (v *Visitor) LeaveSelectionSet(ref int) {
+func (v *Visitor) EnterInlineFragment(ref int) {
+	directives := v.Operation.InlineFragments[ref].Directives.Refs
+	skip, skipVariableName := v.resolveSkip(directives)
+	include, includeVariableName := v.resolveInclude(directives)
+	set := v.Operation.InlineFragments[ref].SelectionSet
+	if set == -1 {
+		return
+	}
+	for _, selection := range v.Operation.SelectionSets[set].SelectionRefs {
+		switch v.Operation.Selections[selection].Kind {
+		case ast.SelectionKindField:
+			ref := v.Operation.Selections[selection].Ref
+			if skip || include {
+				v.skipIncludeFields[ref] = skipIncludeField{
+					skip:                skip,
+					skipVariableName:    skipVariableName,
+					include:             include,
+					includeVariableName: includeVariableName,
+				}
+			}
+		}
+	}
+}
+
+func (v *Visitor) LeaveInlineFragment(ref int) {
 
 }
 
 func (v *Visitor) EnterSelectionSet(ref int) {
+
+}
+
+func (v *Visitor) LeaveSelectionSet(ref int) {
 
 }
 
@@ -517,8 +554,8 @@ func (v *Visitor) EnterField(ref int) {
 	fieldDefinitionType := v.Definition.FieldDefinitionType(fieldDefinition)
 	bufferID, hasBuffer := v.fieldBuffers[ref]
 
-	skip, skipVariableName := v.resolveSkip(v.Operation.Fields[ref].Directives.Refs)
-	include, includeVariableName := v.resolveInclude(v.Operation.Fields[ref].Directives.Refs)
+	skip, skipVariableName := v.resolveSkipForField(ref)
+	include, includeVariableName := v.resolveIncludeForField(ref)
 
 	v.currentField = &resolve.Field{
 		Name:       fieldAliasOrName,
@@ -545,6 +582,22 @@ func (v *Visitor) EnterField(ref int) {
 		return
 	}
 	v.fieldConfigs[ref] = fieldConfig
+}
+
+func (v *Visitor) resolveSkipForField(ref int) (bool, string) {
+	skipInclude,ok := v.skipIncludeFields[ref]
+	if ok {
+		return skipInclude.skip, skipInclude.skipVariableName
+	}
+	return v.resolveSkip(v.Operation.Fields[ref].Directives.Refs)
+}
+
+func (v *Visitor) resolveIncludeForField(ref int) (bool, string) {
+	skipInclude,ok := v.skipIncludeFields[ref]
+	if ok {
+		return skipInclude.include, skipInclude.includeVariableName
+	}
+	return v.resolveInclude(v.Operation.Fields[ref].Directives.Refs)
 }
 
 func (v *Visitor) resolveSkip(directiveRefs []int) (bool, string) {
@@ -868,6 +921,7 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.Operation, v.Definition = operation, definition
 	v.fieldConfigs = map[int]*FieldConfiguration{}
 	v.exportedVariables = map[string]struct{}{}
+	v.skipIncludeFields = map[int]skipIncludeField{}
 }
 
 func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {

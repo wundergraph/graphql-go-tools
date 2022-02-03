@@ -60,8 +60,6 @@ func (p *Planner) LeaveVariableDefinition(_ int) {
 func (p *Planner) EnterDirective(ref int) {
 	parent := p.nodes[len(p.nodes)-1]
 	if parent.Kind == ast.NodeKindOperationDefinition && p.currentVariableDefinition != -1 {
-		name := p.visitor.Operation.VariableDefinitionNameString(p.currentVariableDefinition)
-		_ = name
 		p.addDirectivesToVariableDefinitions[p.currentVariableDefinition] = append(p.addDirectivesToVariableDefinitions[p.currentVariableDefinition], ref)
 		return
 	}
@@ -283,7 +281,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 			ExtractGraphqlResponse:    true,
 			ExtractFederationEntities: p.extractEntities,
 		},
-		BatchConfig:      batchConfig,
+		BatchConfig: batchConfig,
 	}
 }
 
@@ -358,13 +356,18 @@ func (p *Planner) LeaveSelectionSet(ref int) {
 
 func (p *Planner) EnterInlineFragment(ref int) {
 	typeCondition := p.visitor.Operation.InlineFragmentTypeConditionName(ref)
-	if typeCondition == nil {
+	if typeCondition == nil && !p.visitor.Operation.InlineFragments[ref].HasDirectives {
 		return
+	}
+
+	fragmentType := -1
+	if typeCondition != nil {
+		fragmentType = p.upstreamOperation.AddNamedType(p.visitor.Config.Types.RenameTypeNameOnMatchBytes(typeCondition))
 	}
 
 	inlineFragment := p.upstreamOperation.AddInlineFragment(ast.InlineFragment{
 		TypeCondition: ast.TypeCondition{
-			Type: p.upstreamOperation.AddNamedType(p.visitor.Config.Types.RenameTypeNameOnMatchBytes(typeCondition)),
+			Type: fragmentType,
 		},
 	})
 
@@ -373,15 +376,17 @@ func (p *Planner) EnterInlineFragment(ref int) {
 		Ref:  inlineFragment,
 	}
 
-	// add __typename field to selection set which contains typeCondition
-	// so that the resolver can distinguish between the response types
-	typeNameField := p.upstreamOperation.AddField(ast.Field{
-		Name: p.upstreamOperation.Input.AppendInputBytes([]byte("__typename")),
-	})
-	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, ast.Selection{
-		Kind: ast.SelectionKindField,
-		Ref:  typeNameField.Ref,
-	})
+	if typeCondition != nil {
+		// add __typename field to selection set which contains typeCondition
+		// so that the resolver can distinguish between the response types
+		typeNameField := p.upstreamOperation.AddField(ast.Field{
+			Name: p.upstreamOperation.Input.AppendInputBytes([]byte("__typename")),
+		})
+		p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, ast.Selection{
+			Kind: ast.SelectionKindField,
+			Ref:  typeNameField.Ref,
+		})
+	}
 
 	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, selection)
 	p.nodes = append(p.nodes, ast.Node{Kind: ast.NodeKindInlineFragment, Ref: inlineFragment})
