@@ -392,7 +392,7 @@ func (p *Planner) EnterInlineFragment(ref int) {
 	p.nodes = append(p.nodes, ast.Node{Kind: ast.NodeKindInlineFragment, Ref: inlineFragment})
 }
 
-func (p *Planner) LeaveInlineFragment(ref int) {
+func (p *Planner) LeaveInlineFragment(_ int) {
 	if p.nodes[len(p.nodes)-1].Kind != ast.NodeKindInlineFragment {
 		return
 	}
