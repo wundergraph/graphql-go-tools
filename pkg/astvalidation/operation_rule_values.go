@@ -161,11 +161,7 @@ func (v *valuesVisitor) valueSatisfiesTypeDefinitionNode(value ast.Value, defini
 	case ast.NodeKindEnumTypeDefinition:
 		return v.valueSatisfiesEnum(value, definitionTypeRef, node)
 	case ast.NodeKindScalarTypeDefinition:
-		satisfiesScalar := v.valueSatisfiesScalar(value, node.Ref)
-		if !satisfiesScalar {
-			v.handleTypeError(value, definitionTypeRef)
-		}
-		return satisfiesScalar
+		return v.valueSatisfiesScalar(value, definitionTypeRef, node.Ref)
 	case ast.NodeKindInputObjectTypeDefinition:
 		return v.valueSatisfiesInputObjectTypeDefinition(value, definitionTypeRef, node.Ref)
 	}
@@ -200,27 +196,123 @@ func (v *valuesVisitor) valueSatisfiesEnum(value ast.Value, definitionTypeRef in
 	return true
 }
 
-func (v *valuesVisitor) valueSatisfiesScalar(value ast.Value, scalar int) bool {
+func (v *valuesVisitor) valueSatisfiesScalar(value ast.Value, definitionTypeRef int, scalar int) bool {
 	scalarName := v.definition.ScalarTypeDefinitionNameBytes(scalar)
 	if value.Kind == ast.ValueKindVariable {
 		_, typeName, ok := v.operationVariableType(value.Ref)
 		if !ok {
+			v.handleTypeError(value, definitionTypeRef)
 			return false
 		}
-		return bytes.Equal(scalarName, typeName)
+		if !bytes.Equal(scalarName, typeName) {
+			v.handleTypeError(value, definitionTypeRef)
+			return false
+		}
 	}
 	switch string(scalarName) {
 	case "ID":
-		return value.Kind == ast.ValueKindString || value.Kind == ast.ValueKindInteger
+		return v.valueSatisfiesScalarID(value, definitionTypeRef)
 	case "Boolean":
-		return value.Kind == ast.ValueKindBoolean
+		return v.valueSatisfiesScalarBoolean(value, definitionTypeRef)
 	case "Int":
-		return value.Kind == ast.ValueKindInteger
+		return v.valueSatisfiesScalarInt(value, definitionTypeRef)
 	case "Float":
-		return value.Kind == ast.ValueKindFloat || value.Kind == ast.ValueKindInteger
+		return v.valueSatisfiesScalarFloat(value, definitionTypeRef)
+	case "String":
+		return v.valueSatisfiesScalarString(value, definitionTypeRef, true)
 	default:
-		return value.Kind == ast.ValueKindString
+		return v.valueSatisfiesScalarString(value, definitionTypeRef, false)
 	}
+}
+
+func (v *valuesVisitor) valueSatisfiesScalarID(value ast.Value, definitionTypeRef int) bool {
+	if value.Kind == ast.ValueKindString || value.Kind == ast.ValueKindInteger {
+		return true
+	}
+
+	printedValue, printedType, ok := v.printValueAndUnderlyingType(value, definitionTypeRef)
+	if !ok {
+		return false
+	}
+
+	v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyID(printedValue, printedType, value.Position))
+
+	return false
+}
+
+func (v *valuesVisitor) valueSatisfiesScalarBoolean(value ast.Value, definitionTypeRef int) bool {
+	if value.Kind == ast.ValueKindBoolean {
+		return true
+	}
+
+	printedValue, printedType, ok := v.printValueAndUnderlyingType(value, definitionTypeRef)
+	if !ok {
+		return false
+	}
+
+	v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyBoolean(printedValue, printedType, value.Position))
+
+	return false
+}
+
+func (v *valuesVisitor) valueSatisfiesScalarInt(value ast.Value, definitionTypeRef int) bool {
+	var isValidInt32 bool
+	isInt := value.Kind == ast.ValueKindInteger
+
+	if isInt {
+		isValidInt32 = v.operation.IntValueValidInt32(value.Ref)
+	}
+
+	if isInt && isValidInt32 {
+		return true
+	}
+
+	printedValue, printedType, ok := v.printValueAndUnderlyingType(value, definitionTypeRef)
+	if !ok {
+		return false
+	}
+
+	if !isInt {
+		v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyInt(printedValue, printedType, value.Position))
+		return false
+	}
+
+	v.Report.AddExternalError(operationreport.ErrBigIntValueDoesntSatisfyInt(printedValue, printedType, value.Position))
+	return false
+}
+
+func (v *valuesVisitor) valueSatisfiesScalarFloat(value ast.Value, definitionTypeRef int) bool {
+	if value.Kind == ast.ValueKindFloat || value.Kind == ast.ValueKindInteger {
+		return true
+	}
+
+	printedValue, printedType, ok := v.printValueAndUnderlyingType(value, definitionTypeRef)
+	if !ok {
+		return false
+	}
+
+	v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyFloat(printedValue, printedType, value.Position))
+
+	return false
+}
+
+func (v *valuesVisitor) valueSatisfiesScalarString(value ast.Value, definitionTypeRef int, stringScalar bool) bool {
+	if value.Kind == ast.ValueKindString {
+		return true
+	}
+
+	printedValue, printedType, ok := v.printValueAndUnderlyingType(value, definitionTypeRef)
+	if !ok {
+		return false
+	}
+
+	if stringScalar {
+		v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyString(printedValue, printedType, value.Position))
+	} else {
+		v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType, value.Position))
+	}
+
+	return false
 }
 
 func (v *valuesVisitor) valueSatisfiesInputObjectTypeDefinition(value ast.Value, definitionTypeRef int, inputObjectTypeDefinition int) bool {
@@ -336,14 +428,8 @@ func (v *valuesVisitor) operationVariableType(valueRef int) (variableTypeRef int
 }
 
 func (v *valuesVisitor) handleTypeError(value ast.Value, definitionTypeRef int) {
-	printedValue, err := v.operation.PrintValueBytes(value, nil)
-	if v.HandleInternalErr(err) {
-		return
-	}
-
-	underlyingType := v.definition.ResolveUnderlyingType(definitionTypeRef)
-	printedType, err := v.definition.PrintTypeBytes(underlyingType, nil)
-	if v.HandleInternalErr(err) {
+	printedValue, printedType, ok := v.printValueAndUnderlyingType(value, definitionTypeRef)
+	if !ok {
 		return
 	}
 
@@ -360,14 +446,8 @@ func (v *valuesVisitor) handleUnexpectedNullError(value ast.Value, definitionTyp
 }
 
 func (v *valuesVisitor) handleUnexpectedEnumValueError(value ast.Value, definitionTypeRef int) {
-	printedValue, err := v.operation.PrintValueBytes(value, nil)
-	if v.HandleInternalErr(err) {
-		return
-	}
-
-	underlyingType := v.definition.ResolveUnderlyingType(definitionTypeRef)
-	printedType, err := v.definition.PrintTypeBytes(underlyingType, nil)
-	if v.HandleInternalErr(err) {
+	printedValue, printedType, ok := v.printValueAndUnderlyingType(value, definitionTypeRef)
+	if !ok {
 		return
 	}
 
@@ -375,18 +455,29 @@ func (v *valuesVisitor) handleUnexpectedEnumValueError(value ast.Value, definiti
 }
 
 func (v *valuesVisitor) handleNotExistingEnumValueError(value ast.Value, definitionTypeRef int) {
-	printedValue, err := v.operation.PrintValueBytes(value, nil)
-	if v.HandleInternalErr(err) {
-		return
-	}
-
-	underlyingType := v.definition.ResolveUnderlyingType(definitionTypeRef)
-	printedType, err := v.definition.PrintTypeBytes(underlyingType, nil)
-	if v.HandleInternalErr(err) {
+	printedValue, printedType, ok := v.printValueAndUnderlyingType(value, definitionTypeRef)
+	if !ok {
 		return
 	}
 
 	v.Report.AddExternalError(operationreport.ErrValueDoesntExistsInEnum(printedValue, printedType, value.Position))
+}
+
+func (v *valuesVisitor) printValueAndUnderlyingType(value ast.Value, definitionTypeRef int) (printedValue, printedType []byte, ok bool) {
+	var err error
+
+	printedValue, err = v.operation.PrintValueBytes(value, nil)
+	if v.HandleInternalErr(err) {
+		return nil, nil, false
+	}
+
+	underlyingType := v.definition.ResolveUnderlyingType(definitionTypeRef)
+	printedType, err = v.definition.PrintTypeBytes(underlyingType, nil)
+	if v.HandleInternalErr(err) {
+		return nil, nil, false
+	}
+
+	return printedValue, printedType, true
 }
 
 func (v *valuesVisitor) handleMissingRequiredFieldOfInputObjectError(value ast.Value, fieldName ast.ByteSlice, inputObjectDefinition, inputValueDefinition int) {
