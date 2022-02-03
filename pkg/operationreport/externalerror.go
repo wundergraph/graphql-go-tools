@@ -32,6 +32,15 @@ type ExternalError struct {
 	Locations []graphqlerrors.Location `json:"locations"`
 }
 
+func LocationsFromPosition(position position.Position) []graphqlerrors.Location {
+	return []graphqlerrors.Location{
+		{
+			Line:   position.LineStart,
+			Column: position.CharStart,
+		},
+	}
+}
+
 func ErrDocumentDoesntContainExecutableOperation() (err ExternalError) {
 	err.Message = "document doesn't contain any executable operation"
 	return
@@ -145,100 +154,103 @@ func ErrMissingFieldSelectionOnNonScalar(fieldName, enclosingTypeName ast.ByteSl
 
 func ErrArgumentNotDefinedOnDirective(argName, directiveName ast.ByteSlice, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(UnknownArgumentOnDirectiveErrMsg, argName, directiveName)
-	err.Locations = []graphqlerrors.Location{
-		{
-			Line:   position.LineStart,
-			Column: position.CharStart,
-		},
-	}
+	err.Locations = LocationsFromPosition(position)
+
 	return err
 }
 
 func ErrMissingRequiredFieldOfInputObject(objName, fieldName, typeName ast.ByteSlice, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(MissingRequiredFieldOfInputObject, objName, fieldName, typeName)
-	err.Locations = []graphqlerrors.Location{
-		{
-			Line:   position.LineStart,
-			Column: position.CharStart,
-		},
-	}
+	err.Locations = LocationsFromPosition(position)
+
 	return err
 }
 
 func ErrArgumentNotDefinedOnField(argName, typeName, fieldName ast.ByteSlice, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(UnknownArgumentOnFieldErrMsg, argName, typeName, fieldName)
-	err.Locations = []graphqlerrors.Location{
-		{
-			Line:   position.LineStart,
-			Column: position.CharStart,
-		},
-	}
+	err.Locations = LocationsFromPosition(position)
+
 	return err
 }
 
 func ErrNullValueDoesntSatisfyInputValueDefinition(inputType ast.ByteSlice, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(NullValueErrMsg, inputType)
-	err.Locations = []graphqlerrors.Location{
-		{
-			Line:   position.LineStart,
-			Column: position.CharStart,
-		},
-	}
+	err.Locations = LocationsFromPosition(position)
 
 	return err
 }
 
 func ErrValueDoesntSatisfyEnum(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(NotEnumErrMsg, inputType, value)
-	err.Locations = []graphqlerrors.Location{
-		{
-			Line:   position.LineStart,
-			Column: position.CharStart,
-		},
-	}
+	err.Locations = LocationsFromPosition(position)
 
 	return err
 }
 
 func ErrValueDoesntExistsInEnum(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(NotAnEnumMemberErrMsg, value, inputType)
-	err.Locations = []graphqlerrors.Location{
-		{
-			Line:   position.LineStart,
-			Column: position.CharStart,
-		},
-	}
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrValueDoesntSatisfyType(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NotCompatibleTypeErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrValueDoesntSatisfyString(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NotStringErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrValueDoesntSatisfyInt(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NotIntegerErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrValueDoesntSatisfyFloat(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NotFloatErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrValueDoesntSatisfyBool(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NotBoolErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrValueDoesntSatisfyID(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NotIDErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
 
 	return err
 }
 
 func ErrValueDoesntSatisfyInputValueDefinition(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
-	var msg string
-
 	switch {
 	case bytes.Equal(literal.STRING, inputType):
-		msg = fmt.Sprintf(NotStringErrMsg, inputType, value)
+		return ErrValueDoesntSatisfyString(value, inputType, position)
 	case bytes.Equal(literal.INT, inputType):
-		msg = fmt.Sprintf(NotIntegerErrMsg, inputType, value)
+		return ErrValueDoesntSatisfyInt(value, inputType, position)
 	case bytes.Equal(literal.FLOAT, inputType):
-		msg = fmt.Sprintf(NotFloatErrMsg, inputType, value)
+		return ErrValueDoesntSatisfyFloat(value, inputType, position)
 	case bytes.Equal(literal.BOOLEAN, inputType):
-		msg = fmt.Sprintf(NotBoolErrMsg, inputType, value)
+		return ErrValueDoesntSatisfyBool(value, inputType, position)
 	case bytes.Equal(literal.ID, inputType):
-		msg = fmt.Sprintf(NotIDErrMsg, inputType, value)
+		return ErrValueDoesntSatisfyID(value, inputType, position)
 	default:
-		msg = fmt.Sprintf(NotCompatibleTypeErrMsg, inputType, value)
+		return ErrValueDoesntSatisfyType(value, inputType, position)
 	}
-
-	err.Message = msg
-	err.Locations = []graphqlerrors.Location{
-		{
-			Line:   position.LineStart,
-			Column: position.CharStart,
-		},
-	}
-
-	return err
 }
 
 func ErrVariableTypeDoesntSatisfyInputValueDefinition(value, inputType, expectedType ast.ByteSlice, valuePos, variableDefinitionPos position.Position) (err ExternalError) {
@@ -278,12 +290,7 @@ func ErrVariableNotDefinedOnArgument(variableName, argumentName ast.ByteSlice) (
 
 func ErrVariableOfTypeIsNoValidInputValue(variableName, ofTypeName ast.ByteSlice, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(VariableIsNotInputTypeErrMsg, variableName, ofTypeName)
-	err.Locations = []graphqlerrors.Location{
-		{
-			Line:   position.LineStart,
-			Column: position.CharStart,
-		},
-	}
+	err.Locations = LocationsFromPosition(position)
 
 	return err
 }
