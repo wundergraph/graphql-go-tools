@@ -17,7 +17,6 @@ func inputCoercionForList(walker *astvisitor.Walker) {
 		Walker: walker,
 	}
 	walker.RegisterEnterDocumentVisitor(&visitor)
-	walker.RegisterEnterArgumentVisitor(&visitor)
 	walker.RegisterEnterVariableDefinitionVisitor(&visitor)
 }
 
@@ -26,83 +25,6 @@ type inputCoercionForListVisitor struct {
 	operation              *ast.Document
 	definition             *ast.Document
 	operationDefinitionRef int
-}
-
-func (i *inputCoercionForListVisitor) EnterArgument(ref int) {
-	defRef, ok := i.ArgumentInputValueDefinition(ref)
-	if !ok {
-		return
-	}
-
-	defType := i.definition.InputValueDefinitions[defRef].Type
-
-	// Check the definition here.
-	//
-	// If it is not a TypeKindList or TypeKindNonNull, stop the operation.
-	// Because we only implement input coercion for lists. Please note that
-	// the type kind can be a non-null list.
-	definitionType := i.definition.Types[defType]
-	typeKind := definitionType.TypeKind
-	switch typeKind {
-	case ast.TypeKindList:
-	case ast.TypeKindNonNull:
-		innerType := i.definition.Types[definitionType.OfType]
-		// We are only looking for lists. If the definition type is
-		// a non-null list, go on. Otherwise, stop the operation.
-		if innerType.TypeKind != ast.TypeKindList {
-			return
-		}
-	default:
-		return
-	}
-
-	// Check the argument value kind here.
-	// Only work for scalar/object types in EnterArgument.
-	argumentValue := i.operation.Arguments[ref].Value
-	var latestValue ast.Value
-	switch argumentValue.Kind {
-	case ast.ValueKindString,
-		ast.ValueKindBoolean,
-		ast.ValueKindInteger,
-		ast.ValueKindFloat,
-		ast.ValueKindObject:
-		var latestRef = i.operation.AddValue(i.operation.Arguments[ref].Value)
-		var definitionTypeRef = defType
-		for {
-			// Build a list from scalar/object type here.
-			definitionType := i.definition.Types[definitionTypeRef]
-			if definitionType.OfType == ast.InvalidRef {
-				break
-			}
-
-			switch definitionType.TypeKind {
-			case ast.TypeKindList:
-				// Put the value into a list here.
-				innerList := ast.ListValue{}
-				innerList.Refs = []int{latestRef}
-				innerListRef := i.operation.AddListValue(innerList)
-				listValue := ast.Value{
-					Kind: ast.ValueKindList,
-					Ref:  innerListRef,
-				}
-				latestValue = listValue
-				latestRef = i.operation.AddValue(listValue)
-				definitionTypeRef = definitionType.OfType
-			case ast.TypeKindNonNull:
-				// Non-null type of what?
-				definitionTypeRef = definitionType.OfType
-			default:
-			}
-		}
-		i.operation.Arguments[ref].Value = latestValue
-	default:
-		// Possible value kinds:
-		// * ValueKindList
-		// * ValueKindEnum
-		// * ValueKindVariable
-		//
-		// Only works with scalar types or object types.
-	}
 }
 
 func (i *inputCoercionForListVisitor) EnterDocument(operation, definition *ast.Document) {
