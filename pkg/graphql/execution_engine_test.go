@@ -300,16 +300,16 @@ func TestExecutionEngine_ExecuteWithOptions(t *testing.T) {
 		request: func(t *testing.T) Request {
 			return Request{
 				OperationName: "charactersByIds",
-				Variables:     stringify(map[string]interface{}{}),
+				Variables:     stringify(map[string]interface{}{"ids": 1}),
 				// the library would fail to parse the query without input coercion.
-				Query: `query($ids: [Int]) {charactersByIds(ids: 1) { name }}`,
+				Query: `query($ids: [Int]) {charactersByIds(ids: $ids) { name }}`,
 			}
 		},
 		plannerConfig: inputCoercionHttpJsonDataSource,
 		roundTripper: createTestRoundTripper(t, roundTripperTestCase{
 			expectedHost:     "example.com",
 			expectedPath:     "/",
-			expectedBody:     `{ "ids":  }`,
+			expectedBody:     `{ "ids": [1] }`,
 			sendResponseBody: `{"charactersByIds":[{"name": "Luke"}]}`,
 			sendStatusCode:   200,
 		}),

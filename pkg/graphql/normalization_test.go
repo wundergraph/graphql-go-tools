@@ -190,11 +190,11 @@ query Search {
 		schema := inputCoercionForListSchema(t)
 		request := Request{
 			OperationName: "charactersByIds",
-			Variables:     stringify(map[string]interface{}{}),
-			Query:         `query { charactersByIds(ids: 1) { name }}`,
+			Variables:     stringify(map[string]interface{}{"a": 1}),
+			Query:         `query ($a: [Int]) { charactersByIds(ids: $a) { name }}`,
 		}
-		runNormalizationWithSchema(t, schema, &request, `{}`, `{
-    charactersByIds(ids: [1]){
+		runNormalizationWithSchema(t, schema, &request, `{"a":[1]}`, `query($a: [Int]){
+    charactersByIds(ids: $a){
         name
     }
 }`)
