@@ -11,6 +11,16 @@ type ObjectValue struct {
 	RBRACE position.Position
 }
 
+func (d *Document) CopyObjectValue(ref int) int {
+	refs := d.NewEmptyRefs()
+	for _, r := range d.ObjectValues[ref].Refs {
+		refs = append(refs, d.CopyObjectField(r))
+	}
+	return d.AddObjectValue(ObjectValue{
+		Refs: refs,
+	})
+}
+
 func (d *Document) AddObjectValue(value ObjectValue) (ref int) {
 	d.ObjectValues = append(d.ObjectValues, value)
 	return len(d.ObjectValues) - 1

@@ -16,6 +16,13 @@ type FloatValue struct {
 	Raw          ByteSliceReference // e.g. 13.37
 }
 
+func (d *Document) CopyFloatValue(ref int) int {
+	return d.AddFloatValue(FloatValue{
+		Negative: d.FloatValues[ref].Negative,
+		Raw:      d.FloatValues[ref].Raw, // Doesn't need to be copied.
+	})
+}
+
 func (d *Document) FloatValueAsFloat32(ref int) (out float32) {
 	in := d.Input.ByteSlice(d.FloatValues[ref].Raw)
 	out = unsafebytes.BytesToFloat32(in)

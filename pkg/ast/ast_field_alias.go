@@ -11,6 +11,13 @@ type Alias struct {
 	Colon     position.Position  // :
 }
 
+func (d *Document) CopyAlias(alias Alias) Alias {
+	return Alias{
+		IsDefined: alias.IsDefined,
+		Name:      alias.Name, // Doesn't need to be copied.
+	}
+}
+
 func (d *Document) FieldAliasOrNameBytes(ref int) ByteSlice {
 	if d.FieldAliasIsDefined(ref) {
 		return d.FieldAliasBytes(ref)

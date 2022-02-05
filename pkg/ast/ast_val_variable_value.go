@@ -15,6 +15,12 @@ type VariableValue struct {
 	Name   ByteSliceReference // e.g. devicePicSize
 }
 
+func (d *Document) CopyVariableValue(ref int) int {
+	return d.AddVariableValue(VariableValue{
+		Name: d.VariableValues[ref].Name, // Doesn't need to be copied.
+	})
+}
+
 func (d *Document) VariableValueNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.VariableValues[ref].Name)
 }

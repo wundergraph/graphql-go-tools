@@ -161,6 +161,10 @@ func (d *Document) NextRefIndex() int {
 	return d.RefIndex
 }
 
+func (d *Document) NewEmptyRefs() []int {
+	return d.Refs[d.NextRefIndex()][:0]
+}
+
 func (d *Document) AddRootNode(node Node) {
 	d.RootNodes = append(d.RootNodes, node)
 	d.Index.AddNodeStr(d.NodeNameUnsafeString(node), node)

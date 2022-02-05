@@ -21,6 +21,24 @@ type Argument struct {
 	Value Value              // e.g. 100 or "Bar"
 }
 
+func (d *Document) CopyArgument(ref int) int {
+	return d.AddArgument(Argument{
+		Name: d.Arguments[ref].Name, // Doesn't need to be copied.
+		Value: Value{
+			Kind: d.Arguments[ref].Value.Kind,
+			Ref:  d.copyValueRef(d.Arguments[ref].Value.Kind, d.Arguments[ref].Value.Ref),
+		},
+	})
+}
+
+func (d *Document) CopyArgumentList(list ArgumentList) ArgumentList {
+	refs := d.NewEmptyRefs()
+	for _, r := range list.Refs {
+		refs = append(refs, d.CopyArgument(r))
+	}
+	return ArgumentList{Refs: refs}
+}
+
 func (d *Document) PrintArgument(ref int, w io.Writer) error {
 	_, err := w.Write(d.Input.ByteSlice(d.Arguments[ref].Name))
 	if err != nil {
