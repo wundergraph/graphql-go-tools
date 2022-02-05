@@ -43,6 +43,7 @@ require (
 	go.uber.org/atomic v1.9.0
 	go.uber.org/zap v1.18.1
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
+	gopkg.in/yaml.v2 v2.2.8
 	nhooyr.io/websocket v1.8.7
 )
 

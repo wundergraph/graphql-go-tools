@@ -142,18 +142,31 @@ func TestWithAdditionalHttpHeaders(t *testing.T) {
 }
 
 type ExecutionEngineV2TestCase struct {
-	schema           *Schema
-	operation        func(t *testing.T) Request
-	dataSources      []plan.DataSourceConfiguration
-	fields           plan.FieldConfigurations
-	engineOptions    []ExecutionOptionsV2
-	expectedResponse string
+	schema                            *Schema
+	operation                         func(t *testing.T) Request
+	dataSources                       []plan.DataSourceConfiguration
+	generateChildrenForFirstRootField bool
+	fields                            plan.FieldConfigurations
+	engineOptions                     []ExecutionOptionsV2
+	expectedResponse                  string
 }
 
 func TestExecutionEngineV2_Execute(t *testing.T) {
 	run := func(testCase ExecutionEngineV2TestCase, withError bool) func(t *testing.T) {
 		return func(t *testing.T) {
 			engineConf := NewEngineV2Configuration(testCase.schema)
+			if testCase.generateChildrenForFirstRootField {
+				for i := 0; i < len(testCase.dataSources); i++ {
+					children := testCase.schema.GetAllNestedFieldChildrenFromTypeField(testCase.dataSources[i].RootNodes[0].TypeName, testCase.dataSources[i].RootNodes[0].FieldNames[0])
+					testCase.dataSources[i].ChildNodes = make([]plan.TypeField, len(children))
+					for j, child := range children {
+						testCase.dataSources[i].ChildNodes[j] = plan.TypeField{
+							TypeName:   child.TypeName,
+							FieldNames: child.FieldNames,
+						}
+					}
+				}
+			}
 			engineConf.SetDataSources(testCase.dataSources)
 			engineConf.SetFieldConfigurations(testCase.fields)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -553,6 +566,106 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		expectedResponse: `{"data":{"heroes":["Human","Droid"]}}`,
 	}))
 
+	t.Run("execute operation and apply input coercion for lists without variables", runWithoutError(ExecutionEngineV2TestCase{
+		schema: inputCoercionForListSchema(t),
+		operation: func(t *testing.T) Request {
+			return Request{
+				OperationName: "",
+				Variables:     stringify(map[string]interface{}{}),
+				Query: `query{
+						charactersByIds(ids: 1) {
+							name
+						}
+					}`,
+			}
+		},
+		dataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Query", FieldNames: []string{"charactersByIds"}},
+				},
+				Factory: &graphql_datasource.Factory{
+					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "example.com",
+						expectedPath:     "/",
+						expectedBody:     `{"query":"query($a: [Int]){charactersByIds(ids: $a)}","variables":{"a":[1]}}`,
+						sendResponseBody: `{"data":{"charactersByIds":[{"name": "Luke"}]}}`,
+						sendStatusCode:   200,
+					}),
+				},
+				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+					Fetch: graphql_datasource.FetchConfiguration{
+						URL:    "https://example.com/",
+						Method: "POST",
+					},
+				}),
+			},
+		},
+		fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "charactersByIds",
+				Path:      []string{"charactersByIds"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "ids",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		expectedResponse: `{"data":{"charactersByIds":[{"name":"Luke"}]}}`,
+	}))
+
+	t.Run("execute operation and apply input coercion for lists with variable extraction", runWithoutError(ExecutionEngineV2TestCase{
+		schema: inputCoercionForListSchema(t),
+		operation: func(t *testing.T) Request {
+			return Request{
+				OperationName: "",
+				Variables: stringify(map[string]interface{}{
+					"ids": 1,
+				}),
+				Query: `query($ids: [Int]) { charactersByIds(ids: $ids) { name } }`,
+			}
+		},
+		dataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Query", FieldNames: []string{"charactersByIds"}},
+				},
+				Factory: &graphql_datasource.Factory{
+					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "example.com",
+						expectedPath:     "/",
+						expectedBody:     `{"query":"query($ids: [Int]){charactersByIds(ids: $ids)}","variables":{"ids":[1]}}`,
+						sendResponseBody: `{"data":{"charactersByIds":[{"name": "Luke"}]}}`,
+						sendStatusCode:   200,
+					}),
+				},
+				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+					Fetch: graphql_datasource.FetchConfiguration{
+						URL:    "https://example.com/",
+						Method: "POST",
+					},
+				}),
+			},
+		},
+		fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "charactersByIds",
+				Path:      []string{"charactersByIds"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "ids",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		expectedResponse: `{"data":{"charactersByIds":[{"name":"Luke"}]}}`,
+	}))
+
 	t.Run("execute operation with arguments", runWithoutError(
 		ExecutionEngineV2TestCase{
 			schema:    starwarsSchema(t),
@@ -821,6 +934,44 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		))
 
 	})
+
+	t.Run("execute query with data source on field with interface return type", runWithoutError(
+		ExecutionEngineV2TestCase{
+			schema: createCountriesSchema(t),
+			operation: func(t *testing.T) Request {
+				return Request{
+					OperationName: "",
+					Variables:     nil,
+					Query:         `{ codeType { code ...on Country { name } } }`,
+				}
+			},
+			generateChildrenForFirstRootField: true,
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"codeType"}},
+					},
+					Factory: &graphql_datasource.Factory{
+						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     `{"query":"{codeType {code __typename ... on Country {name}}}"}`,
+							sendResponseBody: `{"data":{"codeType":{"__typename":"Country","code":"de","name":"Germany"}}}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+						Fetch: graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+					}),
+				},
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"codeType":{"code":"de","name":"Germany"}}}`,
+		},
+	))
 
 	t.Run("execute single mutation with arguments on document with multiple operations", runWithoutError(
 		ExecutionEngineV2TestCase{
@@ -1736,4 +1887,10 @@ func newPollingUpstreamHandler() http.Handler {
 		respBody := fmt.Sprintf(`{"counter":%d}`, counter)
 		_, _ = w.Write([]byte(respBody))
 	})
+}
+
+func createCountriesSchema(t *testing.T) *Schema {
+	schema, err := NewSchemaFromString(countriesSchema)
+	require.NoError(t, err)
+	return schema
 }
