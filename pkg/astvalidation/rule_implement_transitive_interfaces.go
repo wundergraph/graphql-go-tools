@@ -31,6 +31,15 @@ func (v *implementTransitiveInterfacesVisitor) EnterDocument(operation, definiti
 	v.typesImplementingInterfaces = map[string][]string{}
 }
 
+// LeaveDocument will iterate over the types implementing interfaces lookup map
+// and check if a types with interfaces has all the transitive interfaces in their slice.
+//
+// Valid (typeName contains interfaceBase from interfaceOne):
+//		typeName -> [interfaceOne, interfaceBase]
+//		interfaceOne -> [interfaceBase]
+// Invalid (typeName does not contain interfaceBase from interfaceOne):
+//		typeName -> [interfaceOne]
+//		interfaceOne -> [interfaceBase]
 func (v *implementTransitiveInterfacesVisitor) LeaveDocument(operation, definition *ast.Document) {
 	for typeName, interfaceNames := range v.typesImplementingInterfaces {
 		interfaceNamesLookupList := map[string]bool{}
@@ -62,26 +71,6 @@ func (v *implementTransitiveInterfacesVisitor) EnterInterfaceTypeDefinition(ref 
 
 	interfaceName := v.definition.InterfaceTypeDefinitionNameString(ref)
 	v.collectImplementedInterfaces(interfaceName, v.definition.InterfaceTypeDefinitions[ref].ImplementsInterfaces.Refs)
-	/*for i := 0; i < len(v.definition.InterfaceTypeDefinitions[ref].ImplementsInterfaces.Refs); i++ {
-		implementedInterfaceRef := v.definition.InterfaceTypeDefinitions[ref].ImplementsInterfaces.Refs[i]
-		implementedInterfaceName := v.definition.TypeNameString(implementedInterfaceRef)
-
-		if _, ok := v.typesImplementingInterfaces[interfaceName]; ok {
-			v.typesImplementingInterfaces[interfaceName] = []string{implementedInterfaceName}
-		}
-
-		skipInterface := false
-		for j := 0; j < len(v.typesImplementingInterfaces[interfaceName]); j++ {
-			if v.typesImplementingInterfaces[interfaceName][j] == implementedInterfaceName {
-				skipInterface = true
-				break
-			}
-		}
-
-		if !skipInterface {
-			v.typesImplementingInterfaces[interfaceName] = append(v.typesImplementingInterfaces[interfaceName], implementedInterfaceName)
-		}
-	}*/
 }
 
 func (v *implementTransitiveInterfacesVisitor) EnterInterfaceTypeExtension(ref int) {
@@ -114,6 +103,12 @@ func (v *implementTransitiveInterfacesVisitor) EnterObjectTypeExtension(ref int)
 	v.collectImplementedInterfaces(objectTypeName, v.definition.ObjectTypeExtensions[ref].ImplementsInterfaces.Refs)
 }
 
+// collectImplementedInterfaces iterates over all implemented interfaces over a given type so that the
+// names can be saved into the lookup map on the visitor
+//
+// Result:
+//      typeName -> [interfaceOne, interfaceBase]
+//      interfaceOne -> [interfaceBase]
 func (v *implementTransitiveInterfacesVisitor) collectImplementedInterfaces(typeName string, implementedInterfacesRefs []int) {
 	for i := 0; i < len(implementedInterfacesRefs); i++ {
 		implementedInterfaceRef := implementedInterfacesRefs[i]
