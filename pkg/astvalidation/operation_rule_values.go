@@ -363,7 +363,6 @@ func (v *valuesVisitor) valueSatisfiesInputObjectTypeDefinition(value ast.Value,
 	}
 
 	if v.objectValueHasDuplicateFields(value.Ref) {
-		v.handleTypeError(value, definitionTypeRef)
 		return false
 	}
 
@@ -371,17 +370,34 @@ func (v *valuesVisitor) valueSatisfiesInputObjectTypeDefinition(value ast.Value,
 }
 
 func (v *valuesVisitor) objectValueHasDuplicateFields(objectValue int) bool {
+	hasDuplicates := false
+
+	reportedFieldRefs := make(map[int]struct{})
 	for i, j := range v.operation.ObjectValues[objectValue].Refs {
 		for k, l := range v.operation.ObjectValues[objectValue].Refs {
 			if i == k || i > k {
 				continue
 			}
-			if bytes.Equal(v.operation.ObjectFieldNameBytes(j), v.operation.ObjectFieldNameBytes(l)) {
-				return true
+
+			if _, ok := reportedFieldRefs[l]; ok {
+				continue
+			}
+
+			fieldName := v.operation.ObjectFieldNameBytes(j)
+			otherFieldName := v.operation.ObjectFieldNameBytes(l)
+
+			if bytes.Equal(fieldName, otherFieldName) {
+				v.Report.AddExternalError(operationreport.ErrDuplicatedFieldInputObject(
+					fieldName,
+					v.operation.ObjectField(j).Position,
+					v.operation.ObjectField(l).Position))
+				hasDuplicates = true
+				reportedFieldRefs[l] = struct{}{}
 			}
 		}
 	}
-	return false
+
+	return hasDuplicates
 }
 
 func (v *valuesVisitor) objectFieldDefined(objectField, inputObjectTypeDefinition int) bool {

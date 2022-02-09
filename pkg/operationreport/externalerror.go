@@ -26,6 +26,7 @@ const (
 	VariableIsNotInputTypeErrMsg            = `Variable "$%s" cannot be non-input type "%s".`
 	MissingRequiredFieldOfInputObjectErrMsg = `Field "%s.%s" of required type "%s" was not provided.`
 	UnknownFieldOfInputObjectErrMsg         = `Field "%s" is not defined by type "%s".`
+	DuplicatedFieldInputObjectErrMsg        = `There can be only one input field named "%s".`
 )
 
 type ExternalError struct {
@@ -171,6 +172,23 @@ func ErrMissingRequiredFieldOfInputObject(objName, fieldName, typeName ast.ByteS
 func ErrUnknownFieldOfInputObject(objName, fieldName ast.ByteSlice, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(UnknownFieldOfInputObjectErrMsg, objName, fieldName)
 	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrDuplicatedFieldInputObject(fieldName ast.ByteSlice, first, duplicated position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(DuplicatedFieldInputObjectErrMsg, fieldName)
+
+	err.Locations = []graphqlerrors.Location{
+		{
+			Line:   first.LineStart,
+			Column: first.CharStart,
+		},
+		{
+			Line:   duplicated.LineStart,
+			Column: duplicated.CharStart,
+		},
+	}
 
 	return err
 }
