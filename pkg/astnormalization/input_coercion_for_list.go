@@ -35,7 +35,7 @@ func (i *inputCoercionForListVisitor) inspectInputFieldType(ref int, name string
 	typeName := i.operation.ResolveTypeNameBytes(i.operation.VariableDefinitions[ref].Type)
 	node, exist := i.definition.Index.FirstNodeByNameBytes(typeName)
 	if !exist {
-		return ast.TypeKindNonNull, 0
+		return ast.TypeKindUnknown, 0
 	}
 
 	for _, inputDefRef := range i.definition.InputObjectTypeDefinitions[node.Ref].InputFieldsDefinition.Refs {
