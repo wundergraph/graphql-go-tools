@@ -941,6 +941,26 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
         }
       `)([]Err{
 					{
+						message:   `Field "invalidField" is not defined by type "ComplexInput".`,
+						locations: []Loc{{line: 6, column: 15}},
+					},
+				})
+			})
+
+			t.Run("Partial object, unknown field arg with suggestions", func(t *testing.T) {
+				t.Skip(NotSupportedSuggestionsSkipMsg)
+
+				ExpectErrors(t, `
+        {
+          complicatedArgs {
+            complexArgField(complexArg: {
+              requiredField: true,
+              invalidField: "value"
+            })
+          }
+        }
+      `)([]Err{
+					{
 						message:   `Field "invalidField" is not defined by type "ComplexInput". Did you mean "intField"?`,
 						locations: []Loc{{line: 6, column: 15}},
 					},

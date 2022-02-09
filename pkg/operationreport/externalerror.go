@@ -11,20 +11,21 @@ import (
 )
 
 const (
-	NotCompatibleTypeErrMsg           = "%s cannot represent value: %s"
-	NotStringErrMsg                   = "%s cannot represent a non string value: %s"
-	NotIntegerErrMsg                  = "%s cannot represent non-integer value: %s"
-	BigIntegerErrMsg                  = "%s cannot represent non 32-bit signed integer value: %s"
-	NotFloatErrMsg                    = "%s cannot represent non numeric value: %s"
-	NotBooleanErrMsg                  = "%s cannot represent a non boolean value: %s"
-	NotIDErrMsg                       = "%s cannot represent a non-string and non-integer value: %s"
-	NotEnumErrMsg                     = `Enum "%s" cannot represent non-enum value: %s.`
-	NotAnEnumMemberErrMsg             = `Value "%s" does not exist in "%s" enum.`
-	NullValueErrMsg                   = `Expected value of type "%s", found null.`
-	UnknownArgumentOnDirectiveErrMsg  = `Unknown argument "%s" on directive "@%s".`
-	UnknownArgumentOnFieldErrMsg      = `Unknown argument "%s" on field "%s.%s".`
-	VariableIsNotInputTypeErrMsg      = `Variable "$%s" cannot be non-input type "%s".`
-	MissingRequiredFieldOfInputObject = `Field "%s.%s" of required type "%s" was not provided.`
+	NotCompatibleTypeErrMsg                 = "%s cannot represent value: %s"
+	NotStringErrMsg                         = "%s cannot represent a non string value: %s"
+	NotIntegerErrMsg                        = "%s cannot represent non-integer value: %s"
+	BigIntegerErrMsg                        = "%s cannot represent non 32-bit signed integer value: %s"
+	NotFloatErrMsg                          = "%s cannot represent non numeric value: %s"
+	NotBooleanErrMsg                        = "%s cannot represent a non boolean value: %s"
+	NotIDErrMsg                             = "%s cannot represent a non-string and non-integer value: %s"
+	NotEnumErrMsg                           = `Enum "%s" cannot represent non-enum value: %s.`
+	NotAnEnumMemberErrMsg                   = `Value "%s" does not exist in "%s" enum.`
+	NullValueErrMsg                         = `Expected value of type "%s", found null.`
+	UnknownArgumentOnDirectiveErrMsg        = `Unknown argument "%s" on directive "@%s".`
+	UnknownArgumentOnFieldErrMsg            = `Unknown argument "%s" on field "%s.%s".`
+	VariableIsNotInputTypeErrMsg            = `Variable "$%s" cannot be non-input type "%s".`
+	MissingRequiredFieldOfInputObjectErrMsg = `Field "%s.%s" of required type "%s" was not provided.`
+	UnknownFieldOfInputObjectErrMsg         = `Field "%s" is not defined by type "%s".`
 )
 
 type ExternalError struct {
@@ -161,7 +162,14 @@ func ErrArgumentNotDefinedOnDirective(argName, directiveName ast.ByteSlice, posi
 }
 
 func ErrMissingRequiredFieldOfInputObject(objName, fieldName, typeName ast.ByteSlice, position position.Position) (err ExternalError) {
-	err.Message = fmt.Sprintf(MissingRequiredFieldOfInputObject, objName, fieldName, typeName)
+	err.Message = fmt.Sprintf(MissingRequiredFieldOfInputObjectErrMsg, objName, fieldName, typeName)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrUnknownFieldOfInputObject(objName, fieldName ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(UnknownFieldOfInputObjectErrMsg, objName, fieldName)
 	err.Locations = LocationsFromPosition(position)
 
 	return err

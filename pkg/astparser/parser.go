@@ -490,13 +490,16 @@ func (p *Parser) parseObjectValue() (ref int, pos position.Position) {
 }
 
 func (p *Parser) parseObjectField() int {
+	nameToken := p.mustRead(keyword.IDENT)
+
 	objectField := ast.ObjectField{
-		Name:  p.mustRead(keyword.IDENT).Literal,
-		Colon: p.mustRead(keyword.COLON).TextPosition,
-		Value: p.ParseValue(),
+		Name:     nameToken.Literal,
+		Colon:    p.mustRead(keyword.COLON).TextPosition,
+		Value:    p.ParseValue(),
+		Position: nameToken.TextPosition,
 	}
-	p.document.ObjectFields = append(p.document.ObjectFields, objectField)
-	return len(p.document.ObjectFields) - 1
+
+	return p.document.AddObjectField(objectField)
 }
 
 func (p *Parser) parseValueList() int {

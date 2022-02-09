@@ -350,10 +350,10 @@ func (v *valuesVisitor) valueSatisfiesInputObjectTypeDefinition(value ast.Value,
 
 	for _, i := range v.operation.ObjectValues[value.Ref].Refs {
 		if !v.objectFieldDefined(i, inputObjectTypeDefinition) {
-			objectFieldName := string(v.operation.ObjectFieldNameBytes(i))
-			def := string(v.definition.Input.ByteSlice(v.definition.InputObjectTypeDefinitions[inputObjectTypeDefinition].Name))
-			_, _ = objectFieldName, def
-			v.handleTypeError(value, definitionTypeRef)
+			objectFieldName := v.operation.ObjectFieldNameBytes(i)
+			def := v.definition.Input.ByteSlice(v.definition.InputObjectTypeDefinitions[inputObjectTypeDefinition].Name)
+
+			v.Report.AddExternalError(operationreport.ErrUnknownFieldOfInputObject(objectFieldName, def, v.operation.ObjectField(i).Position))
 			valid = false
 		}
 	}
