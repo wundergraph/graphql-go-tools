@@ -1,0 +1,26 @@
+interface BaseInterface {
+    fieldOne: String!
+}
+
+interface SecondInterface implements BaseInterface {
+    fieldOne: String!
+    fieldTwo: String!
+}
+
+interface ThirdInterface implements SecondInterface & BaseInterface {
+    fieldOne: String!
+    fieldTwo: String!
+    fieldThree: String!
+}
+
+interface IDType {
+    id: ID!
+}
+
+interface SoftDelete {
+    deleted: Boolean!
+}
+
+extend interface SoftDelete implements IDType {
+    id: ID!
+}
