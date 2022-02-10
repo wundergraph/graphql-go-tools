@@ -1076,6 +1076,7 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 				typeNameSkip = true
 				// Restore the response elements that may have been reset above.
 				ctx.responseElements = responseElements
+				ctx.lastFetchID = lastFetchID
 				continue
 			}
 		}
