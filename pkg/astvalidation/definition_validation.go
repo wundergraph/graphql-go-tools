@@ -15,6 +15,7 @@ func DefaultDefinitionValidator() *DefinitionValidator {
 		KnownTypeNames(),
 		RequireDefinedTypesForExtensions(),
 		ImplementTransitiveInterfaces(),
+		ImplementingTypesAreSupersets(),
 	)
 }
 
