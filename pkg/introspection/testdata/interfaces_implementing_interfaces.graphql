@@ -24,3 +24,12 @@ interface SoftDelete {
 extend interface SoftDelete implements IDType {
     id: ID!
 }
+
+interface Record {
+    data: String!
+}
+
+extend interface Record implements SoftDelete & IDType {
+    id: ID!
+    deleted: Boolean!
+}
