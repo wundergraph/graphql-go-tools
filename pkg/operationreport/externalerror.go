@@ -62,7 +62,7 @@ func ErrFieldNameMustBeUniqueOnType(fieldName, typeName ast.ByteSlice) (err Exte
 }
 
 func ErrTypeUndefined(typeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("type not defined: %s", typeName)
+	err.Message = fmt.Sprintf(UnknownTypeErrMsg, typeName)
 	return err
 }
 

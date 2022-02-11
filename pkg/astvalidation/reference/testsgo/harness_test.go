@@ -27,6 +27,7 @@ const (
 	KnownArgumentNamesOnDirectivesRule        = "KnownArgumentNamesOnDirectivesRule"
 	KnownDirectivesRule                       = "KnownDirectivesRule"
 	KnownTypeNamesRule                        = "KnownTypeNamesRule"
+	KnownTypeNamesOperationRule               = "KnownTypeNamesOperationRule"
 	LoneAnonymousOperationRule                = "LoneAnonymousOperationRule"
 	NoUndefinedVariablesRule                  = "NoUndefinedVariablesRule"
 	NoUnusedVariablesRule                     = "NoUnusedVariablesRule"
@@ -122,6 +123,7 @@ var rulesMap = map[string][]astvalidation.Rule{
 	UniqueVariableNamesRule:                   {astvalidation.VariableUniqueness()},
 	ValuesOfCorrectTypeRule:                   {astvalidation.Values()},
 	VariablesAreInputTypesRule:                {astvalidation.VariablesAreInputTypes()},
+	KnownTypeNamesOperationRule:               {astvalidation.VariablesAreInputTypes(), astvalidation.Fragments()},
 	VariablesInAllowedPositionRule:            {astvalidation.ValidArguments()},
 
 	// fragments rules
