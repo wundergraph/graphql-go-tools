@@ -22,22 +22,23 @@ func ImplementingTypesAreSupersets() Rule {
 
 type implementingTypesAreSupersetsVisitor struct {
 	*astvisitor.Walker
-	definition                    *ast.Document
-	implementingTypesWithFields   map[string][]string
-	implementingTypesWithTypeRefs map[string][]int
+	definition                           *ast.Document
+	implementingTypesWithFields          map[string][]string
+	implementingTypesWithInterfacesNames map[string][]string
 }
 
 func (v *implementingTypesAreSupersetsVisitor) EnterDocument(operation, definition *ast.Document) {
 	v.definition = operation
 	v.implementingTypesWithFields = make(map[string][]string)
-	v.implementingTypesWithTypeRefs = make(map[string][]int)
+	v.implementingTypesWithInterfacesNames = make(map[string][]string)
 }
 
 func (v *implementingTypesAreSupersetsVisitor) LeaveDocument(operation, definition *ast.Document) {
-	for typeName, interfacesTypeRefs := range v.implementingTypesWithTypeRefs {
-		typeNameFields, ok := v.implementingTypesWithFields[typeName]
-		if !ok {
-			// error because has no fields?
+	for typeName, interfacesNames := range v.implementingTypesWithInterfacesNames {
+		typeNameHasFields := true
+		typeNameFields, exists := v.implementingTypesWithFields[typeName]
+		if !exists || len(typeNameFields) == 0 {
+			typeNameHasFields = false
 		}
 
 		typeNameFieldsLookupMap := map[string]bool{}
@@ -45,31 +46,35 @@ func (v *implementingTypesAreSupersetsVisitor) LeaveDocument(operation, definiti
 			typeNameFieldsLookupMap[typeNameFields[i]] = true
 		}
 
-		for i := 0; i < len(interfacesTypeRefs); i++ {
-			interfaceNameBytes := v.definition.TypeNameBytes(interfacesTypeRefs[i])
-			nodes, exists := v.definition.Index.NodesByNameBytes(interfaceNameBytes)
+		for i := 0; i < len(interfacesNames); i++ {
+			nodes, exists := v.definition.Index.NodesByNameStr(interfacesNames[i])
 			if !exists {
 				continue
 			}
 
-			var fieldRefs []int
+			var interfaceFieldRefs []int
 			for j := 0; j < len(nodes); j++ {
 				switch nodes[j].Kind {
 				case ast.NodeKindInterfaceTypeDefinition:
-					fieldRefs = append(fieldRefs, v.definition.InterfaceTypeDefinitions[nodes[j].Ref].FieldsDefinition.Refs...)
+					interfaceFieldRefs = append(interfaceFieldRefs, v.definition.InterfaceTypeDefinitions[nodes[j].Ref].FieldsDefinition.Refs...)
 				case ast.NodeKindInterfaceTypeExtension:
-					fieldRefs = append(fieldRefs, v.definition.InterfaceTypeExtensions[nodes[j].Ref].FieldsDefinition.Refs...)
+					interfaceFieldRefs = append(interfaceFieldRefs, v.definition.InterfaceTypeExtensions[nodes[j].Ref].FieldsDefinition.Refs...)
 				default:
 					continue
 				}
 			}
 
-			for j := 0; j < len(fieldRefs); j++ {
-				interfaceFieldName := v.definition.FieldDefinitionNameString(fieldRefs[j])
+			if !typeNameHasFields && len(interfaceFieldRefs) > 0 {
+				v.Report.AddExternalError(operationreport.ErrImplementingTypeDoesNotHaveFields([]byte(typeName)))
+				continue
+			}
+
+			for j := 0; j < len(interfaceFieldRefs); j++ {
+				interfaceFieldName := v.definition.FieldDefinitionNameString(interfaceFieldRefs[j])
 				if existsOnType := typeNameFieldsLookupMap[interfaceFieldName]; !existsOnType {
 					v.Report.AddExternalError(operationreport.ErrTypeDoesNotImplementFieldFromInterface(
 						[]byte(typeName),
-						interfaceNameBytes,
+						[]byte(interfacesNames[i]),
 						[]byte(interfaceFieldName),
 					))
 				}
@@ -189,23 +194,24 @@ func (v *implementingTypesAreSupersetsVisitor) collectFieldsForTypeName(typeName
 }
 
 func (v *implementingTypesAreSupersetsVisitor) collectTypeRefsForImplementedInterfacesByTypeName(typeName string, typeRefs []int) {
-	if _, ok := v.implementingTypesWithTypeRefs[typeName]; !ok {
-		v.implementingTypesWithTypeRefs[typeName] = []int{}
+	if _, ok := v.implementingTypesWithInterfacesNames[typeName]; !ok {
+		v.implementingTypesWithInterfacesNames[typeName] = []string{}
 	}
 
 	for i := 0; i < len(typeRefs); i++ {
-		skipTypeRef := false
-		for j := 0; j < len(v.implementingTypesWithTypeRefs[typeName]); j++ {
-			if typeRefs[i] == v.implementingTypesWithTypeRefs[typeName][j] {
-				skipTypeRef = true
+		interfaceName := v.definition.TypeNameString(typeRefs[i])
+		skipInterfaceName := false
+		for j := 0; j < len(v.implementingTypesWithInterfacesNames[typeName]); j++ {
+			if interfaceName == v.implementingTypesWithInterfacesNames[typeName][j] {
+				skipInterfaceName = true
 				break
 			}
 		}
 
-		if skipTypeRef {
+		if skipInterfaceName {
 			continue
 		}
 
-		v.implementingTypesWithTypeRefs[typeName] = append(v.implementingTypesWithTypeRefs[typeName], typeRefs[i])
+		v.implementingTypesWithInterfacesNames[typeName] = append(v.implementingTypesWithInterfacesNames[typeName], interfaceName)
 	}
 }

@@ -258,3 +258,8 @@ func ErrTypeDoesNotImplementFieldFromInterface(typeName, interfaceName, fieldNam
 	err.Message = fmt.Sprintf("type '%s' does not implement field '%s' from interface '%s'", typeName, fieldName, interfaceName)
 	return err
 }
+
+func ErrImplementingTypeDoesNotHaveFields(typeName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("type '%s' implements an interface but does not have any fields defined", typeName)
+	return err
+}

@@ -95,5 +95,16 @@ func TestImplementingTypesAreSupersets(t *testing.T) {
 				`, Invalid, ImplementingTypesAreSupersets(),
 			)
 		})
+
+		t.Run("implementing type does not define any fields but interface has fields", func(t *testing.T) {
+			runDefinitionValidation(t, `
+					interface IDType {
+					  id: ID!
+					}
+					
+					interface SoftDelete implements IDType
+				`, Invalid, ImplementingTypesAreSupersets(),
+			)
+		})
 	})
 }
