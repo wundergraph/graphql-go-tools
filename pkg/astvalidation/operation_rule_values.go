@@ -114,7 +114,7 @@ func (v *valuesVisitor) valuesSatisfiesOperationNamedType(value ast.Value, opera
 	}
 
 	if definitionTypeRef == ast.InvalidRef {
-		// TODO: report error
+		// should not happen, as in case we have not found named type node we will report it earlier
 		return false
 	}
 
@@ -403,7 +403,7 @@ func (v *valuesVisitor) valueSatisfiesScalarString(value ast.Value, definitionTy
 	if stringScalar {
 		v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyString(printedValue, printedType, value.Position))
 	} else {
-		v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType, value.Position))
+		v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyType(printedValue, printedType, value.Position))
 	}
 
 	return false
@@ -543,7 +543,7 @@ func (v *valuesVisitor) handleTypeError(value ast.Value, definitionTypeRef int) 
 		return
 	}
 
-	v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType, value.Position))
+	v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyType(printedValue, printedType, value.Position))
 }
 
 func (v *valuesVisitor) handleNotObjectTypeError(value ast.Value, definitionTypeRef int) {
@@ -585,8 +585,8 @@ func (v *valuesVisitor) handleNotExistingEnumValueError(value ast.Value, definit
 func (v *valuesVisitor) printValueAndUnderlyingType(value ast.Value, definitionTypeRef int) (printedValue, printedType []byte, ok bool) {
 	var err error
 
-	printedValue, err = v.operation.PrintValueBytes(value, nil)
-	if v.HandleInternalErr(err) {
+	printedValue, ok = v.printOperationValue(value)
+	if !ok {
 		return nil, nil, false
 	}
 
@@ -619,16 +619,7 @@ func (v *valuesVisitor) handleOperationTypeError(value ast.Value, operationTypeR
 		return
 	}
 
-	v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType, value.Position))
-}
-
-func (v *valuesVisitor) handleOperationUnknownTypeError(value ast.Value, operationTypeRef int) {
-	printedValue, printedType, ok := v.printOperationValueAndUnderlyingType(value, operationTypeRef)
-	if !ok {
-		return
-	}
-
-	v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType, value.Position))
+	v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyType(printedValue, printedType, value.Position))
 }
 
 func (v *valuesVisitor) handleOperationUnexpectedNullError(value ast.Value, operationTypeRef int) {
@@ -641,10 +632,8 @@ func (v *valuesVisitor) handleOperationUnexpectedNullError(value ast.Value, oper
 }
 
 func (v *valuesVisitor) printOperationValueAndUnderlyingType(value ast.Value, operationTypeRef int) (printedValue, printedType []byte, ok bool) {
-	var err error
-
-	printedValue, err = v.operation.PrintValueBytes(value, nil)
-	if v.HandleInternalErr(err) {
+	printedValue, ok = v.printOperationValue(value)
+	if !ok {
 		return nil, nil, false
 	}
 
@@ -666,4 +655,14 @@ func (v *valuesVisitor) printUnderlyingOperationType(operationTypeRef int) (prin
 	}
 
 	return printedType, true
+}
+
+func (v *valuesVisitor) printOperationValue(value ast.Value) (printedValue []byte, ok bool) {
+	var err error
+	printedValue, err = v.operation.PrintValueBytes(value, nil)
+	if v.HandleInternalErr(err) {
+		return nil, false
+	}
+
+	return printedValue, true
 }

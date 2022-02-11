@@ -1,12 +1,10 @@
 package operationreport
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/graphqlerrors"
-	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/position"
 )
 
@@ -28,7 +26,7 @@ const (
 	MissingRequiredFieldOfInputObjectErrMsg = `Field "%s.%s" of required type "%s" was not provided.`
 	UnknownFieldOfInputObjectErrMsg         = `Field "%s" is not defined by type "%s".`
 	DuplicatedFieldInputObjectErrMsg        = `There can be only one input field named "%s".`
-	ValueIsNotAnInputObjectType             = `Expected value of type "%s", found %s.`
+	ValueIsNotAnInputObjectTypeErrMsg       = `Expected value of type "%s", found %s.`
 )
 
 type ExternalError struct {
@@ -238,7 +236,7 @@ func ErrValueDoesntSatisfyType(value, inputType ast.ByteSlice, position position
 }
 
 func ErrValueIsNotAnInputObjectType(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
-	err.Message = fmt.Sprintf(ValueIsNotAnInputObjectType, inputType, value)
+	err.Message = fmt.Sprintf(ValueIsNotAnInputObjectTypeErrMsg, inputType, value)
 	err.Locations = LocationsFromPosition(position)
 
 	return err
@@ -284,23 +282,6 @@ func ErrValueDoesntSatisfyID(value, inputType ast.ByteSlice, position position.P
 	err.Locations = LocationsFromPosition(position)
 
 	return err
-}
-
-func ErrValueDoesntSatisfyInputValueDefinition(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
-	switch {
-	case bytes.Equal(literal.STRING, inputType):
-		return ErrValueDoesntSatisfyString(value, inputType, position)
-	case bytes.Equal(literal.INT, inputType):
-		return ErrValueDoesntSatisfyInt(value, inputType, position)
-	case bytes.Equal(literal.FLOAT, inputType):
-		return ErrValueDoesntSatisfyFloat(value, inputType, position)
-	case bytes.Equal(literal.BOOLEAN, inputType):
-		return ErrValueDoesntSatisfyBoolean(value, inputType, position)
-	case bytes.Equal(literal.ID, inputType):
-		return ErrValueDoesntSatisfyID(value, inputType, position)
-	default:
-		return ErrValueDoesntSatisfyType(value, inputType, position)
-	}
 }
 
 func ErrVariableTypeDoesntSatisfyInputValueDefinition(value, inputType, expectedType ast.ByteSlice, valuePos, variableDefinitionPos position.Position) (err ExternalError) {
