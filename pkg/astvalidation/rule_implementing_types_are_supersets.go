@@ -33,6 +33,19 @@ func (v *implementingTypesAreSupersetsVisitor) EnterDocument(operation, definiti
 	v.implementingTypesWithInterfacesNames = make(map[string][]string)
 }
 
+// LeaveDocument will iterate over all types which implement an interface by using the interface name. If a
+// field does exist on the implemented interface but not on the implementing type, then the rule will consider it
+// as invalid.
+//
+// Valid:
+//		( interfaceBase -> [fieldA] )
+// 		interfaceOneImplementingInterfaceBase -> [fieldA, fieldB]
+//		objectTypeImplementingInterfaceOne -> [fieldA, fieldB, fieldC]
+//
+// Invalid:
+//		( interfaceBase -> [fieldA] )
+// 		interfaceOneImplementingInterfaceBase -> [fieldA, fieldB]
+//		objectTypeImplementingInterfaceOne -> [fieldA, fieldC]
 func (v *implementingTypesAreSupersetsVisitor) LeaveDocument(operation, definition *ast.Document) {
 	for typeName, interfacesNames := range v.implementingTypesWithInterfacesNames {
 		typeNameHasFields := true
@@ -92,7 +105,7 @@ func (v *implementingTypesAreSupersetsVisitor) EnterInterfaceTypeDefinition(ref 
 	typeName := v.definition.InterfaceTypeDefinitionNameString(ref)
 	fieldDefinitionRefs := v.definition.InterfaceTypeDefinitions[ref].FieldsDefinition.Refs
 	v.collectFieldsForTypeName(typeName, fieldDefinitionRefs)
-	v.collectTypeRefsForImplementedInterfacesByTypeName(typeName, interfacesRefs)
+	v.collectInterfaceNamesForImplementedInterfacesByTypeName(typeName, interfacesRefs)
 }
 
 func (v *implementingTypesAreSupersetsVisitor) EnterInterfaceTypeExtension(ref int) {
@@ -123,7 +136,7 @@ func (v *implementingTypesAreSupersetsVisitor) EnterInterfaceTypeExtension(ref i
 	}
 
 	v.collectFieldsForTypeName(typeName, fieldDefinitionRefs)
-	v.collectTypeRefsForImplementedInterfacesByTypeName(typeName, interfacesRefs)
+	v.collectInterfaceNamesForImplementedInterfacesByTypeName(typeName, interfacesRefs)
 }
 
 func (v *implementingTypesAreSupersetsVisitor) EnterObjectTypeDefinition(ref int) {
@@ -135,7 +148,7 @@ func (v *implementingTypesAreSupersetsVisitor) EnterObjectTypeDefinition(ref int
 	typeName := v.definition.ObjectTypeDefinitionNameString(ref)
 	fieldDefinitionRefs := v.definition.ObjectTypeDefinitions[ref].FieldsDefinition.Refs
 	v.collectFieldsForTypeName(typeName, fieldDefinitionRefs)
-	v.collectTypeRefsForImplementedInterfacesByTypeName(typeName, interfacesRefs)
+	v.collectInterfaceNamesForImplementedInterfacesByTypeName(typeName, interfacesRefs)
 }
 
 func (v *implementingTypesAreSupersetsVisitor) EnterObjectTypeExtension(ref int) {
@@ -166,9 +179,15 @@ func (v *implementingTypesAreSupersetsVisitor) EnterObjectTypeExtension(ref int)
 	}
 
 	v.collectFieldsForTypeName(typeName, fieldDefinitionRefs)
-	v.collectTypeRefsForImplementedInterfacesByTypeName(typeName, interfacesRefs)
+	v.collectInterfaceNamesForImplementedInterfacesByTypeName(typeName, interfacesRefs)
 }
 
+// collectFieldsForTypeName will add all field names of a type which implements an interface to a slice in a
+// map entry, so that it can be used as a lookup table later on.
+//
+// Example:
+// 		interfaceOne -> [fieldA, fieldB]
+//		objectType -> [fieldA, fieldB, fieldC]
 func (v *implementingTypesAreSupersetsVisitor) collectFieldsForTypeName(typeName string, fieldDefinitionRefs []int) {
 	if _, ok := v.implementingTypesWithFields[typeName]; !ok {
 		v.implementingTypesWithFields[typeName] = []string{}
@@ -193,7 +212,13 @@ func (v *implementingTypesAreSupersetsVisitor) collectFieldsForTypeName(typeName
 	}
 }
 
-func (v *implementingTypesAreSupersetsVisitor) collectTypeRefsForImplementedInterfacesByTypeName(typeName string, typeRefs []int) {
+// collectInterfaceNamesForImplementedInterfacesByTypeName will add all interface names implemented by the given type,
+// so it can be used to iterate over them when leaving the document.
+//
+// Example:
+// 		interfaceOne -> [interfaceBase]
+//		objectType -> [interfaceOne, interfaceBase]
+func (v *implementingTypesAreSupersetsVisitor) collectInterfaceNamesForImplementedInterfacesByTypeName(typeName string, typeRefs []int) {
 	if _, ok := v.implementingTypesWithInterfacesNames[typeName]; !ok {
 		v.implementingTypesWithInterfacesNames[typeName] = []string{}
 	}
