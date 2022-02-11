@@ -17,6 +17,7 @@ func Values() Rule {
 		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterArgumentVisitor(&visitor)
+		walker.RegisterEnterVariableDefinitionVisitor(&visitor)
 	}
 }
 
@@ -31,10 +32,17 @@ func (v *valuesVisitor) EnterDocument(operation, definition *ast.Document) {
 	v.definition = definition
 }
 
+func (v *valuesVisitor) EnterVariableDefinition(ref int) {
+	if !v.operation.VariableDefinitionHasDefaultValue(ref) {
+		return // variable has no default value, deep type check not required
+	}
+
+	v.valueSatisfiesOperationType(v.operation.VariableDefinitions[ref].DefaultValue.Value, v.operation.VariableDefinitions[ref].Type)
+}
+
 func (v *valuesVisitor) EnterArgument(ref int) {
 
 	definition, exists := v.ArgumentInputValueDefinition(ref)
-
 	if !exists {
 		return
 	}
@@ -55,6 +63,91 @@ func (v *valuesVisitor) EnterArgument(ref int) {
 	}
 
 	v.valueSatisfiesInputValueDefinitionType(value, v.definition.InputValueDefinitions[definition].Type)
+}
+
+func (v *valuesVisitor) valueSatisfiesOperationType(value ast.Value, operationTypeRef int) bool {
+	switch v.operation.Types[operationTypeRef].TypeKind {
+	case ast.TypeKindNonNull:
+		return v.valuesSatisfiesOperationNonNullType(value, operationTypeRef)
+	case ast.TypeKindNamed:
+		return v.valuesSatisfiesOperationNamedType(value, operationTypeRef)
+	case ast.TypeKindList:
+		return v.valueSatisfiesOperationListType(value, operationTypeRef, v.operation.Types[operationTypeRef].OfType)
+	default:
+		v.handleOperationTypeError(value, operationTypeRef)
+		return false
+	}
+}
+
+func (v *valuesVisitor) valuesSatisfiesOperationNonNullType(value ast.Value, operationTypeRef int) bool {
+	if value.Kind == ast.ValueKindNull {
+		v.handleOperationUnexpectedNullError(value, operationTypeRef)
+		return false
+	}
+	return v.valueSatisfiesOperationType(value, v.operation.Types[operationTypeRef].OfType)
+}
+
+func (v *valuesVisitor) valuesSatisfiesOperationNamedType(value ast.Value, operationTypeRef int) bool {
+	if value.Kind == ast.ValueKindNull {
+		// null always satisfies not required type
+		return true
+	}
+
+	typeName := v.operation.ResolveTypeNameBytes(operationTypeRef)
+	node, exists := v.definition.Index.FirstNodeByNameBytes(typeName)
+	if !exists {
+		v.handleOperationTypeError(value, operationTypeRef)
+		return false
+	}
+
+	definitionTypeRef := ast.InvalidRef
+
+	for ref := 0; ref < len(v.definition.Types); ref++ {
+		if v.definition.Types[ref].TypeKind != ast.TypeKindNamed {
+			continue
+		}
+
+		if bytes.Equal(v.definition.TypeNameBytes(ref), typeName) {
+			definitionTypeRef = ref
+			break
+		}
+	}
+
+	if definitionTypeRef == ast.InvalidRef {
+		// TODO: report error
+		return false
+	}
+
+	return v.valueSatisfiesTypeDefinitionNode(value, definitionTypeRef, node)
+}
+
+func (v *valuesVisitor) valueSatisfiesOperationListType(value ast.Value, operationTypeRef int, listItemType int) bool {
+	if value.Kind == ast.ValueKindNull {
+		return true
+	}
+
+	if value.Kind != ast.ValueKindList {
+		return v.valueSatisfiesOperationType(value, listItemType)
+	}
+
+	if v.operation.Types[listItemType].TypeKind == ast.TypeKindNonNull {
+		if len(v.operation.ListValues[value.Ref].Refs) == 0 {
+			v.handleOperationTypeError(value, operationTypeRef)
+			return false
+		}
+		listItemType = v.operation.Types[listItemType].OfType
+	}
+
+	valid := true
+
+	for _, i := range v.operation.ListValues[value.Ref].Refs {
+		listValue := v.operation.Value(i)
+		if !v.valueSatisfiesOperationType(listValue, listItemType) {
+			valid = false
+		}
+	}
+
+	return valid
 }
 
 func (v *valuesVisitor) valueSatisfiesInputValueDefinitionType(value ast.Value, definitionTypeRef int) bool {
@@ -139,6 +232,7 @@ func (v *valuesVisitor) valueSatisfiesListType(value ast.Value, definitionTypeRe
 	if v.definition.Types[listItemType].TypeKind == ast.TypeKindNonNull {
 		if len(v.operation.ListValues[value.Ref].Refs) == 0 {
 			v.handleTypeError(value, definitionTypeRef)
+			// TODO: check error format when list should not be empty
 			return false
 		}
 		listItemType = v.definition.Types[listItemType].OfType
@@ -332,7 +426,7 @@ func (v *valuesVisitor) valueSatisfiesInputObjectTypeDefinition(value ast.Value,
 	}
 
 	if value.Kind != ast.ValueKindObject {
-		v.handleTypeError(value, definitionTypeRef)
+		v.handleNotObjectTypeError(value, definitionTypeRef)
 		return false
 	}
 
@@ -452,6 +546,15 @@ func (v *valuesVisitor) handleTypeError(value ast.Value, definitionTypeRef int) 
 	v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType, value.Position))
 }
 
+func (v *valuesVisitor) handleNotObjectTypeError(value ast.Value, definitionTypeRef int) {
+	printedValue, printedType, ok := v.printValueAndUnderlyingType(value, definitionTypeRef)
+	if !ok {
+		return
+	}
+
+	v.Report.AddExternalError(operationreport.ErrValueIsNotAnInputObjectType(printedValue, printedType, value.Position))
+}
+
 func (v *valuesVisitor) handleUnexpectedNullError(value ast.Value, definitionTypeRef int) {
 	printedType, err := v.definition.PrintTypeBytes(definitionTypeRef, nil)
 	if v.HandleInternalErr(err) {
@@ -508,4 +611,59 @@ func (v *valuesVisitor) handleMissingRequiredFieldOfInputObjectError(value ast.V
 		printedType,
 		value.Position,
 	))
+}
+
+func (v *valuesVisitor) handleOperationTypeError(value ast.Value, operationTypeRef int) {
+	printedValue, printedType, ok := v.printOperationValueAndUnderlyingType(value, operationTypeRef)
+	if !ok {
+		return
+	}
+
+	v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType, value.Position))
+}
+
+func (v *valuesVisitor) handleOperationUnknownTypeError(value ast.Value, operationTypeRef int) {
+	printedValue, printedType, ok := v.printOperationValueAndUnderlyingType(value, operationTypeRef)
+	if !ok {
+		return
+	}
+
+	v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType, value.Position))
+}
+
+func (v *valuesVisitor) handleOperationUnexpectedNullError(value ast.Value, operationTypeRef int) {
+	printedType, err := v.operation.PrintTypeBytes(operationTypeRef, nil)
+	if v.HandleInternalErr(err) {
+		return
+	}
+
+	v.Report.AddExternalError(operationreport.ErrNullValueDoesntSatisfyInputValueDefinition(printedType, value.Position))
+}
+
+func (v *valuesVisitor) printOperationValueAndUnderlyingType(value ast.Value, operationTypeRef int) (printedValue, printedType []byte, ok bool) {
+	var err error
+
+	printedValue, err = v.operation.PrintValueBytes(value, nil)
+	if v.HandleInternalErr(err) {
+		return nil, nil, false
+	}
+
+	printedType, ok = v.printUnderlyingOperationType(operationTypeRef)
+	if !ok {
+		return nil, nil, false
+	}
+
+	return printedValue, printedType, true
+}
+
+func (v *valuesVisitor) printUnderlyingOperationType(operationTypeRef int) (printedType []byte, ok bool) {
+	var err error
+
+	underlyingType := v.operation.ResolveUnderlyingType(operationTypeRef)
+	printedType, err = v.operation.PrintTypeBytes(underlyingType, nil)
+	if v.HandleInternalErr(err) {
+		return nil, false
+	}
+
+	return printedType, true
 }

@@ -23,10 +23,12 @@ const (
 	NullValueErrMsg                         = `Expected value of type "%s", found null.`
 	UnknownArgumentOnDirectiveErrMsg        = `Unknown argument "%s" on directive "@%s".`
 	UnknownArgumentOnFieldErrMsg            = `Unknown argument "%s" on field "%s.%s".`
+	UnknownTypeErrMsg                       = `Unknown type "%s".`
 	VariableIsNotInputTypeErrMsg            = `Variable "$%s" cannot be non-input type "%s".`
 	MissingRequiredFieldOfInputObjectErrMsg = `Field "%s.%s" of required type "%s" was not provided.`
 	UnknownFieldOfInputObjectErrMsg         = `Field "%s" is not defined by type "%s".`
 	DuplicatedFieldInputObjectErrMsg        = `There can be only one input field named "%s".`
+	ValueIsNotAnInputObjectType             = `Expected value of type "%s", found %s.`
 )
 
 type ExternalError struct {
@@ -162,6 +164,13 @@ func ErrArgumentNotDefinedOnDirective(argName, directiveName ast.ByteSlice, posi
 	return err
 }
 
+func ErrUnknownType(typeName ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(UnknownTypeErrMsg, typeName)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
 func ErrMissingRequiredFieldOfInputObject(objName, fieldName, typeName ast.ByteSlice, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(MissingRequiredFieldOfInputObjectErrMsg, objName, fieldName, typeName)
 	err.Locations = LocationsFromPosition(position)
@@ -223,6 +232,13 @@ func ErrValueDoesntExistsInEnum(value, inputType ast.ByteSlice, position positio
 
 func ErrValueDoesntSatisfyType(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(NotCompatibleTypeErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrValueIsNotAnInputObjectType(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(ValueIsNotAnInputObjectType, inputType, value)
 	err.Locations = LocationsFromPosition(position)
 
 	return err
