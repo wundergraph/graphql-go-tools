@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	NotSupportedSuggestionsSkipMsg = "Suggestions is not supported"
+	// NotSupportedSuggestionsSkipMsg = "Suggestions is not supported"
 
 	RuleHasNoMapping = `Validation rule: "%s" has no mapped rule`
 )
