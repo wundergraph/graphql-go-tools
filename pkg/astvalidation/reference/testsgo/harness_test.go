@@ -63,7 +63,7 @@ const (
 var rulesMap = map[string][]astvalidation.Rule{
 	ExecutableDefinitionsRule:                 {astvalidation.DocumentContainsExecutableOperation()},
 	FieldsOnCorrectTypeRule:                   {astvalidation.FieldSelections()},
-	KnownArgumentNamesRule:                    {astvalidation.KnownArguments()},
+	KnownArgumentNamesRule:                    {}, // {astvalidation.KnownArguments()},
 	KnownArgumentNamesOnDirectivesRule:        {},
 	KnownDirectivesRule:                       {astvalidation.DirectivesAreDefined()},
 	KnownTypeNamesRule:                        {astvalidation.KnownTypeNames()},
