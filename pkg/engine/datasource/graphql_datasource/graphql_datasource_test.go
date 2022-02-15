@@ -258,9 +258,9 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
+					DataSource:            &Source{},
+					BufferId:              0,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
@@ -315,11 +315,11 @@ func TestGraphQLDataSource(t *testing.T) {
 				ChildNodes: []plan.TypeField{
 					{
 						TypeName:   "User",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 					{
 						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 				},
 				Factory: &Factory{},
@@ -343,15 +343,15 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
+					DataSource:            &Source{},
+					BufferId:              0,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
-							Path: []string{"skip"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+							Path:     []string{"skip"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
 						},
 					),
 				},
@@ -408,11 +408,11 @@ func TestGraphQLDataSource(t *testing.T) {
 				ChildNodes: []plan.TypeField{
 					{
 						TypeName:   "User",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 					{
 						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 				},
 				Factory: &Factory{},
@@ -438,15 +438,15 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {... @skip(if: $skip){id displayName}}}","variables":{"skip":$$0$$}}}`,
+					DataSource:            &Source{},
+					BufferId:              0,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {... @skip(if: $skip){id displayName}}}","variables":{"skip":$$0$$}}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
-							Path: []string{"skip"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+							Path:     []string{"skip"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
 						},
 					),
 				},
@@ -505,11 +505,11 @@ func TestGraphQLDataSource(t *testing.T) {
 				ChildNodes: []plan.TypeField{
 					{
 						TypeName:   "User",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 					{
 						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 				},
 				Factory: &Factory{},
@@ -535,15 +535,15 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {... @include(if: $include){id displayName}}}","variables":{"include":$$0$$}}}`,
+					DataSource:            &Source{},
+					BufferId:              0,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {... @include(if: $include){id displayName}}}","variables":{"include":$$0$$}}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
-							Path: []string{"include"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+							Path:     []string{"include"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
 						},
 					),
 				},
@@ -602,11 +602,11 @@ func TestGraphQLDataSource(t *testing.T) {
 				ChildNodes: []plan.TypeField{
 					{
 						TypeName:   "User",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 					{
 						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 				},
 				Factory: &Factory{},
@@ -630,9 +630,9 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
+					DataSource:            &Source{},
+					BufferId:              0,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
@@ -677,11 +677,11 @@ func TestGraphQLDataSource(t *testing.T) {
 				ChildNodes: []plan.TypeField{
 					{
 						TypeName:   "User",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 					{
 						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 				},
 				Factory: &Factory{},
@@ -705,9 +705,9 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
+					DataSource:            &Source{},
+					BufferId:              0,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
@@ -762,11 +762,11 @@ func TestGraphQLDataSource(t *testing.T) {
 				ChildNodes: []plan.TypeField{
 					{
 						TypeName:   "User",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 					{
 						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 				},
 				Factory: &Factory{},
@@ -790,15 +790,15 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {id displayName @include(if: $include)}}","variables":{"include":$$0$$}}}`,
+					DataSource:            &Source{},
+					BufferId:              0,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {id displayName @include(if: $include)}}","variables":{"include":$$0$$}}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
-							Path: []string{"include"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+							Path:     []string{"include"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
 						},
 					),
 				},
@@ -855,11 +855,11 @@ func TestGraphQLDataSource(t *testing.T) {
 				ChildNodes: []plan.TypeField{
 					{
 						TypeName:   "User",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 					{
 						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 				},
 				Factory: &Factory{},
@@ -883,9 +883,9 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
+					DataSource:            &Source{},
+					BufferId:              0,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
@@ -940,11 +940,11 @@ func TestGraphQLDataSource(t *testing.T) {
 				ChildNodes: []plan.TypeField{
 					{
 						TypeName:   "User",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 					{
 						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 				},
 				Factory: &Factory{},
@@ -968,9 +968,9 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
+					DataSource:            &Source{},
+					BufferId:              0,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
@@ -1015,11 +1015,11 @@ func TestGraphQLDataSource(t *testing.T) {
 				ChildNodes: []plan.TypeField{
 					{
 						TypeName:   "User",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 					{
 						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 				},
 				Factory: &Factory{},
@@ -1046,9 +1046,9 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName __typename ... on RegisteredUser {hasVerifiedEmail}}}"}}`,
+					DataSource:            &Source{},
+					BufferId:              0,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName __typename ... on RegisteredUser {hasVerifiedEmail}}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
@@ -1114,11 +1114,11 @@ func TestGraphQLDataSource(t *testing.T) {
 				ChildNodes: []plan.TypeField{
 					{
 						TypeName:   "User",
-						FieldNames: []string{"id", "displayName","isLoggedIn"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
 					},
 					{
 						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName","isLoggedIn","hasVerifiedEmail"},
+						FieldNames: []string{"id", "displayName", "isLoggedIn", "hasVerifiedEmail"},
 					},
 				},
 				Factory: &Factory{},
@@ -1166,7 +1166,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						&resolve.ContextVariable{
 							Path:     []string{"heroName"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 						},
 						&resolve.HeaderVariable{
 							Path: []string{"Authorization"},
@@ -1456,7 +1456,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						&resolve.ContextVariable{
 							Path:     []string{"input"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"object","properties":{"name":{"type":"string"},"options":{}},"additionalProperties":false}`),
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["object"],"properties":{"name":{"type":["string","null"]},"options":{}},"additionalProperties":false}`),
 						},
 						&resolve.ContextVariable{
 							Path:     []string{"options"},
@@ -1835,7 +1835,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"representations"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"array","item":{"type":"object","additionalProperties":true}}`),
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["array"],"items":{"type":["object"],"additionalProperties":true}}`),
 						},
 					),
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -2019,7 +2019,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"droidIDs"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"array","item":{"type":["string","integer"]}}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["array"],"items":{"type":["string","integer"]}}`),
 							},
 						),
 						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -2214,7 +2214,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"name"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 							},
 						),
 						DisallowSingleFlight:  true,
@@ -2324,11 +2324,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"b"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 							},
 						),
 						DisallowSingleFlight:  false,
@@ -2755,11 +2755,11 @@ func TestGraphQLDataSource(t *testing.T) {
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path:     []string{"firstArg"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 									},
 									&resolve.ContextVariable{
 										Path:     []string{"thirdArg"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"integer"}`),
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["integer","null"]}`),
 									},
 								),
 								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -2772,11 +2772,11 @@ func TestGraphQLDataSource(t *testing.T) {
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path:     []string{"secondArg"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
 									},
 									&resolve.ContextVariable{
 										Path:     []string{"fourthArg"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"number"}`),
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["number","null"]}`),
 									},
 								),
 								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -2863,7 +2863,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Variables: resolve.NewVariables(
 										&resolve.ObjectVariable{
 											Path:     []string{"serviceOneField"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 										},
 									),
 									DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -3157,15 +3157,15 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"title"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"completed"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"name"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 							},
 						),
 						DisallowSingleFlight:  true,
@@ -3324,11 +3324,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"id"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"name"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 							},
 						),
 						DisallowSingleFlight:  true,
@@ -3470,11 +3470,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"name"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"personal"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
 							},
 						),
 						DisallowSingleFlight:  true,
@@ -3685,7 +3685,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Variables: resolve.NewVariables(
 					&resolve.ContextVariable{
 						Path:     []string{"a"},
-						Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+						Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 					},
 				),
 				Source: &SubscriptionSource{
@@ -3905,7 +3905,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
 																					Path:     []string{"upc"},
-																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 																				},
 																			),
 																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -3923,7 +3923,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
 																					Path:     []string{"upc"},
-																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 																				},
 																			),
 																			DataSource:           &Source{},
@@ -4210,11 +4210,11 @@ func TestGraphQLDataSource(t *testing.T) {
 											},
 											&resolve.ContextVariable{
 												Path:     []string{"someSkipCondition"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
 											},
 											&resolve.ContextVariable{
 												Path:     []string{"publicOnly"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
 											},
 										),
 										DataSource:           &Source{},
@@ -4403,11 +4403,11 @@ func TestGraphQLDataSource(t *testing.T) {
 											},
 											&resolve.ContextVariable{
 												Path:     []string{"someSkipCondition"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
 											},
 											&resolve.ContextVariable{
 												Path:     []string{"publicOnly"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"boolean"}`),
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
 											},
 										),
 										DataSource:           &Source{},
@@ -4601,11 +4601,11 @@ func TestGraphQLDataSource(t *testing.T) {
 											},
 											&resolve.ObjectVariable{
 												Path:     []string{"serviceOneFieldOne"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 											},
 											&resolve.ObjectVariable{
 												Path:     []string{"serviceOneFieldTwo"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 											},
 										),
 										DataSource:           &Source{},
@@ -4878,7 +4878,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
 																					Path:     []string{"upc"},
-																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 																				},
 																			),
 																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -4896,7 +4896,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
 																					Path:     []string{"upc"},
-																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 																				},
 																			),
 																			DataSource:           &Source{},
@@ -5485,7 +5485,7 @@ func BenchmarkFederationBatching(b *testing.B) {
 											SegmentType:        resolve.VariableSegmentType,
 											VariableKind:       resolve.ObjectVariableKind,
 											VariableSourcePath: []string{"id"},
-											Renderer:           resolve.NewJSONVariableRendererWithValidation(`{"type":"number"}`),
+											Renderer:           resolve.NewJSONVariableRendererWithValidation(`{"type":["number"]}`),
 										},
 										{
 											Data:        []byte(`","__typename":"User"}]}}}`),
@@ -5551,7 +5551,7 @@ func BenchmarkFederationBatching(b *testing.B) {
 																		SegmentType:        resolve.VariableSegmentType,
 																		VariableKind:       resolve.ObjectVariableKind,
 																		VariableSourcePath: []string{"upc"},
-																		Renderer:           resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+																		Renderer:           resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 																	},
 																	{
 																		Data:        []byte(`,"__typename":"Product"}]}}}`),
