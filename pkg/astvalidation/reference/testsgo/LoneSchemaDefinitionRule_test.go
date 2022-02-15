@@ -12,7 +12,7 @@ func TestLoneSchemaDefinitionRule(t *testing.T) {
 		if len(schemas) > 0 {
 			schema = schemas[0]
 		}
-		return ExpectSDLValidationErrors(t, schema, "LoneSchemaDefinitionRule", sdlStr)
+		return ExpectSDLValidationErrors(t, schema, LoneSchemaDefinitionRule, sdlStr)
 	}
 
 	ExpectValidSDL := func(t *testing.T, sdlStr string, schemas ...string) {

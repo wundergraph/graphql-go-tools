@@ -8,7 +8,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 	t.Skip()
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
-		return ExpectValidationErrors(t, "KnownDirectivesRule", queryStr)
+		return ExpectValidationErrors(t, KnownDirectivesRule, queryStr)
 	}
 
 	ExpectValid := func(t *testing.T, queryStr string) {
@@ -20,7 +20,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 		if len(schemas) > 0 {
 			schema = schemas[0]
 		}
-		return ExpectSDLValidationErrors(t, schema, "KnownDirectivesRule", sdlStr)
+		return ExpectSDLValidationErrors(t, schema, KnownDirectivesRule, sdlStr)
 	}
 
 	ExpectValidSDL := func(t *testing.T, sdlStr string, schemas ...string) {

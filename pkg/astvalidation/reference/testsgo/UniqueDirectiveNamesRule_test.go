@@ -12,7 +12,7 @@ func TestUniqueDirectiveNamesRule(t *testing.T) {
 		if len(schemas) > 0 {
 			schema = schemas[0]
 		}
-		return ExpectSDLValidationErrors(t, schema, "UniqueDirectiveNamesRule", sdlStr)
+		return ExpectSDLValidationErrors(t, schema, UniqueDirectiveNamesRule, sdlStr)
 	}
 
 	ExpectValidSDL := func(t *testing.T, sdlStr string, schemas ...string) {

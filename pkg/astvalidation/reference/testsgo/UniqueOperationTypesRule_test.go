@@ -12,7 +12,7 @@ func TestUniqueOperationTypesRule(t *testing.T) {
 		if len(schemas) > 0 {
 			schema = schemas[0]
 		}
-		return ExpectSDLValidationErrors(t, schema, "UniqueOperationTypesRule", sdlStr)
+		return ExpectSDLValidationErrors(t, schema, UniqueOperationTypesRule, sdlStr)
 	}
 
 	ExpectValidSDL := func(t *testing.T, sdlStr string, schemas ...string) {
