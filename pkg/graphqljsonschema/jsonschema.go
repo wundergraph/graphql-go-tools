@@ -3,6 +3,8 @@ package graphqljsonschema
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/buger/jsonparser"
 	"github.com/qri-io/jsonschema"
@@ -175,9 +177,21 @@ func TopLevelType(schema string) (jsonparser.ValueType, error) {
 	}
 }
 
-func (v *Validator) Validate(ctx context.Context, inputJSON []byte) bool {
+func (v *Validator) Validate(ctx context.Context, inputJSON []byte) error {
 	errs, err := v.schema.ValidateBytes(ctx, inputJSON)
-	return err == nil && len(errs) == 0
+	if err != nil {
+		// There was an issue performing the validation itself. Return a
+		// generic error so the input isn't exposed.
+		return fmt.Errorf("could not perform validation")
+	}
+	if len(errs) > 0 {
+		messages := make([]string, len(errs))
+		for i := range errs {
+			messages[i] = errs[i].Error()
+		}
+		return fmt.Errorf("validation failed: %v", strings.Join(messages, "; "))
+	}
+	return nil
 }
 
 type Kind int

@@ -3,7 +3,7 @@ package resolve
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"io"
 	"strconv"
 
@@ -12,10 +12,6 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/graphqljsonschema"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-)
-
-var (
-	ErrInvalidJsonSchema = errors.New("json schema validation failed on Variable Renderer")
 )
 
 type VariableKind int
@@ -46,9 +42,9 @@ type JSONVariableRenderer struct {
 
 func (r *JSONVariableRenderer) RenderVariable(ctx context.Context, data []byte, out io.Writer) error {
 	if r.validator != nil {
-		valid := r.validator.Validate(ctx, data)
-		if !valid {
-			return ErrInvalidJsonSchema
+		err := r.validator.Validate(ctx, data)
+		if err != nil {
+			return fmt.Errorf("could not render JSON variable, %w", err)
 		}
 	}
 	_, err := out.Write(data)
@@ -140,9 +136,9 @@ type PlainVariableRenderer struct {
 
 func (p *PlainVariableRenderer) RenderVariable(ctx context.Context, data []byte, out io.Writer) error {
 	if p.validator != nil {
-		valid := p.validator.Validate(ctx, data)
-		if !valid {
-			return ErrInvalidJsonSchema
+		err := p.validator.Validate(ctx, data)
+		if err != nil {
+			return fmt.Errorf("could not render plain text variable, %w", err)
 		}
 	}
 
@@ -173,7 +169,7 @@ func NewGraphQLVariableRendererFromTypeRef(operation, definition *ast.Document, 
 }
 
 func NewGraphQLVariableRendererFromTypeRefWithOverrides(operation, definition *ast.Document, variableTypeRef int, overrides map[string]graphqljsonschema.JsonSchema) (*GraphQLVariableRenderer, error) {
-	jsonSchema := graphqljsonschema.FromTypeRefWithOverrides(operation, definition, variableTypeRef,overrides)
+	jsonSchema := graphqljsonschema.FromTypeRefWithOverrides(operation, definition, variableTypeRef, overrides)
 	validator, err := graphqljsonschema.NewValidatorFromSchema(jsonSchema)
 	if err != nil {
 		return nil, err
@@ -325,12 +321,11 @@ type GraphQLVariableRenderer struct {
 // if an object contains only null values, set the object to null
 // do this recursively until reaching the root of the object
 
-
 func (g *GraphQLVariableRenderer) RenderVariable(ctx context.Context, data []byte, out io.Writer) error {
 	if g.validator != nil {
-		valid := g.validator.Validate(ctx, data)
-		if !valid {
-			return ErrInvalidJsonSchema
+		err := g.validator.Validate(ctx, data)
+		if err != nil {
+			return fmt.Errorf("could not render GraphQL variable, %w", err)
 		}
 	}
 

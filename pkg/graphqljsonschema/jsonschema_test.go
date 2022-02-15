@@ -33,11 +33,11 @@ func runTest(schema, operation, expectedJsonSchema string, valid []string, inval
 		assert.NoError(t, err)
 
 		for _, input := range valid {
-			assert.Truef(t, validator.Validate(context.Background(), []byte(input)), "Incorrectly judged invalid: %v", input)
+			assert.NoError(t, validator.Validate(context.Background(), []byte(input)), "Incorrectly judged invalid: %v", input)
 		}
 
 		for _, input := range invalid {
-			assert.Falsef(t, validator.Validate(context.Background(), []byte(input)), "Incorrectly judged valid: %v", input)
+			assert.Error(t, validator.Validate(context.Background(), []byte(input)), "Incorrectly judged valid: %v", input)
 		}
 	}
 }
