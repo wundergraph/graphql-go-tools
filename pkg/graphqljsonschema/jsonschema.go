@@ -28,14 +28,11 @@ func FromTypeRefWithOverrides(operation, definition *ast.Document, typeRef int, 
 
 type fromTypeRefResolver struct {
 	overrides map[string]JsonSchema
-	depth     int
+	defs      *map[string]JsonSchema
 }
 
 func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
-	r.depth++
-	defer func() {
-		r.depth--
-	}()
+
 	t := operation.Types[typeRef]
 
 	nonNull := false
@@ -46,8 +43,19 @@ func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, t
 
 	switch t.TypeKind {
 	case ast.TypeKindList:
+		var defs map[string]JsonSchema
+		isRoot := false
+		if r.defs == nil {
+			isRoot = true
+			defs = make(map[string]JsonSchema, 48)
+			r.defs = &defs
+		}
 		itemSchema := r.fromTypeRef(operation, definition, t.OfType)
-		return NewArray(itemSchema, nonNull)
+		arr := NewArray(itemSchema, nonNull)
+		if isRoot {
+			r.defs = nil
+		}
+		return arr
 	case ast.TypeKindNonNull:
 		panic("Should not be able to have multiple levels of non-null")
 	case ast.TypeKindNamed:
@@ -80,10 +88,19 @@ func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, t
 				return NewAny()
 			}
 		}
-		if r.depth > 5 {
-			return NewObject(nonNull)
-		}
 		object := NewObject(nonNull)
+		isRootObject := false
+		if r.defs == nil {
+			isRootObject = true
+			object.Defs = make(map[string]JsonSchema, 48)
+			r.defs = &object.Defs
+		}
+		if !isRootObject {
+			if _, exists := (*r.defs)[name]; exists {
+				return NewRef(name)
+			}
+			(*r.defs)[name] = object
+		}
 		if node, ok := definition.Index.FirstNodeByNameStr(name); ok {
 			switch node.Kind {
 			case ast.NodeKindInputObjectTypeDefinition:
@@ -107,6 +124,10 @@ func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, t
 					}
 				}
 			}
+		}
+		if !isRootObject {
+			(*r.defs)[name] = object
+			return NewRef(name)
 		}
 		return object
 	}
@@ -205,6 +226,7 @@ const (
 	ArrayKind
 	AnyKind
 	IDKind
+	RefKind
 )
 
 func maybeAppendNull(nonNull bool, types ...string) []string {
@@ -298,11 +320,26 @@ func NewInteger(nonNull bool) Integer {
 	}
 }
 
+type Ref struct {
+	Ref string `json:"$ref"`
+}
+
+func (_ Ref) Kind() Kind {
+	return RefKind
+}
+
+func NewRef(definitionName string) Ref {
+	return Ref{
+		Ref: fmt.Sprintf("#/$defs/%s", definitionName),
+	}
+}
+
 type Object struct {
 	Type                 []string              `json:"type"`
 	Properties           map[string]JsonSchema `json:"properties,omitempty"`
 	Required             []string              `json:"required,omitempty"`
 	AdditionalProperties bool                  `json:"additionalProperties"`
+	Defs                 map[string]JsonSchema `json:"$defs,omitempty"`
 }
 
 func (_ Object) Kind() Kind {
@@ -326,9 +363,10 @@ func NewObjectAny(nonNull bool) Object {
 }
 
 type Array struct {
-	Type     []string   `json:"type"`
-	Items    JsonSchema `json:"items"`
-	MinItems *int       `json:"minItems,omitempty"`
+	Type     []string              `json:"type"`
+	Items    JsonSchema            `json:"items"`
+	MinItems *int                  `json:"minItems,omitempty"`
+	Defs     map[string]JsonSchema `json:"$defs,omitempty"`
 }
 
 func (_ Array) Kind() Kind {
