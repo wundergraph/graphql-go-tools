@@ -6,12 +6,14 @@ type query_root {
     hello(name: String): Hello!
     __schema: __Schema!
     __type(name: String!): __Type
+    __typename: String!
 }
 
 type Hello {
     hello: String!
     object: String!
     adminInformation: String!
+    __typename: String!
 }
 
 "The 'Int' scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1."
@@ -63,6 +65,7 @@ type __Directive {
     description: String
     locations: [__DirectiveLocation!]!
     args: [__InputValue!]!
+    __typename: String!
 }
 
 """
@@ -118,6 +121,7 @@ type __EnumValue {
     description: String
     isDeprecated: Boolean!
     deprecationReason: String
+    __typename: String!
 }
 
 """
@@ -131,6 +135,7 @@ type __Field {
     type: __Type!
     isDeprecated: Boolean!
     deprecationReason: String
+    __typename: String!
 }
 
 """
@@ -144,6 +149,7 @@ type __InputValue {
     type: __Type!
     "A GraphQL-formatted string representing the default value for this input value."
     defaultValue: String
+    __typename: String!
 }
 
 """
@@ -162,6 +168,7 @@ type __Schema {
     subscriptionType: __Type
     "A list of all directives supported by this server."
     directives: [__Directive!]!
+    __typename: String!
 }
 
 """
@@ -184,6 +191,7 @@ type __Type {
     enumValues(includeDeprecated: Boolean = false): [__EnumValue!]
     inputFields: [__InputValue!]
     ofType: __Type
+    __typename: String!
 }
 
 "An enum describing what kind of type a given '__Type' is."

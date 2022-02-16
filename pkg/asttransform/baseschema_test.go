@@ -77,6 +77,15 @@ func TestMergeDefinitionWithBaseSchema(t *testing.T) {
 				s: String!
 			}
 	`, "subscription_only"))
+	t.Run("schema with renamed subscription", runTestMerge(`
+			schema {
+				subscription: Sub
+			}
+			type Sub {
+				s: String!
+			}
+	`, "subscription_renamed"))
+
 	t.Run("schema missing", runTestMerge(`
 			type Query {
 				hello(name: String): Hello!
