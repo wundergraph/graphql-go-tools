@@ -431,6 +431,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				id
 				displayName
 				__typename @skip(if: $skip)
+				tn2: __typename @include(if: $skip)
 			}
 		}
 	`, "MyQuery", &plan.SynchronousResponsePlan{
@@ -487,6 +488,18 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									SkipDirectiveDefined: true,
 									SkipVariableName:     "skip",
+								},
+								{
+									Name: []byte("tn2"),
+									Value: &resolve.String{
+										Path: []string{"__typename"},
+									},
+									Position: resolve.Position{
+										Line:   7,
+										Column: 5,
+									},
+									IncludeDirectiveDefined: true,
+									IncludeVariableName:     "skip",
 								},
 							},
 						},

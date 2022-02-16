@@ -515,7 +515,7 @@ func (v *Visitor) EnterField(ref int) {
 			Name: fieldAliasOrName,
 			Value: &resolve.String{
 				Nullable: false,
-				Path:     v.resolveFieldPath(ref),
+				Path:     []string{"__typename"},
 			},
 			OnTypeName: v.resolveOnTypeName(),
 			Position: resolve.Position{
@@ -589,7 +589,7 @@ func (v *Visitor) EnterField(ref int) {
 }
 
 func (v *Visitor) resolveSkipForField(ref int) (bool, string) {
-	skipInclude,ok := v.skipIncludeFields[ref]
+	skipInclude, ok := v.skipIncludeFields[ref]
 	if ok {
 		return skipInclude.skip, skipInclude.skipVariableName
 	}
@@ -597,7 +597,7 @@ func (v *Visitor) resolveSkipForField(ref int) (bool, string) {
 }
 
 func (v *Visitor) resolveIncludeForField(ref int) (bool, string) {
-	skipInclude,ok := v.skipIncludeFields[ref]
+	skipInclude, ok := v.skipIncludeFields[ref]
 	if ok {
 		return skipInclude.include, skipInclude.includeVariableName
 	}
