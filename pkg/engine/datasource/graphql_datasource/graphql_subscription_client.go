@@ -15,15 +15,13 @@ import (
 	"nhooyr.io/websocket"
 )
 
-var (
-	connectionInitMessage = []byte(`{"type":"connection_init"}`)
-)
-
 const (
-	startMessage    = `{"type":"start","id":"%s","payload":%s}`
-	stopMessage     = `{"type":"stop","id":"%s"}`
-	internalError   = `{"errors":[{"message":"connection error"}]}`
-	connectionError = `{"errors":[{"message":"connection error"}]}`
+	initMessageWithPayload = `{"type":"connection_init", "payload":%s}`
+	initMessageNoPayload   = `{"type":"connection_init"}`
+	startMessage           = `{"type":"start","id":"%s","payload":%s}`
+	stopMessage            = `{"type":"stop","id":"%s"}`
+	internalError          = `{"errors":[{"message":"connection error"}]}`
+	connectionError        = `{"errors":[{"message":"connection error"}]}`
 )
 
 // WebSocketGraphQLSubscriptionClient is a WebSocket client that allows running multiple subscriptions via the same WebSocket Connection
@@ -86,7 +84,6 @@ func NewWebSocketGraphQLSubscriptionClient(httpClient *http.Client, ctx context.
 // If an existing WS with the same ID (Hash) exists, it is being re-used
 // If no connection exists, the client initiates a new one and sends the "init" and "connection ack" messages
 func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
-
 	handlerID, err := c.generateHandlerIDHash(options)
 	if err != nil {
 		return err
@@ -112,6 +109,12 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, opti
 	if options.Header == nil {
 		options.Header = http.Header{}
 	}
+
+	initMessage, err := connectionInitMessage(options.Header)
+	if err != nil {
+		return err
+	}
+
 	options.Header.Set("Sec-WebSocket-Protocol", "graphql-ws")
 	options.Header.Set("Sec-WebSocket-Version", "13")
 
@@ -128,7 +131,7 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, opti
 		return fmt.Errorf("upgrade unsuccessful")
 	}
 	// init + ack
-	err = conn.Write(ctx, websocket.MessageText, connectionInitMessage)
+	err = conn.Write(ctx, websocket.MessageText, []byte(initMessage))
 	if err != nil {
 		return err
 	}
@@ -179,6 +182,21 @@ func (c *WebSocketGraphQLSubscriptionClient) generateHandlerIDHash(options Graph
 	}
 
 	return xxh.Sum64(), nil
+}
+
+func connectionInitMessage(header http.Header) (string, error) {
+	if len(header) == 0 {
+		return initMessageNoPayload, nil
+	}
+	payload := make(map[string]interface{}, len(header))
+	for name := range header {
+		payload[name] = header.Get(name)
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf(initMessageWithPayload, json.RawMessage(payloadBytes)), nil
 }
 
 func newConnectionHandler(ctx context.Context, conn *websocket.Conn, readTimeout time.Duration, log abstractlogger.Logger) *connectionHandler {
