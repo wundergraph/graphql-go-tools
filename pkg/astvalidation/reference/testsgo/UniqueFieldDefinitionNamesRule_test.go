@@ -14,7 +14,7 @@ func TestUniqueFieldDefinitionNamesRule(t *testing.T) {
 		}
 		return ExpectSDLValidationErrors(t,
 			schema,
-			"UniqueFieldDefinitionNamesRule",
+			UniqueFieldDefinitionNamesRule,
 			sdlStr,
 		)
 	}

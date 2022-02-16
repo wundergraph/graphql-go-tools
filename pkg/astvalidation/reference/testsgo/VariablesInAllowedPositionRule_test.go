@@ -8,7 +8,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 	t.Skip()
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
-		return ExpectValidationErrors(t, "VariablesInAllowedPositionRule", queryStr)
+		return ExpectValidationErrors(t, VariablesInAllowedPositionRule, queryStr)
 	}
 
 	ExpectValid := func(t *testing.T, queryStr string) {

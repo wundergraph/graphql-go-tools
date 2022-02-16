@@ -8,11 +8,11 @@ func TestKnownTypeNamesRule(t *testing.T) {
 	t.Skip()
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
-		return ExpectValidationErrors(t, "KnownTypeNamesRule", queryStr)
+		return ExpectValidationErrors(t, KnownTypeNamesRule, queryStr)
 	}
 
 	ExpectErrorsWithSchema := func(t *testing.T, schema string, queryStr string) ResultCompare {
-		return ExpectValidationErrorsWithSchema(t, schema, "KnownTypeNamesRule", queryStr)
+		return ExpectValidationErrorsWithSchema(t, schema, KnownTypeNamesRule, queryStr)
 	}
 
 	ExpectValid := func(t *testing.T, queryStr string) {
@@ -24,7 +24,7 @@ func TestKnownTypeNamesRule(t *testing.T) {
 		if len(schemas) > 0 {
 			schema = schemas[0]
 		}
-		return ExpectSDLValidationErrors(t, schema, "KnownTypeNamesRule", sdlStr)
+		return ExpectSDLValidationErrors(t, schema, KnownTypeNamesRule, sdlStr)
 	}
 
 	ExpectValidSDL := func(t *testing.T, sdlStr string, schemas ...string) {

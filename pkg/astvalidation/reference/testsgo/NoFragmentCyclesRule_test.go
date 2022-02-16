@@ -8,7 +8,7 @@ func TestNoFragmentCyclesRule(t *testing.T) {
 	t.Skip("fails with fragment is unused - seems our rule should be splitted")
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
-		return ExpectValidationErrors(t, "NoFragmentCyclesRule", queryStr)
+		return ExpectValidationErrors(t, NoFragmentCyclesRule, queryStr)
 	}
 
 	ExpectValid := func(t *testing.T, queryStr string) {

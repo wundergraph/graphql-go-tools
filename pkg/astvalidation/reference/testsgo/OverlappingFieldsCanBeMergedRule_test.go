@@ -8,7 +8,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 	t.Skip("part of the tests works. for errors message formats differs. locations is missing")
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
-		return ExpectValidationErrors(t, "OverlappingFieldsCanBeMergedRule", queryStr)
+		return ExpectValidationErrors(t, OverlappingFieldsCanBeMergedRule, queryStr)
 	}
 
 	ExpectValid := func(t *testing.T, queryStr string) {
@@ -18,7 +18,7 @@ func TestOverlappingFieldsCanBeMergedRule(t *testing.T) {
 	ExpectErrorsWithSchema := func(t *testing.T, schema string, queryStr string) ResultCompare {
 		return ExpectValidationErrorsWithSchema(t,
 			schema,
-			"OverlappingFieldsCanBeMergedRule",
+			OverlappingFieldsCanBeMergedRule,
 			queryStr,
 		)
 	}

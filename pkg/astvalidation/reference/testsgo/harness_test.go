@@ -14,61 +14,109 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
+const (
+	// NotSupportedSuggestionsSkipMsg = "Suggestions is not supported"
+
+	RuleHasNoMapping = `Validation rule: "%s" has no mapped rule`
+)
+
+const (
+	ExecutableDefinitionsRule                 = "ExecutableDefinitionsRule"
+	FieldsOnCorrectTypeRule                   = "FieldsOnCorrectTypeRule"
+	KnownArgumentNamesRule                    = "KnownArgumentNamesRule"
+	KnownArgumentNamesOnDirectivesRule        = "KnownArgumentNamesOnDirectivesRule"
+	KnownDirectivesRule                       = "KnownDirectivesRule"
+	KnownTypeNamesRule                        = "KnownTypeNamesRule"
+	LoneAnonymousOperationRule                = "LoneAnonymousOperationRule"
+	NoUndefinedVariablesRule                  = "NoUndefinedVariablesRule"
+	NoUnusedVariablesRule                     = "NoUnusedVariablesRule"
+	OverlappingFieldsCanBeMergedRule          = "OverlappingFieldsCanBeMergedRule"
+	ProvidedRequiredArgumentsRule             = "ProvidedRequiredArgumentsRule"
+	ProvidedRequiredArgumentsOnDirectivesRule = "ProvidedRequiredArgumentsOnDirectivesRule"
+	SingleFieldSubscriptionsRule              = "SingleFieldSubscriptionsRule"
+	UniqueArgumentNamesRule                   = "UniqueArgumentNamesRule"
+	UniqueDirectivesPerLocationRule           = "UniqueDirectivesPerLocationRule"
+	UniqueEnumValueNamesRule                  = "UniqueEnumValueNamesRule"
+	UniqueFieldDefinitionNamesRule            = "UniqueFieldDefinitionNamesRule"
+	UniqueOperationNamesRule                  = "UniqueOperationNamesRule"
+	UniqueOperationTypesRule                  = "UniqueOperationTypesRule"
+	UniqueTypeNamesRule                       = "UniqueTypeNamesRule"
+	UniqueVariableNamesRule                   = "UniqueVariableNamesRule"
+	ValuesOfCorrectTypeRule                   = "ValuesOfCorrectTypeRule"
+	VariablesAreInputTypesRule                = "VariablesAreInputTypesRule"
+	VariablesInAllowedPositionRule            = "VariablesInAllowedPositionRule"
+
+	FragmentsOnCompositeTypesRule = "FragmentsOnCompositeTypesRule"
+	KnownFragmentNamesRule        = "KnownFragmentNamesRule"
+	NoFragmentCyclesRule          = "NoFragmentCyclesRule"
+	NoUnusedFragmentsRule         = "NoUnusedFragmentsRule"
+	PossibleFragmentSpreadsRule   = "PossibleFragmentSpreadsRule"
+	UniqueFragmentNamesRule       = "UniqueFragmentNamesRule"
+
+	UniqueInputFieldNamesRule  = "UniqueInputFieldNamesRule"
+	UniqueDirectiveNamesRule   = "UniqueDirectiveNamesRule"
+	LoneSchemaDefinitionRule   = "LoneSchemaDefinitionRule"
+	ScalarLeafsRule            = "ScalarLeafsRule"
+	PossibleTypeExtensionsRule = "PossibleTypeExtensionsRule"
+)
+
 var rulesMap = map[string][]astvalidation.Rule{
-	"ExecutableDefinitionsRule":        {astvalidation.DocumentContainsExecutableOperation()},
-	"FieldsOnCorrectTypeRule":          {astvalidation.FieldSelections()},
-	"KnownArgumentNamesRule":           {astvalidation.ValidArguments()},
-	"KnownDirectivesRule":              {astvalidation.DirectivesAreDefined()},
-	"KnownTypeNamesRule":               {astvalidation.KnownTypeNames()},
-	"LoneAnonymousOperationRule":       {astvalidation.LoneAnonymousOperation()},
-	"NoUndefinedVariablesRule":         {astvalidation.AllVariableUsesDefined()},
-	"NoUnusedVariablesRule":            {astvalidation.AllVariablesUsed()},
-	"OverlappingFieldsCanBeMergedRule": {astvalidation.FieldSelectionMerging()},
-	"ProvidedRequiredArgumentsRule":    {astvalidation.RequiredArguments()},
-	"SingleFieldSubscriptionsRule":     {astvalidation.SubscriptionSingleRootField()},
-	"UniqueArgumentNamesRule":          {astvalidation.ArgumentUniqueness()},
-	"UniqueDirectivesPerLocationRule":  {astvalidation.DirectivesAreUniquePerLocation()},
-	"UniqueEnumValueNamesRule":         {astvalidation.UniqueEnumValueNames()},
-	"UniqueFieldDefinitionNamesRule":   {astvalidation.UniqueFieldDefinitionNames()},
-	"UniqueOperationNamesRule":         {astvalidation.OperationNameUniqueness()},
-	"UniqueOperationTypesRule":         {astvalidation.UniqueOperationTypes()},
-	"UniqueTypeNamesRule":              {astvalidation.UniqueTypeNames()},
-	"UniqueVariableNamesRule":          {astvalidation.VariableUniqueness()},
-	"ValuesOfCorrectTypeRule":          {astvalidation.Values()},
-	"VariablesAreInputTypesRule":       {astvalidation.VariablesAreInputTypes()},
-	"VariablesInAllowedPositionRule":   {astvalidation.ValidArguments()},
+	ExecutableDefinitionsRule:                 {astvalidation.DocumentContainsExecutableOperation()},
+	FieldsOnCorrectTypeRule:                   {astvalidation.FieldSelections()},
+	KnownArgumentNamesRule:                    {}, // {astvalidation.KnownArguments()},
+	KnownArgumentNamesOnDirectivesRule:        {},
+	KnownDirectivesRule:                       {astvalidation.DirectivesAreDefined()},
+	KnownTypeNamesRule:                        {astvalidation.KnownTypeNames()},
+	LoneAnonymousOperationRule:                {astvalidation.LoneAnonymousOperation()},
+	NoUndefinedVariablesRule:                  {astvalidation.AllVariableUsesDefined()},
+	NoUnusedVariablesRule:                     {astvalidation.AllVariablesUsed()},
+	OverlappingFieldsCanBeMergedRule:          {astvalidation.FieldSelectionMerging()},
+	ProvidedRequiredArgumentsRule:             {astvalidation.RequiredArguments()},
+	ProvidedRequiredArgumentsOnDirectivesRule: {},
+	SingleFieldSubscriptionsRule:              {astvalidation.SubscriptionSingleRootField()},
+	UniqueArgumentNamesRule:                   {astvalidation.ArgumentUniqueness()},
+	UniqueDirectivesPerLocationRule:           {astvalidation.DirectivesAreUniquePerLocation()},
+	UniqueEnumValueNamesRule:                  {astvalidation.UniqueEnumValueNames()},
+	UniqueFieldDefinitionNamesRule:            {astvalidation.UniqueFieldDefinitionNames()},
+	UniqueOperationNamesRule:                  {astvalidation.OperationNameUniqueness()},
+	UniqueOperationTypesRule:                  {astvalidation.UniqueOperationTypes()},
+	UniqueTypeNamesRule:                       {astvalidation.UniqueTypeNames()},
+	UniqueVariableNamesRule:                   {astvalidation.VariableUniqueness()},
+	ValuesOfCorrectTypeRule:                   {astvalidation.Values()},
+	VariablesAreInputTypesRule:                {astvalidation.VariablesAreInputTypes()},
+	VariablesInAllowedPositionRule:            {astvalidation.ValidArguments()},
 
 	// fragments rules
-	"FragmentsOnCompositeTypesRule": {astvalidation.Fragments()},
-	"KnownFragmentNamesRule":        {astvalidation.Fragments()},
-	"NoFragmentCyclesRule":          {astvalidation.Fragments()},
-	"NoUnusedFragmentsRule":         {astvalidation.Fragments()},
-	"PossibleFragmentSpreadsRule":   {astvalidation.Fragments()},
-	"UniqueFragmentNamesRule":       {astvalidation.Fragments()},
+	FragmentsOnCompositeTypesRule: {astvalidation.Fragments()},
+	KnownFragmentNamesRule:        {astvalidation.Fragments()},
+	NoFragmentCyclesRule:          {astvalidation.Fragments()},
+	NoUnusedFragmentsRule:         {astvalidation.Fragments()},
+	PossibleFragmentSpreadsRule:   {astvalidation.Fragments()},
+	UniqueFragmentNamesRule:       {astvalidation.Fragments()},
 
 	// not mapped rules
 
-	// "UniqueInputFieldNamesRule",
-	// "UniqueDirectiveNamesRule",
-	// "LoneSchemaDefinitionRule",
-	// "ScalarLeafsRule",
-	// "PossibleTypeExtensionsRule",
+	UniqueInputFieldNamesRule:  {astvalidation.Values()},
+	UniqueDirectiveNamesRule:   {},
+	LoneSchemaDefinitionRule:   {},
+	ScalarLeafsRule:            {},
+	PossibleTypeExtensionsRule: {},
 }
 
-func operationValidatorFor(rule string) *astvalidation.OperationValidator {
+func operationValidatorFor(rule string) (*astvalidation.OperationValidator, bool) {
 	rules, ok := rulesMap[rule]
 	if !ok {
-		return astvalidation.DefaultOperationValidator()
+		return nil, false
 	}
-	return astvalidation.NewOperationValidator(rules)
+	return astvalidation.NewOperationValidator(rules), true
 }
 
-func definitionValidatorFor(rule string) *astvalidation.DefinitionValidator {
+func definitionValidatorFor(rule string) (*astvalidation.DefinitionValidator, bool) {
 	rules, ok := rulesMap[rule]
 	if !ok {
-		return astvalidation.DefaultDefinitionValidator()
+		return nil, false
 	}
-	return astvalidation.NewDefinitionValidator(rules...)
+	return astvalidation.NewDefinitionValidator(rules...), true
 }
 
 // Loc - local type representing location of validation error message
@@ -91,6 +139,8 @@ type ResultCompare func(expectedErrors []Err)
 // ExpectValidationErrorsWithSchema - is a helper to run operation validation
 // returns ResultCompare function
 func ExpectValidationErrorsWithSchema(t *testing.T, schema string, rule string, queryStr string) ResultCompare {
+	t.Helper()
+
 	op, opReport := astparser.ParseGraphqlDocumentString(queryStr)
 	def := prepareSchema(schema)
 
@@ -104,7 +154,12 @@ func ExpectValidationErrorsWithSchema(t *testing.T, schema string, rule string, 
 		validator *astvalidation.OperationValidator
 	)
 
-	validator = operationValidatorFor(rule)
+	validator, ok := operationValidatorFor(rule)
+	if !ok {
+		t.Fatalf(RuleHasNoMapping, rule)
+		return nil
+	}
+
 	validator.Validate(&op, &def, &report)
 
 	return compareReportErrors(t, report)
@@ -120,6 +175,8 @@ func ExpectValidationErrors(t *testing.T, rule string, queryStr string) ResultCo
 // returns ResultCompare function
 // in reference tests schema is optional but leaves on a first param
 func ExpectSDLValidationErrors(t *testing.T, schema string, rule string, sdlStr string) ResultCompare {
+	t.Helper()
+
 	def := prepareSchema(sdlStr)
 
 	if schema != "" {
@@ -141,7 +198,12 @@ func ExpectSDLValidationErrors(t *testing.T, schema string, rule string, sdlStr 
 		validator *astvalidation.DefinitionValidator
 	)
 
-	validator = definitionValidatorFor(rule)
+	validator, ok := definitionValidatorFor(rule)
+	if !ok {
+		t.Fatalf(RuleHasNoMapping, rule)
+		return nil
+	}
+
 	validator.Validate(&def, &report)
 
 	return compareReportErrors(t, report)
