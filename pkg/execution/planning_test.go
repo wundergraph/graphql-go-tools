@@ -128,7 +128,7 @@ func runAndReportExternalErrorWithOperationName(definition string, operation str
 
 func TestPlanner_Plan(t *testing.T) {
 
-	t.Run("GraphQLDataSource", run(withBaseSchema(GraphQLDataSourceSchema), `
+	t.Run("GraphQLDataSource", run(GraphQLDataSourceSchema, `
 				query GraphQLQuery($code: String!) {
 					country(code: $code) {
 						code
@@ -251,7 +251,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("GraphQLDataSource mutation", run(withBaseSchema(GraphQLDataSourceSchema), `
+	t.Run("GraphQLDataSource mutation", run(GraphQLDataSourceSchema, `
 				mutation LikePost($id: ID!) {
 					likePost(id: $id) {
 						id
@@ -361,7 +361,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("HTTPJSONDataSource", run(withBaseSchema(HTTPJSONDataSourceSchema), `
+	t.Run("HTTPJSONDataSource", run(HTTPJSONDataSourceSchema, `
 					query RESTQuery($id: Int!){
 						httpBinGet {
 							header {
@@ -651,7 +651,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("HTTPJSONDataSource withBody", run(withBaseSchema(HTTPJSONDataSourceSchema), `
+	t.Run("HTTPJSONDataSource withBody", run(HTTPJSONDataSourceSchema, `
 					query WithBody($input: WithBodyInput) {
 						withBody(input: $input)
 					}
@@ -732,7 +732,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("HTTPJSONDataSource withPath", run(withBaseSchema(HTTPJSONDataSourceSchema), `
+	t.Run("HTTPJSONDataSource withPath", run(HTTPJSONDataSourceSchema, `
 					query WithPath {
 						withPath
 					}
@@ -808,7 +808,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("HTTPJSONDataSource list withoutPath", run(withBaseSchema(HTTPJSONDataSourceSchema), `
+	t.Run("HTTPJSONDataSource list withoutPath", run(HTTPJSONDataSourceSchema, `
 					query ListWithoutPath {
 						listItems {
 							id
@@ -899,7 +899,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("HTTPJSONDataSource list withPath", run(withBaseSchema(HTTPJSONDataSourceSchema), `
+	t.Run("HTTPJSONDataSource list withPath", run(HTTPJSONDataSourceSchema, `
 					query ListWithPath {
 						listWithPath {
 							id
@@ -995,7 +995,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("HTTPJSONDataSource withHeaders", run(withBaseSchema(HTTPJSONDataSourceSchema), `
+	t.Run("HTTPJSONDataSource withHeaders", run(HTTPJSONDataSourceSchema, `
 					query WithHeader {
 						withHeaders
 					}
@@ -1089,7 +1089,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("StaticDataSource", run(withBaseSchema(staticDataSourceSchema), `
+	t.Run("StaticDataSource", run(staticDataSourceSchema, `
 					{
 						hello
 						nullableInt
@@ -1217,7 +1217,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("introspection type query", run(withBaseSchema(complexSchema), `
+	t.Run("introspection type query", run(complexSchema, `
 				query TypeQuery($name: String! = "User") {
 					__type(name: $name) {
 						name
@@ -1341,7 +1341,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("graphql resolver", run(withBaseSchema(complexSchema), `
+	t.Run("graphql resolver", run(complexSchema, `
 			query UserQuery($id: String!) {
 				user(id: $id) {
 					id
@@ -1459,7 +1459,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("rest resolver", run(withBaseSchema(complexSchema), `
+	t.Run("rest resolver", run(complexSchema, `
 				query UserQuery($id: String!) {
 					restUser(id: $id) {
 						id
@@ -1577,7 +1577,7 @@ func TestPlanner_Plan(t *testing.T) {
 		},
 	))
 
-	t.Run("graphql resolver with nested rest resolver", run(withBaseSchema(complexSchema), `
+	t.Run("graphql resolver with nested rest resolver", run(complexSchema, `
 			query UserQuery($id: String!) {
 				user(id: $id) {
 					id
@@ -1788,7 +1788,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("introspection", run(withBaseSchema(complexSchema), `
+	t.Run("introspection", run(complexSchema, `
 			query IntrospectionQuery {
 			  __schema {
 				queryType {
@@ -2429,7 +2429,7 @@ func TestPlanner_Plan(t *testing.T) {
 		true, // TODO: move into own test and unskip (currently skipped because schemaBytes marshal doesn't return comparable result (order of objects in JSON))
 	))
 
-	t.Run("http polling stream", run(withBaseSchema(HttpPollingStreamSchema), `
+	t.Run("http polling stream", run(HttpPollingStreamSchema, `
 					subscription {
 						stream {
 							bar
@@ -2520,7 +2520,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("list filter first N", run(withBaseSchema(ListFilterFirstNSchema), `
+	t.Run("list filter first N", run(ListFilterFirstNSchema, `
 			query {
 				foos {
 					bar
@@ -2592,7 +2592,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("stringPipeline", run(withBaseSchema(pipelineSchema), `
+	t.Run("stringPipeline", run(pipelineSchema, `
 			query PipelineQuery($foo: String!) {
 				stringPipeline(foo: $foo)
 			}
@@ -2680,7 +2680,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("filePipeline", run(withBaseSchema(pipelineSchema), `
+	t.Run("filePipeline", run(pipelineSchema, `
 			query PipelineQuery($foo: String!) {
 				filePipeline(foo: $foo)
 			}
@@ -3101,7 +3101,7 @@ func TestPlanner_Plan(t *testing.T) {
 }
 
 func BenchmarkPlanner_Plan(b *testing.B) {
-	schema := withBaseSchema(complexSchema)
+	schema := complexSchema
 	def := unsafeparser.ParseGraphqlDocumentString(complexSchema)
 	if err := asttransform.MergeDefinitionWithBaseSchema(&def); err != nil {
 		b.Fatal(err)
@@ -3571,10 +3571,6 @@ input StringQueryOperatorInput {
 
 """The Upload scalar type represents a file upload."""
 scalar Upload`
-
-func withBaseSchema(input string) string {
-	return input
-}
 
 func introspectionQuery(schema []byte) RootNode {
 	return &Object{
