@@ -28,6 +28,7 @@ func NewTypeNameVisitor() *TypeNameVisitor {
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterLeaveObjectTypeDefinitionVisitor(visitor)
 	walker.RegisterLeaveInterfaceTypeDefinitionVisitor(visitor)
+	walker.RegisterLeaveUnionTypeDefinitionVisitor(visitor)
 
 	return visitor
 }
@@ -71,6 +72,10 @@ func (v *TypeNameVisitor) LeaveObjectTypeDefinition(ref int) {
 
 	v.definition.ObjectTypeDefinitions[ref].FieldsDefinition.Refs = append(v.definition.ObjectTypeDefinitions[ref].FieldsDefinition.Refs, v.addTypeNameField())
 	v.definition.ObjectTypeDefinitions[ref].HasFieldDefinitions = true
+}
+
+func (v *TypeNameVisitor) LeaveUnionTypeDefinition(ref int) {
+	v.definition.UnionTypeDefinitions[ref].TypeNameFieldType = v.addTypeNameField()
 }
 
 func (v *TypeNameVisitor) addTypeNameField() (ref int) {

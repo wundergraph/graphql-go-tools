@@ -142,11 +142,11 @@ func (p *planningVisitor) EnterField(ref int) {
 			return
 		}
 
-		// UGLY FIX
-		// Document.NodeFieldDefinitionByName was returning 0 as a definition index when it was not exists
-		// old implementation of Walker.FieldDefinition method was calculating exists = index != -1 which was always true
-		// this old wrong behaviour was allowing to plan __typename field resolving
-		definition = 0
+		if p.EnclosingTypeDefinition.Kind != ast.NodeKindUnionTypeDefinition {
+			return
+		}
+
+		// continue
 	}
 
 	typeName := p.definition.NodeResolverTypeNameString(p.EnclosingTypeDefinition, p.Path)
@@ -187,8 +187,18 @@ func (p *planningVisitor) EnterField(ref int) {
 
 		dataResolvingConfig := p.fieldDataResolvingConfig(ref)
 
-		var value Node
-		fieldDefinitionType := p.definition.FieldDefinitionType(definition)
+		var (
+			value               Node
+			fieldDefinitionType int
+		)
+
+		switch p.EnclosingTypeDefinition.Kind {
+		case ast.NodeKindUnionTypeDefinition:
+			fieldDefinitionType = p.definition.UnionTypeDefinitions[p.EnclosingTypeDefinition.Ref].TypeNameFieldType
+		default:
+			fieldDefinitionType = p.definition.FieldDefinitionType(definition)
+		}
+
 		if p.definition.TypeIsList(fieldDefinitionType) {
 
 			if !p.operation.FieldHasSelections(ref) {
