@@ -243,3 +243,13 @@ func ErrEnumValueNameMustBeUnique(enumName, enumValueName ast.ByteSlice) (err Ex
 	err.Message = fmt.Sprintf("enum value '%s.%s' can only be defined once", enumName, enumValueName)
 	return err
 }
+
+func ErrTransitiveInterfaceNotImplemented(typeName, transitiveInterfaceName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("type %s does not implement transitive interface %s", typeName, transitiveInterfaceName)
+	return err
+}
+
+func ErrTransitiveInterfaceExtensionImplementingWithoutBody(interfaceExtensionName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("interface extension %s implementing interface without body", interfaceExtensionName)
+	return err
+}
