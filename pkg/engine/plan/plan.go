@@ -505,6 +505,9 @@ func (v *Visitor) EnterField(ref int) {
 		return
 	}
 
+	skip, skipVariableName := v.resolveSkipForField(ref)
+	include, includeVariableName := v.resolveIncludeForField(ref)
+
 	fieldName := v.Operation.FieldNameBytes(ref)
 	fieldAliasOrName := v.Operation.FieldAliasOrNameBytes(ref)
 	if bytes.Equal(fieldName, literal.TYPENAME) {
@@ -519,6 +522,10 @@ func (v *Visitor) EnterField(ref int) {
 				Line:   v.Operation.Fields[ref].Position.LineStart,
 				Column: v.Operation.Fields[ref].Position.CharStart,
 			},
+			SkipDirectiveDefined:    skip,
+			SkipVariableName:        skipVariableName,
+			IncludeDirectiveDefined: include,
+			IncludeVariableName:     includeVariableName,
 		}
 		*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
 		return
@@ -553,9 +560,6 @@ func (v *Visitor) EnterField(ref int) {
 	path := v.resolveFieldPath(ref)
 	fieldDefinitionType := v.Definition.FieldDefinitionType(fieldDefinition)
 	bufferID, hasBuffer := v.fieldBuffers[ref]
-
-	skip, skipVariableName := v.resolveSkipForField(ref)
-	include, includeVariableName := v.resolveIncludeForField(ref)
 
 	v.currentField = &resolve.Field{
 		Name:       fieldAliasOrName,

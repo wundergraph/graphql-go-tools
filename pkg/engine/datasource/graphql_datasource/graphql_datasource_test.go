@@ -425,6 +425,104 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 		Fields: []plan.FieldConfiguration{},
 	}))
+	t.Run("skip directive on __typename", RunTest(interfaceSelectionSchema, `
+		query MyQuery ($skip: Boolean!) {
+			user {
+				id
+				displayName
+				__typename @skip(if: $skip)
+			}
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource:            &Source{},
+					BufferId:              0,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {__typename id displayName}}"}}`,
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("user"),
+						Position: resolve.Position{
+							Line:   3,
+							Column: 4,
+						},
+						Value: &resolve.Object{
+							Path:     []string{"user"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("id"),
+									Value: &resolve.String{
+										Path: []string{"id"},
+									},
+									Position: resolve.Position{
+										Line:   4,
+										Column: 5,
+									},
+								},
+								{
+									Name: []byte("displayName"),
+									Value: &resolve.String{
+										Path: []string{"displayName"},
+									},
+									Position: resolve.Position{
+										Line:   5,
+										Column: 5,
+									},
+								},
+								{
+									Name: []byte("__typename"),
+									Value: &resolve.String{
+										Path: []string{"__typename"},
+									},
+									Position: resolve.Position{
+										Line:   6,
+										Column: 5,
+									},
+									SkipDirectiveDefined: true,
+									SkipVariableName:     "skip",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"user"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
+					},
+					{
+						TypeName:   "RegisteredUser",
+						FieldNames: []string{"id", "displayName", "isLoggedIn"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{},
+	}))
 	t.Run("skip directive on an inline fragment", RunTest(interfaceSelectionSchema, `
 		query MyQuery ($skip: Boolean!) {
 			user {
