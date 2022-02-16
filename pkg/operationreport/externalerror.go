@@ -248,3 +248,8 @@ func ErrTransitiveInterfaceNotImplemented(typeName, transitiveInterfaceName ast.
 	err.Message = fmt.Sprintf("type %s does not implement transitive interface %s", typeName, transitiveInterfaceName)
 	return err
 }
+
+func ErrTransitiveInterfaceExtensionImplementingWithoutBody(interfaceExtensionName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("interface extension %s implementing interface without body", interfaceExtensionName)
+	return err
+}

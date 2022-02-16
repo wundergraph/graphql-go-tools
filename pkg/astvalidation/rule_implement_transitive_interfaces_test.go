@@ -218,5 +218,40 @@ func TestImplementTransitiveInterfaces(t *testing.T) {
 				`, Invalid, ImplementTransitiveInterfaces(),
 			)
 		})
+
+		t.Run("Interface extension implementing interface which also already implements same interface", func(t *testing.T) {
+			runDefinitionValidation(t, `
+					interface IDType {
+					  id: ID!
+					}
+					
+					interface SoftDelete implements IDType {
+					  id: ID!
+					  deleted: Boolean!
+					}
+					
+					extend interface SoftDelete implements IDType {
+					  canBeRecovered: Boolean!
+					}
+				`, Valid, ImplementTransitiveInterfaces(),
+			)
+		})
+
+		t.Run("Interface extension implementing interface without body", func(t *testing.T) {
+			runDefinitionValidation(t, `
+					interface IDType {
+					  id: ID!
+					}
+					
+					interface SoftDelete {
+					  id: ID!
+					  deleted: Boolean!
+					}
+					
+					extend interface SoftDelete implements IDType
+				`, Invalid, ImplementTransitiveInterfaces(),
+			)
+		})
+
 	})
 }
