@@ -1043,11 +1043,13 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 
 	typeNameSkip := false
 	first := true
+	skipCount := 0
 	for i := range object.Fields {
 
 		if object.Fields[i].SkipDirectiveDefined {
 			skip, err := jsonparser.GetBoolean(ctx.Variables, object.Fields[i].SkipVariableName)
 			if err == nil && skip {
+				skipCount++
 				continue
 			}
 		}
@@ -1055,6 +1057,7 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 		if object.Fields[i].IncludeDirectiveDefined {
 			include, err := jsonparser.GetBoolean(ctx.Variables, object.Fields[i].IncludeVariableName)
 			if err != nil || !include {
+				skipCount++
 				continue
 			}
 		}
@@ -1119,6 +1122,13 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			return
 		}
 		r.MergeBufPairs(fieldBuf, objectBuf, false)
+	}
+	allSkipped := len(object.Fields) != 0 && len(object.Fields) == skipCount
+	if allSkipped {
+		// return empty object if all fields have been skipped
+		objectBuf.Data.WriteBytes(lBrace)
+		objectBuf.Data.WriteBytes(rBrace)
+		return
 	}
 	if first {
 		if typeNameSkip && !object.Nullable {
