@@ -80,6 +80,10 @@ func (v *implementTransitiveInterfacesVisitor) EnterInterfaceTypeExtension(ref i
 	}
 
 	interfaceName := v.definition.InterfaceTypeExtensionNameString(ref)
+	fieldDefinitionRefs := v.definition.InterfaceTypeExtensions[ref].FieldsDefinition.Refs
+	if len(fieldDefinitionRefs) == 0 {
+		v.Report.AddExternalError(operationreport.ErrTransitiveInterfaceExtensionImplementingWithoutBody([]byte(interfaceName)))
+	}
 	v.collectImplementedInterfaces(interfaceName, v.definition.InterfaceTypeExtensions[ref].ImplementsInterfaces.Refs)
 }
 
