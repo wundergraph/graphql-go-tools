@@ -169,7 +169,7 @@ func (c *complexityVisitor) EnterArgument(ref int) {
 
 	value := c.operation.ArgumentValue(ref)
 	if value.Kind == ast.ValueKindInteger {
-		multi := c.operation.IntValueAsInt(value.Ref)
+		multi := c.operation.IntValueAsInt32(value.Ref)
 		c.multipliers = append(c.multipliers, multiplier{
 			fieldRef: c.Ancestors[len(c.Ancestors)-1].Ref,
 			multi:    int(multi),
