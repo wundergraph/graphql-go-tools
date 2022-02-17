@@ -25,6 +25,15 @@ func (d *Document) IntValueAsInt(ref int) (out int64) {
 	return
 }
 
+func (d *Document) IntValueAsInt32(ref int) (out int32) {
+	in := d.Input.ByteSlice(d.IntValues[ref].Raw)
+	out = unsafebytes.BytesToInt32(in)
+	if d.IntValues[ref].Negative {
+		out = -out
+	}
+	return
+}
+
 func (d *Document) IntValue(ref int) IntValue {
 	return d.IntValues[ref]
 }

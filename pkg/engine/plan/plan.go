@@ -451,7 +451,7 @@ func (v *Visitor) EnterDirective(ref int) {
 			initialBatchSize := 0
 			if value, ok := v.Operation.DirectiveArgumentValueByName(ref, literal.INITIAL_BATCH_SIZE); ok {
 				if value.Kind == ast.ValueKindInteger {
-					initialBatchSize = int(v.Operation.IntValueAsInt(value.Ref))
+					initialBatchSize = int(v.Operation.IntValueAsInt32(value.Ref))
 				}
 			}
 			v.currentField.Stream = &resolve.StreamField{
