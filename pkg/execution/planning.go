@@ -138,15 +138,7 @@ func (p *planningVisitor) EnterField(ref int) {
 
 	definition, exists := p.FieldDefinition(ref)
 	if !exists {
-		if fieldName != "__typename" {
-			return
-		}
-
-		if p.EnclosingTypeDefinition.Kind != ast.NodeKindUnionTypeDefinition {
-			return
-		}
-
-		// continue
+		return
 	}
 
 	typeName := p.definition.NodeResolverTypeNameString(p.EnclosingTypeDefinition, p.Path)
@@ -187,17 +179,8 @@ func (p *planningVisitor) EnterField(ref int) {
 
 		dataResolvingConfig := p.fieldDataResolvingConfig(ref)
 
-		var (
-			value               Node
-			fieldDefinitionType int
-		)
-
-		switch p.EnclosingTypeDefinition.Kind {
-		case ast.NodeKindUnionTypeDefinition:
-			fieldDefinitionType = p.definition.UnionTypeDefinitions[p.EnclosingTypeDefinition.Ref].TypeNameFieldType
-		default:
-			fieldDefinitionType = p.definition.FieldDefinitionType(definition)
-		}
+		var value Node
+		fieldDefinitionType := p.definition.FieldDefinitionType(definition)
 
 		if p.definition.TypeIsList(fieldDefinitionType) {
 

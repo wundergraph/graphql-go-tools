@@ -283,6 +283,8 @@ func (d *Document) NodeFieldDefinitions(node Node) []int {
 		return d.InterfaceTypeDefinitions[node.Ref].FieldsDefinition.Refs
 	case NodeKindInterfaceTypeExtension:
 		return d.InterfaceTypeExtensions[node.Ref].FieldsDefinition.Refs
+	case NodeKindUnionTypeDefinition:
+		return d.UnionTypeDefinitions[node.Ref].FieldsDefinition.Refs
 	default:
 		return nil
 	}

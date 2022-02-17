@@ -16,8 +16,8 @@ type UnionTypeDefinition struct {
 	Directives          DirectiveList     // optional, e.g. @foo
 	Equals              position.Position // =
 	HasUnionMemberTypes bool
-	UnionMemberTypes    TypeList // optional, e.g. Photo | Person
-	TypeNameFieldType   int      // __typename: String!
+	UnionMemberTypes    TypeList            // optional, e.g. Photo | Person
+	FieldsDefinition    FieldDefinitionList // contains a single field: { __typename: String! }
 }
 
 func (d *Document) UnionTypeDefinitionNameBytes(ref int) ByteSlice {

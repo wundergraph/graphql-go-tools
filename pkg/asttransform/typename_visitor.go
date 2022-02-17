@@ -75,7 +75,7 @@ func (v *TypeNameVisitor) LeaveObjectTypeDefinition(ref int) {
 }
 
 func (v *TypeNameVisitor) LeaveUnionTypeDefinition(ref int) {
-	v.definition.UnionTypeDefinitions[ref].TypeNameFieldType = v.addTypeNameField()
+	v.definition.UnionTypeDefinitions[ref].FieldsDefinition.Refs = []int{v.addTypeNameField()}
 }
 
 func (v *TypeNameVisitor) addTypeNameField() (ref int) {
