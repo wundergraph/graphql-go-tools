@@ -188,7 +188,7 @@ func connectionInitMessage(header http.Header) (string, error) {
 	if len(header) == 0 {
 		return initMessageNoPayload, nil
 	}
-	payload := make(map[string]interface{}, len(header))
+	payload := make(map[string]string, len(header))
 	for name := range header {
 		payload[name] = header.Get(name)
 	}
@@ -196,7 +196,7 @@ func connectionInitMessage(header http.Header) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf(initMessageWithPayload, json.RawMessage(payloadBytes)), nil
+	return fmt.Sprintf(initMessageWithPayload, payloadBytes), nil
 }
 
 func newConnectionHandler(ctx context.Context, conn *websocket.Conn, readTimeout time.Duration, log abstractlogger.Logger) *connectionHandler {
