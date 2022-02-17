@@ -451,7 +451,7 @@ func (v *Visitor) EnterDirective(ref int) {
 			initialBatchSize := 0
 			if value, ok := v.Operation.DirectiveArgumentValueByName(ref, literal.INITIAL_BATCH_SIZE); ok {
 				if value.Kind == ast.ValueKindInteger {
-					initialBatchSize = int(v.Operation.IntValueAsInt(value.Ref))
+					initialBatchSize = int(v.Operation.IntValueAsInt32(value.Ref))
 				}
 			}
 			v.currentField.Stream = &resolve.StreamField{
@@ -531,7 +531,7 @@ func (v *Visitor) EnterField(ref int) {
 		return
 	}
 
-	fieldDefinition, ok := v.Walker.FieldDefinitionWithExists(ref)
+	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
 	if !ok {
 		return
 	}
@@ -648,7 +648,7 @@ func (v *Visitor) LeaveField(ref int) {
 	if v.currentFields[len(v.currentFields)-1].popOnField == ref {
 		v.currentFields = v.currentFields[:len(v.currentFields)-1]
 	}
-	fieldDefinition, ok := v.Walker.FieldDefinitionWithExists(ref)
+	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
 	if !ok {
 		return
 	}

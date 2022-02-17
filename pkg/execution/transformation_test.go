@@ -90,7 +90,7 @@ func TestExecution_With_Transformation(t *testing.T) {
 }
 
 func TestPlanner_WithTransformation(t *testing.T) {
-	t.Run("pipeline transformation string dataSourceConfig", run(withBaseSchema(transformationSchema), `
+	t.Run("pipeline transformation string dataSourceConfig", run(transformationSchema, `
 		query TransformationQuery {
 			foo
 		}
@@ -150,7 +150,7 @@ func TestPlanner_WithTransformation(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("pipeline transformation file dataSourceConfig", run(withBaseSchema(transformationSchema), `
+	t.Run("pipeline transformation file dataSourceConfig", run(transformationSchema, `
 		query TransformationQuery {
 			bar
 		}
