@@ -420,3 +420,92 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 		return connectedClients.Load() == 0
 	}, time.Second, time.Millisecond, "clients not 0")
 }
+
+func TestWebsocketSubscriptionClientWithInitPayload(t *testing.T) {
+	assertInitAck := func(ctx context.Context, conn *websocket.Conn) {
+		msgType, data, err := conn.Read(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, websocket.MessageText, msgType)
+		assert.Equal(t, `{"type":"connection_init", "payload":{"Authorization":"Bearer XXX"}}`, string(data))
+		err = conn.Write(ctx, websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+		assert.NoError(t, err)
+	}
+
+	handshakeHappened := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		assert.NoError(t, err)
+		assertInitAck(r.Context(), conn)
+		handshakeHappened = true
+		<-conn.CloseRead(r.Context()).Done()
+	}))
+	defer server.Close()
+
+	clientCtx, clientCancel := context.WithCancel(context.Background())
+	defer clientCancel()
+	client := NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, clientCtx,
+		WithReadTimeout(time.Millisecond),
+		WithLogger(logger()),
+	)
+
+	subscribeHeaders := http.Header{}
+	subscribeHeaders.Add("Authorization", "Bearer XXX")
+	next := make(chan []byte)
+	subCtx, subCancel := context.WithCancel(context.Background())
+	defer subCancel()
+	err := client.Subscribe(subCtx, GraphQLSubscriptionOptions{
+		URL: strings.Replace(server.URL, "http", "ws", -1),
+		Body: GraphQLBody{
+			Query: `subscription {messageAdded(roomName: "room"){text}}`,
+		},
+		Header: subscribeHeaders,
+	}, next)
+	assert.NoError(t, err)
+
+	assert.Len(t, client.handlers, 1, "handler not registered")
+	assert.Eventuallyf(t, func() bool {
+		return handshakeHappened
+	}, time.Second, time.Millisecond, "handshake was not performed")
+}
+
+func TestConnectionInitMessage(t *testing.T) {
+	for i, tc := range []struct {
+		header          http.Header
+		expectedMessage string
+	}{
+		{
+			header:          http.Header{},
+			expectedMessage: `{"type":"connection_init"}`,
+		},
+		{
+			header:          nil,
+			expectedMessage: `{"type":"connection_init"}`,
+		},
+		{
+			header:          http.Header{"Foo": []string{"bar"}},
+			expectedMessage: `{"type":"connection_init", "payload":{"Foo":"bar"}}`,
+		},
+		{
+			header:          http.Header{"Foo": []string{"bar", "baz"}},
+			expectedMessage: `{"type":"connection_init", "payload":{"Foo":"bar"}}`,
+		},
+		{
+			header:          http.Header{"Foo": []string{""}},
+			expectedMessage: `{"type":"connection_init", "payload":{"Foo":""}}`,
+		},
+		{
+			header:          http.Header{"Foo": []string{}},
+			expectedMessage: `{"type":"connection_init", "payload":{"Foo":""}}`,
+		},
+		{
+			header:          http.Header{"Foo": nil},
+			expectedMessage: `{"type":"connection_init", "payload":{"Foo":""}}`,
+		},
+	} {
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			msg, err := connectionInitMessage(tc.header)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectedMessage, msg)
+		})
+	}
+}
