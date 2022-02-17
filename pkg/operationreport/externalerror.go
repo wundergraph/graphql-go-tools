@@ -253,3 +253,13 @@ func ErrTransitiveInterfaceExtensionImplementingWithoutBody(interfaceExtensionNa
 	err.Message = fmt.Sprintf("interface extension %s implementing interface without body", interfaceExtensionName)
 	return err
 }
+
+func ErrTypeDoesNotImplementFieldFromInterface(typeName, interfaceName, fieldName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("type '%s' does not implement field '%s' from interface '%s'", typeName, fieldName, interfaceName)
+	return err
+}
+
+func ErrImplementingTypeDoesNotHaveFields(typeName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("type '%s' implements an interface but does not have any fields defined", typeName)
+	return err
+}

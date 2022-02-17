@@ -1,0 +1,254 @@
+{
+  "__schema": {
+    "queryType": null,
+    "mutationType": null,
+    "subscriptionType": null,
+    "types": [
+      {
+        "kind": "INTERFACE",
+        "name": "BaseInterface",
+        "description": "",
+        "fields": [
+          {
+            "name": "fieldOne",
+            "description": "",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": null,
+                "ofType": null
+              }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
+          }
+        ],
+        "inputFields": [],
+        "interfaces": [],
+        "enumValues": [],
+        "possibleTypes": []
+      },
+      {
+        "kind": "INTERFACE",
+        "name": "SecondInterface",
+        "description": "",
+        "fields": [
+          {
+            "name": "fieldOne",
+            "description": "",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": null,
+                "ofType": null
+              }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
+          },
+          {
+            "name": "fieldTwo",
+            "description": "",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": null,
+                "ofType": null
+              }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
+          }
+        ],
+        "inputFields": [],
+        "interfaces": [
+          {
+            "kind": "INTERFACE",
+            "name": "BaseInterface",
+            "ofType": null
+          }
+        ],
+        "enumValues": [],
+        "possibleTypes": []
+      },
+      {
+        "kind": "INTERFACE",
+        "name": "ThirdInterface",
+        "description": "",
+        "fields": [
+          {
+            "name": "fieldOne",
+            "description": "",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": null,
+                "ofType": null
+              }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
+          },
+          {
+            "name": "fieldTwo",
+            "description": "",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": null,
+                "ofType": null
+              }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
+          },
+          {
+            "name": "fieldThree",
+            "description": "",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": null,
+                "ofType": null
+              }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
+          }
+        ],
+        "inputFields": [],
+        "interfaces": [
+          {
+            "kind": "INTERFACE",
+            "name": "SecondInterface",
+            "ofType": null
+          },
+          {
+            "kind": "INTERFACE",
+            "name": "BaseInterface",
+            "ofType": null
+          }
+        ],
+        "enumValues": [],
+        "possibleTypes": []
+      },
+      {
+        "kind": "INTERFACE",
+        "name": "IDType",
+        "description": "",
+        "fields": [
+          {
+            "name": "id",
+            "description": "",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": null,
+                "ofType": null
+              }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
+          }
+        ],
+        "inputFields": [],
+        "interfaces": [],
+        "enumValues": [],
+        "possibleTypes": []
+      },
+      {
+        "kind": "INTERFACE",
+        "name": "SoftDelete",
+        "description": "",
+        "fields": [
+          {
+            "name": "deleted",
+            "description": "",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": null,
+                "ofType": null
+              }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
+          }
+        ],
+        "inputFields": [],
+        "interfaces": [
+          {
+            "kind": "INTERFACE",
+            "name": "IDType",
+            "ofType": null
+          }
+        ],
+        "enumValues": [],
+        "possibleTypes": []
+      },
+      {
+        "kind": "INTERFACE",
+        "name": "Record",
+        "description": "",
+        "fields": [
+          {
+            "name": "data",
+            "description": "",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": null,
+                "ofType": null
+              }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
+          }
+        ],
+        "inputFields": [],
+        "interfaces": [
+          {
+            "kind": "INTERFACE",
+            "name": "SoftDelete",
+            "ofType": null
+          },
+          {
+            "kind": "INTERFACE",
+            "name": "IDType",
+            "ofType": null
+          }
+        ],
+        "enumValues": [],
+        "possibleTypes": []
+      }
+    ],
+    "directives": []
+  }
+}
