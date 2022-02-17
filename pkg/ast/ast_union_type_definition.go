@@ -1,6 +1,8 @@
 package ast
 
 import (
+	"bytes"
+
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 )
@@ -17,6 +19,7 @@ type UnionTypeDefinition struct {
 	Equals              position.Position // =
 	HasUnionMemberTypes bool
 	UnionMemberTypes    TypeList            // optional, e.g. Photo | Person
+	HasFieldDefinitions bool
 	FieldsDefinition    FieldDefinitionList // contains a single field: { __typename: String! }
 }
 
@@ -37,6 +40,15 @@ func (d *Document) UnionTypeDefinitionDescriptionBytes(ref int) ByteSlice {
 
 func (d *Document) UnionTypeDefinitionDescriptionString(ref int) string {
 	return unsafebytes.BytesToString(d.UnionTypeDefinitionDescriptionBytes(ref))
+}
+
+func (d *Document) UnionTypeDefinitionHasField(ref int, fieldName []byte) bool {
+	for _, fieldRef := range d.UnionTypeDefinitions[ref].FieldsDefinition.Refs {
+		if bytes.Equal(d.FieldDefinitionNameBytes(fieldRef),fieldName){
+			return true
+		}
+	}
+	return false
 }
 
 func (d *Document) UnionMemberTypeIsFirst(ref int, ancestor Node) bool {

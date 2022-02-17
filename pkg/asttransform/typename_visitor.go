@@ -75,6 +75,10 @@ func (v *TypeNameVisitor) LeaveObjectTypeDefinition(ref int) {
 }
 
 func (v *TypeNameVisitor) LeaveUnionTypeDefinition(ref int) {
+	if v.definition.UnionTypeDefinitions[ref].HasFieldDefinitions &&
+		v.definition.UnionTypeDefinitionHasField(ref, literal.TYPENAME) {
+		return // this makes the operation idempotent
+	}
 	v.definition.UnionTypeDefinitions[ref].FieldsDefinition.Refs = []int{v.addTypeNameField()}
 }
 
