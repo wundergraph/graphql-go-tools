@@ -11,6 +11,11 @@ func BytesToInt64(byteSlice []byte) int64 {
 	return out
 }
 
+func BytesToInt32(byteSlice []byte) int32 {
+	out, _ := strconv.ParseInt(*(*string)(unsafe.Pointer(&byteSlice)), 10, 32)
+	return int32(out)
+}
+
 func BytesToFloat32(byteSlice []byte) float32 {
 	out, _ := strconv.ParseFloat(*(*string)(unsafe.Pointer(&byteSlice)), 64)
 	return float32(out)
