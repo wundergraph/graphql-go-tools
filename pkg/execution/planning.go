@@ -134,6 +134,7 @@ func (p *planningVisitor) LeaveInlineFragment(ref int) {
 }
 
 func (p *planningVisitor) EnterField(ref int) {
+	fieldName := p.operation.FieldNameUnsafeString(ref)
 
 	definition, exists := p.FieldDefinition(ref)
 	if !exists {
@@ -141,7 +142,6 @@ func (p *planningVisitor) EnterField(ref int) {
 	}
 
 	typeName := p.definition.NodeResolverTypeNameString(p.EnclosingTypeDefinition, p.Path)
-	fieldName := p.operation.FieldNameUnsafeString(ref)
 
 	plannerFactory := p.base.Config.DataSourcePlannerFactoryForTypeField(typeName, fieldName)
 	if plannerFactory != nil {
@@ -181,6 +181,7 @@ func (p *planningVisitor) EnterField(ref int) {
 
 		var value Node
 		fieldDefinitionType := p.definition.FieldDefinitionType(definition)
+
 		if p.definition.TypeIsList(fieldDefinitionType) {
 
 			if !p.operation.FieldHasSelections(ref) {

@@ -19,6 +19,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
+	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -55,6 +56,10 @@ func runWithOperationName(definition string, operation string, operationName str
 		}
 
 		def := unsafeparser.ParseGraphqlDocumentString(definition)
+		if err := asttransform.MergeDefinitionWithBaseSchema(&def); err != nil {
+			t.Error(err)
+		}
+
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
 
 		var report operationreport.Report
@@ -123,7 +128,7 @@ func runAndReportExternalErrorWithOperationName(definition string, operation str
 
 func TestPlanner_Plan(t *testing.T) {
 
-	t.Run("GraphQLDataSource", run(withBaseSchema(GraphQLDataSourceSchema), `
+	t.Run("GraphQLDataSource", run(GraphQLDataSourceSchema, `
 				query GraphQLQuery($code: String!) {
 					country(code: $code) {
 						code
@@ -246,7 +251,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("GraphQLDataSource mutation", run(withBaseSchema(GraphQLDataSourceSchema), `
+	t.Run("GraphQLDataSource mutation", run(GraphQLDataSourceSchema, `
 				mutation LikePost($id: ID!) {
 					likePost(id: $id) {
 						id
@@ -356,7 +361,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("HTTPJSONDataSource", run(withBaseSchema(HTTPJSONDataSourceSchema), `
+	t.Run("HTTPJSONDataSource", run(HTTPJSONDataSourceSchema, `
 					query RESTQuery($id: Int!){
 						httpBinGet {
 							header {
@@ -646,7 +651,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("HTTPJSONDataSource withBody", run(withBaseSchema(HTTPJSONDataSourceSchema), `
+	t.Run("HTTPJSONDataSource withBody", run(HTTPJSONDataSourceSchema, `
 					query WithBody($input: WithBodyInput) {
 						withBody(input: $input)
 					}
@@ -727,7 +732,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("HTTPJSONDataSource withPath", run(withBaseSchema(HTTPJSONDataSourceSchema), `
+	t.Run("HTTPJSONDataSource withPath", run(HTTPJSONDataSourceSchema, `
 					query WithPath {
 						withPath
 					}
@@ -803,7 +808,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("HTTPJSONDataSource list withoutPath", run(withBaseSchema(HTTPJSONDataSourceSchema), `
+	t.Run("HTTPJSONDataSource list withoutPath", run(HTTPJSONDataSourceSchema, `
 					query ListWithoutPath {
 						listItems {
 							id
@@ -894,7 +899,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("HTTPJSONDataSource list withPath", run(withBaseSchema(HTTPJSONDataSourceSchema), `
+	t.Run("HTTPJSONDataSource list withPath", run(HTTPJSONDataSourceSchema, `
 					query ListWithPath {
 						listWithPath {
 							id
@@ -990,7 +995,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("HTTPJSONDataSource withHeaders", run(withBaseSchema(HTTPJSONDataSourceSchema), `
+	t.Run("HTTPJSONDataSource withHeaders", run(HTTPJSONDataSourceSchema, `
 					query WithHeader {
 						withHeaders
 					}
@@ -1084,7 +1089,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("StaticDataSource", run(withBaseSchema(staticDataSourceSchema), `
+	t.Run("StaticDataSource", run(staticDataSourceSchema, `
 					{
 						hello
 						nullableInt
@@ -1212,7 +1217,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("introspection type query", run(withBaseSchema(complexSchema), `
+	t.Run("introspection type query", run(complexSchema, `
 				query TypeQuery($name: String! = "User") {
 					__type(name: $name) {
 						name
@@ -1336,7 +1341,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("graphql resolver", run(withBaseSchema(complexSchema), `
+	t.Run("graphql resolver", run(complexSchema, `
 			query UserQuery($id: String!) {
 				user(id: $id) {
 					id
@@ -1454,7 +1459,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("rest resolver", run(withBaseSchema(complexSchema), `
+	t.Run("rest resolver", run(complexSchema, `
 				query UserQuery($id: String!) {
 					restUser(id: $id) {
 						id
@@ -1572,7 +1577,7 @@ func TestPlanner_Plan(t *testing.T) {
 		},
 	))
 
-	t.Run("graphql resolver with nested rest resolver", run(withBaseSchema(complexSchema), `
+	t.Run("graphql resolver with nested rest resolver", run(complexSchema, `
 			query UserQuery($id: String!) {
 				user(id: $id) {
 					id
@@ -1783,7 +1788,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("introspection", run(withBaseSchema(complexSchema), `
+	t.Run("introspection", run(complexSchema, `
 			query IntrospectionQuery {
 			  __schema {
 				queryType {
@@ -2424,7 +2429,7 @@ func TestPlanner_Plan(t *testing.T) {
 		true, // TODO: move into own test and unskip (currently skipped because schemaBytes marshal doesn't return comparable result (order of objects in JSON))
 	))
 
-	t.Run("http polling stream", run(withBaseSchema(HttpPollingStreamSchema), `
+	t.Run("http polling stream", run(HttpPollingStreamSchema, `
 					subscription {
 						stream {
 							bar
@@ -2515,7 +2520,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			},
 		}))
-	t.Run("list filter first N", run(withBaseSchema(ListFilterFirstNSchema), `
+	t.Run("list filter first N", run(ListFilterFirstNSchema, `
 			query {
 				foos {
 					bar
@@ -2587,7 +2592,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("stringPipeline", run(withBaseSchema(pipelineSchema), `
+	t.Run("stringPipeline", run(pipelineSchema, `
 			query PipelineQuery($foo: String!) {
 				stringPipeline(foo: $foo)
 			}
@@ -2675,7 +2680,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("filePipeline", run(withBaseSchema(pipelineSchema), `
+	t.Run("filePipeline", run(pipelineSchema, `
 			query PipelineQuery($foo: String!) {
 				filePipeline(foo: $foo)
 			}
@@ -3096,8 +3101,12 @@ func TestPlanner_Plan(t *testing.T) {
 }
 
 func BenchmarkPlanner_Plan(b *testing.B) {
-	schema := withBaseSchema(complexSchema)
-	def := unsafeparser.ParseGraphqlDocumentString(schema)
+	schema := complexSchema
+	def := unsafeparser.ParseGraphqlDocumentString(complexSchema)
+	if err := asttransform.MergeDefinitionWithBaseSchema(&def); err != nil {
+		b.Fatal(err)
+	}
+
 	op := unsafeparser.ParseGraphqlDocumentString(`
 			query UserQuery($id: String!) {
 				user(id: $id) {
@@ -3562,193 +3571,6 @@ input StringQueryOperatorInput {
 
 """The Upload scalar type represents a file upload."""
 scalar Upload`
-
-func withBaseSchema(input string) string {
-	return input + `
-"The 'Int' scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1."
-scalar Int
-"The 'Float' scalar type represents signed double-precision fractional values as specified by [IEEE 754](http://en.wikipedia.org/wiki/IEEE_floating_point)."
-scalar Float
-"The 'String' scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text."
-scalar String
-"The 'Boolean' scalar type represents 'true' or 'false' ."
-scalar Boolean
-"The 'ID' scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as '4') or integer (such as 4) input value will be accepted as an ID."
-scalar ID @custom(typeName: "string")
-"Directs the executor to include this field or fragment only when the argument is true."
-directive @include(
-    " Included when true."
-    if: Boolean!
-) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
-"Directs the executor to skip this field or fragment when the argument is true."
-directive @skip(
-    "Skipped when true."
-    if: Boolean!
-) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
-"Marks an element of a GraphQL schema as no longer supported."
-directive @deprecated(
-    """
-    Explains why this element was deprecated, usually also including a suggestion
-    for how to access supported similar data. Formatted in
-    [Markdown](https://daringfireball.net/projects/markdown/).
-    """
-    reason: String = "No longer supported"
-) on FIELD_DEFINITION | ENUM_VALUE
-
-"""
-A Directive provides a way to describe alternate runtime execution and type validation behavior in a GraphQL document.
-In some cases, you need to provide options to alter GraphQL's execution behavior
-in ways field arguments will not suffice, such as conditionally including or
-skipping a field. Directives provide this by describing additional information
-to the executor.
-"""
-type __Directive {
-    name: String!
-    description: String
-    locations: [__DirectiveLocation!]!
-    args: [__InputValue!]!
-}
-
-"""
-A Directive can be adjacent to many parts of the GraphQL language, a
-__DirectiveLocation describes one such possible adjacencies.
-"""
-enum __DirectiveLocation {
-    "Location adjacent to a query operation."
-    QUERY
-    "Location adjacent to a mutation operation."
-    MUTATION
-    "Location adjacent to a subscription operation."
-    SUBSCRIPTION
-    "Location adjacent to a field."
-    FIELD
-    "Location adjacent to a fragment definition."
-    FRAGMENT_DEFINITION
-    "Location adjacent to a fragment spread."
-    FRAGMENT_SPREAD
-    "Location adjacent to an inline fragment."
-    INLINE_FRAGMENT
-    "Location adjacent to a schema definition."
-    SCHEMA
-    "Location adjacent to a scalar definition."
-    SCALAR
-    "Location adjacent to an object type definition."
-    OBJECT
-    "Location adjacent to a field definition."
-    FIELD_DEFINITION
-    "Location adjacent to an argument definition."
-    ARGUMENT_DEFINITION
-    "Location adjacent to an interface definition."
-    INTERFACE
-    "Location adjacent to a union definition."
-    UNION
-    "Location adjacent to an enum definition."
-    ENUM
-    "Location adjacent to an enum value definition."
-    ENUM_VALUE
-    "Location adjacent to an input object type definition."
-    INPUT_OBJECT
-    "Location adjacent to an input object field definition."
-    INPUT_FIELD_DEFINITION
-}
-"""
-One possible value for a given Enum. Enum values are unique values, not a
-placeholder for a string or numeric value. However an Enum value is returned in
-a JSON response as a string.
-"""
-type __EnumValue {
-    name: String!
-    description: String
-    isDeprecated: Boolean!
-    deprecationReason: String
-}
-
-"""
-ObjectKind and Interface types are described by a list of Fields, each of which has
-a name, potentially a list of arguments, and a return type.
-"""
-type __Field {
-    name: String!
-    description: String
-    args: [__InputValue!]!
-    type: __Type!
-    isDeprecated: Boolean!
-    deprecationReason: String
-}
-
-"""Arguments provided to Fields or Directives and the input fields of an
-InputObject are represented as Input Values which describe their type and
-optionally a default value.
-"""
-type __InputValue {
-    name: String!
-    description: String
-    type: __Type!
-    "A GraphQL-formatted string representing the default value for this input value."
-    defaultValue: String
-}
-
-"""
-A GraphQL Schema defines the capabilities of a GraphQL server. It exposes all
-available types and directives on the server, as well as the entry points for
-query, mutation, and subscription operations.
-"""
-type __Schema {
-    "A list of all types supported by this server."
-    types: [__Type!]!
-    "The type that query operations will be rooted at."
-    queryType: __Type!
-    "If this server supports mutation, the type that mutation operations will be rooted at."
-    mutationType: __Type
-    "If this server support subscription, the type that subscription operations will be rooted at."
-    subscriptionType: __Type
-    "A list of all directives supported by this server."
-    directives: [__Directive!]!
-}
-
-"""
-The fundamental unit of any GraphQL Schema is the type. There are many kinds of
-types in GraphQL as represented by the '__TypeKind' enum.
-
-Depending on the kind of a type, certain fields describe information about that
-type. Scalar types provide no information beyond a name and description, while
-Enum types provide their values. ObjectKind and Interface types provide the fields
-they describe. Abstract types, Union and Interface, provide the ObjectKind types
-possible at runtime. ListKind and NonNull types compose other types.
-"""
-type __Type {
-    kind: __TypeKind!
-    name: String
-    description: String
-    fields(includeDeprecated: Boolean = false): [__Field!]
-    interfaces: [__Type!]
-    possibleTypes: [__Type!]
-    enumValues(includeDeprecated: Boolean = false): [__EnumValue!]
-    inputFields: [__InputValue!]
-    ofType: __Type
-}
-
-"An enum describing what kind of type a given '__Type' is."
-enum __TypeKind {
-    "Indicates this type is a scalar."
-    SCALAR
-    "Indicates this type is an object. 'fields' and 'interfaces' are valid fields."
-    OBJECT
-    "Indicates this type is an interface. 'fields' ' and ' 'possibleTypes' are valid fields."
-    INTERFACE
-    "Indicates this type is a union. 'possibleTypes' is a valid field."
-    UNION
-    "Indicates this type is an enum. 'enumValues' is a valid field."
-    ENUM
-    "Indicates this type is an input object. 'inputFields' is a valid field."
-    INPUT_OBJECT
-    "Indicates this type is a list. 'ofType' is a valid field."
-    LIST
-    "Indicates this type is a non-null. 'ofType' is a valid field."
-    NON_NULL
-}
-`
-}
 
 func introspectionQuery(schema []byte) RootNode {
 	return &Object{

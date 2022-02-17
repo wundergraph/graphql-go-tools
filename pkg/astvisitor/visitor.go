@@ -3598,17 +3598,20 @@ func (w *Walker) ArgumentInputValueDefinition(argument int) (definition int, exi
 	return
 }
 
+// FieldDefinitionWithExists
+// Deprecated: use FieldDefinition
 func (w *Walker) FieldDefinitionWithExists(field int) (definition int, exists bool) {
-	fieldName := w.document.FieldNameBytes(field)
-	definition, exists = w.definition.NodeFieldDefinitionByName(w.EnclosingTypeDefinition, fieldName)
-	return
+	return w.FieldDefinition(field)
 }
 
+// FieldDefinition - returns field definition ref from schema definition
+// field - ref to a field from operation
+// returns:
+// definition - ref to a field definition from schema definition document if it is exists otherwise returns ast.InvalidRef
+// exists - true if field exists
 func (w *Walker) FieldDefinition(field int) (definition int, exists bool) {
 	fieldName := w.document.FieldNameBytes(field)
-	definition, _ = w.definition.NodeFieldDefinitionByName(w.EnclosingTypeDefinition, fieldName)
-	exists = definition != -1
-	return
+	return w.definition.NodeFieldDefinitionByName(w.EnclosingTypeDefinition, fieldName)
 }
 
 func (w *Walker) AncestorNameBytes() ast.ByteSlice {
@@ -3619,7 +3622,7 @@ func (w *Walker) AncestorNameBytes() ast.ByteSlice {
 }
 
 func (w *Walker) FieldDefinitionDirectiveArgumentValueByName(field int, directiveName, argumentName ast.ByteSlice) (ast.Value, bool) {
-	definition, exists := w.FieldDefinitionWithExists(field)
+	definition, exists := w.FieldDefinition(field)
 	if !exists {
 		return ast.Value{}, false
 	}
