@@ -92,7 +92,7 @@ func (p *PathItem) UnmarshalJSON(data []byte) error {
 		p.FieldName = data[1 : len(data)-1]
 		return nil
 	}
-	out, err := strconv.ParseInt(*(*string)(unsafe.Pointer(&data)), 10, 64)
+	out, err := strconv.ParseInt(*(*string)(unsafe.Pointer(&data)), 10, 32)
 	if err != nil {
 		return err
 	}
