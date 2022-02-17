@@ -157,6 +157,27 @@ func (i *introspectionVisitor) EnterInterfaceTypeDefinition(ref int) {
 			})
 		}
 	}
+
+	for _, interfaceTypeExtension := range i.definition.InterfaceTypeExtensions {
+		interfaceTypeExtensionName := i.definition.Input.ByteSliceString(interfaceTypeExtension.Name)
+		for _, implementedInterfaceRef := range interfaceTypeExtension.ImplementsInterfaces.Refs {
+			if i.currentType.Name == interfaceTypeExtensionName {
+				implementedInterfaceName := i.definition.TypeNameString(implementedInterfaceRef)
+				i.currentType.Interfaces = append(i.currentType.Interfaces, TypeRef{
+					Kind: INTERFACE,
+					Name: &implementedInterfaceName,
+				})
+			}
+		}
+	}
+
+	for _, implementedInterfaceRef := range i.definition.InterfaceTypeDefinitions[ref].ImplementsInterfaces.Refs {
+		implementedInterfaceName := i.definition.TypeNameString(implementedInterfaceRef)
+		i.currentType.Interfaces = append(i.currentType.Interfaces, TypeRef{
+			Kind: INTERFACE,
+			Name: &implementedInterfaceName,
+		})
+	}
 }
 
 func (i *introspectionVisitor) LeaveInterfaceTypeDefinition(ref int) {

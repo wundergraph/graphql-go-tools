@@ -505,6 +505,9 @@ func (v *Visitor) EnterField(ref int) {
 		return
 	}
 
+	skip, skipVariableName := v.resolveSkipForField(ref)
+	include, includeVariableName := v.resolveIncludeForField(ref)
+
 	fieldName := v.Operation.FieldNameBytes(ref)
 	fieldAliasOrName := v.Operation.FieldAliasOrNameBytes(ref)
 	if bytes.Equal(fieldName, literal.TYPENAME) {
@@ -512,19 +515,23 @@ func (v *Visitor) EnterField(ref int) {
 			Name: fieldAliasOrName,
 			Value: &resolve.String{
 				Nullable: false,
-				Path:     v.resolveFieldPath(ref),
+				Path:     []string{"__typename"},
 			},
 			OnTypeName: v.resolveOnTypeName(),
 			Position: resolve.Position{
 				Line:   v.Operation.Fields[ref].Position.LineStart,
 				Column: v.Operation.Fields[ref].Position.CharStart,
 			},
+			SkipDirectiveDefined:    skip,
+			SkipVariableName:        skipVariableName,
+			IncludeDirectiveDefined: include,
+			IncludeVariableName:     includeVariableName,
 		}
 		*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
 		return
 	}
 
-	fieldDefinition, ok := v.Walker.FieldDefinitionWithExists(ref)
+	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
 	if !ok {
 		return
 	}
@@ -554,9 +561,6 @@ func (v *Visitor) EnterField(ref int) {
 	fieldDefinitionType := v.Definition.FieldDefinitionType(fieldDefinition)
 	bufferID, hasBuffer := v.fieldBuffers[ref]
 
-	skip, skipVariableName := v.resolveSkipForField(ref)
-	include, includeVariableName := v.resolveIncludeForField(ref)
-
 	v.currentField = &resolve.Field{
 		Name:       fieldAliasOrName,
 		Value:      v.resolveFieldValue(ref, fieldDefinitionType, true, path, false),
@@ -585,7 +589,7 @@ func (v *Visitor) EnterField(ref int) {
 }
 
 func (v *Visitor) resolveSkipForField(ref int) (bool, string) {
-	skipInclude,ok := v.skipIncludeFields[ref]
+	skipInclude, ok := v.skipIncludeFields[ref]
 	if ok {
 		return skipInclude.skip, skipInclude.skipVariableName
 	}
@@ -593,7 +597,7 @@ func (v *Visitor) resolveSkipForField(ref int) (bool, string) {
 }
 
 func (v *Visitor) resolveIncludeForField(ref int) (bool, string) {
-	skipInclude,ok := v.skipIncludeFields[ref]
+	skipInclude, ok := v.skipIncludeFields[ref]
 	if ok {
 		return skipInclude.include, skipInclude.includeVariableName
 	}
@@ -644,7 +648,7 @@ func (v *Visitor) LeaveField(ref int) {
 	if v.currentFields[len(v.currentFields)-1].popOnField == ref {
 		v.currentFields = v.currentFields[:len(v.currentFields)-1]
 	}
-	fieldDefinition, ok := v.Walker.FieldDefinitionWithExists(ref)
+	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
 	if !ok {
 		return
 	}

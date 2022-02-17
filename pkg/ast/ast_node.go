@@ -13,6 +13,8 @@ type Node struct {
 	Ref  int
 }
 
+var InvalidNode = Node{Kind: NodeKindUnknown, Ref: InvalidRef}
+
 func (n *Node) IsExtensionKind() bool {
 	switch n.Kind {
 	case NodeKindSchemaExtension,
@@ -281,6 +283,8 @@ func (d *Document) NodeFieldDefinitions(node Node) []int {
 		return d.InterfaceTypeDefinitions[node.Ref].FieldsDefinition.Refs
 	case NodeKindInterfaceTypeExtension:
 		return d.InterfaceTypeExtensions[node.Ref].FieldsDefinition.Refs
+	case NodeKindUnionTypeDefinition:
+		return d.UnionTypeDefinitions[node.Ref].FieldsDefinition.Refs
 	default:
 		return nil
 	}
@@ -314,7 +318,7 @@ func (d *Document) NodeFieldDefinitionByName(node Node, fieldName ByteSlice) (de
 			return i, true
 		}
 	}
-	return
+	return InvalidRef, false
 }
 
 func (d *Document) NodeFieldDefinitionArgumentDefinitionByName(node Node, fieldName, argumentName ByteSlice) int {

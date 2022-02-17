@@ -12,7 +12,7 @@ func TestUniqueEnumValueNamesRule(t *testing.T) {
 		if len(schemas) > 0 {
 			schema = schemas[0]
 		}
-		return ExpectSDLValidationErrors(t, schema, "UniqueEnumValueNamesRule", sdlStr)
+		return ExpectSDLValidationErrors(t, schema, UniqueEnumValueNamesRule, sdlStr)
 	}
 
 	ExpectValidSDL := func(t *testing.T, sdlStr string, schemas ...string) {

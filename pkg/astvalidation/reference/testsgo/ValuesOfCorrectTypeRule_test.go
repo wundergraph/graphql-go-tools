@@ -8,7 +8,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 	t.Skip()
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
-		return ExpectValidationErrors(t, "ValuesOfCorrectTypeRule", queryStr)
+		return ExpectValidationErrors(t, ValuesOfCorrectTypeRule, queryStr)
 	}
 
 	ExpectValid := func(t *testing.T, queryStr string) {
@@ -832,7 +832,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
         {
           complicatedArgs {
             complexArgField(complexArg: {
-
+              stringListField: ["one", "two"],
               booleanField: false,
               requiredField: true,
               stringField: "foo",
@@ -865,7 +865,7 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
         {
           complicatedArgs {
             complexArgField(complexArg: {
-
+              stringListField: ["one", 2],
               requiredField: true,
             })
           }

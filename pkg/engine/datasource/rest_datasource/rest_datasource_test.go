@@ -259,11 +259,11 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"idVariable"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string","null"]}`),
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -347,11 +347,11 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"phoneNumber"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -428,11 +428,11 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path:     []string{"idVariable"},
-										Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+										Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 									},
 									&resolve.ContextVariable{
 										Path:     []string{"a"},
-										Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+										Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string","null"]}`),
 									},
 								),
 								DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -444,11 +444,11 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path:     []string{"idVariable"},
-										Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+										Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 									},
 									&resolve.ContextVariable{
 										Path:     []string{"d"},
-										Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+										Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string","null"]}`),
 									},
 								),
 								DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -475,7 +475,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											Variables: resolve.NewVariables(
 												&resolve.ContextVariable{
 													Path:     []string{"b"},
-													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 												},
 											),
 											DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -487,7 +487,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											Variables: resolve.NewVariables(
 												&resolve.ContextVariable{
 													Path:     []string{"c"},
-													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 												},
 											),
 											DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -620,11 +620,11 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"b"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string","null"]}`),
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -912,11 +912,11 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string","null"]}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"idVariable"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -1011,7 +1011,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"array","item":{"type":"string"}}`),
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["array","null"],"items":{"type":["string","null"]}}`),
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
@@ -1161,10 +1161,8 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 }
 
 func TestHttpJsonDataSource_Load(t *testing.T) {
-
 	runTests := func(t *testing.T, source *Source) {
 		t.Run("simple get", func(t *testing.T) {
-
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, r.Method, http.MethodGet)
 				_, _ = w.Write([]byte(`ok`))
@@ -1178,7 +1176,6 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			assert.Equal(t, `ok`, b.String())
 		})
 		t.Run("get with query parameters", func(t *testing.T) {
-
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, r.Method, http.MethodGet)
 				fooQueryParam := r.URL.Query().Get("foo")
@@ -1198,7 +1195,6 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			assert.Equal(t, `ok`, b.String())
 		})
 		t.Run("get with headers", func(t *testing.T) {
-
 			authorization := "Bearer 123"
 			xApiKey := "456"
 
@@ -1220,7 +1216,6 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			assert.Equal(t, `ok`, b.String())
 		})
 		t.Run("post with body", func(t *testing.T) {
-
 			body := `{"foo":"bar"}`
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

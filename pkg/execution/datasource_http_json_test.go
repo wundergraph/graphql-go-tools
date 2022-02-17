@@ -58,7 +58,7 @@ type ErrorInterface implements InterfaceType {
 `
 
 func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
-	t.Run("simpleType", run(withBaseSchema(httpJsonDataSourceSchema), `
+	t.Run("simpleType", run(httpJsonDataSourceSchema, `
 		query SimpleTypeQuery {
 			simpleType {
 				__typename
@@ -171,7 +171,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("list of strings", run(withBaseSchema(httpJsonDataSourceSchema), `
+	t.Run("list of strings", run(httpJsonDataSourceSchema, `
 		query ListOfStrings {
 			listOfStrings
 		}
@@ -252,7 +252,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("list of objects", run(withBaseSchema(httpJsonDataSourceSchema), `
+	t.Run("list of objects", run(httpJsonDataSourceSchema, `
 		query ListOfObjects {
 			listOfObjects {
 				scalarField
@@ -355,7 +355,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("unionType", run(withBaseSchema(httpJsonDataSourceSchema), `
+	t.Run("unionType", run(httpJsonDataSourceSchema, `
 		query UnionTypeQuery {
 			unionType {
 				__typename
@@ -504,7 +504,7 @@ func TestHttpJsonDataSourcePlanner_Plan(t *testing.T) {
 			},
 		},
 	))
-	t.Run("interfaceType", run(withBaseSchema(httpJsonDataSourceSchema), `
+	t.Run("interfaceType", run(httpJsonDataSourceSchema, `
 		query InterfaceTypeQuery {
 			interfaceType {
 				__typename

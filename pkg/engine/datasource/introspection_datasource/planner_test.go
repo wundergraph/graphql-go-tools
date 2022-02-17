@@ -76,7 +76,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 							},
 						),
 					},
@@ -189,7 +189,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 							},
 						),
 					},
@@ -217,7 +217,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 												},
 												&resolve.ContextVariable{
 													Path:     []string{"b"},
-													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"boolean"}`),
+													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["boolean","null"]}`),
 												},
 											),
 											DataSourceIdentifier: dataSourceIdentifier,
@@ -233,7 +233,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 												},
 												&resolve.ContextVariable{
 													Path:     []string{"c"},
-													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"boolean"}`),
+													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["boolean","null"]}`),
 												},
 											),
 											DataSourceIdentifier: dataSourceIdentifier,
@@ -300,5 +300,4 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 		},
 		planConfiguration,
 	))
-
 }
