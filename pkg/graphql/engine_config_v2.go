@@ -25,8 +25,18 @@ func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
 		schema: schema,
 		plannerConfig: plan.Configuration{
 			DefaultFlushIntervalMillis: DefaultFlushIntervalInMilliseconds,
-			DataSources:                []plan.DataSourceConfiguration{},
-			Fields:                     plan.FieldConfigurations{},
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							Header: http.Header{
+								"Authorization": []string{"{{ .request.headers.Authorization }}"},
+							},
+						},
+					}),
+				},
+			},
+			Fields: plan.FieldConfigurations{},
 		},
 		dataLoaderConfig: dataLoaderConfig{
 			EnableSingleFlightLoader: false,
