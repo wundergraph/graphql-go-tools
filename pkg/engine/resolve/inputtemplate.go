@@ -3,7 +3,6 @@ package resolve
 import (
 	"context"
 	"fmt"
-	"net/textproto"
 
 	"github.com/buger/jsonparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
@@ -81,11 +80,7 @@ func (i *InputTemplate) renderHeaderVariable(ctx *Context, path []string, prepar
 	if len(path) != 1 {
 		return errHeaderPathInvalid
 	}
-	// Header.Values is available from go 1.14
-	// value := ctx.Request.Header.Values(path[0])
-	// could be simplified once go 1.12 support will be dropped
-	canonicalName := textproto.CanonicalMIMEHeaderKey(path[0])
-	value := ctx.Request.Header[canonicalName]
+	value := ctx.Request.Header.Values(path[0])
 	if len(value) == 0 {
 		return nil
 	}
