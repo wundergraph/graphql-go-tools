@@ -16,6 +16,16 @@ type ObjectField struct {
 	Value Value              // e.g. 12.43
 }
 
+func (d *Document) CopyObjectField(ref int) int {
+	return d.AddObjectField(ObjectField{
+		Name: d.ObjectFields[ref].Name, // Doesn't need to be copied
+		Value: Value{
+			Kind: d.ObjectFields[ref].Value.Kind,
+			Ref:  d.copyValueRef(d.ObjectFields[ref].Value.Kind, d.ObjectFields[ref].Value.Ref),
+		},
+	})
+}
+
 func (d *Document) ObjectField(ref int) ObjectField {
 	return d.ObjectFields[ref]
 }

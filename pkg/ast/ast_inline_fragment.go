@@ -21,6 +21,24 @@ type InlineFragment struct {
 	HasSelections bool
 }
 
+func (d *Document) CopyInlineFragment(ref int) int {
+	var directives DirectiveList
+	var selectionSet int
+	if d.InlineFragments[ref].HasDirectives {
+		directives = d.CopyDirectiveList(d.InlineFragments[ref].Directives)
+	}
+	if d.InlineFragments[ref].HasSelections {
+		selectionSet = d.CopySelectionSet(d.InlineFragments[ref].SelectionSet)
+	}
+	return d.AddInlineFragment(InlineFragment{
+		TypeCondition: d.InlineFragments[ref].TypeCondition, // Value type; doesn't need to be copied.
+		HasDirectives: d.InlineFragments[ref].HasDirectives,
+		Directives:    directives,
+		SelectionSet:  selectionSet,
+		HasSelections: d.InlineFragments[ref].HasSelections,
+	})
+}
+
 func (d *Document) InlineFragmentTypeConditionName(ref int) ByteSlice {
 	if d.InlineFragments[ref].TypeCondition.Type == -1 {
 		return nil

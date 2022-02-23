@@ -15,7 +15,6 @@ import (
 // Create a new document with initialized slices.
 // In case you're on a hot path you always want to use a pre-initialized Document.
 func ExampleNewDocument() {
-
 	schema := []byte(`
 		schema {
 			query: Query
@@ -35,7 +34,6 @@ func ExampleNewDocument() {
 // Create a new Document without pre-initializing slices.
 // Use this if you want to manually create a new Document
 func ExampleDocument() {
-
 	// create the same doc as in NewDocument() example but manually.
 
 	doc := &ast.Document{}
@@ -134,6 +132,120 @@ func ExampleDocument() {
 
 	// add ObjectTypeDefinition to the RootNodes
 	doc.RootNodes = append(doc.RootNodes, ast.Node{Kind: ast.NodeKindObjectTypeDefinition, Ref: queryTypeRef})
+}
+
+func TestCopying(t *testing.T) {
+	doc, report := astparser.ParseGraphqlDocumentString(`
+		query testQuery($someVariable: String!) {
+			user {
+				fieldToCopy {
+					booleanArgField(arg: true)
+					enumArgField(arg: SOME_ENUM_VALUE)
+					floatArgField(arg: 3.14)
+					intArgField(arg: 6)
+					listArgField(arg: [1, 2, 3, 4])
+					objectArgField(arg: {key: "value"})
+					stringArgField(arg: "hello")
+					variableArgField(arg: $someVariable)
+					twoArgField(argOne: true, argTwo: false)
+					scalarField
+					objectField {
+						fieldOne
+						fieldTwo
+					}
+					aliasedField: nonAliasedField
+					...namedFragment
+					... on SomeType {
+						inlineFragmentField
+						... on AnotherType {
+							nestedInlineFragmentField
+						}
+					}
+					directiveField @requires(fields: "scalarField") @anotherDirective()
+				}
+			}
+		}
+
+		fragment namedFragment on SomeType {
+			fragmentField
+		}
+	`)
+
+	assert.False(t, report.HasErrors())
+
+	for ref := range doc.Fields {
+		if doc.FieldNameString(ref) == "user" {
+			selectionSet := doc.Fields[ref].SelectionSet
+			selectionToCopy := doc.SelectionSets[selectionSet].SelectionRefs[0]
+			doc.AddSelection(selectionSet, doc.Selections[doc.CopySelection(selectionToCopy)])
+			break
+		}
+	}
+
+	out, err := astprinter.PrintStringIndent(&doc, nil, "  ")
+
+	assert.NoError(t, err)
+
+	expected := `query testQuery($someVariable: String!){
+    user {
+        fieldToCopy {
+            booleanArgField(arg: true)
+            enumArgField(arg: SOME_ENUM_VALUE)
+            floatArgField(arg: 3.14)
+            intArgField(arg: 6)
+            listArgField(arg: [1,2,3,4])
+            objectArgField(arg: {key: "value"})
+            stringArgField(arg: "hello")
+            variableArgField(arg: $someVariable)
+            twoArgField(argOne: true, argTwo: false)
+            scalarField
+            objectField {
+                fieldOne
+                fieldTwo
+            }
+            aliasedField: nonAliasedField
+            ...namedFragment
+            ... on SomeType {
+                inlineFragmentField
+                ... on AnotherType {
+                    nestedInlineFragmentField
+                }
+            }
+            directiveField @requires(fields: "scalarField") @anotherDirective
+        }
+        fieldToCopy {
+            booleanArgField(arg: true)
+            enumArgField(arg: SOME_ENUM_VALUE)
+            floatArgField(arg: 3.14)
+            intArgField(arg: 6)
+            listArgField(arg: [1,2,3,4])
+            objectArgField(arg: {key: "value"})
+            stringArgField(arg: "hello")
+            variableArgField(arg: $someVariable)
+            twoArgField(argOne: true, argTwo: false)
+            scalarField
+            objectField {
+                fieldOne
+                fieldTwo
+            }
+            aliasedField: nonAliasedField
+            ...namedFragment
+            ... on SomeType {
+                inlineFragmentField
+                ... on AnotherType {
+                    nestedInlineFragmentField
+                }
+            }
+            directiveField @requires(fields: "scalarField") @anotherDirective
+        }
+    }
+}
+
+fragment namedFragment on SomeType {
+    fragmentField
+}`
+
+	assert.Equal(t, expected, out)
 }
 
 func TestKinds(t *testing.T) {
