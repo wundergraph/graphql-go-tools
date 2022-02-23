@@ -1204,13 +1204,15 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 				assert.Equal(t, xApiKey, r.Header.Get("X-API-KEY"))
 				assert.Equal(t, []string{"one", "two"}, r.Header["Multi"])
 				assert.Equal(t, "x,y", r.Header.Get("MultiComma"))
+				_, notExists := r.Header[http.CanonicalHeaderKey("NotExists")]
+				assert.False(t, notExists)
 
 				_, _ = w.Write([]byte(`ok`))
 			}))
 
 			defer server.Close()
 
-			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s","header":{"Multi":["one", "two"],"MultiComma":["x,y"],"Authorization":["Bearer 123"],"Token":["%s"],"X-API-Key":["%s"]}}`, server.URL, authorization, xApiKey))
+			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s","header":{"Multi":["one", "two"],"MultiComma":["x,y"],"Authorization":["Bearer 123"],"Token":["%s"],"X-API-Key":["%s"],"NotExists":[""]}}`, server.URL, authorization, xApiKey))
 			b := &strings.Builder{}
 			require.NoError(t, source.Load(context.Background(), input, b))
 			assert.Equal(t, `ok`, b.String())
