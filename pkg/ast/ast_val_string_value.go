@@ -14,6 +14,13 @@ type StringValue struct {
 	Content     ByteSliceReference // e.g. foo
 }
 
+func (d *Document) CopyStringValue(ref int) int {
+	return d.AddStringValue(StringValue{
+		BlockString: d.StringValues[ref].BlockString,
+		Content:     d.copyByteSliceReference(d.StringValues[ref].Content),
+	})
+}
+
 func (d *Document) StringValue(ref int) StringValue {
 	return d.StringValues[ref]
 }

@@ -161,6 +161,20 @@ func (d *Document) NextRefIndex() int {
 	return d.RefIndex
 }
 
+func (d *Document) NewEmptyRefs() []int {
+	return d.Refs[d.NextRefIndex()][:0]
+}
+
+func (d *Document) copyByteSliceReference(ref ByteSliceReference) ByteSliceReference {
+	if ref.Length() == 0 {
+		return ByteSliceReference{}
+	}
+	src := d.Input.ByteSlice(ref)
+	dst := make([]byte, len(src))
+	copy(dst, src)
+	return d.Input.AppendInputBytes(dst)
+}
+
 func (d *Document) AddRootNode(node Node) {
 	d.RootNodes = append(d.RootNodes, node)
 	d.Index.AddNodeStr(d.NodeNameUnsafeString(node), node)

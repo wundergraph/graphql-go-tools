@@ -32,6 +32,40 @@ type Value struct {
 	Ref  int
 }
 
+func (d *Document) CopyValue(ref int) int {
+	return d.AddValue(Value{
+		Kind: d.Values[ref].Kind,
+		Ref:  d.copyValueRef(d.Values[ref].Kind, d.Values[ref].Ref),
+	})
+}
+
+func (d *Document) copyValueRef(kind ValueKind, valueRef int) int {
+	switch kind {
+	case ValueKindString:
+		return d.CopyStringValue(valueRef)
+	case ValueKindBoolean:
+		// Nothing to copy!
+		return valueRef
+	case ValueKindInteger:
+		return d.CopyIntValue(valueRef)
+	case ValueKindFloat:
+		return d.CopyFloatValue(valueRef)
+	case ValueKindVariable:
+		return d.CopyVariableValue(valueRef)
+	case ValueKindNull:
+		// Nothing to copy!
+		return InvalidRef
+	case ValueKindList:
+		return d.CopyListValue(valueRef)
+	case ValueKindObject:
+		return d.CopyObjectValue(valueRef)
+	case ValueKindEnum:
+		return d.CopyEnumValue(valueRef)
+	default:
+		return InvalidRef
+	}
+}
+
 func (d *Document) ValueContentBytes(value Value) ByteSlice {
 	switch value.Kind {
 	case ValueKindEnum:

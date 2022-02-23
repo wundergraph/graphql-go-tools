@@ -19,6 +19,31 @@ type Field struct {
 	Position      position.Position
 }
 
+func (d *Document) CopyField(ref int) int {
+	var arguments ArgumentList
+	var directives DirectiveList
+	var selectionSet int
+	if d.Fields[ref].HasArguments {
+		arguments = d.CopyArgumentList(d.Fields[ref].Arguments)
+	}
+	if d.Fields[ref].HasDirectives {
+		directives = d.CopyDirectiveList(d.Fields[ref].Directives)
+	}
+	if d.Fields[ref].HasSelections {
+		selectionSet = d.CopySelectionSet(d.Fields[ref].SelectionSet)
+	}
+	return d.AddField(Field{
+		Name:          d.copyByteSliceReference(d.Fields[ref].Name),
+		Alias:         d.CopyAlias(d.Fields[ref].Alias),
+		HasArguments:  d.Fields[ref].HasArguments,
+		Arguments:     arguments,
+		HasDirectives: d.Fields[ref].HasDirectives,
+		Directives:    directives,
+		HasSelections: d.Fields[ref].HasSelections,
+		SelectionSet:  selectionSet,
+	}).Ref
+}
+
 func (d *Document) FieldNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.Fields[ref].Name)
 }
@@ -67,7 +92,6 @@ func (d *Document) FieldDirectives(ref int) []int {
 }
 
 func (d *Document) FieldsHaveSameShape(left, right int) bool {
-
 	leftAliasDefined := d.FieldAliasIsDefined(left)
 	rightAliasDefined := d.FieldAliasIsDefined(right)
 
