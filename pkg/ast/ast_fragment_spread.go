@@ -21,7 +21,7 @@ func (d *Document) CopyFragmentSpread(ref int) int {
 		directives = d.CopyDirectiveList(d.FragmentSpreads[ref].Directives)
 	}
 	return d.AddFragmentSpread(FragmentSpread{
-		FragmentName:  d.FragmentSpreads[ref].FragmentName, // Doesn't need to be copied.
+		FragmentName:  d.copyByteSliceReference(d.FragmentSpreads[ref].FragmentName),
 		HasDirectives: d.FragmentSpreads[ref].HasDirectives,
 		Directives:    directives,
 	})

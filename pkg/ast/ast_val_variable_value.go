@@ -17,7 +17,7 @@ type VariableValue struct {
 
 func (d *Document) CopyVariableValue(ref int) int {
 	return d.AddVariableValue(VariableValue{
-		Name: d.VariableValues[ref].Name, // Doesn't need to be copied.
+		Name: d.copyByteSliceReference(d.VariableValues[ref].Name),
 	})
 }
 

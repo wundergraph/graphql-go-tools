@@ -13,7 +13,7 @@ type EnumValue struct {
 
 func (d *Document) CopyEnumValue(ref int) int {
 	return d.AddEnumValue(EnumValue{
-		Name: d.EnumValues[ref].Name, // Doesn't need to be copied.
+		Name: d.copyByteSliceReference(d.EnumValues[ref].Name),
 	})
 }
 

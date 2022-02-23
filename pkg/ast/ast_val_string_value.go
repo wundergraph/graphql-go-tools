@@ -17,7 +17,7 @@ type StringValue struct {
 func (d *Document) CopyStringValue(ref int) int {
 	return d.AddStringValue(StringValue{
 		BlockString: d.StringValues[ref].BlockString,
-		Content:     d.StringValues[ref].Content, // Doesn't need to be copied.
+		Content:     d.copyByteSliceReference(d.StringValues[ref].Content),
 	})
 }
 

@@ -47,7 +47,7 @@ func (d *Document) CopyDirective(ref int) int {
 		arguments = d.CopyArgumentList(d.Directives[ref].Arguments)
 	}
 	return d.AddDirective(Directive{
-		Name:         d.Directives[ref].Name, // Doesn't need to be copied.
+		Name:         d.copyByteSliceReference(d.Directives[ref].Name),
 		HasArguments: d.Directives[ref].HasArguments,
 		Arguments:    arguments,
 	})

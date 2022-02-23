@@ -33,7 +33,7 @@ func (d *Document) CopyField(ref int) int {
 		selectionSet = d.CopySelectionSet(d.Fields[ref].SelectionSet)
 	}
 	return d.AddField(Field{
-		Name:          d.Fields[ref].Name, // Doesn't need to be copied.
+		Name:          d.copyByteSliceReference(d.Fields[ref].Name),
 		Alias:         d.CopyAlias(d.Fields[ref].Alias),
 		HasArguments:  d.Fields[ref].HasArguments,
 		Arguments:     arguments,

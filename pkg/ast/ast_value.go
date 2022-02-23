@@ -54,7 +54,7 @@ func (d *Document) copyValueRef(kind ValueKind, valueRef int) int {
 		return d.CopyVariableValue(valueRef)
 	case ValueKindNull:
 		// Nothing to copy!
-		return -1
+		return InvalidRef
 	case ValueKindList:
 		return d.CopyListValue(valueRef)
 	case ValueKindObject:
@@ -62,7 +62,7 @@ func (d *Document) copyValueRef(kind ValueKind, valueRef int) int {
 	case ValueKindEnum:
 		return d.CopyEnumValue(valueRef)
 	default:
-		return -1
+		return InvalidRef
 	}
 }
 

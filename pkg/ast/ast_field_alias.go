@@ -14,7 +14,7 @@ type Alias struct {
 func (d *Document) CopyAlias(alias Alias) Alias {
 	return Alias{
 		IsDefined: alias.IsDefined,
-		Name:      alias.Name, // Doesn't need to be copied.
+		Name:      d.copyByteSliceReference(alias.Name),
 	}
 }
 

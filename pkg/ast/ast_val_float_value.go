@@ -19,7 +19,7 @@ type FloatValue struct {
 func (d *Document) CopyFloatValue(ref int) int {
 	return d.AddFloatValue(FloatValue{
 		Negative: d.FloatValues[ref].Negative,
-		Raw:      d.FloatValues[ref].Raw, // Doesn't need to be copied.
+		Raw:      d.copyByteSliceReference(d.FloatValues[ref].Raw),
 	})
 }
 

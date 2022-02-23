@@ -19,7 +19,7 @@ type IntValue struct {
 func (d *Document) CopyIntValue(ref int) int {
 	return d.AddIntValue(IntValue{
 		Negative: d.IntValues[ref].Negative,
-		Raw:      d.IntValues[ref].Raw, // Doesn't need to be copied.
+		Raw:      d.copyByteSliceReference(d.IntValues[ref].Raw),
 	})
 }
 

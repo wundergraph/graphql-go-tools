@@ -18,7 +18,7 @@ type ObjectField struct {
 
 func (d *Document) CopyObjectField(ref int) int {
 	return d.AddObjectField(ObjectField{
-		Name: d.ObjectFields[ref].Name, // Doesn't need to be copied
+		Name: d.copyByteSliceReference(d.ObjectFields[ref].Name),
 		Value: Value{
 			Kind: d.ObjectFields[ref].Value.Kind,
 			Ref:  d.copyValueRef(d.ObjectFields[ref].Value.Kind, d.ObjectFields[ref].Value.Ref),

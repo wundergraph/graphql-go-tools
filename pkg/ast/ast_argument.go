@@ -23,7 +23,7 @@ type Argument struct {
 
 func (d *Document) CopyArgument(ref int) int {
 	return d.AddArgument(Argument{
-		Name: d.Arguments[ref].Name, // Doesn't need to be copied.
+		Name: d.copyByteSliceReference(d.Arguments[ref].Name),
 		Value: Value{
 			Kind: d.Arguments[ref].Value.Kind,
 			Ref:  d.copyValueRef(d.Arguments[ref].Value.Kind, d.Arguments[ref].Value.Ref),
