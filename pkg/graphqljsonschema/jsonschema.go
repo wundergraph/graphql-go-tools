@@ -46,14 +46,14 @@ func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, t
 		var defs map[string]JsonSchema
 		isRoot := false
 		if r.defs == nil {
-			isRoot = true
 			defs = make(map[string]JsonSchema, 48)
 			r.defs = &defs
+			isRoot = true
 		}
 		itemSchema := r.fromTypeRef(operation, definition, t.OfType)
 		arr := NewArray(itemSchema, nonNull)
 		if isRoot {
-			r.defs = nil
+			arr.Defs = defs
 		}
 		return arr
 	case ast.TypeKindNonNull:

@@ -101,6 +101,23 @@ func TestJsonSchema(t *testing.T) {
 		},
 		nil,
 	))
+	t.Run("input object array", runTest(
+		`scalar String input StringInput { str: String }`,
+		`query ($input: [StringInput]){}`,
+		`{"type":["array","null"],"items":{"$ref":"#/$defs/StringInput"},"$defs":{"StringInput":{"type":["object","null"],"properties":{"str":{"type":["string","null"]}},"additionalProperties":false}}}`,
+		[]string{
+			`null`,
+			`[]`,
+			`[{"str":"validString1"}]`,
+			`[{"str":"validString1"}, {"str":"validString2"}]`,
+			`[{"str":"validString1"}, {"str":"validString2"}, null]`,
+		},
+		[]string{
+			`"validString"`,
+			`false`,
+		},
+		nil,
+	))
 	t.Run("required array", runTest(
 		`scalar String`,
 		`query ($input: [String]!){}`,
