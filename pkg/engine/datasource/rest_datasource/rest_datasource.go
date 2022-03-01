@@ -115,6 +115,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 			client: p.client,
 		},
 		DisallowSingleFlight: p.config.Fetch.Method != "GET",
+		DisableDataLoader: true,
 	}
 }
 
