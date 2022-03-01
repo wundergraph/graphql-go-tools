@@ -122,6 +122,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Input:                `{"method":"GET","url":"https://example.com/friend"}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -145,6 +146,8 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										},
 									),
 									DataSourceIdentifier: []byte("rest_datasource.Source"),
+									DisableDataLoader: true,
+
 								},
 								Fields: []*resolve.Field{
 									{
@@ -267,6 +270,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -356,6 +360,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
 						DisallowSingleFlight: true,
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -436,6 +441,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 									},
 								),
 								DataSourceIdentifier: []byte("rest_datasource.Source"),
+								DisableDataLoader: true,
 							},
 							&resolve.SingleFetch{
 								BufferId:   3,
@@ -452,6 +458,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 									},
 								),
 								DataSourceIdentifier: []byte("rest_datasource.Source"),
+								DisableDataLoader: true,
 							},
 						},
 					},
@@ -479,6 +486,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 												},
 											),
 											DataSourceIdentifier: []byte("rest_datasource.Source"),
+											DisableDataLoader: true,
 										},
 										&resolve.SingleFetch{
 											BufferId:   2,
@@ -491,6 +499,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 												},
 											),
 											DataSourceIdentifier: []byte("rest_datasource.Source"),
+											DisableDataLoader: true,
 										},
 									},
 								},
@@ -628,6 +637,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -764,6 +774,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						DataSource:           &Source{},
 						DisallowSingleFlight: true,
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -837,6 +848,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						},
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -920,6 +932,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -1015,6 +1028,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -1094,6 +1108,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
