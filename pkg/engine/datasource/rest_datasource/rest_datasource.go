@@ -65,11 +65,11 @@ type SubscriptionConfiguration struct {
 }
 
 type FetchConfiguration struct {
-	URL    string
-	Method string
-	Header http.Header
-	Query  []QueryConfiguration
-	Body   string
+	URL           string
+	Method        string
+	Header        http.Header
+	Query         []QueryConfiguration
+	Body          string
 }
 
 type QueryConfiguration struct {
@@ -115,7 +115,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 			client: p.client,
 		},
 		DisallowSingleFlight: p.config.Fetch.Method != "GET",
-		DisableDataLoader: true,
+		DisableDataLoader:    true,
 	}
 }
 
