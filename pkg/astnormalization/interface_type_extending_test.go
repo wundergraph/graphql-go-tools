@@ -118,4 +118,59 @@ func TestExtendInterfaceType(t *testing.T) {
 					interface Mammal @deprecated(reason: "some reason") @skip(if: false) { name: String }
 					`)
 	})
+
+	t.Run("interface extensions implementing other interface implemented by object type", func(t *testing.T) {
+		run(extendInterfaceTypeDefinition, "", `
+			interface Entity {
+			  name: String
+			}
+			
+			interface Tall{  
+			  height: String
+			}
+			
+			extend interface Tall implements Entity{
+			  name: String
+			}
+			
+			type People implements Entity & Tall{
+			  name: String
+			  height: String
+			  mass: String  
+			  birth_year: String
+			  gender: String
+			  homeworld: String
+			  homeplanet: Planet
+			  url: String
+			  skin_color: String
+			  hair_color: String
+			  eye_color: String
+			}`, `
+			interface Entity {
+			  name: String
+			}
+			
+			interface Tall implements Entity{  
+			  height: String
+			  name: String
+			}
+			
+			extend interface Tall implements Entity{
+			  name: String
+			}
+			
+			type People implements Entity & Tall{
+			  name: String
+			  height: String
+			  mass: String  
+			  birth_year: String
+			  gender: String
+			  homeworld: String
+			  homeplanet: Planet
+			  url: String
+			  skin_color: String
+			  hair_color: String
+			  eye_color: String
+			}`)
+	})
 }
