@@ -6,9 +6,7 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 )
 
-var (
-	fieldsArgumentNameBytes = []byte("fields")
-)
+var fieldsArgumentNameBytes = []byte("fields")
 
 // RequiredFieldExtractor extracts all required fields from an ast.Document
 // containing a parsed federation subgraph SDL
@@ -53,7 +51,7 @@ func (f *RequiredFieldExtractor) addFieldsForObjectExtensionDefinitions(fieldReq
 			requiredFields := make([]string, len(primaryKeys))
 			copy(requiredFields, primaryKeys)
 
-			requiredFieldsByRequiresDirective := f.requiredFieldsByRequiresDirective(fieldDefinitionRef)
+			requiredFieldsByRequiresDirective := requiredFieldsByRequiresDirective(f.document, fieldDefinitionRef)
 			requiredFields = append(requiredFields, requiredFieldsByRequiresDirective...)
 
 			*fieldRequires = append(*fieldRequires, FieldConfiguration{
@@ -97,13 +95,13 @@ func (f *RequiredFieldExtractor) addFieldsForObjectDefinitions(fieldRequires *Fi
 	}
 }
 
-func (f *RequiredFieldExtractor) requiredFieldsByRequiresDirective(fieldDefinitionRef int) []string {
-	for _, directiveRef := range f.document.FieldDefinitions[fieldDefinitionRef].Directives.Refs {
-		if directiveName := f.document.DirectiveNameString(directiveRef); directiveName != federationRequireDirectiveName {
+func requiredFieldsByRequiresDirective(document *ast.Document, fieldDefinitionRef int) []string {
+	for _, directiveRef := range document.FieldDefinitions[fieldDefinitionRef].Directives.Refs {
+		if directiveName := document.DirectiveNameString(directiveRef); directiveName != federationRequireDirectiveName {
 			continue
 		}
 
-		value, exists := f.document.DirectiveArgumentValueByName(directiveRef, fieldsArgumentNameBytes)
+		value, exists := document.DirectiveArgumentValueByName(directiveRef, fieldsArgumentNameBytes)
 		if !exists {
 			continue
 		}
@@ -111,7 +109,7 @@ func (f *RequiredFieldExtractor) requiredFieldsByRequiresDirective(fieldDefiniti
 			continue
 		}
 
-		fieldsStr := f.document.StringValueContentString(value.Ref)
+		fieldsStr := document.StringValueContentString(value.Ref)
 
 		return strings.Split(fieldsStr, " ")
 	}

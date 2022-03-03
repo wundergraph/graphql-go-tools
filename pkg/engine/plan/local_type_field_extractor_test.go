@@ -548,6 +548,30 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
 			})
 	})
+	t.Run("extended Entity with required fields", func(t *testing.T) {
+		run(t, `
+			extend type User @key(fields: "id") {
+				id: ID! @external
+				username: String! @external
+				lastname: String! @external
+
+				reviews: [Review!]
+				fullname: String @requires(fields: "{ lastname }")
+			}
+
+			type Review {
+				comment: String!
+				author: User! @provide(fields: "username")
+			}
+		`,
+			[]TypeField{
+				{TypeName: "User", FieldNames: []string{"fullname", "reviews"}},
+			},
+			[]TypeField{
+				{TypeName: "Review", FieldNames: []string{"author", "comment"}},
+				{TypeName: "User", FieldNames: []string{"fullname", "id", "reviews", "username"}},
+			})
+	})
 	t.Run("local type extension", func(t *testing.T) {
 		run(t, `
            extend type Query {
