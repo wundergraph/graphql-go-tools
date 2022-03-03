@@ -1258,7 +1258,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"name"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 						},
 					),
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
