@@ -503,7 +503,7 @@ func (d *Document) NodeFragmentIsAllowedOnUnionTypeDefinition(fragmentNode, unio
 	case NodeKindObjectTypeDefinition:
 		return d.NodeIsUnionMember(fragmentNode, unionTypeNode)
 	case NodeKindInterfaceTypeDefinition:
-		return false
+		return d.UnionNodeIntersectsInterfaceNode(unionTypeNode, fragmentNode)
 	case NodeKindUnionTypeDefinition:
 		return bytes.Equal(d.UnionTypeDefinitionNameBytes(fragmentNode.Ref), d.UnionTypeDefinitionNameBytes(unionTypeNode.Ref))
 	}
