@@ -3249,7 +3249,7 @@ func TestGraphQLDataSource(t *testing.T) {
 	t.Run("mutation with variables in array object argument", RunTest(
 		todoSchema,
 		`mutation AddTask($title: String!, $completed: Boolean!, $name: String! @fromClaim(name: "sub")) {
-					  addTask(input: [{title: $title, completed: $completed, user: {name: $name}}]){
+					  addTask(input: [{titleSets: [[$title]], completed: $completed, user: {name: $name}}]){
 						task {
 						  id
 						  title
@@ -3263,7 +3263,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      `{"method":"POST","url":"https://graphql.service","body":{"query":"mutation($title: String!, $completed: Boolean!, $name: String!){addTask(input: [{title: $title,completed: $completed,user: {name: $name}}]){task {id title completed}}}","variables":{"name":$$2$$,"completed":$$1$$,"title":$$0$$}}}`,
+						Input:      `{"method":"POST","url":"https://graphql.service","body":{"query":"mutation($title: String!, $completed: Boolean!, $name: String!){addTask(input: [{titleSets: [[$title]],completed: $completed,user: {name: $name}}]){task {id title completed}}}","variables":{"name":$$2$$,"completed":$$1$$,"title":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
@@ -3276,7 +3276,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"name"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 							},
 						),
 						DisallowSingleFlight:  true,
@@ -6296,7 +6296,7 @@ enum UserOrderable {
 """"""
 input AddTaskInput {
   """"""
-  title: String!
+  titleSets: [[String!]]
   """"""
   completed: Boolean!
   """"""
