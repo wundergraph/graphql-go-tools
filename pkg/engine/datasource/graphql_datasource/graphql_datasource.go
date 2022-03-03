@@ -812,14 +812,14 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, sourcePath 
 		return
 	}
 
-	variableDefinitionTypeName := p.visitor.Operation.ResolveTypeNameString(p.visitor.Operation.VariableDefinitions[variableDefinition].Type)
+	variableDefinitionTypeRef := p.visitor.Operation.VariableDefinitions[variableDefinition].Type
+	variableDefinitionTypeName := p.visitor.Operation.ResolveTypeNameString(variableDefinitionTypeRef)
 	variableDefinitionTypeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(variableDefinitionTypeName)
 
-	fieldType := p.resolveNestedArgumentType(fieldName)
 	contextVariable := &resolve.ContextVariable{
 		Path: append(sourcePath, variableNameStr),
 	}
-	renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(p.visitor.Definition, p.visitor.Definition, fieldType)
+	renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(p.visitor.Operation, p.visitor.Definition, variableDefinitionTypeRef)
 	if err != nil {
 		return
 	}
