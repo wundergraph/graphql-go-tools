@@ -364,7 +364,42 @@ func (d *dataLoader) selectedDataForFetch(input [][]byte, path ...string) ([][]b
 	temp := make([][]byte, 0, len(input))
 
 	for i := range input {
-		el, _, _, err := jsonparser.Get(input[i], current)
+		el, dataType, _, err := jsonparser.Get(input[i], current)
+		if dataType == jsonparser.NotExist {
+			// The input has an object that doesn't contain the path component.
+			// This can happen in the following situation. Consider the
+			// following query:
+			//
+			// {
+			//   someArrayWithInterfaceItem {
+			//     ... on A {
+			//       aField {
+			//         id
+			//         fieldFromAnotherService  # <- this is federated
+			//       }
+			//     }
+			//     ... on B {
+			//       someOtherField
+			//     }
+			//   }
+			// }
+			//
+			// The result after fetching someArrayWithInterfaceItem might be:
+			// {
+			//   "data": {
+			//     "someArrayWithInterfaceItem": [
+			//       {"__typename": "A", "aField": {"id": 1}},
+			//       {"__typename": "B", "someOtherField": "hello"},
+			//       {"__typename": "A", "aField": {"id": 2}}
+			//     ]
+			// }
+			//
+			// When resolving the fieldFromAnotherService field, we should
+			// only look at the type "A" inputs, since those are the only
+			// objects the someArrayWithInterfaceItem fetch applies to. In
+			// other words, inputs without "aField" are skipped.
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}
