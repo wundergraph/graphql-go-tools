@@ -52,6 +52,7 @@ type nodeInformation struct {
 	concreteTypeNames []string
 	localFieldRefs    []int
 	externalFieldRefs []int
+	requiredFields    map[string]struct{}
 }
 
 type rootNodeNamesMap struct {
@@ -187,9 +188,9 @@ func (e *LocalTypeFieldExtractor) collectNodeInformation() {
 			e.rootNodeNames.append(nodeInfo.typeName)
 		}
 
-		// Record the local and external fields separately for later
+		// Record the local, external, and required fields separately for later
 		// processing. Root nodes only include local fields, while child nodes
-		// include both local and external fields.
+		// include all three fields.
 		e.collectFieldDefinitions(astNode, nodeInfo)
 	}
 }
@@ -206,6 +207,7 @@ func (e *LocalTypeFieldExtractor) getNodeInfo(node ast.Node) *nodeInformation {
 	nodeInfo = &nodeInformation{
 		typeName:        typeName,
 		hasKeyDirective: e.document.NodeHasDirectiveByNameString(node, federationKeyDirectiveName),
+		requiredFields:  make(map[string]struct{}),
 	}
 
 	e.nodeInfoMap[typeName] = nodeInfo
@@ -229,6 +231,11 @@ func (e *LocalTypeFieldExtractor) collectFieldDefinitions(node ast.Node, nodeInf
 			nodeInfo.externalFieldRefs = append(nodeInfo.externalFieldRefs, ref)
 		} else {
 			nodeInfo.localFieldRefs = append(nodeInfo.localFieldRefs, ref)
+		}
+
+		requiredFields := requiredFieldsByRequiresDirective(e.document, ref)
+		for _, field := range requiredFields {
+			nodeInfo.requiredFields[field] = struct{}{}
 		}
 	}
 }
@@ -312,7 +319,26 @@ func (e *LocalTypeFieldExtractor) createChildNodes() {
 			fieldNames = append(fieldNames, e.processFieldRef(ref))
 		}
 		for _, ref := range nodeInfo.externalFieldRefs {
-			fieldNames = append(fieldNames, e.processFieldRef(ref))
+			// We assume that a field is marked @external for only three
+			// reasons:
+			// 1) the enclosing type is using it as a @key field
+			// 2) another field in this datasource @provide's it
+			// 3) another field in the enclosing type @require's it
+			// In the first two cases, that means that this datasource
+			// knows the value of the field, and thus we want to include
+			// the field in our ChildNodes.  In the last case, this
+			// datasource does *not* know the value of the field, so
+			// we don't include it.
+			// (Note it's legal for someone to add an `@external`
+			// field to their extended type just for the heck of it,
+			// and never use that field for anything.  The code below
+			// will wrongly say that this datasource can provide its
+			// value.  Hopefully people don't actually do that.)
+			fieldName := e.processFieldRef(ref)
+			_, isRequired := nodeInfo.requiredFields[fieldName]
+			if !isRequired {
+				fieldNames = append(fieldNames, fieldName)
+			}
 		}
 		e.childNodes = append(e.childNodes, TypeField{
 			TypeName:   typeName,
