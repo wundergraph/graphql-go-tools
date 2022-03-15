@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/buger/jsonparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/tidwall/sjson"
 
@@ -1154,7 +1155,43 @@ type Source struct {
 	httpClient *http.Client
 }
 
+func (s *Source) compactAndUnNullVariables(input []byte) []byte {
+	variables, _, _, _ := jsonparser.Get(input, "variables")
+	if bytes.Equal(variables, []byte("null")) || bytes.Equal(variables, []byte("{}")) {
+		return input
+	}
+	if bytes.ContainsAny(variables, " \t\n\r") {
+		buf := bytes.NewBuffer(make([]byte, 0, len(input)))
+		_ = json.Compact(buf, input)
+		input = buf.Bytes()
+	}
+	return s.unNullVariables(input)
+}
+
+func (s *Source) unNullVariables(input []byte) []byte {
+	if i := bytes.Index(input, []byte(":{}")); i != -1 {
+		end := i + 3
+		if input[end] == ',' {
+			end++
+		}
+		endQuote := bytes.LastIndex(input[:i], []byte("\""))
+		startQuote := bytes.LastIndex(input[:endQuote], []byte("\""))
+		return s.unNullVariables(append(input[:startQuote], input[end:]...))
+	}
+	if i := bytes.Index(input, []byte("null")); i != -1 {
+		end := i + 4
+		if input[end] == ',' {
+			end++
+		}
+		endQuote := bytes.LastIndex(input[:i], []byte("\""))
+		startQuote := bytes.LastIndex(input[:endQuote], []byte("\""))
+		return s.unNullVariables(append(input[:startQuote], input[end:]...))
+	}
+	return input
+}
+
 func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err error) {
+	input = s.compactAndUnNullVariables(input)
 	return httpclient.Do(s.httpClient, ctx, input, writer)
 }
 
