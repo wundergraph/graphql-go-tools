@@ -1161,33 +1161,42 @@ func (s *Source) compactAndUnNullVariables(input []byte) []byte {
 		return input
 	}
 	if bytes.ContainsAny(variables, " \t\n\r") {
-		buf := bytes.NewBuffer(make([]byte, 0, len(input)))
-		_ = json.Compact(buf, input)
-		input = buf.Bytes()
+		buf := bytes.NewBuffer(make([]byte, 0, len(variables)))
+		_ = json.Compact(buf, variables)
+		variables = buf.Bytes()
 	}
-	return s.unNullVariables(input)
+	cp := make([]byte, len(variables))
+	copy(cp, variables)
+	variables = cp
+	var changed bool
+	for {
+		variables, changed = s.unNullVariables(variables)
+		if !changed {
+			break
+		}
+	}
+	input, _ = jsonparser.Set(input, variables, "variables")
+	return input
 }
 
-func (s *Source) unNullVariables(input []byte) []byte {
+func (s *Source) unNullVariables(input []byte) ([]byte, bool) {
 	if i := bytes.Index(input, []byte(":{}")); i != -1 {
 		end := i + 3
 		if input[end] == ',' {
 			end++
 		}
-		endQuote := bytes.LastIndex(input[:i], []byte("\""))
-		startQuote := bytes.LastIndex(input[:endQuote], []byte("\""))
-		return s.unNullVariables(append(input[:startQuote], input[end:]...))
+		startQuote := bytes.LastIndex(input[:i-2], []byte("\""))
+		return append(input[:startQuote], input[end:]...), true
 	}
 	if i := bytes.Index(input, []byte("null")); i != -1 {
 		end := i + 4
 		if input[end] == ',' {
 			end++
 		}
-		endQuote := bytes.LastIndex(input[:i], []byte("\""))
-		startQuote := bytes.LastIndex(input[:endQuote], []byte("\""))
-		return s.unNullVariables(append(input[:startQuote], input[end:]...))
+		startQuote := bytes.LastIndex(input[:i-2], []byte("\""))
+		return append(input[:startQuote], input[end:]...), true
 	}
-	return input
+	return input, false
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err error) {

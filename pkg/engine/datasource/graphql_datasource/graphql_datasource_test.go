@@ -5646,19 +5646,34 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 }
 
 func TestUnNullVariables(t *testing.T){
-	s := &Source{}
 
-	out := s.compactAndUnNullVariables([]byte(`{ "variables":	{"email":null,"firstName": "FirstTest","lastName":"LastTest","phone":123456,"preferences":{ "notifications":{}},"password":"password"}}`))
-	expected := `{"variables":{"firstName":"FirstTest","lastName":"LastTest","phone":123456,"password":"password"}}`
-	assert.Equal(t, expected,string(out))
+	t.Run("variables with whitespace", func(t *testing.T) {
+		s := &Source{}
+		out := s.compactAndUnNullVariables([]byte(`{"variables":{"email":null,"firstName": "FirstTest",		"lastName":"LastTest","phone":123456,"preferences":{ "notifications":{}},"password":"password"}}`))
+		expected := `{"variables":{"firstName":"FirstTest","lastName":"LastTest","phone":123456,"password":"password"}}`
+		assert.Equal(t, expected,string(out))
+	})
 
-	out = s.compactAndUnNullVariables([]byte(`{"variables":{}}`))
-	expected = `{"variables":{}}`
-	assert.Equal(t, expected,string(out))
+	t.Run("empty variables", func(t *testing.T) {
+		s := &Source{}
+		out := s.compactAndUnNullVariables([]byte(`{"variables":{}}`))
+		expected := `{"variables":{}}`
+		assert.Equal(t, expected,string(out))
+	})
 
-	out = s.compactAndUnNullVariables([]byte(`{"variables":null}`))
-	expected = `{"variables":null}`
-	assert.Equal(t, expected,string(out))
+	t.Run("null variables", func(t *testing.T) {
+		s := &Source{}
+		out := s.compactAndUnNullVariables([]byte(`{"variables":null}`))
+		expected := `{"variables":null}`
+		assert.Equal(t, expected,string(out))
+	})
+
+	t.Run("ignore null inside non variables", func(t *testing.T) {
+		s := &Source{}
+		out := s.compactAndUnNullVariables([]byte(`{"variables":{"foo":null},"body":"query {foo(bar: null){baz}}"}`))
+		expected := `{"variables":{},"body":"query {foo(bar: null){baz}}"}`
+		assert.Equal(t, expected,string(out))
+	})
 }
 
 func BenchmarkFederationBatching(b *testing.B) {
