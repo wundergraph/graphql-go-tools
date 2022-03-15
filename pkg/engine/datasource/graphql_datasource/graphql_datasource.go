@@ -1156,7 +1156,10 @@ type Source struct {
 }
 
 func (s *Source) compactAndUnNullVariables(input []byte) []byte {
-	variables, _, _, _ := jsonparser.Get(input, "variables")
+	variables, _, _, err := jsonparser.Get(input, "body","variables")
+	if err != nil {
+		return input
+	}
 	if bytes.Equal(variables, []byte("null")) || bytes.Equal(variables, []byte("{}")) {
 		return input
 	}
@@ -1175,25 +1178,35 @@ func (s *Source) compactAndUnNullVariables(input []byte) []byte {
 			break
 		}
 	}
-	input, _ = jsonparser.Set(input, variables, "variables")
+	input, _ = jsonparser.Set(input, variables, "body","variables")
 	return input
 }
 
 func (s *Source) unNullVariables(input []byte) ([]byte, bool) {
 	if i := bytes.Index(input, []byte(":{}")); i != -1 {
 		end := i + 3
+		hasTrainlingComma := false
 		if input[end] == ',' {
 			end++
+			hasTrainlingComma = true
 		}
 		startQuote := bytes.LastIndex(input[:i-2], []byte("\""))
+		if !hasTrainlingComma && input[startQuote-1] == ',' {
+			startQuote--
+		}
 		return append(input[:startQuote], input[end:]...), true
 	}
 	if i := bytes.Index(input, []byte("null")); i != -1 {
 		end := i + 4
+		hasTrailingComma := false
 		if input[end] == ',' {
 			end++
+			hasTrailingComma = true
 		}
 		startQuote := bytes.LastIndex(input[:i-2], []byte("\""))
+		if !hasTrailingComma && input[startQuote-1] == ',' {
+			startQuote--
+		}
 		return append(input[:startQuote], input[end:]...), true
 	}
 	return input, false
