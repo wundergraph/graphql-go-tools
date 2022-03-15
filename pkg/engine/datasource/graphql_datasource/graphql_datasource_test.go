@@ -5645,6 +5645,22 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 	return RunTest(testDefinition, operation, operationName, expectedPlan, config, extraChecks...)
 }
 
+func TestUnNullVariables(t *testing.T){
+	s := &Source{}
+
+	out := s.compactAndUnNullVariables([]byte(`{ "variables":	{"email":null,"firstName": "FirstTest","lastName":"LastTest","phone":123456,"preferences":{ "notifications":{}},"password":"password"}}`))
+	expected := `{"variables":{"firstName":"FirstTest","lastName":"LastTest","phone":123456,"password":"password"}}`
+	assert.Equal(t, expected,string(out))
+
+	out = s.compactAndUnNullVariables([]byte(`{"variables":{}}`))
+	expected = `{"variables":{}}`
+	assert.Equal(t, expected,string(out))
+
+	out = s.compactAndUnNullVariables([]byte(`{"variables":null}`))
+	expected = `{"variables":null}`
+	assert.Equal(t, expected,string(out))
+}
+
 func BenchmarkFederationBatching(b *testing.B) {
 	userService := FakeDataSource(`{"data":{"me": {"id": "1234","username": "Me","__typename": "User"}}}`)
 	reviewsService := FakeDataSource(`{"data":{"_entities":[{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}]}}`)
