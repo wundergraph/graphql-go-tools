@@ -24,7 +24,7 @@ func BytesToFloat32(byteSlice []byte) float32 {
 func BytesToString(bytes []byte) string {
 	sliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&bytes))
 	stringHeader := reflect.StringHeader{Data: sliceHeader.Data, Len: sliceHeader.Len}
-	return *(*string)(unsafe.Pointer(&stringHeader))
+	return *(*string)(unsafe.Pointer(&stringHeader)) // nolint: govet
 }
 
 func BytesToBool(byteSlice []byte) bool {
@@ -33,8 +33,8 @@ func BytesToBool(byteSlice []byte) bool {
 }
 
 func StringToBytes(str string) []byte {
-	hdr := *(*reflect.StringHeader)(unsafe.Pointer(&str))
-	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+	hdr := *(*reflect.StringHeader)(unsafe.Pointer(&str)) // nolint: govet
+	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{ // nolint: govet
 		Data: hdr.Data,
 		Len:  hdr.Len,
 		Cap:  hdr.Len,
