@@ -1078,6 +1078,9 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			typeName, _, _, _ := jsonparser.Get(fieldData, "__typename")
 			if !bytes.Equal(typeName, object.Fields[i].OnTypeName) {
 				typeNameSkip = true
+				// Restore the response elements that may have been reset above.
+				ctx.responseElements = responseElements
+				ctx.lastFetchID = lastFetchID
 				continue
 			}
 		}
