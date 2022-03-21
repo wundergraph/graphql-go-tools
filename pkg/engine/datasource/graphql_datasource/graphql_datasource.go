@@ -401,6 +401,7 @@ func (p *Planner) LeaveInlineFragment(_ int) {
 }
 
 func (p *Planner) EnterField(ref int) {
+
 	fieldName := p.visitor.Operation.FieldNameString(ref)
 
 	// store root field name and ref

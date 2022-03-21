@@ -32,6 +32,10 @@ type Configuration struct {
 	DataSources                []DataSourceConfiguration
 	Fields                     FieldConfigurations
 	Types                      TypeConfigurations
+	// DisableResolveFieldPositions should be set to true for testing purposes
+	// This setting removes position information from all fields
+	// In production, this should be set to false so that error messages are easier to understand
+	DisableResolveFieldPositions bool
 }
 
 type DirectiveConfigurations []DirectiveConfiguration
@@ -238,6 +242,7 @@ func NewPlanner(ctx context.Context, config Configuration) *Planner {
 	planningVisitor := &Visitor{
 		Walker:       &planningWalker,
 		fieldConfigs: map[int]*FieldConfiguration{},
+		disableResolveFieldPositions: config.DisableResolveFieldPositions,
 	}
 
 	p := &Planner{
@@ -356,23 +361,24 @@ func (p *Planner) hasRequiredFields(config *Configuration) bool {
 }
 
 type Visitor struct {
-	Operation, Definition *ast.Document
-	Walker                *astvisitor.Walker
-	Importer              astimport.Importer
-	Config                Configuration
-	plan                  Plan
-	OperationName         string
-	operationDefinition   int
-	objects               []*resolve.Object
-	currentFields         []objectFields
-	currentField          *resolve.Field
-	planners              []plannerConfiguration
-	fetchConfigurations   []objectFetchConfiguration
-	fieldBuffers          map[int]int
-	skipFieldPaths        []string
-	fieldConfigs          map[int]*FieldConfiguration
-	exportedVariables     map[string]struct{}
-	skipIncludeFields     map[int]skipIncludeField
+	Operation, Definition        *ast.Document
+	Walker                       *astvisitor.Walker
+	Importer                     astimport.Importer
+	Config                       Configuration
+	plan                         Plan
+	OperationName                string
+	operationDefinition          int
+	objects                      []*resolve.Object
+	currentFields                []objectFields
+	currentField                 *resolve.Field
+	planners                     []plannerConfiguration
+	fetchConfigurations          []objectFetchConfiguration
+	fieldBuffers                 map[int]int
+	skipFieldPaths               []string
+	fieldConfigs                 map[int]*FieldConfiguration
+	exportedVariables            map[string]struct{}
+	skipIncludeFields            map[int]skipIncludeField
+	disableResolveFieldPositions bool
 }
 
 type skipIncludeField struct {
@@ -518,10 +524,7 @@ func (v *Visitor) EnterField(ref int) {
 				Path:     []string{"__typename"},
 			},
 			OnTypeName: v.resolveOnTypeName(),
-			Position: resolve.Position{
-				Line:   v.Operation.Fields[ref].Position.LineStart,
-				Column: v.Operation.Fields[ref].Position.CharStart,
-			},
+			Position: v.resolveFieldPosition(ref),
 			SkipDirectiveDefined:    skip,
 			SkipVariableName:        skipVariableName,
 			IncludeDirectiveDefined: include,
@@ -567,10 +570,7 @@ func (v *Visitor) EnterField(ref int) {
 		HasBuffer:  hasBuffer,
 		BufferID:   bufferID,
 		OnTypeName: v.resolveOnTypeName(),
-		Position: resolve.Position{
-			Line:   v.Operation.Fields[ref].Position.LineStart,
-			Column: v.Operation.Fields[ref].Position.CharStart,
-		},
+		Position: v.resolveFieldPosition(ref),
 		SkipDirectiveDefined:    skip,
 		SkipVariableName:        skipVariableName,
 		IncludeDirectiveDefined: include,
@@ -586,6 +586,16 @@ func (v *Visitor) EnterField(ref int) {
 		return
 	}
 	v.fieldConfigs[ref] = fieldConfig
+}
+
+func (v *Visitor) resolveFieldPosition(ref int) resolve.Position {
+	if v.disableResolveFieldPositions {
+		return resolve.Position{}
+	}
+	return resolve.Position{
+		Line:   v.Operation.Fields[ref].Position.LineStart,
+		Column: v.Operation.Fields[ref].Position.CharStart,
+	}
 }
 
 func (v *Visitor) resolveSkipForField(ref int) (bool, string) {
@@ -654,7 +664,7 @@ func (v *Visitor) LeaveField(ref int) {
 	}
 	fieldDefinitionTypeNode := v.Definition.FieldDefinitionTypeNode(fieldDefinition)
 	switch fieldDefinitionTypeNode.Kind {
-	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition:
+	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
 		v.objects = v.objects[:len(v.objects)-1]
 	}
 }
