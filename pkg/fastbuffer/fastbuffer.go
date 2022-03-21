@@ -43,7 +43,7 @@ func (f *FastBuffer) Len() int {
 func (f *FastBuffer) UnsafeString() string {
 	sliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&f.b))
 	stringHeader := reflect.StringHeader{Data: sliceHeader.Data, Len: sliceHeader.Len}
-	return *(*string)(unsafe.Pointer(&stringHeader))
+	return *(*string)(unsafe.Pointer(&stringHeader)) // nolint: govet
 }
 
 func (f *FastBuffer) String() string {
