@@ -140,10 +140,11 @@ type InputValue struct {
 }
 
 type Directive struct {
-	Name        string       `json:"name"`
-	Description string       `json:"description"`
-	Locations   []string     `json:"locations"`
-	Args        []InputValue `json:"args"`
+	Name         string       `json:"name"`
+	Description  string       `json:"description"`
+	Locations    []string     `json:"locations"`
+	Args         []InputValue `json:"args"`
+	IsRepeatable bool         `json:"isRepeatable"`
 }
 
 func NewDirective() Directive {

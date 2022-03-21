@@ -192,6 +192,9 @@ directive @deprecated(
     """
     reason: String = "No longer supported"
 ) on FIELD_DEFINITION | ENUM_VALUE
+directive @delegateField(
+    name: String!
+) repeatable on OBJECT | INTERFACE
 
 """
 A Directive provides a way to describe alternate runtime execution and type validation behavior in a GraphQL document.
@@ -205,6 +208,7 @@ type __Directive {
     description: String
     locations: [__DirectiveLocation!]!
     args: [__InputValue!]!
+    isRepeatable: Boolean!
 }
 
 """

@@ -9,6 +9,8 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParser_Parse(t *testing.T) {
@@ -1386,6 +1388,18 @@ func TestParser_Parse(t *testing.T) {
 					if locations.Next() {
 						panic("want false")
 					}
+				})
+		})
+		t.Run("repeatable", func(t *testing.T) {
+			run(`directive @example repeatable on FIELD`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					example := doc.DirectiveDefinitions[0]
+					if doc.Input.ByteSliceString(example.Name) != "example" {
+						panic("want example")
+					}
+					assert.True(t, example.Repeatable.IsRepeatable)
+					assert.Equal(t, uint32(20), example.Repeatable.Position.CharStart)
+					assert.Equal(t, uint32(30), example.Repeatable.Position.CharEnd)
 				})
 		})
 		t.Run("multiple directive locations", func(t *testing.T) {

@@ -25,6 +25,7 @@ const (
 	INPUT
 	DIRECTIVE
 	EXTEND
+	REPEATABLE
 )
 
 func KeywordFromLiteral(literal []byte) IdentKeyword {
@@ -90,6 +91,9 @@ func KeywordFromLiteral(literal []byte) IdentKeyword {
 	case 10:
 		if literal[0] == 'i' && literal[1] == 'm' && literal[2] == 'p' && literal[3] == 'l' && literal[4] == 'e' && literal[5] == 'm' && literal[6] == 'e' && literal[7] == 'n' && literal[8] == 't' && literal[9] == 's' {
 			return IMPLEMENTS
+		}
+		if literal[0] == 'r' && literal[1] == 'e' && literal[2] == 'p' && literal[3] == 'e' && literal[4] == 'a' && literal[5] == 't' && literal[6] == 'a' && literal[7] == 'b' && literal[8] == 'l' && literal[9] == 'e' {
+			return REPEATABLE
 		}
 	case 12:
 		if literal[0] == 's' && literal[1] == 'u' && literal[2] == 'b' && literal[3] == 's' && literal[4] == 'c' && literal[5] == 'r' && literal[6] == 'i' && literal[7] == 'p' && literal[8] == 't' && literal[9] == 'i' && literal[10] == 'o' && literal[11] == 'n' {
