@@ -240,8 +240,8 @@ func NewPlanner(ctx context.Context, config Configuration) *Planner {
 
 	planningWalker := astvisitor.NewWalker(48)
 	planningVisitor := &Visitor{
-		Walker:       &planningWalker,
-		fieldConfigs: map[int]*FieldConfiguration{},
+		Walker:                       &planningWalker,
+		fieldConfigs:                 map[int]*FieldConfiguration{},
 		disableResolveFieldPositions: config.DisableResolveFieldPositions,
 	}
 
@@ -520,11 +520,12 @@ func (v *Visitor) EnterField(ref int) {
 		v.currentField = &resolve.Field{
 			Name: fieldAliasOrName,
 			Value: &resolve.String{
-				Nullable: false,
-				Path:     []string{"__typename"},
+				Nullable:   false,
+				Path:       []string{"__typename"},
+				IsTypeName: true,
 			},
-			OnTypeName: v.resolveOnTypeName(),
-			Position: v.resolveFieldPosition(ref),
+			OnTypeName:              v.resolveOnTypeName(),
+			Position:                v.resolveFieldPosition(ref),
 			SkipDirectiveDefined:    skip,
 			SkipVariableName:        skipVariableName,
 			IncludeDirectiveDefined: include,
@@ -565,12 +566,12 @@ func (v *Visitor) EnterField(ref int) {
 	bufferID, hasBuffer := v.fieldBuffers[ref]
 
 	v.currentField = &resolve.Field{
-		Name:       fieldAliasOrName,
-		Value:      v.resolveFieldValue(ref, fieldDefinitionType, true, path, false),
-		HasBuffer:  hasBuffer,
-		BufferID:   bufferID,
-		OnTypeName: v.resolveOnTypeName(),
-		Position: v.resolveFieldPosition(ref),
+		Name:                    fieldAliasOrName,
+		Value:                   v.resolveFieldValue(ref, fieldDefinitionType, true, path, false),
+		HasBuffer:               hasBuffer,
+		BufferID:                bufferID,
+		OnTypeName:              v.resolveOnTypeName(),
+		Position:                v.resolveFieldPosition(ref),
 		SkipDirectiveDefined:    skip,
 		SkipVariableName:        skipVariableName,
 		IncludeDirectiveDefined: include,
