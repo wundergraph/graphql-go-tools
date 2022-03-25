@@ -279,7 +279,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
 	}))
 	t.Run("skip directive with variable", RunTest(interfaceSelectionSchema, `
@@ -361,7 +361,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
 	}))
 	t.Run("skip directive on __typename", RunTest(interfaceSelectionSchema, `
@@ -407,7 +407,8 @@ func TestGraphQLDataSource(t *testing.T) {
 								{
 									Name: []byte("__typename"),
 									Value: &resolve.String{
-										Path: []string{"__typename"},
+										Path:       []string{"__typename"},
+										IsTypeName: true,
 									},
 									SkipDirectiveDefined: true,
 									SkipVariableName:     "skip",
@@ -415,7 +416,8 @@ func TestGraphQLDataSource(t *testing.T) {
 								{
 									Name: []byte("tn2"),
 									Value: &resolve.String{
-										Path: []string{"__typename"},
+										Path:       []string{"__typename"},
+										IsTypeName: true,
 									},
 									IncludeDirectiveDefined: true,
 									IncludeVariableName:     "skip",
@@ -453,7 +455,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
 	}))
 	t.Run("skip directive on an inline fragment", RunTest(interfaceSelectionSchema, `
@@ -539,7 +541,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
 	}))
 	t.Run("include directive on an inline fragment", RunTest(interfaceSelectionSchema, `
@@ -625,7 +627,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
 	}))
 	t.Run("skip directive with inline value true", RunTest(interfaceSelectionSchema, `
@@ -693,7 +695,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
 	}))
 	t.Run("skip directive with inline value false", RunTest(interfaceSelectionSchema, `
@@ -767,7 +769,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
 	}))
 	t.Run("include directive with variable", RunTest(interfaceSelectionSchema, `
@@ -849,7 +851,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
 	}))
 	t.Run("include directive with inline value true", RunTest(interfaceSelectionSchema, `
@@ -923,7 +925,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
 	}))
 	t.Run("include directive with inline value false", RunTest(interfaceSelectionSchema, `
@@ -991,7 +993,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
 	}))
 	t.Run("selections on interface type with object type interface", RunTest(interfaceSelectionSchema, `
@@ -1075,7 +1077,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
 	}))
 	t.Run("variable at top level and recursively", RunTest(variableSchema, `
@@ -3209,8 +3211,9 @@ func TestGraphQLDataSource(t *testing.T) {
 						{
 							Name: []byte("__typename"),
 							Value: &resolve.String{
-								Path:     []string{"__typename"},
-								Nullable: false,
+								Path:       []string{"__typename"},
+								Nullable:   false,
+								IsTypeName: true,
 							},
 						},
 						{
@@ -3223,8 +3226,9 @@ func TestGraphQLDataSource(t *testing.T) {
 									{
 										Name: []byte("__typename"),
 										Value: &resolve.String{
-											Path:     []string{"__typename"},
-											Nullable: false,
+											Path:       []string{"__typename"},
+											Nullable:   false,
+											IsTypeName: true,
 										},
 									},
 									{
@@ -3324,7 +3328,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 			DisableResolveFieldPositions: true,
-			DefaultFlushIntervalMillis: 500,
+			DefaultFlushIntervalMillis:   500,
 		}))
 	factory := &Factory{
 		HTTPClient: http.DefaultClient,
@@ -3827,9 +3831,9 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:              0,
-						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate ssn}}","variables":{"a":$$0$$}}}`,
-						DataSource:            &Source{},
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate ssn}}","variables":{"a":$$0$$}}}`,
+						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ObjectVariable{
 								Path:     []string{"a"},
@@ -3876,21 +3880,21 @@ func TestGraphQLDataSource(t *testing.T) {
 									{
 										Name: []byte("name"),
 										Value: &resolve.Object{
-											Path: []string{"name"},
+											Path:     []string{"name"},
 											Nullable: true,
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("first"),
 													Value: &resolve.String{
 														Nullable: true,
-														Path: []string{"first"},
+														Path:     []string{"first"},
 													},
 												},
 												{
 													Name: []byte("last"),
 													Value: &resolve.String{
 														Nullable: true,
-														Path: []string{"last"},
+														Path:     []string{"last"},
 													},
 												},
 											},
@@ -3899,23 +3903,23 @@ func TestGraphQLDataSource(t *testing.T) {
 									{
 										Name: []byte("username"),
 										Value: &resolve.String{
-											Path: []string{"username"},
+											Path:     []string{"username"},
 											Nullable: true,
 										},
 									},
 									{
 										Name: []byte("birthDate"),
 										Value: &resolve.String{
-											Path: []string{"birthDate"},
+											Path:     []string{"birthDate"},
 											Nullable: true,
 										},
 									},
 									{
-										Name: []byte("vehicle"),
+										Name:      []byte("vehicle"),
 										HasBuffer: true,
-										BufferID: 1,
+										BufferID:  1,
 										Value: &resolve.Object{
-											Path: []string{"vehicle"},
+											Path:     []string{"vehicle"},
 											Nullable: true,
 											Fields: []*resolve.Field{
 												{
@@ -3928,20 +3932,21 @@ func TestGraphQLDataSource(t *testing.T) {
 													Name: []byte("description"),
 													Value: &resolve.String{
 														Nullable: true,
-														Path: []string{"description"},
+														Path:     []string{"description"},
 													},
 												},
 												{
 													Name: []byte("price"),
 													Value: &resolve.String{
 														Nullable: true,
-														Path: []string{"price"},
+														Path:     []string{"price"},
 													},
 												},
 												{
 													Name: []byte("__typename"),
 													Value: &resolve.String{
-														Path: []string{"__typename"},
+														Path:       []string{"__typename"},
+														IsTypeName: true,
 													},
 												},
 											},
@@ -3950,7 +3955,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									{
 										Name: []byte("account"),
 										Value: &resolve.Object{
-											Path: []string{"account"},
+											Path:     []string{"account"},
 											Nullable: true,
 											Fields: []*resolve.Field{
 												{
@@ -3964,7 +3969,7 @@ func TestGraphQLDataSource(t *testing.T) {
 													Name: []byte("number"),
 													Value: &resolve.String{
 														Nullable: true,
-														Path: []string{"number"},
+														Path:     []string{"number"},
 													},
 													OnTypeName: []byte("SMSAccount"),
 												},
@@ -3974,7 +3979,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									{
 										Name: []byte("metadata"),
 										Value: &resolve.Array{
-											Path: []string{"metadata"},
+											Path:     []string{"metadata"},
 											Nullable: true,
 											Item: &resolve.Object{
 												Nullable: true,
@@ -3983,21 +3988,21 @@ func TestGraphQLDataSource(t *testing.T) {
 														Name: []byte("name"),
 														Value: &resolve.String{
 															Nullable: true,
-															Path: []string{"name"},
+															Path:     []string{"name"},
 														},
 													},
 													{
 														Name: []byte("address"),
 														Value: &resolve.String{
 															Nullable: true,
-															Path: []string{"address"},
+															Path:     []string{"address"},
 														},
 													},
 													{
 														Name: []byte("description"),
 														Value: &resolve.String{
 															Nullable: true,
-															Path: []string{"description"},
+															Path:     []string{"description"},
 														},
 													},
 												},
@@ -4008,7 +4013,7 @@ func TestGraphQLDataSource(t *testing.T) {
 										Name: []byte("ssn"),
 										Value: &resolve.String{
 											Nullable: true,
-											Path: []string{"ssn"},
+											Path:     []string{"ssn"},
 										},
 									},
 								},
@@ -4024,28 +4029,28 @@ func TestGraphQLDataSource(t *testing.T) {
 					RootNodes: []plan.TypeField{
 						{
 							TypeName:   "Query",
-							FieldNames: []string{"me","user"},
+							FieldNames: []string{"me", "user"},
 						},
 					},
 					ChildNodes: []plan.TypeField{
 						{
 							TypeName:   "User",
-							FieldNames: []string{"id","name", "username","birthDate","metaData","ssn"},
+							FieldNames: []string{"id", "name", "username", "birthDate", "metaData", "ssn"},
 						},
 						{
-							TypeName: "UserMetadata",
-							FieldNames: []string{"name","address","description"},
+							TypeName:   "UserMetadata",
+							FieldNames: []string{"name", "address", "description"},
 						},
 						{
-							TypeName: "Name",
-							FieldNames: []string{"first","last"},
+							TypeName:   "Name",
+							FieldNames: []string{"first", "last"},
 						},
 						{
-							TypeName: "PasswordAccount",
+							TypeName:   "PasswordAccount",
 							FieldNames: []string{"email"},
 						},
 						{
-							TypeName: "SMSAccount",
+							TypeName:   "SMSAccount",
 							FieldNames: []string{"number"},
 						},
 					},
@@ -4070,7 +4075,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					ChildNodes: []plan.TypeField{
 						{
 							TypeName:   "Vehicle",
-							FieldNames: []string{"id","name", "description","price"},
+							FieldNames: []string{"id", "name", "description", "price"},
 						},
 					},
 					Custom: ConfigJson(Configuration{
@@ -4141,9 +4146,9 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:              0,
-						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate ssn}}","variables":{"a":$$0$$}}}`,
-						DataSource:            &Source{},
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate ssn}}","variables":{"a":$$0$$}}}`,
+						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ObjectVariable{
 								Path:     []string{"a"},
@@ -4190,21 +4195,21 @@ func TestGraphQLDataSource(t *testing.T) {
 									{
 										Name: []byte("name"),
 										Value: &resolve.Object{
-											Path: []string{"name"},
+											Path:     []string{"name"},
 											Nullable: true,
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("first"),
 													Value: &resolve.String{
 														Nullable: true,
-														Path: []string{"first"},
+														Path:     []string{"first"},
 													},
 												},
 												{
 													Name: []byte("last"),
 													Value: &resolve.String{
 														Nullable: true,
-														Path: []string{"last"},
+														Path:     []string{"last"},
 													},
 												},
 											},
@@ -4213,21 +4218,21 @@ func TestGraphQLDataSource(t *testing.T) {
 									{
 										Name: []byte("username"),
 										Value: &resolve.String{
-											Path: []string{"username"},
+											Path:     []string{"username"},
 											Nullable: true,
 										},
 									},
 									{
 										Name: []byte("birthDate"),
 										Value: &resolve.String{
-											Path: []string{"birthDate"},
+											Path:     []string{"birthDate"},
 											Nullable: true,
 										},
 									},
 									{
 										Name: []byte("account"),
 										Value: &resolve.Object{
-											Path: []string{"account"},
+											Path:     []string{"account"},
 											Nullable: true,
 											Fields: []*resolve.Field{
 												{
@@ -4241,7 +4246,7 @@ func TestGraphQLDataSource(t *testing.T) {
 													Name: []byte("number"),
 													Value: &resolve.String{
 														Nullable: true,
-														Path: []string{"number"},
+														Path:     []string{"number"},
 													},
 													OnTypeName: []byte("SMSAccount"),
 												},
@@ -4251,7 +4256,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									{
 										Name: []byte("metadata"),
 										Value: &resolve.Array{
-											Path: []string{"metadata"},
+											Path:     []string{"metadata"},
 											Nullable: true,
 											Item: &resolve.Object{
 												Nullable: true,
@@ -4260,21 +4265,21 @@ func TestGraphQLDataSource(t *testing.T) {
 														Name: []byte("name"),
 														Value: &resolve.String{
 															Nullable: true,
-															Path: []string{"name"},
+															Path:     []string{"name"},
 														},
 													},
 													{
 														Name: []byte("address"),
 														Value: &resolve.String{
 															Nullable: true,
-															Path: []string{"address"},
+															Path:     []string{"address"},
 														},
 													},
 													{
 														Name: []byte("description"),
 														Value: &resolve.String{
 															Nullable: true,
-															Path: []string{"description"},
+															Path:     []string{"description"},
 														},
 													},
 												},
@@ -4282,11 +4287,11 @@ func TestGraphQLDataSource(t *testing.T) {
 										},
 									},
 									{
-										Name: []byte("vehicle"),
+										Name:      []byte("vehicle"),
 										HasBuffer: true,
-										BufferID: 1,
+										BufferID:  1,
 										Value: &resolve.Object{
-											Path: []string{"vehicle"},
+											Path:     []string{"vehicle"},
 											Nullable: true,
 											Fields: []*resolve.Field{
 												{
@@ -4299,20 +4304,21 @@ func TestGraphQLDataSource(t *testing.T) {
 													Name: []byte("description"),
 													Value: &resolve.String{
 														Nullable: true,
-														Path: []string{"description"},
+														Path:     []string{"description"},
 													},
 												},
 												{
 													Name: []byte("price"),
 													Value: &resolve.String{
 														Nullable: true,
-														Path: []string{"price"},
+														Path:     []string{"price"},
 													},
 												},
 												{
 													Name: []byte("__typename"),
 													Value: &resolve.String{
-														Path: []string{"__typename"},
+														Path:       []string{"__typename"},
+														IsTypeName: true,
 													},
 												},
 											},
@@ -4322,7 +4328,7 @@ func TestGraphQLDataSource(t *testing.T) {
 										Name: []byte("ssn"),
 										Value: &resolve.String{
 											Nullable: true,
-											Path: []string{"ssn"},
+											Path:     []string{"ssn"},
 										},
 									},
 								},
@@ -4338,28 +4344,28 @@ func TestGraphQLDataSource(t *testing.T) {
 					RootNodes: []plan.TypeField{
 						{
 							TypeName:   "Query",
-							FieldNames: []string{"me","user"},
+							FieldNames: []string{"me", "user"},
 						},
 					},
 					ChildNodes: []plan.TypeField{
 						{
 							TypeName:   "User",
-							FieldNames: []string{"id","name", "username","birthDate","metaData","ssn"},
+							FieldNames: []string{"id", "name", "username", "birthDate", "metaData", "ssn"},
 						},
 						{
-							TypeName: "UserMetadata",
-							FieldNames: []string{"name","address","description"},
+							TypeName:   "UserMetadata",
+							FieldNames: []string{"name", "address", "description"},
 						},
 						{
-							TypeName: "Name",
-							FieldNames: []string{"first","last"},
+							TypeName:   "Name",
+							FieldNames: []string{"first", "last"},
 						},
 						{
-							TypeName: "PasswordAccount",
+							TypeName:   "PasswordAccount",
 							FieldNames: []string{"email"},
 						},
 						{
-							TypeName: "SMSAccount",
+							TypeName:   "SMSAccount",
 							FieldNames: []string{"number"},
 						},
 					},
@@ -4384,7 +4390,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					ChildNodes: []plan.TypeField{
 						{
 							TypeName:   "Vehicle",
-							FieldNames: []string{"id","name", "description","price"},
+							FieldNames: []string{"id", "name", "description", "price"},
 						},
 					},
 					Custom: ConfigJson(Configuration{
@@ -4414,7 +4420,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				{
 					TypeName:       "User",
 					FieldName:      "vehicle",
-					Path: []string{"vehicle"},
+					Path:           []string{"vehicle"},
 					RequiresFields: []string{"id"},
 				},
 			},
@@ -5577,62 +5583,62 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 	return RunTest(testDefinition, operation, operationName, expectedPlan, config, extraChecks...)
 }
 
-func TestUnNullVariables(t *testing.T){
+func TestUnNullVariables(t *testing.T) {
 
 	t.Run("variables with whitespace", func(t *testing.T) {
 		s := &Source{}
 		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"email":null,"firstName": "FirstTest",		"lastName":"LastTest","phone":123456,"preferences":{ "notifications":{}},"password":"password"}}}`))
 		expected := `{"body":{"variables":{"firstName":"FirstTest","lastName":"LastTest","phone":123456,"password":"password"}}}`
-		assert.Equal(t, expected,string(out))
+		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("empty variables", func(t *testing.T) {
 		s := &Source{}
 		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{}}}`))
 		expected := `{"body":{"variables":{}}}`
-		assert.Equal(t, expected,string(out))
+		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("two variables, one null", func(t *testing.T) {
 		s := &Source{}
 		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}}}`))
 		expected := `{"body":{"variables":{"b":true}}}`
-		assert.Equal(t, expected,string(out))
+		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("two variables, one null reverse", func(t *testing.T) {
 		s := &Source{}
 		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":true,"b":null}}}`))
 		expected := `{"body":{"variables":{"a":true}}}`
-		assert.Equal(t, expected,string(out))
+		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("null variables", func(t *testing.T) {
 		s := &Source{}
 		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":null}}`))
 		expected := `{"body":{"variables":null}}`
-		assert.Equal(t, expected,string(out))
+		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("ignore null inside non variables", func(t *testing.T) {
 		s := &Source{}
 		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"foo":null},"body":"query {foo(bar: null){baz}}"}}`))
 		expected := `{"body":{"variables":{},"body":"query {foo(bar: null){baz}}"}}`
-		assert.Equal(t, expected,string(out))
+		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("variables missing", func(t *testing.T) {
 		s := &Source{}
 		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}"}}`))
 		expected := `{"body":{"query":"{foo}"}}`
-		assert.Equal(t, expected,string(out))
+		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("variables null", func(t *testing.T) {
 		s := &Source{}
 		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}","variables":null}}`))
 		expected := `{"body":{"query":"{foo}","variables":null}}`
-		assert.Equal(t, expected,string(out))
+		assert.Equal(t, expected, string(out))
 	})
 }
 
