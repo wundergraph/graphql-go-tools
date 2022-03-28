@@ -1279,7 +1279,8 @@
             },
             "defaultValue": null
           }
-        ]
+        ],
+        "isRepeatable": false
       },
       {
         "name": "skip",
@@ -1304,7 +1305,8 @@
             },
             "defaultValue": null
           }
-        ]
+        ],
+        "isRepeatable": false
       },
       {
         "name": "deprecated",
@@ -1324,7 +1326,33 @@
             },
             "defaultValue": "\"No longer supported\""
           }
-        ]
+        ],
+        "isRepeatable": false
+      },
+      {
+        "name": "delegateField",
+        "description": "",
+        "locations": [
+          "OBJECT",
+          "INTERFACE"
+        ],
+        "args": [
+          {
+            "name": "name",
+            "description": "",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            "defaultValue": null
+          }
+        ],
+        "isRepeatable": true
       }
     ]
   }

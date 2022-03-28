@@ -263,6 +263,7 @@ func (i *introspectionVisitor) EnterDirectiveDefinition(ref int) {
 	i.currentDirective = NewDirective()
 	i.currentDirective.Name = i.definition.DirectiveDefinitionNameString(ref)
 	i.currentDirective.Description = i.definition.DirectiveDefinitionDescriptionString(ref)
+	i.currentDirective.IsRepeatable = i.definition.DirectiveDefinitions[ref].Repeatable.IsRepeatable
 }
 
 func (i *introspectionVisitor) LeaveDirectiveDefinition(ref int) {

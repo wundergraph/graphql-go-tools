@@ -19,6 +19,12 @@ type DirectiveDefinition struct {
 	ArgumentsDefinition     InputValueDefinitionList // optional, e.g. (if: Boolean)
 	On                      position.Position        // on
 	DirectiveLocations      DirectiveLocations       // e.g. FIELD
+	Repeatable              Repeatable
+}
+
+type Repeatable struct {
+	IsRepeatable bool
+	Position     position.Position
 }
 
 func (d *Document) DirectiveDefinitionNameBytes(ref int) ByteSlice {
