@@ -128,7 +128,7 @@ CPU and Memory consumption for lexing, parsing as well as most other operations 
 
 ## Contributors
 
-- [Jens Neuse][jens-neuse-github] (Project Lead & Active Maintainer)
+- [Jens Neuse][jens-neuse-github] (Ex-Project Lead)
 - [Mantas Vidutis][mantas-vidutis-github]
     - Contributions to the http proxy & the Context Middleware
 - [Jonas Bergner][jonas-bergner-github]
