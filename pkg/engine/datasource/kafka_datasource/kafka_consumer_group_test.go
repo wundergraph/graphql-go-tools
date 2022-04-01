@@ -2,6 +2,9 @@ package kafka_datasource
 
 import (
 	"context"
+	"fmt"
+	log "github.com/jensneuse/abstractlogger"
+	"go.uber.org/zap"
 	"sync"
 	"testing"
 	"time"
@@ -177,5 +180,53 @@ func TestKafkaMockBroker(t *testing.T) {
 	require.NoError(t, <-errCh)
 	require.Equal(t, 1, called)
 	require.ErrorIs(t, ctx.Err(), context.Canceled)
+}
 
+// It's just a simple example of graphql federation gateway server, it's NOT a production ready code.
+//
+func logger() log.Logger {
+	logger, err := zap.NewDevelopmentConfig().Build()
+	if err != nil {
+		panic(err)
+	}
+
+	return log.NewZapLogger(logger, log.DebugLevel)
+}
+
+func TestKafkaConsumerGroup(t *testing.T) {
+	var (
+		testMessageKey   = sarama.StringEncoder("test.message.key")
+		testMessageValue = sarama.StringEncoder("test.message.value")
+		topic            = "test.topic"
+		consumerGroup    = "consumer.group"
+	)
+
+	fr := &sarama.FetchResponse{Version: 11}
+	mockBroker := newMockKafkaBroker(t, topic, consumerGroup, fr)
+	defer mockBroker.Close()
+
+	// Add a message to the topic. KafkaConsumerGroup group will fetch that message and trigger ConsumeClaim method.
+	fr.AddMessage(topic, defaultPartition, testMessageKey, testMessageValue, 0)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cg := &KafkaConsumerGroup{
+		log: logger(),
+		ctx: ctx,
+	}
+	options := GraphQLSubscriptionOptions{
+		BrokerAddr: mockBroker.Addr(),
+		Topic:      topic,
+		GroupID:    consumerGroup,
+		ClientID:   "graphql-go-tools-test",
+	}
+	next := make(chan []byte)
+	err := cg.Subscribe(ctx, options, next)
+	require.NoError(t, err)
+
+	msg := <-next
+	fmt.Println(string(msg))
+
+	cancel()
+
+	<-ctx.Done()
 }
