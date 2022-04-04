@@ -2,16 +2,26 @@ package kafka_datasource
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/buger/jsonparser"
 	log "github.com/jensneuse/abstractlogger"
 )
 
+type KafkaConsumerGroupBridge struct {
+	log log.Logger
+	ctx context.Context
+}
+
 type KafkaConsumerGroup struct {
-	log           log.Logger
 	consumerGroup sarama.ConsumerGroup
+	options       *GraphQLSubscriptionOptions
+	log           log.Logger
+	wg            sync.WaitGroup
 	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
 type kafkaConsumerGroupHandler struct {
@@ -21,17 +31,31 @@ type kafkaConsumerGroupHandler struct {
 	ctx      context.Context
 }
 
+// Setup is run at the beginning of a new session, before ConsumeClaim.
 func (k *kafkaConsumerGroupHandler) Setup(_ sarama.ConsumerGroupSession) error {
-	k.log.Debug("kafkaConsumerGroupHandler.Setup", log.String("topic", k.options.Topic))
+	k.log.Debug("kafkaConsumerGroupHandler.Setup",
+		log.String("topic", k.options.Topic),
+		log.String("groupID", k.options.GroupID),
+		log.String("clientID", k.options.ClientID),
+	)
 	return nil
 }
 
+// Cleanup is run at the end of a session, once all ConsumeClaim goroutines have exited
+// but before the offsets are committed for the very last time.
 func (k *kafkaConsumerGroupHandler) Cleanup(_ sarama.ConsumerGroupSession) error {
-	k.log.Debug("kafkaConsumerGroupHandler.Cleanup", log.String("topic", k.options.Topic))
+	k.log.Debug("kafkaConsumerGroupHandler.Cleanup",
+		log.String("topic", k.options.Topic),
+		log.String("groupID", k.options.GroupID),
+		log.String("clientID", k.options.ClientID),
+	)
 	close(k.messages)
 	return nil
 }
 
+// ConsumeClaim must start a consumer loop of ConsumerGroupClaim's Messages().
+// Once the Messages() channel is closed, the Handler must finish its processing
+// loop and exit.
 func (k *kafkaConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for msg := range claim.Messages() {
 		ctx, cancel := context.WithTimeout(k.ctx, time.Second*5)
@@ -41,72 +65,137 @@ func (k *kafkaConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSes
 			session.MarkMessage(msg, "") // Commit the message and advance the offset.
 		case <-ctx.Done():
 			cancel()
-		case <-k.ctx.Done():
-			cancel()
 			return nil
 		}
 	}
-	k.log.Debug("kafkaConsumerGroupHandler.ConsumeClaim is gone")
+	k.log.Debug("kafkaConsumerGroupHandler.ConsumeClaim is gone",
+		log.String("topic", k.options.Topic),
+		log.String("groupID", k.options.GroupID),
+		log.String("clientID", k.options.ClientID))
 	return nil
 }
 
-func (c *KafkaConsumerGroup) newConsumerGroup(options *GraphQLSubscriptionOptions) (sarama.ConsumerGroup, error) {
-	sc := sarama.NewConfig()
-	sc.Version = sarama.V2_7_0_0
-	sc.ClientID = options.ClientID
-	return sarama.NewConsumerGroup([]string{options.BrokerAddr}, options.GroupID, sc)
-}
-
-func (c *KafkaConsumerGroup) stopConsuming(ctx context.Context, cg sarama.ConsumerGroup) {
-	select {
-	case <-ctx.Done():
-	case <-c.ctx.Done():
+// NewKafkaConsumerGroup creates a new sarama.ConsumerGroup and returns a new
+// *KafkaConsumerGroup instance.
+func NewKafkaConsumerGroup(log log.Logger, options *GraphQLSubscriptionOptions) (*KafkaConsumerGroup, error) {
+	if options.saramaConfig == nil {
+		options.saramaConfig = sarama.NewConfig()
 	}
 
-	err := cg.Close()
+	options.saramaConfig.ClientID = options.ClientID
+	cg, err := sarama.NewConsumerGroup([]string{options.BrokerAddr}, options.GroupID, options.saramaConfig)
 	if err != nil {
-		c.log.Error("KafkaConsumerGroup.stopConsuming", log.Error(err))
+		return nil, err
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	return &KafkaConsumerGroup{
+		consumerGroup: cg,
+		log:           log,
+		options:       options,
+		ctx:           ctx,
+		cancel:        cancel,
+	}, nil
+}
+
+func (k *KafkaConsumerGroup) startConsuming(handler sarama.ConsumerGroupHandler) {
+	defer k.wg.Done()
+
+	defer func() {
+		if err := k.consumerGroup.Close(); err != nil {
+			k.log.Error("KafkaConsumerGroup.Close returned an error",
+				log.String("topic", k.options.Topic),
+				log.String("groupID", k.options.GroupID),
+				log.String("clientID", k.options.ClientID),
+				log.Error(err))
+		}
+	}()
+
+	// Blocking call
+	err := k.consumerGroup.Consume(k.ctx, []string{k.options.Topic}, handler)
+	if err != nil {
+		k.log.Error("KafkaConsumerGroup.startConsuming",
+			log.String("topic", k.options.Topic),
+			log.String("groupID", k.options.GroupID),
+			log.String("clientID", k.options.ClientID),
+			log.Error(err))
 	}
 }
 
-func (c *KafkaConsumerGroup) startConsuming(ctx context.Context, cg sarama.ConsumerGroup, messages chan *sarama.ConsumerMessage, options *GraphQLSubscriptionOptions) {
+// StartConsuming initializes a new consumer group handler and starts consuming at
+// background.
+func (k *KafkaConsumerGroup) StartConsuming(messages chan *sarama.ConsumerMessage) {
 	handler := &kafkaConsumerGroupHandler{
-		log:      c.log,
-		options:  options,
+		log:      k.log,
+		options:  k.options,
 		messages: messages,
-		ctx:      ctx,
+		ctx:      k.ctx,
 	}
 
-	go c.stopConsuming(ctx, cg)
-
-	err := cg.Consume(ctx, []string{options.Topic}, handler)
-	if err != nil {
-		c.log.Error("KafkaConsumerGroup.startConsuming", log.Error(err))
-	}
+	k.wg.Add(1)
+	go k.startConsuming(handler)
 }
 
-func (c *KafkaConsumerGroup) Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
-	cg, err := c.newConsumerGroup(&options)
+// Close stops background goroutines and closes the underlying ConsumerGroup instance.
+func (k *KafkaConsumerGroup) Close() error {
+	select {
+	case <-k.ctx.Done():
+		// Already closed
+		return nil
+	default:
+	}
+
+	k.cancel()
+	return k.consumerGroup.Close()
+}
+
+// WaitUntilConsumerStop waits until ConsumerGroup.Consume function stops.
+func (k *KafkaConsumerGroup) WaitUntilConsumerStop() {
+	k.wg.Wait()
+}
+
+// Subscribe creates a new consumer group with given config and streams messages via next channel.
+func (c *KafkaConsumerGroupBridge) Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+	cg, err := NewKafkaConsumerGroup(c.log, &options)
 	if err != nil {
 		return err
 	}
 
 	messages := make(chan *sarama.ConsumerMessage)
-	go c.startConsuming(ctx, cg, messages, &options)
+	cg.StartConsuming(messages)
 
+	// Wait for messages.
 	go func() {
+		defer func() {
+			if err := cg.Close(); err != nil {
+				c.log.Error("KafkaConsumerGroup.Close returned an error",
+					log.String("topic", options.Topic),
+					log.String("groupID", options.GroupID),
+					log.String("clientID", options.ClientID),
+					log.Error(err),
+				)
+			}
+			close(next)
+		}()
+
 		for {
 			select {
 			case <-c.ctx.Done():
+				// Gateway context
 				return
 			case <-ctx.Done():
+				// Request context
 				return
 			case msg, ok := <-messages:
 				if !ok {
 					return
 				}
-				// TODO: What about msg.Key and msg.Headers?
-				next <- msg.Value
+				// The "data" field contains the result of your GraphQL request.
+				result, err := jsonparser.Set([]byte(`{}`), msg.Value, "data")
+				if err != nil {
+					return
+				}
+				next <- result
 			}
 		}
 	}()
@@ -114,4 +203,4 @@ func (c *KafkaConsumerGroup) Subscribe(ctx context.Context, options GraphQLSubsc
 	return nil
 }
 
-//var _ GraphQLSubscriptionClient = (*KafkaConsumerGroup)(nil)
+var _ sarama.ConsumerGroupHandler = (*kafkaConsumerGroupHandler)(nil)
