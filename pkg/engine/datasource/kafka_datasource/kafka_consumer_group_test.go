@@ -183,7 +183,6 @@ func TestKafkaMockBroker(t *testing.T) {
 }
 
 // It's just a simple example of graphql federation gateway server, it's NOT a production ready code.
-//
 func logger() log.Logger {
 	logger, err := zap.NewDevelopmentConfig().Build()
 	if err != nil {
@@ -210,10 +209,8 @@ func TestKafkaConsumerGroupBridge_Subscribe(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	cg := &KafkaConsumerGroupBridge{
-		log: logger(),
-		ctx: ctx,
-	}
+
+	cg := NewKafkaConsumerGroupBridge(ctx, logger()) // use abstractlogger.NoopLogger if there is no available logger.
 
 	sc := sarama.NewConfig()
 	sc.Version = sarama.V2_7_0_0

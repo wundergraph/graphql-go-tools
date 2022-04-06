@@ -154,6 +154,16 @@ func (k *KafkaConsumerGroup) WaitUntilConsumerStop() {
 	k.wg.Wait()
 }
 
+func NewKafkaConsumerGroupBridge(ctx context.Context, logger log.Logger) *KafkaConsumerGroupBridge {
+	if logger == nil {
+		logger = log.NoopLogger
+	}
+	return &KafkaConsumerGroupBridge{
+		ctx: ctx,
+		log: logger,
+	}
+}
+
 // Subscribe creates a new consumer group with given config and streams messages via next channel.
 func (c *KafkaConsumerGroupBridge) Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
 	cg, err := NewKafkaConsumerGroup(c.log, &options)
