@@ -2,13 +2,16 @@ package kafka_datasource
 
 import (
 	"context"
+	"github.com/buger/jsonparser"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/Shopify/sarama/mocks"
+	log "github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 const defaultPartition = 0
@@ -165,7 +168,7 @@ func TestKafkaMockBroker(t *testing.T) {
 	// Ready for consuming
 	<-handler.ctx.Done()
 
-	// Add a message to the topic. KafkaConsumerGroup group will fetch that message and trigger ConsumeClaim method.
+	// Add a message to the topic. KafkaConsumerGroupBridge group will fetch that message and trigger ConsumeClaim method.
 	fr.AddMessage(topic, defaultPartition, testMessageKey, testMessageValue, 0)
 
 	// When this context is canceled, the processMessage function has been called and run without any problem.
@@ -173,9 +176,118 @@ func TestKafkaMockBroker(t *testing.T) {
 
 	wg.Wait()
 
-	// KafkaConsumerGroup is stopped here.
+	// KafkaConsumerGroupBridge is stopped here.
 	require.NoError(t, <-errCh)
 	require.Equal(t, 1, called)
 	require.ErrorIs(t, ctx.Err(), context.Canceled)
+}
 
+// It's just a simple example of graphql federation gateway server, it's NOT a production ready code.
+func logger() log.Logger {
+	logger, err := zap.NewDevelopmentConfig().Build()
+	if err != nil {
+		panic(err)
+	}
+
+	return log.NewZapLogger(logger, log.DebugLevel)
+}
+
+func TestKafkaConsumerGroupBridge_Subscribe(t *testing.T) {
+	var (
+		testMessageKey   = sarama.StringEncoder("test.message.key")
+		testMessageValue = sarama.StringEncoder(`{"stock":[{"name":"Trilby","price":293,"inStock":2}]}`)
+		topic            = "test.topic"
+		consumerGroup    = "consumer.group"
+	)
+
+	fr := &sarama.FetchResponse{Version: 11}
+	mockBroker := newMockKafkaBroker(t, topic, consumerGroup, fr)
+	defer mockBroker.Close()
+
+	// Add a message to the topic. The consumer group will fetch that message and trigger ConsumeClaim method.
+	fr.AddMessage(topic, defaultPartition, testMessageKey, testMessageValue, 0)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cg := NewKafkaConsumerGroupBridge(ctx, logger()) // use abstractlogger.NoopLogger if there is no available logger.
+
+	sc := sarama.NewConfig()
+	sc.Version = sarama.V2_7_0_0
+
+	options := GraphQLSubscriptionOptions{
+		BrokerAddr:   mockBroker.Addr(),
+		Topic:        topic,
+		GroupID:      consumerGroup,
+		ClientID:     "graphql-go-tools-test",
+		saramaConfig: sc,
+	}
+	next := make(chan []byte)
+	err := cg.Subscribe(ctx, options, next)
+	require.NoError(t, err)
+
+	msg := <-next
+	expectedMsg, err := testMessageValue.Encode()
+	require.NoError(t, err)
+
+	value, _, _, err := jsonparser.Get(msg, "data")
+	require.NoError(t, err)
+	require.Equal(t, expectedMsg, value)
+}
+
+func TestKafkaConsumerGroup_StartConsuming_And_Stop(t *testing.T) {
+	var (
+		testMessageKey   = sarama.StringEncoder("test.message.key")
+		testMessageValue = sarama.StringEncoder("test.message.value")
+		topic            = "test.topic"
+		consumerGroup    = "consumer.group"
+	)
+
+	fr := &sarama.FetchResponse{Version: 11}
+	mockBroker := newMockKafkaBroker(t, topic, consumerGroup, fr)
+	defer mockBroker.Close()
+
+	// Add a message to the topic. The consumer group will fetch that message and trigger ConsumeClaim method.
+	fr.AddMessage(topic, defaultPartition, testMessageKey, testMessageValue, 0)
+
+	sc := sarama.NewConfig()
+	sc.Version = sarama.V2_7_0_0
+
+	options := GraphQLSubscriptionOptions{
+		BrokerAddr:   mockBroker.Addr(),
+		Topic:        topic,
+		GroupID:      consumerGroup,
+		ClientID:     "graphql-go-tools-test",
+		saramaConfig: sc,
+	}
+
+	cg, err := NewKafkaConsumerGroup(logger(), &options)
+	require.NoError(t, err)
+
+	messages := make(chan *sarama.ConsumerMessage)
+	cg.StartConsuming(messages)
+
+	msg := <-messages
+	expectedKey, _ := testMessageKey.Encode()
+	require.Equal(t, expectedKey, msg.Key)
+
+	expectedValue, _ := testMessageValue.Encode()
+	require.Equal(t, expectedValue, msg.Value)
+
+	require.NoError(t, cg.Close())
+
+	done := make(chan struct{})
+	go func() {
+		defer func() {
+			close(done)
+		}()
+
+		cg.WaitUntilConsumerStop()
+	}()
+
+	select {
+	case <-time.After(15 * time.Second):
+		require.Fail(t, "KafkaConsumerGroup could not closed in 15 seconds")
+	case <-done:
+	}
 }
