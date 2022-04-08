@@ -3,25 +3,24 @@ package kafka_datasource
 import (
 	"context"
 	"encoding/json"
-	"github.com/jensneuse/abstractlogger"
-
 	"github.com/Shopify/sarama"
+	"github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 )
 
 type GraphQLSubscriptionOptions struct {
-	BrokerAddr   string `json:"BrokerAddr"`
-	Topic        string `json:"Topic"`
-	GroupID      string `json:"GroupID"`
-	ClientID     string `json:"ClientID"`
+	BrokerAddr   string `json:"broker_addr"`
+	Topic        string `json:"topic"`
+	GroupID      string `json:"group_id"`
+	ClientID     string `json:"client_id"`
 	saramaConfig *sarama.Config
 }
 
 type SubscriptionConfiguration struct {
-	BrokerAddr string
-	Topic      string
-	GroupID    string
-	ClientID   string
+	BrokerAddr string `json:"broker_addr"`
+	Topic      string `json:"topic"`
+	GroupID    string `json:"group_id"`
+	ClientID   string `json:"client_id"`
 }
 
 type Configuration struct {
@@ -29,8 +28,9 @@ type Configuration struct {
 }
 
 type Planner struct {
-	ctx    context.Context
-	config Configuration
+	visitor *plan.Visitor
+	ctx     context.Context
+	config  Configuration
 }
 
 func (p *Planner) Register(_ *plan.Visitor, configuration plan.DataSourceConfiguration, _ bool) error {
@@ -43,14 +43,10 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 	input, _ := json.Marshal(p.config.Subscription)
-	// TODO: How to handle SubscriptionConfiguration.Variables?
 	return plan.SubscriptionConfiguration{
 		Input: string(input),
 		DataSource: &SubscriptionSource{
-			client: &KafkaConsumerGroupBridge{
-				log: abstractlogger.NoopLogger,
-				ctx: p.ctx,
-			},
+			client: NewKafkaConsumerGroupBridge(p.ctx, abstractlogger.NoopLogger),
 		},
 	}
 }
@@ -72,15 +68,9 @@ func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 	}
 }
 
-func ConfigJson(config Configuration) json.RawMessage {
+func ConfigJSON(config Configuration) json.RawMessage {
 	out, _ := json.Marshal(config)
 	return out
-}
-
-type GraphQLBody struct {
-	Query         string          `json:"query,omitempty"`
-	OperationName string          `json:"operationName,omitempty"`
-	Variables     json.RawMessage `json:"variables,omitempty"`
 }
 
 type GraphQLSubscriptionClient interface {

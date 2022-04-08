@@ -166,6 +166,11 @@ func NewKafkaConsumerGroupBridge(ctx context.Context, logger log.Logger) *KafkaC
 
 // Subscribe creates a new consumer group with given config and streams messages via next channel.
 func (c *KafkaConsumerGroupBridge) Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+	if options.saramaConfig == nil {
+		// TODO:
+		options.saramaConfig = sarama.NewConfig()
+		options.saramaConfig.Version = sarama.V2_7_0_0
+	}
 	cg, err := NewKafkaConsumerGroup(c.log, &options)
 	if err != nil {
 		return err
