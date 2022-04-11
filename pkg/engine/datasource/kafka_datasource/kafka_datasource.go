@@ -3,9 +3,44 @@ package kafka_datasource
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+
 	"github.com/Shopify/sarama"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+)
+
+var (
+	DefaultKafkaVersion          = "V1_0_0_0"
+	SaramaSupportedKafkaVersions = map[string]sarama.KafkaVersion{
+		"V0_8_2_0":  sarama.V0_8_2_0,
+		"V0_8_2_1":  sarama.V0_8_2_1,
+		"V0_8_2_2":  sarama.V0_8_2_2,
+		"V0_9_0_0":  sarama.V0_9_0_0,
+		"V0_9_0_1":  sarama.V0_9_0_1,
+		"V0_10_0_0": sarama.V0_10_0_0,
+		"V0_10_0_1": sarama.V0_10_0_1,
+		"V0_10_1_0": sarama.V0_10_1_0,
+		"V0_10_1_1": sarama.V0_10_1_1,
+		"V0_10_2_0": sarama.V0_10_2_0,
+		"V0_10_2_1": sarama.V0_10_2_1,
+		"V0_11_0_0": sarama.V0_11_0_0,
+		"V0_11_0_1": sarama.V0_11_0_1,
+		"V0_11_0_2": sarama.V0_11_0_2,
+		"V1_0_0_0":  sarama.V1_0_0_0,
+		"V1_1_0_0":  sarama.V1_1_0_0,
+		"V1_1_1_0":  sarama.V1_1_1_0,
+		"V2_0_0_0":  sarama.V2_0_0_0,
+		"V2_0_1_0":  sarama.V2_0_1_0,
+		"V2_1_0_0":  sarama.V2_1_0_0,
+		"V2_2_0_0":  sarama.V2_2_0_0,
+		"V2_3_0_0":  sarama.V2_3_0_0,
+		"V2_4_0_0":  sarama.V2_4_0_0,
+		"V2_5_0_0":  sarama.V2_5_0_0,
+		"V2_6_0_0":  sarama.V2_6_0_0,
+		"V2_7_0_0":  sarama.V2_7_0_0,
+		"V2_8_0_0":  sarama.V2_8_0_0,
+	}
 )
 
 type GraphQLSubscriptionOptions struct {
@@ -13,7 +48,37 @@ type GraphQLSubscriptionOptions struct {
 	Topic        string `json:"topic"`
 	GroupID      string `json:"group_id"`
 	ClientID     string `json:"client_id"`
-	saramaConfig *sarama.Config
+	KafkaVersion string `json:"kafka_version"`
+}
+
+func (g *GraphQLSubscriptionOptions) Sanitize() {
+	if g.KafkaVersion == "" {
+		g.KafkaVersion = DefaultKafkaVersion
+	}
+}
+
+func (g *GraphQLSubscriptionOptions) Validate() error {
+	if g.BrokerAddr == "" {
+		return fmt.Errorf("broker_addr cannot be empty")
+	}
+
+	if g.Topic == "" {
+		return fmt.Errorf("topic cannot be empty")
+	}
+
+	if g.GroupID == "" {
+		return fmt.Errorf("group_id cannot be empty")
+	}
+
+	if g.ClientID == "" {
+		return fmt.Errorf("client_id cannot be empty")
+	}
+
+	if _, ok := SaramaSupportedKafkaVersions[g.KafkaVersion]; !ok {
+		return fmt.Errorf("kafka_version is invalid: %s", g.KafkaVersion)
+	}
+
+	return nil
 }
 
 type SubscriptionConfiguration struct {

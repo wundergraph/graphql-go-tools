@@ -77,13 +77,8 @@ func (k *kafkaConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSes
 
 // NewKafkaConsumerGroup creates a new sarama.ConsumerGroup and returns a new
 // *KafkaConsumerGroup instance.
-func NewKafkaConsumerGroup(log log.Logger, options *GraphQLSubscriptionOptions) (*KafkaConsumerGroup, error) {
-	if options.saramaConfig == nil {
-		options.saramaConfig = sarama.NewConfig()
-	}
-
-	options.saramaConfig.ClientID = options.ClientID
-	cg, err := sarama.NewConsumerGroup([]string{options.BrokerAddr}, options.GroupID, options.saramaConfig)
+func NewKafkaConsumerGroup(log log.Logger, saramaConfig *sarama.Config, options *GraphQLSubscriptionOptions) (*KafkaConsumerGroup, error) {
+	cg, err := sarama.NewConsumerGroup([]string{options.BrokerAddr}, options.GroupID, saramaConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -166,12 +161,16 @@ func NewKafkaConsumerGroupBridge(ctx context.Context, logger log.Logger) *KafkaC
 
 // Subscribe creates a new consumer group with given config and streams messages via next channel.
 func (c *KafkaConsumerGroupBridge) Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
-	if options.saramaConfig == nil {
-		// TODO:
-		options.saramaConfig = sarama.NewConfig()
-		options.saramaConfig.Version = sarama.V2_7_0_0
+	options.Sanitize()
+	if err := options.Validate(); err != nil {
+		return err
 	}
-	cg, err := NewKafkaConsumerGroup(c.log, &options)
+
+	saramaConfig := sarama.NewConfig()
+	saramaConfig.Version = SaramaSupportedKafkaVersions[options.KafkaVersion]
+	saramaConfig.ClientID = options.ClientID
+
+	cg, err := NewKafkaConsumerGroup(c.log, saramaConfig, &options)
 	if err != nil {
 		return err
 	}
