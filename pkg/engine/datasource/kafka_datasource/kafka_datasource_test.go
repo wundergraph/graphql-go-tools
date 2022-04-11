@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Shopify/sarama"
+	"github.com/buger/jsonparser"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
@@ -15,7 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testDefinition = `
+const (
+	testMockKafkaVersion = "V2_8_0_0"
+	testDefinition       = `
 schema {
     subscription: Subscription
 }
@@ -24,6 +27,7 @@ type Subscription {
     remainingJedis: Int!
 }
 `
+)
 
 type runTestOnTestDefinitionOptions func(planConfig *plan.Configuration, extraChecks *[]datasourcetesting.CheckFunc)
 
@@ -187,7 +191,6 @@ func (f FailingSubscriptionClient) Subscribe(ctx context.Context, options GraphQ
 }
 
 func TestKafkaDataSource_Subscription_Start(t *testing.T) {
-
 	newSubscriptionSource := func(ctx context.Context) SubscriptionSource {
 		subscriptionSource := SubscriptionSource{client: NewKafkaConsumerGroupBridge(ctx, abstractlogger.NoopLogger)}
 		return subscriptionSource
@@ -214,10 +217,11 @@ func TestKafkaDataSource_Subscription_Start(t *testing.T) {
 		defer mockBroker.Close()
 
 		options := GraphQLSubscriptionOptions{
-			BrokerAddr: mockBroker.Addr(),
-			Topic:      topic,
-			GroupID:    groupID,
-			ClientID:   "graphql-go-tools.test.groupid",
+			BrokerAddr:   mockBroker.Addr(),
+			Topic:        topic,
+			GroupID:      groupID,
+			ClientID:     "graphql-go-tools.test.groupid",
+			KafkaVersion: testMockKafkaVersion,
 		}
 		optionsBytes, err := json.Marshal(options)
 		require.NoError(t, err)
@@ -237,4 +241,45 @@ func TestKafkaDataSource_Subscription_Start(t *testing.T) {
 		_, ok := <-next
 		assert.False(t, ok)
 	})
+}
+
+func TestKafkaConsumerGroupBridge_Subscribe(t *testing.T) {
+	var (
+		testMessageKey   = sarama.StringEncoder("test.message.key")
+		testMessageValue = sarama.StringEncoder(`{"stock":[{"name":"Trilby","price":293,"inStock":2}]}`)
+		topic            = "test.topic"
+		consumerGroup    = "consumer.group"
+	)
+
+	fr := &sarama.FetchResponse{Version: 11}
+	mockBroker := newMockKafkaBroker(t, topic, consumerGroup, fr)
+	defer mockBroker.Close()
+
+	// Add a message to the topic. The consumer group will fetch that message and trigger ConsumeClaim method.
+	fr.AddMessage(topic, defaultPartition, testMessageKey, testMessageValue, 0)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cg := NewKafkaConsumerGroupBridge(ctx, logger()) // use abstractlogger.NoopLogger if there is no available logger.
+
+	options := GraphQLSubscriptionOptions{
+		BrokerAddr:   mockBroker.Addr(),
+		Topic:        topic,
+		GroupID:      consumerGroup,
+		ClientID:     "graphql-go-tools-test",
+		KafkaVersion: testMockKafkaVersion,
+	}
+
+	next := make(chan []byte)
+	err := cg.Subscribe(ctx, options, next)
+	require.NoError(t, err)
+
+	msg := <-next
+	expectedMsg, err := testMessageValue.Encode()
+	require.NoError(t, err)
+
+	value, _, _, err := jsonparser.Get(msg, "data")
+	require.NoError(t, err)
+	require.Equal(t, expectedMsg, value)
 }
