@@ -89,39 +89,56 @@ const (
 		extend type Query {
 			me: User
 		}
+
+		scalar DateTime
+
+		scalar CustomScalar
 	
 		type User @key(fields: "id") {
 			id: ID!
 			username: String!
+			created: DateTime!
+			reputation: CustomScalar!
 		}
 	`
+
 	productSchema = `
+		scalar CustomScalar
+
 		extend type Query {
 			topProducts(first: Int = 5): [Product]
 		}
+
+		scalar BigInt
 		
 		type Product @key(fields: "upc") {
 			upc: String!
 			name: String!
 			price: Int!
+			worth: BigInt!
+			reputation: CustomScalar!
 		}
 	`
 	reviewSchema = `
+		scalar DateTime
+
 		type Review {
 			body: String!
 			author: User! @provides(fields: "username")
 			product: Product!
+			created: DateTime!
 		}
 		
 		extend type User @key(fields: "id") {
 			id: ID! @external
 			reviews: [Review]
 		}
-		
+
 		extend type Product @key(fields: "upc") {
 			upc: String! @external
 			name: String! @external
 			reviews: [Review] @requires(fields: "name")
+			sales: BigInt!
 		}
 
 		extend type Subscription {
@@ -129,10 +146,13 @@ const (
 		}
 	`
 	likeSchema = `
+		scalar DateTime
+
 		type Like @key(fields: "id") {
 			id: ID!
 			productId: ID!
 			userId: ID!
+			date: DateTime!
 		}
 		type Query {
 			likesCount(productID: ID!): Int!
@@ -151,19 +171,31 @@ const (
 		}
 	`
 	onlinePaymentSchema = `
+		scalar DateTime
+
+		scalar BigInt
+
 		interface PaymentType @extends {
 			email: String!
+			date: DateTime!
+			amount: BigInt!
 		}
 	`
 	classicPaymentSchema = `
+		scalar CustomScalar
+
 		extend interface PaymentType {
 			number: String!
+			reputation: CustomScalar!
 		}
 	`
 	extendsDirectivesSchema = `
+		scalar DateTime
+
 		type Comment {
 			body: String!
 			author: User!
+			created: DateTime!
 		}
 
 		type User @extends @key(fields: "id") {
@@ -186,36 +218,52 @@ const (
 		type Subscription {
 			review: Review!
 		}
+
+		scalar DateTime
+
+		scalar CustomScalar
 		
 		type User {
 			id: ID!
 			username: String!
+			created: DateTime!
+			reputation: CustomScalar!
 			reviews: [Review]
 		}
+		
+		scalar BigInt
 		
 		type Product {
 			upc: String!
 			name: String!
 			price: Int!
+			worth: BigInt!
+			reputation: CustomScalar!
 			reviews: [Review]
+			sales: BigInt!
 		}
 		
 		type Review {
 			body: String!
 			author: User!
 			product: Product!
+			created: DateTime!
 		}
 		type Like {
 			id: ID!
 			productId: ID!
 			userId: ID!
+			date: DateTime!
 			isDislike: Boolean!
 		}
 
 		interface PaymentType {
 			name: String!
 			email: String!
+			date: DateTime!
+			amount: BigInt!
 			number: String!
+			reputation: CustomScalar!
 		}
 	`
 
@@ -228,17 +276,27 @@ const (
 			review: Review!
 		}
 		
+		scalar CustomScalar
+		
+		scalar BigInt
+
 		type Product {
 			upc: String!
 			name: String!
 			price: Int!
+			worth: BigInt!
+			reputation: CustomScalar!
 			reviews: [Review]
+			sales: BigInt!
 		}
+		
+		scalar DateTime
 
 		type Review {
 			body: String!
 			author: User!
 			product: Product!
+			created: DateTime!
 		}
 		
 		extend type User @key(fields: "id") {
@@ -251,16 +309,25 @@ const (
 		type Query {
 			topProducts(first: Int = 5): [Product]
 		}
+
+		scalar CustomScalar
+
+		scalar BigInt
 		
 		type Product {
 			upc: String!
 			name: String!
 			price: Int!
+			worth: BigInt!
+			reputation: CustomScalar!
 		}
+
+	scalar DateTime
 
 		type Comment {
 			body: String!
 			author: User!
+			created: DateTime!
 		}
 
 		extend type User @key(fields: "id") {
