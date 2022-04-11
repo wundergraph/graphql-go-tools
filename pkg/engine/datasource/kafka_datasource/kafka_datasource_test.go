@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/Shopify/sarama"
@@ -44,10 +45,11 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 				},
 				Custom: ConfigJSON(Configuration{
 					Subscription: SubscriptionConfiguration{
-						BrokerAddr: "localhost:9092",
-						Topic:      "test.topic",
-						GroupID:    "test.consumer.group",
-						ClientID:   "test.client.id",
+						BrokerAddr:   "localhost:9092",
+						Topic:        "test.topic",
+						GroupID:      "test.consumer.group",
+						ClientID:     "test.client.id",
+						KafkaVersion: testMockKafkaVersion,
 					},
 				}),
 				Factory: &Factory{},
@@ -82,7 +84,7 @@ func TestKafkaDataSource(t *testing.T) {
 	`, "RemainingJedis", &plan.SubscriptionResponsePlan{
 		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				Input: []byte(`{"broker_addr":"localhost:9092","topic":"test.topic","group_id":"test.consumer.group","client_id":"test.client.id"}`),
+				Input: []byte(fmt.Sprintf(`{"broker_addr":"localhost:9092","topic":"test.topic","group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s"}`, testMockKafkaVersion)),
 				Source: &SubscriptionSource{
 					client: NewKafkaConsumerGroupBridge(ctx, logger()),
 				},
@@ -118,7 +120,7 @@ func TestKafkaDataSource(t *testing.T) {
 	`, "SubscriptionWithVariables", &plan.SubscriptionResponsePlan{
 		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				Input: []byte(`{"broker_addr":"localhost:9092","topic":"test.topic.$$0$$","group_id":"test.consumer.group","client_id":"test.client.id"}`),
+				Input: []byte(fmt.Sprintf(`{"broker_addr":"localhost:9092","topic":"test.topic.$$0$$","group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s"}`, testMockKafkaVersion)),
 				Variables: resolve.NewVariables(
 					&resolve.ContextVariable{
 						Path:     []string{"bar"},
@@ -158,10 +160,11 @@ func TestKafkaDataSource(t *testing.T) {
 				},
 				Custom: ConfigJSON(Configuration{
 					Subscription: SubscriptionConfiguration{
-						BrokerAddr: "localhost:9092",
-						Topic:      "test.topic.{{.arguments.bar}}",
-						GroupID:    "test.consumer.group",
-						ClientID:   "test.client.id",
+						BrokerAddr:   "localhost:9092",
+						Topic:        "test.topic.{{.arguments.bar}}",
+						GroupID:      "test.consumer.group",
+						ClientID:     "test.client.id",
+						KafkaVersion: testMockKafkaVersion,
 					},
 				}),
 				Factory: factory,
