@@ -12,7 +12,6 @@ require (
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/evanphx/json-patch/v5 v5.1.0
 	github.com/go-test/deep v1.0.4
-	github.com/gobuffalo/packr v1.30.1
 	github.com/gobwas/ws v1.0.4
 	github.com/golang/mock v1.4.1
 	github.com/google/go-cmp v0.5.7

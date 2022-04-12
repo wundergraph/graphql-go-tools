@@ -1,15 +1,13 @@
-//go:generate packr
-
 // Package playground is a http.Handler hosting the GraphQL Playground application.
 package playground
 
 import (
+	"embed"
+	"fmt"
 	"html/template"
 	"net/http"
 	"path"
 	"strings"
-
-	"github.com/gobuffalo/packr"
 )
 
 const (
@@ -26,6 +24,9 @@ const (
 	faviconFile = "favicon.png"
 	logoFile    = "logo.png"
 )
+
+//go:embed files/*
+var files embed.FS
 
 // Config is the configuration Object to instruct ConfigureHandlers on how to setup all the http Handlers for the playground
 type Config struct {
@@ -76,7 +77,6 @@ func (h *Handlers) add(path string, handler http.HandlerFunc) {
 // Playground manages the configuration of all HTTP handlers responsible for serving the GraphQL Playground
 type Playground struct {
 	cfg   Config
-	box   packr.Box
 	files []fileConfig
 	data  playgroundTemplateData
 }
@@ -121,7 +121,6 @@ func New(config Config) *Playground {
 
 	return &Playground{
 		cfg:   config,
-		box:   packr.NewBox("./files"),
 		files: files,
 		data:  data,
 	}
@@ -145,11 +144,11 @@ func (p *Playground) Handlers() (handlers Handlers, err error) {
 }
 
 func (p *Playground) configurePlaygroundHandler(handlers *Handlers) (err error) {
-	playgroundHTML, err := p.box.FindString("playground.html")
+	playgroundHTML, err := files.ReadFile("files/playground.html")
 	if err != nil {
 		return
 	}
-	templates, err := template.New(playgroundTemplate).Parse(playgroundHTML)
+	templates, err := template.New(playgroundTemplate).Parse(string(playgroundHTML))
 	if err != nil {
 		return
 	}
@@ -173,7 +172,7 @@ func (p *Playground) configurePlaygroundHandler(handlers *Handlers) (err error) 
 }
 
 func (p *Playground) configureFileHandler(handlers *Handlers, file fileConfig) error {
-	data, err := p.box.Find(file.name)
+	data, err := files.ReadFile(fmt.Sprintf("files/%s", file.name))
 	if err != nil {
 		return err
 	}
