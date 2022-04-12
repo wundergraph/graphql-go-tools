@@ -1,6 +1,6 @@
 module github.com/jensneuse/graphql-go-tools/examples/federation
 
-go 1.15
+go 1.16
 
 require (
 	github.com/99designs/gqlgen v0.13.1-0.20210728041543-7e38dd46943c
