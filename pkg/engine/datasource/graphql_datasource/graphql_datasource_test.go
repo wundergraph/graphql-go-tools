@@ -63,10 +63,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("droid"),
-						Position: resolve.Position{
-							Line:   3,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"droid"},
 							Nullable: true,
@@ -76,27 +72,15 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"name"},
 									},
-									Position: resolve.Position{
-										Line:   4,
-										Column: 5,
-									},
 								},
 								{
 									Name: []byte("aliased"),
 									Value: &resolve.String{
 										Path: []string{"aliased"},
 									},
-									Position: resolve.Position{
-										Line:   5,
-										Column: 5,
-									},
 								},
 								{
 									Name: []byte("friends"),
-									Position: resolve.Position{
-										Line:   6,
-										Column: 5,
-									},
 									Value: &resolve.Array{
 										Nullable: true,
 										Path:     []string{"friends"},
@@ -108,10 +92,6 @@ func TestGraphQLDataSource(t *testing.T) {
 													Value: &resolve.String{
 														Path: []string{"name"},
 													},
-													Position: resolve.Position{
-														Line:   7,
-														Column: 6,
-													},
 												},
 											},
 										},
@@ -122,10 +102,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"primaryFunction"},
 									},
-									Position: resolve.Position{
-										Line:   9,
-										Column: 5,
-									},
 								},
 							},
 						},
@@ -134,10 +110,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("hero"),
-						Position: resolve.Position{
-							Line:   11,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"hero"},
 							Nullable: true,
@@ -147,10 +119,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"name"},
 									},
-									Position: resolve.Position{
-										Line:   12,
-										Column: 5,
-									},
 								},
 							},
 						},
@@ -159,10 +127,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("stringList"),
-						Position: resolve.Position{
-							Line:   14,
-							Column: 4,
-						},
 						Value: &resolve.Array{
 							Nullable: true,
 							Item: &resolve.String{
@@ -174,10 +138,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("nestedStringList"),
-						Position: resolve.Position{
-							Line:   15,
-							Column: 4,
-						},
 						Value: &resolve.Array{
 							Nullable: true,
 							Path:     []string{"nestedStringList"},
@@ -246,6 +206,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Path:      []string{"nestedStringList"},
 			},
 		},
+		DisableResolveFieldPositions: true,
 	}))
 	t.Run("selections on interface type", RunTest(interfaceSelectionSchema, `
 		query MyQuery {
@@ -269,10 +230,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("user"),
-						Position: resolve.Position{
-							Line:   3,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
@@ -282,19 +239,11 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"id"},
 									},
-									Position: resolve.Position{
-										Line:   4,
-										Column: 5,
-									},
 								},
 								{
 									Name: []byte("displayName"),
 									Value: &resolve.String{
 										Path: []string{"displayName"},
-									},
-									Position: resolve.Position{
-										Line:   5,
-										Column: 5,
 									},
 								},
 							},
@@ -330,7 +279,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
+		DisableResolveFieldPositions: true,
 	}))
 	t.Run("skip directive with variable", RunTest(interfaceSelectionSchema, `
 		query MyQuery ($skip: Boolean!) {
@@ -360,10 +310,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("user"),
-						Position: resolve.Position{
-							Line:   3,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
@@ -373,19 +319,11 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"id"},
 									},
-									Position: resolve.Position{
-										Line:   4,
-										Column: 5,
-									},
 								},
 								{
 									Name: []byte("displayName"),
 									Value: &resolve.String{
 										Path: []string{"displayName"},
-									},
-									Position: resolve.Position{
-										Line:   5,
-										Column: 5,
 									},
 									SkipDirectiveDefined: true,
 									SkipVariableName:     "skip",
@@ -423,7 +361,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
+		DisableResolveFieldPositions: true,
 	}))
 	t.Run("skip directive on __typename", RunTest(interfaceSelectionSchema, `
 		query MyQuery ($skip: Boolean!) {
@@ -449,10 +388,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("user"),
-						Position: resolve.Position{
-							Line:   3,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
@@ -462,29 +397,18 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"id"},
 									},
-									Position: resolve.Position{
-										Line:   4,
-										Column: 5,
-									},
 								},
 								{
 									Name: []byte("displayName"),
 									Value: &resolve.String{
 										Path: []string{"displayName"},
 									},
-									Position: resolve.Position{
-										Line:   5,
-										Column: 5,
-									},
 								},
 								{
 									Name: []byte("__typename"),
 									Value: &resolve.String{
-										Path: []string{"__typename"},
-									},
-									Position: resolve.Position{
-										Line:   6,
-										Column: 5,
+										Path:       []string{"__typename"},
+										IsTypeName: true,
 									},
 									SkipDirectiveDefined: true,
 									SkipVariableName:     "skip",
@@ -492,11 +416,8 @@ func TestGraphQLDataSource(t *testing.T) {
 								{
 									Name: []byte("tn2"),
 									Value: &resolve.String{
-										Path: []string{"__typename"},
-									},
-									Position: resolve.Position{
-										Line:   7,
-										Column: 5,
+										Path:       []string{"__typename"},
+										IsTypeName: true,
 									},
 									IncludeDirectiveDefined: true,
 									IncludeVariableName:     "skip",
@@ -534,7 +455,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
+		DisableResolveFieldPositions: true,
 	}))
 	t.Run("skip directive on an inline fragment", RunTest(interfaceSelectionSchema, `
 		query MyQuery ($skip: Boolean!) {
@@ -566,10 +488,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("user"),
-						Position: resolve.Position{
-							Line:   3,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
@@ -579,10 +497,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"id"},
 									},
-									Position: resolve.Position{
-										Line:   5,
-										Column: 6,
-									},
 									SkipDirectiveDefined: true,
 									SkipVariableName:     "skip",
 								},
@@ -590,10 +504,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									Name: []byte("displayName"),
 									Value: &resolve.String{
 										Path: []string{"displayName"},
-									},
-									Position: resolve.Position{
-										Line:   6,
-										Column: 6,
 									},
 									SkipDirectiveDefined: true,
 									SkipVariableName:     "skip",
@@ -631,7 +541,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
+		DisableResolveFieldPositions: true,
 	}))
 	t.Run("include directive on an inline fragment", RunTest(interfaceSelectionSchema, `
 		query MyQuery ($include: Boolean!) {
@@ -663,10 +574,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("user"),
-						Position: resolve.Position{
-							Line:   3,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
@@ -676,10 +583,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"id"},
 									},
-									Position: resolve.Position{
-										Line:   5,
-										Column: 6,
-									},
 									IncludeDirectiveDefined: true,
 									IncludeVariableName:     "include",
 								},
@@ -687,10 +590,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									Name: []byte("displayName"),
 									Value: &resolve.String{
 										Path: []string{"displayName"},
-									},
-									Position: resolve.Position{
-										Line:   6,
-										Column: 6,
 									},
 									IncludeDirectiveDefined: true,
 									IncludeVariableName:     "include",
@@ -728,7 +627,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
+		DisableResolveFieldPositions: true,
 	}))
 	t.Run("skip directive with inline value true", RunTest(interfaceSelectionSchema, `
 		query MyQuery {
@@ -752,10 +652,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("user"),
-						Position: resolve.Position{
-							Line:   3,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
@@ -764,10 +660,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									Name: []byte("id"),
 									Value: &resolve.String{
 										Path: []string{"id"},
-									},
-									Position: resolve.Position{
-										Line:   4,
-										Column: 5,
 									},
 								},
 							},
@@ -803,7 +695,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
+		DisableResolveFieldPositions: true,
 	}))
 	t.Run("skip directive with inline value false", RunTest(interfaceSelectionSchema, `
 		query MyQuery {
@@ -827,10 +720,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("user"),
-						Position: resolve.Position{
-							Line:   3,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
@@ -840,19 +729,11 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"id"},
 									},
-									Position: resolve.Position{
-										Line:   4,
-										Column: 5,
-									},
 								},
 								{
 									Name: []byte("displayName"),
 									Value: &resolve.String{
 										Path: []string{"displayName"},
-									},
-									Position: resolve.Position{
-										Line:   5,
-										Column: 5,
 									},
 								},
 							},
@@ -888,7 +769,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
+		DisableResolveFieldPositions: true,
 	}))
 	t.Run("include directive with variable", RunTest(interfaceSelectionSchema, `
 		query MyQuery ($include: Boolean!) {
@@ -918,10 +800,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("user"),
-						Position: resolve.Position{
-							Line:   3,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
@@ -931,19 +809,11 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"id"},
 									},
-									Position: resolve.Position{
-										Line:   4,
-										Column: 5,
-									},
 								},
 								{
 									Name: []byte("displayName"),
 									Value: &resolve.String{
 										Path: []string{"displayName"},
-									},
-									Position: resolve.Position{
-										Line:   5,
-										Column: 5,
 									},
 									IncludeDirectiveDefined: true,
 									IncludeVariableName:     "include",
@@ -981,7 +851,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
+		DisableResolveFieldPositions: true,
 	}))
 	t.Run("include directive with inline value true", RunTest(interfaceSelectionSchema, `
 		query MyQuery {
@@ -1005,10 +876,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("user"),
-						Position: resolve.Position{
-							Line:   3,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
@@ -1018,19 +885,11 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"id"},
 									},
-									Position: resolve.Position{
-										Line:   4,
-										Column: 5,
-									},
 								},
 								{
 									Name: []byte("displayName"),
 									Value: &resolve.String{
 										Path: []string{"displayName"},
-									},
-									Position: resolve.Position{
-										Line:   5,
-										Column: 5,
 									},
 								},
 							},
@@ -1066,7 +925,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
+		DisableResolveFieldPositions: true,
 	}))
 	t.Run("include directive with inline value false", RunTest(interfaceSelectionSchema, `
 		query MyQuery {
@@ -1090,10 +950,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("user"),
-						Position: resolve.Position{
-							Line:   3,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
@@ -1102,10 +958,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									Name: []byte("id"),
 									Value: &resolve.String{
 										Path: []string{"id"},
-									},
-									Position: resolve.Position{
-										Line:   4,
-										Column: 5,
 									},
 								},
 							},
@@ -1141,7 +993,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
+		DisableResolveFieldPositions: true,
 	}))
 	t.Run("selections on interface type with object type interface", RunTest(interfaceSelectionSchema, `
 		query MyQuery {
@@ -1168,10 +1021,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("user"),
-						Position: resolve.Position{
-							Line:   3,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
@@ -1181,29 +1030,17 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"id"},
 									},
-									Position: resolve.Position{
-										Line:   4,
-										Column: 5,
-									},
 								},
 								{
 									Name: []byte("displayName"),
 									Value: &resolve.String{
 										Path: []string{"displayName"},
 									},
-									Position: resolve.Position{
-										Line:   5,
-										Column: 5,
-									},
 								},
 								{
 									Name: []byte("hasVerifiedEmail"),
 									Value: &resolve.Boolean{
 										Path: []string{"hasVerifiedEmail"},
-									},
-									Position: resolve.Position{
-										Line:   7,
-										Column: 6,
 									},
 									OnTypeName: []byte("RegisteredUser"),
 								},
@@ -1240,7 +1077,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			},
 		},
-		Fields: []plan.FieldConfiguration{},
+		Fields:                       []plan.FieldConfiguration{},
+		DisableResolveFieldPositions: true,
 	}))
 	t.Run("variable at top level and recursively", RunTest(variableSchema, `
 		query MyQuery($name: String!){
@@ -1269,10 +1107,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("user"),
-						Position: resolve.Position{
-							Line:   3,
-							Column: 13,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
@@ -1281,10 +1115,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									Name: []byte("normalized"),
 									Value: &resolve.String{
 										Path: []string{"normalized"},
-									},
-									Position: resolve.Position{
-										Line:   4,
-										Column: 17,
 									},
 								},
 							},
@@ -1339,6 +1169,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		},
+		DisableResolveFieldPositions: true,
 	}))
 	t.Run("exported field", RunTest(starWarsSchemaWithExportDirective, `
 		query MyQuery($id: ID! $heroName: String!){
@@ -1389,10 +1220,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("droid"),
-						Position: resolve.Position{
-							Line:   3,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"droid"},
 							Nullable: true,
@@ -1402,27 +1229,15 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"name"},
 									},
-									Position: resolve.Position{
-										Line:   4,
-										Column: 5,
-									},
 								},
 								{
 									Name: []byte("aliased"),
 									Value: &resolve.String{
 										Path: []string{"aliased"},
 									},
-									Position: resolve.Position{
-										Line:   5,
-										Column: 5,
-									},
 								},
 								{
 									Name: []byte("friends"),
-									Position: resolve.Position{
-										Line:   6,
-										Column: 5,
-									},
 									Value: &resolve.Array{
 										Nullable: true,
 										Path:     []string{"friends"},
@@ -1434,10 +1249,6 @@ func TestGraphQLDataSource(t *testing.T) {
 													Value: &resolve.String{
 														Path: []string{"name"},
 													},
-													Position: resolve.Position{
-														Line:   7,
-														Column: 6,
-													},
 												},
 											},
 										},
@@ -1448,10 +1259,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"primaryFunction"},
 									},
-									Position: resolve.Position{
-										Line:   9,
-										Column: 5,
-									},
 								},
 							},
 						},
@@ -1460,10 +1267,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("hero"),
-						Position: resolve.Position{
-							Line:   11,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"hero"},
 							Nullable: true,
@@ -1477,10 +1280,6 @@ func TestGraphQLDataSource(t *testing.T) {
 											AsString: true,
 										},
 									},
-									Position: resolve.Position{
-										Line:   12,
-										Column: 5,
-									},
 								},
 							},
 						},
@@ -1489,10 +1288,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("search"),
-						Position: resolve.Position{
-							Line:   14,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Nullable: true,
 							Path:     []string{"search"},
@@ -1501,10 +1296,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									Name: []byte("primaryFunction"),
 									Value: &resolve.String{
 										Path: []string{"primaryFunction"},
-									},
-									Position: resolve.Position{
-										Line:   16,
-										Column: 6,
 									},
 									OnTypeName: []byte("Droid"),
 								},
@@ -1515,10 +1306,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("stringList"),
-						Position: resolve.Position{
-							Line:   19,
-							Column: 4,
-						},
 						Value: &resolve.Array{
 							Nullable: true,
 							Item: &resolve.String{
@@ -1530,10 +1317,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("nestedStringList"),
-						Position: resolve.Position{
-							Line:   20,
-							Column: 4,
-						},
 						Value: &resolve.Array{
 							Nullable: true,
 							Path:     []string{"nestedStringList"},
@@ -1614,6 +1397,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		},
+		DisableResolveFieldPositions: true,
 	}))
 	t.Run("Query with renamed root fields", RunTest(renamedStarWarsSchema, `
 		query MyQuery($id: ID! $input: SearchInput_api! @api_onVariable $options: JSON_api) @otherapi_undefined @api_onOperation {
@@ -1683,10 +1467,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("api_droid"),
-						Position: resolve.Position{
-							Line:   3,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"api_droid"},
 							Nullable: true,
@@ -1696,27 +1476,15 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"name"},
 									},
-									Position: resolve.Position{
-										Line:   4,
-										Column: 5,
-									},
 								},
 								{
 									Name: []byte("aliased"),
 									Value: &resolve.String{
 										Path: []string{"aliased"},
 									},
-									Position: resolve.Position{
-										Line:   5,
-										Column: 5,
-									},
 								},
 								{
 									Name: []byte("friends"),
-									Position: resolve.Position{
-										Line:   6,
-										Column: 5,
-									},
 									Value: &resolve.Array{
 										Nullable: true,
 										Path:     []string{"friends"},
@@ -1728,10 +1496,6 @@ func TestGraphQLDataSource(t *testing.T) {
 													Value: &resolve.String{
 														Path: []string{"name"},
 													},
-													Position: resolve.Position{
-														Line:   7,
-														Column: 6,
-													},
 												},
 											},
 										},
@@ -1742,10 +1506,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"primaryFunction"},
 									},
-									Position: resolve.Position{
-										Line:   9,
-										Column: 5,
-									},
 								},
 							},
 						},
@@ -1754,10 +1514,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("api_hero"),
-						Position: resolve.Position{
-							Line:   11,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Path:     []string{"api_hero"},
 							Nullable: true,
@@ -1767,19 +1523,11 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"name"},
 									},
-									Position: resolve.Position{
-										Line:   12,
-										Column: 5,
-									},
 								},
 								{
 									Name: []byte("height"),
 									Value: &resolve.String{
 										Path: []string{"height"},
-									},
-									Position: resolve.Position{
-										Line:   14,
-										Column: 6,
 									},
 									OnTypeName: []byte("Human"),
 								},
@@ -1790,10 +1538,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("api_stringList"),
-						Position: resolve.Position{
-							Line:   17,
-							Column: 4,
-						},
 						Value: &resolve.Array{
 							Nullable: true,
 							Path:     []string{"api_stringList"},
@@ -1806,10 +1550,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("renamed"),
-						Position: resolve.Position{
-							Line:   18,
-							Column: 4,
-						},
 						Value: &resolve.Array{
 							Nullable: true,
 							Path:     []string{"renamed"},
@@ -1822,10 +1562,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("api_search"),
-						Position: resolve.Position{
-							Line:   19,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Nullable: true,
 							Path:     []string{"api_search"},
@@ -1834,10 +1570,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									Name: []byte("primaryFunction"),
 									Value: &resolve.String{
 										Path: []string{"primaryFunction"},
-									},
-									Position: resolve.Position{
-										Line:   21,
-										Column: 6,
 									},
 									OnTypeName: []byte("Droid"),
 								},
@@ -1848,10 +1580,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("api_searchWithInput"),
-						Position: resolve.Position{
-							Line:   24,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Nullable: true,
 							Path:     []string{"api_searchWithInput"},
@@ -1860,10 +1588,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									Name: []byte("primaryFunction"),
 									Value: &resolve.String{
 										Path: []string{"primaryFunction"},
-									},
-									Position: resolve.Position{
-										Line:   26,
-										Column: 6,
 									},
 									OnTypeName: []byte("Droid"),
 								},
@@ -1874,10 +1598,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("withOptions"),
-						Position: resolve.Position{
-							Line:   29,
-							Column: 4,
-						},
 						Value: &resolve.Object{
 							Nullable: true,
 							Path:     []string{"withOptions"},
@@ -1886,10 +1606,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									Name: []byte("primaryFunction"),
 									Value: &resolve.String{
 										Path: []string{"primaryFunction"},
-									},
-									Position: resolve.Position{
-										Line:   33,
-										Column: 6,
 									},
 									OnTypeName: []byte("Droid"),
 								},
@@ -2019,6 +1735,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				RenameTo: "JSON",
 			},
 		},
+		DisableResolveFieldPositions: true,
 	}))
 	t.Run("Query with array input", RunTest(subgraphTestSchema, `
 		query($representations: [_Any!]!) {
@@ -2055,10 +1772,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						HasBuffer: true,
 						BufferID:  0,
 						Name:      []byte("_entities"),
-						Position: resolve.Position{
-							Line:   3,
-							Column: 4,
-						},
 						Value: &resolve.Array{
 							Path:     []string{"_entities"},
 							Nullable: false,
@@ -2082,10 +1795,6 @@ func TestGraphQLDataSource(t *testing.T) {
 															Path:     []string{"body"},
 															Nullable: false,
 														},
-														Position: resolve.Position{
-															Line:   6,
-															Column: 7,
-														},
 													},
 													{
 														Name: []byte("author"),
@@ -2099,10 +1808,6 @@ func TestGraphQLDataSource(t *testing.T) {
 																		Path:     []string{"username"},
 																		Nullable: false,
 																	},
-																	Position: resolve.Position{
-																		Line:   8,
-																		Column: 8,
-																	},
 																},
 																{
 																	Name: []byte("id"),
@@ -2110,24 +1815,12 @@ func TestGraphQLDataSource(t *testing.T) {
 																		Path:     []string{"id"},
 																		Nullable: false,
 																	},
-																	Position: resolve.Position{
-																		Line:   9,
-																		Column: 8,
-																	},
 																},
 															},
-														},
-														Position: resolve.Position{
-															Line:   7,
-															Column: 7,
 														},
 													},
 												},
 											},
-										},
-										Position: resolve.Position{
-											Line:   5,
-											Column: 6,
 										},
 										OnTypeName: []byte("Product"),
 									},
@@ -2209,6 +1902,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		},
+		DisableResolveFieldPositions: true,
 	}))
 
 	t.Run("Query with ID array input", runTestOnTestDefinition(`
@@ -2250,10 +1944,6 @@ func TestGraphQLDataSource(t *testing.T) {
 												Path:     []string{"name"},
 												Nullable: false,
 											},
-											Position: resolve.Position{
-												Line:   4,
-												Column: 5,
-											},
 										},
 										{
 											Name: []byte("primaryFunction"),
@@ -2261,18 +1951,10 @@ func TestGraphQLDataSource(t *testing.T) {
 												Path:     []string{"primaryFunction"},
 												Nullable: false,
 											},
-											Position: resolve.Position{
-												Line:   5,
-												Column: 5,
-											},
 										},
 									},
 								},
 								Stream: resolve.Stream{},
-							},
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
 							},
 							HasBuffer: true,
 							BufferID:  0,
@@ -2318,10 +2000,6 @@ func TestGraphQLDataSource(t *testing.T) {
 											Path:     []string{"name"},
 											Nullable: false,
 										},
-										Position: resolve.Position{
-											Line:   4,
-											Column: 5,
-										},
 									},
 									{
 										Name: []byte("primaryFunction"),
@@ -2329,16 +2007,8 @@ func TestGraphQLDataSource(t *testing.T) {
 											Path:     []string{"primaryFunction"},
 											Nullable: false,
 										},
-										Position: resolve.Position{
-											Line:   5,
-											Column: 5,
-										},
 									},
 								},
-							},
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
 							},
 							HasBuffer: true,
 							BufferID:  0,
@@ -2383,16 +2053,8 @@ func TestGraphQLDataSource(t *testing.T) {
 											Path:     []string{"name"},
 											Nullable: false,
 										},
-										Position: resolve.Position{
-											Line:   4,
-											Column: 5,
-										},
 									},
 								},
-							},
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
 							},
 							HasBuffer: true,
 							BufferID:  0,
@@ -2435,10 +2097,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("addFriend"),
-							Position: resolve.Position{
-								Line:   1,
-								Column: 37,
-							},
 							Value: &resolve.Object{
 								Fields: []*resolve.Field{
 									{
@@ -2446,19 +2104,11 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Path: []string{"id"},
 										},
-										Position: resolve.Position{
-											Line:   1,
-											Column: 61,
-										},
 									},
 									{
 										Name: []byte("name"),
 										Value: &resolve.String{
 											Path: []string{"name"},
-										},
-										Position: resolve.Position{
-											Line:   1,
-											Column: 64,
 										},
 									},
 								},
@@ -2504,6 +2154,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 	))
 
@@ -2549,10 +2200,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("foo"),
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"foo"},
@@ -2562,10 +2209,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Nullable: true,
 											Path:     []string{"bar"},
-										},
-										Position: resolve.Position{
-											Line:   4,
-											Column: 5,
 										},
 									},
 								},
@@ -2620,6 +2263,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 	))
 
@@ -2662,10 +2306,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("country"),
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"country"},
@@ -2676,10 +2316,6 @@ func TestGraphQLDataSource(t *testing.T) {
 											Nullable: false,
 											Path:     []string{"name"},
 										},
-										Position: resolve.Position{
-											Line:   4,
-											Column: 5,
-										},
 									},
 								},
 							},
@@ -2688,10 +2324,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("alias"),
-							Position: resolve.Position{
-								Line:   6,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"alias"},
@@ -2701,10 +2333,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Nullable: false,
 											Path:     []string{"name"},
-										},
-										Position: resolve.Position{
-											Line:   7,
-											Column: 5,
 										},
 									},
 								},
@@ -2761,6 +2389,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 	))
 
@@ -2803,10 +2432,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("country"),
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"country"},
@@ -2817,10 +2442,6 @@ func TestGraphQLDataSource(t *testing.T) {
 											Nullable: false,
 											Path:     []string{"name"},
 										},
-										Position: resolve.Position{
-											Line:   4,
-											Column: 5,
-										},
 									},
 								},
 							},
@@ -2829,10 +2450,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("countryAlias"),
-							Position: resolve.Position{
-								Line:   6,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"countryAlias"},
@@ -2842,10 +2459,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Nullable: false,
 											Path:     []string{"name"},
-										},
-										Position: resolve.Position{
-											Line:   7,
-											Column: 5,
 										},
 									},
 								},
@@ -2902,6 +2515,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 	))
 
@@ -2998,10 +2612,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("serviceOne"),
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"serviceOne"},
@@ -3020,19 +2630,11 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Path: []string{"fieldOne"},
 										},
-										Position: resolve.Position{
-											Line:   4,
-											Column: 5,
-										},
 									},
 									{
 										Name:      []byte("countries"),
 										HasBuffer: true,
 										BufferID:  1,
-										Position: resolve.Position{
-											Line:   5,
-											Column: 5,
-										},
 										Value: &resolve.Array{
 											Path: []string{"countries"},
 											Item: &resolve.Object{
@@ -3041,10 +2643,6 @@ func TestGraphQLDataSource(t *testing.T) {
 														Name: []byte("name"),
 														Value: &resolve.String{
 															Path: []string{"name"},
-														},
-														Position: resolve.Position{
-															Line:   6,
-															Column: 6,
 														},
 													},
 												},
@@ -3058,10 +2656,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							HasBuffer: true,
 							BufferID:  2,
 							Name:      []byte("serviceTwo"),
-							Position: resolve.Position{
-								Line:   9,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"serviceTwo"},
@@ -3085,19 +2679,11 @@ func TestGraphQLDataSource(t *testing.T) {
 											Nullable: true,
 											Path:     []string{"fieldTwo"},
 										},
-										Position: resolve.Position{
-											Line:   10,
-											Column: 5,
-										},
 									},
 									{
 										HasBuffer: true,
 										BufferID:  3,
 										Name:      []byte("serviceOneResponse"),
-										Position: resolve.Position{
-											Line:   11,
-											Column: 5,
-										},
 										Value: &resolve.Object{
 											Nullable: true,
 											Path:     []string{"serviceOneResponse"},
@@ -3106,10 +2692,6 @@ func TestGraphQLDataSource(t *testing.T) {
 													Name: []byte("fieldOne"),
 													Value: &resolve.String{
 														Path: []string{"fieldOne"},
-													},
-													Position: resolve.Position{
-														Line:   12,
-														Column: 6,
 													},
 												},
 											},
@@ -3122,10 +2704,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							HasBuffer: true,
 							BufferID:  0,
 							Name:      []byte("anotherServiceOne"),
-							Position: resolve.Position{
-								Line:   15,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"anotherServiceOne"},
@@ -3135,10 +2713,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Path: []string{"fieldOne"},
 										},
-										Position: resolve.Position{
-											Line:   16,
-											Column: 5,
-										},
 									},
 								},
 							},
@@ -3147,10 +2721,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  2,
 							HasBuffer: true,
 							Name:      []byte("secondServiceTwo"),
-							Position: resolve.Position{
-								Line:   18,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"secondServiceTwo"},
@@ -3161,20 +2731,12 @@ func TestGraphQLDataSource(t *testing.T) {
 											Path:     []string{"fieldTwo"},
 											Nullable: true,
 										},
-										Position: resolve.Position{
-											Line:   19,
-											Column: 5,
-										},
 									},
 									{
 										Name: []byte("serviceOneField"),
 										Value: &resolve.String{
 											Path:     []string{"serviceOneField"},
 											Nullable: true,
-										},
-										Position: resolve.Position{
-											Line:   20,
-											Column: 5,
 										},
 									},
 								},
@@ -3184,10 +2746,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("reusingServiceOne"),
-							Position: resolve.Position{
-								Line:   22,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"reusingServiceOne"},
@@ -3196,10 +2754,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										Name: []byte("fieldOne"),
 										Value: &resolve.String{
 											Path: []string{"fieldOne"},
-										},
-										Position: resolve.Position{
-											Line:   23,
-											Column: 5,
 										},
 									},
 								},
@@ -3341,6 +2895,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 	))
 
@@ -3386,20 +2941,12 @@ func TestGraphQLDataSource(t *testing.T) {
 							HasBuffer: true,
 							BufferID:  0,
 							Name:      []byte("addTask"),
-							Position: resolve.Position{
-								Line:   2,
-								Column: 8,
-							},
 							Value: &resolve.Object{
 								Path:     []string{"addTask"},
 								Nullable: true,
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("task"),
-										Position: resolve.Position{
-											Line:   3,
-											Column: 7,
-										},
 										Value: &resolve.Array{
 											Nullable: true,
 											Path:     []string{"task"},
@@ -3411,29 +2958,17 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.String{
 															Path: []string{"id"},
 														},
-														Position: resolve.Position{
-															Line:   4,
-															Column: 9,
-														},
 													},
 													{
 														Name: []byte("title"),
 														Value: &resolve.String{
 															Path: []string{"title"},
 														},
-														Position: resolve.Position{
-															Line:   5,
-															Column: 9,
-														},
 													},
 													{
 														Name: []byte("completed"),
 														Value: &resolve.Boolean{
 															Path: []string{"completed"},
-														},
-														Position: resolve.Position{
-															Line:   6,
-															Column: 9,
 														},
 													},
 												},
@@ -3486,6 +3021,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 	))
 
@@ -3549,20 +3085,12 @@ func TestGraphQLDataSource(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("createUser"),
-							Position: resolve.Position{
-								Line:   3,
-								Column: 6,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"createUser"},
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("user"),
-										Position: resolve.Position{
-											Line:   4,
-											Column: 5,
-										},
 										Value: &resolve.Object{
 											Path:     []string{"user"},
 											Nullable: true,
@@ -3573,10 +3101,6 @@ func TestGraphQLDataSource(t *testing.T) {
 														Path:     []string{"id"},
 														Nullable: true,
 													},
-													Position: resolve.Position{
-														Line:   5,
-														Column: 7,
-													},
 												},
 												{
 													Name: []byte("username"),
@@ -3584,20 +3108,12 @@ func TestGraphQLDataSource(t *testing.T) {
 														Path:     []string{"username"},
 														Nullable: true,
 													},
-													Position: resolve.Position{
-														Line:   6,
-														Column: 7,
-													},
 												},
 												{
 													Name: []byte("createdDate"),
 													Value: &resolve.String{
 														Path:     []string{"createdDate"},
 														Nullable: true,
-													},
-													Position: resolve.Position{
-														Line:   7,
-														Column: 7,
 													},
 												},
 											},
@@ -3649,6 +3165,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 	))
 
@@ -3694,43 +3211,29 @@ func TestGraphQLDataSource(t *testing.T) {
 						{
 							Name: []byte("__typename"),
 							Value: &resolve.String{
-								Path:     []string{"__typename"},
-								Nullable: false,
-							},
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
+								Path:       []string{"__typename"},
+								Nullable:   false,
+								IsTypeName: true,
 							},
 						},
 						{
 							Name:      []byte("namespaceCreate"),
 							HasBuffer: true,
 							BufferID:  0,
-							Position: resolve.Position{
-								Line:   4,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Path: []string{"namespaceCreate"},
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("__typename"),
 										Value: &resolve.String{
-											Path:     []string{"__typename"},
-											Nullable: false,
-										},
-										Position: resolve.Position{
-											Line:   5,
-											Column: 5,
+											Path:       []string{"__typename"},
+											Nullable:   false,
+											IsTypeName: true,
 										},
 									},
 									{
 										OnTypeName: []byte("NamespaceCreated"),
 										Name:       []byte("namespace"),
-										Position: resolve.Position{
-											Line:   7,
-											Column: 6,
-										},
 										Value: &resolve.Object{
 											Path: []string{"namespace"},
 											Fields: []*resolve.Field{
@@ -3740,20 +3243,12 @@ func TestGraphQLDataSource(t *testing.T) {
 														Path:     []string{"id"},
 														Nullable: false,
 													},
-													Position: resolve.Position{
-														Line:   8,
-														Column: 7,
-													},
 												},
 												{
 													Name: []byte("name"),
 													Value: &resolve.String{
 														Path:     []string{"name"},
 														Nullable: false,
-													},
-													Position: resolve.Position{
-														Line:   9,
-														Column: 7,
 													},
 												},
 											},
@@ -3765,20 +3260,12 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Path: []string{"code"},
 										},
-										Position: resolve.Position{
-											Line:   13,
-											Column: 6,
-										},
 									},
 									{
 										OnTypeName: []byte("Error"),
 										Name:       []byte("message"),
 										Value: &resolve.String{
 											Path: []string{"message"},
-										},
-										Position: resolve.Position{
-											Line:   14,
-											Column: 6,
 										},
 									},
 								},
@@ -3840,7 +3327,8 @@ func TestGraphQLDataSource(t *testing.T) {
 					Path:                  []string{},
 				},
 			},
-			DefaultFlushIntervalMillis: 500,
+			DisableResolveFieldPositions: true,
+			DefaultFlushIntervalMillis:   500,
 		}))
 	factory := &Factory{
 		HTTPClient: http.DefaultClient,
@@ -3864,10 +3352,6 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("remainingJedis"),
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
-							},
 							Value: &resolve.Integer{
 								Path:     []string{"remainingJedis"},
 								Nullable: false,
@@ -3906,10 +3390,6 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("foo"),
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
-							},
 							Value: &resolve.Integer{
 								Path:     []string{"foo"},
 								Nullable: false,
@@ -3948,6 +3428,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		},
+		DisableResolveFieldPositions: true,
 	}))
 
 	batchFactory := NewBatchFactory()
@@ -3993,10 +3474,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							HasBuffer: true,
 							BufferID:  0,
 							Name:      []byte("me"),
-							Position: resolve.Position{
-								Line:   2,
-								Column: 7,
-							},
 							Value: &resolve.Object{
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
@@ -4025,29 +3502,17 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Path: []string{"id"},
 										},
-										Position: resolve.Position{
-											Line:   3,
-											Column: 8,
-										},
 									},
 									{
 										Name: []byte("username"),
 										Value: &resolve.String{
 											Path: []string{"username"},
 										},
-										Position: resolve.Position{
-											Line:   4,
-											Column: 8,
-										},
 									},
 									{
 										HasBuffer: true,
 										BufferID:  1,
 										Name:      []byte("reviews"),
-										Position: resolve.Position{
-											Line:   5,
-											Column: 8,
-										},
 										Value: &resolve.Array{
 											Path:     []string{"reviews"},
 											Nullable: true,
@@ -4059,17 +3524,9 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.String{
 															Path: []string{"body"},
 														},
-														Position: resolve.Position{
-															Line:   6,
-															Column: 9,
-														},
 													},
 													{
 														Name: []byte("author"),
-														Position: resolve.Position{
-															Line:   7,
-															Column: 9,
-														},
 														Value: &resolve.Object{
 															Path: []string{"author"},
 															Fields: []*resolve.Field{
@@ -4078,19 +3535,11 @@ func TestGraphQLDataSource(t *testing.T) {
 																	Value: &resolve.String{
 																		Path: []string{"id"},
 																	},
-																	Position: resolve.Position{
-																		Line:   8,
-																		Column: 10,
-																	},
 																},
 																{
 																	Name: []byte("username"),
 																	Value: &resolve.String{
 																		Path: []string{"username"},
-																	},
-																	Position: resolve.Position{
-																		Line:   9,
-																		Column: 10,
 																	},
 																},
 															},
@@ -4098,10 +3547,6 @@ func TestGraphQLDataSource(t *testing.T) {
 													},
 													{
 														Name: []byte("product"),
-														Position: resolve.Position{
-															Line:   11,
-															Column: 9,
-														},
 														Value: &resolve.Object{
 															Path: []string{"product"},
 															Fetch: &resolve.ParallelFetch{
@@ -4154,10 +3599,6 @@ func TestGraphQLDataSource(t *testing.T) {
 																	Value: &resolve.String{
 																		Path: []string{"name"},
 																	},
-																	Position: resolve.Position{
-																		Line:   12,
-																		Column: 10,
-																	},
 																},
 																{
 																	HasBuffer: true,
@@ -4166,19 +3607,11 @@ func TestGraphQLDataSource(t *testing.T) {
 																	Value: &resolve.Integer{
 																		Path: []string{"price"},
 																	},
-																	Position: resolve.Position{
-																		Line:   13,
-																		Column: 10,
-																	},
 																},
 																{
 																	HasBuffer: true,
 																	BufferID:  3,
 																	Name:      []byte("reviews"),
-																	Position: resolve.Position{
-																		Line:   14,
-																		Column: 10,
-																	},
 																	Value: &resolve.Array{
 																		Nullable: true,
 																		Path:     []string{"reviews"},
@@ -4190,17 +3623,9 @@ func TestGraphQLDataSource(t *testing.T) {
 																					Value: &resolve.String{
 																						Path: []string{"body"},
 																					},
-																					Position: resolve.Position{
-																						Line:   15,
-																						Column: 11,
-																					},
 																				},
 																				{
 																					Name: []byte("author"),
-																					Position: resolve.Position{
-																						Line:   16,
-																						Column: 11,
-																					},
 																					Value: &resolve.Object{
 																						Path: []string{"author"},
 																						Fields: []*resolve.Field{
@@ -4209,19 +3634,11 @@ func TestGraphQLDataSource(t *testing.T) {
 																								Value: &resolve.String{
 																									Path: []string{"id"},
 																								},
-																								Position: resolve.Position{
-																									Line:   17,
-																									Column: 12,
-																								},
 																							},
 																							{
 																								Name: []byte("username"),
 																								Value: &resolve.String{
 																									Path: []string{"username"},
-																								},
-																								Position: resolve.Position{
-																									Line:   18,
-																									Column: 12,
 																								},
 																							},
 																						},
@@ -4375,8 +3792,640 @@ func TestGraphQLDataSource(t *testing.T) {
 					RequiresFields: []string{"upc"},
 				},
 			},
+			DisableResolveFieldPositions: true,
 		}))
-
+	t.Run("complex nested federation", RunTest(complexFederationSchema,
+		`	query User {
+					  user(id: "2") {
+						id
+						name {
+						  first
+						  last
+						}
+						username
+						birthDate
+						vehicle {
+						  id
+						  description
+						  price
+						  __typename
+						}
+						account {
+						  ... on PasswordAccount {
+							email
+						  }
+						  ... on SMSAccount {
+							number
+						  }
+						}
+						metadata {
+						  name
+						  address
+						  description
+						}
+						ssn
+					  }
+					}`,
+		"User",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate ssn}}","variables":{"a":$$0$$}}}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ObjectVariable{
+								Path:     []string{"a"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+							},
+						),
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("user"),
+							Value: &resolve.Object{
+								Fetch: &resolve.BatchFetch{
+									Fetch: &resolve.SingleFetch{
+										BufferId: 1,
+										Input:    `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {vehicle {__typename id description price}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+										),
+										DataSource:           &Source{},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
+										ProcessResponseConfig: resolve.ProcessResponseConfig{
+											ExtractGraphqlResponse:    true,
+											ExtractFederationEntities: true,
+										},
+									},
+									BatchFactory: batchFactory,
+								},
+								Path:     []string{"user"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("id"),
+										Value: &resolve.String{
+											Path: []string{"id"},
+										},
+									},
+									{
+										Name: []byte("name"),
+										Value: &resolve.Object{
+											Path:     []string{"name"},
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("first"),
+													Value: &resolve.String{
+														Nullable: true,
+														Path:     []string{"first"},
+													},
+												},
+												{
+													Name: []byte("last"),
+													Value: &resolve.String{
+														Nullable: true,
+														Path:     []string{"last"},
+													},
+												},
+											},
+										},
+									},
+									{
+										Name: []byte("username"),
+										Value: &resolve.String{
+											Path:     []string{"username"},
+											Nullable: true,
+										},
+									},
+									{
+										Name: []byte("birthDate"),
+										Value: &resolve.String{
+											Path:     []string{"birthDate"},
+											Nullable: true,
+										},
+									},
+									{
+										Name:      []byte("vehicle"),
+										HasBuffer: true,
+										BufferID:  1,
+										Value: &resolve.Object{
+											Path:     []string{"vehicle"},
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("id"),
+													Value: &resolve.String{
+														Path: []string{"id"},
+													},
+												},
+												{
+													Name: []byte("description"),
+													Value: &resolve.String{
+														Nullable: true,
+														Path:     []string{"description"},
+													},
+												},
+												{
+													Name: []byte("price"),
+													Value: &resolve.String{
+														Nullable: true,
+														Path:     []string{"price"},
+													},
+												},
+												{
+													Name: []byte("__typename"),
+													Value: &resolve.String{
+														Path:       []string{"__typename"},
+														IsTypeName: true,
+													},
+												},
+											},
+										},
+									},
+									{
+										Name: []byte("account"),
+										Value: &resolve.Object{
+											Path:     []string{"account"},
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("email"),
+													Value: &resolve.String{
+														Path: []string{"email"},
+													},
+													OnTypeName: []byte("PasswordAccount"),
+												},
+												{
+													Name: []byte("number"),
+													Value: &resolve.String{
+														Nullable: true,
+														Path:     []string{"number"},
+													},
+													OnTypeName: []byte("SMSAccount"),
+												},
+											},
+										},
+									},
+									{
+										Name: []byte("metadata"),
+										Value: &resolve.Array{
+											Path:     []string{"metadata"},
+											Nullable: true,
+											Item: &resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("name"),
+														Value: &resolve.String{
+															Nullable: true,
+															Path:     []string{"name"},
+														},
+													},
+													{
+														Name: []byte("address"),
+														Value: &resolve.String{
+															Nullable: true,
+															Path:     []string{"address"},
+														},
+													},
+													{
+														Name: []byte("description"),
+														Value: &resolve.String{
+															Nullable: true,
+															Path:     []string{"description"},
+														},
+													},
+												},
+											},
+										},
+									},
+									{
+										Name: []byte("ssn"),
+										Value: &resolve.String{
+											Nullable: true,
+											Path:     []string{"ssn"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"me", "user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "name", "username", "birthDate", "metaData", "ssn"},
+						},
+						{
+							TypeName:   "UserMetadata",
+							FieldNames: []string{"name", "address", "description"},
+						},
+						{
+							TypeName:   "Name",
+							FieldNames: []string{"first", "last"},
+						},
+						{
+							TypeName:   "PasswordAccount",
+							FieldNames: []string{"email"},
+						},
+						{
+							TypeName:   "SMSAccount",
+							FieldNames: []string{"number"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://user.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "extend type Query { me: User user(id: ID!): User} extend type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccounttype UserMetadata { name: String address: String description: String }",
+						},
+					}),
+					Factory: federationFactory,
+				},
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"vehicle"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Vehicle",
+							FieldNames: []string{"id", "name", "description", "price"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://product.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "extend type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} extend type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea extend type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
+						},
+					}),
+					Factory: federationFactory,
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "user",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "id",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+				{
+					TypeName:       "User",
+					FieldName:      "vehicle",
+					RequiresFields: []string{"id"},
+				},
+			},
+			DisableResolveFieldPositions: true,
+		}))
+	t.Run("complex nested federation different order", RunTest(complexFederationSchema,
+		`	query User {
+					  user(id: "2") {
+						id
+						name {
+						  first
+						  last
+						}
+						username
+						birthDate
+						account {
+						  ... on PasswordAccount {
+							email
+						  }
+						  ... on SMSAccount {
+							number
+						  }
+						}
+						metadata {
+						  name
+						  address
+						  description
+						}
+						vehicle {
+						  id
+						  description
+						  price
+						  __typename
+						}
+						ssn
+					  }
+					}`,
+		"User",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate ssn}}","variables":{"a":$$0$$}}}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ObjectVariable{
+								Path:     []string{"a"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+							},
+						),
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("user"),
+							Value: &resolve.Object{
+								Fetch: &resolve.BatchFetch{
+									Fetch: &resolve.SingleFetch{
+										BufferId: 1,
+										Input:    `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {vehicle {__typename id description price}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+										),
+										DataSource:           &Source{},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
+										ProcessResponseConfig: resolve.ProcessResponseConfig{
+											ExtractGraphqlResponse:    true,
+											ExtractFederationEntities: true,
+										},
+									},
+									BatchFactory: batchFactory,
+								},
+								Path:     []string{"user"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("id"),
+										Value: &resolve.String{
+											Path: []string{"id"},
+										},
+									},
+									{
+										Name: []byte("name"),
+										Value: &resolve.Object{
+											Path:     []string{"name"},
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("first"),
+													Value: &resolve.String{
+														Nullable: true,
+														Path:     []string{"first"},
+													},
+												},
+												{
+													Name: []byte("last"),
+													Value: &resolve.String{
+														Nullable: true,
+														Path:     []string{"last"},
+													},
+												},
+											},
+										},
+									},
+									{
+										Name: []byte("username"),
+										Value: &resolve.String{
+											Path:     []string{"username"},
+											Nullable: true,
+										},
+									},
+									{
+										Name: []byte("birthDate"),
+										Value: &resolve.String{
+											Path:     []string{"birthDate"},
+											Nullable: true,
+										},
+									},
+									{
+										Name: []byte("account"),
+										Value: &resolve.Object{
+											Path:     []string{"account"},
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("email"),
+													Value: &resolve.String{
+														Path: []string{"email"},
+													},
+													OnTypeName: []byte("PasswordAccount"),
+												},
+												{
+													Name: []byte("number"),
+													Value: &resolve.String{
+														Nullable: true,
+														Path:     []string{"number"},
+													},
+													OnTypeName: []byte("SMSAccount"),
+												},
+											},
+										},
+									},
+									{
+										Name: []byte("metadata"),
+										Value: &resolve.Array{
+											Path:     []string{"metadata"},
+											Nullable: true,
+											Item: &resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("name"),
+														Value: &resolve.String{
+															Nullable: true,
+															Path:     []string{"name"},
+														},
+													},
+													{
+														Name: []byte("address"),
+														Value: &resolve.String{
+															Nullable: true,
+															Path:     []string{"address"},
+														},
+													},
+													{
+														Name: []byte("description"),
+														Value: &resolve.String{
+															Nullable: true,
+															Path:     []string{"description"},
+														},
+													},
+												},
+											},
+										},
+									},
+									{
+										Name:      []byte("vehicle"),
+										HasBuffer: true,
+										BufferID:  1,
+										Value: &resolve.Object{
+											Path:     []string{"vehicle"},
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("id"),
+													Value: &resolve.String{
+														Path: []string{"id"},
+													},
+												},
+												{
+													Name: []byte("description"),
+													Value: &resolve.String{
+														Nullable: true,
+														Path:     []string{"description"},
+													},
+												},
+												{
+													Name: []byte("price"),
+													Value: &resolve.String{
+														Nullable: true,
+														Path:     []string{"price"},
+													},
+												},
+												{
+													Name: []byte("__typename"),
+													Value: &resolve.String{
+														Path:       []string{"__typename"},
+														IsTypeName: true,
+													},
+												},
+											},
+										},
+									},
+									{
+										Name: []byte("ssn"),
+										Value: &resolve.String{
+											Nullable: true,
+											Path:     []string{"ssn"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"me", "user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "name", "username", "birthDate", "metaData", "ssn"},
+						},
+						{
+							TypeName:   "UserMetadata",
+							FieldNames: []string{"name", "address", "description"},
+						},
+						{
+							TypeName:   "Name",
+							FieldNames: []string{"first", "last"},
+						},
+						{
+							TypeName:   "PasswordAccount",
+							FieldNames: []string{"email"},
+						},
+						{
+							TypeName:   "SMSAccount",
+							FieldNames: []string{"number"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://user.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "extend type Query { me: User user(id: ID!): User} extend type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccounttype UserMetadata { name: String address: String description: String }",
+						},
+					}),
+					Factory: federationFactory,
+				},
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"vehicle"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Vehicle",
+							FieldNames: []string{"id", "name", "description", "price"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://product.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "extend type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} extend type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea extend type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
+						},
+					}),
+					Factory: federationFactory,
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "user",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "id",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+					Path: []string{"user"},
+				},
+				{
+					TypeName:       "User",
+					FieldName:      "vehicle",
+					Path:           []string{"vehicle"},
+					RequiresFields: []string{"id"},
+				},
+			},
+			DisableResolveFieldPositions: true,
+		}))
 	t.Run("federation with variables", RunTest(federationTestSchema,
 		`	query MyReviews($publicOnly: Boolean!, $someSkipCondition: Boolean!) {
 						me {
@@ -4403,10 +4452,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							HasBuffer: true,
 							BufferID:  0,
 							Name:      []byte("me"),
-							Position: resolve.Position{
-								Line:   2,
-								Column: 7,
-							},
 							Value: &resolve.Object{
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
@@ -4442,10 +4487,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										HasBuffer: true,
 										BufferID:  1,
 										Name:      []byte("reviews"),
-										Position: resolve.Position{
-											Line:   3,
-											Column: 8,
-										},
 										Value: &resolve.Array{
 											Path:     []string{"reviews"},
 											Nullable: true,
@@ -4457,20 +4498,12 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.String{
 															Path: []string{"body"},
 														},
-														Position: resolve.Position{
-															Line:   4,
-															Column: 9,
-														},
 													},
 													{
 														Name: []byte("notes"),
 														Value: &resolve.String{
 															Path:     []string{"notes"},
 															Nullable: true,
-														},
-														Position: resolve.Position{
-															Line:   5,
-															Column: 9,
 														},
 														SkipDirectiveDefined: true,
 														SkipVariableName:     "someSkipCondition",
@@ -4479,10 +4512,6 @@ func TestGraphQLDataSource(t *testing.T) {
 														Name: []byte("likes"),
 														Value: &resolve.String{
 															Path: []string{"likes"},
-														},
-														Position: resolve.Position{
-															Line:   6,
-															Column: 9,
 														},
 													},
 												},
@@ -4568,6 +4597,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
+			DisableResolveFieldPositions: true,
 		}))
 
 	t.Run("federation with variables and renamed types", RunTest(federationTestSchema,
@@ -4596,10 +4626,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							HasBuffer: true,
 							BufferID:  0,
 							Name:      []byte("me"),
-							Position: resolve.Position{
-								Line:   2,
-								Column: 7,
-							},
 							Value: &resolve.Object{
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
@@ -4635,10 +4661,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										HasBuffer: true,
 										BufferID:  1,
 										Name:      []byte("reviews"),
-										Position: resolve.Position{
-											Line:   3,
-											Column: 8,
-										},
 										Value: &resolve.Array{
 											Path:     []string{"reviews"},
 											Nullable: true,
@@ -4650,20 +4672,12 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.String{
 															Path: []string{"body"},
 														},
-														Position: resolve.Position{
-															Line:   4,
-															Column: 9,
-														},
 													},
 													{
 														Name: []byte("notes"),
 														Value: &resolve.String{
 															Path:     []string{"notes"},
 															Nullable: true,
-														},
-														Position: resolve.Position{
-															Line:   5,
-															Column: 9,
 														},
 														SkipDirectiveDefined: true,
 														SkipVariableName:     "someSkipCondition",
@@ -4672,10 +4686,6 @@ func TestGraphQLDataSource(t *testing.T) {
 														Name: []byte("likes"),
 														Value: &resolve.String{
 															Path: []string{"likes"},
-														},
-														Position: resolve.Position{
-															Line:   6,
-															Column: 9,
 														},
 													},
 												},
@@ -4761,6 +4771,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
+			DisableResolveFieldPositions: true,
 			Types: []plan.TypeConfiguration{
 				{
 					TypeName: "Boolean",
@@ -4793,10 +4804,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							HasBuffer: true,
 							BufferID:  0,
 							Name:      []byte("serviceOne"),
-							Position: resolve.Position{
-								Line:   2,
-								Column: 7,
-							},
 							Value: &resolve.Object{
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
@@ -4833,10 +4840,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										HasBuffer: true,
 										BufferID:  1,
 										Name:      []byte("serviceTwoFieldOne"),
-										Position: resolve.Position{
-											Line:   3,
-											Column: 8,
-										},
 										Value: &resolve.String{
 											Path: []string{"serviceTwoFieldOne"},
 										},
@@ -4845,10 +4848,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										HasBuffer: true,
 										BufferID:  1,
 										Name:      []byte("serviceTwoFieldTwo"),
-										Position: resolve.Position{
-											Line:   4,
-											Column: 8,
-										},
 										Value: &resolve.String{
 											Path: []string{"serviceTwoFieldTwo"},
 										},
@@ -4923,6 +4922,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					RequiresFields: []string{"id", "serviceOneFieldTwo"},
 				},
 			},
+			DisableResolveFieldPositions: true,
 		}))
 
 	t.Run("federation with renamed schema", RunTest(renamedFederationTestSchema,
@@ -4966,10 +4966,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							HasBuffer: true,
 							BufferID:  0,
 							Name:      []byte("api_me"),
-							Position: resolve.Position{
-								Line:   2,
-								Column: 7,
-							},
 							Value: &resolve.Object{
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
@@ -4998,29 +4994,17 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Path: []string{"id"},
 										},
-										Position: resolve.Position{
-											Line:   3,
-											Column: 8,
-										},
 									},
 									{
 										Name: []byte("username"),
 										Value: &resolve.String{
 											Path: []string{"username"},
 										},
-										Position: resolve.Position{
-											Line:   4,
-											Column: 8,
-										},
 									},
 									{
 										HasBuffer: true,
 										BufferID:  1,
 										Name:      []byte("reviews"),
-										Position: resolve.Position{
-											Line:   5,
-											Column: 8,
-										},
 										Value: &resolve.Array{
 											Path:     []string{"reviews"},
 											Nullable: true,
@@ -5032,17 +5016,9 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.String{
 															Path: []string{"body"},
 														},
-														Position: resolve.Position{
-															Line:   6,
-															Column: 9,
-														},
 													},
 													{
 														Name: []byte("author"),
-														Position: resolve.Position{
-															Line:   7,
-															Column: 9,
-														},
 														Value: &resolve.Object{
 															Path: []string{"author"},
 															Fields: []*resolve.Field{
@@ -5051,19 +5027,11 @@ func TestGraphQLDataSource(t *testing.T) {
 																	Value: &resolve.String{
 																		Path: []string{"id"},
 																	},
-																	Position: resolve.Position{
-																		Line:   8,
-																		Column: 10,
-																	},
 																},
 																{
 																	Name: []byte("username"),
 																	Value: &resolve.String{
 																		Path: []string{"username"},
-																	},
-																	Position: resolve.Position{
-																		Line:   9,
-																		Column: 10,
 																	},
 																},
 															},
@@ -5071,10 +5039,6 @@ func TestGraphQLDataSource(t *testing.T) {
 													},
 													{
 														Name: []byte("product"),
-														Position: resolve.Position{
-															Line:   11,
-															Column: 9,
-														},
 														Value: &resolve.Object{
 															Path: []string{"product"},
 															Fetch: &resolve.ParallelFetch{
@@ -5127,10 +5091,6 @@ func TestGraphQLDataSource(t *testing.T) {
 																	Value: &resolve.String{
 																		Path: []string{"name"},
 																	},
-																	Position: resolve.Position{
-																		Line:   12,
-																		Column: 10,
-																	},
 																},
 																{
 																	HasBuffer: true,
@@ -5139,19 +5099,11 @@ func TestGraphQLDataSource(t *testing.T) {
 																	Value: &resolve.Integer{
 																		Path: []string{"price"},
 																	},
-																	Position: resolve.Position{
-																		Line:   13,
-																		Column: 10,
-																	},
 																},
 																{
 																	HasBuffer: true,
 																	BufferID:  3,
 																	Name:      []byte("reviews"),
-																	Position: resolve.Position{
-																		Line:   14,
-																		Column: 10,
-																	},
 																	Value: &resolve.Array{
 																		Nullable: true,
 																		Path:     []string{"reviews"},
@@ -5163,17 +5115,9 @@ func TestGraphQLDataSource(t *testing.T) {
 																					Value: &resolve.String{
 																						Path: []string{"body"},
 																					},
-																					Position: resolve.Position{
-																						Line:   15,
-																						Column: 11,
-																					},
 																				},
 																				{
 																					Name: []byte("author"),
-																					Position: resolve.Position{
-																						Line:   16,
-																						Column: 11,
-																					},
 																					Value: &resolve.Object{
 																						Path: []string{"author"},
 																						Fields: []*resolve.Field{
@@ -5182,19 +5126,11 @@ func TestGraphQLDataSource(t *testing.T) {
 																								Value: &resolve.String{
 																									Path: []string{"id"},
 																								},
-																								Position: resolve.Position{
-																									Line:   17,
-																									Column: 12,
-																								},
 																							},
 																							{
 																								Name: []byte("username"),
 																								Value: &resolve.String{
 																									Path: []string{"username"},
-																								},
-																								Position: resolve.Position{
-																									Line:   18,
-																									Column: 12,
 																								},
 																							},
 																						},
@@ -5357,6 +5293,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					RequiresFields: []string{"upc"},
 				},
 			},
+			DisableResolveFieldPositions: true,
 			Types: []plan.TypeConfiguration{
 				{
 					TypeName: "User_api",
@@ -5636,6 +5573,7 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 				},
 			},
 		},
+		DisableResolveFieldPositions: true,
 	}
 
 	for _, opt := range options {
@@ -5645,62 +5583,62 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 	return RunTest(testDefinition, operation, operationName, expectedPlan, config, extraChecks...)
 }
 
-func TestUnNullVariables(t *testing.T){
+func TestUnNullVariables(t *testing.T) {
 
 	t.Run("variables with whitespace", func(t *testing.T) {
 		s := &Source{}
 		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"email":null,"firstName": "FirstTest",		"lastName":"LastTest","phone":123456,"preferences":{ "notifications":{}},"password":"password"}}}`))
 		expected := `{"body":{"variables":{"firstName":"FirstTest","lastName":"LastTest","phone":123456,"password":"password"}}}`
-		assert.Equal(t, expected,string(out))
+		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("empty variables", func(t *testing.T) {
 		s := &Source{}
 		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{}}}`))
 		expected := `{"body":{"variables":{}}}`
-		assert.Equal(t, expected,string(out))
+		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("two variables, one null", func(t *testing.T) {
 		s := &Source{}
 		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}}}`))
 		expected := `{"body":{"variables":{"b":true}}}`
-		assert.Equal(t, expected,string(out))
+		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("two variables, one null reverse", func(t *testing.T) {
 		s := &Source{}
 		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":true,"b":null}}}`))
 		expected := `{"body":{"variables":{"a":true}}}`
-		assert.Equal(t, expected,string(out))
+		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("null variables", func(t *testing.T) {
 		s := &Source{}
 		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":null}}`))
 		expected := `{"body":{"variables":null}}`
-		assert.Equal(t, expected,string(out))
+		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("ignore null inside non variables", func(t *testing.T) {
 		s := &Source{}
 		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"foo":null},"body":"query {foo(bar: null){baz}}"}}`))
 		expected := `{"body":{"variables":{},"body":"query {foo(bar: null){baz}}"}}`
-		assert.Equal(t, expected,string(out))
+		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("variables missing", func(t *testing.T) {
 		s := &Source{}
 		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}"}}`))
 		expected := `{"body":{"query":"{foo}"}}`
-		assert.Equal(t, expected,string(out))
+		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("variables null", func(t *testing.T) {
 		s := &Source{}
 		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}","variables":null}}`))
 		expected := `{"body":{"query":"{foo}","variables":null}}`
-		assert.Equal(t, expected,string(out))
+		assert.Equal(t, expected, string(out))
 	})
 }
 
@@ -6751,6 +6689,144 @@ type User {
   id: ID!
   username: String!
   reviews: [Review]
+}
+`
+
+const complexFederationSchema = `
+scalar String
+scalar Int
+scalar Float
+scalar ID
+
+union AccountType = PasswordAccount | SMSAccount
+type Amazon {
+  referrer: String
+}
+
+union Brand = Ikea | Amazon
+type Car implements Vehicle {
+  id: String!
+  description: String
+  price: String
+}
+
+type Error {
+  code: Int
+  message: String
+}
+
+type Furniture implements Product {
+  upc: String!
+  sku: String!
+  name: String
+  price: String
+  brand: Brand
+  metadata: [MetadataOrError]
+  details: ProductDetailsFurniture
+  inStock: Int!
+}
+
+type Ikea {
+  asile: Int
+}
+
+type KeyValue {
+  key: String!
+  value: String!
+}
+
+union MetadataOrError = KeyValue | Error
+type Mutation {
+  login(username: String!, password: String!): User
+}
+
+type Name {
+  first: String
+  last: String
+}
+
+type PasswordAccount {
+  email: String!
+}
+
+interface Product {
+  upc: String!
+  sku: String!
+  name: String
+  price: String
+  details: ProductDetails
+  inStock: Int!
+}
+
+interface ProductDetails {
+  country: String
+}
+
+type ProductDetailsBook implements ProductDetails {
+  country: String
+  pages: Int
+}
+
+type ProductDetailsFurniture implements ProductDetails {
+  country: String
+  color: String
+}
+
+type Query {
+  me: User
+  user(id: ID!): User
+  product(upc: String!): Product
+  vehicle(id: String!): Vehicle
+  topProducts(first: Int = 5): [Product]
+  topCars(first: Int = 5): [Car]
+}
+
+type Review {
+  body: String!
+  author: User!
+  product: Product!
+}
+
+type SMSAccount {
+  number: String
+}
+
+type Subscription {
+  updatedPrice: Product!
+  updateProductPrice(upc: String!): Product!
+  stock: [Product!]
+}
+
+union Thing = Car | Ikea
+type User {
+  id: ID!
+  name: Name
+  username: String
+  birthDate(locale: String): String
+  account: AccountType
+  metadata: [UserMetadata]
+  ssn: String
+  vehicle: Vehicle
+  thing: Thing
+  reviews: [Review]
+}
+
+type UserMetadata {
+  name: String
+  address: String
+  description: String
+}
+
+type Van implements Vehicle {
+  id: String!
+  description: String
+  price: String
+}
+
+interface Vehicle {
+  id: String!
+  description: String
+  price: String
 }
 `
 

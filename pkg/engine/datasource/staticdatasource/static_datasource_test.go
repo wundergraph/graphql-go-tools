@@ -26,10 +26,6 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 							Value: &resolve.String{
 								Nullable: true,
 							},
-							Position: resolve.Position{
-								Line:   1,
-								Column: 3,
-							},
 						},
 					},
 					Fetch: &resolve.SingleFetch{
@@ -65,6 +61,7 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 					DisableDefaultMapping: true,
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 	))
 }
