@@ -1,10 +1,10 @@
 # kafka_pubsub
 
-Simple event producer for the Kafka data source implementation. 
+Simple message producer for the Kafka data source implementation. 
 
 ## Run Kafka and ZooKeeper with Docker Compose:
 
-Open a terminal an run the following:
+Open a terminal run the following:
 
 ```
 cd examples/kafka_pubsub
@@ -15,13 +15,18 @@ With a properly configured Golang environment:
 
 ```
 cd examples/kafka_pubsub
-go install -v
+go run main.go -p=product1,product2
 ```
 
-Run the producer:
-
-```
- ~/go/bin/kafka_pubsub -p=product1,product2
+Sample message: 
+```json
+{
+	"stock": {
+		"name": "product1",
+		"price": 803,
+		"in_stock": 901
+	}
+}
 ```
 
 This command publishes messages to `test.topic.product1` and `test.topic.product2` topics. Run the command with `-h` to see help text.
