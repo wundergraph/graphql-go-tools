@@ -6,7 +6,7 @@ import (
 )
 
 type removeDuplicateScalarTypeDefinitionVisitor struct {
-	operation     *ast.Document
+	document      *ast.Document
 	scalarSet     map[string]bool
 	nodesToRemove []ast.Node
 	lastRef       int
@@ -17,20 +17,20 @@ func newRemoveDuplicateScalarTypeDefinitionVistior() *removeDuplicateScalarTypeD
 		nil,
 		make(map[string]bool),
 		make([]ast.Node, 0),
-		-1,
+		ast.InvalidRef,
 	}
 }
 
 func (r *removeDuplicateScalarTypeDefinitionVisitor) EnterDocument(operation, definition *ast.Document) {
-	r.operation = operation
+	r.document = operation
 }
 
 func (r *removeDuplicateScalarTypeDefinitionVisitor) EnterScalarTypeDefinition(ref int) {
 	if ref <= r.lastRef {
 		return
 	}
-	name := r.operation.ScalarTypeDefinitionNameString(ref)
-	if ok := r.scalarSet[name]; ok {
+	name := r.document.ScalarTypeDefinitionNameString(ref)
+	if r.scalarSet[name] {
 		r.nodesToRemove = append(r.nodesToRemove, ast.Node{Kind: ast.NodeKindScalarTypeDefinition, Ref: ref})
 	} else {
 		r.scalarSet[name] = true
@@ -42,7 +42,7 @@ func (r *removeDuplicateScalarTypeDefinitionVisitor) LeaveDocument(operation, de
 	if len(r.nodesToRemove) < 1 {
 		return
 	}
-	r.operation.DeleteRootNodes(r.nodesToRemove)
+	r.document.DeleteRootNodes(r.nodesToRemove)
 }
 
 func (r *removeDuplicateScalarTypeDefinitionVisitor) Register(walker *astvisitor.Walker) {
