@@ -85,9 +85,8 @@ type Configuration struct {
 }
 
 type Planner struct {
-	visitor *plan.Visitor
-	ctx     context.Context
-	config  Configuration
+	ctx    context.Context
+	config Configuration
 }
 
 func (p *Planner) Register(_ *plan.Visitor, configuration plan.DataSourceConfiguration, _ bool) error {
