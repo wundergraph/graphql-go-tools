@@ -50,6 +50,7 @@ func newMockKafkaBroker(t *testing.T, topic, group string, fr *sarama.FetchRespo
 	mockOffsetFetchResponse := sarama.NewMockOffsetFetchResponse(t).
 		SetOffset(group, topic, defaultPartition, 0, "", sarama.KError(0))
 
+	mockApiVersionsResponse := sarama.NewMockApiVersionsResponse(t)
 	mockOffsetCommitResponse := sarama.NewMockOffsetCommitResponse(t)
 	mockBroker.SetHandlerByMap(map[string]sarama.MockResponse{
 		"MetadataRequest":        mockMetadataResponse,
@@ -61,6 +62,7 @@ func newMockKafkaBroker(t *testing.T, topic, group string, fr *sarama.FetchRespo
 		"JoinGroupRequest":       mockJoinGroupResponse,
 		"SyncGroupRequest":       mockSyncGroupResponse,
 		"HeartbeatRequest":       mockHeartbeatResponse,
+		"ApiVersionsRequest":     mockApiVersionsResponse,
 		"OffsetCommitRequest":    mockOffsetCommitResponse,
 	})
 
@@ -99,7 +101,7 @@ func (d *testConsumerGroupHandler) ConsumeClaim(sess sarama.ConsumerGroupSession
 
 func newTestConsumerGroup(groupID string, brokers []string) (sarama.ConsumerGroup, error) {
 	kConfig := mocks.NewTestConfig()
-	kConfig.Version = sarama.V2_7_0_0
+	kConfig.Version = sarama.MaxVersion
 	kConfig.Consumer.Return.Errors = true
 	kConfig.ClientID = "graphql-go-tools-test"
 	kConfig.Consumer.Offsets.Initial = sarama.OffsetNewest

@@ -13,15 +13,6 @@ import (
 var (
 	DefaultKafkaVersion          = "V1_0_0_0"
 	SaramaSupportedKafkaVersions = map[string]sarama.KafkaVersion{
-		"V0_8_2_0":  sarama.V0_8_2_0,
-		"V0_8_2_1":  sarama.V0_8_2_1,
-		"V0_8_2_2":  sarama.V0_8_2_2,
-		"V0_9_0_0":  sarama.V0_9_0_0,
-		"V0_9_0_1":  sarama.V0_9_0_1,
-		"V0_10_0_0": sarama.V0_10_0_0,
-		"V0_10_0_1": sarama.V0_10_0_1,
-		"V0_10_1_0": sarama.V0_10_1_0,
-		"V0_10_1_1": sarama.V0_10_1_1,
 		"V0_10_2_0": sarama.V0_10_2_0,
 		"V0_10_2_1": sarama.V0_10_2_1,
 		"V0_11_0_0": sarama.V0_11_0_0,
