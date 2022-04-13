@@ -118,8 +118,6 @@ func main() {
 	var products []string
 	products = strings.Split(args.products, ",")
 
-	fmt.Println(products)
-
 	config := sarama.NewConfig()
 	asyncProducer, err := sarama.NewAsyncProducer([]string{args.broker}, config)
 	if err != nil {
