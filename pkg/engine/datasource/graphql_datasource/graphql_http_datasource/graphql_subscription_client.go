@@ -1,4 +1,4 @@
-package graphql_datasource
+package graphql_http_datasource
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"nhooyr.io/websocket"
 )
 
@@ -85,7 +86,11 @@ func NewWebSocketGraphQLSubscriptionClient(httpClient *http.Client, ctx context.
 // Each WebSocket (WS) to an origin is uniquely identified by the Hash(URL,Headers,Body)
 // If an existing WS with the same ID (Hash) exists, it is being re-used
 // If no connection exists, the client initiates a new one and sends the "init" and "connection ack" messages
-func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+func (c *WebSocketGraphQLSubscriptionClient) Subscribe(
+	ctx context.Context,
+	options graphql_datasource.GraphQLSubscriptionOptions,
+	next chan<- []byte,
+) error {
 
 	handlerID, err := c.generateHandlerIDHash(options)
 	if err != nil {
@@ -161,7 +166,9 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, opti
 }
 
 // generateHandlerIDHash generates a Hash based on: URL and Headers to uniquely identify Upgrade Requests
-func (c *WebSocketGraphQLSubscriptionClient) generateHandlerIDHash(options GraphQLSubscriptionOptions) (uint64, error) {
+func (c *WebSocketGraphQLSubscriptionClient) generateHandlerIDHash(
+	options graphql_datasource.GraphQLSubscriptionOptions,
+) (uint64, error) {
 	var (
 		err error
 	)
@@ -208,7 +215,7 @@ type connectionHandler struct {
 
 type subscription struct {
 	ctx     context.Context
-	options GraphQLSubscriptionOptions
+	options graphql_datasource.GraphQLSubscriptionOptions
 	next    chan<- []byte
 }
 

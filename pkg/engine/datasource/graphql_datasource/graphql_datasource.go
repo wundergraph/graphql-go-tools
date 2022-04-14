@@ -5,10 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 
-	"github.com/buger/jsonparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/tidwall/sjson"
 
@@ -16,11 +14,9 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
 	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 	"github.com/jensneuse/graphql-go-tools/pkg/federation"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
@@ -37,8 +33,7 @@ type Planner struct {
 	disallowSingleFlight               bool
 	hasFederationRoot                  bool
 	extractEntities                    bool
-	fetchClient                        *http.Client
-	subscriptionClient                 GraphQLSubscriptionClient
+	source                             GraphQLDatasource
 	isNested                           bool   // isNested - flags that datasource is nested e.g. field with datasource is not on a query type
 	rootTypeName                       string // rootTypeName - holds name of top level type
 	rootFieldName                      string // rootFieldName - holds name of root type field
@@ -48,6 +43,39 @@ type Planner struct {
 	upstreamDefinition                 *ast.Document
 	currentVariableDefinition          int
 	addDirectivesToVariableDefinitions map[int][]int
+}
+
+type GraphQLDatasource interface {
+	ConfigureFetch(params ConfigureFetchParams) ConfigureFetchResponse
+	ConfigureSubscription(params ConfigureSubscriptionParams) ConfigureSubscriptionResponse
+	ApplyDefaults()
+}
+
+type ConfigureFetchParams struct {
+	UpstreamVariables []byte
+	Operation         []byte
+}
+
+type ConfigureFetchResponse struct {
+	Input      string
+	DataSource resolve.DataSource
+}
+
+type ConfigureSubscriptionParams struct {
+	UpstreamVariables []byte
+	Operation         []byte
+}
+
+type ConfigureSubscriptionResponse struct {
+	Input      string
+	DataSource resolve.SubscriptionDataSource
+}
+
+func NewPlanner(batchFactory resolve.DataSourceBatchFactory, source GraphQLDatasource) *Planner {
+	return &Planner{
+		batchFactory: batchFactory,
+		source:       source,
+	}
 }
 
 func (p *Planner) EnterVariableDefinition(ref int) {
@@ -194,8 +222,6 @@ func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 }
 
 type Configuration struct {
-	Fetch          FetchConfiguration
-	Subscription   SubscriptionConfiguration
 	Federation     FederationConfiguration
 	UpstreamSchema string
 }
@@ -208,22 +234,6 @@ func ConfigJson(config Configuration) json.RawMessage {
 type FederationConfiguration struct {
 	Enabled    bool
 	ServiceSDL string
-}
-
-type SubscriptionConfiguration struct {
-	URL string
-}
-
-type FetchConfiguration struct {
-	URL    string
-	Method string
-	Header http.Header
-}
-
-func (c *Configuration) ApplyDefaults() {
-	if c.Fetch.Method == "" {
-		c.Fetch.Method = "POST"
-	}
 }
 
 func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration, isNested bool) error {
@@ -243,24 +253,17 @@ func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceC
 		return err
 	}
 
-	p.config.ApplyDefaults()
+	p.source.ApplyDefaults()
 	p.isNested = isNested
 
 	return nil
 }
 
 func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
-	var input []byte
-	input = httpclient.SetInputBodyWithPath(input, p.upstreamVariables, "variables")
-	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
-
-	header, err := json.Marshal(p.config.Fetch.Header)
-	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
-		input = httpclient.SetInputHeader(input, header)
-	}
-
-	input = httpclient.SetInputURL(input, []byte(p.config.Fetch.URL))
-	input = httpclient.SetInputMethod(input, []byte(p.config.Fetch.Method))
+	response := p.source.ConfigureFetch(ConfigureFetchParams{
+		UpstreamVariables: p.upstreamVariables,
+		Operation:         p.printOperation(),
+	})
 
 	var batchConfig plan.BatchConfig
 	// Allow batch query for fetching entities.
@@ -272,10 +275,8 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	}
 
 	return plan.FetchConfiguration{
-		Input: string(input),
-		DataSource: &Source{
-			httpClient: p.fetchClient,
-		},
+		Input:                response.Input,
+		DataSource:           response.DataSource,
 		Variables:            p.variables,
 		DisallowSingleFlight: p.disallowSingleFlight,
 		ProcessResponseConfig: resolve.ProcessResponseConfig{
@@ -287,21 +288,15 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 }
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
-	input := httpclient.SetInputBodyWithPath(nil, p.upstreamVariables, "variables")
-	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
-	input = httpclient.SetInputURL(input, []byte(p.config.Subscription.URL))
-
-	header, err := json.Marshal(p.config.Fetch.Header)
-	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
-		input = httpclient.SetInputHeader(input, header)
-	}
+	response := p.source.ConfigureSubscription(ConfigureSubscriptionParams{
+		UpstreamVariables: p.upstreamVariables,
+		Operation:         p.printOperation(),
+	})
 
 	return plan.SubscriptionConfiguration{
-		Input: string(input),
-		DataSource: &SubscriptionSource{
-			client: p.subscriptionClient,
-		},
-		Variables: p.variables,
+		Input:      response.Input,
+		DataSource: response.DataSource,
+		Variables:  p.variables,
 	}
 }
 
@@ -1135,89 +1130,6 @@ func (p *Planner) addField(ref int) {
 	p.nodes = append(p.nodes, field)
 }
 
-type Factory struct {
-	BatchFactory resolve.DataSourceBatchFactory
-	HTTPClient   *http.Client
-	wsClient     *WebSocketGraphQLSubscriptionClient
-}
-
-func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
-	if f.wsClient == nil {
-		f.wsClient = NewWebSocketGraphQLSubscriptionClient(f.HTTPClient, ctx)
-	}
-	return &Planner{
-		batchFactory:       f.BatchFactory,
-		fetchClient:        f.HTTPClient,
-		subscriptionClient: f.wsClient,
-	}
-}
-
-type Source struct {
-	httpClient *http.Client
-}
-
-func (s *Source) compactAndUnNullVariables(input []byte) []byte {
-	variables, _, _, err := jsonparser.Get(input, "body","variables")
-	if err != nil {
-		return input
-	}
-	if bytes.Equal(variables, []byte("null")) || bytes.Equal(variables, []byte("{}")) {
-		return input
-	}
-	if bytes.ContainsAny(variables, " \t\n\r") {
-		buf := bytes.NewBuffer(make([]byte, 0, len(variables)))
-		_ = json.Compact(buf, variables)
-		variables = buf.Bytes()
-	}
-	cp := make([]byte, len(variables))
-	copy(cp, variables)
-	variables = cp
-	var changed bool
-	for {
-		variables, changed = s.unNullVariables(variables)
-		if !changed {
-			break
-		}
-	}
-	input, _ = jsonparser.Set(input, variables, "body","variables")
-	return input
-}
-
-func (s *Source) unNullVariables(input []byte) ([]byte, bool) {
-	if i := bytes.Index(input, []byte(":{}")); i != -1 {
-		end := i + 3
-		hasTrainlingComma := false
-		if input[end] == ',' {
-			end++
-			hasTrainlingComma = true
-		}
-		startQuote := bytes.LastIndex(input[:i-2], []byte("\""))
-		if !hasTrainlingComma && input[startQuote-1] == ',' {
-			startQuote--
-		}
-		return append(input[:startQuote], input[end:]...), true
-	}
-	if i := bytes.Index(input, []byte("null")); i != -1 {
-		end := i + 4
-		hasTrailingComma := false
-		if input[end] == ',' {
-			end++
-			hasTrailingComma = true
-		}
-		startQuote := bytes.LastIndex(input[:i-2], []byte("\""))
-		if !hasTrailingComma && input[startQuote-1] == ',' {
-			startQuote--
-		}
-		return append(input[:startQuote], input[end:]...), true
-	}
-	return input, false
-}
-
-func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err error) {
-	input = s.compactAndUnNullVariables(input)
-	return httpclient.Do(s.httpClient, ctx, input, writer)
-}
-
 type GraphQLSubscriptionClient interface {
 	Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error
 }
@@ -1232,20 +1144,4 @@ type GraphQLBody struct {
 	Query         string          `json:"query,omitempty"`
 	OperationName string          `json:"operationName,omitempty"`
 	Variables     json.RawMessage `json:"variables,omitempty"`
-}
-
-type SubscriptionSource struct {
-	client GraphQLSubscriptionClient
-}
-
-func (s *SubscriptionSource) Start(ctx context.Context, input []byte, next chan<- []byte) error {
-	var options GraphQLSubscriptionOptions
-	err := json.Unmarshal(input, &options)
-	if err != nil {
-		return err
-	}
-	if options.Body.Query == "" {
-		return resolve.ErrUnableToResolve
-	}
-	return s.client.Subscribe(ctx, options, next)
 }
