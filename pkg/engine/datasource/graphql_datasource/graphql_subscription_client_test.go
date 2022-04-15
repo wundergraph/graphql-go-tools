@@ -1,4 +1,4 @@
-package graphql_http_datasource
+package graphql_datasource
 
 import (
 	"context"
@@ -13,7 +13,6 @@ import (
 
 	"github.com/buger/jsonparser"
 	ll "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -69,9 +68,9 @@ func TestWebsocketSubscriptionClient(t *testing.T) {
 		WithLogger(logger()),
 	)
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, graphql_datasource.GraphQLSubscriptionOptions{
+	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
 		URL: strings.Replace(server.URL, "http", "ws", -1),
-		Body: graphql_datasource.GraphQLBody{
+		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
 	}, next)
@@ -108,9 +107,9 @@ func TestWebsocketSubscriptionClientImmediateClientCancel(t *testing.T) {
 		WithLogger(logger()),
 	)
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, graphql_datasource.GraphQLSubscriptionOptions{
+	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
 		URL: strings.Replace(server.URL, "http", "ws", -1),
-		Body: graphql_datasource.GraphQLBody{
+		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
 	}, next)
@@ -162,9 +161,9 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 		WithLogger(logger()),
 	)
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, graphql_datasource.GraphQLSubscriptionOptions{
+	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
 		URL: strings.Replace(server.URL, "http", "ws", -1),
-		Body: graphql_datasource.GraphQLBody{
+		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
 	}, next)
@@ -219,9 +218,9 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 		WithLogger(logger()),
 	)
 	next := make(chan []byte)
-	err := client.Subscribe(clientCtx, graphql_datasource.GraphQLSubscriptionOptions{
+	err := client.Subscribe(clientCtx, GraphQLSubscriptionOptions{
 		URL: strings.Replace(server.URL, "http", "ws", -1),
-		Body: graphql_datasource.GraphQLBody{
+		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomNam: "room"){text}}`,
 		},
 	}, next)
@@ -271,9 +270,9 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 		WithLogger(logger()),
 	)
 	next := make(chan []byte)
-	err := client.Subscribe(clientCtx, graphql_datasource.GraphQLSubscriptionOptions{
+	err := client.Subscribe(clientCtx, GraphQLSubscriptionOptions{
 		URL: strings.Replace(server.URL, "http", "ws", -1),
-		Body: graphql_datasource.GraphQLBody{
+		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomNam: "room"){text}}`,
 		},
 	}, next)
@@ -384,9 +383,9 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 
 	next := make(chan []byte)
 	ctx, clientCancel := context.WithCancel(context.Background())
-	err := client.Subscribe(ctx, graphql_datasource.GraphQLSubscriptionOptions{
+	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
 		URL: strings.Replace(server.URL, "http", "ws", -1),
-		Body: graphql_datasource.GraphQLBody{
+		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
 	}, next)
@@ -399,9 +398,9 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 
-		err := client.Subscribe(ctx, graphql_datasource.GraphQLSubscriptionOptions{
+		err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
 			URL: strings.Replace(server.URL, "http", "ws", -1),
-			Body: graphql_datasource.GraphQLBody{
+			Body: GraphQLBody{
 				Query: `subscription {messageAdded(roomName: "room"){text}}`,
 			},
 		}, next)

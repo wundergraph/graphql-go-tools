@@ -3,20 +3,12 @@ package graphql_datasource
 import (
 	"bytes"
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/jensneuse/graphql-go-tools/examples/chat"
 	. "github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
@@ -43,7 +35,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
+					DataSource: &FetchSource{},
 					BufferId:   0,
 					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
@@ -173,12 +165,14 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://swapi.com/graphql",
-						Header: http.Header{
-							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
-							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+							Header: http.Header{
+								"Authorization":    []string{"{{ .request.headers.Authorization }}"},
+								"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
+							},
 						},
 					},
 				}),
@@ -219,7 +213,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
+					DataSource:            &FetchSource{},
 					BufferId:              0,
 					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -272,9 +266,11 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://swapi.com/graphql",
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+						},
 					},
 				}),
 			},
@@ -293,7 +289,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
+					DataSource:            &FetchSource{},
 					BufferId:              0,
 					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -354,9 +350,11 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://swapi.com/graphql",
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+						},
 					},
 				}),
 			},
@@ -377,7 +375,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
+					DataSource:            &FetchSource{},
 					BufferId:              0,
 					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {__typename id displayName}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -448,9 +446,11 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://swapi.com/graphql",
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+						},
 					},
 				}),
 			},
@@ -471,7 +471,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
+					DataSource:            &FetchSource{},
 					BufferId:              0,
 					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {... @skip(if: $skip){id displayName}}}","variables":{"skip":$$0$$}}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -534,9 +534,11 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://swapi.com/graphql",
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+						},
 					},
 				}),
 			},
@@ -557,7 +559,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
+					DataSource:            &FetchSource{},
 					BufferId:              0,
 					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {... @include(if: $include){id displayName}}}","variables":{"include":$$0$$}}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -620,9 +622,11 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://swapi.com/graphql",
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+						},
 					},
 				}),
 			},
@@ -641,7 +645,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
+					DataSource:            &FetchSource{},
 					BufferId:              0,
 					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -688,9 +692,11 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://swapi.com/graphql",
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+						},
 					},
 				}),
 			},
@@ -709,7 +715,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
+					DataSource:            &FetchSource{},
 					BufferId:              0,
 					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -762,9 +768,11 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://swapi.com/graphql",
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+						},
 					},
 				}),
 			},
@@ -783,7 +791,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
+					DataSource:            &FetchSource{},
 					BufferId:              0,
 					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {id displayName @include(if: $include)}}","variables":{"include":$$0$$}}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -844,9 +852,11 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://swapi.com/graphql",
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+						},
 					},
 				}),
 			},
@@ -865,7 +875,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
+					DataSource:            &FetchSource{},
 					BufferId:              0,
 					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -918,9 +928,11 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://swapi.com/graphql",
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+						},
 					},
 				}),
 			},
@@ -939,7 +951,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
+					DataSource:            &FetchSource{},
 					BufferId:              0,
 					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -986,9 +998,11 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://swapi.com/graphql",
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+						},
 					},
 				}),
 			},
@@ -1010,7 +1024,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
+					DataSource:            &FetchSource{},
 					BufferId:              0,
 					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName __typename ... on RegisteredUser {hasVerifiedEmail}}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
@@ -1070,9 +1084,11 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://swapi.com/graphql",
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+						},
 					},
 				}),
 			},
@@ -1090,7 +1106,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
+					DataSource: &FetchSource{},
 					BufferId:   0,
 					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($name: String!){user(name: $name){normalized(data: {name: $name})}}","variables":{"name":$$0$$}}}`,
 					Variables: resolve.NewVariables(
@@ -1139,9 +1155,11 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://swapi.com/graphql",
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+						},
 					},
 					UpstreamSchema: variableSchema,
 				}),
@@ -1196,7 +1214,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
+					DataSource: &FetchSource{},
 					BufferId:   0,
 					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $heroName: String!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} search(name: $heroName){__typename ... on Droid {primaryFunction}} stringList nestedStringList}","variables":{"heroName":$$1$$,"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
@@ -1352,12 +1370,14 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://swapi.com/graphql",
-						Header: http.Header{
-							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
-							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+							Header: http.Header{
+								"Authorization":    []string{"{{ .request.headers.Authorization }}"},
+								"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
+							},
 						},
 					},
 					UpstreamSchema: starWarsSchema,
@@ -1439,7 +1459,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
+					DataSource: &FetchSource{},
 					BufferId:   0,
 					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$3$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $input: SearchInput! @onVariable, $options: JSON)@onOperation {api_droid: droid(id: $id){name @format aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search {__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}} withOptions: searchWithInput(input: {options: $options}){__typename ... on Droid {primaryFunction}}}","variables":{"options":$$2$$,"input":$$1$$,"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
@@ -1657,12 +1677,14 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://swapi.com/graphql",
-						Header: http.Header{
-							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
-							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+							Header: http.Header{
+								"Authorization":    []string{"{{ .request.headers.Authorization }}"},
+								"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
+							},
 						},
 					},
 					UpstreamSchema: starWarsSchema,
@@ -1742,9 +1764,9 @@ func TestGraphQLDataSource(t *testing.T) {
 			_entities(representations: $representations){
 				... on Product {
 					reviews {
-						body 
+						body
 						author {
-							username 
+							username
 							id
 						}
 					}
@@ -1755,7 +1777,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
+					DataSource: &FetchSource{},
 					BufferId:   0,
 					Input:      `{"method":"POST","url":"https://subgraph-reviews/query","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {username id}}}}}","variables":{"representations":$$0$$}}}`,
 					Variables: resolve.NewVariables(
@@ -1863,9 +1885,11 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://subgraph-reviews/query",
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Fetch: FetchConfiguration{
+							URL: "https://subgraph-reviews/query",
+						},
 					},
 				}),
 			},
@@ -1918,7 +1942,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidIDs: [ID!]!){droids(ids: $droidIDs){name primaryFunction}}","variables":{"droidIDs":$$0$$}}}`,
-						DataSource: &Source{},
+						DataSource: &FetchSource{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"droidIDs"},
@@ -1977,7 +2001,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidID: ID!){droid(id: $droidID){name primaryFunction}}","variables":{"droidID":$$0$$}}}`,
-						DataSource: &Source{},
+						DataSource: &FetchSource{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"droidID"},
@@ -2030,7 +2054,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($birthdate: Date!){heroByBirthdate(birthdate: $birthdate){name}}","variables":{"birthdate":$$0$$}}}`,
-						DataSource: &Source{},
+						DataSource: &FetchSource{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"birthdate"},
@@ -2081,7 +2105,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://service.one","body":{"query":"mutation($name: String!){addFriend(name: $name){id name}}","variables":{"name":$$0$$}}}`,
-						DataSource: &Source{},
+						DataSource: &FetchSource{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"name"},
@@ -2133,9 +2157,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"id", "name"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "https://service.one",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "https://service.one",
+							},
 						},
 					}),
 					Factory: &Factory{},
@@ -2180,7 +2206,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://foo.service","body":{"query":"query($a: String, $b: String){foo(bar: $a){bar(bal: $b)}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
-						DataSource: &Source{},
+						DataSource: &FetchSource{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
@@ -2234,9 +2260,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					Factory: &Factory{},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "https://foo.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "https://foo.service",
+							},
 						},
 					}),
 				},
@@ -2286,7 +2314,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://countries.service","body":{"query":"query($a: ID!, $b: ID!){country(code: $a){name} alias: country(code: $b){name}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
-						DataSource: &Source{},
+						DataSource: &FetchSource{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
@@ -2358,9 +2386,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					Factory: &Factory{},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "https://countries.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "https://countries.service",
+							},
 						},
 					}),
 				},
@@ -2412,7 +2442,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://countries.service","body":{"query":"query($a: ID!, $b: ID!){country(code: $a){name} countryAlias: country(code: $b){name}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
-						DataSource: &Source{},
+						DataSource: &FetchSource{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
@@ -2484,9 +2514,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					Factory: &Factory{},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "https://countries.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "https://countries.service",
+							},
 						},
 					}),
 				},
@@ -2574,7 +2606,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							&resolve.SingleFetch{
 								BufferId:   0,
 								Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
-								DataSource: &Source{},
+								DataSource: &FetchSource{},
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path:     []string{"firstArg"},
@@ -2591,7 +2623,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							&resolve.SingleFetch{
 								BufferId:   2,
 								Input:      `{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
-								DataSource: &Source{},
+								DataSource: &FetchSource{},
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path:     []string{"secondArg"},
@@ -2618,7 +2650,7 @@ func TestGraphQLDataSource(t *testing.T) {
 
 								Fetch: &resolve.SingleFetch{
 									BufferId:              1,
-									DataSource:            &Source{},
+									DataSource:            &FetchSource{},
 									Input:                 `{"method":"POST","url":"https://country.service","body":{"query":"{countries {name}}"}}`,
 									DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 									ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
@@ -2661,7 +2693,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								Path:     []string{"serviceTwo"},
 								Fetch: &resolve.SingleFetch{
 									BufferId:   3,
-									DataSource: &Source{},
+									DataSource: &FetchSource{},
 									Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOneResponse: serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":$$0$$}}}`,
 									Variables: resolve.NewVariables(
 										&resolve.ObjectVariable{
@@ -2782,9 +2814,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"fieldOne"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "https://service.one",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "https://service.one",
+							},
 						},
 					}),
 					Factory: nestedGraphQLEngineFactory,
@@ -2802,9 +2836,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"fieldTwo", "serviceOneField"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "https://service.two",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "https://service.two",
+							},
 						},
 					}),
 					Factory: nestedGraphQLEngineFactory,
@@ -2822,9 +2858,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"name"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "https://country.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "https://country.service",
+							},
 						},
 					}),
 					Factory: nestedGraphQLEngineFactory,
@@ -2917,7 +2955,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://graphql.service","body":{"query":"mutation($title: String!, $completed: Boolean!, $name: String!){addTask(input: [{titleSets: [[$title]],completed: $completed,user: {name: $name}}]){task {id title completed}}}","variables":{"name":$$2$$,"completed":$$1$$,"title":$$0$$}}}`,
-						DataSource: &Source{},
+						DataSource: &FetchSource{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"title"},
@@ -3001,9 +3039,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"id", "title", "completed"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "https://graphql.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "https://graphql.service",
+							},
 						},
 					}),
 					Factory: &Factory{},
@@ -3065,7 +3105,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://user.service","body":{"query":"mutation($id: String, $name: String){createUser(input: {user: {id: $id,username: $name}}){user {id username createdDate}}}","variables":{"name":$$1$$,"id":$$0$$}}}`,
-						DataSource: &Source{},
+						DataSource: &FetchSource{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"id"},
@@ -3145,9 +3185,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"id", "username", "createdDate"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "https://user.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "https://user.service",
+							},
 						},
 					}),
 					Factory: &Factory{},
@@ -3192,7 +3234,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
 						Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){__typename namespaceCreate(input: {name: $name,personal: $personal}){__typename ... on NamespaceCreated {namespace {id name}} ... on Error {code message}}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
-						DataSource: &Source{},
+						DataSource: &FetchSource{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"name"},
@@ -3301,13 +3343,15 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"code", "message"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL:    "http://api.com",
-							Method: "POST",
-						},
-						Subscription: SubscriptionConfiguration{
-							URL: "ws://api.com",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL:    "http://api.com",
+								Method: "POST",
+							},
+							Subscription: SubscriptionConfiguration{
+								URL: "ws://api.com",
+							},
 						},
 					}),
 					Factory: &Factory{},
@@ -3344,7 +3388,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			Trigger: resolve.GraphQLSubscriptionTrigger{
 				Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`),
 				Source: &SubscriptionSource{
-					NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, ctx),
+					Client: NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, ctx),
 				},
 			},
 			Response: &resolve.GraphQLResponse{
@@ -3382,7 +3426,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				),
 				Source: &SubscriptionSource{
-					client: NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, ctx),
+					Client: NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, ctx),
 				},
 			},
 			Response: &resolve.GraphQLResponse{
@@ -3408,9 +3452,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						FieldNames: []string{"foo"},
 					},
 				},
-				Custom: ConfigJson(Configuration{
-					Subscription: SubscriptionConfiguration{
-						URL: "wss://swapi.com/graphql",
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Subscription: SubscriptionConfiguration{
+							URL: "wss://swapi.com/graphql",
+						},
 					},
 				}),
 				Factory: factory,
@@ -3443,7 +3489,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								author {
 									id
 									username
-								}	
+								}
 								product {
 									name
 									price
@@ -3465,7 +3511,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId:              0,
 						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{me {id username}}"}}`,
-						DataSource:            &Source{},
+						DataSource:            &FetchSource{},
 						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 					},
@@ -3485,7 +3531,7 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 											},
 										),
-										DataSource:           &Source{},
+										DataSource:           &FetchSource{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										ProcessResponseConfig: resolve.ProcessResponseConfig{
 											ExtractGraphqlResponse:    true,
@@ -3555,7 +3601,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																		Fetch: &resolve.SingleFetch{
 																			BufferId:   2,
 																			Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
-																			DataSource: &Source{},
+																			DataSource: &FetchSource{},
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
 																					Path:     []string{"upc"},
@@ -3580,7 +3626,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 																				},
 																			),
-																			DataSource:           &Source{},
+																			DataSource:           &FetchSource{},
 																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																			ProcessResponseConfig: resolve.ProcessResponseConfig{
 																				ExtractGraphqlResponse:    true,
@@ -3677,9 +3723,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"id", "username"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://user.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "http://user.service",
+							},
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
@@ -3709,12 +3757,14 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"upc", "name", "price"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://product.service",
-						},
-						Subscription: SubscriptionConfiguration{
-							URL: "ws://product.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "http://product.service",
+							},
+							Subscription: SubscriptionConfiguration{
+								URL: "ws://product.service",
+							},
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
@@ -3749,9 +3799,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					Factory: federationFactory,
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://review.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "http://review.service",
+							},
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
@@ -3833,7 +3885,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
 						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate ssn}}","variables":{"a":$$0$$}}}`,
-						DataSource: &Source{},
+						DataSource: &FetchSource{},
 						Variables: resolve.NewVariables(
 							&resolve.ObjectVariable{
 								Path:     []string{"a"},
@@ -3859,7 +3911,7 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 											},
 										),
-										DataSource:           &Source{},
+										DataSource:           &FetchSource{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										ProcessResponseConfig: resolve.ProcessResponseConfig{
 											ExtractGraphqlResponse:    true,
@@ -4054,9 +4106,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"number"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://user.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "http://user.service",
+							},
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
@@ -4078,9 +4132,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"id", "name", "description", "price"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://product.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "http://product.service",
+							},
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
@@ -4148,7 +4204,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
 						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate ssn}}","variables":{"a":$$0$$}}}`,
-						DataSource: &Source{},
+						DataSource: &FetchSource{},
 						Variables: resolve.NewVariables(
 							&resolve.ObjectVariable{
 								Path:     []string{"a"},
@@ -4174,7 +4230,7 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 											},
 										),
-										DataSource:           &Source{},
+										DataSource:           &FetchSource{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										ProcessResponseConfig: resolve.ProcessResponseConfig{
 											ExtractGraphqlResponse:    true,
@@ -4369,9 +4425,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"number"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://user.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "http://user.service",
+							},
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
@@ -4393,9 +4451,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"id", "name", "description", "price"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://product.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "http://product.service",
+							},
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
@@ -4443,7 +4503,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId:              0,
 						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{me {id}}"}}`,
-						DataSource:            &Source{},
+						DataSource:            &FetchSource{},
 						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 					},
@@ -4471,7 +4531,7 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
 											},
 										),
-										DataSource:           &Source{},
+										DataSource:           &FetchSource{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										ProcessResponseConfig: resolve.ProcessResponseConfig{
 											ExtractGraphqlResponse:    true,
@@ -4540,9 +4600,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"id"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://user.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "http://user.service",
+							},
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
@@ -4569,9 +4631,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					Factory: federationFactory,
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://review.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "http://review.service",
+							},
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
@@ -4617,7 +4681,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId:              0,
 						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{me {id}}"}}`,
-						DataSource:            &Source{},
+						DataSource:            &FetchSource{},
 						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 					},
@@ -4645,7 +4709,7 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
 											},
 										),
-										DataSource:           &Source{},
+										DataSource:           &FetchSource{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										ProcessResponseConfig: resolve.ProcessResponseConfig{
 											ExtractGraphqlResponse:    true,
@@ -4714,9 +4778,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"id"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://user.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "http://user.service",
+							},
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
@@ -4743,9 +4809,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					Factory: federationFactory,
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://review.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "http://review.service",
+							},
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
@@ -4795,7 +4863,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						BufferId: 0,
 						// Should fetch the federation key as well as all the required fields.
 						Input:                 `{"method":"POST","url":"http://one.service","body":{"query":"{serviceOne {id serviceOneFieldOne serviceOneFieldTwo}}"}}`,
-						DataSource:            &Source{},
+						DataSource:            &FetchSource{},
 						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 					},
@@ -4824,7 +4892,7 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 											},
 										),
-										DataSource:           &Source{},
+										DataSource:           &FetchSource{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										ProcessResponseConfig: resolve.ProcessResponseConfig{
 											ExtractGraphqlResponse:    true,
@@ -4874,9 +4942,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"id", "serviceOneFieldOne", "serviceOneFieldTwo"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://one.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "http://one.service",
+							},
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
@@ -4898,9 +4968,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"id", "serviceOneFieldOne", "serviceOneFieldTwo"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://two.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "http://two.service",
+							},
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
@@ -4935,7 +5007,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								author {
 									id
 									username
-								}	
+								}
 								product {
 									name
 									price
@@ -4957,7 +5029,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId:              0,
 						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{api_me: me {id username}}"}}`,
-						DataSource:            &Source{},
+						DataSource:            &FetchSource{},
 						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 					},
@@ -4977,7 +5049,7 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 											},
 										),
-										DataSource:           &Source{},
+										DataSource:           &FetchSource{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										ProcessResponseConfig: resolve.ProcessResponseConfig{
 											ExtractGraphqlResponse:    true,
@@ -5047,7 +5119,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																		Fetch: &resolve.SingleFetch{
 																			BufferId:   2,
 																			Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
-																			DataSource: &Source{},
+																			DataSource: &FetchSource{},
 																			Variables: resolve.NewVariables(
 																				&resolve.ObjectVariable{
 																					Path:     []string{"upc"},
@@ -5072,7 +5144,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 																				},
 																			),
-																			DataSource:           &Source{},
+																			DataSource:           &FetchSource{},
 																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																			ProcessResponseConfig: resolve.ProcessResponseConfig{
 																				ExtractGraphqlResponse:    true,
@@ -5169,9 +5241,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"id", "username"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://user.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "http://user.service",
+							},
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
@@ -5202,12 +5276,14 @@ func TestGraphQLDataSource(t *testing.T) {
 							FieldNames: []string{"upc", "name", "price"},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://product.service",
-						},
-						Subscription: SubscriptionConfiguration{
-							URL: "ws://product.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "http://product.service",
+							},
+							Subscription: SubscriptionConfiguration{
+								URL: "ws://product.service",
+							},
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
@@ -5243,9 +5319,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					Factory: federationFactory,
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://review.service",
+					Custom: ConfigJson(Configuration[HTTPConfiguration]{
+						DataSourceConfiguration: HTTPConfiguration{
+							Fetch: FetchConfiguration{
+								URL: "http://review.service",
+							},
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
@@ -5309,137 +5387,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		}))
-}
-
-var errSubscriptionClientFail = errors.New("subscription client fail error")
-
-type FailingSubscriptionClient struct{}
-
-func (f FailingSubscriptionClient) Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
-	return errSubscriptionClientFail
-}
-
-func TestSubscriptionSource_Start(t *testing.T) {
-	chatServer := httptest.NewServer(chat.GraphQLEndpointHandler())
-	defer chatServer.Close()
-
-	sendChatMessage := func(t *testing.T, username, message string) {
-		time.Sleep(200 * time.Millisecond)
-		httpClient := http.Client{}
-		req, err := http.NewRequest(
-			http.MethodPost,
-			chatServer.URL,
-			bytes.NewBufferString(fmt.Sprintf(`{"variables": {}, "operationName": "SendMessage", "query": "mutation SendMessage { post(roomName: \"#test\", username: \"%s\", text: \"%s\") { id } }"}`, username, message)),
-		)
-		require.NoError(t, err)
-
-		req.Header.Set("Content-Type", "application/json")
-		resp, err := httpClient.Do(req)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-	}
-
-	chatServerSubscriptionOptions := func(t *testing.T, body string) []byte {
-		var gqlBody GraphQLBody
-		_ = json.Unmarshal([]byte(body), &gqlBody)
-		options := GraphQLSubscriptionOptions{
-			URL:    chatServer.URL,
-			Body:   gqlBody,
-			Header: nil,
-		}
-
-		optionsBytes, err := json.Marshal(options)
-		require.NoError(t, err)
-
-		return optionsBytes
-	}
-
-	newSubscriptionSource := func(ctx context.Context) SubscriptionSource {
-		httpClient := http.Client{}
-		subscriptionSource := SubscriptionSource{client: NewWebSocketGraphQLSubscriptionClient(&httpClient, ctx)}
-		return subscriptionSource
-	}
-
-	t.Run("should return error when input is invalid", func(t *testing.T) {
-		source := SubscriptionSource{client: FailingSubscriptionClient{}}
-		err := source.Start(context.Background(), []byte(`{"url": "", "body": "", "header": null}`), nil)
-		assert.Error(t, err)
-	})
-
-	t.Run("should return error when subscription client returns an error", func(t *testing.T) {
-		source := SubscriptionSource{client: FailingSubscriptionClient{}}
-		err := source.Start(context.Background(), []byte(`{"url": "", "body": {}, "header": null}`), nil)
-		assert.Error(t, err)
-		assert.Equal(t, resolve.ErrUnableToResolve, err)
-	})
-
-	t.Run("invalid json: should stop before sending to upstream", func(t *testing.T) {
-		next := make(chan []byte)
-		ctx := context.Background()
-		defer ctx.Done()
-
-		source := newSubscriptionSource(ctx)
-		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: "#test") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
-		require.ErrorIs(t, err, resolve.ErrUnableToResolve)
-	})
-
-	t.Run("invalid syntax (roomNam)", func(t *testing.T) {
-		next := make(chan []byte)
-		ctx := context.Background()
-		defer ctx.Done()
-
-		source := newSubscriptionSource(ctx)
-		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
-		require.NoError(t, err)
-
-		msg, ok := <-next
-		assert.True(t, ok)
-		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"messageAdded\" of type \"Subscription\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required but not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, string(msg))
-		_, ok = <-next
-		assert.False(t, ok)
-	})
-
-	t.Run("should close connection on stop message", func(t *testing.T) {
-		next := make(chan []byte)
-		subscriptionLifecycle, cancelSubscription := context.WithCancel(context.Background())
-		resolverLifecycle, cancelResolver := context.WithCancel(context.Background())
-		defer cancelResolver()
-
-		source := newSubscriptionSource(resolverLifecycle)
-		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(subscriptionLifecycle, chatSubscriptionOptions, next)
-		require.NoError(t, err)
-
-		username := "myuser"
-		message := "hello world!"
-		go sendChatMessage(t, username, message)
-
-		nextBytes := <-next
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, string(nextBytes))
-		cancelSubscription()
-		_, ok := <-next
-		assert.False(t, ok)
-	})
-
-	t.Run("should successfully subscribe with chat example", func(t *testing.T) {
-		next := make(chan []byte)
-		ctx := context.Background()
-		defer ctx.Done()
-
-		source := newSubscriptionSource(ctx)
-		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
-		require.NoError(t, err)
-
-		username := "myuser"
-		message := "hello world!"
-		go sendChatMessage(t, username, message)
-
-		nextBytes := <-next
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, string(nextBytes))
-	})
 }
 
 type _fakeDataSource struct {
@@ -5519,13 +5466,15 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 						FieldNames: []string{"name", "length"},
 					},
 				},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL:    "https://swapi.com/graphql",
-						Method: "POST",
-					},
-					Subscription: SubscriptionConfiguration{
-						URL: "wss://swapi.com/graphql",
+				Custom: ConfigJson(Configuration[HTTPConfiguration]{
+					DataSourceConfiguration: HTTPConfiguration{
+						Fetch: FetchConfiguration{
+							URL:    "https://swapi.com/graphql",
+							Method: "POST",
+						},
+						Subscription: SubscriptionConfiguration{
+							URL: "wss://swapi.com/graphql",
+						},
 					},
 				}),
 				Factory: &Factory{},
@@ -5581,65 +5530,6 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 	}
 
 	return RunTest(testDefinition, operation, operationName, expectedPlan, config, extraChecks...)
-}
-
-func TestUnNullVariables(t *testing.T) {
-
-	t.Run("variables with whitespace", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"email":null,"firstName": "FirstTest",		"lastName":"LastTest","phone":123456,"preferences":{ "notifications":{}},"password":"password"}}}`))
-		expected := `{"body":{"variables":{"firstName":"FirstTest","lastName":"LastTest","phone":123456,"password":"password"}}}`
-		assert.Equal(t, expected, string(out))
-	})
-
-	t.Run("empty variables", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{}}}`))
-		expected := `{"body":{"variables":{}}}`
-		assert.Equal(t, expected, string(out))
-	})
-
-	t.Run("two variables, one null", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}}}`))
-		expected := `{"body":{"variables":{"b":true}}}`
-		assert.Equal(t, expected, string(out))
-	})
-
-	t.Run("two variables, one null reverse", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":true,"b":null}}}`))
-		expected := `{"body":{"variables":{"a":true}}}`
-		assert.Equal(t, expected, string(out))
-	})
-
-	t.Run("null variables", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":null}}`))
-		expected := `{"body":{"variables":null}}`
-		assert.Equal(t, expected, string(out))
-	})
-
-	t.Run("ignore null inside non variables", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"foo":null},"body":"query {foo(bar: null){baz}}"}}`))
-		expected := `{"body":{"variables":{},"body":"query {foo(bar: null){baz}}"}}`
-		assert.Equal(t, expected, string(out))
-	})
-
-	t.Run("variables missing", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}"}}`))
-		expected := `{"body":{"query":"{foo}"}}`
-		assert.Equal(t, expected, string(out))
-	})
-
-	t.Run("variables null", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}","variables":null}}`))
-		expected := `{"body":{"query":"{foo}","variables":null}}`
-		assert.Equal(t, expected, string(out))
-	})
 }
 
 func BenchmarkFederationBatching(b *testing.B) {
@@ -6560,7 +6450,7 @@ input UpdateUserInput {
 }
 """
 The @cache directive caches the response server side and sets cache control headers according to the configuration.
-With this setting you can reduce the load on your backend systems for operations that get hit a lot while data doesn't change that frequently. 
+With this setting you can reduce the load on your backend systems for operations that get hit a lot while data doesn't change that frequently.
 """
 directive @cache(
   """maxAge defines the maximum time in seconds a response will be understood 'fresh', defaults to 300 (5 minutes)"""
@@ -6568,7 +6458,7 @@ directive @cache(
   """
   vary defines the headers to append to the cache key
   In addition to all possible headers you can also select a custom claim for authenticated requests
-  Examples: 'jwt.sub', 'jwt.team' to vary the cache key based on 'sub' or 'team' fields on the jwt. 
+  Examples: 'jwt.sub', 'jwt.team' to vary the cache key based on 'sub' or 'team' fields on the jwt.
   """
   vary: [String]! = []
 ) on QUERY

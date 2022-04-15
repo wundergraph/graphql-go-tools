@@ -1,4 +1,4 @@
-package graphql_http_datasource
+package graphql_datasource
 
 import (
 	"bytes"
@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/buger/jsonparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
@@ -39,7 +38,7 @@ func (c *HTTPConfiguration) ApplyDefaults() {
 type HTTPSource struct {
 	config             HTTPConfiguration
 	fetchClient        *http.Client
-	subscriptionClient graphql_datasource.GraphQLSubscriptionClient
+	subscriptionClient GraphQLSubscriptionClient
 }
 
 func (p *HTTPSource) ApplyDefaults() {
@@ -50,7 +49,7 @@ func (c *HTTPSource) SetConfig(config HTTPConfiguration) {
 	c.config = config
 }
 
-func (p *HTTPSource) ConfigureFetch(params graphql_datasource.ConfigureFetchParams) graphql_datasource.ConfigureFetchResponse {
+func (p *HTTPSource) ConfigureFetch(params ConfigureFetchParams) ConfigureFetchResponse {
 	var input []byte
 	input = httpclient.SetInputBodyWithPath(input, params.UpstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, params.Operation, "query")
@@ -63,7 +62,7 @@ func (p *HTTPSource) ConfigureFetch(params graphql_datasource.ConfigureFetchPara
 	input = httpclient.SetInputURL(input, []byte(p.config.Fetch.URL))
 	input = httpclient.SetInputMethod(input, []byte(p.config.Fetch.Method))
 
-	return graphql_datasource.ConfigureFetchResponse{
+	return ConfigureFetchResponse{
 		Input: string(input),
 		DataSource: &FetchSource{
 			httpClient: p.fetchClient,
@@ -137,7 +136,7 @@ func (s *FetchSource) Load(ctx context.Context, input []byte, writer io.Writer) 
 	return httpclient.Do(s.httpClient, ctx, input, writer)
 }
 
-func (p *HTTPSource) ConfigureSubscription(params graphql_datasource.ConfigureSubscriptionParams) graphql_datasource.ConfigureSubscriptionResponse {
+func (p *HTTPSource) ConfigureSubscription(params ConfigureSubscriptionParams) ConfigureSubscriptionResponse {
 	input := httpclient.SetInputBodyWithPath(nil, params.UpstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, params.Operation, "query")
 	input = httpclient.SetInputURL(input, []byte(p.config.Subscription.URL))
@@ -147,7 +146,7 @@ func (p *HTTPSource) ConfigureSubscription(params graphql_datasource.ConfigureSu
 		input = httpclient.SetInputHeader(input, header)
 	}
 
-	return graphql_datasource.ConfigureSubscriptionResponse{
+	return ConfigureSubscriptionResponse{
 		Input: string(input),
 		DataSource: &SubscriptionSource{
 			client: p.subscriptionClient,
@@ -156,11 +155,11 @@ func (p *HTTPSource) ConfigureSubscription(params graphql_datasource.ConfigureSu
 }
 
 type SubscriptionSource struct {
-	client graphql_datasource.GraphQLSubscriptionClient
+	client GraphQLSubscriptionClient
 }
 
 func (s *SubscriptionSource) Start(ctx context.Context, input []byte, next chan<- []byte) error {
-	var options graphql_datasource.GraphQLSubscriptionOptions
+	var options GraphQLSubscriptionOptions
 	err := json.Unmarshal(input, &options)
 	if err != nil {
 		return err
@@ -187,7 +186,7 @@ func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 		subscriptionClient: f.wsClient,
 	}
 
-	return graphql_datasource.NewPlanner[HTTPConfiguration](
+	return NewPlanner[HTTPConfiguration](
 		f.BatchFactory,
 		source,
 	)

@@ -1,4 +1,4 @@
-package graphql_http_datasource
+package graphql_datasource
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"nhooyr.io/websocket"
 )
 
@@ -88,7 +87,7 @@ func NewWebSocketGraphQLSubscriptionClient(httpClient *http.Client, ctx context.
 // If no connection exists, the client initiates a new one and sends the "init" and "connection ack" messages
 func (c *WebSocketGraphQLSubscriptionClient) Subscribe(
 	ctx context.Context,
-	options graphql_datasource.GraphQLSubscriptionOptions,
+	options GraphQLSubscriptionOptions,
 	next chan<- []byte,
 ) error {
 
@@ -167,7 +166,7 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(
 
 // generateHandlerIDHash generates a Hash based on: URL and Headers to uniquely identify Upgrade Requests
 func (c *WebSocketGraphQLSubscriptionClient) generateHandlerIDHash(
-	options graphql_datasource.GraphQLSubscriptionOptions,
+	options GraphQLSubscriptionOptions,
 ) (uint64, error) {
 	var (
 		err error
@@ -215,7 +214,7 @@ type connectionHandler struct {
 
 type subscription struct {
 	ctx     context.Context
-	options graphql_datasource.GraphQLSubscriptionOptions
+	options GraphQLSubscriptionOptions
 	next    chan<- []byte
 }
 
