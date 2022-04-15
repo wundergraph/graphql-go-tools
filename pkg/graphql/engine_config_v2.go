@@ -5,6 +5,7 @@ import (
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	graphqlDataSource "github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
+	graphqlHTTPDataSource "github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource/graphql_http_datasource"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
 )
@@ -83,12 +84,12 @@ func newGraphQLDataSourceV2Generator(document *ast.Document) *graphqlDataSourceV
 	}
 }
 
-func (d *graphqlDataSourceV2Generator) Generate(config graphqlDataSource.Configuration, batchFactory resolve.DataSourceBatchFactory, httpClient *http.Client) plan.DataSourceConfiguration {
+func (d *graphqlDataSourceV2Generator) Generate(config graphqlDataSource.Configuration[graphqlHTTPDataSource.HTTPConfiguration], batchFactory resolve.DataSourceBatchFactory, httpClient *http.Client) plan.DataSourceConfiguration {
 	var planDataSource plan.DataSourceConfiguration
 	extractor := plan.NewLocalTypeFieldExtractor(d.document)
 	planDataSource.RootNodes, planDataSource.ChildNodes = extractor.GetAllNodes()
 
-	factory := &graphqlDataSource.Factory{
+	factory := &graphqlHTTPDataSource.Factory{
 		HTTPClient:   httpClient,
 		BatchFactory: batchFactory,
 	}

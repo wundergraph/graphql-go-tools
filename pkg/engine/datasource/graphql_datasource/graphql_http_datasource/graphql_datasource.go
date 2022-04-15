@@ -46,6 +46,10 @@ func (p *HTTPSource) ApplyDefaults() {
 	p.config.ApplyDefaults()
 }
 
+func (c *HTTPSource) SetConfig(config HTTPConfiguration) {
+	c.config = config
+}
+
 func (p *HTTPSource) ConfigureFetch(params graphql_datasource.ConfigureFetchParams) graphql_datasource.ConfigureFetchResponse {
 	var input []byte
 	input = httpclient.SetInputBodyWithPath(input, params.UpstreamVariables, "variables")
@@ -183,7 +187,7 @@ func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 		subscriptionClient: f.wsClient,
 	}
 
-	return graphql_datasource.NewPlanner(
+	return graphql_datasource.NewPlanner[HTTPConfiguration](
 		f.BatchFactory,
 		source,
 	)
