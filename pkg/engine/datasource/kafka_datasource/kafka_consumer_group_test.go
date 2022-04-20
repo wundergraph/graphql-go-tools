@@ -2,7 +2,6 @@ package kafka_datasource
 
 import (
 	"context"
-	"github.com/buger/jsonparser"
 	"sync"
 	"testing"
 	"time"
@@ -51,6 +50,7 @@ func newMockKafkaBroker(t *testing.T, topic, group string, fr *sarama.FetchRespo
 	mockOffsetFetchResponse := sarama.NewMockOffsetFetchResponse(t).
 		SetOffset(group, topic, defaultPartition, 0, "", sarama.KError(0))
 
+	mockApiVersionsResponse := sarama.NewMockApiVersionsResponse(t)
 	mockOffsetCommitResponse := sarama.NewMockOffsetCommitResponse(t)
 	mockBroker.SetHandlerByMap(map[string]sarama.MockResponse{
 		"MetadataRequest":        mockMetadataResponse,
@@ -62,6 +62,7 @@ func newMockKafkaBroker(t *testing.T, topic, group string, fr *sarama.FetchRespo
 		"JoinGroupRequest":       mockJoinGroupResponse,
 		"SyncGroupRequest":       mockSyncGroupResponse,
 		"HeartbeatRequest":       mockHeartbeatResponse,
+		"ApiVersionsRequest":     mockApiVersionsResponse,
 		"OffsetCommitRequest":    mockOffsetCommitResponse,
 	})
 
@@ -100,7 +101,7 @@ func (d *testConsumerGroupHandler) ConsumeClaim(sess sarama.ConsumerGroupSession
 
 func newTestConsumerGroup(groupID string, brokers []string) (sarama.ConsumerGroup, error) {
 	kConfig := mocks.NewTestConfig()
-	kConfig.Version = sarama.V2_7_0_0
+	kConfig.Version = sarama.MaxVersion
 	kConfig.Consumer.Return.Errors = true
 	kConfig.ClientID = "graphql-go-tools-test"
 	kConfig.Consumer.Offsets.Initial = sarama.OffsetNewest
@@ -192,49 +193,6 @@ func logger() log.Logger {
 	return log.NewZapLogger(logger, log.DebugLevel)
 }
 
-func TestKafkaConsumerGroupBridge_Subscribe(t *testing.T) {
-	var (
-		testMessageKey   = sarama.StringEncoder("test.message.key")
-		testMessageValue = sarama.StringEncoder(`{"stock":[{"name":"Trilby","price":293,"inStock":2}]}`)
-		topic            = "test.topic"
-		consumerGroup    = "consumer.group"
-	)
-
-	fr := &sarama.FetchResponse{Version: 11}
-	mockBroker := newMockKafkaBroker(t, topic, consumerGroup, fr)
-	defer mockBroker.Close()
-
-	// Add a message to the topic. The consumer group will fetch that message and trigger ConsumeClaim method.
-	fr.AddMessage(topic, defaultPartition, testMessageKey, testMessageValue, 0)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	cg := NewKafkaConsumerGroupBridge(ctx, logger()) // use abstractlogger.NoopLogger if there is no available logger.
-
-	sc := sarama.NewConfig()
-	sc.Version = sarama.V2_7_0_0
-
-	options := GraphQLSubscriptionOptions{
-		BrokerAddr:   mockBroker.Addr(),
-		Topic:        topic,
-		GroupID:      consumerGroup,
-		ClientID:     "graphql-go-tools-test",
-		saramaConfig: sc,
-	}
-	next := make(chan []byte)
-	err := cg.Subscribe(ctx, options, next)
-	require.NoError(t, err)
-
-	msg := <-next
-	expectedMsg, err := testMessageValue.Encode()
-	require.NoError(t, err)
-
-	value, _, _, err := jsonparser.Get(msg, "data")
-	require.NoError(t, err)
-	require.Equal(t, expectedMsg, value)
-}
-
 func TestKafkaConsumerGroup_StartConsuming_And_Stop(t *testing.T) {
 	var (
 		testMessageKey   = sarama.StringEncoder("test.message.key")
@@ -250,18 +208,20 @@ func TestKafkaConsumerGroup_StartConsuming_And_Stop(t *testing.T) {
 	// Add a message to the topic. The consumer group will fetch that message and trigger ConsumeClaim method.
 	fr.AddMessage(topic, defaultPartition, testMessageKey, testMessageValue, 0)
 
-	sc := sarama.NewConfig()
-	sc.Version = sarama.V2_7_0_0
-
 	options := GraphQLSubscriptionOptions{
 		BrokerAddr:   mockBroker.Addr(),
 		Topic:        topic,
 		GroupID:      consumerGroup,
 		ClientID:     "graphql-go-tools-test",
-		saramaConfig: sc,
+		KafkaVersion: testMockKafkaVersion,
 	}
+	options.Sanitize()
+	require.NoError(t, options.Validate())
 
-	cg, err := NewKafkaConsumerGroup(logger(), &options)
+	saramaConfig := sarama.NewConfig()
+	saramaConfig.Version = SaramaSupportedKafkaVersions[options.KafkaVersion]
+
+	cg, err := NewKafkaConsumerGroup(logger(), saramaConfig, &options)
 	require.NoError(t, err)
 
 	messages := make(chan *sarama.ConsumerMessage)
