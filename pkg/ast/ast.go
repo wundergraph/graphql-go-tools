@@ -202,6 +202,62 @@ func (d *Document) DeleteRootNode(node Node) {
 	}
 }
 
+type ParentType struct {
+	Ref       int
+	ValueRefs []int
+}
+
+func removeNodeIgnoringOrder(nodes []Node, indexToRemove int) []Node {
+	lastIndex := len(nodes) - 1
+	nodes[indexToRemove] = nodes[lastIndex]
+	return nodes[:lastIndex]
+}
+
+func (d *Document) mergeDuplicateParentTypes(rootNodeRef int, kind NodeKind, set map[string]*ParentType) {
+	switch kind {
+	case NodeKindEnumTypeDefinition:
+		name := d.EnumTypeDefinitionNameString(rootNodeRef)
+		parent, exists := set[name]
+		if !exists || parent.Ref != rootNodeRef {
+			return
+		}
+		d.EnumTypeDefinitions[rootNodeRef].EnumValuesDefinition.Refs = parent.ValueRefs
+		d.EnumTypeDefinitions[rootNodeRef].HasEnumValuesDefinition = true
+		delete(set, name)
+	case NodeKindUnionTypeDefinition:
+		name := d.UnionTypeDefinitionNameString(rootNodeRef)
+		parent, exists := set[name]
+		if !exists || parent.Ref != rootNodeRef {
+			return
+		}
+		d.UnionTypeDefinitions[rootNodeRef].UnionMemberTypes.Refs = parent.ValueRefs
+		delete(set, name)
+	}
+}
+
+// MergeAndRemoveDuplicateParentTypes loops over the document RootNodes exactly once but ParentType (nodes with values/
+// children/members) nodes of the same name are merged into a single type definition and the duplicates are removed
+// The RootNodes are iterated over backwards because they are deleted "live". The nodesToRemove are iterated over
+// backwards because the refs are in ascending order and higher RootNode refs will be iterated over first.
+func (d *Document) MergeAndRemoveDuplicateParentTypes(nodesToRemove []Node, set map[string]*ParentType) {
+	kind := nodesToRemove[0].Kind
+ParentLoop:
+	for i := len(d.RootNodes) - 1; i > -1; i-- {
+		if d.RootNodes[i].Kind != kind {
+			continue
+		}
+		rootNodeRef := d.RootNodes[i].Ref
+		for j := len(nodesToRemove) - 1; j > -1; j-- {
+			if rootNodeRef == nodesToRemove[j].Ref {
+				d.RootNodes = append(d.RootNodes[:i], d.RootNodes[i+1:]...)
+				nodesToRemove = removeNodeIgnoringOrder(nodesToRemove, j)
+				continue ParentLoop
+			}
+		}
+		d.mergeDuplicateParentTypes(rootNodeRef, kind, set)
+	}
+}
+
 func (d *Document) RemoveMergedTypeExtensions() {
 	for _, node := range d.Index.MergedTypeExtensions {
 		d.RemoveRootNode(node)

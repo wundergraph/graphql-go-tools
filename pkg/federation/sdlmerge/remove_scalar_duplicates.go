@@ -12,16 +12,16 @@ type removeDuplicateScalarTypeDefinitionVisitor struct {
 	lastRef       int
 }
 
-func newRemoveDuplicateScalarTypeDefinitionVistior() *removeDuplicateScalarTypeDefinitionVisitor {
+func newRemoveDuplicateScalarTypeDefinitionVisitor() *removeDuplicateScalarTypeDefinitionVisitor {
 	return &removeDuplicateScalarTypeDefinitionVisitor{
 		nil,
 		make(map[string]bool),
-		make([]ast.Node, 0),
+		nil,
 		ast.InvalidRef,
 	}
 }
 
-func (r *removeDuplicateScalarTypeDefinitionVisitor) EnterDocument(operation, definition *ast.Document) {
+func (r *removeDuplicateScalarTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
 	r.document = operation
 }
 
@@ -38,8 +38,8 @@ func (r *removeDuplicateScalarTypeDefinitionVisitor) EnterScalarTypeDefinition(r
 	r.lastRef = ref
 }
 
-func (r *removeDuplicateScalarTypeDefinitionVisitor) LeaveDocument(operation, definition *ast.Document) {
-	if len(r.nodesToRemove) < 1 {
+func (r *removeDuplicateScalarTypeDefinitionVisitor) LeaveDocument(_, _ *ast.Document) {
+	if r.nodesToRemove == nil {
 		return
 	}
 	r.document.DeleteRootNodes(r.nodesToRemove)
