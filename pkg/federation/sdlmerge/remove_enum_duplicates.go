@@ -7,7 +7,7 @@ import (
 
 type removeDuplicateEnumTypeDefinitionVisitor struct {
 	document      *ast.Document
-	enumSet       map[string]*ast.ParentType
+	enumSet       map[string]FieldlessParentType
 	nodesToRemove []ast.Node
 	lastRef       int
 }
@@ -15,7 +15,7 @@ type removeDuplicateEnumTypeDefinitionVisitor struct {
 func newRemoveDuplicateEnumTypeDefinitionVisitor() *removeDuplicateEnumTypeDefinitionVisitor {
 	return &removeDuplicateEnumTypeDefinitionVisitor{
 		nil,
-		make(map[string]*ast.ParentType),
+		make(map[string]FieldlessParentType),
 		nil,
 		ast.InvalidRef,
 	}
@@ -36,14 +36,13 @@ func (r *removeDuplicateEnumTypeDefinitionVisitor) EnterEnumTypeDefinition(ref i
 		return
 	}
 	name := r.document.EnumTypeDefinitionNameString(ref)
-	_, exists := r.enumSet[name]
+	enum, exists := r.enumSet[name]
 	if exists {
+		enum.AppendValueRefs(r.document.EnumTypeDefinitions[ref].EnumValuesDefinition.Refs)
 		r.nodesToRemove = append(r.nodesToRemove, ast.Node{Kind: ast.NodeKindEnumTypeDefinition, Ref: ref})
 	} else {
-		r.enumSet[name] = &ast.ParentType{Ref: ref, ValueRefs: nil}
+		r.enumSet[name] = EnumParentType{&r.document.EnumTypeDefinitions[ref], name}
 	}
-	enum := r.enumSet[name]
-	enum.ValueRefs = append(enum.ValueRefs, r.document.EnumTypeDefinitions[ref].EnumValuesDefinition.Refs...)
 	r.lastRef = ref
 }
 
@@ -54,13 +53,13 @@ func (r *removeDuplicateEnumTypeDefinitionVisitor) LeaveDocument(_, _ *ast.Docum
 	for _, enum := range r.enumSet {
 		valueSet := make(map[string]bool)
 		var valuesToKeep []int
-		for _, ref := range enum.ValueRefs {
+		for _, ref := range enum.ValueRefs() {
 			if !valueSet[r.document.EnumValueDefinitionNameString(ref)] {
 				valueSet[r.document.EnumValueDefinitionNameString(ref)] = true
 				valuesToKeep = append(valuesToKeep, ref)
 			}
 		}
-		enum.ValueRefs = valuesToKeep
+		enum.SetValueRefs(valuesToKeep)
 	}
-	r.document.MergeAndRemoveDuplicateParentTypes(r.nodesToRemove, r.enumSet)
+	r.document.DeleteRootNodesInSingleLoop(r.nodesToRemove)
 }

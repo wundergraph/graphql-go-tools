@@ -7,7 +7,7 @@ import (
 
 type removeDuplicateUnionTypeDefinitionVisitor struct {
 	document      *ast.Document
-	unionSet      map[string]*ast.ParentType
+	unionSet      map[string]FieldlessParentType
 	nodesToRemove []ast.Node
 	lastRef       int
 }
@@ -15,7 +15,7 @@ type removeDuplicateUnionTypeDefinitionVisitor struct {
 func newRemoveDuplicateUnionTypeDefinitionVisitor() *removeDuplicateUnionTypeDefinitionVisitor {
 	return &removeDuplicateUnionTypeDefinitionVisitor{
 		nil,
-		make(map[string]*ast.ParentType),
+		make(map[string]FieldlessParentType),
 		nil,
 		ast.InvalidRef,
 	}
@@ -36,14 +36,13 @@ func (r *removeDuplicateUnionTypeDefinitionVisitor) EnterUnionTypeDefinition(ref
 		return
 	}
 	name := r.document.UnionTypeDefinitionNameString(ref)
-	_, exists := r.unionSet[name]
+	union, exists := r.unionSet[name]
 	if exists {
+		union.AppendValueRefs(r.document.UnionTypeDefinitions[ref].UnionMemberTypes.Refs)
 		r.nodesToRemove = append(r.nodesToRemove, ast.Node{Kind: ast.NodeKindUnionTypeDefinition, Ref: ref})
 	} else {
-		r.unionSet[name] = &ast.ParentType{Ref: ref, ValueRefs: nil}
+		r.unionSet[name] = UnionParentType{&r.document.UnionTypeDefinitions[ref], name}
 	}
-	Union := r.unionSet[name]
-	Union.ValueRefs = append(Union.ValueRefs, r.document.UnionTypeDefinitions[ref].UnionMemberTypes.Refs...)
 	r.lastRef = ref
 }
 
@@ -51,16 +50,16 @@ func (r *removeDuplicateUnionTypeDefinitionVisitor) LeaveDocument(_, _ *ast.Docu
 	if r.nodesToRemove == nil {
 		return
 	}
-	for _, Union := range r.unionSet {
+	for _, union := range r.unionSet {
 		valueSet := make(map[string]bool)
 		var valuesToKeep []int
-		for _, ref := range Union.ValueRefs {
+		for _, ref := range union.ValueRefs() {
 			if !valueSet[r.document.TypeNameString(ref)] {
 				valueSet[r.document.TypeNameString(ref)] = true
 				valuesToKeep = append(valuesToKeep, ref)
 			}
 		}
-		Union.ValueRefs = valuesToKeep
+		union.SetValueRefs(valuesToKeep)
 	}
-	r.document.MergeAndRemoveDuplicateParentTypes(r.nodesToRemove, r.unionSet)
+	r.document.DeleteRootNodesInSingleLoop(r.nodesToRemove)
 }

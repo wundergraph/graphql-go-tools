@@ -103,3 +103,53 @@ func (m *normalizer) normalize(operation *ast.Document) error {
 
 	return nil
 }
+
+type FieldlessParentType interface {
+	Name() string
+	AppendValueRefs(refs []int)
+	ValueRefs() []int
+	SetValueRefs(refs []int)
+}
+
+type EnumParentType struct {
+	*ast.EnumTypeDefinition
+	name string
+}
+
+func (e EnumParentType) Name() string {
+	return e.name
+}
+
+func (e EnumParentType) AppendValueRefs(refs []int) {
+	e.EnumValuesDefinition.Refs = append(e.EnumValuesDefinition.Refs, refs...)
+}
+
+func (e EnumParentType) ValueRefs() []int {
+	return e.EnumValuesDefinition.Refs
+}
+
+func (e EnumParentType) SetValueRefs(refs []int) {
+	e.HasEnumValuesDefinition = true
+	e.EnumValuesDefinition.Refs = refs
+}
+
+type UnionParentType struct {
+	*ast.UnionTypeDefinition
+	name string
+}
+
+func (u UnionParentType) Name() string {
+	return u.name
+}
+
+func (u UnionParentType) AppendValueRefs(refs []int) {
+	u.UnionMemberTypes.Refs = append(u.UnionMemberTypes.Refs, refs...)
+}
+
+func (u UnionParentType) ValueRefs() []int {
+	return u.UnionMemberTypes.Refs
+}
+
+func (u UnionParentType) SetValueRefs(refs []int) {
+	u.UnionMemberTypes.Refs = refs
+}
