@@ -61,5 +61,5 @@ func (r *removeDuplicateEnumTypeDefinitionVisitor) LeaveDocument(_, _ *ast.Docum
 		}
 		enum.SetValueRefs(valuesToKeep)
 	}
-	r.document.DeleteRootNodesInSingleLoop(r.nodesToRemove)
+	r.document.DeleteRootNodesOfSingleNodeKind(r.nodesToRemove)
 }

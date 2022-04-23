@@ -54,12 +54,13 @@ func (r *removeDuplicateUnionTypeDefinitionVisitor) LeaveDocument(_, _ *ast.Docu
 		valueSet := make(map[string]bool)
 		var valuesToKeep []int
 		for _, ref := range union.ValueRefs() {
-			if !valueSet[r.document.TypeNameString(ref)] {
-				valueSet[r.document.TypeNameString(ref)] = true
+			name := r.document.TypeNameString(ref)
+			if !valueSet[name] {
+				valueSet[name] = true
 				valuesToKeep = append(valuesToKeep, ref)
 			}
 		}
 		union.SetValueRefs(valuesToKeep)
 	}
-	r.document.DeleteRootNodesInSingleLoop(r.nodesToRemove)
+	r.document.DeleteRootNodesOfSingleNodeKind(r.nodesToRemove)
 }

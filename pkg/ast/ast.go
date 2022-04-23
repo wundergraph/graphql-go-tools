@@ -202,28 +202,42 @@ func (d *Document) DeleteRootNode(node Node) {
 	}
 }
 
-func removeNodeAtIndexIgnoringOrder(nodes []Node, indexToRemove int) []Node {
-	lastIndex := len(nodes) - 1
-	nodes[indexToRemove] = nodes[lastIndex]
-	return nodes[:lastIndex]
-}
+// removeNodeAtIndexIgnoringOrder efficiently removes a node from a slice at a given index without preserving order.
+//func removeNodeAtIndexIgnoringOrder(nodes []Node, indexToRemove int) []Node {
+//	lastIndex := len(nodes) - 1
+//	nodes[indexToRemove] = nodes[lastIndex]
+//	return nodes[:lastIndex]
+//}
 
-// DeleteRootNodesInSingleLoop loops over the document RootNodes exactly once. The RootNodes are iterated over
-// backwards because they are deleted "live", and so the nodesToRemove are iterated over backwards for efficiency.
-func (d *Document) DeleteRootNodesInSingleLoop(nodesToRemove []Node) {
-	kind := nodesToRemove[0].Kind
-ParentLoop:
+// DeleteRootNodesOfSingleNodeKind loops over the document RootNodes exactly once. The RootNodes are deleted while looping,
+// so they are iterated over backwards; consequently, the ascending nodesToRemove of a single NodeKind are also iterated
+// over backwards to match the order they would appear among the RootNodes.
+func (d *Document) DeleteRootNodesOfSingleNodeKind(rootNodesToRemove []Node) {
+	kind := rootNodesToRemove[0].Kind
 	for i := len(d.RootNodes) - 1; i > -1; i-- {
 		if d.RootNodes[i].Kind != kind {
 			continue
 		}
-		for j := len(nodesToRemove) - 1; j > -1; j-- {
-			if d.RootNodes[i].Ref == nodesToRemove[j].Ref {
-				d.RootNodes = append(d.RootNodes[:i], d.RootNodes[i+1:]...)
-				nodesToRemove = removeNodeAtIndexIgnoringOrder(nodesToRemove, j)
-				continue ParentLoop
+		//for j := len(rootNodesToRemove) - 1; j > -1; j-- {
+		//	if d.RootNodes[i].Ref == rootNodesToRemove[j].Ref {
+		//		d.RootNodes = append(d.RootNodes[:i], d.RootNodes[i+1:]...)
+		//		rootNodesToRemove = removeNodeAtIndexIgnoringOrder(rootNodesToRemove, j)
+		//		break
+		//	}
+		//}
+
+		// The below is more efficient if we are certain the Nodes are in ascending order
+		lastIndex := len(rootNodesToRemove) - 1
+		if d.RootNodes[i].Ref == rootNodesToRemove[lastIndex].Ref {
+			d.RootNodes = append(d.RootNodes[:i], d.RootNodes[i+1:]...)
+			rootNodesToRemove = rootNodesToRemove[:lastIndex]
+			if lastIndex < 1 {
+				return
 			}
 		}
+		//if len(rootNodesToRemove) < 1 {
+		//	return
+		//}
 	}
 }
 
