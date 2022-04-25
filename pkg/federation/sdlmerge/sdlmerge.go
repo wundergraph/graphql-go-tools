@@ -76,9 +76,7 @@ func (m *normalizer) setupWalkers() {
 			newRemoveInterfaceDefinitionDirective("key"),
 			newRemoveObjectTypeDefinitionDirective("key"),
 			newRemoveFieldDefinitionDirective("provides", "requires"),
-			newRemoveDuplicateScalarTypeDefinitionVisitor(),
-			newRemoveDuplicateEnumTypeDefinitionVisitor(),
-			newRemoveDuplicateUnionTypeDefinitionVisitor(),
+			newRemoveDuplicateFieldlessValueTypesVisitor(),
 		},
 	}
 
@@ -104,52 +102,85 @@ func (m *normalizer) normalize(operation *ast.Document) error {
 	return nil
 }
 
-type FieldlessParentType interface {
+type FieldlessValueType interface {
 	Name() string
 	AppendValueRefs(refs []int)
 	ValueRefs() []int
 	SetValueRefs(refs []int)
+	ValueName(r *removeDuplicateFieldlessValueTypesVisitor, ref int) string
 }
 
-type EnumParentType struct {
+type EnumValueType struct {
 	*ast.EnumTypeDefinition
 	name string
 }
 
-func (e EnumParentType) Name() string {
+func (e EnumValueType) Name() string {
 	return e.name
 }
 
-func (e EnumParentType) AppendValueRefs(refs []int) {
+func (e EnumValueType) AppendValueRefs(refs []int) {
 	e.EnumValuesDefinition.Refs = append(e.EnumValuesDefinition.Refs, refs...)
 }
 
-func (e EnumParentType) ValueRefs() []int {
+func (e EnumValueType) ValueRefs() []int {
 	return e.EnumValuesDefinition.Refs
 }
 
-func (e EnumParentType) SetValueRefs(refs []int) {
+func (e EnumValueType) SetValueRefs(refs []int) {
 	e.HasEnumValuesDefinition = true
 	e.EnumValuesDefinition.Refs = refs
 }
 
-type UnionParentType struct {
+func (_ EnumValueType) ValueName(r *removeDuplicateFieldlessValueTypesVisitor, ref int) string {
+	return r.document.EnumValueDefinitionNameString(ref)
+}
+
+type UnionValueType struct {
 	*ast.UnionTypeDefinition
 	name string
 }
 
-func (u UnionParentType) Name() string {
+func (u UnionValueType) Name() string {
 	return u.name
 }
 
-func (u UnionParentType) AppendValueRefs(refs []int) {
+func (u UnionValueType) AppendValueRefs(refs []int) {
 	u.UnionMemberTypes.Refs = append(u.UnionMemberTypes.Refs, refs...)
 }
 
-func (u UnionParentType) ValueRefs() []int {
+func (u UnionValueType) ValueRefs() []int {
 	return u.UnionMemberTypes.Refs
 }
 
-func (u UnionParentType) SetValueRefs(refs []int) {
+func (u UnionValueType) SetValueRefs(refs []int) {
 	u.UnionMemberTypes.Refs = refs
+}
+
+func (_ UnionValueType) ValueName(r *removeDuplicateFieldlessValueTypesVisitor, ref int) string {
+	return r.document.TypeNameString(ref)
+}
+
+type ScalarValueType struct {
+	name string
+}
+
+func (s ScalarValueType) Name() string {
+	return s.name
+}
+
+func (_ ScalarValueType) AppendValueRefs(_ []int) {
+	return
+}
+
+func (_ ScalarValueType) ValueRefs() []int {
+	return nil
+}
+
+func (_ ScalarValueType) SetValueRefs(_ []int) {
+	return
+}
+
+func (_ ScalarValueType) ValueName(_ *removeDuplicateFieldlessValueTypesVisitor, _ int) string {
+	return ""
 }
