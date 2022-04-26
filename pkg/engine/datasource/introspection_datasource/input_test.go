@@ -19,8 +19,8 @@ func TestBuildInput(t *testing.T) {
 
 	t.Run("schema introspection", run(schemaFieldName, `{"request_type":1}`))
 	t.Run("type introspection", run(typeFieldName, `{"request_type":2,"type_name":"{{ .arguments.name }}"}`))
-	t.Run("type fields", run(fieldsFieldName, `{"request_type":3,"on_type_name":{{ .object.name }},"include_deprecated":{{ .arguments.includeDeprecated }}}`))
-	t.Run("type enum values", run(enumValuesFieldName, `{"request_type":4,"on_type_name":{{ .object.name }},"include_deprecated":{{ .arguments.includeDeprecated }}}`))
+	t.Run("type fields", run(fieldsFieldName, `{"request_type":3,"on_type_name":"{{ .object.name }}","include_deprecated":{{ .arguments.includeDeprecated }}}`))
+	t.Run("type enum values", run(enumValuesFieldName, `{"request_type":4,"on_type_name":"{{ .object.name }}","include_deprecated":{{ .arguments.includeDeprecated }}}`))
 }
 
 func TestUnmarshalIntrospectionInput(t *testing.T) {

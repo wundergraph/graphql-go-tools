@@ -418,6 +418,123 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		},
 	))
 
+	t.Run("execute with .object placeholder", runWithoutError(
+		ExecutionEngineV2TestCase{
+			schema: func(t *testing.T) *Schema {
+				t.Helper()
+				schema := `
+					type Query {
+					  getPet(id: ID): Pet
+					  countries: [Country]
+					}
+					
+					type Country {
+					  name: String
+					}
+					
+					type Pet {
+					  id: Int
+					  name: String
+					  status: String
+					  country: Country
+					}
+					
+					type Mutation {
+					  createPet(id: Int, name: String, status: String): Pet
+					}`
+				parseSchema, err := NewSchemaFromString(schema)
+				assert.NoError(t, err)
+				return parseSchema
+			}(t),
+			operation: func(t *testing.T) Request {
+				t.Helper()
+				return Request{
+					OperationName: "MyQuery",
+					Query: `
+						query MyQuery {
+						  getPet(id: 1) {
+							id
+							name
+							country {
+							  name
+							}
+						  }
+						}
+					`,
+				}
+			},
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"getPet"}},
+					},
+					ChildNodes: []plan.TypeField{
+						{TypeName: "Pet", FieldNames: []string{"id", "name", "status"}},
+					},
+					Factory: &rest_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "petstore.swagger.io",
+							expectedPath:     "/v2/pet/1",
+							expectedBody:     "",
+							sendResponseBody: `{"id":1,"category":{"id":1,"name":"string"},"name":"doggie"}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+						Fetch: rest_datasource.FetchConfiguration{
+							URL:    "https://petstore.swagger.io/v2/pet/{{.arguments.id}}",
+							Method: "GET",
+						},
+					}),
+				},
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Pet", FieldNames: []string{"country"}},
+					},
+					ChildNodes: []plan.TypeField{
+						{TypeName: "Country", FieldNames: []string{"name"}},
+					},
+					Factory: &rest_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "rest-countries.example.com",
+							expectedPath:     "/name/doggie",
+							expectedBody:     "",
+							sendResponseBody: `{"name":"Germany"}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+						Fetch: rest_datasource.FetchConfiguration{
+							URL:    "https://rest-countries.example.com/name/{{.object.name}}",
+							Method: "POST",
+						},
+					}),
+				},
+			},
+			fields: []plan.FieldConfiguration{
+				{
+					TypeName:              "Query",
+					FieldName:             "getPet",
+					DisableDefaultMapping: true,
+					Path:                  []string{""},
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "id",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+				{
+					TypeName:              "Pet",
+					FieldName:             "country",
+					DisableDefaultMapping: true,
+					Path:                  []string{""},
+				},
+			},
+			expectedResponse: `{"data":{"getPet":{"id":1,"name":"doggie","country":{"name":"Germany"}}}}`,
+		},
+	))
+
 	t.Run("execute simple hero operation with graphql data source", runWithoutError(
 		ExecutionEngineV2TestCase{
 			schema:    starwarsSchema(t),
