@@ -202,32 +202,6 @@ func (d *Document) DeleteRootNode(node Node) {
 	}
 }
 
-// removeNodeAtIndexIgnoringOrder efficiently removes a node from a slice at a given index without preserving order.
-func removeNodeAtIndexIgnoringOrder(nodes []Node, indexToRemove int) []Node {
-	lastIndex := len(nodes) - 1
-	nodes[indexToRemove] = nodes[lastIndex]
-	return nodes[:lastIndex]
-}
-
-// DeleteRootNodesInSingleLoop loops over the document RootNodes exactly once. The RootNodes are deleted while looping,
-// so they are iterated over backwards; consequently, the ascending nodesToRemove of a single NodeKind are also iterated
-// over backwards to match the order they would appear among the RootNodes.
-func (d *Document) DeleteRootNodesInSingleLoop(rootNodesToRemove []Node) {
-	for i := len(d.RootNodes) - 1; i > -1; i-- {
-		for j := len(rootNodesToRemove) - 1; j > -1; j-- {
-			rootNodeToRemove := rootNodesToRemove[j]
-			if d.RootNodes[i].Kind == rootNodeToRemove.Kind && d.RootNodes[i].Ref == rootNodeToRemove.Ref {
-				d.RootNodes = append(d.RootNodes[:i], d.RootNodes[i+1:]...)
-				rootNodesToRemove = removeNodeAtIndexIgnoringOrder(rootNodesToRemove, j)
-				break
-			}
-		}
-		if len(rootNodesToRemove) < 1 {
-			return
-		}
-	}
-}
-
 func (d *Document) RemoveMergedTypeExtensions() {
 	for _, node := range d.Index.MergedTypeExtensions {
 		d.RemoveRootNode(node)

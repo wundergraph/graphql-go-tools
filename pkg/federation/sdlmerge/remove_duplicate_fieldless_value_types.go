@@ -3,9 +3,11 @@ package sdlmerge
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 type removeDuplicateFieldlessValueTypesVisitor struct {
+	*astvisitor.Walker
 	document          *ast.Document
 	valueTypeSet      map[string]FieldlessValueType
 	rootNodesToRemove []ast.Node
@@ -17,6 +19,7 @@ type removeDuplicateFieldlessValueTypesVisitor struct {
 func newRemoveDuplicateFieldlessValueTypesVisitor() *removeDuplicateFieldlessValueTypesVisitor {
 	return &removeDuplicateFieldlessValueTypesVisitor{
 		nil,
+		nil,
 		make(map[string]FieldlessValueType),
 		nil,
 		ast.InvalidRef,
@@ -26,6 +29,7 @@ func newRemoveDuplicateFieldlessValueTypesVisitor() *removeDuplicateFieldlessVal
 }
 
 func (r *removeDuplicateFieldlessValueTypesVisitor) Register(walker *astvisitor.Walker) {
+	r.Walker = walker
 	walker.RegisterEnterDocumentVisitor(r)
 	walker.RegisterEnterEnumTypeDefinitionVisitor(r)
 	walker.RegisterEnterScalarTypeDefinitionVisitor(r)
@@ -41,13 +45,16 @@ func (r *removeDuplicateFieldlessValueTypesVisitor) EnterEnumTypeDefinition(ref 
 	if ref <= r.lastEnumRef {
 		return
 	}
-	name := r.document.EnumTypeDefinitionNameString(ref)
+	document := r.document
+	name := document.EnumTypeDefinitionNameString(ref)
 	enum, exists := r.valueTypeSet[name]
 	if exists {
-		enum.AppendValueRefs(r.document.EnumTypeDefinitions[ref].EnumValuesDefinition.Refs)
+		if !enum.AreValueRefsIdentical(r, document.EnumTypeDefinitions[ref].EnumValuesDefinition.Refs) {
+			r.StopWithExternalErr(operationreport.ErrFederatingFieldlessValueType(name))
+		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindEnumTypeDefinition, Ref: ref})
 	} else {
-		r.valueTypeSet[name] = EnumValueType{&r.document.EnumTypeDefinitions[ref], name}
+		r.valueTypeSet[name] = NewEnumValueType(r, ref)
 	}
 	r.lastEnumRef = ref
 }
@@ -70,35 +77,22 @@ func (r *removeDuplicateFieldlessValueTypesVisitor) EnterUnionTypeDefinition(ref
 	if ref <= r.lastUnionRef {
 		return
 	}
-	name := r.document.UnionTypeDefinitionNameString(ref)
+	document := r.document
+	name := document.UnionTypeDefinitionNameString(ref)
 	union, exists := r.valueTypeSet[name]
 	if exists {
-		union.AppendValueRefs(r.document.UnionTypeDefinitions[ref].UnionMemberTypes.Refs)
+		if !union.AreValueRefsIdentical(r, document.UnionTypeDefinitions[ref].UnionMemberTypes.Refs) {
+			r.StopWithExternalErr(operationreport.ErrFederatingFieldlessValueType(name))
+		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindUnionTypeDefinition, Ref: ref})
 	} else {
-		r.valueTypeSet[name] = UnionValueType{&r.document.UnionTypeDefinitions[ref], name}
+		r.valueTypeSet[name] = NewUnionValueType(r, ref)
 	}
 	r.lastUnionRef = ref
 }
 
 func (r *removeDuplicateFieldlessValueTypesVisitor) LeaveDocument(_, _ *ast.Document) {
-	if r.rootNodesToRemove == nil {
-		return
+	if r.rootNodesToRemove != nil {
+		r.document.DeleteRootNodes(r.rootNodesToRemove)
 	}
-	for _, valueType := range r.valueTypeSet {
-		if _, ok := valueType.(ScalarValueType); ok {
-			continue
-		}
-		valueSet := make(map[string]bool)
-		var refsToKeep []int
-		for _, ref := range valueType.ValueRefs() {
-			name := valueType.ValueName(r, ref)
-			if !valueSet[name] {
-				valueSet[name] = true
-				refsToKeep = append(refsToKeep, ref)
-			}
-		}
-		valueType.SetValueRefs(refsToKeep)
-	}
-	r.document.DeleteRootNodesInSingleLoop(r.rootNodesToRemove)
 }

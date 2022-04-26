@@ -1,6 +1,9 @@
 package sdlmerge
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestRemoveDuplicateFieldlessValueTypes(t *testing.T) {
 	t.Run("Input and output are identical when no duplications", func(t *testing.T) {
@@ -41,8 +44,8 @@ func TestRemoveDuplicateFieldlessValueTypes(t *testing.T) {
 					`)
 	})
 
-	t.Run("Same name enums with different values are merged", func(t *testing.T) {
-		run(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
+	t.Run("Same name enums with different values return an error", func(t *testing.T) {
+		runAndExpectError(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
 					enum Pokemon {
 						BULBASAUR,
 						CHARMANDER,
@@ -55,18 +58,13 @@ func TestRemoveDuplicateFieldlessValueTypes(t *testing.T) {
 						SQUIRTLE,
 						MEW,
 					}
-					 `, `
-					enum Pokemon {
-						BULBASAUR,
-						CHARMANDER,
-						SQUIRTLE,
-						MEW,
-					}
-					`)
+					 `,
+			federatingFieldlessValueTypeErrorMessage(pokemon),
+		)
 	})
 
-	t.Run("Empty enums are merged into populated enums where possible", func(t *testing.T) {
-		run(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
+	t.Run("Empty and populated same name enums return an error", func(t *testing.T) {
+		runAndExpectError(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
 					enum Pokemon {
 					}
 
@@ -74,12 +72,9 @@ func TestRemoveDuplicateFieldlessValueTypes(t *testing.T) {
 						CHARMANDER,
 						SQUIRTLE,
 					}
-					 `, `
-					enum Pokemon {
-						CHARMANDER,
-						SQUIRTLE,
-					}
-					`)
+					 `,
+			federatingFieldlessValueTypeErrorMessage(pokemon),
+		)
 	})
 
 	t.Run("Empty enums are merged into a single empty enum", func(t *testing.T) {
@@ -95,8 +90,8 @@ func TestRemoveDuplicateFieldlessValueTypes(t *testing.T) {
 					`)
 	})
 
-	t.Run("Same named enums with no overlapping values are merged", func(t *testing.T) {
-		run(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
+	t.Run("Same name enums with no overlapping values return an error", func(t *testing.T) {
+		runAndExpectError(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
 					enum Pokemon {
 						BULBASAUR,
 						CHARMANDER,
@@ -106,18 +101,13 @@ func TestRemoveDuplicateFieldlessValueTypes(t *testing.T) {
 						SQUIRTLE,
 						MEW,
 					}
-					 `, `
-					enum Pokemon {
-						BULBASAUR,
-						CHARMANDER,
-						SQUIRTLE,
-						MEW,
-					}
-					`)
+					 `,
+			federatingFieldlessValueTypeErrorMessage(pokemon),
+		)
 	})
 
-	t.Run("Same named enums with varying overlapping values are merged", func(t *testing.T) {
-		run(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
+	t.Run("Same name enums with varying overlapping values return an error", func(t *testing.T) {
+		runAndExpectError(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
 					enum Pokemon {
 						BULBASAUR,
 						CHARMANDER,
@@ -137,18 +127,13 @@ func TestRemoveDuplicateFieldlessValueTypes(t *testing.T) {
 						BULBASAUR,
 						SQUIRTLE,
 					}
-					 `, `
-					enum Pokemon {
-						BULBASAUR,
-						CHARMANDER,
-						MEW,
-						SQUIRTLE,
-					}
-					`)
+					 `,
+			federatingFieldlessValueTypeErrorMessage(pokemon),
+		)
 	})
 
-	t.Run("Different groups of same named enums are all merged correctly", func(t *testing.T) {
-		run(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
+	t.Run("Different groups of same name enums return an error immediately upon invalidation", func(t *testing.T) {
+		runAndExpectError(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
 					enum Cities {
 						CERULEAN,
 						SAFFRON,
@@ -223,35 +208,12 @@ func TestRemoveDuplicateFieldlessValueTypes(t *testing.T) {
 						CERULEAN,
 						CELADON,
 					}
-					 `, `
-					enum Cities {
-						CERULEAN,
-						SAFFRON,
-						VIRIDIAN,
-						CELADON,
-					}
-
-					enum Types {
-						GRASS,
-						FIRE,
-						ROCK,
-						WATER,
-					}
-
-					enum Badges {
-						BOULDER,
-						VOLCANO,
-						EARTH,
-						MARSH,
-						SOUL,
-						THUNDER,
-						RAINBOW,
-						CASCADE,
-					}
-					`)
+					 `,
+			federatingFieldlessValueTypeErrorMessage(types),
+		)
 	})
 
-	t.Run("Input and output are identical when no duplications", func(t *testing.T) {
+	t.Run("Input and output are identical when no scalar duplications", func(t *testing.T) {
 		run(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
 					scalar DateTime
 					 `, `
@@ -259,7 +221,7 @@ func TestRemoveDuplicateFieldlessValueTypes(t *testing.T) {
 					`)
 	})
 
-	t.Run("Same named scalars are removed to leave only one", func(t *testing.T) {
+	t.Run("Same name scalars are removed to leave only one", func(t *testing.T) {
 		run(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
 					scalar DateTime
 	
@@ -271,7 +233,7 @@ func TestRemoveDuplicateFieldlessValueTypes(t *testing.T) {
 					`)
 	})
 
-	t.Run("Any more than one of a same named scalar are removed", func(t *testing.T) {
+	t.Run("Any more than one of a same name scalar are removed", func(t *testing.T) {
 		run(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
 					scalar DateTime
 
@@ -315,7 +277,7 @@ func TestRemoveDuplicateFieldlessValueTypes(t *testing.T) {
 					`)
 	})
 
-	t.Run("Identical same named unions are merged", func(t *testing.T) {
+	t.Run("Identical same name unions are merged", func(t *testing.T) {
 		run(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
 					union Types = Grass | Fire | Water
 	
@@ -325,28 +287,28 @@ func TestRemoveDuplicateFieldlessValueTypes(t *testing.T) {
 					`)
 	})
 
-	t.Run("Same name unions with different values are merged", func(t *testing.T) {
-		run(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
+	t.Run("Same name unions with different values return an error", func(t *testing.T) {
+		runAndExpectError(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
 					union Types = Grass | Fire | Water
 	
 					union Types = Grass | Fire | Water | Rock
-					 `, `
-					union Types = Grass | Fire | Water | Rock
-					`)
+					`,
+			federatingFieldlessValueTypeErrorMessage(types),
+		)
 	})
 
-	t.Run("Same named unions with no overlapping values are merged", func(t *testing.T) {
-		run(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
+	t.Run("Same name unions with no overlapping values return an error", func(t *testing.T) {
+		runAndExpectError(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
 					union Types = Grass | Fire
 	
 					union Types = Water | Rock
-					 `, `
-					union Types = Grass | Fire | Water | Rock
-					`)
+					`,
+			federatingFieldlessValueTypeErrorMessage(types),
+		)
 	})
 
-	t.Run("Same named unions with varying overlapping values are merged", func(t *testing.T) {
-		run(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
+	t.Run("Same name unions with varying overlapping values return an error", func(t *testing.T) {
+		runAndExpectError(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
 					union Types = Grass | Fire
 	
 					union Types = Fire | Water
@@ -354,19 +316,17 @@ func TestRemoveDuplicateFieldlessValueTypes(t *testing.T) {
 					union Types = Rock | Grass
 	
 					union Types = Water | Fire
-					 `, `
-					union Types = Grass | Fire | Water | Rock
-					`)
+					`,
+			federatingFieldlessValueTypeErrorMessage(types),
+		)
 	})
 
-	t.Run("Different groups of same named unions are all merged correctly", func(t *testing.T) {
-		run(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
+	t.Run("Different groups of same name unions return an error immediately upon invalidation", func(t *testing.T) {
+		runAndExpectError(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
 					union Cities = Cerulean | Saffron
 
 					union Types = Grass | Fire | Rock
 	
-					union Types = Fire | Water
-					
 					union Badges = Boulder | Volcano | Earth
 
 					union Cities = Viridian | Saffron | Celadon
@@ -382,12 +342,18 @@ func TestRemoveDuplicateFieldlessValueTypes(t *testing.T) {
 					union Badges = Earth | Thunder
 
 					union Cities = Cerulean | Celadon
-					 `, `
-					union Cities = Cerulean | Saffron | Viridian | Celadon
-
-					union Types = Grass | Fire | Rock | Water
-
-					union Badges = Boulder | Volcano | Earth | Marsh | Soul | Thunder | Rainbow | Cascade
-					`)
+					`,
+			federatingFieldlessValueTypeErrorMessage(cities),
+		)
 	})
+}
+
+const (
+	cities  = "Cities"
+	pokemon = "Pokemon"
+	types   = "Types"
+)
+
+func federatingFieldlessValueTypeErrorMessage(typeName string) string {
+	return fmt.Sprintf("external: the value type named '%s' must be identical in each subgraph to federate, locations: [], path: []", typeName)
 }

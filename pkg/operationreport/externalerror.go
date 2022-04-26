@@ -263,3 +263,8 @@ func ErrImplementingTypeDoesNotHaveFields(typeName ast.ByteSlice) (err ExternalE
 	err.Message = fmt.Sprintf("type '%s' implements an interface but does not have any fields defined", typeName)
 	return err
 }
+
+func ErrFederatingFieldlessValueType(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the value type named '%s' must be identical in each subgraph to federate", typeName)
+	return err
+}

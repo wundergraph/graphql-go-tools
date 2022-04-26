@@ -40,6 +40,24 @@ var run = func(t *testing.T, visitor Visitor, operation, expectedOutput string) 
 	assert.Equal(t, want, got)
 }
 
+var runAndExpectError = func(t *testing.T, visitor Visitor, operation, expectedError string) {
+
+	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
+	report := operationreport.Report{}
+	walker := astvisitor.NewWalker(48)
+
+	visitor.Register(&walker)
+
+	walker.Walk(&operationDocument, nil, &report)
+
+	var got string
+	if report.HasErrors() {
+		got = report.Error()
+	}
+
+	assert.Equal(t, expectedError, got)
+}
+
 func runMany(t *testing.T, operation, expectedOutput string, visitors ...Visitor) {
 	run(t, composeVisitor(visitors), operation, expectedOutput)
 }
