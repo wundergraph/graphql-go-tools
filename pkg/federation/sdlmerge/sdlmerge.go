@@ -102,6 +102,69 @@ func (m *normalizer) normalize(operation *ast.Document) error {
 	return nil
 }
 
+type FieldedValueType interface {
+	FieldRefs() []int
+	FieldName(ref int) string
+	FieldTypeName(ref int) string
+	AreFieldsIdentical(fieldRefsToCompare []int) bool
+}
+
+type InterfaceValueType struct {
+	*ast.InterfaceTypeDefinition
+	document *ast.Document
+	fieldSet map[string]string
+}
+
+func createFieldSet(f FieldedValueType) map[string]string {
+	fieldSet := make(map[string]string)
+	for _, fieldRef := range f.FieldRefs() {
+		fieldSet[f.FieldName(fieldRef)] = f.FieldTypeName(fieldRef)
+	}
+	return fieldSet
+}
+
+func NewInterfaceValueType(document *ast.Document, ref int) InterfaceValueType {
+	i := InterfaceValueType{
+		&document.InterfaceTypeDefinitions[ref],
+		document,
+		nil,
+	}
+	i.fieldSet = createFieldSet(i)
+	return i
+}
+
+func (i InterfaceValueType) FieldRefs() []int {
+	return i.FieldsDefinition.Refs
+}
+
+func (i InterfaceValueType) FieldName(ref int) string {
+	return i.document.FieldDefinitionNameString(ref)
+}
+
+func (i InterfaceValueType) FieldTypeName(ref int) string {
+	document := i.document
+	typeRef := document.FieldDefinitions[ref].Type
+	return document.TypeNameString(typeRef)
+}
+
+func (i InterfaceValueType) AreFieldsIdentical(fieldRefsToCompare []int) bool {
+	if len(i.FieldRefs()) != len(fieldRefsToCompare) {
+		return false
+	}
+	for _, fieldRef := range fieldRefsToCompare {
+		actualFieldName := i.FieldName(fieldRef)
+		expectedTypeName, exists := i.fieldSet[actualFieldName]
+		if !exists {
+			return false
+		}
+		actualTypeName := i.FieldTypeName(fieldRef)
+		if expectedTypeName != actualTypeName {
+			return false
+		}
+	}
+	return true
+}
+
 type FieldlessValueType interface {
 	AreValuesIdentical(valueRefsToCompare []int) bool
 	valueRefs() []int
