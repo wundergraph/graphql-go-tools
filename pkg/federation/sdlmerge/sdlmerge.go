@@ -103,46 +103,41 @@ func (m *normalizer) normalize(operation *ast.Document) error {
 }
 
 type FieldlessValueType interface {
-	ValueRefs() []int
-	AreValuesIdentical(r *removeDuplicateFieldlessValueTypesVisitor, valueRefsToCompare []int) bool
-	ValueName(r *removeDuplicateFieldlessValueTypesVisitor, ref int) string
+	AreValuesIdentical(valueRefsToCompare []int) bool
+	valueRefs() []int
+	valueName(ref int) string
 }
 
-type EnumValueType struct {
-	*ast.EnumTypeDefinition
-	name     string
-	valueSet map[string]bool
-}
-
-func createValueSet(r *removeDuplicateFieldlessValueTypesVisitor, f FieldlessValueType) map[string]bool {
+func createValueSet(f FieldlessValueType) map[string]bool {
 	valueSet := make(map[string]bool)
-	for _, valueRef := range f.ValueRefs() {
-		valueSet[f.ValueName(r, valueRef)] = true
+	for _, valueRef := range f.valueRefs() {
+		valueSet[f.valueName(valueRef)] = true
 	}
 	return valueSet
 }
 
-func NewEnumValueType(r *removeDuplicateFieldlessValueTypesVisitor, ref int) EnumValueType {
-	document := r.document
+type EnumValueType struct {
+	*ast.EnumTypeDefinition
+	document *ast.Document
+	valueSet map[string]bool
+}
+
+func NewEnumValueType(document *ast.Document, ref int) EnumValueType {
 	e := EnumValueType{
 		&document.EnumTypeDefinitions[ref],
-		document.EnumTypeDefinitionNameString(ref),
+		document,
 		nil,
 	}
-	e.valueSet = createValueSet(r, e)
+	e.valueSet = createValueSet(e)
 	return e
 }
 
-func (e EnumValueType) ValueRefs() []int {
-	return e.EnumValuesDefinition.Refs
-}
-
-func (e EnumValueType) AreValuesIdentical(r *removeDuplicateFieldlessValueTypesVisitor, valueRefsToCompare []int) bool {
-	if len(e.ValueRefs()) != len(valueRefsToCompare) {
+func (e EnumValueType) AreValuesIdentical(valueRefsToCompare []int) bool {
+	if len(e.valueRefs()) != len(valueRefsToCompare) {
 		return false
 	}
-	for _, refToCompare := range valueRefsToCompare {
-		name := e.ValueName(r, refToCompare)
+	for _, valueRefToCompare := range valueRefsToCompare {
+		name := e.valueName(valueRefToCompare)
 		if !e.valueSet[name] {
 			return false
 		}
@@ -150,33 +145,36 @@ func (e EnumValueType) AreValuesIdentical(r *removeDuplicateFieldlessValueTypesV
 	return true
 }
 
-func (_ EnumValueType) ValueName(r *removeDuplicateFieldlessValueTypesVisitor, ref int) string {
-	return r.document.EnumValueDefinitionNameString(ref)
+func (e EnumValueType) valueRefs() []int {
+	return e.EnumValuesDefinition.Refs
+}
+
+func (e EnumValueType) valueName(ref int) string {
+	return e.document.EnumValueDefinitionNameString(ref)
 }
 
 type UnionValueType struct {
 	*ast.UnionTypeDefinition
-	name     string
+	document *ast.Document
 	valueSet map[string]bool
 }
 
-func NewUnionValueType(r *removeDuplicateFieldlessValueTypesVisitor, ref int) UnionValueType {
-	document := r.document
+func NewUnionValueType(document *ast.Document, ref int) UnionValueType {
 	u := UnionValueType{
 		&document.UnionTypeDefinitions[ref],
-		document.UnionTypeDefinitionNameString(ref),
+		document,
 		nil,
 	}
-	u.valueSet = createValueSet(r, u)
+	u.valueSet = createValueSet(u)
 	return u
 }
 
-func (u UnionValueType) AreValuesIdentical(r *removeDuplicateFieldlessValueTypesVisitor, valueRefsToCompare []int) bool {
-	if len(u.ValueRefs()) != len(valueRefsToCompare) {
+func (u UnionValueType) AreValuesIdentical(valueRefsToCompare []int) bool {
+	if len(u.valueRefs()) != len(valueRefsToCompare) {
 		return false
 	}
 	for _, refToCompare := range valueRefsToCompare {
-		name := u.ValueName(r, refToCompare)
+		name := u.valueName(refToCompare)
 		if !u.valueSet[name] {
 			return false
 		}
@@ -184,26 +182,25 @@ func (u UnionValueType) AreValuesIdentical(r *removeDuplicateFieldlessValueTypes
 	return true
 }
 
-func (u UnionValueType) ValueRefs() []int {
+func (u UnionValueType) valueRefs() []int {
 	return u.UnionMemberTypes.Refs
 }
 
-func (_ UnionValueType) ValueName(r *removeDuplicateFieldlessValueTypesVisitor, ref int) string {
-	return r.document.TypeNameString(ref)
+func (u UnionValueType) valueName(ref int) string {
+	return u.document.TypeNameString(ref)
 }
 
 type ScalarValueType struct {
-	name string
 }
 
-func (_ ScalarValueType) ValueRefs() []int {
-	return nil
-}
-
-func (_ ScalarValueType) AreValuesIdentical(_ *removeDuplicateFieldlessValueTypesVisitor, _ []int) bool {
+func (_ ScalarValueType) AreValuesIdentical(_ []int) bool {
 	return true
 }
 
-func (_ ScalarValueType) ValueName(_ *removeDuplicateFieldlessValueTypesVisitor, _ int) string {
+func (_ ScalarValueType) valueRefs() []int {
+	return nil
+}
+
+func (_ ScalarValueType) valueName(_ int) string {
 	return ""
 }

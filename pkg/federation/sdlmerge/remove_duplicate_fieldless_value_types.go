@@ -49,12 +49,12 @@ func (r *removeDuplicateFieldlessValueTypesVisitor) EnterEnumTypeDefinition(ref 
 	name := document.EnumTypeDefinitionNameString(ref)
 	enum, exists := r.valueTypeSet[name]
 	if exists {
-		if !enum.AreValuesIdentical(r, document.EnumTypeDefinitions[ref].EnumValuesDefinition.Refs) {
+		if !enum.AreValuesIdentical(document.EnumTypeDefinitions[ref].EnumValuesDefinition.Refs) {
 			r.StopWithExternalErr(operationreport.ErrDuplicateValueTypesMustBeIdenticalToFederate(name))
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindEnumTypeDefinition, Ref: ref})
 	} else {
-		r.valueTypeSet[name] = NewEnumValueType(r, ref)
+		r.valueTypeSet[name] = NewEnumValueType(document, ref)
 	}
 	r.lastEnumRef = ref
 }
@@ -68,7 +68,7 @@ func (r *removeDuplicateFieldlessValueTypesVisitor) EnterScalarTypeDefinition(re
 	if exists {
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindScalarTypeDefinition, Ref: ref})
 	} else {
-		r.valueTypeSet[name] = ScalarValueType{name}
+		r.valueTypeSet[name] = ScalarValueType{}
 	}
 	r.lastScalarRef = ref
 }
@@ -81,12 +81,12 @@ func (r *removeDuplicateFieldlessValueTypesVisitor) EnterUnionTypeDefinition(ref
 	name := document.UnionTypeDefinitionNameString(ref)
 	union, exists := r.valueTypeSet[name]
 	if exists {
-		if !union.AreValuesIdentical(r, document.UnionTypeDefinitions[ref].UnionMemberTypes.Refs) {
+		if !union.AreValuesIdentical(document.UnionTypeDefinitions[ref].UnionMemberTypes.Refs) {
 			r.StopWithExternalErr(operationreport.ErrDuplicateValueTypesMustBeIdenticalToFederate(name))
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindUnionTypeDefinition, Ref: ref})
 	} else {
-		r.valueTypeSet[name] = NewUnionValueType(r, ref)
+		r.valueTypeSet[name] = NewUnionValueType(document, ref)
 	}
 	r.lastUnionRef = ref
 }
