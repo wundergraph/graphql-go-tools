@@ -264,7 +264,7 @@ func ErrImplementingTypeDoesNotHaveFields(typeName ast.ByteSlice) (err ExternalE
 	return err
 }
 
-func ErrFederatingFieldlessValueType(typeName string) (err ExternalError) {
-	err.Message = fmt.Sprintf("the value type named '%s' must be identical in each subgraph to federate", typeName)
+func ErrDuplicateValueTypesMustBeIdenticalToFederate(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the value type named '%s' must be identical in any subgraphs to federate", typeName)
 	return err
 }

@@ -49,8 +49,8 @@ func (r *removeDuplicateFieldlessValueTypesVisitor) EnterEnumTypeDefinition(ref 
 	name := document.EnumTypeDefinitionNameString(ref)
 	enum, exists := r.valueTypeSet[name]
 	if exists {
-		if !enum.AreValueRefsIdentical(r, document.EnumTypeDefinitions[ref].EnumValuesDefinition.Refs) {
-			r.StopWithExternalErr(operationreport.ErrFederatingFieldlessValueType(name))
+		if !enum.AreValuesIdentical(r, document.EnumTypeDefinitions[ref].EnumValuesDefinition.Refs) {
+			r.StopWithExternalErr(operationreport.ErrDuplicateValueTypesMustBeIdenticalToFederate(name))
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindEnumTypeDefinition, Ref: ref})
 	} else {
@@ -81,8 +81,8 @@ func (r *removeDuplicateFieldlessValueTypesVisitor) EnterUnionTypeDefinition(ref
 	name := document.UnionTypeDefinitionNameString(ref)
 	union, exists := r.valueTypeSet[name]
 	if exists {
-		if !union.AreValueRefsIdentical(r, document.UnionTypeDefinitions[ref].UnionMemberTypes.Refs) {
-			r.StopWithExternalErr(operationreport.ErrFederatingFieldlessValueType(name))
+		if !union.AreValuesIdentical(r, document.UnionTypeDefinitions[ref].UnionMemberTypes.Refs) {
+			r.StopWithExternalErr(operationreport.ErrDuplicateValueTypesMustBeIdenticalToFederate(name))
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindUnionTypeDefinition, Ref: ref})
 	} else {

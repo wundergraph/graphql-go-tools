@@ -1,6 +1,7 @@
 package sdlmerge
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -86,6 +87,14 @@ func TestMergeSDLs(t *testing.T) {
 		}
 	}
 
+	runMergeTestAndExpectError := func(expectedError string, sdls ...string) func(t *testing.T) {
+		return func(t *testing.T) {
+			_, err := MergeSDLs(sdls...)
+
+			assert.Equal(t, expectedError, err.Error())
+		}
+	}
+
 	t.Run("should merge all sdls successfully", runMergeTest(
 		federatedSchema,
 		accountSchema, productSchema, reviewSchema, likeSchema, disLikeSchema, paymentSchema, onlinePaymentSchema, classicPaymentSchema,
@@ -100,6 +109,16 @@ func TestMergeSDLs(t *testing.T) {
 		productAndExtendsDirectivesFederatedSchema,
 		productSchema, extendsDirectivesSchema,
 	))
+
+	t.Run("Non-identical duplicate enums should return an error", runMergeTestAndExpectError(
+		FederatingFieldlessValueTypeMergeErrorMessage("Satisfaction"),
+		productSchema, negativeTestingLikeSchema,
+	))
+
+	t.Run("Non-identical duplicate unions should return an error", runMergeTestAndExpectError(
+		FederatingFieldlessValueTypeMergeErrorMessage("AlphaNumeric"),
+		accountSchema, negativeTestingReviewSchema,
+	))
 }
 
 const (
@@ -107,6 +126,8 @@ const (
 		extend type Query {
 			me: User
 		}
+
+		union AlphaNumeric = Int | String
 
 		scalar DateTime
 
@@ -118,13 +139,31 @@ const (
 			created: DateTime!
 			reputation: CustomScalar!
 		}
+
+		enum Satisfaction {
+			Happy,
+			Neutral,
+			Unhappy,
+		}
 	`
 
 	productSchema = `
+		enum Satisfaction {
+			Happy,
+			Neutral,
+			Unhappy,
+		}
+
 		scalar CustomScalar
 
 		extend type Query {
 			topProducts(first: Int = 5): [Product]
+		}
+
+		enum Department {
+			Cosmetics,
+			Electronics,
+			Groceries,
 		}
 
 		scalar BigInt
@@ -145,6 +184,13 @@ const (
 			author: User! @provides(fields: "username")
 			product: Product!
 			created: DateTime!
+			inputType: AlphaNumeric!
+		}
+		
+		enum Department {
+			Cosmetics,
+			Electronics,
+			Groceries,
 		}
 		
 		extend type User @key(fields: "id") {
@@ -159,10 +205,61 @@ const (
 			sales: BigInt!
 		}
 
+		union AlphaNumeric = Int | String
+		
+		enum Satisfaction {
+			Happy,
+			Neutral,
+			Unhappy,
+		}
+
 		extend type Subscription {
 			review: Review!
 		}
 	`
+
+	negativeTestingReviewSchema = `
+		scalar DateTime
+
+		type Review {
+			body: String!
+			author: User! @provides(fields: "username")
+			product: Product!
+			created: DateTime!
+			inputType: AlphaNumeric!
+		}
+		
+		enum Department {
+			Cosmetics,
+			Electronics,
+			Groceries,
+		}
+		
+		extend type User @key(fields: "id") {
+			id: ID! @external
+			reviews: [Review]
+		}
+
+		extend type Product @key(fields: "upc") {
+			upc: String! @external
+			name: String! @external
+			reviews: [Review] @requires(fields: "name")
+			sales: BigInt!
+		}
+
+		union AlphaNumeric = BigInt | String
+		
+		enum Satisfaction {
+			Happy,
+			Neutral,
+			Unhappy,
+		}
+
+		extend type Subscription {
+			review: Review!
+		}
+	`
+
 	likeSchema = `
 		scalar DateTime
 
@@ -172,24 +269,69 @@ const (
 			userId: ID!
 			date: DateTime!
 		}
+		
+		enum Satisfaction {
+			Happy,
+			Neutral,
+			Unhappy,
+		}
+
 		type Query {
 			likesCount(productID: ID!): Int!
 			likes(productID: ID!): [Like]!
 		}
 	`
+	negativeTestingLikeSchema = `
+		scalar DateTime
+
+		type Like @key(fields: "id") {
+			id: ID!
+			productId: ID!
+			userId: ID!
+			date: DateTime!
+		}
+		
+		enum Satisfaction {
+			Happy,
+			Neutral,
+			Unhappy,
+			Devastated,
+		}
+
+		type Query {
+			likesCount(productID: ID!): Int!
+			likes(productID: ID!): [Like]!
+		}
+	`
+
 	disLikeSchema = `
 		type Like @key(fields: "id") @extends {
 			id: ID! @external
 			isDislike: Boolean!
 		}
+
+		enum Satisfaction {
+			Happy,
+			Neutral,
+			Unhappy,
+		}
+
 	`
 	paymentSchema = `
+		enum Satisfaction {
+			Happy,
+			Neutral,
+			Unhappy,
+		}
+
 		interface PaymentType {
 			name: String!
 		}
 	`
 	onlinePaymentSchema = `
 		scalar DateTime
+
+		union AlphaNumeric = Int | String
 
 		scalar BigInt
 
@@ -198,8 +340,16 @@ const (
 			date: DateTime!
 			amount: BigInt!
 		}
+
+		enum Satisfaction {
+			Happy,
+			Neutral,
+			Unhappy,
+		}
 	`
 	classicPaymentSchema = `
+		union AlphaNumeric = Int | String
+
 		scalar CustomScalar
 
 		extend interface PaymentType {
@@ -221,6 +371,8 @@ const (
 			comments: [Comment]
 		}
 
+		union AlphaNumeric = Int | String
+
 		interface PaymentType @extends {
 			name: String!
 		}
@@ -237,6 +389,8 @@ const (
 			review: Review!
 		}
 
+		union AlphaNumeric = Int | String
+
 		scalar DateTime
 
 		scalar CustomScalar
@@ -247,6 +401,18 @@ const (
 			created: DateTime!
 			reputation: CustomScalar!
 			reviews: [Review]
+		}
+		
+		enum Satisfaction {
+			Happy,
+			Neutral,
+			Unhappy,
+		}
+
+		enum Department {
+			Cosmetics,
+			Electronics,
+			Groceries,
 		}
 		
 		scalar BigInt
@@ -266,7 +432,9 @@ const (
 			author: User!
 			product: Product!
 			created: DateTime!
+			inputType: AlphaNumeric!
 		}
+
 		type Like {
 			id: ID!
 			productId: ID!
@@ -294,8 +462,20 @@ const (
 			review: Review!
 		}
 		
+		enum Satisfaction {
+			Happy,
+			Neutral,
+			Unhappy,
+		}
+		
 		scalar CustomScalar
 		
+		enum Department {
+			Cosmetics,
+			Electronics,
+			Groceries,
+		}
+
 		scalar BigInt
 
 		type Product {
@@ -315,12 +495,15 @@ const (
 			author: User!
 			product: Product!
 			created: DateTime!
+			inputType: AlphaNumeric!
 		}
 		
 		extend type User @key(fields: "id") {
 			id: ID! @external
 			reviews: [Review]
 		}
+
+		union AlphaNumeric = Int | String
 	`
 
 	productAndExtendsDirectivesFederatedSchema = `
@@ -328,7 +511,19 @@ const (
 			topProducts(first: Int = 5): [Product]
 		}
 
+		enum Satisfaction {
+			Happy,
+			Neutral,
+			Unhappy,
+		}
+
 		scalar CustomScalar
+
+		enum Department {
+			Cosmetics,
+			Electronics,
+			Groceries,
+		}
 
 		scalar BigInt
 		
@@ -340,7 +535,7 @@ const (
 			reputation: CustomScalar!
 		}
 
-	scalar DateTime
+		scalar DateTime
 
 		type Comment {
 			body: String!
@@ -353,8 +548,18 @@ const (
 			comments: [Comment]
 		}
 
+		union AlphaNumeric = Int | String
+
 		extend interface PaymentType {
 			name: String!
 		}
 	`
 )
+
+func FederatingFieldlessValueTypeErrorMessage(typeName string) string {
+	return fmt.Sprintf("external: the value type named '%s' must be identical in any subgraphs to federate, locations: [], path: []", typeName)
+}
+
+func FederatingFieldlessValueTypeMergeErrorMessage(typeName string) string {
+	return fmt.Sprintf("merge ast: walk: external: the value type named '%s' must be identical in any subgraphs to federate, locations: [], path: []", typeName)
+}

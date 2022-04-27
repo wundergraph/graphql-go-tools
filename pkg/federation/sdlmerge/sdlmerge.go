@@ -104,7 +104,7 @@ func (m *normalizer) normalize(operation *ast.Document) error {
 
 type FieldlessValueType interface {
 	ValueRefs() []int
-	AreValueRefsIdentical(r *removeDuplicateFieldlessValueTypesVisitor, refsToCompare []int) bool
+	AreValuesIdentical(r *removeDuplicateFieldlessValueTypesVisitor, valueRefsToCompare []int) bool
 	ValueName(r *removeDuplicateFieldlessValueTypesVisitor, ref int) string
 }
 
@@ -137,11 +137,11 @@ func (e EnumValueType) ValueRefs() []int {
 	return e.EnumValuesDefinition.Refs
 }
 
-func (e EnumValueType) AreValueRefsIdentical(r *removeDuplicateFieldlessValueTypesVisitor, refsToCompare []int) bool {
-	if len(e.ValueRefs()) != len(refsToCompare) {
+func (e EnumValueType) AreValuesIdentical(r *removeDuplicateFieldlessValueTypesVisitor, valueRefsToCompare []int) bool {
+	if len(e.ValueRefs()) != len(valueRefsToCompare) {
 		return false
 	}
-	for _, refToCompare := range refsToCompare {
+	for _, refToCompare := range valueRefsToCompare {
 		name := e.ValueName(r, refToCompare)
 		if !e.valueSet[name] {
 			return false
@@ -171,11 +171,11 @@ func NewUnionValueType(r *removeDuplicateFieldlessValueTypesVisitor, ref int) Un
 	return u
 }
 
-func (u UnionValueType) AreValueRefsIdentical(r *removeDuplicateFieldlessValueTypesVisitor, refsToCompare []int) bool {
-	if len(u.ValueRefs()) != len(refsToCompare) {
+func (u UnionValueType) AreValuesIdentical(r *removeDuplicateFieldlessValueTypesVisitor, valueRefsToCompare []int) bool {
+	if len(u.ValueRefs()) != len(valueRefsToCompare) {
 		return false
 	}
-	for _, refToCompare := range refsToCompare {
+	for _, refToCompare := range valueRefsToCompare {
 		name := u.ValueName(r, refToCompare)
 		if !u.valueSet[name] {
 			return false
@@ -200,7 +200,7 @@ func (_ ScalarValueType) ValueRefs() []int {
 	return nil
 }
 
-func (_ ScalarValueType) AreValueRefsIdentical(_ *removeDuplicateFieldlessValueTypesVisitor, _ []int) bool {
+func (_ ScalarValueType) AreValuesIdentical(_ *removeDuplicateFieldlessValueTypesVisitor, _ []int) bool {
 	return true
 }
 
