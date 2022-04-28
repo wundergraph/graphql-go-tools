@@ -42,7 +42,6 @@ var run = func(t *testing.T, visitor Visitor, operation, expectedOutput string) 
 }
 
 var runAndExpectError = func(t *testing.T, visitor Visitor, operation, expectedError string) {
-
 	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
 	report := operationreport.Report{}
 	walker := astvisitor.NewWalker(48)
@@ -111,12 +110,12 @@ func TestMergeSDLs(t *testing.T) {
 	))
 
 	t.Run("Non-identical duplicate enums should return an error", runMergeTestAndExpectError(
-		FederatingFieldlessValueTypeMergeErrorMessage("Satisfaction"),
+		FederatingValueTypeMergeErrorMessage("Satisfaction"),
 		productSchema, negativeTestingLikeSchema,
 	))
 
 	t.Run("Non-identical duplicate unions should return an error", runMergeTestAndExpectError(
-		FederatingFieldlessValueTypeMergeErrorMessage("AlphaNumeric"),
+		FederatingValueTypeMergeErrorMessage("AlphaNumeric"),
 		accountSchema, negativeTestingReviewSchema,
 	))
 }
@@ -556,10 +555,10 @@ const (
 	`
 )
 
-func FederatingFieldlessValueTypeErrorMessage(typeName string) string {
+func FederatingValueTypeErrorMessage(typeName string) string {
 	return fmt.Sprintf("external: the value type named '%s' must be identical in any subgraphs to federate, locations: [], path: []", typeName)
 }
 
-func FederatingFieldlessValueTypeMergeErrorMessage(typeName string) string {
+func FederatingValueTypeMergeErrorMessage(typeName string) string {
 	return fmt.Sprintf("merge ast: walk: external: the value type named '%s' must be identical in any subgraphs to federate, locations: [], path: []", typeName)
 }

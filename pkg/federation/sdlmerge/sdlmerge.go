@@ -76,6 +76,7 @@ func (m *normalizer) setupWalkers() {
 			newRemoveInterfaceDefinitionDirective("key"),
 			newRemoveObjectTypeDefinitionDirective("key"),
 			newRemoveFieldDefinitionDirective("provides", "requires"),
+			newRemoveDuplicateFieldedValueTypesVisitor(),
 			newRemoveDuplicateFieldlessValueTypesVisitor(),
 		},
 	}
@@ -104,65 +105,103 @@ func (m *normalizer) normalize(operation *ast.Document) error {
 
 type FieldedValueType interface {
 	FieldRefs() []int
-	FieldName(ref int) string
-	FieldTypeName(ref int) string
-	AreFieldsIdentical(fieldRefsToCompare []int) bool
+	FieldSet() map[string]string
+	fieldName(ref int) string
+	fieldTypeName(ref int) string
 }
 
-type InterfaceValueType struct {
-	*ast.InterfaceTypeDefinition
-	document *ast.Document
-	fieldSet map[string]string
+type NonInputFieldedValueType struct {
+	document  *ast.Document
+	fieldRefs []int
+	fieldSet  map[string]string
 }
 
 func createFieldSet(f FieldedValueType) map[string]string {
 	fieldSet := make(map[string]string)
 	for _, fieldRef := range f.FieldRefs() {
-		fieldSet[f.FieldName(fieldRef)] = f.FieldTypeName(fieldRef)
+		fieldSet[f.fieldName(fieldRef)] = f.fieldTypeName(fieldRef)
 	}
 	return fieldSet
 }
 
-func NewInterfaceValueType(document *ast.Document, ref int) InterfaceValueType {
-	i := InterfaceValueType{
-		&document.InterfaceTypeDefinitions[ref],
+func AreFieldsIdentical(f FieldedValueType, fieldRefsToCompare []int) bool {
+	if len(f.FieldRefs()) != len(fieldRefsToCompare) {
+		return false
+	}
+	for _, fieldRef := range fieldRefsToCompare {
+		actualFieldName := f.fieldName(fieldRef)
+		expectedTypeName, exists := f.FieldSet()[actualFieldName]
+		if !exists {
+			return false
+		}
+		actualTypeName := f.fieldTypeName(fieldRef)
+		if expectedTypeName != actualTypeName {
+			return false
+		}
+	}
+	return true
+}
+
+func NewNonInputFieldedValueType(document *ast.Document, fieldRefs []int) NonInputFieldedValueType {
+	i := NonInputFieldedValueType{
 		document,
+		fieldRefs,
 		nil,
 	}
 	i.fieldSet = createFieldSet(i)
 	return i
 }
 
-func (i InterfaceValueType) FieldRefs() []int {
-	return i.FieldsDefinition.Refs
+func (n NonInputFieldedValueType) FieldRefs() []int {
+	return n.fieldRefs
 }
 
-func (i InterfaceValueType) FieldName(ref int) string {
-	return i.document.FieldDefinitionNameString(ref)
+func (n NonInputFieldedValueType) FieldSet() map[string]string {
+	return n.fieldSet
 }
 
-func (i InterfaceValueType) FieldTypeName(ref int) string {
-	document := i.document
+func (n NonInputFieldedValueType) fieldName(ref int) string {
+	return n.document.FieldDefinitionNameString(ref)
+}
+
+func (n NonInputFieldedValueType) fieldTypeName(ref int) string {
+	document := n.document
 	typeRef := document.FieldDefinitions[ref].Type
 	return document.TypeNameString(typeRef)
 }
 
-func (i InterfaceValueType) AreFieldsIdentical(fieldRefsToCompare []int) bool {
-	if len(i.FieldRefs()) != len(fieldRefsToCompare) {
-		return false
+type InputFieldedValueType struct {
+	document  *ast.Document
+	fieldRefs []int
+	fieldSet  map[string]string
+}
+
+func NewInputFieldedValueType(document *ast.Document, fieldRefs []int) InputFieldedValueType {
+	i := InputFieldedValueType{
+		document,
+		fieldRefs,
+		nil,
 	}
-	for _, fieldRef := range fieldRefsToCompare {
-		actualFieldName := i.FieldName(fieldRef)
-		expectedTypeName, exists := i.fieldSet[actualFieldName]
-		if !exists {
-			return false
-		}
-		actualTypeName := i.FieldTypeName(fieldRef)
-		if expectedTypeName != actualTypeName {
-			return false
-		}
-	}
-	return true
+	i.fieldSet = createFieldSet(i)
+	return i
+}
+
+func (i InputFieldedValueType) FieldRefs() []int {
+	return i.fieldRefs
+}
+
+func (i InputFieldedValueType) FieldSet() map[string]string {
+	return i.fieldSet
+}
+
+func (i InputFieldedValueType) fieldName(ref int) string {
+	return i.document.InputValueDefinitionNameString(ref)
+}
+
+func (i InputFieldedValueType) fieldTypeName(ref int) string {
+	document := i.document
+	typeRef := document.InputValueDefinitions[ref].Type
+	return document.TypeNameString(typeRef)
 }
 
 type FieldlessValueType interface {
