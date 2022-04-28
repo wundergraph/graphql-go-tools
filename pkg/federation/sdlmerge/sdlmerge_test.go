@@ -127,7 +127,7 @@ const (
 			me: User
 		}
 
-		union AlphaNumeric = Int | String
+		union AlphaNumeric = Int | String | Float
 
 		scalar DateTime
 
@@ -141,17 +141,17 @@ const (
 		}
 
 		enum Satisfaction {
-			Happy,
-			Neutral,
-			Unhappy,
+			HAPPY,
+			NEUTRAL,
+			UNHAPPY,
 		}
 	`
 
 	productSchema = `
 		enum Satisfaction {
-			Happy,
-			Neutral,
-			Unhappy,
+			HAPPY,
+			NEUTRAL,
+			UNHAPPY,
 		}
 
 		scalar CustomScalar
@@ -161,9 +161,9 @@ const (
 		}
 
 		enum Department {
-			Cosmetics,
-			Electronics,
-			Groceries,
+			COSMETICS,
+			ELECTRONICS,
+			GROCERIES,
 		}
 
 		scalar BigInt
@@ -188,11 +188,11 @@ const (
 		}
 		
 		enum Department {
-			Cosmetics,
-			Electronics,
-			Groceries,
+			COSMETICS,
+			ELECTRONICS,
+			GROCERIES,
 		}
-		
+
 		extend type User @key(fields: "id") {
 			id: ID! @external
 			reviews: [Review]
@@ -205,12 +205,12 @@ const (
 			sales: BigInt!
 		}
 
-		union AlphaNumeric = Int | String
+		union AlphaNumeric = Int | String | Float
 		
 		enum Satisfaction {
-			Happy,
-			Neutral,
-			Unhappy,
+			HAPPY,
+			NEUTRAL,
+			UNHAPPY,
 		}
 
 		extend type Subscription {
@@ -230,9 +230,9 @@ const (
 		}
 		
 		enum Department {
-			Cosmetics,
-			Electronics,
-			Groceries,
+			COSMETICS,
+			ELECTRONICS,
+			GROCERIES,
 		}
 		
 		extend type User @key(fields: "id") {
@@ -250,9 +250,9 @@ const (
 		union AlphaNumeric = BigInt | String
 		
 		enum Satisfaction {
-			Happy,
-			Neutral,
-			Unhappy,
+			HAPPY,
+			NEUTRAL,
+			UNHAPPY,
 		}
 
 		extend type Subscription {
@@ -271,9 +271,9 @@ const (
 		}
 		
 		enum Satisfaction {
-			Happy,
-			Neutral,
-			Unhappy,
+			HAPPY,
+			NEUTRAL,
+			UNHAPPY,
 		}
 
 		type Query {
@@ -292,10 +292,10 @@ const (
 		}
 		
 		enum Satisfaction {
-			Happy,
-			Neutral,
-			Unhappy,
-			Devastated,
+			HAPPY,
+			NEUTRAL,
+			UNHAPPY,
+			DEVASTATED,
 		}
 
 		type Query {
@@ -311,17 +311,17 @@ const (
 		}
 
 		enum Satisfaction {
-			Happy,
-			Neutral,
-			Unhappy,
+			HAPPY,
+			NEUTRAL,
+			UNHAPPY,
 		}
 
 	`
 	paymentSchema = `
 		enum Satisfaction {
-			Happy,
-			Neutral,
-			Unhappy,
+			HAPPY,
+			NEUTRAL,
+			UNHAPPY,
 		}
 
 		interface PaymentType {
@@ -331,7 +331,7 @@ const (
 	onlinePaymentSchema = `
 		scalar DateTime
 
-		union AlphaNumeric = Int | String
+		union AlphaNumeric = Int | String | Float
 
 		scalar BigInt
 
@@ -342,13 +342,13 @@ const (
 		}
 
 		enum Satisfaction {
-			Happy,
-			Neutral,
-			Unhappy,
+			HAPPY,
+			NEUTRAL,
+			UNHAPPY,
 		}
 	`
 	classicPaymentSchema = `
-		union AlphaNumeric = Int | String
+		union AlphaNumeric = Int | String | Float
 
 		scalar CustomScalar
 
@@ -371,7 +371,7 @@ const (
 			comments: [Comment]
 		}
 
-		union AlphaNumeric = Int | String
+		union AlphaNumeric = Int | String | Float
 
 		interface PaymentType @extends {
 			name: String!
@@ -389,7 +389,7 @@ const (
 			review: Review!
 		}
 
-		union AlphaNumeric = Int | String
+		union AlphaNumeric = Int | String | Float
 
 		scalar DateTime
 
@@ -404,15 +404,15 @@ const (
 		}
 		
 		enum Satisfaction {
-			Happy,
-			Neutral,
-			Unhappy,
+			HAPPY,
+			NEUTRAL,
+			UNHAPPY,
 		}
 
 		enum Department {
-			Cosmetics,
-			Electronics,
-			Groceries,
+			COSMETICS,
+			ELECTRONICS,
+			GROCERIES,
 		}
 		
 		scalar BigInt
@@ -463,17 +463,17 @@ const (
 		}
 		
 		enum Satisfaction {
-			Happy,
-			Neutral,
-			Unhappy,
+			HAPPY,
+			NEUTRAL,
+			UNHAPPY,
 		}
 		
 		scalar CustomScalar
 		
 		enum Department {
-			Cosmetics,
-			Electronics,
-			Groceries,
+			COSMETICS,
+			ELECTRONICS,
+			GROCERIES,
 		}
 
 		scalar BigInt
@@ -503,7 +503,7 @@ const (
 			reviews: [Review]
 		}
 
-		union AlphaNumeric = Int | String
+		union AlphaNumeric = Int | String | Float
 	`
 
 	productAndExtendsDirectivesFederatedSchema = `
@@ -512,17 +512,17 @@ const (
 		}
 
 		enum Satisfaction {
-			Happy,
-			Neutral,
-			Unhappy,
+			HAPPY,
+			NEUTRAL,
+			UNHAPPY,
 		}
 
 		scalar CustomScalar
 
 		enum Department {
-			Cosmetics,
-			Electronics,
-			Groceries,
+			COSMETICS,
+			ELECTRONICS,
+			GROCERIES,
 		}
 
 		scalar BigInt
@@ -548,7 +548,7 @@ const (
 			comments: [Comment]
 		}
 
-		union AlphaNumeric = Int | String
+		union AlphaNumeric = Int | String | Float
 
 		extend interface PaymentType {
 			name: String!
