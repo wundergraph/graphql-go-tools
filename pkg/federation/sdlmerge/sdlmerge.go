@@ -103,34 +103,31 @@ func (m *normalizer) normalize(operation *ast.Document) error {
 	return nil
 }
 
-type FieldedValueType interface {
-	FieldRefs() []int
-	FieldSet() map[string]string
-	fieldName(ref int) string
-	fieldTypeName(ref int) string
-}
-
-type NonInputFieldedValueType struct {
+type FieldedValueType struct {
 	document  *ast.Document
+	fieldKind ast.NodeKind
 	fieldRefs []int
 	fieldSet  map[string]string
 }
 
-func createFieldSet(f FieldedValueType) map[string]string {
-	fieldSet := make(map[string]string)
-	for _, fieldRef := range f.FieldRefs() {
-		fieldSet[f.fieldName(fieldRef)] = f.fieldTypeName(fieldRef)
+func NewFieldedValueType(document *ast.Document, fieldKind ast.NodeKind, fieldRefs []int) FieldedValueType {
+	f := FieldedValueType{
+		document,
+		fieldKind,
+		fieldRefs,
+		nil,
 	}
-	return fieldSet
+	f.createFieldSet()
+	return f
 }
 
-func AreFieldsIdentical(f FieldedValueType, fieldRefsToCompare []int) bool {
-	if len(f.FieldRefs()) != len(fieldRefsToCompare) {
+func (f FieldedValueType) AreFieldsIdentical(fieldRefsToCompare []int) bool {
+	if len(f.fieldRefs) != len(fieldRefsToCompare) {
 		return false
 	}
 	for _, fieldRef := range fieldRefsToCompare {
 		actualFieldName := f.fieldName(fieldRef)
-		expectedTypeName, exists := f.FieldSet()[actualFieldName]
+		expectedTypeName, exists := f.fieldSet[actualFieldName]
 		if !exists {
 			return false
 		}
@@ -142,31 +139,32 @@ func AreFieldsIdentical(f FieldedValueType, fieldRefsToCompare []int) bool {
 	return true
 }
 
-func NewNonInputFieldedValueType(document *ast.Document, fieldRefs []int) NonInputFieldedValueType {
-	i := NonInputFieldedValueType{
-		document,
-		fieldRefs,
-		nil,
+func (f FieldedValueType) createFieldSet() {
+	fieldSet := make(map[string]string)
+	for _, fieldRef := range f.fieldRefs {
+		fieldSet[f.fieldName(fieldRef)] = f.fieldTypeName(fieldRef)
 	}
-	i.fieldSet = createFieldSet(i)
-	return i
+	f.fieldSet = fieldSet
 }
 
-func (n NonInputFieldedValueType) FieldRefs() []int {
-	return n.fieldRefs
+func (f FieldedValueType) fieldName(ref int) string {
+	switch f.fieldKind {
+	case ast.NodeKindInputValueDefinition:
+		return f.document.InputValueDefinitionNameString(ref)
+	default:
+		return f.document.FieldDefinitionNameString(ref)
+	}
 }
 
-func (n NonInputFieldedValueType) FieldSet() map[string]string {
-	return n.fieldSet
-}
-
-func (n NonInputFieldedValueType) fieldName(ref int) string {
-	return n.document.FieldDefinitionNameString(ref)
-}
-
-func (n NonInputFieldedValueType) fieldTypeName(ref int) string {
-	document := n.document
-	typeRef := document.FieldDefinitions[ref].Type
+func (f FieldedValueType) fieldTypeName(ref int) string {
+	document := f.document
+	var typeRef = ast.InvalidRef
+	switch f.fieldKind {
+	case ast.NodeKindInputValueDefinition:
+		typeRef = document.InputValueDefinitions[ref].Type
+	default:
+		typeRef = document.FieldDefinitions[ref].Type
+	}
 	return document.TypeNameString(typeRef)
 }
 
@@ -174,34 +172,6 @@ type InputFieldedValueType struct {
 	document  *ast.Document
 	fieldRefs []int
 	fieldSet  map[string]string
-}
-
-func NewInputFieldedValueType(document *ast.Document, fieldRefs []int) InputFieldedValueType {
-	i := InputFieldedValueType{
-		document,
-		fieldRefs,
-		nil,
-	}
-	i.fieldSet = createFieldSet(i)
-	return i
-}
-
-func (i InputFieldedValueType) FieldRefs() []int {
-	return i.fieldRefs
-}
-
-func (i InputFieldedValueType) FieldSet() map[string]string {
-	return i.fieldSet
-}
-
-func (i InputFieldedValueType) fieldName(ref int) string {
-	return i.document.InputValueDefinitionNameString(ref)
-}
-
-func (i InputFieldedValueType) fieldTypeName(ref int) string {
-	document := i.document
-	typeRef := document.InputValueDefinitions[ref].Type
-	return document.TypeNameString(typeRef)
 }
 
 type FieldlessValueType interface {
