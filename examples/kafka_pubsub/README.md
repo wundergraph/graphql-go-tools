@@ -46,12 +46,12 @@ Query variable:
 
 Body:
 ```graphql
-subscription($name: String) {
-  stock(name: $name) {
-    name
-    price
-    inStock
-  }
+subscription ($name: String) {
+    stock(name: $name) {
+        name
+        price
+        in_stock
+    }
 }
 ```
 
