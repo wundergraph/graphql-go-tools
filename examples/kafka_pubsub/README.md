@@ -11,25 +11,12 @@ cd examples/kafka_pubsub
 docker-compose up
 ```
 
-With a properly configured Golang environment:
+You need to wait some time while the cluster is being formed. 
 
-```
-cd examples/kafka_pubsub
-go run main.go -p=product1,product2
-```
+## Building an API to consume messages from Kafka cluster
 
-Sample message: 
-```json
-{
-	"stock": {
-		"name": "product1",
-		"price": 803,
-		"in_stock": 901
-	}
-}
-```
-
-This command publishes messages to `test.topic.product1` and `test.topic.product2` topics. Run the command with `-h` to see help text.
+You can find the full API definition in Tyk format here: `examples/kafka_pubsub/tyk-api-definition.json`. You just need to import this API definition. Here is 
+some information about the API definition. 
 
 GraphQL schema:
 
@@ -68,7 +55,7 @@ subscription($name: String) {
 }
 ```
 
-Response:
+Sample response:
 ```json
 {
   "data": {
@@ -83,7 +70,8 @@ Response:
 
 The producer publishes a new message to `test.topic.$product_name` topic every second, and it updates `price` and `in_stock` in every message.
 
-Data source configuration
+Here is a sample data source configuration. It is a part of `examples/kafka_pubsub/tyk-api-definition.json` file.
+
 ```json
  {
   "kind": "Kafka",
@@ -101,5 +89,27 @@ Data source configuration
     "group_id": "test.group",
     "client_id": "tyk-kafka-integration-{{.arguments.name}}"
   }
+}
+```
+
+## Publishing messages
+
+With a properly configured Golang environment:
+
+```
+cd examples/kafka_pubsub
+go run main.go -p=product1,product2
+```
+
+This command will publish messages to `test.topic.product1` and `test.topic.product2` topics every second.
+
+Sample message:
+```json
+{
+	"stock": {
+		"name": "product1",
+		"price": 803,
+		"in_stock": 901
+	}
 }
 ```
