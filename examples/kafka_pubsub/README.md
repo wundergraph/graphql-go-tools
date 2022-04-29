@@ -92,6 +92,21 @@ Here is a sample data source configuration. It is a part of `examples/kafka_pubs
 }
 ```
 
+Another part of the configuration is under `graphql.engine.field_config`. It's an array of objects. 
+
+```json
+"field_configs": [
+    {
+      "type_name": "Subscription",
+      "field_name": "stock",
+      "disable_default_mapping": false,
+      "path": [
+        "stock"
+      ]
+    }
+]
+```
+
 ## Publishing messages
 
 With a properly configured Golang environment:
