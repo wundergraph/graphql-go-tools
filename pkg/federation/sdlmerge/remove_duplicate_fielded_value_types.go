@@ -50,12 +50,12 @@ func (r *removeDuplicateFieldedValueTypesVisitor) EnterInputObjectTypeDefinition
 	refs := document.InputObjectTypeDefinitions[ref].InputFieldsDefinition.Refs
 	input, exists := r.valueTypeSet[name]
 	if exists {
-		if !AreFieldsIdentical(input, refs) {
+		if !input.AreFieldsIdentical(refs) {
 			r.StopWithExternalErr(operationreport.ErrDuplicateValueTypesMustBeIdenticalToFederate(name))
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindInputObjectTypeDefinition, Ref: ref})
 	} else {
-		r.valueTypeSet[name] = NewInputFieldedValueType(document, refs)
+		r.valueTypeSet[name] = NewFieldedValueType(document, ast.NodeKindInputValueDefinition, refs)
 	}
 	r.lastInputRef = ref
 }
@@ -67,14 +67,14 @@ func (r *removeDuplicateFieldedValueTypesVisitor) EnterInterfaceTypeDefinition(r
 	document := r.document
 	name := document.InterfaceTypeDefinitionNameString(ref)
 	refs := document.InterfaceTypeDefinitions[ref].FieldsDefinition.Refs
-	i, exists := r.valueTypeSet[name]
+	iFace, exists := r.valueTypeSet[name]
 	if exists {
-		if !AreFieldsIdentical(i, refs) {
+		if !iFace.AreFieldsIdentical(refs) {
 			r.StopWithExternalErr(operationreport.ErrDuplicateValueTypesMustBeIdenticalToFederate(name))
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindInterfaceTypeDefinition, Ref: ref})
 	} else {
-		r.valueTypeSet[name] = NewNonInputFieldedValueType(document, refs)
+		r.valueTypeSet[name] = NewFieldedValueType(document, ast.NodeKindFieldDefinition, refs)
 	}
 	r.lastInterfaceRef = ref
 }
@@ -88,12 +88,12 @@ func (r *removeDuplicateFieldedValueTypesVisitor) EnterObjectTypeDefinition(ref 
 	refs := document.ObjectTypeDefinitions[ref].FieldsDefinition.Refs
 	object, exists := r.valueTypeSet[name]
 	if exists {
-		if !AreFieldsIdentical(object, refs) {
+		if !object.AreFieldsIdentical(refs) {
 			r.StopWithExternalErr(operationreport.ErrDuplicateValueTypesMustBeIdenticalToFederate(name))
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindObjectTypeDefinition, Ref: ref})
 	} else {
-		r.valueTypeSet[name] = NewNonInputFieldedValueType(document, refs)
+		r.valueTypeSet[name] = NewFieldedValueType(document, ast.NodeKindFieldDefinition, refs)
 	}
 	r.lastObjectRef = ref
 }
