@@ -70,13 +70,13 @@ func (m *normalizer) setupWalkers() {
 			newRemoveEmptyObjectTypeDefinition(),
 			newRemoveMergedTypeExtensions(),
 		},
-		// visitors for clean up federated duplicated fields and directives
+		// visitors for cleaning up federated duplicated fields and directives
 		{
 			newRemoveFieldDefinitions("external"),
 			newRemoveInterfaceDefinitionDirective("key"),
 			newRemoveObjectTypeDefinitionDirective("key"),
 			newRemoveFieldDefinitionDirective("provides", "requires"),
-			newRemoveDuplicateScalarTypeDefinitionVistior(),
+			newRemoveDuplicateFieldlessValueTypesVisitor(),
 		},
 	}
 
@@ -100,4 +100,107 @@ func (m *normalizer) normalize(operation *ast.Document) error {
 	}
 
 	return nil
+}
+
+type FieldlessValueType interface {
+	AreValuesIdentical(valueRefsToCompare []int) bool
+	valueRefs() []int
+	valueName(ref int) string
+}
+
+func createValueSet(f FieldlessValueType) map[string]bool {
+	valueSet := make(map[string]bool)
+	for _, valueRef := range f.valueRefs() {
+		valueSet[f.valueName(valueRef)] = true
+	}
+	return valueSet
+}
+
+type EnumValueType struct {
+	*ast.EnumTypeDefinition
+	document *ast.Document
+	valueSet map[string]bool
+}
+
+func NewEnumValueType(document *ast.Document, ref int) EnumValueType {
+	e := EnumValueType{
+		&document.EnumTypeDefinitions[ref],
+		document,
+		nil,
+	}
+	e.valueSet = createValueSet(e)
+	return e
+}
+
+func (e EnumValueType) AreValuesIdentical(valueRefsToCompare []int) bool {
+	if len(e.valueRefs()) != len(valueRefsToCompare) {
+		return false
+	}
+	for _, valueRefToCompare := range valueRefsToCompare {
+		name := e.valueName(valueRefToCompare)
+		if !e.valueSet[name] {
+			return false
+		}
+	}
+	return true
+}
+
+func (e EnumValueType) valueRefs() []int {
+	return e.EnumValuesDefinition.Refs
+}
+
+func (e EnumValueType) valueName(ref int) string {
+	return e.document.EnumValueDefinitionNameString(ref)
+}
+
+type UnionValueType struct {
+	*ast.UnionTypeDefinition
+	document *ast.Document
+	valueSet map[string]bool
+}
+
+func NewUnionValueType(document *ast.Document, ref int) UnionValueType {
+	u := UnionValueType{
+		&document.UnionTypeDefinitions[ref],
+		document,
+		nil,
+	}
+	u.valueSet = createValueSet(u)
+	return u
+}
+
+func (u UnionValueType) AreValuesIdentical(valueRefsToCompare []int) bool {
+	if len(u.valueRefs()) != len(valueRefsToCompare) {
+		return false
+	}
+	for _, refToCompare := range valueRefsToCompare {
+		name := u.valueName(refToCompare)
+		if !u.valueSet[name] {
+			return false
+		}
+	}
+	return true
+}
+
+func (u UnionValueType) valueRefs() []int {
+	return u.UnionMemberTypes.Refs
+}
+
+func (u UnionValueType) valueName(ref int) string {
+	return u.document.TypeNameString(ref)
+}
+
+type ScalarValueType struct {
+}
+
+func (_ ScalarValueType) AreValuesIdentical(_ []int) bool {
+	return true
+}
+
+func (_ ScalarValueType) valueRefs() []int {
+	return nil
+}
+
+func (_ ScalarValueType) valueName(_ int) string {
+	return ""
 }
