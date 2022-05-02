@@ -139,7 +139,7 @@ func (f FieldedValueType) AreFieldsIdentical(fieldRefsToCompare []int) bool {
 	return true
 }
 
-func (f FieldedValueType) createFieldSet() {
+func (f *FieldedValueType) createFieldSet() {
 	fieldSet := make(map[string]string)
 	for _, fieldRef := range f.fieldRefs {
 		fieldSet[f.fieldName(fieldRef)] = f.fieldTypeName(fieldRef)
