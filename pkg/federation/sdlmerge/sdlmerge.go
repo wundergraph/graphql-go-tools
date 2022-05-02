@@ -158,20 +158,12 @@ func (f FieldedValueType) fieldName(ref int) string {
 
 func (f FieldedValueType) fieldTypeName(ref int) string {
 	document := f.document
-	var typeRef = ast.InvalidRef
 	switch f.fieldKind {
 	case ast.NodeKindInputValueDefinition:
-		typeRef = document.InputValueDefinitions[ref].Type
+		return document.TypeNameString(document.InputValueDefinitions[ref].Type)
 	default:
-		typeRef = document.FieldDefinitions[ref].Type
+		return document.TypeNameString(document.FieldDefinitions[ref].Type)
 	}
-	return document.TypeNameString(typeRef)
-}
-
-type InputFieldedValueType struct {
-	document  *ast.Document
-	fieldRefs []int
-	fieldSet  map[string]string
 }
 
 type FieldlessValueType interface {
