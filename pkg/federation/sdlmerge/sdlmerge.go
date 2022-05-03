@@ -107,7 +107,7 @@ type FieldedValueType struct {
 	document  *ast.Document
 	fieldKind ast.NodeKind
 	fieldRefs []int
-	fieldSet  map[string]string
+	fieldSet  map[string]int
 }
 
 func NewFieldedValueType(document *ast.Document, fieldKind ast.NodeKind, fieldRefs []int) FieldedValueType {
@@ -127,12 +127,12 @@ func (f FieldedValueType) AreFieldsIdentical(fieldRefsToCompare []int) bool {
 	}
 	for _, fieldRef := range fieldRefsToCompare {
 		actualFieldName := f.fieldName(fieldRef)
-		expectedTypeName, exists := f.fieldSet[actualFieldName]
+		expectedTypeRef, exists := f.fieldSet[actualFieldName]
 		if !exists {
 			return false
 		}
-		actualTypeName := f.fieldTypeName(fieldRef)
-		if expectedTypeName != actualTypeName {
+		actualTypeRef := f.fieldTypeRef(fieldRef)
+		if !f.document.TypesAreCompatibleDeep(expectedTypeRef, actualTypeRef) {
 			return false
 		}
 	}
@@ -140,9 +140,9 @@ func (f FieldedValueType) AreFieldsIdentical(fieldRefsToCompare []int) bool {
 }
 
 func (f *FieldedValueType) createFieldSet() {
-	fieldSet := make(map[string]string)
+	fieldSet := make(map[string]int)
 	for _, fieldRef := range f.fieldRefs {
-		fieldSet[f.fieldName(fieldRef)] = f.fieldTypeName(fieldRef)
+		fieldSet[f.fieldName(fieldRef)] = f.fieldTypeRef(fieldRef)
 	}
 	f.fieldSet = fieldSet
 }
@@ -156,13 +156,13 @@ func (f FieldedValueType) fieldName(ref int) string {
 	}
 }
 
-func (f FieldedValueType) fieldTypeName(ref int) string {
+func (f FieldedValueType) fieldTypeRef(ref int) int {
 	document := f.document
 	switch f.fieldKind {
 	case ast.NodeKindInputValueDefinition:
-		return document.TypeNameString(document.InputValueDefinitions[ref].Type)
+		return document.InputValueDefinitions[ref].Type
 	default:
-		return document.TypeNameString(document.FieldDefinitions[ref].Type)
+		return document.FieldDefinitions[ref].Type
 	}
 }
 
