@@ -131,7 +131,7 @@ const (
 		scalar DateTime
 
 		scalar CustomScalar
-	
+
 		type User @key(fields: "id") {
 			id: ID!
 			username: String!
@@ -148,9 +148,9 @@ const (
 
 	productSchema = `
 		enum Satisfaction {
+			UNHAPPY,
 			HAPPY,
 			NEUTRAL,
-			UNHAPPY,
 		}
 
 		scalar CustomScalar
@@ -165,31 +165,57 @@ const (
 			GROCERIES,
 		}
 
+		interface ProductInfo {
+			departments: [Department!]!
+			averageSatisfaction: Satisfaction!
+		}
+
 		scalar BigInt
 		
-		type Product @key(fields: "upc") {
+		type Product implements ProductInfo @key(fields: "upc") {
 			upc: String!
 			name: String!
 			price: Int!
 			worth: BigInt!
 			reputation: CustomScalar!
+			departments: [Department!]!
+			averageSatisfaction: Satisfaction!
 		}
 	`
 	reviewSchema = `
 		scalar DateTime
 
-		type Review {
+		input ReviewInput {
 			body: String!
 			author: User! @provides(fields: "username")
 			product: Product!
+			updated: DateTime!
+			inputType: AlphaNumeric!
+		}
+
+		type Review {
+			id: ID!
 			created: DateTime!
+			body: String!
+			author: User! @provides(fields: "username")
+			product: Product!
+			updated: DateTime!
 			inputType: AlphaNumeric!
 		}
 		
+		type Query {
+			getReview(id: ID!): Review
+		}
+
+		type Mutation {
+			createReview(input: ReviewInput): Review
+			updateReview(id: ID!, input: ReviewInput): Review
+		}
+		
 		enum Department {
+			GROCERIES,
 			COSMETICS,
 			ELECTRONICS,
-			GROCERIES,
 		}
 
 		extend type User @key(fields: "id") {
@@ -204,7 +230,7 @@ const (
 			sales: BigInt!
 		}
 
-		union AlphaNumeric = Int | String | Float
+		union AlphaNumeric = Float | String | Int
 		
 		enum Satisfaction {
 			HAPPY,
@@ -215,17 +241,46 @@ const (
 		extend type Subscription {
 			review: Review!
 		}
+
+		interface ProductInfo {
+			departments: [Department!]!
+			averageSatisfaction: Satisfaction!
+		}
 	`
 
 	negativeTestingReviewSchema = `
 		scalar DateTime
 
-		type Review {
+		input ReviewInput {
 			body: String!
 			author: User! @provides(fields: "username")
 			product: Product!
-			created: DateTime!
+			updated: DateTime!
 			inputType: AlphaNumeric!
+		}
+
+		type Review {
+			id: ID!
+			created: DateTime!
+			body: String!
+			author: User! @provides(fields: "username")
+			product: Product!
+			updated: DateTime!
+			inputType: AlphaNumeric!
+		}
+		
+		type Query {
+			getReview(id: ID!): Review
+		}
+
+		type Mutation {
+			createReview(input: ReviewInput): Review
+			updateReview(id: ID!, input: ReviewInput): Review
+		}
+
+		interface ProductInfo {
+			departments: [Department!]!
+			averageSatisfaction: Satisfaction!
 		}
 		
 		enum Department {
@@ -330,7 +385,7 @@ const (
 	onlinePaymentSchema = `
 		scalar DateTime
 
-		union AlphaNumeric = Int | String | Float
+		union AlphaNumeric = String | Float | Int
 
 		scalar BigInt
 
@@ -380,8 +435,14 @@ const (
 		type Query {
 			me: User
 			topProducts(first: Int = 5): [Product]
+			getReview(id: ID!): Review
 			likesCount(productID: ID!): Int!
 			likes(productID: ID!): [Like]!
+		}
+
+		type Mutation {
+			createReview(input: ReviewInput): Review
+			updateReview(id: ID!, input: ReviewInput): Review
 		}
 		
 		type Subscription {
@@ -413,24 +474,41 @@ const (
 			ELECTRONICS,
 			GROCERIES,
 		}
+
+		interface ProductInfo {
+			departments: [Department!]!
+			averageSatisfaction: Satisfaction!
+		}
 		
 		scalar BigInt
 		
-		type Product {
+		type Product implements ProductInfo {
 			upc: String!
 			name: String!
 			price: Int!
 			worth: BigInt!
 			reputation: CustomScalar!
+			departments: [Department!]!
+			averageSatisfaction: Satisfaction!
 			reviews: [Review]
 			sales: BigInt!
 		}
+
+		input ReviewInput {
+			body: String!
+			author: User! @provides(fields: "username")
+			product: Product!
+			updated: DateTime!
+			inputType: AlphaNumeric!
+		}
 		
 		type Review {
+			id: ID!
+			created: DateTime!
 			body: String!
 			author: User!
 			product: Product!
-			created: DateTime!
+			updated: DateTime!
 			inputType: AlphaNumeric!
 		}
 
@@ -455,6 +533,12 @@ const (
 	productAndReviewFederatedSchema = `
 		type Query {
 			topProducts(first: Int = 5): [Product]
+			getReview(id: ID!): Review
+		}
+
+		type Mutation {
+			createReview(input: ReviewInput): Review
+			updateReview(id: ID!, input: ReviewInput): Review
 		}
 
 		type Subscription {
@@ -462,9 +546,9 @@ const (
 		}
 		
 		enum Satisfaction {
+			UNHAPPY,
 			HAPPY,
 			NEUTRAL,
-			UNHAPPY,
 		}
 		
 		scalar CustomScalar
@@ -475,25 +559,42 @@ const (
 			GROCERIES,
 		}
 
+		interface ProductInfo {
+			departments: [Department!]!
+			averageSatisfaction: Satisfaction!
+		}
+
 		scalar BigInt
 
-		type Product {
+		type Product implements ProductInfo {
 			upc: String!
 			name: String!
 			price: Int!
 			worth: BigInt!
 			reputation: CustomScalar!
+			departments: [Department!]!
+			averageSatisfaction: Satisfaction!
 			reviews: [Review]
 			sales: BigInt!
 		}
 		
 		scalar DateTime
 
+		input ReviewInput {
+			body: String!
+			author: User! @provides(fields: "username")
+			product: Product!
+			updated: DateTime!
+			inputType: AlphaNumeric!
+		}
+
 		type Review {
+			id: ID!
+			created: DateTime!
 			body: String!
 			author: User!
 			product: Product!
-			created: DateTime!
+			updated: DateTime!
 			inputType: AlphaNumeric!
 		}
 		
@@ -502,7 +603,7 @@ const (
 			reviews: [Review]
 		}
 
-		union AlphaNumeric = Int | String | Float
+		union AlphaNumeric = Float | String | Int
 	`
 
 	productAndExtendsDirectivesFederatedSchema = `
@@ -511,9 +612,9 @@ const (
 		}
 
 		enum Satisfaction {
+			UNHAPPY,
 			HAPPY,
 			NEUTRAL,
-			UNHAPPY,
 		}
 
 		scalar CustomScalar
@@ -524,14 +625,21 @@ const (
 			GROCERIES,
 		}
 
+		interface ProductInfo {
+			departments: [Department!]!
+			averageSatisfaction: Satisfaction!
+		}
+
 		scalar BigInt
 		
-		type Product {
+		type Product implements ProductInfo {
 			upc: String!
 			name: String!
 			price: Int!
 			worth: BigInt!
 			reputation: CustomScalar!
+			departments: [Department!]!
+			averageSatisfaction: Satisfaction!
 		}
 
 		scalar DateTime
