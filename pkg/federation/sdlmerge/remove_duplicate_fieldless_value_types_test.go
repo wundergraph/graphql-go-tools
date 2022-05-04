@@ -43,6 +43,28 @@ func TestRemoveDuplicateFieldlessValueTypes(t *testing.T) {
 		`)
 	})
 
+	t.Run("Identical same name enums are merged into a single input regardless of value order", func(t *testing.T) {
+		run(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
+			enum Pokemon {
+				BULBASAUR,
+				CHARMANDER,
+				SQUIRTLE,
+			}
+
+			enum Pokemon {
+				SQUIRTLE,
+				CHARMANDER,
+				BULBASAUR,
+			}
+		`, `
+			enum Pokemon {
+				BULBASAUR,
+				CHARMANDER,
+				SQUIRTLE,
+			}
+		`)
+	})
+
 	t.Run("Same name enums with different values return an error", func(t *testing.T) {
 		runAndExpectError(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
 			enum Pokemon {
@@ -271,6 +293,16 @@ func TestRemoveDuplicateFieldlessValueTypes(t *testing.T) {
 			union Types = Grass | Fire | Water
 	
 			union Types = Grass | Fire | Water
+		`, `
+			union Types = Grass | Fire | Water
+		`)
+	})
+
+	t.Run("Identical same name unions are merged into a single input regardless of value order", func(t *testing.T) {
+		run(t, newRemoveDuplicateFieldlessValueTypesVisitor(), `
+			union Types = Grass | Fire | Water
+	
+			union Types = Water | Grass | Fire
 		`, `
 			union Types = Grass | Fire | Water
 		`)
