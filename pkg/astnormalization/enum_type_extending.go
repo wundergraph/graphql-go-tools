@@ -38,17 +38,15 @@ func (e *extendEnumTypeDefinitionVisitor) EnterEnumTypeExtension(ref int) {
 		return
 	}
 
-	isOrphan := true
 	for i := range nodes {
 		if nodes[i].Kind != ast.NodeKindEnumTypeDefinition {
 			continue
 		}
-		isOrphan = false
 		e.operation.ExtendEnumTypeDefinitionByEnumTypeExtension(nodes[i].Ref, ref)
 		return
 	}
 
-	if e.keepExtensionOrphans && isOrphan {
+	if e.keepExtensionOrphans {
 		return
 	}
 

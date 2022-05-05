@@ -39,17 +39,15 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 		return
 	}
 
-	isOrphan := true
 	for i := range nodes {
 		if nodes[i].Kind != ast.NodeKindObjectTypeDefinition {
 			continue
 		}
-		isOrphan = false
 		e.operation.ExtendObjectTypeDefinitionByObjectTypeExtension(nodes[i].Ref, ref)
 		return
 	}
 
-	if e.keepExtensionOrphans && isOrphan {
+	if e.keepExtensionOrphans {
 		return
 	}
 
