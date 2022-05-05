@@ -110,12 +110,12 @@ func TestMergeSDLs(t *testing.T) {
 	))
 
 	t.Run("Non-identical duplicate enums should return an error", runMergeTestAndExpectError(
-		FederatingValueTypeMergeErrorMessage("Satisfaction"),
+		FederatingFieldlessValueTypeMergeErrorMessage("Satisfaction"),
 		productSchema, negativeTestingLikeSchema,
 	))
 
 	t.Run("Non-identical duplicate unions should return an error", runMergeTestAndExpectError(
-		FederatingValueTypeMergeErrorMessage("AlphaNumeric"),
+		FederatingFieldlessValueTypeMergeErrorMessage("AlphaNumeric"),
 		accountSchema, negativeTestingReviewSchema,
 	))
 }
@@ -126,7 +126,7 @@ const (
 			me: User
 		}
 
-		union AlphaNumeric = Int | String | Float
+		union AlphaNumeric = Int | String
 
 		scalar DateTime
 
@@ -181,6 +181,8 @@ const (
 			departments: [Department!]!
 			averageSatisfaction: Satisfaction!
 		}
+
+		union AlphaNumeric = Int | String
 	`
 	reviewSchema = `
 		scalar DateTime
@@ -230,7 +232,7 @@ const (
 			sales: BigInt!
 		}
 
-		union AlphaNumeric = Float | String | Int
+		extend union AlphaNumeric = Float
 		
 		enum Satisfaction {
 			HAPPY,
@@ -385,7 +387,7 @@ const (
 	onlinePaymentSchema = `
 		scalar DateTime
 
-		union AlphaNumeric = String | Float | Int
+		union AlphaNumeric = Int | String
 
 		scalar BigInt
 
@@ -402,7 +404,7 @@ const (
 		}
 	`
 	classicPaymentSchema = `
-		union AlphaNumeric = Int | String | Float
+		union AlphaNumeric = Int | String
 
 		scalar CustomScalar
 
@@ -425,7 +427,7 @@ const (
 			comments: [Comment]
 		}
 
-		union AlphaNumeric = Int | String | Float
+		union AlphaNumeric = Int | String
 
 		interface PaymentType @extends {
 			name: String!
@@ -577,6 +579,8 @@ const (
 			reviews: [Review]
 			sales: BigInt!
 		}
+
+		union AlphaNumeric = Int | String | Float
 		
 		scalar DateTime
 
@@ -602,8 +606,6 @@ const (
 			id: ID! @external
 			reviews: [Review]
 		}
-
-		union AlphaNumeric = Float | String | Int
 	`
 
 	productAndExtendsDirectivesFederatedSchema = `
@@ -642,6 +644,8 @@ const (
 			averageSatisfaction: Satisfaction!
 		}
 
+		union AlphaNumeric = Int | String
+
 		scalar DateTime
 
 		type Comment {
@@ -655,18 +659,16 @@ const (
 			comments: [Comment]
 		}
 
-		union AlphaNumeric = Int | String | Float
-
 		extend interface PaymentType {
 			name: String!
 		}
 	`
 )
 
-func FederatingValueTypeErrorMessage(typeName string) string {
+func FederatingFieldlessValueTypeErrorMessage(typeName string) string {
 	return fmt.Sprintf("external: the value type named '%s' must be identical in any subgraphs to federate, locations: [], path: []", typeName)
 }
 
-func FederatingValueTypeMergeErrorMessage(typeName string) string {
+func FederatingFieldlessValueTypeMergeErrorMessage(typeName string) string {
 	return fmt.Sprintf("merge ast: walk: external: the value type named '%s' must be identical in any subgraphs to federate, locations: [], path: []", typeName)
 }

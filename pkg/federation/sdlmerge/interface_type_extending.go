@@ -18,12 +18,11 @@ func (e *extendInterfaceTypeDefinitionVisitor) Register(walker *astvisitor.Walke
 	walker.RegisterEnterInterfaceTypeExtensionVisitor(e)
 }
 
-func (e *extendInterfaceTypeDefinitionVisitor) EnterDocument(operation, definition *ast.Document) {
+func (e *extendInterfaceTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
 	e.operation = operation
 }
 
 func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref int) {
-
 	nodes, exists := e.operation.Index.NodesByNameBytes(e.operation.InterfaceTypeExtensionNameBytes(ref))
 	if !exists {
 		return
@@ -34,6 +33,5 @@ func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref i
 			continue
 		}
 		e.operation.ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(nodes[i].Ref, ref)
-		return
 	}
 }

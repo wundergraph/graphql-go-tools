@@ -18,12 +18,11 @@ func (e *extendUnionTypeDefinitionVisitor) Register(walker *astvisitor.Walker) {
 	walker.RegisterEnterUnionTypeExtensionVisitor(e)
 }
 
-func (e *extendUnionTypeDefinitionVisitor) EnterDocument(operation, definition *ast.Document) {
+func (e *extendUnionTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
 	e.operation = operation
 }
 
 func (e *extendUnionTypeDefinitionVisitor) EnterUnionTypeExtension(ref int) {
-
 	nodes, exists := e.operation.Index.NodesByNameBytes(e.operation.UnionTypeExtensionNameBytes(ref))
 	if !exists {
 		return
@@ -34,6 +33,5 @@ func (e *extendUnionTypeDefinitionVisitor) EnterUnionTypeExtension(ref int) {
 			continue
 		}
 		e.operation.ExtendUnionTypeDefinitionByUnionTypeExtension(nodes[i].Ref, ref)
-		return
 	}
 }
