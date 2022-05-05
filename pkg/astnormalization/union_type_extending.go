@@ -38,17 +38,15 @@ func (e *extendUnionTypeDefinitionVisitor) EnterUnionTypeExtension(ref int) {
 		return
 	}
 
-	isOrphan := true
 	for i := range nodes {
 		if nodes[i].Kind != ast.NodeKindUnionTypeDefinition {
 			continue
 		}
-		isOrphan = false
 		e.operation.ExtendUnionTypeDefinitionByUnionTypeExtension(nodes[i].Ref, ref)
 		return
 	}
 
-	if e.keepExtensionOrphans && isOrphan {
+	if e.keepExtensionOrphans {
 		return
 	}
 

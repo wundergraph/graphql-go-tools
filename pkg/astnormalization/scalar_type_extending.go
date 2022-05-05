@@ -39,17 +39,15 @@ func (e *extendScalarTypeDefinitionVisitor) EnterScalarTypeExtension(ref int) {
 		return
 	}
 
-	isOrphan := true
 	for i := range nodes {
 		if nodes[i].Kind != ast.NodeKindScalarTypeDefinition {
 			continue
 		}
-		isOrphan = false
 		e.operation.ExtendScalarTypeDefinitionByScalarTypeExtension(nodes[i].Ref, ref)
 		return
 	}
 
-	if e.keepExtensionOrphans && isOrphan {
+	if e.keepExtensionOrphans {
 		return
 	}
 
