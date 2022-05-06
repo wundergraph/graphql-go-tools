@@ -33,21 +33,8 @@ func MergeSDLs(SDLs ...string) (string, error) {
 	rawDocs := make([]string, 0, len(SDLs)+1)
 	rawDocs = append(rawDocs, rootOperationTypeDefinitions)
 	rawDocs = append(rawDocs, SDLs...)
-	n := astnormalization.NewSubgraphDefinitionNormalizer()
-	for i, subgraph := range rawDocs {
-		doc, report := astparser.ParseGraphqlDocumentString(subgraph)
-		if report.HasErrors() {
-			return "", fmt.Errorf("parse graphql document string: %s", report.Error())
-		}
-		n.NormalizeDefinition(&doc, &report)
-		if report.HasErrors() {
-			return "", fmt.Errorf("merge ast: %s", report.Error())
-		}
-		out, err := astprinter.PrintString(&doc, nil)
-		if err != nil {
-			return "", fmt.Errorf("stringify schema: %s", err.Error())
-		}
-		rawDocs[i] = out
+	if err := normalizeSubgraphs(rawDocs); err != nil {
+		return "", err
 	}
 
 	doc, report := astparser.ParseGraphqlDocumentString(strings.Join(rawDocs, "\n"))
@@ -70,6 +57,26 @@ func MergeSDLs(SDLs ...string) (string, error) {
 	}
 
 	return out, nil
+}
+
+func normalizeSubgraphs(subgraphs []string) error {
+	subgraphNormalizer := astnormalization.NewSubgraphDefinitionNormalizer()
+	for i, subgraph := range subgraphs {
+		doc, report := astparser.ParseGraphqlDocumentString(subgraph)
+		if report.HasErrors() {
+			return fmt.Errorf("parse graphql document string: %s", report.Error())
+		}
+		subgraphNormalizer.NormalizeDefinition(&doc, &report)
+		if report.HasErrors() {
+			return fmt.Errorf("normalize subgraph: %s", report.Error())
+		}
+		out, err := astprinter.PrintString(&doc, nil)
+		if err != nil {
+			return fmt.Errorf("stringify schema: %s", err.Error())
+		}
+		subgraphs[i] = out
+	}
+	return nil
 }
 
 type normalizer struct {
