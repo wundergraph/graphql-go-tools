@@ -57,12 +57,17 @@ func (k *kafkaConsumerGroupHandler) Cleanup(_ sarama.ConsumerGroupSession) error
 // Once the Messages() channel is closed, the Handler must finish its processing
 // loop and exit.
 func (k *kafkaConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	if k.options.StartConsumingLatest {
+		session.ResetOffset(claim.Topic(), claim.Partition(), sarama.OffsetNewest, "")
+	}
 	for msg := range claim.Messages() {
 		ctx, cancel := context.WithTimeout(k.ctx, time.Second*5)
 		select {
 		case k.messages <- msg:
 			cancel()
-			session.MarkMessage(msg, "") // Commit the message and advance the offset.
+			if !k.options.StartConsumingLatest {
+				session.MarkMessage(msg, "") // Commit the message and advance the offset.
+			}
 		case <-ctx.Done():
 			cancel()
 			return nil

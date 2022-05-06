@@ -2,6 +2,7 @@ package kafka_datasource
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -30,7 +31,7 @@ func newMockKafkaBroker(t *testing.T, topic, group string, fr *sarama.FetchRespo
 
 	mockOffsetResponse := sarama.NewMockOffsetResponse(t).
 		SetOffset(topic, defaultPartition, sarama.OffsetOldest, 0).
-		SetOffset(topic, defaultPartition, sarama.OffsetNewest, 1).
+		SetOffset(topic, defaultPartition, sarama.OffsetNewest, 10).
 		SetVersion(1)
 
 	mockCoordinatorResponse := sarama.NewMockFindCoordinatorResponse(t).
@@ -48,7 +49,7 @@ func newMockKafkaBroker(t *testing.T, topic, group string, fr *sarama.FetchRespo
 	mockHeartbeatResponse := sarama.NewMockHeartbeatResponse(t)
 
 	mockOffsetFetchResponse := sarama.NewMockOffsetFetchResponse(t).
-		SetOffset(group, topic, defaultPartition, 0, "", sarama.KError(0))
+		SetOffset(group, topic, defaultPartition, 10, "", sarama.KError(0))
 
 	// Need to mock ApiVersionsRequest when we upgrade Sarama
 
@@ -236,6 +237,81 @@ func TestKafkaConsumerGroup_StartConsuming_And_Stop(t *testing.T) {
 	expectedValue, _ := testMessageValue.Encode()
 	require.Equal(t, expectedValue, msg.Value)
 
+	require.NoError(t, cg.Close())
+
+	done := make(chan struct{})
+	go func() {
+		defer func() {
+			close(done)
+		}()
+
+		cg.WaitUntilConsumerStop()
+	}()
+
+	select {
+	case <-time.After(15 * time.Second):
+		require.Fail(t, "KafkaConsumerGroup could not closed in 15 seconds")
+	case <-done:
+	}
+}
+
+func TestKafkaConsumerGroup_StartConsumingLatest(t *testing.T) {
+	var (
+		testMessageKey = sarama.StringEncoder("test.message.key")
+		topic          = "test.topic"
+		consumerGroup  = "consumer.group"
+	)
+
+	fr := &sarama.FetchResponse{Version: 11}
+	mockBroker := newMockKafkaBroker(t, topic, consumerGroup, fr)
+	defer mockBroker.Close()
+
+	// Add a message to the topic. The consumer group will fetch that message and trigger ConsumeClaim method.
+	for i := 0; i < 10; i++ {
+		value := sarama.StringEncoder(fmt.Sprintf("test.message.value:%d", i))
+		fr.AddMessage(topic, defaultPartition, testMessageKey, value, int64(i))
+	}
+
+	options := GraphQLSubscriptionOptions{
+		BrokerAddr:           mockBroker.Addr(),
+		Topic:                topic,
+		GroupID:              consumerGroup,
+		ClientID:             "graphql-go-tools-test",
+		KafkaVersion:         testMockKafkaVersion,
+		StartConsumingLatest: true,
+	}
+	options.Sanitize()
+	require.NoError(t, options.Validate())
+
+	saramaConfig := sarama.NewConfig()
+	saramaConfig.Version = SaramaSupportedKafkaVersions[options.KafkaVersion]
+
+	cg, err := NewKafkaConsumerGroup(logger(), saramaConfig, &options)
+	require.NoError(t, err)
+
+	messages := make(chan *sarama.ConsumerMessage)
+	cg.StartConsuming(messages)
+
+	for i := 10; i < 15; i++ {
+		value := sarama.StringEncoder(fmt.Sprintf("test.message.value:%d", i))
+		fr.AddMessage(topic, defaultPartition, testMessageKey, value, int64(i))
+	}
+L:
+	for {
+		select {
+		case msg := <-messages:
+			fmt.Println(string(msg.Value))
+		case <-time.After(time.Second):
+			break L
+		}
+	}
+	/*expectedKey, _ := testMessageKey.Encode()
+	require.Equal(t, expectedKey, msg.Key)
+
+	expectedValue, _ := testMessageValue.Encode()
+	require.Equal(t, expectedValue, msg.Value)*/
+
+	// Stop the consumer group instance
 	require.NoError(t, cg.Close())
 
 	done := make(chan struct{})
