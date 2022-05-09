@@ -58,13 +58,18 @@ func (k *kafkaConsumerGroupHandler) Cleanup(_ sarama.ConsumerGroupSession) error
 // loop and exit.
 func (k *kafkaConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	if k.options.StartConsumingLatest {
+		// Reset the offset before start consuming and don't commit the consumed messages.
+		// In this way, it will only read the latest messages.
 		session.ResetOffset(claim.Topic(), claim.Partition(), sarama.OffsetNewest, "")
 	}
+
 	for msg := range claim.Messages() {
 		ctx, cancel := context.WithTimeout(k.ctx, time.Second*5)
 		select {
 		case k.messages <- msg:
 			cancel()
+			// If the client wants to most recent messages, don't commit the
+			// offset and reset the offset to sarama.OffsetNewest, then start consuming.
 			if !k.options.StartConsumingLatest {
 				session.MarkMessage(msg, "") // Commit the message and advance the offset.
 			}
