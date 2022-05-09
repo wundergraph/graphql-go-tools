@@ -52,43 +52,6 @@ func FromTypeRef(operation, definition *ast.Document, typeRef int, opts ...Optio
 	return resolveJsonSchemaPath(jsonSchema, appliedOptions.path)
 }
 
-/*
-func FromTypeRefWithOverrides(operation, definition *ast.Document, typeRef int, overrides map[string]JsonSchema) JsonSchema {
-	resolver := &fromTypeRefResolver{
-		overrides: overrides,
-	}
-	return resolver.fromTypeRef(operation, definition, typeRef)
-}
-
-func FromTypeRefWithPath(operation, definition *ast.Document, typeRef int, path []string) JsonSchema {
-	jsonSchema := FromTypeRef(operation, definition, typeRef)
-	if len(path) == 0 {
-		return jsonSchema
-	}
-
-	switch typedJsonSchema := jsonSchema.(type) {
-	case Object:
-		for i := 0; i < len(path); i++ {
-			propertyJsonSchema, exists := typedJsonSchema.Properties[path[i]]
-			if !exists {
-				return jsonSchema
-			}
-			jsonSchema = propertyJsonSchema
-		}
-	}
-
-	return jsonSchema
-}
-
-func FromTypeRefWithPathAndOverrides(operation, definition *ast.Document, typeRef int, path []string, overrides map[string]JsonSchema) JsonSchema {
-	jsonSchema := FromTypeRefWithOverrides(operation, definition, typeRef, overrides)
-	if len(path) == 0 {
-		return jsonSchema
-	}
-
-	return resolveJsonSchemaPath(jsonSchema, path)
-}*/
-
 func resolveJsonSchemaPath(jsonSchema JsonSchema, path []string) JsonSchema {
 	switch typedJsonSchema := jsonSchema.(type) {
 	case Object:
