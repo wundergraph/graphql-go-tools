@@ -12,18 +12,96 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 )
 
-func FromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
-	resolver := &fromTypeRefResolver{
-		overrides: map[string]JsonSchema{},
-	}
-	return resolver.fromTypeRef(operation, definition, typeRef)
+type options struct {
+	overrides map[string]JsonSchema
+	path      []string
 }
 
+type Option func(opts *options)
+
+func WithOverrides(overrides map[string]JsonSchema) Option {
+	return func(opts *options) {
+		opts.overrides = overrides
+	}
+}
+
+func WithPath(path []string) Option {
+	return func(opts *options) {
+		opts.path = path
+	}
+}
+
+func FromTypeRef(operation, definition *ast.Document, typeRef int, opts ...Option) JsonSchema {
+	appliedOptions := &options{}
+	for _, opt := range opts {
+		opt(appliedOptions)
+	}
+
+	var resolver *fromTypeRefResolver
+	if len(appliedOptions.overrides) > 0 {
+		resolver = &fromTypeRefResolver{
+			overrides: appliedOptions.overrides,
+		}
+	} else {
+		resolver = &fromTypeRefResolver{
+			overrides: map[string]JsonSchema{},
+		}
+	}
+
+	jsonSchema := resolver.fromTypeRef(operation, definition, typeRef)
+	return resolveJsonSchemaPath(jsonSchema, appliedOptions.path)
+}
+
+/*
 func FromTypeRefWithOverrides(operation, definition *ast.Document, typeRef int, overrides map[string]JsonSchema) JsonSchema {
 	resolver := &fromTypeRefResolver{
 		overrides: overrides,
 	}
 	return resolver.fromTypeRef(operation, definition, typeRef)
+}
+
+func FromTypeRefWithPath(operation, definition *ast.Document, typeRef int, path []string) JsonSchema {
+	jsonSchema := FromTypeRef(operation, definition, typeRef)
+	if len(path) == 0 {
+		return jsonSchema
+	}
+
+	switch typedJsonSchema := jsonSchema.(type) {
+	case Object:
+		for i := 0; i < len(path); i++ {
+			propertyJsonSchema, exists := typedJsonSchema.Properties[path[i]]
+			if !exists {
+				return jsonSchema
+			}
+			jsonSchema = propertyJsonSchema
+		}
+	}
+
+	return jsonSchema
+}
+
+func FromTypeRefWithPathAndOverrides(operation, definition *ast.Document, typeRef int, path []string, overrides map[string]JsonSchema) JsonSchema {
+	jsonSchema := FromTypeRefWithOverrides(operation, definition, typeRef, overrides)
+	if len(path) == 0 {
+		return jsonSchema
+	}
+
+	return resolveJsonSchemaPath(jsonSchema, path)
+}*/
+
+func resolveJsonSchemaPath(jsonSchema JsonSchema, path []string) JsonSchema {
+	switch typedJsonSchema := jsonSchema.(type) {
+	case Object:
+		for i := 0; i < len(path); i++ {
+			propertyJsonSchema, exists := typedJsonSchema.Properties[path[i]]
+			if !exists {
+				return jsonSchema
+			}
+			jsonSchema = propertyJsonSchema
+		}
+	}
+
+	return jsonSchema
 }
 
 type fromTypeRefResolver struct {
