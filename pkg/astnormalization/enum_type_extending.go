@@ -13,12 +13,22 @@ func extendEnumTypeDefinition(walker *astvisitor.Walker) {
 	walker.RegisterEnterEnumTypeExtensionVisitor(&visitor)
 }
 
-type extendEnumTypeDefinitionVisitor struct {
-	*astvisitor.Walker
-	operation *ast.Document
+func extendEnumTypeDefinitionKeepingOrphans(walker *astvisitor.Walker) {
+	visitor := extendEnumTypeDefinitionVisitor{
+		Walker:               walker,
+		keepExtensionOrphans: true,
+	}
+	walker.RegisterEnterDocumentVisitor(&visitor)
+	walker.RegisterEnterEnumTypeExtensionVisitor(&visitor)
 }
 
-func (e *extendEnumTypeDefinitionVisitor) EnterDocument(operation, definition *ast.Document) {
+type extendEnumTypeDefinitionVisitor struct {
+	*astvisitor.Walker
+	operation            *ast.Document
+	keepExtensionOrphans bool
+}
+
+func (e *extendEnumTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
 	e.operation = operation
 }
 
@@ -33,6 +43,10 @@ func (e *extendEnumTypeDefinitionVisitor) EnterEnumTypeExtension(ref int) {
 			continue
 		}
 		e.operation.ExtendEnumTypeDefinitionByEnumTypeExtension(nodes[i].Ref, ref)
+		return
+	}
+
+	if e.keepExtensionOrphans {
 		return
 	}
 

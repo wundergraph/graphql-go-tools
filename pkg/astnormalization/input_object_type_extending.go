@@ -13,17 +13,26 @@ func extendInputObjectTypeDefinition(walker *astvisitor.Walker) {
 	walker.RegisterEnterInputObjectTypeExtensionVisitor(&visitor)
 }
 
-type extendInputObjectTypeDefinitionVisitor struct {
-	*astvisitor.Walker
-	operation *ast.Document
+func extendInputObjectTypeDefinitionKeepingOrphans(walker *astvisitor.Walker) {
+	visitor := extendInputObjectTypeDefinitionVisitor{
+		Walker:               walker,
+		keepExtensionOrphans: true,
+	}
+	walker.RegisterEnterDocumentVisitor(&visitor)
+	walker.RegisterEnterInputObjectTypeExtensionVisitor(&visitor)
 }
 
-func (e *extendInputObjectTypeDefinitionVisitor) EnterDocument(operation, definition *ast.Document) {
+type extendInputObjectTypeDefinitionVisitor struct {
+	*astvisitor.Walker
+	operation            *ast.Document
+	keepExtensionOrphans bool
+}
+
+func (e *extendInputObjectTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
 	e.operation = operation
 }
 
 func (e *extendInputObjectTypeDefinitionVisitor) EnterInputObjectTypeExtension(ref int) {
-
 	nodes, exists := e.operation.Index.NodesByNameBytes(e.operation.InputObjectTypeExtensionNameBytes(ref))
 	if !exists {
 		return
@@ -34,6 +43,10 @@ func (e *extendInputObjectTypeDefinitionVisitor) EnterInputObjectTypeExtension(r
 			continue
 		}
 		e.operation.ExtendInputObjectTypeDefinitionByInputObjectTypeExtension(nodes[i].Ref, ref)
+		return
+	}
+
+	if e.keepExtensionOrphans {
 		return
 	}
 

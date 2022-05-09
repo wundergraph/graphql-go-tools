@@ -13,12 +13,22 @@ func extendScalarTypeDefinition(walker *astvisitor.Walker) {
 	walker.RegisterEnterScalarTypeExtensionVisitor(&visitor)
 }
 
-type extendScalarTypeDefinitionVisitor struct {
-	*astvisitor.Walker
-	operation *ast.Document
+func extendScalarTypeDefinitionKeepingOrphans(walker *astvisitor.Walker) {
+	visitor := extendScalarTypeDefinitionVisitor{
+		Walker:               walker,
+		keepExtensionOrphans: true,
+	}
+	walker.RegisterEnterDocumentVisitor(&visitor)
+	walker.RegisterEnterScalarTypeExtensionVisitor(&visitor)
 }
 
-func (e *extendScalarTypeDefinitionVisitor) EnterDocument(operation, definition *ast.Document) {
+type extendScalarTypeDefinitionVisitor struct {
+	*astvisitor.Walker
+	operation            *ast.Document
+	keepExtensionOrphans bool
+}
+
+func (e *extendScalarTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
 	e.operation = operation
 }
 
@@ -34,6 +44,10 @@ func (e *extendScalarTypeDefinitionVisitor) EnterScalarTypeExtension(ref int) {
 			continue
 		}
 		e.operation.ExtendScalarTypeDefinitionByScalarTypeExtension(nodes[i].Ref, ref)
+		return
+	}
+
+	if e.keepExtensionOrphans {
 		return
 	}
 
