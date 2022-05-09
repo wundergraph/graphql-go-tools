@@ -84,7 +84,7 @@ func TestKafkaDataSource(t *testing.T) {
 	`, "RemainingJedis", &plan.SubscriptionResponsePlan{
 		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				Input: []byte(fmt.Sprintf(`{"broker_addr":"localhost:9092","topic":"test.topic","group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s"}`, testMockKafkaVersion)),
+				Input: []byte(fmt.Sprintf(`{"broker_addr":"localhost:9092","topic":"test.topic","group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s","start_consuming_latest":false}`, testMockKafkaVersion)),
 				Source: &SubscriptionSource{
 					client: NewKafkaConsumerGroupBridge(ctx, logger()),
 				},
@@ -120,7 +120,7 @@ func TestKafkaDataSource(t *testing.T) {
 	`, "SubscriptionWithVariables", &plan.SubscriptionResponsePlan{
 		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				Input: []byte(fmt.Sprintf(`{"broker_addr":"localhost:9092","topic":"test.topic.$$0$$","group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s"}`, testMockKafkaVersion)),
+				Input: []byte(fmt.Sprintf(`{"broker_addr":"localhost:9092","topic":"test.topic.$$0$$","group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s","start_consuming_latest":false}`, testMockKafkaVersion)),
 				Variables: resolve.NewVariables(
 					&resolve.ContextVariable{
 						Path:     []string{"bar"},

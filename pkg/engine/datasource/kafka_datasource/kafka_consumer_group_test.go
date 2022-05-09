@@ -2,7 +2,6 @@ package kafka_datasource
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -31,7 +30,7 @@ func newMockKafkaBroker(t *testing.T, topic, group string, fr *sarama.FetchRespo
 
 	mockOffsetResponse := sarama.NewMockOffsetResponse(t).
 		SetOffset(topic, defaultPartition, sarama.OffsetOldest, 0).
-		SetOffset(topic, defaultPartition, sarama.OffsetNewest, 10).
+		SetOffset(topic, defaultPartition, sarama.OffsetNewest, 1).
 		SetVersion(1)
 
 	mockCoordinatorResponse := sarama.NewMockFindCoordinatorResponse(t).
@@ -49,7 +48,7 @@ func newMockKafkaBroker(t *testing.T, topic, group string, fr *sarama.FetchRespo
 	mockHeartbeatResponse := sarama.NewMockHeartbeatResponse(t)
 
 	mockOffsetFetchResponse := sarama.NewMockOffsetFetchResponse(t).
-		SetOffset(group, topic, defaultPartition, 10, "", sarama.KError(0))
+		SetOffset(group, topic, defaultPartition, 0, "", sarama.KError(0))
 
 	// Need to mock ApiVersionsRequest when we upgrade Sarama
 
@@ -255,77 +254,136 @@ func TestKafkaConsumerGroup_StartConsuming_And_Stop(t *testing.T) {
 	}
 }
 
-func TestKafkaConsumerGroup_StartConsumingLatest(t *testing.T) {
-	var (
-		testMessageKey = sarama.StringEncoder("test.message.key")
-		topic          = "test.topic"
-		consumerGroup  = "consumer.group"
-	)
+func TestKafkaConsumerGroup_Config_StartConsumingLatest(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	fr := &sarama.FetchResponse{Version: 11}
-	mockBroker := newMockKafkaBroker(t, topic, consumerGroup, fr)
-	defer mockBroker.Close()
+	consumedMsgCh := make(chan *sarama.ConsumerMessage)
+	var mockTopicName = "test.mock.topic"
 
-	// Add a message to the topic. The consumer group will fetch that message and trigger ConsumeClaim method.
-	for i := 0; i < 10; i++ {
-		value := sarama.StringEncoder(fmt.Sprintf("test.message.value:%d", i))
-		fr.AddMessage(topic, defaultPartition, testMessageKey, value, int64(i))
+	// Create a new Kafka consumer handler here. We'll test ConsumeClaim method.
+	// If the StartConsumingLatest config option is true, it resets the offset,
+	// and we'll observe this behavior.
+	kg := &kafkaConsumerGroupHandler{
+		ctx:      ctx,
+		messages: consumedMsgCh,
+		log:      logger(),
+		options: &GraphQLSubscriptionOptions{
+			StartConsumingLatest: true,
+			Topic:                mockTopicName,
+			GroupID:              "test.consumer.group",
+			ClientID:             "test.client.id",
+		},
+	}
+	session := &mockConsumerGroupSession{
+		resetOffsetParams: make(map[string]interface{}),
 	}
 
-	options := GraphQLSubscriptionOptions{
-		BrokerAddr:           mockBroker.Addr(),
-		Topic:                topic,
-		GroupID:              consumerGroup,
-		ClientID:             "graphql-go-tools-test",
-		KafkaVersion:         testMockKafkaVersion,
-		StartConsumingLatest: true,
+	claim := &mockConsumerGroupClaim{
+		topicName: mockTopicName,
+		messages:  make(chan *sarama.ConsumerMessage, 1),
 	}
-	options.Sanitize()
-	require.NoError(t, options.Validate())
-
-	saramaConfig := sarama.NewConfig()
-	saramaConfig.Version = SaramaSupportedKafkaVersions[options.KafkaVersion]
-
-	cg, err := NewKafkaConsumerGroup(logger(), saramaConfig, &options)
-	require.NoError(t, err)
-
-	messages := make(chan *sarama.ConsumerMessage)
-	cg.StartConsuming(messages)
-
-	for i := 10; i < 15; i++ {
-		value := sarama.StringEncoder(fmt.Sprintf("test.message.value:%d", i))
-		fr.AddMessage(topic, defaultPartition, testMessageKey, value, int64(i))
+	// Produce a test message.
+	claim.messages <- &sarama.ConsumerMessage{
+		Topic:     mockTopicName,
+		Partition: defaultPartition,
+		Key:       []byte("key"),
+		Value:     []byte("value"),
 	}
-L:
-	for {
-		select {
-		case msg := <-messages:
-			fmt.Println(string(msg.Value))
-		case <-time.After(time.Second):
-			break L
-		}
-	}
-	/*expectedKey, _ := testMessageKey.Encode()
-	require.Equal(t, expectedKey, msg.Key)
 
-	expectedValue, _ := testMessageValue.Encode()
-	require.Equal(t, expectedValue, msg.Value)*/
-
-	// Stop the consumer group instance
-	require.NoError(t, cg.Close())
-
-	done := make(chan struct{})
+	errCh := make(chan error)
 	go func() {
-		defer func() {
-			close(done)
-		}()
-
-		cg.WaitUntilConsumerStop()
+		errCh <- kg.ConsumeClaim(session, claim)
 	}()
 
 	select {
+	case <-consumedMsgCh:
+		// Test message has been consumed
 	case <-time.After(15 * time.Second):
-		require.Fail(t, "KafkaConsumerGroup could not closed in 15 seconds")
-	case <-done:
+		require.Fail(t, "the message could not be consumed")
 	}
+
+	// This will stop ConsumeClaim method, and it will return with an error or nil.
+	close(claim.messages)
+	require.NoError(t, <-errCh)
+
+	// If the StartConsumingLatest switch works without any problem, we observe the following changes:
+
+	// sarama.ConsumerGroupSession
+	require.Equal(t, mockTopicName, session.resetOffsetParams["topic"])
+	require.Equal(t, int32(defaultPartition), session.resetOffsetParams["partition"])
+	require.Equal(t, sarama.OffsetNewest, session.resetOffsetParams["offset"])
+	require.Equal(t, "", session.resetOffsetParams["metadata"])
+
+	// sarama.ConsumerGroupClaim
+	require.False(t, session.markMessageCalled)
 }
+
+type mockConsumerGroupSession struct {
+	markMessageCalled bool
+	resetOffsetParams map[string]interface{}
+}
+
+func (m *mockConsumerGroupSession) Claims() map[string][]int32 {
+	panic("implement me")
+}
+
+func (m *mockConsumerGroupSession) MemberID() string {
+	panic("implement me")
+}
+
+func (m *mockConsumerGroupSession) GenerationID() int32 {
+	panic("implement me")
+}
+
+func (m *mockConsumerGroupSession) MarkOffset(topic string, partition int32, offset int64, metadata string) {
+	panic("implement me")
+}
+
+func (m *mockConsumerGroupSession) Commit() {
+	panic("implement me")
+}
+
+func (m *mockConsumerGroupSession) ResetOffset(topic string, partition int32, offset int64, metadata string) {
+	m.resetOffsetParams["topic"] = topic
+	m.resetOffsetParams["partition"] = partition
+	m.resetOffsetParams["offset"] = offset
+	m.resetOffsetParams["metadata"] = metadata
+}
+
+func (m *mockConsumerGroupSession) MarkMessage(msg *sarama.ConsumerMessage, metadata string) {
+	m.markMessageCalled = true
+}
+
+func (m *mockConsumerGroupSession) Context() context.Context {
+	panic("implement me")
+}
+
+var _ sarama.ConsumerGroupSession = (*mockConsumerGroupSession)(nil)
+
+type mockConsumerGroupClaim struct {
+	topicName string
+	messages  chan *sarama.ConsumerMessage
+}
+
+func (m *mockConsumerGroupClaim) Topic() string {
+	return m.topicName
+}
+
+func (m *mockConsumerGroupClaim) Partition() int32 {
+	return defaultPartition
+}
+
+func (m *mockConsumerGroupClaim) InitialOffset() int64 {
+	return 0
+}
+
+func (m *mockConsumerGroupClaim) HighWaterMarkOffset() int64 {
+	return 0
+}
+
+func (m *mockConsumerGroupClaim) Messages() <-chan *sarama.ConsumerMessage {
+	return m.messages
+}
+
+var _ sarama.ConsumerGroupClaim = (*mockConsumerGroupClaim)(nil)
