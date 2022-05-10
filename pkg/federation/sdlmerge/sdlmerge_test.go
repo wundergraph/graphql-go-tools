@@ -110,13 +110,18 @@ func TestMergeSDLs(t *testing.T) {
 	))
 
 	t.Run("Non-identical duplicate enums should return an error", runMergeTestAndExpectError(
-		FederatingFieldlessValueTypeMergeErrorMessage("Satisfaction"),
+		NonIdenticalSharedTypeMergeErrorMessage("Satisfaction"),
 		productSchema, negativeTestingLikeSchema,
 	))
 
 	t.Run("Non-identical duplicate unions should return an error", runMergeTestAndExpectError(
-		FederatingFieldlessValueTypeMergeErrorMessage("AlphaNumeric"),
+		NonIdenticalSharedTypeMergeErrorMessage("AlphaNumeric"),
 		accountSchema, negativeTestingReviewSchema,
+	))
+
+	t.Run("Entity duplicates should return an error", runMergeTestAndExpectError(
+		DuplicateEntityMergeErrorMessage("User"),
+		accountSchema, negativeTestingAccountSchema,
 	))
 }
 
@@ -126,13 +131,38 @@ const (
 			me: User
 		}
 
-		union AlphaNumeric = Int | String
+		union AlphaNumeric = Int | String | Float
 
 		scalar DateTime
 
 		scalar CustomScalar
 
 		type User @key(fields: "id") {
+			id: ID!
+			username: String!
+			created: DateTime!
+			reputation: CustomScalar!
+		}
+
+		enum Satisfaction {
+			HAPPY,
+			NEUTRAL,
+			UNHAPPY,
+		}
+	`
+
+	negativeTestingAccountSchema = `
+		extend type Query {
+			me: User
+		}
+
+		union AlphaNumeric = Int | String | Float
+
+		scalar DateTime
+
+		scalar CustomScalar
+
+		type User {
 			id: ID!
 			username: String!
 			created: DateTime!
@@ -182,7 +212,7 @@ const (
 			averageSatisfaction: Satisfaction!
 		}
 
-		union AlphaNumeric = Int | String
+		union AlphaNumeric = Int | String | Float
 	`
 	reviewSchema = `
 		scalar DateTime
@@ -232,8 +262,6 @@ const (
 			sales: BigInt!
 		}
 
-		extend union AlphaNumeric = Float
-		
 		enum Satisfaction {
 			HAPPY,
 			NEUTRAL,
@@ -385,6 +413,10 @@ const (
 		}
 	`
 	onlinePaymentSchema = `
+		extend enum Satisfaction {
+			UNHAPPY
+		}
+
 		scalar DateTime
 
 		union AlphaNumeric = Int | String
@@ -396,15 +428,16 @@ const (
 			date: DateTime!
 			amount: BigInt!
 		}
+		
+		extend union AlphaNumeric = Float
 
 		enum Satisfaction {
-			HAPPY,
-			NEUTRAL,
-			UNHAPPY,
+			HAPPY
+			NEUTRAL
 		}
 	`
 	classicPaymentSchema = `
-		union AlphaNumeric = Int | String
+		union AlphaNumeric = Int | String | Float
 
 		scalar CustomScalar
 
@@ -427,7 +460,7 @@ const (
 			comments: [Comment]
 		}
 
-		union AlphaNumeric = Int | String
+		union AlphaNumeric = Int | String | Float
 
 		interface PaymentType @extends {
 			name: String!
@@ -644,7 +677,7 @@ const (
 			averageSatisfaction: Satisfaction!
 		}
 
-		union AlphaNumeric = Int | String
+		union AlphaNumeric = Int | String | Float
 
 		scalar DateTime
 
@@ -665,10 +698,10 @@ const (
 	`
 )
 
-func FederatingFieldlessValueTypeErrorMessage(typeName string) string {
-	return fmt.Sprintf("external: the value type named '%s' must be identical in any subgraphs to federate, locations: [], path: []", typeName)
+func NonIdenticalSharedTypeMergeErrorMessage(typeName string) string {
+	return fmt.Sprintf("merge ast: walk: external: the shared type named '%s' must be identical in any subgraphs to federate, locations: [], path: []", typeName)
 }
 
-func FederatingFieldlessValueTypeMergeErrorMessage(typeName string) string {
-	return fmt.Sprintf("merge ast: walk: external: the value type named '%s' must be identical in any subgraphs to federate, locations: [], path: []", typeName)
+func DuplicateEntityMergeErrorMessage(typeName string) string {
+	return fmt.Sprintf("merge ast: walk: external: entities must not be shared types, but the entity named '%s' is duplicated in other subgraph(s), locations: [], path: []", typeName)
 }

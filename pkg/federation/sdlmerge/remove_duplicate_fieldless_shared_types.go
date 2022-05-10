@@ -6,21 +6,21 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
-type removeDuplicateFieldlessValueTypesVisitor struct {
+type removeDuplicateFieldlessSharedTypesVisitor struct {
 	*astvisitor.Walker
 	document          *ast.Document
-	valueTypeSet      map[string]FieldlessValueType
+	sharedTypeSet     map[string]FieldlessSharedType
 	rootNodesToRemove []ast.Node
 	lastEnumRef       int
 	lastUnionRef      int
 	lastScalarRef     int
 }
 
-func newRemoveDuplicateFieldlessValueTypesVisitor() *removeDuplicateFieldlessValueTypesVisitor {
-	return &removeDuplicateFieldlessValueTypesVisitor{
+func newRemoveDuplicateFieldlessSharedTypesVisitor() *removeDuplicateFieldlessSharedTypesVisitor {
+	return &removeDuplicateFieldlessSharedTypesVisitor{
 		nil,
 		nil,
-		make(map[string]FieldlessValueType),
+		make(map[string]FieldlessSharedType),
 		nil,
 		ast.InvalidRef,
 		ast.InvalidRef,
@@ -28,7 +28,7 @@ func newRemoveDuplicateFieldlessValueTypesVisitor() *removeDuplicateFieldlessVal
 	}
 }
 
-func (r *removeDuplicateFieldlessValueTypesVisitor) Register(walker *astvisitor.Walker) {
+func (r *removeDuplicateFieldlessSharedTypesVisitor) Register(walker *astvisitor.Walker) {
 	r.Walker = walker
 	walker.RegisterEnterDocumentVisitor(r)
 	walker.RegisterEnterEnumTypeDefinitionVisitor(r)
@@ -37,61 +37,61 @@ func (r *removeDuplicateFieldlessValueTypesVisitor) Register(walker *astvisitor.
 	walker.RegisterLeaveDocumentVisitor(r)
 }
 
-func (r *removeDuplicateFieldlessValueTypesVisitor) EnterDocument(operation, _ *ast.Document) {
+func (r *removeDuplicateFieldlessSharedTypesVisitor) EnterDocument(operation, _ *ast.Document) {
 	r.document = operation
 }
 
-func (r *removeDuplicateFieldlessValueTypesVisitor) EnterEnumTypeDefinition(ref int) {
+func (r *removeDuplicateFieldlessSharedTypesVisitor) EnterEnumTypeDefinition(ref int) {
 	if ref <= r.lastEnumRef {
 		return
 	}
 	document := r.document
 	name := document.EnumTypeDefinitionNameString(ref)
-	enum, exists := r.valueTypeSet[name]
+	enum, exists := r.sharedTypeSet[name]
 	if exists {
 		if !enum.AreValuesIdentical(document.EnumTypeDefinitions[ref].EnumValuesDefinition.Refs) {
-			r.StopWithExternalErr(operationreport.ErrDuplicateValueTypesMustBeIdenticalToFederate(name))
+			r.StopWithExternalErr(operationreport.ErrSharedTypesMustBeIdenticalToFederate(name))
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindEnumTypeDefinition, Ref: ref})
 	} else {
-		r.valueTypeSet[name] = NewEnumValueType(document, ref)
+		r.sharedTypeSet[name] = NewEnumSharedType(document, ref)
 	}
 	r.lastEnumRef = ref
 }
 
-func (r *removeDuplicateFieldlessValueTypesVisitor) EnterScalarTypeDefinition(ref int) {
+func (r *removeDuplicateFieldlessSharedTypesVisitor) EnterScalarTypeDefinition(ref int) {
 	if ref <= r.lastScalarRef {
 		return
 	}
 	name := r.document.ScalarTypeDefinitionNameString(ref)
-	_, exists := r.valueTypeSet[name]
+	_, exists := r.sharedTypeSet[name]
 	if exists {
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindScalarTypeDefinition, Ref: ref})
 	} else {
-		r.valueTypeSet[name] = ScalarValueType{}
+		r.sharedTypeSet[name] = ScalarSharedType{}
 	}
 	r.lastScalarRef = ref
 }
 
-func (r *removeDuplicateFieldlessValueTypesVisitor) EnterUnionTypeDefinition(ref int) {
+func (r *removeDuplicateFieldlessSharedTypesVisitor) EnterUnionTypeDefinition(ref int) {
 	if ref <= r.lastUnionRef {
 		return
 	}
 	document := r.document
 	name := document.UnionTypeDefinitionNameString(ref)
-	union, exists := r.valueTypeSet[name]
+	union, exists := r.sharedTypeSet[name]
 	if exists {
 		if !union.AreValuesIdentical(document.UnionTypeDefinitions[ref].UnionMemberTypes.Refs) {
-			r.StopWithExternalErr(operationreport.ErrDuplicateValueTypesMustBeIdenticalToFederate(name))
+			r.StopWithExternalErr(operationreport.ErrSharedTypesMustBeIdenticalToFederate(name))
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindUnionTypeDefinition, Ref: ref})
 	} else {
-		r.valueTypeSet[name] = NewUnionValueType(document, ref)
+		r.sharedTypeSet[name] = NewUnionSharedType(document, ref)
 	}
 	r.lastUnionRef = ref
 }
 
-func (r *removeDuplicateFieldlessValueTypesVisitor) LeaveDocument(_, _ *ast.Document) {
+func (r *removeDuplicateFieldlessSharedTypesVisitor) LeaveDocument(_, _ *ast.Document) {
 	if r.rootNodesToRemove != nil {
 		r.document.DeleteRootNodes(r.rootNodesToRemove)
 	}

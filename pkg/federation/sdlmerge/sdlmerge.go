@@ -99,11 +99,11 @@ func (m *normalizer) setupWalkers() {
 		// visitors for cleaning up federated duplicated fields and directives
 		{
 			newRemoveFieldDefinitions("external"),
+			newRemoveDuplicateFieldedSharedTypesVisitor(),
+			newRemoveDuplicateFieldlessSharedTypesVisitor(),
 			newRemoveInterfaceDefinitionDirective("key"),
 			newRemoveObjectTypeDefinitionDirective("key"),
 			newRemoveFieldDefinitionDirective("provides", "requires"),
-			newRemoveDuplicateFieldedValueTypesVisitor(),
-			newRemoveDuplicateFieldlessValueTypesVisitor(),
 		},
 	}
 
@@ -129,15 +129,15 @@ func (m *normalizer) normalize(operation *ast.Document) error {
 	return nil
 }
 
-type FieldedValueType struct {
+type FieldedSharedType struct {
 	document  *ast.Document
 	fieldKind ast.NodeKind
 	fieldRefs []int
 	fieldSet  map[string]int
 }
 
-func NewFieldedValueType(document *ast.Document, fieldKind ast.NodeKind, fieldRefs []int) FieldedValueType {
-	f := FieldedValueType{
+func NewFieldedSharedType(document *ast.Document, fieldKind ast.NodeKind, fieldRefs []int) FieldedSharedType {
+	f := FieldedSharedType{
 		document,
 		fieldKind,
 		fieldRefs,
@@ -147,7 +147,7 @@ func NewFieldedValueType(document *ast.Document, fieldKind ast.NodeKind, fieldRe
 	return f
 }
 
-func (f FieldedValueType) AreFieldsIdentical(fieldRefsToCompare []int) bool {
+func (f FieldedSharedType) AreFieldsIdentical(fieldRefsToCompare []int) bool {
 	if len(f.fieldRefs) != len(fieldRefsToCompare) {
 		return false
 	}
@@ -165,7 +165,7 @@ func (f FieldedValueType) AreFieldsIdentical(fieldRefsToCompare []int) bool {
 	return true
 }
 
-func (f *FieldedValueType) createFieldSet() {
+func (f *FieldedSharedType) createFieldSet() {
 	fieldSet := make(map[string]int)
 	for _, fieldRef := range f.fieldRefs {
 		fieldSet[f.fieldName(fieldRef)] = f.fieldTypeRef(fieldRef)
@@ -173,7 +173,7 @@ func (f *FieldedValueType) createFieldSet() {
 	f.fieldSet = fieldSet
 }
 
-func (f FieldedValueType) fieldName(ref int) string {
+func (f FieldedSharedType) fieldName(ref int) string {
 	switch f.fieldKind {
 	case ast.NodeKindInputValueDefinition:
 		return f.document.InputValueDefinitionNameString(ref)
@@ -182,7 +182,7 @@ func (f FieldedValueType) fieldName(ref int) string {
 	}
 }
 
-func (f FieldedValueType) fieldTypeRef(ref int) int {
+func (f FieldedSharedType) fieldTypeRef(ref int) int {
 	document := f.document
 	switch f.fieldKind {
 	case ast.NodeKindInputValueDefinition:
@@ -192,13 +192,13 @@ func (f FieldedValueType) fieldTypeRef(ref int) int {
 	}
 }
 
-type FieldlessValueType interface {
+type FieldlessSharedType interface {
 	AreValuesIdentical(valueRefsToCompare []int) bool
 	valueRefs() []int
 	valueName(ref int) string
 }
 
-func createValueSet(f FieldlessValueType) map[string]bool {
+func createValueSet(f FieldlessSharedType) map[string]bool {
 	valueSet := make(map[string]bool)
 	for _, valueRef := range f.valueRefs() {
 		valueSet[f.valueName(valueRef)] = true
@@ -206,14 +206,14 @@ func createValueSet(f FieldlessValueType) map[string]bool {
 	return valueSet
 }
 
-type EnumValueType struct {
+type EnumSharedType struct {
 	*ast.EnumTypeDefinition
 	document *ast.Document
 	valueSet map[string]bool
 }
 
-func NewEnumValueType(document *ast.Document, ref int) EnumValueType {
-	e := EnumValueType{
+func NewEnumSharedType(document *ast.Document, ref int) EnumSharedType {
+	e := EnumSharedType{
 		&document.EnumTypeDefinitions[ref],
 		document,
 		nil,
@@ -222,7 +222,7 @@ func NewEnumValueType(document *ast.Document, ref int) EnumValueType {
 	return e
 }
 
-func (e EnumValueType) AreValuesIdentical(valueRefsToCompare []int) bool {
+func (e EnumSharedType) AreValuesIdentical(valueRefsToCompare []int) bool {
 	if len(e.valueRefs()) != len(valueRefsToCompare) {
 		return false
 	}
@@ -235,22 +235,22 @@ func (e EnumValueType) AreValuesIdentical(valueRefsToCompare []int) bool {
 	return true
 }
 
-func (e EnumValueType) valueRefs() []int {
+func (e EnumSharedType) valueRefs() []int {
 	return e.EnumValuesDefinition.Refs
 }
 
-func (e EnumValueType) valueName(ref int) string {
+func (e EnumSharedType) valueName(ref int) string {
 	return e.document.EnumValueDefinitionNameString(ref)
 }
 
-type UnionValueType struct {
+type UnionSharedType struct {
 	*ast.UnionTypeDefinition
 	document *ast.Document
 	valueSet map[string]bool
 }
 
-func NewUnionValueType(document *ast.Document, ref int) UnionValueType {
-	u := UnionValueType{
+func NewUnionSharedType(document *ast.Document, ref int) UnionSharedType {
+	u := UnionSharedType{
 		&document.UnionTypeDefinitions[ref],
 		document,
 		nil,
@@ -259,7 +259,7 @@ func NewUnionValueType(document *ast.Document, ref int) UnionValueType {
 	return u
 }
 
-func (u UnionValueType) AreValuesIdentical(valueRefsToCompare []int) bool {
+func (u UnionSharedType) AreValuesIdentical(valueRefsToCompare []int) bool {
 	if len(u.valueRefs()) != len(valueRefsToCompare) {
 		return false
 	}
@@ -272,25 +272,25 @@ func (u UnionValueType) AreValuesIdentical(valueRefsToCompare []int) bool {
 	return true
 }
 
-func (u UnionValueType) valueRefs() []int {
+func (u UnionSharedType) valueRefs() []int {
 	return u.UnionMemberTypes.Refs
 }
 
-func (u UnionValueType) valueName(ref int) string {
+func (u UnionSharedType) valueName(ref int) string {
 	return u.document.TypeNameString(ref)
 }
 
-type ScalarValueType struct {
+type ScalarSharedType struct {
 }
 
-func (_ ScalarValueType) AreValuesIdentical(_ []int) bool {
+func (_ ScalarSharedType) AreValuesIdentical(_ []int) bool {
 	return true
 }
 
-func (_ ScalarValueType) valueRefs() []int {
+func (_ ScalarSharedType) valueRefs() []int {
 	return nil
 }
 
-func (_ ScalarValueType) valueName(_ int) string {
+func (_ ScalarSharedType) valueName(_ int) string {
 	return ""
 }
