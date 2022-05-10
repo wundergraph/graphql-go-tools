@@ -18,7 +18,7 @@ func (e *extendObjectTypeDefinitionVisitor) Register(walker *astvisitor.Walker) 
 	walker.RegisterEnterObjectTypeExtensionVisitor(e)
 }
 
-func (e *extendObjectTypeDefinitionVisitor) EnterDocument(operation, definition *ast.Document) {
+func (e *extendObjectTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
 	e.operation = operation
 }
 
@@ -33,6 +33,5 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 			continue
 		}
 		e.operation.ExtendObjectTypeDefinitionByObjectTypeExtension(nodes[i].Ref, ref)
-		return
 	}
 }

@@ -126,7 +126,7 @@ const (
 			me: User
 		}
 
-		union AlphaNumeric = Int | String | Float
+		union AlphaNumeric = Int | String
 
 		scalar DateTime
 
@@ -181,6 +181,8 @@ const (
 			departments: [Department!]!
 			averageSatisfaction: Satisfaction!
 		}
+
+		union AlphaNumeric = Int | String
 	`
 	reviewSchema = `
 		scalar DateTime
@@ -230,7 +232,7 @@ const (
 			sales: BigInt!
 		}
 
-		union AlphaNumeric = Float | String | Int
+		extend union AlphaNumeric = Float
 		
 		enum Satisfaction {
 			HAPPY,
@@ -385,7 +387,7 @@ const (
 	onlinePaymentSchema = `
 		scalar DateTime
 
-		union AlphaNumeric = String | Float | Int
+		union AlphaNumeric = Int | String
 
 		scalar BigInt
 
@@ -402,7 +404,7 @@ const (
 		}
 	`
 	classicPaymentSchema = `
-		union AlphaNumeric = Int | String | Float
+		union AlphaNumeric = Int | String
 
 		scalar CustomScalar
 
@@ -425,7 +427,7 @@ const (
 			comments: [Comment]
 		}
 
-		union AlphaNumeric = Int | String | Float
+		union AlphaNumeric = Int | String
 
 		interface PaymentType @extends {
 			name: String!
@@ -577,6 +579,8 @@ const (
 			reviews: [Review]
 			sales: BigInt!
 		}
+
+		union AlphaNumeric = Int | String | Float
 		
 		scalar DateTime
 
@@ -602,8 +606,6 @@ const (
 			id: ID! @external
 			reviews: [Review]
 		}
-
-		union AlphaNumeric = Float | String | Int
 	`
 
 	productAndExtendsDirectivesFederatedSchema = `
@@ -642,6 +644,8 @@ const (
 			averageSatisfaction: Satisfaction!
 		}
 
+		union AlphaNumeric = Int | String
+
 		scalar DateTime
 
 		type Comment {
@@ -654,8 +658,6 @@ const (
 			id: ID! @external
 			comments: [Comment]
 		}
-
-		union AlphaNumeric = Int | String | Float
 
 		extend interface PaymentType {
 			name: String!

@@ -13,17 +13,26 @@ func extendUnionTypeDefinition(walker *astvisitor.Walker) {
 	walker.RegisterEnterUnionTypeExtensionVisitor(&visitor)
 }
 
-type extendUnionTypeDefinitionVisitor struct {
-	*astvisitor.Walker
-	operation *ast.Document
+func extendUnionTypeDefinitionKeepingOrphans(walker *astvisitor.Walker) {
+	visitor := extendUnionTypeDefinitionVisitor{
+		Walker:               walker,
+		keepExtensionOrphans: true,
+	}
+	walker.RegisterEnterDocumentVisitor(&visitor)
+	walker.RegisterEnterUnionTypeExtensionVisitor(&visitor)
 }
 
-func (e *extendUnionTypeDefinitionVisitor) EnterDocument(operation, definition *ast.Document) {
+type extendUnionTypeDefinitionVisitor struct {
+	*astvisitor.Walker
+	operation            *ast.Document
+	keepExtensionOrphans bool
+}
+
+func (e *extendUnionTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
 	e.operation = operation
 }
 
 func (e *extendUnionTypeDefinitionVisitor) EnterUnionTypeExtension(ref int) {
-
 	nodes, exists := e.operation.Index.NodesByNameBytes(e.operation.UnionTypeExtensionNameBytes(ref))
 	if !exists {
 		return
@@ -34,6 +43,10 @@ func (e *extendUnionTypeDefinitionVisitor) EnterUnionTypeExtension(ref int) {
 			continue
 		}
 		e.operation.ExtendUnionTypeDefinitionByUnionTypeExtension(nodes[i].Ref, ref)
+		return
+	}
+
+	if e.keepExtensionOrphans {
 		return
 	}
 

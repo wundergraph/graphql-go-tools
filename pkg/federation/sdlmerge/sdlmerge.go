@@ -33,6 +33,9 @@ func MergeSDLs(SDLs ...string) (string, error) {
 	rawDocs := make([]string, 0, len(SDLs)+1)
 	rawDocs = append(rawDocs, rootOperationTypeDefinitions)
 	rawDocs = append(rawDocs, SDLs...)
+	if err := normalizeSubgraphs(rawDocs); err != nil {
+		return "", err
+	}
 
 	doc, report := astparser.ParseGraphqlDocumentString(strings.Join(rawDocs, "\n"))
 	if report.HasErrors() {
@@ -56,6 +59,26 @@ func MergeSDLs(SDLs ...string) (string, error) {
 	return out, nil
 }
 
+func normalizeSubgraphs(subgraphs []string) error {
+	subgraphNormalizer := astnormalization.NewSubgraphDefinitionNormalizer()
+	for i, subgraph := range subgraphs {
+		doc, report := astparser.ParseGraphqlDocumentString(subgraph)
+		if report.HasErrors() {
+			return fmt.Errorf("parse graphql document string: %s", report.Error())
+		}
+		subgraphNormalizer.NormalizeDefinition(&doc, &report)
+		if report.HasErrors() {
+			return fmt.Errorf("normalize subgraph: %s", report.Error())
+		}
+		out, err := astprinter.PrintString(&doc, nil)
+		if err != nil {
+			return fmt.Errorf("stringify schema: %s", err.Error())
+		}
+		subgraphs[i] = out
+	}
+	return nil
+}
+
 type normalizer struct {
 	walkers []*astvisitor.Walker
 }
@@ -64,7 +87,10 @@ func (m *normalizer) setupWalkers() {
 	visitorGroups := [][]Visitor{
 		// visitors for extending objects and interfaces
 		{
+			newExtendEnumTypeDefinition(),
+			newExtendInputObjectTypeDefinition(),
 			newExtendInterfaceTypeDefinition(),
+			newExtendScalarTypeDefinition(),
 			newExtendUnionTypeDefinition(),
 			newExtendObjectTypeDefinition(),
 			newRemoveEmptyObjectTypeDefinition(),
