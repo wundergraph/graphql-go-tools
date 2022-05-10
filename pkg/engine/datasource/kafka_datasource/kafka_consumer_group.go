@@ -179,6 +179,10 @@ func (c *KafkaConsumerGroupBridge) Subscribe(ctx context.Context, options GraphQ
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Version = SaramaSupportedKafkaVersions[options.KafkaVersion]
 	saramaConfig.ClientID = options.ClientID
+	if options.StartConsumingLatest {
+		// Start consuming from the latest offset after a client restart
+		saramaConfig.Consumer.Offsets.Initial = sarama.OffsetNewest
+	}
 
 	cg, err := NewKafkaConsumerGroup(c.log, saramaConfig, &options)
 	if err != nil {
