@@ -121,6 +121,9 @@ func (r *removeDuplicateFieldedSharedTypesVisitor) checkForDuplicateEntity(hasDi
 	}
 	for _, directiveRef := range directiveRefs {
 		if r.document.DirectiveNameString(directiveRef) == "key" {
+			if _, exists := r.sharedTypeSet[name]; exists {
+				r.StopWithExternalErr(operationreport.ErrEntitiesMustNotBeSharedTypes(name))
+			}
 			r.entitySet[name] = true
 			return
 		}
