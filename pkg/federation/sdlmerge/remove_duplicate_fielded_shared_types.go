@@ -49,9 +49,7 @@ func (r *removeDuplicateFieldedSharedTypesVisitor) EnterInputObjectTypeDefinitio
 	}
 	document := r.document
 	name := document.InputObjectTypeDefinitionNameString(ref)
-	inputType := document.InputObjectTypeDefinitions[ref]
-	r.checkForDuplicateEntity(inputType.HasDirectives, inputType.Directives.Refs, name)
-	refs := inputType.InputFieldsDefinition.Refs
+	refs := document.InputObjectTypeDefinitions[ref].InputFieldsDefinition.Refs
 	input, exists := r.sharedTypeSet[name]
 	if exists {
 		if !input.AreFieldsIdentical(refs) {

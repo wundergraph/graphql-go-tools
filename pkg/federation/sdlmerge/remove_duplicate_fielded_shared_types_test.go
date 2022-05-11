@@ -180,39 +180,6 @@ func TestRemoveDuplicateFieldedValueTypes(t *testing.T) {
 		`, NonIdenticalSharedTypeErrorMessage("Trainer"))
 	})
 
-	t.Run("Duplicates of an entity returns an error", func(t *testing.T) {
-		runAndExpectError(t, newRemoveDuplicateFieldedSharedTypesVisitor(), `
-			input Trainer @key(fields: name) {
-				name: String!
-				age: Int!
-			}
-	
-			input Trainer {
-				name: String!
-				age: Int!
-			}
-		`, DuplicateEntityErrorMessage("Trainer"))
-	})
-
-	t.Run("Duplicates of an input entity returns an error, even if the entity is the last item in the schema", func(t *testing.T) {
-		runAndExpectError(t, newRemoveDuplicateFieldedSharedTypesVisitor(), `
-			input Trainer {
-				name: String!
-				age: Int!
-			}
-	
-			input Trainer {
-				name: String!
-				age: Int!
-			}
-
-			input Trainer @key(fields: name) {
-				name: String!
-				age: Int!
-			}
-		`, DuplicateEntityErrorMessage("Trainer"))
-	})
-
 	t.Run("Same name empty interfaces are merged into a single interface", func(t *testing.T) {
 		run(t, newRemoveDuplicateFieldedSharedTypesVisitor(), `
 			interface Trainer {
