@@ -264,7 +264,12 @@ func ErrImplementingTypeDoesNotHaveFields(typeName ast.ByteSlice) (err ExternalE
 	return err
 }
 
-func ErrDuplicateValueTypesMustBeIdenticalToFederate(typeName string) (err ExternalError) {
-	err.Message = fmt.Sprintf("the value type named '%s' must be identical in any subgraphs to federate", typeName)
+func ErrSharedTypesMustBeIdenticalToFederate(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the shared type named '%s' must be identical in any subgraphs to federate", typeName)
+	return err
+}
+
+func ErrEntitiesMustNotBeSharedTypes(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("entities must not be shared types, but the entity named '%s' is duplicated in other subgraph(s)", typeName)
 	return err
 }
