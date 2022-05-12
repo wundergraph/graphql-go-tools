@@ -35,11 +35,12 @@ var (
 )
 
 type GraphQLSubscriptionOptions struct {
-	BrokerAddr   string `json:"broker_addr"`
-	Topic        string `json:"topic"`
-	GroupID      string `json:"group_id"`
-	ClientID     string `json:"client_id"`
-	KafkaVersion string `json:"kafka_version"`
+	BrokerAddr           string `json:"broker_addr"`
+	Topic                string `json:"topic"`
+	GroupID              string `json:"group_id"`
+	ClientID             string `json:"client_id"`
+	KafkaVersion         string `json:"kafka_version"`
+	StartConsumingLatest bool   `json:"start_consuming_latest"`
 }
 
 func (g *GraphQLSubscriptionOptions) Sanitize() {
@@ -73,11 +74,12 @@ func (g *GraphQLSubscriptionOptions) Validate() error {
 }
 
 type SubscriptionConfiguration struct {
-	BrokerAddr   string `json:"broker_addr"`
-	Topic        string `json:"topic"`
-	GroupID      string `json:"group_id"`
-	ClientID     string `json:"client_id"`
-	KafkaVersion string `json:"kafka_version"`
+	BrokerAddr           string `json:"broker_addr"`
+	Topic                string `json:"topic"`
+	GroupID              string `json:"group_id"`
+	ClientID             string `json:"client_id"`
+	KafkaVersion         string `json:"kafka_version"`
+	StartConsumingLatest bool   `json:"start_consuming_latest"`
 }
 
 type Configuration struct {

@@ -57,12 +57,22 @@ func (k *kafkaConsumerGroupHandler) Cleanup(_ sarama.ConsumerGroupSession) error
 // Once the Messages() channel is closed, the Handler must finish its processing
 // loop and exit.
 func (k *kafkaConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	if k.options.StartConsumingLatest {
+		// Reset the offset before start consuming and don't commit the consumed messages.
+		// In this way, it will only read the latest messages.
+		session.ResetOffset(claim.Topic(), claim.Partition(), sarama.OffsetNewest, "")
+	}
+
 	for msg := range claim.Messages() {
 		ctx, cancel := context.WithTimeout(k.ctx, time.Second*5)
 		select {
 		case k.messages <- msg:
 			cancel()
-			session.MarkMessage(msg, "") // Commit the message and advance the offset.
+			// If the client wants to most recent messages, don't commit the
+			// offset and reset the offset to sarama.OffsetNewest, then start consuming.
+			if !k.options.StartConsumingLatest {
+				session.MarkMessage(msg, "") // Commit the message and advance the offset.
+			}
 		case <-ctx.Done():
 			cancel()
 			return nil
@@ -169,6 +179,10 @@ func (c *KafkaConsumerGroupBridge) Subscribe(ctx context.Context, options GraphQ
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Version = SaramaSupportedKafkaVersions[options.KafkaVersion]
 	saramaConfig.ClientID = options.ClientID
+	if options.StartConsumingLatest {
+		// Start consuming from the latest offset after a client restart
+		saramaConfig.Consumer.Offsets.Initial = sarama.OffsetNewest
+	}
 
 	cg, err := NewKafkaConsumerGroup(c.log, saramaConfig, &options)
 	if err != nil {
