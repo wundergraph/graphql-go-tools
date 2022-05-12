@@ -1035,14 +1035,26 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 			if !v.Operation.OperationDefinitionHasVariableDefinition(v.operationDefinition, variableValue) {
 				break // omit optional argument when variable is not defined
 			}
-			variable := &resolve.ContextVariable{
-				Path: []string{variableValue},
-			}
 			variableDefinition, exists := v.Operation.VariableDefinitionByNameAndOperation(v.operationDefinition, v.Operation.VariableValueNameBytes(value.Ref))
 			if !exists {
 				break
 			}
 			variableTypeRef := v.Operation.VariableDefinitions[variableDefinition].Type
+			typeName := v.Operation.ResolveTypeNameBytes(v.Operation.VariableDefinitions[variableDefinition].Type)
+			node, exists := v.Definition.Index.FirstNodeByNameBytes(typeName)
+			if !exists {
+				break
+			}
+			var variablePath []string
+			switch node.Kind {
+			case ast.NodeKindInputObjectTypeDefinition:
+				variablePath = append(variablePath, path...)
+			default:
+				variablePath = append(variablePath, variableValue)
+			}
+			variable := &resolve.ContextVariable{
+				Path: variablePath,
+			}
 
 			if fieldConfig, ok := v.fieldConfigs[config.fieldRef]; ok {
 				if argumentConfig := fieldConfig.Arguments.ForName(argumentName); argumentConfig != nil {
@@ -1050,7 +1062,7 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 					case RenderArgumentAsArrayCSV:
 						variable.Renderer = resolve.NewCSVVariableRendererFromTypeRef(v.Operation, v.Definition, variableTypeRef)
 					case RenderArgumentDefault:
-						renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(v.Operation, v.Definition, variableTypeRef)
+						renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(v.Operation, v.Definition, variableTypeRef, variablePath...)
 						if err != nil {
 							break
 						}
@@ -1072,7 +1084,7 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 			}
 
 			if variable.Renderer == nil {
-				renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(v.Operation, v.Definition, variableTypeRef)
+				renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(v.Operation, v.Definition, variableTypeRef, variablePath...)
 				if err != nil {
 					break
 				}

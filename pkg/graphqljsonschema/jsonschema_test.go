@@ -10,7 +10,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
 )
 
-func runTest(schema, operation, expectedJsonSchema string, valid []string, invalid []string, overrides map[string]JsonSchema) func(t *testing.T) {
+func runTest(schema, operation, expectedJsonSchema string, valid []string, invalid []string, opts ...Option) func(t *testing.T) {
 	return func(t *testing.T) {
 		definition := unsafeparser.ParseGraphqlDocumentString(schema)
 		operationDoc := unsafeparser.ParseGraphqlDocumentString(operation)
@@ -18,11 +18,7 @@ func runTest(schema, operation, expectedJsonSchema string, valid []string, inval
 		variableDefinition := operationDoc.OperationDefinitions[0].VariableDefinitions.Refs[0]
 		varType := operationDoc.VariableDefinitions[variableDefinition].Type
 
-		if overrides == nil {
-			overrides = map[string]JsonSchema{}
-		}
-
-		jsonSchemaDefinition := FromTypeRefWithOverrides(&operationDoc, &definition, varType, overrides)
+		jsonSchemaDefinition := FromTypeRef(&operationDoc, &definition, varType, opts...)
 		actualSchema, err := json.Marshal(jsonSchemaDefinition)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedJsonSchema, string(actualSchema))
@@ -52,7 +48,6 @@ func TestJsonSchema(t *testing.T) {
 		[]string{
 			`{"str":true}`,
 		},
-		nil,
 	))
 	t.Run("string", runTest(
 		`scalar String input Test { str: String }`,
@@ -67,7 +62,6 @@ func TestJsonSchema(t *testing.T) {
 			`true`,
 			`nope`,
 		},
-		nil,
 	))
 	t.Run("id", runTest(
 		`scalar ID input Test { str: String }`,
@@ -82,7 +76,6 @@ func TestJsonSchema(t *testing.T) {
 			`true`,
 			`nope`,
 		},
-		nil,
 	))
 	t.Run("array", runTest(
 		`scalar String`,
@@ -99,7 +92,6 @@ func TestJsonSchema(t *testing.T) {
 			`"validString"`,
 			`false`,
 		},
-		nil,
 	))
 	t.Run("input object array", runTest(
 		`scalar String input StringInput { str: String }`,
@@ -116,7 +108,6 @@ func TestJsonSchema(t *testing.T) {
 			`"validString"`,
 			`false`,
 		},
-		nil,
 	))
 	t.Run("required array", runTest(
 		`scalar String`,
@@ -133,7 +124,6 @@ func TestJsonSchema(t *testing.T) {
 			`false`,
 			`null`,
 		},
-		nil,
 	))
 	t.Run("required array element", runTest(
 		`scalar String`,
@@ -151,7 +141,6 @@ func TestJsonSchema(t *testing.T) {
 			`"validString"`,
 			`false`,
 		},
-		nil,
 	))
 	t.Run("nested object", runTest(
 		`scalar String scalar Boolean input Test { str: String! nested: Nested } input Nested { boo: Boolean }`,
@@ -171,7 +160,6 @@ func TestJsonSchema(t *testing.T) {
 			`{"nested":{"boo":true}}`,
 			`{"str":"validString","nested":{"boo":123}}`,
 		},
-		nil,
 	))
 	t.Run("nested object with override", runTest(
 		`scalar String scalar Boolean input Test { str: String! override: Override } input Override { boo: Boolean }`,
@@ -189,9 +177,9 @@ func TestJsonSchema(t *testing.T) {
 			`{"override":{"boo":true}}`,
 			`{"str":"validString","override":{"boo":123}}`,
 		},
-		map[string]JsonSchema{
+		WithOverrides(map[string]JsonSchema{
 			"Override": NewString(false),
-		},
+		}),
 	))
 	t.Run("recursive object", runTest(
 		`scalar String scalar Boolean input Test { str: String! nested: Nested } input Nested { boo: Boolean recursive: Test }`,
@@ -208,7 +196,6 @@ func TestJsonSchema(t *testing.T) {
 			`{"nested":{"boo":true}}`,
 			`{"str":"validString","nested":{"boo":123}}`,
 		},
-		nil,
 	))
 	t.Run("recursive object with multiple branches", runTest(
 		`scalar String scalar Boolean input Root { test: Test another: Another } input Test { str: String! nested: Nested } input Nested { boo: Boolean recursive: Test another: Another } input Another { boo: Boolean }`,
@@ -223,7 +210,6 @@ func TestJsonSchema(t *testing.T) {
 			`{"test":{"nested":{"boo":true}}}`,
 			`{"test":{"str":"validString","nested":{"boo":123}}}`,
 		},
-		nil,
 	))
 	t.Run("complex recursive schema", runTest(
 		complexRecursiveSchema,
@@ -231,7 +217,31 @@ func TestJsonSchema(t *testing.T) {
 		`{"type":["object","null"],"properties":{"AND":{"$ref":"#/$defs/db_messagesWhereInput"},"NOT":{"$ref":"#/$defs/db_messagesWhereInput"},"OR":{"type":["array","null"],"items":{"$ref":"#/$defs/db_messagesWhereInput"}},"id":{"$ref":"#/$defs/db_IntFilter"},"message":{"$ref":"#/$defs/db_StringFilter"},"payload":{"$ref":"#/$defs/db_JsonFilter"},"user_id":{"$ref":"#/$defs/db_IntFilter"},"users":{"$ref":"#/$defs/db_UsersRelationFilter"}},"additionalProperties":false,"$defs":{"db_DateTimeFilter":{"type":["object","null"],"properties":{"equals":{},"gt":{},"gte":{},"in":{"type":["array","null"],"items":{}},"lt":{},"lte":{},"not":{"$ref":"#/$defs/db_NestedDateTimeFilter"},"notIn":{"type":["array","null"],"items":{}}},"additionalProperties":false},"db_IntFilter":{"type":["object","null"],"properties":{"equals":null,"gt":null,"gte":null,"in":{"type":["array","null"],"items":null},"lt":null,"lte":null,"not":{"$ref":"#/$defs/db_NestedIntFilter"},"notIn":{"type":["array","null"],"items":null}},"additionalProperties":false},"db_JsonFilter":{"type":["object","null"],"properties":{"equals":{"type":["string","null"]},"not":{"type":["string","null"]}},"additionalProperties":false},"db_MessagesListRelationFilter":{"type":["object","null"],"properties":{"every":{"$ref":"#/$defs/db_messagesWhereInput"},"none":{"$ref":"#/$defs/db_messagesWhereInput"},"some":{"$ref":"#/$defs/db_messagesWhereInput"}},"additionalProperties":false},"db_NestedDateTimeFilter":{"type":["object","null"],"properties":{"equals":{},"gt":{},"gte":{},"in":{"type":["array","null"],"items":{}},"lt":{},"lte":{},"not":{"$ref":"#/$defs/db_NestedDateTimeFilter"},"notIn":{"type":["array","null"],"items":{}}},"additionalProperties":false},"db_NestedIntFilter":{"type":["object","null"],"properties":{"equals":null,"gt":null,"gte":null,"in":{"type":["array","null"],"items":null},"lt":null,"lte":null,"not":{"$ref":"#/$defs/db_NestedIntFilter"},"notIn":{"type":["array","null"],"items":null}},"additionalProperties":false},"db_NestedStringFilter":{"type":["object","null"],"properties":{"contains":null,"endsWith":null,"equals":null,"gt":null,"gte":null,"in":{"type":["array","null"],"items":null},"lt":null,"lte":null,"not":{"$ref":"#/$defs/db_NestedStringFilter"},"notIn":{"type":["array","null"],"items":null},"startsWith":null},"additionalProperties":false},"db_StringFilter":{"type":["object","null"],"properties":{"contains":null,"endsWith":null,"equals":null,"gt":null,"gte":null,"in":{"type":["array","null"],"items":null},"lt":null,"lte":null,"mode":{"type":["string","null"]},"not":{"$ref":"#/$defs/db_NestedStringFilter"},"notIn":{"type":["array","null"],"items":null},"startsWith":null},"additionalProperties":false},"db_UsersRelationFilter":{"type":["object","null"],"properties":{"is":{"$ref":"#/$defs/db_usersWhereInput"},"isNot":{"$ref":"#/$defs/db_usersWhereInput"}},"additionalProperties":false},"db_messagesWhereInput":{"type":["object","null"],"properties":{"AND":{"$ref":"#/$defs/db_messagesWhereInput"},"NOT":{"$ref":"#/$defs/db_messagesWhereInput"},"OR":{"type":["array","null"],"items":{"$ref":"#/$defs/db_messagesWhereInput"}},"id":{"$ref":"#/$defs/db_IntFilter"},"message":{"$ref":"#/$defs/db_StringFilter"},"payload":{"$ref":"#/$defs/db_JsonFilter"},"user_id":{"$ref":"#/$defs/db_IntFilter"},"users":{"$ref":"#/$defs/db_UsersRelationFilter"}},"additionalProperties":false},"db_usersWhereInput":{"type":["object","null"],"properties":{"AND":{"$ref":"#/$defs/db_usersWhereInput"},"NOT":{"$ref":"#/$defs/db_usersWhereInput"},"OR":{"type":["array","null"],"items":{"$ref":"#/$defs/db_usersWhereInput"}},"email":{"$ref":"#/$defs/db_StringFilter"},"id":{"$ref":"#/$defs/db_IntFilter"},"lastlogin":{"$ref":"#/$defs/db_DateTimeFilter"},"messages":{"$ref":"#/$defs/db_MessagesListRelationFilter"},"name":{"$ref":"#/$defs/db_StringFilter"},"pet":{"$ref":"#/$defs/db_StringFilter"},"updatedat":{"$ref":"#/$defs/db_DateTimeFilter"}},"additionalProperties":false}}}`,
 		[]string{},
 		[]string{},
-		nil,
+	))
+	t.Run("one level deep sub path", runTest(
+		"input Human { name: String! } scalar String",
+		"query ($human: Human!) { }",
+		`{"type":["string"]}`,
+		[]string{
+			`"John Doe"`,
+		},
+		[]string{
+			`{"name":"John Doe"}`,
+		},
+		WithPath([]string{"name"}),
+	))
+	t.Run("multi level deep sub path", runTest(
+		"input Human { name: String! pet: Animal } scalar String type Animal { name: String! }",
+		"query ($human: Human!) { }",
+		`{"type":["string"]}`,
+		[]string{
+			`"Doggie"`,
+		},
+		[]string{
+			`{"name":"Doggie"}`,
+			`{"pet":{"name":"Doggie"}}`,
+		},
+		WithPath([]string{"pet", "name"}),
 	))
 }
 

@@ -33,6 +33,14 @@ const (
 			withArrayArguments(names: [String]): Friend
 		}
 
+		input InputFriend {
+			name: String!
+		}
+
+		type Mutation {
+			createFriend(friend: InputFriend!): Friend
+		}
+
 		type Friend {
 			name: String
 			pet: Pet
@@ -106,6 +114,14 @@ const (
 	arrayArgumentOperation = `
 		query ArgumentQuery {
 			withArrayArguments(names: ["foo","bar"]) {
+				name
+			}
+		}
+	`
+
+	createFriendOperation = `
+		mutation CreateFriend($friendVariable: InputFriend!) {
+			createFriend(friend: $friendVariable) {
 				name
 			}
 		}
@@ -296,6 +312,75 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 				{
 					TypeName:              "Query",
 					FieldName:             "withArgument",
+					DisableDefaultMapping: true,
+				},
+			},
+			DisableResolveFieldPositions: true,
+		},
+	))
+	t.Run("mutation with nested argument", datasourcetesting.RunTest(schema, createFriendOperation, "CreateFriend",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"body":"{"friend":{"name":"$$0$$"}}","method":"POST","url":"https://example.com/$$0$$"}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"friend", "name"},
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
+							},
+						),
+						DisallowSingleFlight: true,
+						DisableDataLoader:    true,
+						DataSourceIdentifier: []byte("rest_datasource.Source"),
+					},
+					Fields: []*resolve.Field{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Name:      []byte("createFriend"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Mutation",
+							FieldNames: []string{"createFriend"},
+						},
+					},
+					Custom: ConfigJSON(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "https://example.com/{{ .arguments.friend.name }}",
+							Method: "POST",
+							Body:   "{\"friend\":{\"name\":\"{{ .arguments.friend.name }}\"}}",
+						},
+					}),
+					Factory: &Factory{},
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:              "Mutation",
+					FieldName:             "createFriend",
 					DisableDefaultMapping: true,
 				},
 			},
