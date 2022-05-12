@@ -476,7 +476,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							expectedHost:     "petstore.swagger.io",
 							expectedPath:     "/v2/pet/1",
 							expectedBody:     "",
-							sendResponseBody: `{"id":1,"category":{"id":1,"name":"string"},"name":"doggie"}`,
+							sendResponseBody: `{"id":1,"category":{"id":1,"name":"dog"},"name":"doggie"}`,
 							sendStatusCode:   200,
 						}),
 					},
@@ -497,7 +497,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					Factory: &rest_datasource.Factory{
 						Client: testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "rest-countries.example.com",
-							expectedPath:     "/name/doggie",
+							expectedPath:     "/type/dog/name/doggie",
 							expectedBody:     "",
 							sendResponseBody: `{"name":"Germany"}`,
 							sendStatusCode:   200,
@@ -505,7 +505,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					},
 					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
 						Fetch: rest_datasource.FetchConfiguration{
-							URL:    "https://rest-countries.example.com/name/{{.object.name}}",
+							URL:    "https://rest-countries.example.com/type/{{.object.category.name}}/name/{{.object.name}}",
 							Method: "POST",
 						},
 					}),

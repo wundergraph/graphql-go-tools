@@ -117,8 +117,14 @@ func NewPlainVariableRendererWithValidation(jsonSchema string) *PlainVariableRen
 
 // NewPlainVariableRendererWithValidationFromTypeRef creates a new PlainVariableRenderer
 // The argument typeRef must exist on the operation ast.Document, otherwise it will panic!
-func NewPlainVariableRendererWithValidationFromTypeRef(operation, definition *ast.Document, variableTypeRef int) (*PlainVariableRenderer, error) {
-	jsonSchema := graphqljsonschema.FromTypeRef(operation, definition, variableTypeRef)
+func NewPlainVariableRendererWithValidationFromTypeRef(operation, definition *ast.Document, variableTypeRef int, variablePath ...string) (*PlainVariableRenderer, error) {
+	var jsonSchema graphqljsonschema.JsonSchema
+	if len(variablePath) > 1 {
+		jsonSchema = graphqljsonschema.FromTypeRef(operation, definition, variableTypeRef, graphqljsonschema.WithPath(variablePath[1:]))
+	} else {
+		jsonSchema = graphqljsonschema.FromTypeRef(operation, definition, variableTypeRef)
+	}
+
 	validator, err := graphqljsonschema.NewValidatorFromSchema(jsonSchema)
 	if err != nil {
 		return nil, err
@@ -187,7 +193,7 @@ func NewGraphQLVariableRendererFromTypeRef(operation, definition *ast.Document, 
 }
 
 func NewGraphQLVariableRendererFromTypeRefWithOverrides(operation, definition *ast.Document, variableTypeRef int, overrides map[string]graphqljsonschema.JsonSchema) (*GraphQLVariableRenderer, error) {
-	jsonSchema := graphqljsonschema.FromTypeRefWithOverrides(operation, definition, variableTypeRef, overrides)
+	jsonSchema := graphqljsonschema.FromTypeRef(operation, definition, variableTypeRef, graphqljsonschema.WithOverrides(overrides))
 	validator, err := graphqljsonschema.NewValidatorFromSchema(jsonSchema)
 	if err != nil {
 		return nil, err
