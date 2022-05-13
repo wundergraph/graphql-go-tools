@@ -3,6 +3,7 @@ package sdlmerge
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 func newExtendInterfaceTypeDefinition() *extendInterfaceTypeDefinitionVisitor {
@@ -10,10 +11,12 @@ func newExtendInterfaceTypeDefinition() *extendInterfaceTypeDefinitionVisitor {
 }
 
 type extendInterfaceTypeDefinitionVisitor struct {
+	*astvisitor.Walker
 	operation *ast.Document
 }
 
 func (e *extendInterfaceTypeDefinitionVisitor) Register(walker *astvisitor.Walker) {
+	e.Walker = walker
 	walker.RegisterEnterDocumentVisitor(e)
 	walker.RegisterEnterInterfaceTypeExtensionVisitor(e)
 }
@@ -28,10 +31,15 @@ func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref i
 		return
 	}
 
-	for i := range nodes {
-		if nodes[i].Kind != ast.NodeKindInterfaceTypeDefinition {
+	hasExtended := false
+	for _, node := range nodes {
+		if node.Kind != ast.NodeKindInterfaceTypeDefinition {
 			continue
 		}
-		e.operation.ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(nodes[i].Ref, ref)
+		if hasExtended {
+			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.operation.InterfaceTypeExtensionNameString(ref)))
+		}
+		e.operation.ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(node.Ref, ref)
+		hasExtended = true
 	}
 }

@@ -596,5 +596,5 @@ func TestRemoveDuplicateFieldedValueTypes(t *testing.T) {
 }
 
 func DuplicateEntityErrorMessage(typeName string) string {
-	return fmt.Sprintf("external: entities must not be shared types, but the entity named '%s' is duplicated in other subgraph(s), locations: [], path: []", typeName)
+	return fmt.Sprintf("entities must not be shared types, but the entity named '%s' is duplicated in other subgraph(s)", typeName)
 }
