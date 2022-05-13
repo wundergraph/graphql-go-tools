@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestRemoveDuplicateFieldlessValueTypes(t *testing.T) {
+func TestRemoveDuplicateFieldlessSharedTypes(t *testing.T) {
 	t.Run("Input and output are identical when no duplications", func(t *testing.T) {
 		run(t, newRemoveDuplicateFieldlessSharedTypesVisitor(), `
 			enum Pokemon {
@@ -369,5 +369,5 @@ const (
 )
 
 func NonIdenticalSharedTypeErrorMessage(typeName string) string {
-	return fmt.Sprintf("external: the shared type named '%s' must be identical in any subgraphs to federate, locations: [], path: []", typeName)
+	return fmt.Sprintf("the shared type named '%s' must be identical in any subgraphs to federate", typeName)
 }
