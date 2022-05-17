@@ -33,7 +33,7 @@ var (
 	rBrace                 = []byte("}")
 	comma                  = []byte(",")
 	requestTypeField       = []byte(`"request_type":`)
-	onTypeField            = []byte(`"on_type_name":{{ .object.name }}`)
+	onTypeField            = []byte(`"on_type_name":"{{ .object.name }}"`)
 	typeNameField          = []byte(`"type_name":"{{ .arguments.name }}"`)
 	includeDeprecatedField = []byte(`"include_deprecated":{{ .arguments.includeDeprecated }}`)
 )
