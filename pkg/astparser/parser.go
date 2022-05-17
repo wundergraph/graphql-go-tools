@@ -1183,6 +1183,12 @@ func (p *Parser) parseDirectiveDefinition(description *ast.Description) {
 		directiveDefinition.ArgumentsDefinition = p.parseInputValueDefinitionList(keyword.RPAREN)
 		directiveDefinition.HasArgumentsDefinitions = len(directiveDefinition.ArgumentsDefinition.Refs) > 0
 	}
+
+	if p.peekEqualsIdentKey(identkeyword.REPEATABLE) {
+		directiveDefinition.Repeatable.IsRepeatable = true
+		directiveDefinition.Repeatable.Position = p.mustReadIdentKey(identkeyword.REPEATABLE).TextPosition
+	}
+
 	directiveDefinition.On = p.mustReadIdentKey(identkeyword.ON).TextPosition
 	p.parseDirectiveLocations(&directiveDefinition.DirectiveLocations)
 	p.document.DirectiveDefinitions = append(p.document.DirectiveDefinitions, directiveDefinition)

@@ -186,7 +186,8 @@
           },
           "defaultValue": null
         }
-      ]
+      ],
+      "isRepeatable": false
     },
     {
       "name": "skip",
@@ -211,7 +212,8 @@
           },
           "defaultValue": null
         }
-      ]
+      ],
+      "isRepeatable": false
     },
     {
       "name": "deprecated",
@@ -231,7 +233,8 @@
           },
           "defaultValue": "\"No longer supported\""
         }
-      ]
+      ],
+      "isRepeatable": false
     }
   ]
 }
