@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -302,7 +301,10 @@ func (c *Converter) transformLine(line string) (out string, skip bool) {
 
 		// handles closing slice when we are inside a multiline assertion
 	case strings.Contains(line, "],"):
-		if c.insideResultAssertion {
+		switch {
+		case c.insideMultilineString:
+			out = line
+		case c.insideResultAssertion:
 			out = strings.ReplaceAll(line, "],", `},`)
 		}
 
@@ -336,7 +338,7 @@ func (c *Converter) transformLine(line string) (out string, skip bool) {
 		if strings.Contains(ruleName, "(") {
 			ruleName = strings.Split(ruleName, "(")[1]
 		}
-		out = strings.ReplaceAll(line, ruleName, strconv.Quote(ruleName))
+		out = strings.ReplaceAll(line, ruleName, ruleName)
 
 		// do not transform a line when no conditions met
 		// in case we are inside an import just skip a line

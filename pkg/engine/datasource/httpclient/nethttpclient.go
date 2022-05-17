@@ -48,6 +48,9 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 				if err != nil {
 					return
 				}
+				if len(value) == 0 {
+					return
+				}
 				request.Header.Add(string(key), string(value))
 			})
 			return err

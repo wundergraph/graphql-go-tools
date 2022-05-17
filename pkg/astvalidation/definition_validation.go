@@ -14,6 +14,8 @@ func DefaultDefinitionValidator() *DefinitionValidator {
 		UniqueEnumValueNames(),
 		KnownTypeNames(),
 		RequireDefinedTypesForExtensions(),
+		ImplementTransitiveInterfaces(),
+		ImplementingTypesAreSupersets(),
 	)
 }
 

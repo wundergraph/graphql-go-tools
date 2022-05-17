@@ -518,11 +518,11 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 		expectedTypeFields := []TypeFields{
 			{
 				TypeName:   "WithChildren",
-				FieldNames: []string{"id", "name", "nested"},
+				FieldNames: []string{"id", "name", "nested", "__typename"},
 			},
 			{
 				TypeName:   "Nested",
-				FieldNames: []string{"id", "name"},
+				FieldNames: []string{"id", "name", "__typename"},
 			},
 		}
 
@@ -534,15 +534,15 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 		expectedTypeFields := []TypeFields{
 			{
 				TypeName:   "WithChildren",
-				FieldNames: []string{"id", "name", "nested"},
+				FieldNames: []string{"id", "name", "nested", "__typename"},
 			},
 			{
 				TypeName:   "Nested",
-				FieldNames: []string{"id", "name"},
+				FieldNames: []string{"id", "name", "__typename"},
 			},
 			{
 				TypeName:   "IDType",
-				FieldNames: []string{"id"},
+				FieldNames: []string{"id", "__typename"},
 			},
 		}
 
@@ -564,7 +564,7 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 		expectedTypeFields := []TypeFields{
 			{
 				TypeName:   "WithChildren",
-				FieldNames: []string{"id", "name"},
+				FieldNames: []string{"id", "name", "__typename"},
 			},
 		}
 
@@ -579,19 +579,19 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 		expectedTypeFields := []TypeFields{
 			{
 				TypeName:   "Country",
-				FieldNames: []string{"code", "name", "native", "phone", "continent", "capital", "currency", "languages", "emoji", "emojiU", "states"},
+				FieldNames: []string{"code", "name", "native", "phone", "continent", "capital", "currency", "languages", "emoji", "emojiU", "states", "__typename"},
 			},
 			{
 				TypeName:   "Continent",
-				FieldNames: []string{"code", "name", "countries"},
+				FieldNames: []string{"code", "name", "countries", "__typename"},
 			},
 			{
 				TypeName:   "Language",
-				FieldNames: []string{"code", "name", "native", "rtl"},
+				FieldNames: []string{"code", "name", "native", "rtl", "__typename"},
 			},
 			{
 				TypeName:   "State",
-				FieldNames: []string{"code", "name", "country"},
+				FieldNames: []string{"code", "name", "country", "__typename"},
 			},
 		}
 
@@ -606,27 +606,27 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 		expectedTypeFields := []TypeFields{
 			{
 				TypeName:   "Continent",
-				FieldNames: []string{"code", "name", "countries"},
+				FieldNames: []string{"code", "name", "countries", "__typename"},
 			},
 			{
 				TypeName:   "Country",
-				FieldNames: []string{"code", "name", "native", "phone", "continent", "capital", "currency", "languages", "emoji", "emojiU", "states"},
+				FieldNames: []string{"code", "name", "native", "phone", "continent", "capital", "currency", "languages", "emoji", "emojiU", "states", "__typename"},
 			},
 			{
 				TypeName:   "Language",
-				FieldNames: []string{"code", "name", "native", "rtl"},
+				FieldNames: []string{"code", "name", "native", "rtl", "__typename"},
 			},
 			{
 				TypeName:   "State",
-				FieldNames: []string{"code", "name", "country"},
+				FieldNames: []string{"code", "name", "country", "__typename"},
 			},
 			{
 				TypeName:   "CodeNameType",
-				FieldNames: []string{"code", "name"},
+				FieldNames: []string{"code", "name", "__typename"},
 			},
 			{
 				TypeName:   "CodeType",
-				FieldNames: []string{"code"},
+				FieldNames: []string{"code", "__typename"},
 			},
 		}
 

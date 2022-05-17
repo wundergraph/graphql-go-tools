@@ -16,9 +16,25 @@ type IntValue struct {
 	Raw          ByteSliceReference // e.g. 123
 }
 
+func (d *Document) CopyIntValue(ref int) int {
+	return d.AddIntValue(IntValue{
+		Negative: d.IntValues[ref].Negative,
+		Raw:      d.copyByteSliceReference(d.IntValues[ref].Raw),
+	})
+}
+
 func (d *Document) IntValueAsInt(ref int) (out int64) {
 	in := d.Input.ByteSlice(d.IntValues[ref].Raw)
 	out = unsafebytes.BytesToInt64(in)
+	if d.IntValues[ref].Negative {
+		out = -out
+	}
+	return
+}
+
+func (d *Document) IntValueAsInt32(ref int) (out int32) {
+	in := d.Input.ByteSlice(d.IntValues[ref].Raw)
+	out = unsafebytes.BytesToInt32(in)
 	if d.IntValues[ref].Negative {
 		out = -out
 	}

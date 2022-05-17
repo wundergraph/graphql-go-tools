@@ -8,7 +8,7 @@ func TestUniqueInputFieldNamesRule(t *testing.T) {
 	t.Skip()
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
-		return ExpectValidationErrors(t, "UniqueInputFieldNamesRule", queryStr)
+		return ExpectValidationErrors(t, UniqueInputFieldNamesRule, queryStr)
 	}
 
 	ExpectValid := func(t *testing.T, queryStr string) {

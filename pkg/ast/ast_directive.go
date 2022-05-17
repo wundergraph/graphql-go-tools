@@ -41,6 +41,26 @@ func (l *DirectiveList) RemoveDirectiveByName(document *Document, name string) {
 	}
 }
 
+func (d *Document) CopyDirective(ref int) int {
+	var arguments ArgumentList
+	if d.Directives[ref].HasArguments {
+		arguments = d.CopyArgumentList(d.Directives[ref].Arguments)
+	}
+	return d.AddDirective(Directive{
+		Name:         d.copyByteSliceReference(d.Directives[ref].Name),
+		HasArguments: d.Directives[ref].HasArguments,
+		Arguments:    arguments,
+	})
+}
+
+func (d *Document) CopyDirectiveList(list DirectiveList) DirectiveList {
+	refs := d.NewEmptyRefs()
+	for _, r := range list.Refs {
+		refs = append(refs, d.CopyDirective(r))
+	}
+	return DirectiveList{Refs: refs}
+}
+
 func (d *Document) PrintDirective(ref int, w io.Writer) error {
 	_, err := w.Write(literal.AT)
 	if err != nil {

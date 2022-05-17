@@ -8,7 +8,7 @@ func TestKnownArgumentNamesRule(t *testing.T) {
 	t.Skip()
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
-		return ExpectValidationErrors(t, "KnownArgumentNamesRule", queryStr)
+		return ExpectValidationErrors(t, KnownArgumentNamesRule, queryStr)
 	}
 
 	ExpectValid := func(t *testing.T, queryStr string) {
@@ -22,7 +22,7 @@ func TestKnownArgumentNamesRule(t *testing.T) {
 		}
 		return ExpectSDLValidationErrors(t,
 			schema,
-			"KnownArgumentNamesOnDirectivesRule",
+			KnownArgumentNamesOnDirectivesRule,
 			sdlStr,
 		)
 	}

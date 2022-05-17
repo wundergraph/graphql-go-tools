@@ -15,13 +15,14 @@ import (
 )
 
 const (
-	PATH        = "path"
-	URL         = "url"
-	BASEURL     = "base_url"
-	METHOD      = "method"
-	BODY        = "body"
-	HEADER      = "header"
-	QUERYPARAMS = "query_params"
+	PATH          = "path"
+	URL           = "url"
+	URLENCODEBODY = "url_encode_body"
+	BASEURL       = "base_url"
+	METHOD        = "method"
+	BODY          = "body"
+	HEADER        = "header"
+	QUERYPARAMS   = "query_params"
 
 	SCHEME = "scheme"
 	HOST   = "host"
@@ -93,6 +94,14 @@ func SetInputURL(input, url []byte) []byte {
 		return input
 	}
 	out, _ := sjson.SetRawBytes(input, URL, wrapQuotesIfString(url))
+	return out
+}
+
+func SetInputURLEncodeBody(input []byte, urlEncodeBody bool) []byte {
+	if !urlEncodeBody {
+		return input
+	}
+	out, _ := sjson.SetRawBytes(input, URLENCODEBODY, []byte("true"))
 	return out
 }
 

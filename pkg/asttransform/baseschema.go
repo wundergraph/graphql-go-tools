@@ -32,7 +32,9 @@ func handleSchema(definition *ast.Document) error {
 	addMissingRootOperationTypeDefinitions(definition)
 	addIntrospectionQueryFields(definition, queryNodeRef)
 
-	return nil
+	typeNamesVisitor := NewTypeNameVisitor()
+
+	return typeNamesVisitor.ExtendSchema(definition)
 }
 
 func addSchemaDefinition(definition *ast.Document) {

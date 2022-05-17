@@ -49,8 +49,8 @@ func (d *Document) ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(interfa
 	}
 
 	if len(d.InterfaceTypeExtensions[interfaceTypeExtensionRef].ImplementsInterfaces.Refs) > 0 {
-		d.InterfaceTypeExtensions[interfaceTypeDefinitionRef].ImplementsInterfaces.Refs = append(
-			d.InterfaceTypeExtensions[interfaceTypeDefinitionRef].ImplementsInterfaces.Refs,
+		d.InterfaceTypeDefinitions[interfaceTypeDefinitionRef].ImplementsInterfaces.Refs = append(
+			d.InterfaceTypeDefinitions[interfaceTypeDefinitionRef].ImplementsInterfaces.Refs,
 			d.InterfaceTypeExtensions[interfaceTypeExtensionRef].ImplementsInterfaces.Refs...,
 		)
 	}

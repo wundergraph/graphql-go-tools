@@ -122,16 +122,13 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Input:                `{"method":"GET","url":"https://example.com/friend"}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("friend"),
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fetch: &resolve.SingleFetch{
@@ -145,6 +142,8 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										},
 									),
 									DataSourceIdentifier: []byte("rest_datasource.Source"),
+									DisableDataLoader: true,
+
 								},
 								Fields: []*resolve.Field{
 									{
@@ -153,19 +152,11 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											Path:     []string{"name"},
 											Nullable: true,
 										},
-										Position: resolve.Position{
-											Line:   4,
-											Column: 5,
-										},
 									},
 									{
 										HasBuffer: true,
 										BufferID:  1,
 										Name:      []byte("pet"),
-										Position: resolve.Position{
-											Line:   5,
-											Column: 5,
-										},
 										Value: &resolve.Object{
 											Nullable: true,
 											Fields: []*resolve.Field{
@@ -175,20 +166,12 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 														Path:     []string{"id"},
 														Nullable: true,
 													},
-													Position: resolve.Position{
-														Line:   6,
-														Column: 6,
-													},
 												},
 												{
 													Name: []byte("name"),
 													Value: &resolve.String{
 														Path:     []string{"name"},
 														Nullable: true,
-													},
-													Position: resolve.Position{
-														Line:   7,
-														Column: 6,
 													},
 												},
 											},
@@ -246,6 +229,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					DisableDefaultMapping: true,
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 	))
 	t.Run("get request with argument", datasourcetesting.RunTest(schema, argumentOperation, "ArgumentQuery",
@@ -259,24 +243,21 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"idVariable"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string","null"]}`),
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArgument"),
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -285,10 +266,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
-										},
-										Position: resolve.Position{
-											Line:   4,
-											Column: 5,
 										},
 									},
 								},
@@ -323,6 +300,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					DisableDefaultMapping: true,
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 	))
 	t.Run("post request with nested JSON body", datasourcetesting.RunTest(authSchema, `
@@ -347,25 +325,22 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"phoneNumber"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
 						DisallowSingleFlight: true,
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("Login"),
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -374,10 +349,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"code"},
 											Nullable: true,
-										},
-										Position: resolve.Position{
-											Line:   9,
-											Column: 5,
 										},
 									},
 								},
@@ -413,6 +384,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					DisableDefaultMapping: true,
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 	))
 	t.Run("get request with duplicated argument and alias", datasourcetesting.RunTest(schema, duplicatedArgumentOperationWithAlias, "ArgumentQuery",
@@ -428,14 +400,15 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path:     []string{"idVariable"},
-										Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+										Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 									},
 									&resolve.ContextVariable{
 										Path:     []string{"a"},
-										Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+										Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string","null"]}`),
 									},
 								),
 								DataSourceIdentifier: []byte("rest_datasource.Source"),
+								DisableDataLoader: true,
 							},
 							&resolve.SingleFetch{
 								BufferId:   3,
@@ -444,14 +417,15 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path:     []string{"idVariable"},
-										Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+										Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 									},
 									&resolve.ContextVariable{
 										Path:     []string{"d"},
-										Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+										Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string","null"]}`),
 									},
 								),
 								DataSourceIdentifier: []byte("rest_datasource.Source"),
+								DisableDataLoader: true,
 							},
 						},
 					},
@@ -460,10 +434,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArgument"),
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fetch: &resolve.ParallelFetch{
@@ -475,10 +445,11 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											Variables: resolve.NewVariables(
 												&resolve.ContextVariable{
 													Path:     []string{"b"},
-													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 												},
 											),
 											DataSourceIdentifier: []byte("rest_datasource.Source"),
+											DisableDataLoader: true,
 										},
 										&resolve.SingleFetch{
 											BufferId:   2,
@@ -487,10 +458,11 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											Variables: resolve.NewVariables(
 												&resolve.ContextVariable{
 													Path:     []string{"c"},
-													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 												},
 											),
 											DataSourceIdentifier: []byte("rest_datasource.Source"),
+											DisableDataLoader: true,
 										},
 									},
 								},
@@ -500,10 +472,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
-										},
-										Position: resolve.Position{
-											Line:   4,
-											Column: 5,
 										},
 									},
 									{
@@ -514,10 +482,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											Path:     []string{"phone"},
 											Nullable: true,
 										},
-										Position: resolve.Position{
-											Line:   5,
-											Column: 5,
-										},
 									},
 									{
 										BufferID:  2,
@@ -527,10 +491,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 											Path:     []string{"phone"},
 											Nullable: true,
 										},
-										Position: resolve.Position{
-											Line:   6,
-											Column: 5,
-										},
 									},
 								},
 							},
@@ -539,10 +499,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							BufferID:  3,
 							HasBuffer: true,
 							Name:      []byte("aliased"),
-							Position: resolve.Position{
-								Line:   9,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -551,10 +507,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
-										},
-										Position: resolve.Position{
-											Line:   10,
-											Column: 5,
 										},
 									},
 								},
@@ -604,6 +556,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					DisableDefaultMapping: true,
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 		func(t *testing.T, op ast.Document, actualPlan plan.Plan) {
 			assert.Equal(t, `{"d":"bar","c":"office","b":"home","a":"foo"}`, string(op.Input.Variables))
@@ -620,24 +573,21 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"b"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string","null"]}`),
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArgument"),
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -646,10 +596,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
-										},
-										Position: resolve.Position{
-											Line:   4,
-											Column: 5,
 										},
 									},
 								},
@@ -684,6 +630,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					DisableDefaultMapping: true,
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 	))
 	/*	t.Run("polling subscription get request with argument", datasourcetesting.RunTest(schema, argumentSubscription, "ArgumentQuery",
@@ -764,16 +711,13 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						DataSource:           &Source{},
 						DisallowSingleFlight: true,
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("friend"),
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -782,10 +726,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
-										},
-										Position: resolve.Position{
-											Line:   4,
-											Column: 5,
 										},
 									},
 								},
@@ -821,6 +761,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					DisableDefaultMapping: true,
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 	))
 	t.Run("get request with headers", datasourcetesting.RunTest(schema, simpleOperation, "",
@@ -837,16 +778,13 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						},
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("friend"),
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -855,10 +793,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
-										},
-										Position: resolve.Position{
-											Line:   4,
-											Column: 5,
 										},
 									},
 								},
@@ -899,6 +833,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					DisableDefaultMapping: true,
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 	))
 	t.Run("get request with query", datasourcetesting.RunTest(schema, argumentOperation, "ArgumentQuery",
@@ -912,24 +847,21 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string","null"]}`),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"idVariable"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"string"}`),
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArgument"),
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -938,10 +870,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
-										},
-										Position: resolve.Position{
-											Line:   4,
-											Column: 5,
 										},
 									},
 								},
@@ -998,6 +926,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					DisableDefaultMapping: true,
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 	))
 	t.Run("get request with array query", datasourcetesting.RunTest(schema, arrayArgumentOperation, "ArgumentQuery",
@@ -1011,20 +940,17 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":"array","item":{"type":"string"}}`),
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["array","null"],"items":{"type":["string","null"]}}`),
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArrayArguments"),
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -1033,10 +959,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
-										},
-										Position: resolve.Position{
-											Line:   4,
-											Column: 5,
 										},
 									},
 								},
@@ -1077,6 +999,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					DisableDefaultMapping: true,
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 	))
 	t.Run("get request with array query", datasourcetesting.RunTest(schema, arrayArgumentOperation, "ArgumentQuery",
@@ -1094,16 +1017,13 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader: true,
 					},
 					Fields: []*resolve.Field{
 						{
 							BufferID:  0,
 							HasBuffer: true,
 							Name:      []byte("withArrayArguments"),
-							Position: resolve.Position{
-								Line:   3,
-								Column: 4,
-							},
 							Value: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -1112,10 +1032,6 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
-										},
-										Position: resolve.Position{
-											Line:   4,
-											Column: 5,
 										},
 									},
 								},
@@ -1156,15 +1072,14 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 					},
 				},
 			},
+			DisableResolveFieldPositions: true,
 		},
 	))
 }
 
 func TestHttpJsonDataSource_Load(t *testing.T) {
-
 	runTests := func(t *testing.T, source *Source) {
 		t.Run("simple get", func(t *testing.T) {
-
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, r.Method, http.MethodGet)
 				_, _ = w.Write([]byte(`ok`))
@@ -1178,7 +1093,6 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			assert.Equal(t, `ok`, b.String())
 		})
 		t.Run("get with query parameters", func(t *testing.T) {
-
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, r.Method, http.MethodGet)
 				fooQueryParam := r.URL.Query().Get("foo")
@@ -1198,7 +1112,6 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 			assert.Equal(t, `ok`, b.String())
 		})
 		t.Run("get with headers", func(t *testing.T) {
-
 			authorization := "Bearer 123"
 			xApiKey := "456"
 
@@ -1208,19 +1121,20 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 				assert.Equal(t, xApiKey, r.Header.Get("X-API-KEY"))
 				assert.Equal(t, []string{"one", "two"}, r.Header["Multi"])
 				assert.Equal(t, "x,y", r.Header.Get("MultiComma"))
+				_, notExists := r.Header[http.CanonicalHeaderKey("NotExists")]
+				assert.False(t, notExists)
 
 				_, _ = w.Write([]byte(`ok`))
 			}))
 
 			defer server.Close()
 
-			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s","header":{"Multi":["one", "two"],"MultiComma":["x,y"],"Authorization":["Bearer 123"],"Token":["%s"],"X-API-Key":["%s"]}}`, server.URL, authorization, xApiKey))
+			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s","header":{"Multi":["one", "two"],"MultiComma":["x,y"],"Authorization":["Bearer 123"],"Token":["%s"],"X-API-Key":["%s"],"NotExists":[""]}}`, server.URL, authorization, xApiKey))
 			b := &strings.Builder{}
 			require.NoError(t, source.Load(context.Background(), input, b))
 			assert.Equal(t, `ok`, b.String())
 		})
 		t.Run("post with body", func(t *testing.T) {
-
 			body := `{"foo":"bar"}`
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

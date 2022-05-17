@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/buger/jsonparser"
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/tidwall/sjson"
 
@@ -60,8 +61,6 @@ func (p *Planner) LeaveVariableDefinition(_ int) {
 func (p *Planner) EnterDirective(ref int) {
 	parent := p.nodes[len(p.nodes)-1]
 	if parent.Kind == ast.NodeKindOperationDefinition && p.currentVariableDefinition != -1 {
-		name := p.visitor.Operation.VariableDefinitionNameString(p.currentVariableDefinition)
-		_ = name
 		p.addDirectivesToVariableDefinitions[p.currentVariableDefinition] = append(p.addDirectivesToVariableDefinitions[p.currentVariableDefinition], ref)
 		return
 	}
@@ -283,7 +282,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 			ExtractGraphqlResponse:    true,
 			ExtractFederationEntities: p.extractEntities,
 		},
-		BatchConfig:      batchConfig,
+		BatchConfig: batchConfig,
 	}
 }
 
@@ -358,13 +357,18 @@ func (p *Planner) LeaveSelectionSet(ref int) {
 
 func (p *Planner) EnterInlineFragment(ref int) {
 	typeCondition := p.visitor.Operation.InlineFragmentTypeConditionName(ref)
-	if typeCondition == nil {
+	if typeCondition == nil && !p.visitor.Operation.InlineFragments[ref].HasDirectives {
 		return
+	}
+
+	fragmentType := -1
+	if typeCondition != nil {
+		fragmentType = p.upstreamOperation.AddNamedType(p.visitor.Config.Types.RenameTypeNameOnMatchBytes(typeCondition))
 	}
 
 	inlineFragment := p.upstreamOperation.AddInlineFragment(ast.InlineFragment{
 		TypeCondition: ast.TypeCondition{
-			Type: p.upstreamOperation.AddNamedType(p.visitor.Config.Types.RenameTypeNameOnMatchBytes(typeCondition)),
+			Type: fragmentType,
 		},
 	})
 
@@ -373,21 +377,23 @@ func (p *Planner) EnterInlineFragment(ref int) {
 		Ref:  inlineFragment,
 	}
 
-	// add __typename field to selection set which contains typeCondition
-	// so that the resolver can distinguish between the response types
-	typeNameField := p.upstreamOperation.AddField(ast.Field{
-		Name: p.upstreamOperation.Input.AppendInputBytes([]byte("__typename")),
-	})
-	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, ast.Selection{
-		Kind: ast.SelectionKindField,
-		Ref:  typeNameField.Ref,
-	})
+	if typeCondition != nil {
+		// add __typename field to selection set which contains typeCondition
+		// so that the resolver can distinguish between the response types
+		typeNameField := p.upstreamOperation.AddField(ast.Field{
+			Name: p.upstreamOperation.Input.AppendInputBytes([]byte("__typename")),
+		})
+		p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, ast.Selection{
+			Kind: ast.SelectionKindField,
+			Ref:  typeNameField.Ref,
+		})
+	}
 
 	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, selection)
 	p.nodes = append(p.nodes, ast.Node{Kind: ast.NodeKindInlineFragment, Ref: inlineFragment})
 }
 
-func (p *Planner) LeaveInlineFragment(ref int) {
+func (p *Planner) LeaveInlineFragment(_ int) {
 	if p.nodes[len(p.nodes)-1].Kind != ast.NodeKindInlineFragment {
 		return
 	}
@@ -395,6 +401,7 @@ func (p *Planner) LeaveInlineFragment(ref int) {
 }
 
 func (p *Planner) EnterField(ref int) {
+
 	fieldName := p.visitor.Operation.FieldNameString(ref)
 
 	// store root field name and ref
@@ -771,7 +778,7 @@ func (p *Planner) resolveNestedArgumentType(fieldName []byte) (fieldTypeRef int)
 
 	for _, inputFieldDefRef := range p.visitor.Definition.InputObjectTypeDefinitions[argTypeNode.Ref].InputFieldsDefinition.Refs {
 		if bytes.Equal(p.visitor.Definition.InputValueDefinitionNameBytes(inputFieldDefRef), fieldName) {
-			return p.visitor.Definition.ResolveListOrNameType(p.visitor.Definition.InputValueDefinitions[inputFieldDefRef].Type)
+			return p.visitor.Definition.InputValueDefinitions[inputFieldDefRef].Type
 		}
 	}
 
@@ -807,17 +814,14 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, sourcePath 
 		return
 	}
 
-	variableDefinitionTypeName := p.visitor.Operation.ResolveTypeNameString(p.visitor.Operation.VariableDefinitions[variableDefinition].Type)
+	variableDefinitionTypeRef := p.visitor.Operation.VariableDefinitions[variableDefinition].Type
+	variableDefinitionTypeName := p.visitor.Operation.ResolveTypeNameString(variableDefinitionTypeRef)
 	variableDefinitionTypeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(variableDefinitionTypeName)
 
-	importedVariableDefinition := p.visitor.Importer.ImportVariableDefinitionWithRename(variableDefinition, p.visitor.Operation, p.upstreamOperation, variableDefinitionTypeName)
-	p.upstreamOperation.AddImportedVariableDefinitionToOperationDefinition(p.nodes[0].Ref, importedVariableDefinition)
-
-	fieldType := p.resolveNestedArgumentType(fieldName)
 	contextVariable := &resolve.ContextVariable{
 		Path: append(sourcePath, variableNameStr),
 	}
-	renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(p.visitor.Definition, p.visitor.Definition, fieldType)
+	renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(p.visitor.Operation, p.visitor.Definition, variableDefinitionTypeRef)
 	if err != nil {
 		return
 	}
@@ -826,6 +830,10 @@ func (p *Planner) addVariableDefinitionsRecursively(value ast.Value, sourcePath 
 	if variableExists {
 		return
 	}
+
+	importedVariableDefinition := p.visitor.Importer.ImportVariableDefinitionWithRename(variableDefinition, p.visitor.Operation, p.upstreamOperation, variableDefinitionTypeName)
+	p.upstreamOperation.AddImportedVariableDefinitionToOperationDefinition(p.nodes[0].Ref, importedVariableDefinition)
+
 	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
 }
 
@@ -1148,7 +1156,65 @@ type Source struct {
 	httpClient *http.Client
 }
 
+func (s *Source) compactAndUnNullVariables(input []byte) []byte {
+	variables, _, _, err := jsonparser.Get(input, "body","variables")
+	if err != nil {
+		return input
+	}
+	if bytes.Equal(variables, []byte("null")) || bytes.Equal(variables, []byte("{}")) {
+		return input
+	}
+	if bytes.ContainsAny(variables, " \t\n\r") {
+		buf := bytes.NewBuffer(make([]byte, 0, len(variables)))
+		_ = json.Compact(buf, variables)
+		variables = buf.Bytes()
+	}
+	cp := make([]byte, len(variables))
+	copy(cp, variables)
+	variables = cp
+	var changed bool
+	for {
+		variables, changed = s.unNullVariables(variables)
+		if !changed {
+			break
+		}
+	}
+	input, _ = jsonparser.Set(input, variables, "body","variables")
+	return input
+}
+
+func (s *Source) unNullVariables(input []byte) ([]byte, bool) {
+	if i := bytes.Index(input, []byte(":{}")); i != -1 {
+		end := i + 3
+		hasTrainlingComma := false
+		if input[end] == ',' {
+			end++
+			hasTrainlingComma = true
+		}
+		startQuote := bytes.LastIndex(input[:i-2], []byte("\""))
+		if !hasTrainlingComma && input[startQuote-1] == ',' {
+			startQuote--
+		}
+		return append(input[:startQuote], input[end:]...), true
+	}
+	if i := bytes.Index(input, []byte("null")); i != -1 {
+		end := i + 4
+		hasTrailingComma := false
+		if input[end] == ',' {
+			end++
+			hasTrailingComma = true
+		}
+		startQuote := bytes.LastIndex(input[:i-2], []byte("\""))
+		if !hasTrailingComma && input[startQuote-1] == ',' {
+			startQuote--
+		}
+		return append(input[:startQuote], input[end:]...), true
+	}
+	return input, false
+}
+
 func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err error) {
+	input = s.compactAndUnNullVariables(input)
 	return httpclient.Do(s.httpClient, ctx, input, writer)
 }
 

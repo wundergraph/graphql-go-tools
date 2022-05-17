@@ -244,6 +244,642 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
 	}))
+	t.Run("skip single field should resolve to empty response", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []*Field{
+							{
+								Name: []byte("user"),
+								Value: &Object{
+									Fetch: &SingleFetch{
+										BufferId:   0,
+										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+									},
+									Fields: []*Field{
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("id"),
+											Value: &String{
+												Path: []string{"id"},
+											},
+											SkipDirectiveDefined: true,
+											SkipVariableName:     "skip",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background(), Variables: []byte(`{"skip":true}`)}, `{"data":{"user":{}}}`
+	}))
+	t.Run("skip multiple fields should resolve to empty response", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []*Field{
+							{
+								Name: []byte("user"),
+								Value: &Object{
+									Fetch: &SingleFetch{
+										BufferId:   0,
+										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+									},
+									Fields: []*Field{
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("id"),
+											Value: &String{
+												Path: []string{"id"},
+											},
+											SkipDirectiveDefined: true,
+											SkipVariableName:     "skip",
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("name"),
+											Value: &String{
+												Path: []string{"name"},
+											},
+											SkipDirectiveDefined: true,
+											SkipVariableName:     "skip",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background(), Variables: []byte(`{"skip":true}`)}, `{"data":{"user":{}}}`
+	}))
+	t.Run("skip __typename field be possible", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []*Field{
+							{
+								Name: []byte("user"),
+								Value: &Object{
+									Fetch: &SingleFetch{
+										BufferId:   0,
+										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+									},
+									Fields: []*Field{
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("id"),
+											Value: &String{
+												Path: []string{"id"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("__typename"),
+											Value: &String{
+												Path: []string{"__typename"},
+											},
+											SkipDirectiveDefined: true,
+											SkipVariableName:     "skip",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background(), Variables: []byte(`{"skip":true}`)}, `{"data":{"user":{"id":"1"}}}`
+	}))
+	t.Run("include __typename field be possible", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []*Field{
+							{
+								Name: []byte("user"),
+								Value: &Object{
+									Fetch: &SingleFetch{
+										BufferId:   0,
+										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"},"__typename":"User"}`),
+									},
+									Fields: []*Field{
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("id"),
+											Value: &String{
+												Path: []string{"id"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("__typename"),
+											Value: &String{
+												Path: []string{"__typename"},
+											},
+											IncludeDirectiveDefined: true,
+											IncludeVariableName:     "include",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background(), Variables: []byte(`{"include":true}`)}, `{"data":{"user":{"id":"1","__typename":"User"}}}`
+	}))
+	t.Run("include __typename field with false value", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []*Field{
+							{
+								Name: []byte("user"),
+								Value: &Object{
+									Fetch: &SingleFetch{
+										BufferId:   0,
+										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"},"__typename":"User"}`),
+									},
+									Fields: []*Field{
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("id"),
+											Value: &String{
+												Path: []string{"id"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("__typename"),
+											Value: &String{
+												Path: []string{"__typename"},
+											},
+											IncludeDirectiveDefined: true,
+											IncludeVariableName:     "include",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background(), Variables: []byte(`{"include":false}`)}, `{"data":{"user":{"id":"1"}}}`
+	}))
+	t.Run("skip field when skip variable is true", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []*Field{
+							{
+								Name: []byte("user"),
+								Value: &Object{
+									Fetch: &SingleFetch{
+										BufferId:   0,
+										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+									},
+									Fields: []*Field{
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("id"),
+											Value: &String{
+												Path: []string{"id"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("name"),
+											Value: &String{
+												Path: []string{"name"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("registered"),
+											Value: &Boolean{
+												Path: []string{"registered"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("pet"),
+											Value: &Object{
+												Path: []string{"pet"},
+												Fields: []*Field{
+													{
+														Name: []byte("name"),
+														Value: &String{
+															Path: []string{"name"},
+														},
+													},
+													{
+														Name: []byte("kind"),
+														Value: &String{
+															Path: []string{"kind"},
+														},
+														SkipDirectiveDefined: true,
+														SkipVariableName:     "skip",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background(), Variables: []byte(`{"skip":true}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky"}}}}`
+	}))
+	t.Run("don't skip field when skip variable is false", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []*Field{
+							{
+								Name: []byte("user"),
+								Value: &Object{
+									Fetch: &SingleFetch{
+										BufferId:   0,
+										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+									},
+									Fields: []*Field{
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("id"),
+											Value: &String{
+												Path: []string{"id"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("name"),
+											Value: &String{
+												Path: []string{"name"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("registered"),
+											Value: &Boolean{
+												Path: []string{"registered"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("pet"),
+											Value: &Object{
+												Path: []string{"pet"},
+												Fields: []*Field{
+													{
+														Name: []byte("name"),
+														Value: &String{
+															Path: []string{"name"},
+														},
+													},
+													{
+														Name: []byte("kind"),
+														Value: &String{
+															Path: []string{"kind"},
+														},
+														SkipDirectiveDefined: true,
+														SkipVariableName:     "skip",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background(), Variables: []byte(`{"skip":false}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
+	}))
+	t.Run("don't skip field when skip variable is missing", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []*Field{
+							{
+								Name: []byte("user"),
+								Value: &Object{
+									Fetch: &SingleFetch{
+										BufferId:   0,
+										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+									},
+									Fields: []*Field{
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("id"),
+											Value: &String{
+												Path: []string{"id"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("name"),
+											Value: &String{
+												Path: []string{"name"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("registered"),
+											Value: &Boolean{
+												Path: []string{"registered"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("pet"),
+											Value: &Object{
+												Path: []string{"pet"},
+												Fields: []*Field{
+													{
+														Name: []byte("name"),
+														Value: &String{
+															Path: []string{"name"},
+														},
+													},
+													{
+														Name: []byte("kind"),
+														Value: &String{
+															Path: []string{"kind"},
+														},
+														SkipDirectiveDefined: true,
+														SkipVariableName:     "skip",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background(), Variables: []byte(`{}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
+	}))
+	t.Run("include field when include variable is true", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []*Field{
+							{
+								Name: []byte("user"),
+								Value: &Object{
+									Fetch: &SingleFetch{
+										BufferId:   0,
+										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+									},
+									Fields: []*Field{
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("id"),
+											Value: &String{
+												Path: []string{"id"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("name"),
+											Value: &String{
+												Path: []string{"name"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("registered"),
+											Value: &Boolean{
+												Path: []string{"registered"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("pet"),
+											Value: &Object{
+												Path: []string{"pet"},
+												Fields: []*Field{
+													{
+														Name: []byte("name"),
+														Value: &String{
+															Path: []string{"name"},
+														},
+													},
+													{
+														Name: []byte("kind"),
+														Value: &String{
+															Path: []string{"kind"},
+														},
+														IncludeDirectiveDefined: true,
+														IncludeVariableName:     "include",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background(), Variables: []byte(`{"include":true}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
+	}))
+	t.Run("exclude field when include variable is false", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []*Field{
+							{
+								Name: []byte("user"),
+								Value: &Object{
+									Fetch: &SingleFetch{
+										BufferId:   0,
+										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+									},
+									Fields: []*Field{
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("id"),
+											Value: &String{
+												Path: []string{"id"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("name"),
+											Value: &String{
+												Path: []string{"name"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("registered"),
+											Value: &Boolean{
+												Path: []string{"registered"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("pet"),
+											Value: &Object{
+												Path: []string{"pet"},
+												Fields: []*Field{
+													{
+														Name: []byte("name"),
+														Value: &String{
+															Path: []string{"name"},
+														},
+													},
+													{
+														Name: []byte("kind"),
+														Value: &String{
+															Path: []string{"kind"},
+														},
+														IncludeDirectiveDefined: true,
+														IncludeVariableName:     "include",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background(), Variables: []byte(`{"include":false}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky"}}}}`
+	}))
+	t.Run("exclude field when include variable is missing", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("data"),
+					Value: &Object{
+						Fields: []*Field{
+							{
+								Name: []byte("user"),
+								Value: &Object{
+									Fetch: &SingleFetch{
+										BufferId:   0,
+										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+									},
+									Fields: []*Field{
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("id"),
+											Value: &String{
+												Path: []string{"id"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("name"),
+											Value: &String{
+												Path: []string{"name"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("registered"),
+											Value: &Boolean{
+												Path: []string{"registered"},
+											},
+										},
+										{
+											BufferID:  0,
+											HasBuffer: true,
+											Name:      []byte("pet"),
+											Value: &Object{
+												Path: []string{"pet"},
+												Fields: []*Field{
+													{
+														Name: []byte("name"),
+														Value: &String{
+															Path: []string{"name"},
+														},
+													},
+													{
+														Name: []byte("kind"),
+														Value: &String{
+															Path: []string{"kind"},
+														},
+														IncludeDirectiveDefined: true,
+														IncludeVariableName:     "include",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background(), Variables: []byte(`{}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky"}}}}`
+	}))
 	t.Run("fetch with context variable resolver", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
@@ -915,6 +1551,148 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				Nullable: true,
 			},
 		}, Context{Context: context.Background()}, `{"data":null}`
+	}))
+	t.Run("__typename without renaming", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("user"),
+						Value: &Object{
+							Fetch: &SingleFetch{
+								BufferId:   0,
+								DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User","rewritten":"User"}`),
+							},
+							Fields: []*Field{
+								{
+									Name:      []byte("id"),
+									HasBuffer: true,
+									BufferID:  0,
+									Value: &Integer{
+										Path:     []string{"id"},
+										Nullable: false,
+									},
+								},
+								{
+									Name:      []byte("name"),
+									HasBuffer: true,
+									BufferID:  0,
+									Value: &String{
+										Path:     []string{"name"},
+										Nullable: false,
+									},
+								},
+								{
+									Name:      []byte("__typename"),
+									HasBuffer: true,
+									BufferID:  0,
+									Value: &String{
+										Path:       []string{"__typename"},
+										Nullable:   false,
+										IsTypeName: true,
+									},
+								},
+								{
+									Name:      []byte("aliased"),
+									HasBuffer: true,
+									BufferID:  0,
+									Value: &String{
+										Path:       []string{"__typename"},
+										Nullable:   false,
+										IsTypeName: true,
+									},
+								},
+								{
+									Name:      []byte("rewritten"),
+									HasBuffer: true,
+									BufferID:  0,
+									Value: &String{
+										Path:       []string{"rewritten"},
+										Nullable:   false,
+										IsTypeName: true,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{Context: context.Background()}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"User","aliased":"User","rewritten":"User"}}}`
+	}))
+	t.Run("__typename with renaming", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("user"),
+							Value: &Object{
+								Fetch: &SingleFetch{
+									BufferId:   0,
+									DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User","rewritten":"User"}`),
+								},
+								Fields: []*Field{
+									{
+										Name:      []byte("id"),
+										HasBuffer: true,
+										BufferID:  0,
+										Value: &Integer{
+											Path:     []string{"id"},
+											Nullable: false,
+										},
+									},
+									{
+										Name:      []byte("name"),
+										HasBuffer: true,
+										BufferID:  0,
+										Value: &String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
+									},
+									{
+										Name:      []byte("__typename"),
+										HasBuffer: true,
+										BufferID:  0,
+										Value: &String{
+											Path:       []string{"__typename"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
+									},
+									{
+										Name:      []byte("aliased"),
+										HasBuffer: true,
+										BufferID:  0,
+										Value: &String{
+											Path:       []string{"__typename"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
+									},
+									{
+										Name:      []byte("rewritten"),
+										HasBuffer: true,
+										BufferID:  0,
+										Value: &String{
+											Path:       []string{"rewritten"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, Context{
+				Context: context.Background(),
+				RenameTypeNames: []RenameTypeName{
+					{
+						From: []byte("User"),
+						To:   []byte("namespaced_User"),
+					},
+				},
+			}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"namespaced_User","aliased":"namespaced_User","rewritten":"namespaced_User"}}}`
 	}))
 	t.Run("empty graphql response for not nullable query field", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{

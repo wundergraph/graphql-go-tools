@@ -1,12 +1,20 @@
 package ast
 
-import "github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
+import (
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
+)
 
 // EnumValue
 // example:
 // Name but not true or false or null
 type EnumValue struct {
 	Name ByteSliceReference // e.g. ORIGIN
+}
+
+func (d *Document) CopyEnumValue(ref int) int {
+	return d.AddEnumValue(EnumValue{
+		Name: d.copyByteSliceReference(d.EnumValues[ref].Name),
+	})
 }
 
 func (d *Document) EnumValueName(ref int) ByteSliceReference {

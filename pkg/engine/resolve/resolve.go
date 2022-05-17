@@ -129,6 +129,7 @@ type Context struct {
 	beforeFetchHook  BeforeFetchHook
 	afterFetchHook   AfterFetchHook
 	position         Position
+	RenameTypeNames  []RenameTypeName
 }
 
 type Request struct {
@@ -205,6 +206,7 @@ func (c *Context) Free() {
 	c.Request.Header = nil
 	c.position = Position{}
 	c.dataLoader = nil
+	c.RenameTypeNames = nil
 }
 
 func (c *Context) SetBeforeFetchHook(hook BeforeFetchHook) {
@@ -470,6 +472,7 @@ func extractResponse(responseData []byte, bufPair *BufPair, cfg ProcessResponseC
 }
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
+
 	buf := r.getBufPair()
 	defer r.freeBufPair(buf)
 
@@ -945,11 +948,25 @@ func (r *Resolver) resolveString(ctx *Context, str *String, data []byte, stringB
 		return nil
 	}
 
+	value = r.renameTypeName(ctx, str, value)
+
 	stringBuf.Data.WriteBytes(quote)
 	stringBuf.Data.WriteBytes(value)
 	stringBuf.Data.WriteBytes(quote)
 	r.exportField(ctx, str.Export, value)
 	return nil
+}
+
+func (r *Resolver) renameTypeName(ctx *Context, str *String, typeName []byte) []byte {
+	if !str.IsTypeName {
+		return typeName
+	}
+	for i := range ctx.RenameTypeNames {
+		if bytes.Equal(ctx.RenameTypeNames[i].From, typeName) {
+			return ctx.RenameTypeNames[i].To
+		}
+	}
+	return typeName
 }
 
 func (r *Resolver) preparePatch(ctx *Context, patchIndex int, extraPath, data []byte) {
@@ -1043,7 +1060,24 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 
 	typeNameSkip := false
 	first := true
+	skipCount := 0
 	for i := range object.Fields {
+
+		if object.Fields[i].SkipDirectiveDefined {
+			skip, err := jsonparser.GetBoolean(ctx.Variables, object.Fields[i].SkipVariableName)
+			if err == nil && skip {
+				skipCount++
+				continue
+			}
+		}
+
+		if object.Fields[i].IncludeDirectiveDefined {
+			include, err := jsonparser.GetBoolean(ctx.Variables, object.Fields[i].IncludeVariableName)
+			if err != nil || !include {
+				skipCount++
+				continue
+			}
+		}
 
 		var fieldData []byte
 		if set != nil && object.Fields[i].HasBuffer {
@@ -1061,6 +1095,9 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			typeName, _, _, _ := jsonparser.Get(fieldData, "__typename")
 			if !bytes.Equal(typeName, object.Fields[i].OnTypeName) {
 				typeNameSkip = true
+				// Restore the response elements that may have been reset above.
+				ctx.responseElements = responseElements
+				ctx.lastFetchID = lastFetchID
 				continue
 			}
 		}
@@ -1105,6 +1142,13 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			return
 		}
 		r.MergeBufPairs(fieldBuf, objectBuf, false)
+	}
+	allSkipped := len(object.Fields) != 0 && len(object.Fields) == skipCount
+	if allSkipped {
+		// return empty object if all fields have been skipped
+		objectBuf.Data.WriteBytes(lBrace)
+		objectBuf.Data.WriteBytes(rBrace)
+		return
 	}
 	if first {
 		if typeNameSkip && !object.Nullable {
@@ -1255,14 +1299,18 @@ func (_ *EmptyArray) NodeKind() NodeKind {
 }
 
 type Field struct {
-	Name       []byte
-	Value      Node
-	Position   Position
-	Defer      *DeferField
-	Stream     *StreamField
-	HasBuffer  bool
-	BufferID   int
-	OnTypeName []byte
+	Name                    []byte
+	Value                   Node
+	Position                Position
+	Defer                   *DeferField
+	Stream                  *StreamField
+	HasBuffer               bool
+	BufferID                int
+	OnTypeName              []byte
+	SkipDirectiveDefined    bool
+	SkipVariableName        string
+	IncludeDirectiveDefined bool
+	IncludeVariableName     string
 }
 
 type Position struct {
@@ -1347,6 +1395,7 @@ type String struct {
 	Nullable             bool
 	Export               *FieldExport `json:"export,omitempty"`
 	UnescapeResponseJson bool         `json:"unescape_response_json,omitempty"`
+	IsTypeName           bool         `json:"is_type_name,omitempty"`
 }
 
 func (_ *String) NodeKind() NodeKind {
@@ -1420,7 +1469,12 @@ type FlushWriter interface {
 }
 
 type GraphQLResponse struct {
-	Data Node
+	Data            Node
+	RenameTypeNames []RenameTypeName
+}
+
+type RenameTypeName struct {
+	From, To []byte
 }
 
 type GraphQLStreamingResponse struct {

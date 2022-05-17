@@ -102,7 +102,6 @@ func (b *BatchFactory) multiplexBatch(out *fastbuffer.FastBuffer, inputs [][]byt
 		}
 
 		_, err = jsonparser.ArrayEach(inputVariables, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-
 			for j := range responseMappings {
 				existing := responseMappings[j].originalInput
 				if bytes.Equal(existing, value) {
@@ -150,7 +149,6 @@ func (b *Batch) demultiplexBatch(responsePair *resolve.BufPair, responseMappings
 
 	if responsePair.HasData() {
 		_, err = jsonparser.ArrayEach(responsePair.Data.Bytes(), func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-
 			if outPosition > len(responseMappings)+1 {
 				return
 			}
