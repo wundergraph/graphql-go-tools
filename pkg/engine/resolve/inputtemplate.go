@@ -63,7 +63,9 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []by
 		value = variables[offset-len(value)-2 : offset]
 		switch segment.Renderer.GetKind() {
 		case VariableRendererKindPlain:
-			segment.Renderer.(*PlainVariableRenderer).rootValueType.Value = valueType
+			if plainRenderer, ok := (segment.Renderer).(*PlainVariableRenderer); ok {
+				plainRenderer.rootValueType.Value = valueType
+			}
 		}
 	}
 	return segment.Renderer.RenderVariable(ctx, value, preparedInput)
