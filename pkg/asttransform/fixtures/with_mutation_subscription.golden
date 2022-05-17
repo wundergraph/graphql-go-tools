@@ -76,8 +76,8 @@ type __Directive {
     description: String
     locations: [__DirectiveLocation!]!
     args: [__InputValue!]!
-    __typename: String!
     isRepeatable: Boolean!
+    __typename: String!
 }
 
 """
