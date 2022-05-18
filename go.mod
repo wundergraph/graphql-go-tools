@@ -4,14 +4,20 @@ go 1.16
 
 require (
 	github.com/99designs/gqlgen v0.13.1-0.20210728041543-7e38dd46943c
+	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
+	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/Shopify/sarama v1.29.1
 	github.com/buger/jsonparser v1.1.1
+	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.1.2
+	github.com/containerd/continuity v0.3.0 // indirect
 	github.com/dave/jennifer v1.4.0
 	github.com/davecgh/go-spew v1.1.1
+	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/evanphx/json-patch/v5 v5.1.0
 	github.com/go-test/deep v1.0.4
+	github.com/go-zookeeper/zk v1.0.2 // indirect
 	github.com/gobwas/ws v1.0.4
 	github.com/golang/mock v1.4.1
 	github.com/google/go-cmp v0.5.7
@@ -26,6 +32,9 @@ require (
 	github.com/jensneuse/pipeline v0.0.0-20200117120358-9fb4de085cd6
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/nats-io/nats.go v1.11.1-0.20210623165838-4b75fc59ae30
+	github.com/opencontainers/image-spec v1.0.2 // indirect
+	github.com/opencontainers/runc v1.1.2 // indirect
+	github.com/ory/dockertest v3.3.5+incompatible // indirect
 	github.com/qri-io/jsonschema v0.2.1
 	github.com/sebdah/goldie v0.0.0-20180424091453-8784dd1ab561
 	github.com/spf13/cobra v0.0.5
