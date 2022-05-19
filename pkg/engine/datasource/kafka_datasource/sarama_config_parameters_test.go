@@ -14,12 +14,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var basicZooKeeperEnvVars = []string{
+	"ALLOW_ANONYMOUS_LOGIN=yes",
+}
+
+var basicKafkaEnvVars = []string{
+	"KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181",
+	"ALLOW_PLAINTEXT_LISTENER=yes",
+	"KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092",
+}
+
+type kafkaBrokerConfig struct {
+	zookeeperEnvVars []string
+	kafkaEnvVars     []string
+}
+
 type kafkaBroker struct {
+	config  *kafkaBrokerConfig
 	pool    *dockertest.Pool
 	network *docker.Network
 }
 
-func newKafkaBroker(t *testing.T) *kafkaBroker {
+type kafkaBrokerOptions func(*kafkaBrokerConfig)
+
+func zookeeperEnvVars(vars []string) kafkaBrokerOptions {
+	return func(config *kafkaBrokerConfig) {
+		config.zookeeperEnvVars = vars
+	}
+}
+
+func kafkaEnvVars(vars []string) kafkaBrokerOptions {
+	return func(config *kafkaBrokerConfig) {
+		config.zookeeperEnvVars = vars
+	}
+}
+
+func newKafkaBroker(t *testing.T, options ...kafkaBrokerOptions) *kafkaBroker {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
@@ -28,7 +58,13 @@ func newKafkaBroker(t *testing.T) *kafkaBroker {
 	network, err := pool.Client.CreateNetwork(docker.CreateNetworkOptions{Name: "zookeeper_kafka_network"})
 	require.NoError(t, err)
 
+	var kc kafkaBrokerConfig
+	for _, opt := range options {
+		opt(&kc)
+	}
+
 	return &kafkaBroker{
+		config:  &kc,
 		pool:    pool,
 		network: network,
 	}
@@ -36,6 +72,15 @@ func newKafkaBroker(t *testing.T) *kafkaBroker {
 
 func (k *kafkaBroker) startZooKeeper(t *testing.T) {
 	t.Log("Trying to run ZooKeeper")
+
+	var envVars []string
+	for _, cfg := range basicZooKeeperEnvVars {
+		envVars = append(envVars, cfg)
+	}
+	for _, cfg := range k.config.zookeeperEnvVars {
+		envVars = append(envVars, cfg)
+	}
+
 	resource, err := k.pool.RunWithOptions(&dockertest.RunOptions{
 		Name:         "zookeeper-tyk-graphql",
 		Repository:   "zookeeper",
@@ -43,9 +88,7 @@ func (k *kafkaBroker) startZooKeeper(t *testing.T) {
 		NetworkID:    k.network.ID,
 		Hostname:     "zookeeper",
 		ExposedPorts: []string{"2181"},
-		Env: []string{
-			"ALLOW_ANONYMOUS_LOGIN=yes",
-		},
+		Env:          envVars,
 	})
 	require.NoError(t, err)
 
@@ -75,17 +118,22 @@ func (k *kafkaBroker) startZooKeeper(t *testing.T) {
 
 func (k *kafkaBroker) startKafka(t *testing.T) *dockertest.Resource {
 	t.Log("Trying to run Kafka")
+
+	var envVars []string
+	for _, cfg := range basicKafkaEnvVars {
+		envVars = append(envVars, cfg)
+	}
+	for _, cfg := range k.config.kafkaEnvVars {
+		envVars = append(envVars, cfg)
+	}
+
 	resource, err := k.pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       "kafka-tyk-graphql",
 		Repository: "bitnami/kafka",
 		Tag:        "3.0.1",
 		NetworkID:  k.network.ID,
 		Hostname:   "kafka",
-		Env: []string{
-			"KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181",
-			"ALLOW_PLAINTEXT_LISTENER=yes",
-			"KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092",
-		},
+		Env:        envVars,
 		PortBindings: map[docker.Port][]docker.PortBinding{
 			"9092/tcp": {{HostIP: "localhost", HostPort: "9092/tcp"}},
 		},
