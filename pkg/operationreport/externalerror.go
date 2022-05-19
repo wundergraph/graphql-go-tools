@@ -288,3 +288,8 @@ func ErrExtensionOrphansMustResolveInSupergraph(extensionNameBytes []byte) (err 
 	err.Message = fmt.Sprintf("the extension orphan named '%s' was never resolved in the supergraph", extensionNameBytes)
 	return err
 }
+
+func ErrTypeBodyMustNotBeEmpty(definitionType, typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the %s named '%s' is invalid due to an empty body", definitionType, typeName)
+	return err
+}

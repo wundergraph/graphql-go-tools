@@ -452,6 +452,33 @@ var run = func(normalizeFunc registerNormalizeFunc, definition, operation, expec
 	}
 }
 
+var runAndExpectError = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedError string) {
+	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
+	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
+	if err != nil {
+		panic(err)
+	}
+
+	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
+	report := operationreport.Report{}
+	walker := astvisitor.NewWalker(48)
+
+	normalizeFunc(&walker)
+
+	walker.Walk(&operationDocument, &definitionDocument, &report)
+
+	var got string
+	if report.HasErrors() {
+		if report.InternalErrors == nil {
+			got = report.ExternalErrors[0].Message
+		} else {
+			got = report.InternalErrors[0].Error()
+		}
+	}
+
+	assert.Equal(t, expectedError, got)
+}
+
 func runMany(definition, operation, expectedOutput string, normalizeFuncs ...registerNormalizeFunc) {
 	var runManyNormalizers = func(walker *astvisitor.Walker) {
 		for _, normalizeFunc := range normalizeFuncs {
