@@ -33,7 +33,7 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 	}
 
 	hasExtended := false
-	shouldReturn := isQueryOrMutation(nameBytes)
+	shouldReturn := isRootType(nameBytes)
 	for i := range nodes {
 		if nodes[i].Kind != ast.NodeKindObjectTypeDefinition {
 			continue
@@ -49,9 +49,9 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 	}
 }
 
-func isQueryOrMutation(nameBytes []byte) bool {
+func isRootType(nameBytes []byte) bool {
 	length := len(nameBytes)
-	return isQuery(length, nameBytes) || isMutation(length, nameBytes)
+	return isQuery(length, nameBytes) || isMutation(length, nameBytes) || isSubscription(length, nameBytes)
 }
 
 func isQuery(length int, b []byte) bool {
@@ -60,4 +60,8 @@ func isQuery(length int, b []byte) bool {
 
 func isMutation(length int, b []byte) bool {
 	return length == 8 && b[0] == 'M' && b[1] == 'u' && b[2] == 't' && b[3] == 'a' && b[4] == 't' && b[5] == 'i' && b[6] == 'o' && b[7] == 'n'
+}
+
+func isSubscription(length int, b []byte) bool {
+	return length == 12 && b[0] == 'S' && b[1] == 'u' && b[2] == 'b' && b[3] == 's' && b[4] == 'c' && b[5] == 'r' && b[6] == 'i' && b[7] == 'p' && b[8] == 't' && b[9] == 'i' && b[10] == 'o' && b[11] == 'n'
 }

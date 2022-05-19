@@ -127,6 +127,11 @@ func TestMergeSDLs(t *testing.T) {
 		DuplicateEntityMergeErrorMessage("User"),
 		accountSchema, negativeTestingAccountSchema,
 	))
+
+	t.Run("The first type encountered without a body should return an error", runMergeTestAndExpectError(
+		EmptyTypeBodyErrorMessage("object", "Message"),
+		accountSchema, negativeTestingProductSchema,
+	))
 }
 
 const (
@@ -214,6 +219,52 @@ const (
 			reputation: CustomScalar!
 			departments: [Department!]!
 			averageSatisfaction: Satisfaction!
+		}
+
+		union AlphaNumeric = Int | String | Float
+	`
+
+	negativeTestingProductSchema = `
+		enum Satisfaction {
+			UNHAPPY,
+			HAPPY,
+			NEUTRAL,
+		}
+
+		scalar CustomScalar
+
+		extend type Query {
+			topProducts(first: Int = 5): [Product]
+		}
+
+		enum Department {
+			COSMETICS,
+			ELECTRONICS,
+			GROCERIES,
+		}
+
+		interface ProductInfo {
+			departments: [Department!]!
+			averageSatisfaction: Satisfaction!
+		}
+
+		type Message {
+		}
+
+		scalar BigInt
+		
+		type Product implements ProductInfo @key(fields: "upc") {
+			upc: String!
+			name: String!
+			price: Int!
+			worth: BigInt!
+			reputation: CustomScalar!
+			departments: [Department!]!
+			averageSatisfaction: Satisfaction!
+		}
+		
+		extend type Message {
+			content: String!
 		}
 
 		union AlphaNumeric = Int | String | Float
@@ -705,4 +756,8 @@ func DuplicateEntityMergeErrorMessage(typeName string) string {
 
 func SharedTypeExtensionErrorMessage(typeName string) string {
 	return fmt.Sprintf("the type named '%s' cannot be extended because it is a shared type", typeName)
+}
+
+func EmptyTypeBodyErrorMessage(definitionType, typeName string) string {
+	return fmt.Sprintf("validate subgraph: external: the %s named '%s' is invalid due to an empty body, locations: [], path: []", definitionType, typeName)
 }
