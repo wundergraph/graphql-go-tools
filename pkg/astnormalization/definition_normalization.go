@@ -50,6 +50,7 @@ func NewSubgraphDefinitionNormalizer() *DefinitionNormalizer {
 func (o *DefinitionNormalizer) setupSubgraphWalkers() {
 	walker := astvisitor.NewWalker(48)
 
+	validateTypeBodyVisitor(&walker)
 	extendObjectTypeDefinitionKeepingOrphans(&walker)
 	extendInputObjectTypeDefinitionKeepingOrphans(&walker)
 	extendEnumTypeDefinitionKeepingOrphans(&walker)

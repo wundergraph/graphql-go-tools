@@ -32,7 +32,6 @@ func (p *checkUnresolvedExtensionOrphansVisitor) Register(walker *astvisitor.Wal
 }
 
 func (p *checkUnresolvedExtensionOrphansVisitor) EnterDocument(operation, _ *ast.Document) {
-	//operation.DeleteRootNodes(operation.Index.MergedTypeExtensions)
 	p.document = operation
 }
 
