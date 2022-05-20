@@ -16,6 +16,9 @@ type KafkaConsumerGroupBridge struct {
 }
 
 type KafkaConsumerGroup struct {
+	startedCtx    context.Context
+	startedCancel context.CancelFunc
+
 	consumerGroup sarama.ConsumerGroup
 	options       *GraphQLSubscriptionOptions
 	log           log.Logger
@@ -25,6 +28,9 @@ type KafkaConsumerGroup struct {
 }
 
 type kafkaConsumerGroupHandler struct {
+	startedCtx    context.Context
+	startedCancel context.CancelFunc
+
 	log      log.Logger
 	options  *GraphQLSubscriptionOptions
 	messages chan *sarama.ConsumerMessage
@@ -63,6 +69,7 @@ func (k *kafkaConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSes
 		session.ResetOffset(claim.Topic(), claim.Partition(), sarama.OffsetNewest, "")
 	}
 
+	k.startedCancel()
 	for msg := range claim.Messages() {
 		ctx, cancel := context.WithTimeout(k.ctx, time.Second*5)
 		select {
@@ -93,8 +100,11 @@ func NewKafkaConsumerGroup(log log.Logger, saramaConfig *sarama.Config, options 
 		return nil, err
 	}
 
+	startedCtx, startedCancel := context.WithCancel(context.Background())
 	ctx, cancel := context.WithCancel(context.Background())
 	return &KafkaConsumerGroup{
+		startedCtx:    startedCtx,
+		startedCancel: startedCancel,
 		consumerGroup: cg,
 		log:           log,
 		options:       options,
@@ -131,10 +141,12 @@ func (k *KafkaConsumerGroup) startConsuming(handler sarama.ConsumerGroupHandler)
 // background.
 func (k *KafkaConsumerGroup) StartConsuming(messages chan *sarama.ConsumerMessage) {
 	handler := &kafkaConsumerGroupHandler{
-		log:      k.log,
-		options:  k.options,
-		messages: messages,
-		ctx:      k.ctx,
+		startedCtx:    k.startedCtx,
+		startedCancel: k.startedCancel,
+		log:           k.log,
+		options:       k.options,
+		messages:      messages,
+		ctx:           k.ctx,
 	}
 
 	k.wg.Add(1)
