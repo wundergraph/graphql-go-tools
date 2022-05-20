@@ -41,7 +41,7 @@ type GraphQLSubscriptionOptions struct {
 	ClientID             string `json:"client_id"`
 	KafkaVersion         string `json:"kafka_version"`
 	StartConsumingLatest bool   `json:"start_consuming_latest"`
-	startedCallback      func() `json:",omitempty"`
+	startedCallback      func()
 }
 
 func (g *GraphQLSubscriptionOptions) Sanitize() {
