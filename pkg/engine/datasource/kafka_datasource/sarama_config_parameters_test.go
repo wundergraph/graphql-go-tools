@@ -246,6 +246,11 @@ func testConsumeMessages(messages chan *sarama.ConsumerMessage, numberOfMessages
 }
 
 func testStartConsumer(t *testing.T, options *GraphQLSubscriptionOptions) (*KafkaConsumerGroup, chan *sarama.ConsumerMessage) {
+	ctx, cancel := context.WithCancel(context.Background())
+	options.StartedCallback = func() {
+		cancel()
+	}
+
 	options.Sanitize()
 	require.NoError(t, options.Validate())
 
@@ -257,7 +262,7 @@ func testStartConsumer(t *testing.T, options *GraphQLSubscriptionOptions) (*Kafk
 	messages := make(chan *sarama.ConsumerMessage)
 	cg.StartConsuming(messages)
 
-	<-cg.startedCtx.Done()
+	<-ctx.Done()
 
 	return cg, messages
 }

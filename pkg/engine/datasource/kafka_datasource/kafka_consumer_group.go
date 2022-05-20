@@ -16,25 +16,21 @@ type KafkaConsumerGroupBridge struct {
 }
 
 type KafkaConsumerGroup struct {
-	startedCtx    context.Context
-	startedCancel context.CancelFunc
-
-	consumerGroup sarama.ConsumerGroup
-	options       *GraphQLSubscriptionOptions
-	log           log.Logger
-	wg            sync.WaitGroup
-	ctx           context.Context
-	cancel        context.CancelFunc
+	consumerGroup   sarama.ConsumerGroup
+	options         *GraphQLSubscriptionOptions
+	log             log.Logger
+	startedCallback func()
+	wg              sync.WaitGroup
+	ctx             context.Context
+	cancel          context.CancelFunc
 }
 
 type kafkaConsumerGroupHandler struct {
-	startedCtx    context.Context
-	startedCancel context.CancelFunc
-
-	log      log.Logger
-	options  *GraphQLSubscriptionOptions
-	messages chan *sarama.ConsumerMessage
-	ctx      context.Context
+	log             log.Logger
+	startedCallback func()
+	options         *GraphQLSubscriptionOptions
+	messages        chan *sarama.ConsumerMessage
+	ctx             context.Context
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim.
@@ -69,7 +65,10 @@ func (k *kafkaConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSes
 		session.ResetOffset(claim.Topic(), claim.Partition(), sarama.OffsetNewest, "")
 	}
 
-	k.startedCancel()
+	if k.startedCallback != nil {
+		k.startedCallback()
+	}
+
 	for msg := range claim.Messages() {
 		ctx, cancel := context.WithTimeout(k.ctx, time.Second*5)
 		select {
@@ -100,16 +99,14 @@ func NewKafkaConsumerGroup(log log.Logger, saramaConfig *sarama.Config, options 
 		return nil, err
 	}
 
-	startedCtx, startedCancel := context.WithCancel(context.Background())
 	ctx, cancel := context.WithCancel(context.Background())
 	return &KafkaConsumerGroup{
-		startedCtx:    startedCtx,
-		startedCancel: startedCancel,
-		consumerGroup: cg,
-		log:           log,
-		options:       options,
-		ctx:           ctx,
-		cancel:        cancel,
+		consumerGroup:   cg,
+		startedCallback: options.StartedCallback,
+		log:             log,
+		options:         options,
+		ctx:             ctx,
+		cancel:          cancel,
 	}, nil
 }
 
@@ -141,12 +138,11 @@ func (k *KafkaConsumerGroup) startConsuming(handler sarama.ConsumerGroupHandler)
 // background.
 func (k *KafkaConsumerGroup) StartConsuming(messages chan *sarama.ConsumerMessage) {
 	handler := &kafkaConsumerGroupHandler{
-		startedCtx:    k.startedCtx,
-		startedCancel: k.startedCancel,
-		log:           k.log,
-		options:       k.options,
-		messages:      messages,
-		ctx:           k.ctx,
+		log:             k.log,
+		startedCallback: k.options.StartedCallback,
+		options:         k.options,
+		messages:        messages,
+		ctx:             k.ctx,
 	}
 
 	k.wg.Add(1)
