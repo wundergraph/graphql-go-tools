@@ -102,7 +102,7 @@ func NewKafkaConsumerGroup(log log.Logger, saramaConfig *sarama.Config, options 
 	ctx, cancel := context.WithCancel(context.Background())
 	return &KafkaConsumerGroup{
 		consumerGroup:   cg,
-		startedCallback: options.StartedCallback,
+		startedCallback: options.startedCallback,
 		log:             log,
 		options:         options,
 		ctx:             ctx,
@@ -139,7 +139,7 @@ func (k *KafkaConsumerGroup) startConsuming(handler sarama.ConsumerGroupHandler)
 func (k *KafkaConsumerGroup) StartConsuming(messages chan *sarama.ConsumerMessage) {
 	handler := &kafkaConsumerGroupHandler{
 		log:             k.log,
-		startedCallback: k.options.StartedCallback,
+		startedCallback: k.options.startedCallback,
 		options:         k.options,
 		messages:        messages,
 		ctx:             k.ctx,

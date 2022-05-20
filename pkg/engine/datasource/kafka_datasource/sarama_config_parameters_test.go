@@ -1,3 +1,6 @@
+//go:build kafkaintegration
+// +build kafkaintegration
+
 package kafka_datasource
 
 import (
@@ -247,7 +250,7 @@ func testConsumeMessages(messages chan *sarama.ConsumerMessage, numberOfMessages
 
 func testStartConsumer(t *testing.T, options *GraphQLSubscriptionOptions) (*KafkaConsumerGroup, chan *sarama.ConsumerMessage) {
 	ctx, cancel := context.WithCancel(context.Background())
-	options.StartedCallback = func() {
+	options.startedCallback = func() {
 		cancel()
 	}
 
