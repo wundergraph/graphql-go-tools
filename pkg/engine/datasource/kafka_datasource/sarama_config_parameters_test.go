@@ -271,6 +271,17 @@ func testStartConsumer(t *testing.T, options *GraphQLSubscriptionOptions) (*Kafk
 }
 
 func TestSarama_StartConsumingLatest_True(t *testing.T) {
+	// Test scenario:
+	//
+	// 1- Start a new consumer
+	// 2- Produce 10 messages
+	// 3- The consumer consumes the produced messages
+	// 4- Stop the consumer
+	// 5- Produce more messages
+	// 6- Start a new consumer with the same consumer group name
+	// 7- Produce more messages
+	// 8- Consumer will consume the messages produced on step 7.
+
 	// Important note about offset management in Kafka:
 	//
 	// config.Consumer.Offsets.Initial only takes effect when offsets are not committed to Kafka/Zookeeper.
@@ -350,6 +361,17 @@ func TestSarama_StartConsumingLatest_True(t *testing.T) {
 }
 
 func TestSarama_StartConsuming_And_Restart(t *testing.T) {
+	// Test scenario:
+	//
+	// 1- Start a new consumer
+	// 2- Produce 10 messages
+	// 3- The consumer consumes the produced messages
+	// 4- Stop the consumer
+	// 5- Produce more messages
+	// 6- Start a new consumer with the same consumer group name
+	// 7- Produce more messages
+	// 8- Consumer will consume all messages.
+
 	k := newKafkaBroker(t)
 	broker := k.start(t)
 
