@@ -3,10 +3,10 @@ package astvalidation
 import (
 	"bytes"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astimport"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/wundergraph/graphql-go-tools/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/pkg/astimport"
+	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
 // Values validates if values are used properly

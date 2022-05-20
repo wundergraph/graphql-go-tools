@@ -7,9 +7,9 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/pkg/astnormalization"
+	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
 // inspired by: https://tech.xing.com/graphql-overlapping-fields-can-be-merged-fast-ea6e92e0a01

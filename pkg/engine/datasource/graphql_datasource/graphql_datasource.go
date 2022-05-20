@@ -9,19 +9,19 @@ import (
 	"net/http"
 
 	"github.com/buger/jsonparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/tidwall/sjson"
+	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
-	"github.com/jensneuse/graphql-go-tools/pkg/federation"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/wundergraph/graphql-go-tools/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/pkg/astnormalization"
+	"github.com/wundergraph/graphql-go-tools/pkg/astparser"
+	"github.com/wundergraph/graphql-go-tools/pkg/astprinter"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/httpclient"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/pkg/federation"
+	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
+	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
 type Planner struct {
@@ -1157,7 +1157,7 @@ type Source struct {
 }
 
 func (s *Source) compactAndUnNullVariables(input []byte) []byte {
-	variables, _, _, err := jsonparser.Get(input, "body","variables")
+	variables, _, _, err := jsonparser.Get(input, "body", "variables")
 	if err != nil {
 		return input
 	}
@@ -1179,7 +1179,7 @@ func (s *Source) compactAndUnNullVariables(input []byte) []byte {
 			break
 		}
 	}
-	input, _ = jsonparser.Set(input, variables, "body","variables")
+	input, _ = jsonparser.Set(input, variables, "body", "variables")
 	return input
 }
 

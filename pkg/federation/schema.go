@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/astprinter"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
-	"github.com/jensneuse/graphql-go-tools/pkg/federation/sdlmerge"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/wundergraph/graphql-go-tools/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/pkg/astparser"
+	"github.com/wundergraph/graphql-go-tools/pkg/astprinter"
+	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/pkg/federation/sdlmerge"
+	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
 func BuildBaseSchemaDocument(serviceSDLs ...string) (string, error) {

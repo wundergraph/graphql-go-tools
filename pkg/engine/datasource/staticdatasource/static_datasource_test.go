@@ -3,9 +3,9 @@ package staticdatasource
 import (
 	"testing"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasourcetesting"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
 )
 
 const (

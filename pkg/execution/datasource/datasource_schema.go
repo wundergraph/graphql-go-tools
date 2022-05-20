@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/wundergraph/graphql-go-tools/pkg/introspection"
+	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
 type SchemaDataSourcePlannerConfig struct {

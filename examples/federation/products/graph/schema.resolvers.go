@@ -9,8 +9,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/jensneuse/graphql-go-tools/examples/federation/products/graph/generated"
-	"github.com/jensneuse/graphql-go-tools/examples/federation/products/graph/model"
+	"github.com/wundergraph/graphql-go-tools/examples/federation/products/graph/generated"
+	"github.com/wundergraph/graphql-go-tools/examples/federation/products/graph/model"
 )
 
 func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.Product, error) {

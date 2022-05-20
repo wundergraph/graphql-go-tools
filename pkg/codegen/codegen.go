@@ -11,9 +11,9 @@ import (
 	"github.com/dave/jennifer/jen"
 	"github.com/iancoleman/strcase"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/wundergraph/graphql-go-tools/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
 type CodeGen struct {
@@ -101,7 +101,7 @@ func (g *genVisitor) renderUnmarshal(structName, graphqlObjectName string, ref a
 	case ast.NodeKindDirectiveDefinition:
 		g.file.Func().Params(jen.Id(strings.ToLower(structName)[0:1]).Id("*").Id(structName)).
 			Id("Unmarshal").Params(
-			jen.Id("doc").Id("*").Qual("github.com/jensneuse/graphql-go-tools/pkg/ast", "Document"),
+			jen.Id("doc").Id("*").Qual("github.com/wundergraph/graphql-go-tools/pkg/ast", "Document"),
 			jen.Id("ref").Int()).
 			BlockFunc(func(group *jen.Group) {
 				for _, i := range g.doc.DirectiveDefinitions[ref.Ref].ArgumentsDefinition.Refs {
@@ -128,7 +128,7 @@ func (g *genVisitor) renderUnmarshal(structName, graphqlObjectName string, ref a
 	case ast.NodeKindInputObjectTypeDefinition:
 		g.file.Func().Params(jen.Id(strings.ToLower(structName)[0:1]).Id("*").Id(structName)).
 			Id("Unmarshal").Params(
-			jen.Id("doc").Id("*").Qual("github.com/jensneuse/graphql-go-tools/pkg/ast", "Document"),
+			jen.Id("doc").Id("*").Qual("github.com/wundergraph/graphql-go-tools/pkg/ast", "Document"),
 			jen.Id("ref").Int()).
 			BlockFunc(func(group *jen.Group) {
 				for _, i := range g.doc.InputObjectTypeDefinitions[ref.Ref].InputFieldsDefinition.Refs {
@@ -408,7 +408,7 @@ func (g *genVisitor) LeaveEnumTypeDefinition(ref int) {
 	g.file.Type().Id(name).Int()
 	refs := g.doc.EnumTypeDefinitions[ref].EnumValuesDefinition.Refs
 
-	g.file.Func().Params(jen.Id(shortHandle).Id("*").Id(name)).Id("Unmarshal").Params(jen.Id("doc").Id("*").Qual("github.com/jensneuse/graphql-go-tools/pkg/ast", "Document"), jen.Id("ref").Int()).Block(
+	g.file.Func().Params(jen.Id(shortHandle).Id("*").Id(name)).Id("Unmarshal").Params(jen.Id("doc").Id("*").Qual("github.com/wundergraph/graphql-go-tools/pkg/ast", "Document"), jen.Id("ref").Int()).Block(
 		jen.Switch(jen.Id("doc").Dot("EnumValueNameString").Call(jen.Id("ref"))).BlockFunc(func(group *jen.Group) {
 			for _, i := range refs {
 				valueName := g.doc.EnumValueDefinitionNameString(i)

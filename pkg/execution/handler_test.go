@@ -6,7 +6,7 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
+	"github.com/wundergraph/graphql-go-tools/pkg/execution/datasource"
 )
 
 func TestHandler_VariablesFromRequest(t *testing.T) {

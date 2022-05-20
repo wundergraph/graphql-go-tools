@@ -11,9 +11,9 @@ import (
 
 	"github.com/jensneuse/abstractlogger"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/execution"
-	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/wundergraph/graphql-go-tools/pkg/execution"
+	"github.com/wundergraph/graphql-go-tools/pkg/execution/datasource"
+	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
 type DataSourceHttpJsonOptions struct {

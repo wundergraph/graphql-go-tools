@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	graphqlDataSource "github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
+	graphqlDataSource "github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 )
 
 type ServiceConfig struct {

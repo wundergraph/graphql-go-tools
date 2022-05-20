@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasourcetesting"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasourcetesting"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
 )
 
 const (
@@ -122,7 +122,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						Input:                `{"method":"GET","url":"https://example.com/friend"}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
-						DisableDataLoader: true,
+						DisableDataLoader:    true,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -142,8 +142,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 										},
 									),
 									DataSourceIdentifier: []byte("rest_datasource.Source"),
-									DisableDataLoader: true,
-
+									DisableDataLoader:    true,
 								},
 								Fields: []*resolve.Field{
 									{
@@ -251,7 +250,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
-						DisableDataLoader: true,
+						DisableDataLoader:    true,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -334,7 +333,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
 						DisallowSingleFlight: true,
-						DisableDataLoader: true,
+						DisableDataLoader:    true,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -408,7 +407,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 									},
 								),
 								DataSourceIdentifier: []byte("rest_datasource.Source"),
-								DisableDataLoader: true,
+								DisableDataLoader:    true,
 							},
 							&resolve.SingleFetch{
 								BufferId:   3,
@@ -425,7 +424,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 									},
 								),
 								DataSourceIdentifier: []byte("rest_datasource.Source"),
-								DisableDataLoader: true,
+								DisableDataLoader:    true,
 							},
 						},
 					},
@@ -449,7 +448,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 												},
 											),
 											DataSourceIdentifier: []byte("rest_datasource.Source"),
-											DisableDataLoader: true,
+											DisableDataLoader:    true,
 										},
 										&resolve.SingleFetch{
 											BufferId:   2,
@@ -462,7 +461,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 												},
 											),
 											DataSourceIdentifier: []byte("rest_datasource.Source"),
-											DisableDataLoader: true,
+											DisableDataLoader:    true,
 										},
 									},
 								},
@@ -581,7 +580,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
-						DisableDataLoader: true,
+						DisableDataLoader:    true,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -711,7 +710,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 						DataSource:           &Source{},
 						DisallowSingleFlight: true,
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
-						DisableDataLoader: true,
+						DisableDataLoader:    true,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -778,7 +777,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						},
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
-						DisableDataLoader: true,
+						DisableDataLoader:    true,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -855,7 +854,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
-						DisableDataLoader: true,
+						DisableDataLoader:    true,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -944,7 +943,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
-						DisableDataLoader: true,
+						DisableDataLoader:    true,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -1017,7 +1016,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 							},
 						),
 						DataSourceIdentifier: []byte("rest_datasource.Source"),
-						DisableDataLoader: true,
+						DisableDataLoader:    true,
 					},
 					Fields: []*resolve.Field{
 						{

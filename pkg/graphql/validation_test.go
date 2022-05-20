@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
-	"github.com/jensneuse/graphql-go-tools/pkg/starwars"
+	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
+	"github.com/wundergraph/graphql-go-tools/pkg/starwars"
 )
 
 func TestRequest_ValidateForSchema(t *testing.T) {

@@ -6,8 +6,8 @@ package graph
 import (
 	"context"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/graphql/federationtesting/reviews/graph/generated"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphql/federationtesting/reviews/graph/model"
+	"github.com/wundergraph/graphql-go-tools/pkg/graphql/federationtesting/reviews/graph/generated"
+	"github.com/wundergraph/graphql-go-tools/pkg/graphql/federationtesting/reviews/graph/model"
 )
 
 func (r *mutationResolver) AddReview(ctx context.Context, authorID string, upc string, review string) (*model.Review, error) {

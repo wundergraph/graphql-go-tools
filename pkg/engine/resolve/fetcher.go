@@ -6,8 +6,8 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
-	"github.com/jensneuse/graphql-go-tools/pkg/pool"
+	"github.com/wundergraph/graphql-go-tools/pkg/fastbuffer"
+	"github.com/wundergraph/graphql-go-tools/pkg/pool"
 )
 
 type Fetcher struct {

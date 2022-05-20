@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/subscription"
+	"github.com/wundergraph/graphql-go-tools/pkg/subscription"
 )
 
 func TestWebsocketSubscriptionClient_WriteToClient(t *testing.T) {

@@ -1,32 +1,6 @@
-[![GoDoc](https://godoc.org/github.com/jensneuse/graphql-go-tools?status.svg)](https://godoc.org/github.com/jensneuse/graphql-go-tools)
-[![CI](https://github.com/jensneuse/graphql-go-tools/workflows/ci/badge.svg)](https://github.com/jensneuse/graphql-go-tools/workflows/ci/badge.svg)
+[![GoDoc](https://godoc.org/github.com/wundergraph/graphql-go-tools?status.svg)](https://godoc.org/github.com/wundergraph/graphql-go-tools)
+[![CI](https://github.com/wundergraph/graphql-go-tools/workflows/ci/badge.svg)](https://github.com/wundergraph/graphql-go-tools/workflows/ci/badge.svg)
 # graphql-go-tools
-
-## Sponsors
-
-### WunderGraph
-
-Are you looking for a GraphQL e2e data fetching solution?
-Supports frameworks like NextJS,
-type safety with generated clients (e.g. TypeScript),
-authentication,
-edge caching,
-realtime streaming support,
-federation, schema stitching, etc...
-
-Have a look at: https://wundergraph.com
-
-WunderGraph allows you to treat APIs like packages.
-Install, share & integrate as simple as npm install.
-
-### Tyk
-
-Need a full lifecycle Api Management solution with 1st Class GraphQL Support?
-Go check out https://tyk.io
-
-Tyk is the best in class FLAPIM solution to manage all your APIs.
-Turn REST APIs into GraphQL using the GUI in no time
-thanks to tyk's Universal Data Graph.
 
 ## Apollo Federation Gateway Replacement
 
@@ -117,7 +91,7 @@ Feel free to add comparisons via PR.
 
 Parse Kitchen Sink (1020 chars, example from Facebook):
 ```shell script
-pkg: github.com/jensneuse/graphql-go-tools/pkg/astparser
+pkg: github.com/wundergraph/graphql-go-tools/pkg/astparser
 BenchmarkKitchenSink 	  189426	      5652 ns/op	       0 B/op	       0 allocs/op
 BenchmarkKitchenSink 	  198253	      5526 ns/op	       0 B/op	       0 allocs/op
 BenchmarkKitchenSink 	  199924	      5553 ns/op	       0 B/op	       0 allocs/op

@@ -9,10 +9,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/datasource/httpclient"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/wundergraph/graphql-go-tools/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/httpclient"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 )
 
 type Planner struct {
@@ -65,11 +65,11 @@ type SubscriptionConfiguration struct {
 }
 
 type FetchConfiguration struct {
-	URL           string
-	Method        string
-	Header        http.Header
-	Query         []QueryConfiguration
-	Body          string
+	URL    string
+	Method string
+	Header http.Header
+	Query  []QueryConfiguration
+	Body   string
 }
 
 type QueryConfiguration struct {

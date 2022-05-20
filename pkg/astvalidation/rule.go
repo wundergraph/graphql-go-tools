@@ -1,7 +1,7 @@
 package astvalidation
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
 )
 
 // Rule is hook to register callback functions on the Walker

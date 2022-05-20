@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 )
 
 func TestPath_MarshalJSON(t *testing.T) {
