@@ -9,7 +9,7 @@ import (
 	"github.com/gobwas/ws/wsutil"
 	"github.com/jensneuse/abstractlogger"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/subscription"
+	"github.com/wundergraph/graphql-go-tools/pkg/subscription"
 )
 
 // WebsocketSubscriptionClient is an actual implementation of the subscritpion client interface.
