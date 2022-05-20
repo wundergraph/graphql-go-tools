@@ -65,7 +65,7 @@ This repos uses go modules so make sure to use the latest version of Go.
 
 ## Docs
 
-https://godoc.org/github.com/jensneuse/graphql-go-tools
+https://godoc.org/github.com/wundergraph/graphql-go-tools
 
 ## Usage
 
@@ -107,14 +107,14 @@ CPU and Memory consumption for lexing, parsing as well as most other operations 
     - Contributions to the http proxy & the Context Middleware
 - [Jonas Bergner][jonas-bergner-github]
     - Contributions to the initial version of the parser, contributions to the tests
-    - Implemented Type Extension merging [#108](https://github.com/jensneuse/graphql-go-tools/pull/108)
+    - Implemented Type Extension merging [#108](https://github.com/wundergraph/graphql-go-tools/pull/108)
 - [Patric Vormstein][patric-vormstein-github] (Active Maintainer)
-    - Fixed lexer on windows [#92](https://github.com/jensneuse/graphql-go-tools/pull/92)
+    - Fixed lexer on windows [#92](https://github.com/wundergraph/graphql-go-tools/pull/92)
     - Author of the graphql package to simplify the usage of the library
     - Refactored the http package to simplify usage with http servers
     - Author of the starwars package to enhance testing
 - [Sergey Petrunin][sergey-petrunin-github] (Active Maintainer)
-    - Helped cleaning up the API of the pipeline package [#166](https://github.com/jensneuse/graphql-go-tools/pull/166)
+    - Helped cleaning up the API of the pipeline package [#166](https://github.com/wundergraph/graphql-go-tools/pull/166)
     - Refactored the ast package into multiple files
     - Author of the introspection converter (introspection JSON -> AST)
     - Fixed various bugs in the parser & visitor & printer
