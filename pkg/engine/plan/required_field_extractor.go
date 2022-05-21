@@ -3,7 +3,7 @@ package plan
 import (
 	"strings"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 )
 
 var fieldsArgumentNameBytes = []byte("fields")

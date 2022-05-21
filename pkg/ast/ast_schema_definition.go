@@ -1,6 +1,6 @@
 package ast
 
-import "github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
+import "github.com/wundergraph/graphql-go-tools/pkg/lexer/position"
 
 type SchemaDefinition struct {
 	SchemaLiteral                position.Position // schema

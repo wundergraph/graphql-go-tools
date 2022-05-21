@@ -9,9 +9,9 @@ import (
 	"github.com/sebdah/goldie"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
-	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
+	"github.com/wundergraph/graphql-go-tools/pkg/astparser"
+	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
+	"github.com/wundergraph/graphql-go-tools/pkg/introspection"
 )
 
 func TestSource_Load(t *testing.T) {

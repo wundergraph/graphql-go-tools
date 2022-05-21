@@ -9,8 +9,8 @@ import (
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/execution"
-	"github.com/jensneuse/graphql-go-tools/pkg/execution/datasource"
+	"github.com/wundergraph/graphql-go-tools/pkg/execution"
+	"github.com/wundergraph/graphql-go-tools/pkg/execution/datasource"
 )
 
 type QueryVariables map[string]interface{}

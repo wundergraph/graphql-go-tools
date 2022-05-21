@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/graphql/federationtesting/products/graph/generated"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphql/federationtesting/products/graph/model"
+	"github.com/wundergraph/graphql-go-tools/pkg/graphql/federationtesting/products/graph/generated"
+	"github.com/wundergraph/graphql-go-tools/pkg/graphql/federationtesting/products/graph/model"
 )
 
 func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.Product, error) {

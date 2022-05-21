@@ -5,7 +5,7 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
+	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafebytes"
 )
 
 // Index is a struct to easily look up objects in a document, e.g. find Nodes (type/interface/union definitions) by name

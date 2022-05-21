@@ -3,8 +3,8 @@ package ast
 import (
 	"bytes"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
+	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafebytes"
+	"github.com/wundergraph/graphql-go-tools/pkg/lexer/position"
 )
 
 // UnionTypeDefinition
@@ -18,7 +18,7 @@ type UnionTypeDefinition struct {
 	Directives          DirectiveList     // optional, e.g. @foo
 	Equals              position.Position // =
 	HasUnionMemberTypes bool
-	UnionMemberTypes    TypeList            // optional, e.g. Photo | Person
+	UnionMemberTypes    TypeList // optional, e.g. Photo | Person
 	HasFieldDefinitions bool
 	FieldsDefinition    FieldDefinitionList // contains a single field: { __typename: String! }
 }
@@ -44,7 +44,7 @@ func (d *Document) UnionTypeDefinitionDescriptionString(ref int) string {
 
 func (d *Document) UnionTypeDefinitionHasField(ref int, fieldName []byte) bool {
 	for _, fieldRef := range d.UnionTypeDefinitions[ref].FieldsDefinition.Refs {
-		if bytes.Equal(d.FieldDefinitionNameBytes(fieldRef),fieldName){
+		if bytes.Equal(d.FieldDefinitionNameBytes(fieldRef), fieldName) {
 			return true
 		}
 	}

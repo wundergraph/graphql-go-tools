@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
 )
 
 func runTest(schema, operation, expectedJsonSchema string, valid []string, invalid []string, overrides map[string]JsonSchema) func(t *testing.T) {

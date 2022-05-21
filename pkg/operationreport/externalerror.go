@@ -3,8 +3,8 @@ package operationreport
 import (
 	"fmt"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerrors"
+	"github.com/wundergraph/graphql-go-tools/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/pkg/graphqlerrors"
 )
 
 type ExternalError struct {

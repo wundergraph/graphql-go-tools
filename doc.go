@@ -22,7 +22,7 @@
 // - GraphQL APIs (you can combine multiple GraphQL APIs into one single GraphQL Endpoint, nesting is possible)
 // - Webassembly/WASM Lambdas (e.g. resolve a field using a Rust lambda)
 //
-// If you're looking for a ready to use solution that has all this functionality packaged as a Gateway have a look at: https://github.com/jensneuse/graphql-gateway
+// If you're looking for a ready to use solution that has all this functionality packaged as a Gateway have a look at: https://wundergraph.com
 //
 // Created by Jens Neuse
 package main

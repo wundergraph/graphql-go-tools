@@ -8,7 +8,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 )
 
 func TestArrayStream(t *testing.T) {
@@ -342,10 +342,10 @@ func TestStreamAndDefer(t *testing.T) {
 					InputTemplate: InputTemplate{
 						Segments: []TemplateSegment{
 							{
-								SegmentType:                  VariableSegmentType,
-								VariableKind:                 ObjectVariableKind,
-								VariableSourcePath:           []string{"id"},
-								Renderer: NewGraphQLVariableRenderer(`{"type":"number"}`),
+								SegmentType:        VariableSegmentType,
+								VariableKind:       ObjectVariableKind,
+								VariableSourcePath: []string{"id"},
+								Renderer:           NewGraphQLVariableRenderer(`{"type":"number"}`),
 							},
 						},
 					},

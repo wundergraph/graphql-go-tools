@@ -11,10 +11,10 @@ import (
 	log "github.com/jensneuse/abstractlogger"
 	"go.uber.org/zap"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/graphql"
-	"github.com/jensneuse/graphql-go-tools/pkg/playground"
+	"github.com/wundergraph/graphql-go-tools/pkg/graphql"
+	"github.com/wundergraph/graphql-go-tools/pkg/playground"
 
-	http2 "github.com/jensneuse/graphql-go-tools/examples/federation/gateway/http"
+	http2 "github.com/wundergraph/graphql-go-tools/examples/federation/gateway/http"
 )
 
 // It's just a simple example of graphql federation gateway server, it's NOT a production ready code.
