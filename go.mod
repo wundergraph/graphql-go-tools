@@ -31,8 +31,8 @@ require (
 	github.com/tidwall/gjson v1.11.0
 	github.com/tidwall/sjson v1.0.4
 	github.com/vektah/gqlparser/v2 v2.2.0
-	github.com/wundergraph/graphql-go-tools/examples/chat v1.52.0
-	github.com/wundergraph/graphql-go-tools/examples/federation v1.52.0
+	github.com/wundergraph/graphql-go-tools/examples/chat v0.0.0-20220521142629-9fe3016fb1a7
+	github.com/wundergraph/graphql-go-tools/examples/federation v0.0.0-20220521142629-9fe3016fb1a7
 	go.uber.org/atomic v1.9.0
 	go.uber.org/zap v1.18.1
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
