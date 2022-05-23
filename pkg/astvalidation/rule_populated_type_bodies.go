@@ -70,9 +70,12 @@ func (p populatedTypeBodiesVisitor) EnterInterfaceTypeDefinition(ref int) {
 	definition := p.definition
 	switch definition.InterfaceTypeDefinitions[ref].HasFieldDefinitions {
 	case true:
-		refs := definition.InterfaceTypeDefinitions[ref].FieldsDefinition.Refs
-		if len(refs) > 1 || definition.FieldDefinitionNameString(refs[0]) != typename {
-			return
+		for _, fieldRef := range definition.InterfaceTypeDefinitions[ref].FieldsDefinition.Refs {
+			fieldNameBytes := definition.FieldDefinitionNameBytes(fieldRef)
+			length := len(fieldNameBytes)
+			if length < 2 || fieldNameBytes[0] != '_' || fieldNameBytes[1] != '_' {
+				return
+			}
 		}
 		fallthrough
 	case false:
@@ -92,13 +95,17 @@ func (p *populatedTypeBodiesVisitor) EnterInterfaceTypeExtension(ref int) {
 func (p populatedTypeBodiesVisitor) EnterObjectTypeDefinition(ref int) {
 	definition := p.definition
 	nameBytes := definition.ObjectTypeDefinitionNameBytes(ref)
-	if isRootType(nameBytes) {
-		return
-	}
-	switch definition.ObjectTypeDefinitions[ref].HasFieldDefinitions {
+	object := definition.ObjectTypeDefinitions[ref]
+	switch object.HasFieldDefinitions {
 	case true:
-		refs := definition.ObjectTypeDefinitions[ref].FieldsDefinition.Refs
-		if len(refs) > 1 || definition.FieldDefinitionNameString(refs[0]) != typename {
+		for _, fieldRef := range definition.ObjectTypeDefinitions[ref].FieldsDefinition.Refs {
+			fieldNameBytes := definition.FieldDefinitionNameBytes(fieldRef)
+			length := len(fieldNameBytes)
+			if length < 2 || fieldNameBytes[0] != '_' || fieldNameBytes[1] != '_' {
+				return
+			}
+		}
+		if IsRootType(nameBytes) {
 			return
 		}
 		fallthrough
@@ -115,22 +122,3 @@ func (p *populatedTypeBodiesVisitor) EnterObjectTypeExtension(ref int) {
 		return
 	}
 }
-
-func isRootType(nameBytes []byte) bool {
-	length := len(nameBytes)
-	return isQuery(length, nameBytes) || isMutation(length, nameBytes) || isSubscription(length, nameBytes)
-}
-
-func isQuery(length int, b []byte) bool {
-	return length == 5 && b[0] == 'Q' && b[1] == 'u' && b[2] == 'e' && b[3] == 'r' && b[4] == 'y'
-}
-
-func isMutation(length int, b []byte) bool {
-	return length == 8 && b[0] == 'M' && b[1] == 'u' && b[2] == 't' && b[3] == 'a' && b[4] == 't' && b[5] == 'i' && b[6] == 'o' && b[7] == 'n'
-}
-
-func isSubscription(length int, b []byte) bool {
-	return length == 12 && b[0] == 'S' && b[1] == 'u' && b[2] == 'b' && b[3] == 's' && b[4] == 'c' && b[5] == 'r' && b[6] == 'i' && b[7] == 'p' && b[8] == 't' && b[9] == 'i' && b[10] == 'o' && b[11] == 'n'
-}
-
-const typename = "__typename"
