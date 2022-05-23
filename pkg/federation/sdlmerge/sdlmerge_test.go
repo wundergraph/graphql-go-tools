@@ -310,6 +310,8 @@ const (
 			reviews: [Review]
 		}
 
+		scalar BigInt
+
 		extend type Product implements ProductInfo @key(fields: "upc") {
 			upc: String! @external
 			name: String! @external
@@ -378,6 +380,8 @@ const (
 			id: ID! @external
 			reviews: [Review]
 		}
+
+		scalar BigInt
 
 		union AlphaNumeric = BigInt | String
 		
@@ -759,5 +763,5 @@ func SharedTypeExtensionErrorMessage(typeName string) string {
 }
 
 func EmptyTypeBodyErrorMessage(definitionType, typeName string) string {
-	return fmt.Sprintf("validate subgraph: external: the %s named '%s' is invalid due to an empty body, locations: [], path: []", definitionType, typeName)
+	return fmt.Sprintf("validate schema: external: the %s named '%s' is invalid due to an empty body, locations: [], path: []", definitionType, typeName)
 }
