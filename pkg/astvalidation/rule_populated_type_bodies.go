@@ -98,15 +98,15 @@ func (p populatedTypeBodiesVisitor) EnterObjectTypeDefinition(ref int) {
 	object := definition.ObjectTypeDefinitions[ref]
 	switch object.HasFieldDefinitions {
 	case true:
+		if IsRootType(nameBytes) {
+			return
+		}
 		for _, fieldRef := range definition.ObjectTypeDefinitions[ref].FieldsDefinition.Refs {
 			fieldNameBytes := definition.FieldDefinitionNameBytes(fieldRef)
 			length := len(fieldNameBytes)
 			if length < 2 || fieldNameBytes[0] != '_' || fieldNameBytes[1] != '_' {
 				return
 			}
-		}
-		if IsRootType(nameBytes) {
-			return
 		}
 		fallthrough
 	case false:
