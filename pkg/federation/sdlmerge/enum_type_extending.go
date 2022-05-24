@@ -8,7 +8,7 @@ import (
 
 type extendEnumTypeDefinitionVisitor struct {
 	*astvisitor.Walker
-	operation *ast.Document
+	document *ast.Document
 }
 
 func newExtendEnumTypeDefinition() *extendEnumTypeDefinitionVisitor {
@@ -22,11 +22,12 @@ func (e *extendEnumTypeDefinitionVisitor) Register(walker *astvisitor.Walker) {
 }
 
 func (e *extendEnumTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
-	e.operation = operation
+	e.document = operation
 }
 
 func (e *extendEnumTypeDefinitionVisitor) EnterEnumTypeExtension(ref int) {
-	nodes, exists := e.operation.Index.NodesByNameBytes(e.operation.EnumTypeExtensionNameBytes(ref))
+	document := e.document
+	nodes, exists := document.Index.NodesByNameBytes(document.EnumTypeExtensionNameBytes(ref))
 	if !exists {
 		return
 	}
@@ -37,9 +38,13 @@ func (e *extendEnumTypeDefinitionVisitor) EnterEnumTypeExtension(ref int) {
 			continue
 		}
 		if hasExtended {
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.operation.EnumTypeExtensionNameString(ref)))
+			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(document.EnumTypeExtensionNameString(ref)))
 		}
-		e.operation.ExtendEnumTypeDefinitionByEnumTypeExtension(nodes[i].Ref, ref)
+		document.ExtendEnumTypeDefinitionByEnumTypeExtension(nodes[i].Ref, ref)
 		hasExtended = true
+	}
+
+	if !hasExtended {
+		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(document.EnumTypeExtensionNameBytes(ref)))
 	}
 }

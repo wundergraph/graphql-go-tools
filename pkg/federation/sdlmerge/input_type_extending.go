@@ -12,7 +12,7 @@ func newExtendInputObjectTypeDefinition() *extendInputObjectTypeDefinitionVisito
 
 type extendInputObjectTypeDefinitionVisitor struct {
 	*astvisitor.Walker
-	operation *ast.Document
+	document *ast.Document
 }
 
 func (e *extendInputObjectTypeDefinitionVisitor) Register(walker *astvisitor.Walker) {
@@ -22,11 +22,12 @@ func (e *extendInputObjectTypeDefinitionVisitor) Register(walker *astvisitor.Wal
 }
 
 func (e *extendInputObjectTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
-	e.operation = operation
+	e.document = operation
 }
 
 func (e *extendInputObjectTypeDefinitionVisitor) EnterInputObjectTypeExtension(ref int) {
-	nodes, exists := e.operation.Index.NodesByNameBytes(e.operation.InputObjectTypeExtensionNameBytes(ref))
+	document := e.document
+	nodes, exists := document.Index.NodesByNameBytes(document.InputObjectTypeExtensionNameBytes(ref))
 	if !exists {
 		return
 	}
@@ -37,9 +38,13 @@ func (e *extendInputObjectTypeDefinitionVisitor) EnterInputObjectTypeExtension(r
 			continue
 		}
 		if hasExtended {
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.operation.InputObjectTypeExtensionNameString(ref)))
+			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(document.InputObjectTypeExtensionNameString(ref)))
 		}
-		e.operation.ExtendInputObjectTypeDefinitionByInputObjectTypeExtension(nodes[i].Ref, ref)
+		document.ExtendInputObjectTypeDefinitionByInputObjectTypeExtension(nodes[i].Ref, ref)
 		hasExtended = true
+	}
+
+	if !hasExtended {
+		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(document.InputObjectTypeExtensionNameBytes(ref)))
 	}
 }

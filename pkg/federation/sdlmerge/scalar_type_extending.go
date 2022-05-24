@@ -12,7 +12,7 @@ func newExtendScalarTypeDefinition() *extendScalarTypeDefinitionVisitor {
 
 type extendScalarTypeDefinitionVisitor struct {
 	*astvisitor.Walker
-	operation *ast.Document
+	document *ast.Document
 }
 
 func (e *extendScalarTypeDefinitionVisitor) Register(walker *astvisitor.Walker) {
@@ -22,11 +22,12 @@ func (e *extendScalarTypeDefinitionVisitor) Register(walker *astvisitor.Walker) 
 }
 
 func (e *extendScalarTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
-	e.operation = operation
+	e.document = operation
 }
 
 func (e *extendScalarTypeDefinitionVisitor) EnterScalarTypeExtension(ref int) {
-	nodes, exists := e.operation.Index.NodesByNameBytes(e.operation.ScalarTypeExtensionNameBytes(ref))
+	document := e.document
+	nodes, exists := document.Index.NodesByNameBytes(e.document.ScalarTypeExtensionNameBytes(ref))
 	if !exists {
 		return
 	}
@@ -37,9 +38,12 @@ func (e *extendScalarTypeDefinitionVisitor) EnterScalarTypeExtension(ref int) {
 			continue
 		}
 		if hasExtended {
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.operation.ScalarTypeExtensionNameString(ref)))
+			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(document.ScalarTypeExtensionNameString(ref)))
 		}
-		e.operation.ExtendScalarTypeDefinitionByScalarTypeExtension(nodes[i].Ref, ref)
+		e.document.ExtendScalarTypeDefinitionByScalarTypeExtension(nodes[i].Ref, ref)
 		hasExtended = true
+	}
+	if !hasExtended {
+		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(document.ScalarTypeExtensionNameBytes(ref)))
 	}
 }

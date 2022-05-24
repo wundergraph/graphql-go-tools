@@ -80,4 +80,12 @@ func TestExtendInterfaceType(t *testing.T) {
 			}
 		`, SharedTypeExtensionErrorMessage("Mammal"))
 	})
+
+	t.Run("Unresolved interface extension orphan returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendInterfaceTypeDefinition(), `
+			extend interface Badges {
+				name: String!
+			}
+		`, UnresolvedExtensionOrphansErrorMessage("Badges"))
+	})
 }

@@ -11,7 +11,7 @@ func newExtendInterfaceTypeDefinition() *extendInterfaceTypeDefinitionVisitor {
 
 type extendInterfaceTypeDefinitionVisitor struct {
 	*astvisitor.Walker
-	operation *ast.Document
+	document *ast.Document
 }
 
 func (e *extendInterfaceTypeDefinitionVisitor) Register(walker *astvisitor.Walker) {
@@ -21,11 +21,12 @@ func (e *extendInterfaceTypeDefinitionVisitor) Register(walker *astvisitor.Walke
 }
 
 func (e *extendInterfaceTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
-	e.operation = operation
+	e.document = operation
 }
 
 func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref int) {
-	nodes, exists := e.operation.Index.NodesByNameBytes(e.operation.InterfaceTypeExtensionNameBytes(ref))
+	document := e.document
+	nodes, exists := e.document.Index.NodesByNameBytes(document.InterfaceTypeExtensionNameBytes(ref))
 	if !exists {
 		return
 	}
@@ -36,9 +37,13 @@ func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref i
 			continue
 		}
 		if hasExtended {
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.operation.InterfaceTypeExtensionNameString(ref)))
+			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(document.InterfaceTypeExtensionNameString(ref)))
 		}
-		e.operation.ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(node.Ref, ref)
+		e.document.ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(node.Ref, ref)
 		hasExtended = true
+	}
+
+	if !hasExtended {
+		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(document.InterfaceTypeExtensionNameBytes(ref)))
 	}
 }
