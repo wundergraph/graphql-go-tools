@@ -12,7 +12,7 @@ func newExtendUnionTypeDefinition() *extendUnionTypeDefinitionVisitor {
 
 type extendUnionTypeDefinitionVisitor struct {
 	*astvisitor.Walker
-	operation *ast.Document
+	document *ast.Document
 }
 
 func (e *extendUnionTypeDefinitionVisitor) Register(walker *astvisitor.Walker) {
@@ -22,11 +22,12 @@ func (e *extendUnionTypeDefinitionVisitor) Register(walker *astvisitor.Walker) {
 }
 
 func (e *extendUnionTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
-	e.operation = operation
+	e.document = operation
 }
 
 func (e *extendUnionTypeDefinitionVisitor) EnterUnionTypeExtension(ref int) {
-	nodes, exists := e.operation.Index.NodesByNameBytes(e.operation.UnionTypeExtensionNameBytes(ref))
+	document := e.document
+	nodes, exists := document.Index.NodesByNameBytes(document.UnionTypeExtensionNameBytes(ref))
 	if !exists {
 		return
 	}
@@ -37,9 +38,13 @@ func (e *extendUnionTypeDefinitionVisitor) EnterUnionTypeExtension(ref int) {
 			continue
 		}
 		if hasExtended {
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.operation.UnionTypeExtensionNameString(ref)))
+			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(document.UnionTypeExtensionNameString(ref)))
 		}
-		e.operation.ExtendUnionTypeDefinitionByUnionTypeExtension(nodes[i].Ref, ref)
+		document.ExtendUnionTypeDefinitionByUnionTypeExtension(nodes[i].Ref, ref)
 		hasExtended = true
+	}
+
+	if !hasExtended {
+		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(document.UnionTypeExtensionNameBytes(ref)))
 	}
 }

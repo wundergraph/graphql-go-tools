@@ -129,7 +129,6 @@ func (m *normalizer) setupWalkers() {
 			newRemoveInterfaceDefinitionDirective("key"),
 			newRemoveObjectTypeDefinitionDirective("key"),
 			newRemoveFieldDefinitionDirective("provides", "requires"),
-			newCheckUnresolvedExtensionOrphansVisitor(),
 		},
 	}
 

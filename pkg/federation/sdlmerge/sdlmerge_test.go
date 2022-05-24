@@ -103,15 +103,15 @@ func TestMergeSDLs(t *testing.T) {
 		accountSchema, productSchema, reviewSchema, likeSchema, disLikeSchema, paymentSchema, onlinePaymentSchema, classicPaymentSchema,
 	))
 
-	//t.Run("should merge product and review sdl and leave `extend type User` in the schema", runMergeTest(
-	//	productAndReviewFederatedSchema,
-	//	productSchema, reviewSchema,
-	//))
+	t.Run("When merging product and review, the unresolved orphan extension for User will return an error", runMergeTestAndExpectError(
+		UnresolvedExtensionOrphansMergeErrorMessage("User"),
+		productSchema, reviewSchema,
+	))
 
-	//t.Run("should merge product and extends directives sdl and leave the type extension definition in the schema", runMergeTest(
-	//	productAndExtendsDirectivesFederatedSchema,
-	//	productSchema, extendsDirectivesSchema,
-	//))
+	t.Run("When merging product and extendsDirectives, the unresolved orphan extension for User will return an error", runMergeTestAndExpectError(
+		UnresolvedExtensionOrphansMergeErrorMessage("User"),
+		productSchema, extendsDirectivesSchema,
+	))
 
 	t.Run("Non-identical duplicate enums should return an error", runMergeTestAndExpectError(
 		NonIdenticalSharedTypeMergeErrorMessage("Satisfaction"),
@@ -498,26 +498,26 @@ const (
 			reputation: CustomScalar!
 		}
 	`
-	//extendsDirectivesSchema = `
-	//	scalar DateTime
-	//
-	//	type Comment {
-	//		body: String!
-	//		author: User!
-	//		created: DateTime!
-	//	}
-	//
-	//	type User @extends @key(fields: "id") {
-	//		id: ID! @external
-	//		comments: [Comment]
-	//	}
-	//
-	//	union AlphaNumeric = Int | String | Float
-	//
-	//	interface PaymentType @extends {
-	//		name: String!
-	//	}
-	//`
+	extendsDirectivesSchema = `
+		scalar DateTime
+	
+		type Comment {
+			body: String!
+			author: User!
+			created: DateTime!
+		}
+	
+		type User @extends @key(fields: "id") {
+			id: ID! @external
+			comments: [Comment]
+		}
+	
+		union AlphaNumeric = Int | String | Float
+	
+		interface PaymentType @extends {
+			name: String!
+		}
+	`
 	federatedSchema = `
 		type Query {
 			me: User
@@ -616,138 +616,6 @@ const (
 			reputation: CustomScalar!
 		}
 	`
-
-	//productAndReviewFederatedSchema = `
-	//	type Query {
-	//		topProducts(first: Int = 5): [Product]
-	//		getReview(id: ID!): Review
-	//	}
-	//
-	//	type Mutation {
-	//		createReview(input: ReviewInput): Review
-	//		updateReview(id: ID!, input: ReviewInput): Review
-	//	}
-	//
-	//	type Subscription {
-	//		review: Review!
-	//	}
-	//
-	//	enum Satisfaction {
-	//		UNHAPPY,
-	//		HAPPY,
-	//		NEUTRAL,
-	//	}
-	//
-	//	scalar CustomScalar
-	//
-	//	enum Department {
-	//		COSMETICS,
-	//		ELECTRONICS,
-	//		GROCERIES,
-	//	}
-	//
-	//	interface ProductInfo {
-	//		departments: [Department!]!
-	//		averageSatisfaction: Satisfaction!
-	//	}
-	//
-	//	scalar BigInt
-	//
-	//	type Product implements ProductInfo {
-	//		upc: String!
-	//		name: String!
-	//		price: Int!
-	//		worth: BigInt!
-	//		reputation: CustomScalar!
-	//		departments: [Department!]!
-	//		averageSatisfaction: Satisfaction!
-	//		reviews: [Review]
-	//		sales: BigInt!
-	//	}
-	//
-	//	union AlphaNumeric = Int | String | Float
-	//
-	//	scalar DateTime
-	//
-	//	input ReviewInput {
-	//		body: String!
-	//		author: User! @provides(fields: "username")
-	//		product: Product!
-	//		updated: DateTime!
-	//		inputType: AlphaNumeric!
-	//	}
-	//
-	//	type Review {
-	//		id: ID!
-	//		created: DateTime!
-	//		body: String!
-	//		author: User!
-	//		product: Product!
-	//		updated: DateTime!
-	//		inputType: AlphaNumeric!
-	//	}
-	//
-	//	extend type User @key(fields: "id") {
-	//		id: ID! @external
-	//		reviews: [Review]
-	//	}
-	//`
-	//
-	//productAndExtendsDirectivesFederatedSchema = `
-	//	type Query {
-	//		topProducts(first: Int = 5): [Product]
-	//	}
-	//
-	//	enum Satisfaction {
-	//		UNHAPPY,
-	//		HAPPY,
-	//		NEUTRAL,
-	//	}
-	//
-	//	scalar CustomScalar
-	//
-	//	enum Department {
-	//		COSMETICS,
-	//		ELECTRONICS,
-	//		GROCERIES,
-	//	}
-	//
-	//	interface ProductInfo {
-	//		departments: [Department!]!
-	//		averageSatisfaction: Satisfaction!
-	//	}
-	//
-	//	scalar BigInt
-	//
-	//	type Product implements ProductInfo {
-	//		upc: String!
-	//		name: String!
-	//		price: Int!
-	//		worth: BigInt!
-	//		reputation: CustomScalar!
-	//		departments: [Department!]!
-	//		averageSatisfaction: Satisfaction!
-	//	}
-	//
-	//	union AlphaNumeric = Int | String | Float
-	//
-	//	scalar DateTime
-	//
-	//	type Comment {
-	//		body: String!
-	//		author: User!
-	//		created: DateTime!
-	//	}
-	//
-	//	extend type User @key(fields: "id") {
-	//		id: ID! @external
-	//		comments: [Comment]
-	//	}
-	//
-	//	extend interface PaymentType {
-	//		name: String!
-	//	}
-	//`
 )
 
 func NonIdenticalSharedTypeMergeErrorMessage(typeName string) string {
@@ -764,4 +632,12 @@ func SharedTypeExtensionErrorMessage(typeName string) string {
 
 func EmptyTypeBodyErrorMessage(definitionType, typeName string) string {
 	return fmt.Sprintf("validate schema: external: the %s named '%s' is invalid due to an empty body, locations: [], path: []", definitionType, typeName)
+}
+
+func UnresolvedExtensionOrphansErrorMessage(typeName string) string {
+	return fmt.Sprintf("the extension orphan named '%s' was never resolved in the supergraph", typeName)
+}
+
+func UnresolvedExtensionOrphansMergeErrorMessage(typeName string) string {
+	return fmt.Sprintf("merge ast: walk: external: the extension orphan named '%s' was never resolved in the supergraph, locations: [], path: []", typeName)
 }

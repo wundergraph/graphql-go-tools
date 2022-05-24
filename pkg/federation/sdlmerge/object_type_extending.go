@@ -13,7 +13,7 @@ func newExtendObjectTypeDefinition() *extendObjectTypeDefinitionVisitor {
 
 type extendObjectTypeDefinitionVisitor struct {
 	*astvisitor.Walker
-	operation *ast.Document
+	document *ast.Document
 }
 
 func (e *extendObjectTypeDefinitionVisitor) Register(walker *astvisitor.Walker) {
@@ -23,12 +23,13 @@ func (e *extendObjectTypeDefinitionVisitor) Register(walker *astvisitor.Walker) 
 }
 
 func (e *extendObjectTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
-	e.operation = operation
+	e.document = operation
 }
 
 func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
-	nameBytes := e.operation.ObjectTypeExtensionNameBytes(ref)
-	nodes, exists := e.operation.Index.NodesByNameBytes(nameBytes)
+	document := e.document
+	nameBytes := document.ObjectTypeExtensionNameBytes(ref)
+	nodes, exists := document.Index.NodesByNameBytes(nameBytes)
 	if !exists {
 		return
 	}
@@ -40,12 +41,17 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 			continue
 		}
 		if hasExtended {
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.operation.ObjectTypeExtensionNameString(ref)))
+			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(document.ObjectTypeExtensionNameString(ref)))
 		}
-		e.operation.ExtendObjectTypeDefinitionByObjectTypeExtension(nodes[i].Ref, ref)
+
+		document.ExtendObjectTypeDefinitionByObjectTypeExtension(nodes[i].Ref, ref)
 		if shouldReturn {
 			return
 		}
 		hasExtended = true
+	}
+
+	if !hasExtended {
+		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(document.ObjectTypeExtensionNameBytes(ref)))
 	}
 }

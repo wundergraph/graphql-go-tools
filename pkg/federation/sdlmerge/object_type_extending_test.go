@@ -120,4 +120,12 @@ func TestExtendObjectType(t *testing.T) {
 			}
 		`, SharedTypeExtensionErrorMessage("Cat"))
 	})
+
+	t.Run("Unresolved object extension orphan returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendObjectTypeDefinition(), `
+			extend type Badges {
+				name: String!
+			}
+		`, UnresolvedExtensionOrphansErrorMessage("Badges"))
+	})
 }
