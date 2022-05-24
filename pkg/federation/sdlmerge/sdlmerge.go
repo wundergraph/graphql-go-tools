@@ -14,11 +14,15 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
-const rootOperationTypeDefinitions = `
-	type Query {}
-	type Mutation {}
-	type Subscription {}
-`
+const (
+	rootOperationTypeDefinitions = `
+		type Query {}
+		type Mutation {}
+		type Subscription {}
+	`
+
+	parseDocumentError = "parse graphql document string: %s"
+)
 
 type Visitor interface {
 	Register(walker *astvisitor.Walker)
@@ -74,7 +78,7 @@ func validateSubgraphs(subgraphs []string) error {
 			return err
 		}
 		if report.HasErrors() {
-			return fmt.Errorf("parse graphql document string: %s", report.Error())
+			return fmt.Errorf(parseDocumentError, report.Error())
 		}
 		validator.Validate(&doc, &report)
 		if report.HasErrors() {
@@ -89,7 +93,7 @@ func normalizeSubgraphs(subgraphs []string) error {
 	for i, subgraph := range subgraphs {
 		doc, report := astparser.ParseGraphqlDocumentString(subgraph)
 		if report.HasErrors() {
-			return fmt.Errorf("parse graphql document string: %s", report.Error())
+			return fmt.Errorf(parseDocumentError, report.Error())
 		}
 		subgraphNormalizer.NormalizeDefinition(&doc, &report)
 		if report.HasErrors() {
