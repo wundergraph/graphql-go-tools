@@ -483,3 +483,40 @@ func TestSarama_Balance_Strategy(t *testing.T) {
 		require.Equal(t, name, st.Name())
 	}
 }
+
+func TestSarama_Isolation_Level(t *testing.T) {
+	const (
+		testBrokerAddr    = "localhost:9092"
+		testTopic         = "start-consuming-latest-test"
+		testConsumerGroup = "start-consuming-latest-cg"
+		testClientID      = "graphql-go-tools-test"
+	)
+
+	strategies := map[string]sarama.IsolationLevel{
+		IsolationLevelReadUncommitted: sarama.ReadUncommitted,
+		IsolationLevelReadCommitted:   sarama.ReadCommitted,
+		"":                            sarama.ReadUncommitted, // Sanitize function will set DefaultIsolationLevel, it is sarama.ReadUncommitted.
+	}
+
+	for isolationLevel, value := range strategies {
+		options := &GraphQLSubscriptionOptions{
+			BrokerAddr:     testBrokerAddr,
+			Topic:          testTopic,
+			GroupID:        testConsumerGroup,
+			ClientID:       testClientID,
+			IsolationLevel: isolationLevel,
+		}
+		options.Sanitize()
+		require.NoError(t, options.Validate())
+
+		kc := &KafkaConsumerGroupBridge{
+			ctx: context.Background(),
+			log: logger(),
+		}
+
+		sc, err := kc.prepareSaramaConfig(options)
+		require.NoError(t, err)
+
+		sc.Consumer.IsolationLevel = value
+	}
+}
