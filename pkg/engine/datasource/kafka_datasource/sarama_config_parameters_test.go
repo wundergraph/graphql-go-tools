@@ -54,7 +54,7 @@ func zookeeperEnvVars(vars []string) kafkaBrokerOptions {
 
 func kafkaEnvVars(vars []string) kafkaBrokerOptions {
 	return func(config *kafkaBrokerConfig) {
-		config.zookeeperEnvVars = vars
+		config.kafkaEnvVars = vars
 	}
 }
 
@@ -443,4 +443,43 @@ func TestSarama_StartConsuming_And_Restart(t *testing.T) {
 
 	// Stop the second consumer group
 	require.NoError(t, cg.Close())
+}
+
+func TestSarama_Balance_Strategy(t *testing.T) {
+	const (
+		testBrokerAddr    = "localhost:9092"
+		testTopic         = "start-consuming-latest-test"
+		testConsumerGroup = "start-consuming-latest-cg"
+		testClientID      = "graphql-go-tools-test"
+	)
+
+	strategies := map[string]string{
+		BalanceStrategyRange:      "range",
+		BalanceStrategySticky:     "sticky",
+		BalanceStrategyRoundRobin: "roundrobin",
+		"":                        "range", // Sanitize function will set DefaultBalanceStrategy, it is BalanceStrategyRange.
+	}
+
+	for strategy, name := range strategies {
+		options := &GraphQLSubscriptionOptions{
+			BrokerAddr:      testBrokerAddr,
+			Topic:           testTopic,
+			GroupID:         testConsumerGroup,
+			ClientID:        testClientID,
+			BalanceStrategy: strategy,
+		}
+		options.Sanitize()
+		require.NoError(t, options.Validate())
+
+		kc := &KafkaConsumerGroupBridge{
+			ctx: context.Background(),
+			log: logger(),
+		}
+
+		sc, err := kc.prepareSaramaConfig(options)
+		require.NoError(t, err)
+
+		st := sc.Consumer.Group.Rebalance.Strategy
+		require.Equal(t, name, st.Name())
+	}
 }
