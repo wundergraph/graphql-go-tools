@@ -5,9 +5,9 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 )
 
-var DefaultQueryTypeName = []byte{'Q', 'u', 'e', 'r', 'y'}
-var DefaultMutationTypeName = []byte{'M', 'u', 't', 'a', 't', 'i', 'o', 'n'}
-var DefaultSubscriptionTypeName = []byte{'S', 'u', 'b', 's', 'c', 'r', 'i', 'p', 't', 'i', 'o', 'n'}
+var DefaultQueryTypeName = []byte("Query")
+var DefaultMutationTypeName = []byte("Mutation")
+var DefaultSubscriptionTypeName = []byte("Subscription")
 
 type RootOperationTypeDefinitionList struct {
 	LBrace position.Position // {
