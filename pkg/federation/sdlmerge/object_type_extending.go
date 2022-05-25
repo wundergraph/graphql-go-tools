@@ -2,7 +2,6 @@ package sdlmerge
 
 import (
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
@@ -35,7 +34,7 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 	}
 
 	hasExtended := false
-	shouldReturn := astvalidation.IsRootType(nameBytes)
+	shouldReturn := ast.IsRootType(nameBytes)
 	for i := range nodes {
 		if nodes[i].Kind != ast.NodeKindObjectTypeDefinition {
 			continue
