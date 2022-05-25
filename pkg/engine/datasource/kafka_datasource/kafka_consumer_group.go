@@ -177,6 +177,28 @@ func NewKafkaConsumerGroupBridge(ctx context.Context, logger log.Logger) *KafkaC
 	}
 }
 
+func (c *KafkaConsumerGroupBridge) prepareSaramaConfig(options *GraphQLSubscriptionOptions) (*sarama.Config, error) {
+	sc := sarama.NewConfig()
+	sc.Version = SaramaSupportedKafkaVersions[options.KafkaVersion]
+	sc.ClientID = options.ClientID
+
+	// Sanitize function doesn't allow an empty BalanceStrategy parameter.
+	switch options.BalanceStrategy {
+	case BalanceStrategyRange:
+		sc.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
+	case BalanceStrategySticky:
+		sc.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
+	case BalanceStrategyRoundRobin:
+		sc.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
+	}
+
+	if options.StartConsumingLatest {
+		// Start consuming from the latest offset after a client restart
+		sc.Consumer.Offsets.Initial = sarama.OffsetNewest
+	}
+	return sc, nil
+}
+
 // Subscribe creates a new consumer group with given config and streams messages via next channel.
 func (c *KafkaConsumerGroupBridge) Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
 	options.Sanitize()
@@ -184,23 +206,9 @@ func (c *KafkaConsumerGroupBridge) Subscribe(ctx context.Context, options GraphQ
 		return err
 	}
 
-	saramaConfig := sarama.NewConfig()
-	saramaConfig.Version = SaramaSupportedKafkaVersions[options.KafkaVersion]
-	saramaConfig.ClientID = options.ClientID
-
-	// Sanitize function doesn't allow an empty BalanceStrategy parameter.
-	switch options.BalanceStrategy {
-	case BalanceStrategyRange:
-		saramaConfig.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
-	case BalanceStrategySticky:
-		saramaConfig.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
-	case BalanceStrategyRoundRobin:
-		saramaConfig.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
-	}
-
-	if options.StartConsumingLatest {
-		// Start consuming from the latest offset after a client restart
-		saramaConfig.Consumer.Offsets.Initial = sarama.OffsetNewest
+	saramaConfig, err := c.prepareSaramaConfig(&options)
+	if err != nil {
+		return err
 	}
 
 	cg, err := NewKafkaConsumerGroup(c.log, saramaConfig, &options)
