@@ -1,8 +1,13 @@
 package ast
 
 import (
+	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
 )
+
+var DefaultQueryTypeName = []byte{'Q', 'u', 'e', 'r', 'y'}
+var DefaultMutationTypeName = []byte{'M', 'u', 't', 'a', 't', 'i', 'o', 'n'}
+var DefaultSubscriptionTypeName = []byte{'S', 'u', 'b', 's', 'c', 'r', 'i', 'p', 't', 'i', 'o', 'n'}
 
 type RootOperationTypeDefinitionList struct {
 	LBrace position.Position // {
@@ -51,11 +56,11 @@ func (d *Document) RootOperationTypeDefinitionIsLastInSchemaDefinition(ref int, 
 func (d *Document) CreateRootOperationTypeDefinition(operationType OperationType, rootNodeRef int) (ref int) {
 	switch operationType {
 	case OperationTypeQuery:
-		d.Index.QueryTypeName = []byte("Query")
+		d.Index.QueryTypeName = DefaultQueryTypeName
 	case OperationTypeMutation:
-		d.Index.MutationTypeName = []byte("Mutation")
+		d.Index.MutationTypeName = DefaultMutationTypeName
 	case OperationTypeSubscription:
-		d.Index.SubscriptionTypeName = []byte("Subscription")
+		d.Index.SubscriptionTypeName = DefaultSubscriptionTypeName
 	default:
 		return
 	}
@@ -136,4 +141,8 @@ func (d *Document) ReplaceRootOperationTypeDefinition(name string, operationType
 
 	ref = d.ImportRootOperationTypeDefinition(name, operationType)
 	return ref, true
+}
+
+func IsRootType(nameBytes []byte) bool {
+	return bytes.Equal(DefaultQueryTypeName, nameBytes) || bytes.Equal(DefaultMutationTypeName, nameBytes) || bytes.Equal(DefaultSubscriptionTypeName, nameBytes)
 }

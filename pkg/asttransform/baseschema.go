@@ -54,11 +54,11 @@ func addMissingRootOperationTypeDefinitions(definition *ast.Document) {
 			typeName := definition.ObjectTypeDefinitionNameBytes(definition.RootNodes[i].Ref)
 
 			switch {
-			case bytes.Equal(typeName, []byte("Query")):
+			case bytes.Equal(typeName, ast.DefaultQueryTypeName):
 				rootOperationTypeRefs = createRootOperationTypeIfNotExists(definition, rootOperationTypeRefs, ast.OperationTypeQuery, i)
-			case bytes.Equal(typeName, []byte("Mutation")):
+			case bytes.Equal(typeName, ast.DefaultMutationTypeName):
 				rootOperationTypeRefs = createRootOperationTypeIfNotExists(definition, rootOperationTypeRefs, ast.OperationTypeMutation, i)
-			case bytes.Equal(typeName, []byte("Subscription")):
+			case bytes.Equal(typeName, ast.DefaultSubscriptionTypeName):
 				rootOperationTypeRefs = createRootOperationTypeIfNotExists(definition, rootOperationTypeRefs, ast.OperationTypeSubscription, i)
 			default:
 				continue

@@ -1,6 +1,7 @@
 package astvalidation
 
 import (
+	"bytes"
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
@@ -70,12 +71,8 @@ func (p populatedTypeBodiesVisitor) EnterInterfaceTypeDefinition(ref int) {
 	definition := p.definition
 	switch definition.InterfaceTypeDefinitions[ref].HasFieldDefinitions {
 	case true:
-		for _, fieldRef := range definition.InterfaceTypeDefinitions[ref].FieldsDefinition.Refs {
-			fieldNameBytes := definition.FieldDefinitionNameBytes(fieldRef)
-			length := len(fieldNameBytes)
-			if length < 2 || fieldNameBytes[0] != '_' || fieldNameBytes[1] != '_' {
-				return
-			}
+		if !doesTypeOnlyContainReservedFields(definition, definition.InterfaceTypeDefinitions[ref].FieldsDefinition.Refs) {
+			return
 		}
 		fallthrough
 	case false:
@@ -98,15 +95,8 @@ func (p populatedTypeBodiesVisitor) EnterObjectTypeDefinition(ref int) {
 	object := definition.ObjectTypeDefinitions[ref]
 	switch object.HasFieldDefinitions {
 	case true:
-		if IsRootType(nameBytes) {
+		if ast.IsRootType(nameBytes) || !doesTypeOnlyContainReservedFields(definition, definition.ObjectTypeDefinitions[ref].FieldsDefinition.Refs) {
 			return
-		}
-		for _, fieldRef := range definition.ObjectTypeDefinitions[ref].FieldsDefinition.Refs {
-			fieldNameBytes := definition.FieldDefinitionNameBytes(fieldRef)
-			length := len(fieldNameBytes)
-			if length < 2 || fieldNameBytes[0] != '_' || fieldNameBytes[1] != '_' {
-				return
-			}
 		}
 		fallthrough
 	case false:
@@ -121,4 +111,14 @@ func (p *populatedTypeBodiesVisitor) EnterObjectTypeExtension(ref int) {
 		p.Report.AddExternalError(operationreport.ErrTypeBodyMustNotBeEmpty("object extension", definition.ObjectTypeExtensionNameString(ref)))
 		return
 	}
+}
+
+func doesTypeOnlyContainReservedFields(definition *ast.Document, refs []int) bool {
+	for _, fieldRef := range refs {
+		fieldNameBytes := definition.FieldDefinitionNameBytes(fieldRef)
+		if len(fieldNameBytes) < 2 || !bytes.HasPrefix(fieldNameBytes, reservedFieldPrefix) {
+			return false
+		}
+	}
+	return true
 }
