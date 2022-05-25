@@ -7,6 +7,13 @@ import (
 )
 
 const (
+	IsolationLevelReadUncommitted = "ReadUncommitted"
+	IsolationLevelReadCommitted   = "ReadCommitted"
+)
+
+const DefaultIsolationLevel = IsolationLevelReadUncommitted
+
+const (
 	BalanceStrategyRange      = "BalanceStrategyRange"
 	BalanceStrategySticky     = "BalanceStrategySticky"
 	BalanceStrategyRoundRobin = "BalanceStrategyRoundRobin"
@@ -46,6 +53,7 @@ type GraphQLSubscriptionOptions struct {
 	KafkaVersion         string `json:"kafka_version"`
 	StartConsumingLatest bool   `json:"start_consuming_latest"`
 	BalanceStrategy      string `json:"balance_strategy"`
+	IsolationLevel       string `json:"isolation_level"`
 	startedCallback      func()
 }
 
@@ -57,6 +65,10 @@ func (g *GraphQLSubscriptionOptions) Sanitize() {
 	// Strategy for allocating topic partitions to members (default BalanceStrategyRange)
 	if g.BalanceStrategy == "" {
 		g.BalanceStrategy = DefaultBalanceStrategy
+	}
+
+	if g.IsolationLevel == "" {
+		g.IsolationLevel = DefaultIsolationLevel
 	}
 }
 
@@ -87,6 +99,12 @@ func (g *GraphQLSubscriptionOptions) Validate() error {
 		return fmt.Errorf("balance_strategy is invalid: %s", g.BalanceStrategy)
 	}
 
+	switch g.IsolationLevel {
+	case IsolationLevelReadUncommitted, IsolationLevelReadCommitted:
+	default:
+		return fmt.Errorf("isolation_level is invalid: %s", g.IsolationLevel)
+	}
+
 	return nil
 }
 
@@ -98,6 +116,7 @@ type SubscriptionConfiguration struct {
 	KafkaVersion         string `json:"kafka_version"`
 	StartConsumingLatest bool   `json:"start_consuming_latest"`
 	BalanceStrategy      string `json:"balance_strategy"`
+	IsolationLevel       string `json:"isolation_level"`
 }
 
 type Configuration struct {

@@ -6,6 +6,12 @@ import (
 )
 
 func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
+	t.Run("Set default isolation_level", func(t *testing.T) {
+		g := &GraphQLSubscriptionOptions{}
+		g.Sanitize()
+		require.Equal(t, DefaultIsolationLevel, g.IsolationLevel)
+	})
+
 	t.Run("Set default balance_strategy", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{}
 		g.Sanitize()

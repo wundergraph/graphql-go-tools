@@ -182,6 +182,8 @@ func (c *KafkaConsumerGroupBridge) prepareSaramaConfig(options *GraphQLSubscript
 	sc.Version = SaramaSupportedKafkaVersions[options.KafkaVersion]
 	sc.ClientID = options.ClientID
 
+	// Strategy for allocating topic partitions to members (default BalanceStrategyRange)
+	// See this: https://chrzaszcz.dev/2021/09/kafka-assignors/
 	// Sanitize function doesn't allow an empty BalanceStrategy parameter.
 	switch options.BalanceStrategy {
 	case BalanceStrategyRange:
@@ -195,6 +197,16 @@ func (c *KafkaConsumerGroupBridge) prepareSaramaConfig(options *GraphQLSubscript
 	if options.StartConsumingLatest {
 		// Start consuming from the latest offset after a client restart
 		sc.Consumer.Offsets.Initial = sarama.OffsetNewest
+	}
+
+	// IsolationLevel support 2 mode:
+	// 	- use `ReadUncommitted` (default) to consume and return all messages in message channel
+	//	- use `ReadCommitted` to hide messages that are part of an aborted transaction
+	switch options.IsolationLevel {
+	case IsolationLevelReadCommitted:
+		sc.Consumer.IsolationLevel = sarama.ReadCommitted
+	case IsolationLevelReadUncommitted:
+		sc.Consumer.IsolationLevel = sarama.ReadUncommitted
 	}
 	return sc, nil
 }
