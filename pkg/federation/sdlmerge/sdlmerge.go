@@ -2,9 +2,9 @@ package sdlmerge
 
 import (
 	"fmt"
-	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
+	"github.com/wundergraph/graphql-go-tools/pkg/astvalidation"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
