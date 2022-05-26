@@ -26,8 +26,7 @@ func (e *extendEnumTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Docume
 }
 
 func (e *extendEnumTypeDefinitionVisitor) EnterEnumTypeExtension(ref int) {
-	document := e.document
-	nodes, exists := document.Index.NodesByNameBytes(document.EnumTypeExtensionNameBytes(ref))
+	nodes, exists := e.document.Index.NodesByNameBytes(e.document.EnumTypeExtensionNameBytes(ref))
 	if !exists {
 		return
 	}
@@ -38,13 +37,13 @@ func (e *extendEnumTypeDefinitionVisitor) EnterEnumTypeExtension(ref int) {
 			continue
 		}
 		if hasExtended {
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(document.EnumTypeExtensionNameString(ref)))
+			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.EnumTypeExtensionNameString(ref)))
 		}
-		document.ExtendEnumTypeDefinitionByEnumTypeExtension(nodes[i].Ref, ref)
+		e.document.ExtendEnumTypeDefinitionByEnumTypeExtension(nodes[i].Ref, ref)
 		hasExtended = true
 	}
 
 	if !hasExtended {
-		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(document.EnumTypeExtensionNameBytes(ref)))
+		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.EnumTypeExtensionNameBytes(ref)))
 	}
 }

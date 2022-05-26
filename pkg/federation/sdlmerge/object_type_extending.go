@@ -26,9 +26,8 @@ func (e *extendObjectTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Docu
 }
 
 func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
-	document := e.document
-	nameBytes := document.ObjectTypeExtensionNameBytes(ref)
-	nodes, exists := document.Index.NodesByNameBytes(nameBytes)
+	nameBytes := e.document.ObjectTypeExtensionNameBytes(ref)
+	nodes, exists := e.document.Index.NodesByNameBytes(nameBytes)
 	if !exists {
 		return
 	}
@@ -40,10 +39,10 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 			continue
 		}
 		if hasExtended {
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(document.ObjectTypeExtensionNameString(ref)))
+			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.ObjectTypeExtensionNameString(ref)))
 		}
 
-		document.ExtendObjectTypeDefinitionByObjectTypeExtension(nodes[i].Ref, ref)
+		e.document.ExtendObjectTypeDefinitionByObjectTypeExtension(nodes[i].Ref, ref)
 		if shouldReturn {
 			return
 		}
@@ -51,6 +50,6 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 	}
 
 	if !hasExtended {
-		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(document.ObjectTypeExtensionNameBytes(ref)))
+		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.ObjectTypeExtensionNameBytes(ref)))
 	}
 }

@@ -26,8 +26,7 @@ func (e *extendScalarTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Docu
 }
 
 func (e *extendScalarTypeDefinitionVisitor) EnterScalarTypeExtension(ref int) {
-	document := e.document
-	nodes, exists := document.Index.NodesByNameBytes(e.document.ScalarTypeExtensionNameBytes(ref))
+	nodes, exists := e.document.Index.NodesByNameBytes(e.document.ScalarTypeExtensionNameBytes(ref))
 	if !exists {
 		return
 	}
@@ -38,12 +37,12 @@ func (e *extendScalarTypeDefinitionVisitor) EnterScalarTypeExtension(ref int) {
 			continue
 		}
 		if hasExtended {
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(document.ScalarTypeExtensionNameString(ref)))
+			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.ScalarTypeExtensionNameString(ref)))
 		}
 		e.document.ExtendScalarTypeDefinitionByScalarTypeExtension(nodes[i].Ref, ref)
 		hasExtended = true
 	}
 	if !hasExtended {
-		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(document.ScalarTypeExtensionNameBytes(ref)))
+		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.ScalarTypeExtensionNameBytes(ref)))
 	}
 }

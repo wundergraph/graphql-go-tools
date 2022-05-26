@@ -26,8 +26,7 @@ func (e *extendUnionTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Docum
 }
 
 func (e *extendUnionTypeDefinitionVisitor) EnterUnionTypeExtension(ref int) {
-	document := e.document
-	nodes, exists := document.Index.NodesByNameBytes(document.UnionTypeExtensionNameBytes(ref))
+	nodes, exists := e.document.Index.NodesByNameBytes(e.document.UnionTypeExtensionNameBytes(ref))
 	if !exists {
 		return
 	}
@@ -38,13 +37,13 @@ func (e *extendUnionTypeDefinitionVisitor) EnterUnionTypeExtension(ref int) {
 			continue
 		}
 		if hasExtended {
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(document.UnionTypeExtensionNameString(ref)))
+			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.UnionTypeExtensionNameString(ref)))
 		}
-		document.ExtendUnionTypeDefinitionByUnionTypeExtension(nodes[i].Ref, ref)
+		e.document.ExtendUnionTypeDefinitionByUnionTypeExtension(nodes[i].Ref, ref)
 		hasExtended = true
 	}
 
 	if !hasExtended {
-		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(document.UnionTypeExtensionNameBytes(ref)))
+		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.UnionTypeExtensionNameBytes(ref)))
 	}
 }

@@ -212,12 +212,11 @@ func (f FieldedSharedType) fieldName(ref int) string {
 }
 
 func (f FieldedSharedType) fieldTypeRef(ref int) int {
-	document := f.document
 	switch f.fieldKind {
 	case ast.NodeKindInputValueDefinition:
-		return document.InputValueDefinitions[ref].Type
+		return f.document.InputValueDefinitions[ref].Type
 	default:
-		return document.FieldDefinitions[ref].Type
+		return f.document.FieldDefinitions[ref].Type
 	}
 }
 
