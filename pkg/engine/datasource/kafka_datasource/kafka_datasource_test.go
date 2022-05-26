@@ -45,11 +45,13 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 				},
 				Custom: ConfigJSON(Configuration{
 					Subscription: SubscriptionConfiguration{
-						BrokerAddr:   "localhost:9092",
-						Topic:        "test.topic",
-						GroupID:      "test.consumer.group",
-						ClientID:     "test.client.id",
-						KafkaVersion: testMockKafkaVersion,
+						BrokerAddr:      "localhost:9092",
+						Topic:           "test.topic",
+						GroupID:         "test.consumer.group",
+						ClientID:        "test.client.id",
+						KafkaVersion:    testMockKafkaVersion,
+						BalanceStrategy: DefaultBalanceStrategy,
+						IsolationLevel:  DefaultIsolationLevel,
 					},
 				}),
 				Factory: &Factory{},
@@ -84,7 +86,11 @@ func TestKafkaDataSource(t *testing.T) {
 	`, "RemainingJedis", &plan.SubscriptionResponsePlan{
 		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				Input: []byte(fmt.Sprintf(`{"broker_addr":"localhost:9092","topic":"test.topic","group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s","start_consuming_latest":false}`, testMockKafkaVersion)),
+				Input: []byte(fmt.Sprintf(`{"broker_addr":"localhost:9092","topic":"test.topic","group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s","start_consuming_latest":false,"balance_strategy":"%s","isolation_level":"%s"}`,
+					testMockKafkaVersion,
+					DefaultBalanceStrategy,
+					DefaultIsolationLevel,
+				)),
 				Source: &SubscriptionSource{
 					client: NewKafkaConsumerGroupBridge(ctx, logger()),
 				},
@@ -120,7 +126,11 @@ func TestKafkaDataSource(t *testing.T) {
 	`, "SubscriptionWithVariables", &plan.SubscriptionResponsePlan{
 		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				Input: []byte(fmt.Sprintf(`{"broker_addr":"localhost:9092","topic":"test.topic.$$0$$","group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s","start_consuming_latest":false}`, testMockKafkaVersion)),
+				Input: []byte(fmt.Sprintf(`{"broker_addr":"localhost:9092","topic":"test.topic.$$0$$","group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s","start_consuming_latest":false,"balance_strategy":"%s","isolation_level":"%s"}`,
+					testMockKafkaVersion,
+					DefaultBalanceStrategy,
+					DefaultIsolationLevel,
+				)),
 				Variables: resolve.NewVariables(
 					&resolve.ContextVariable{
 						Path:     []string{"bar"},
@@ -160,11 +170,13 @@ func TestKafkaDataSource(t *testing.T) {
 				},
 				Custom: ConfigJSON(Configuration{
 					Subscription: SubscriptionConfiguration{
-						BrokerAddr:   "localhost:9092",
-						Topic:        "test.topic.{{.arguments.bar}}",
-						GroupID:      "test.consumer.group",
-						ClientID:     "test.client.id",
-						KafkaVersion: testMockKafkaVersion,
+						BrokerAddr:      "localhost:9092",
+						Topic:           "test.topic.{{.arguments.bar}}",
+						GroupID:         "test.consumer.group",
+						ClientID:        "test.client.id",
+						KafkaVersion:    testMockKafkaVersion,
+						BalanceStrategy: DefaultBalanceStrategy,
+						IsolationLevel:  DefaultIsolationLevel,
 					},
 				}),
 				Factory: factory,
