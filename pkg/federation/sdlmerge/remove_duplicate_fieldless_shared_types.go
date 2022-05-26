@@ -45,16 +45,15 @@ func (r *removeDuplicateFieldlessSharedTypesVisitor) EnterEnumTypeDefinition(ref
 	if ref <= r.lastEnumRef {
 		return
 	}
-	document := r.document
-	name := document.EnumTypeDefinitionNameString(ref)
+	name := r.document.EnumTypeDefinitionNameString(ref)
 	enum, exists := r.sharedTypeSet[name]
 	if exists {
-		if !enum.AreValuesIdentical(document.EnumTypeDefinitions[ref].EnumValuesDefinition.Refs) {
+		if !enum.AreValuesIdentical(r.document.EnumTypeDefinitions[ref].EnumValuesDefinition.Refs) {
 			r.StopWithExternalErr(operationreport.ErrSharedTypesMustBeIdenticalToFederate(name))
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindEnumTypeDefinition, Ref: ref})
 	} else {
-		r.sharedTypeSet[name] = NewEnumSharedType(document, ref)
+		r.sharedTypeSet[name] = NewEnumSharedType(r.document, ref)
 	}
 	r.lastEnumRef = ref
 }
@@ -77,16 +76,15 @@ func (r *removeDuplicateFieldlessSharedTypesVisitor) EnterUnionTypeDefinition(re
 	if ref <= r.lastUnionRef {
 		return
 	}
-	document := r.document
-	name := document.UnionTypeDefinitionNameString(ref)
+	name := r.document.UnionTypeDefinitionNameString(ref)
 	union, exists := r.sharedTypeSet[name]
 	if exists {
-		if !union.AreValuesIdentical(document.UnionTypeDefinitions[ref].UnionMemberTypes.Refs) {
+		if !union.AreValuesIdentical(r.document.UnionTypeDefinitions[ref].UnionMemberTypes.Refs) {
 			r.StopWithExternalErr(operationreport.ErrSharedTypesMustBeIdenticalToFederate(name))
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindUnionTypeDefinition, Ref: ref})
 	} else {
-		r.sharedTypeSet[name] = NewUnionSharedType(document, ref)
+		r.sharedTypeSet[name] = NewUnionSharedType(r.document, ref)
 	}
 	r.lastUnionRef = ref
 }

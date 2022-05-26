@@ -25,8 +25,7 @@ func (e *extendInterfaceTypeDefinitionVisitor) EnterDocument(operation, _ *ast.D
 }
 
 func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref int) {
-	document := e.document
-	nodes, exists := e.document.Index.NodesByNameBytes(document.InterfaceTypeExtensionNameBytes(ref))
+	nodes, exists := e.document.Index.NodesByNameBytes(e.document.InterfaceTypeExtensionNameBytes(ref))
 	if !exists {
 		return
 	}
@@ -37,13 +36,13 @@ func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref i
 			continue
 		}
 		if hasExtended {
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(document.InterfaceTypeExtensionNameString(ref)))
+			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.InterfaceTypeExtensionNameString(ref)))
 		}
 		e.document.ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(node.Ref, ref)
 		hasExtended = true
 	}
 
 	if !hasExtended {
-		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(document.InterfaceTypeExtensionNameBytes(ref)))
+		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.InterfaceTypeExtensionNameBytes(ref)))
 	}
 }

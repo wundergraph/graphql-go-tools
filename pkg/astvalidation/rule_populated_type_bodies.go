@@ -36,66 +36,59 @@ func (p *populatedTypeBodiesVisitor) EnterDocument(operation, _ *ast.Document) {
 }
 
 func (p populatedTypeBodiesVisitor) EnterEnumTypeDefinition(ref int) {
-	definition := p.definition
-	if !definition.EnumTypeDefinitions[ref].HasEnumValuesDefinition {
-		p.Report.AddExternalError(operationreport.ErrTypeBodyMustNotBeEmpty("enum", definition.EnumTypeDefinitionNameString(ref)))
+	if !p.definition.EnumTypeDefinitions[ref].HasEnumValuesDefinition {
+		p.Report.AddExternalError(operationreport.ErrTypeBodyMustNotBeEmpty("enum", p.definition.EnumTypeDefinitionNameString(ref)))
 		return
 	}
 }
 
 func (p *populatedTypeBodiesVisitor) EnterEnumTypeExtension(ref int) {
-	definition := p.definition
-	if !definition.EnumTypeExtensions[ref].HasEnumValuesDefinition {
-		p.Report.AddExternalError(operationreport.ErrTypeBodyMustNotBeEmpty("enum extension", definition.EnumTypeExtensionNameString(ref)))
+	if !p.definition.EnumTypeExtensions[ref].HasEnumValuesDefinition {
+		p.Report.AddExternalError(operationreport.ErrTypeBodyMustNotBeEmpty("enum extension", p.definition.EnumTypeExtensionNameString(ref)))
 		return
 	}
 }
 
 func (p populatedTypeBodiesVisitor) EnterInputObjectTypeDefinition(ref int) {
-	definition := p.definition
-	if !definition.InputObjectTypeDefinitions[ref].HasInputFieldsDefinition {
-		p.Report.AddExternalError(operationreport.ErrTypeBodyMustNotBeEmpty("input", definition.InputObjectTypeDefinitionNameString(ref)))
+	if !p.definition.InputObjectTypeDefinitions[ref].HasInputFieldsDefinition {
+		p.Report.AddExternalError(operationreport.ErrTypeBodyMustNotBeEmpty("input", p.definition.InputObjectTypeDefinitionNameString(ref)))
 		return
 	}
 }
 
 func (p *populatedTypeBodiesVisitor) EnterInputObjectTypeExtension(ref int) {
-	definition := p.definition
-	if !definition.InputObjectTypeExtensions[ref].HasInputFieldsDefinition {
-		p.Report.AddExternalError(operationreport.ErrTypeBodyMustNotBeEmpty("input extension", definition.InputObjectTypeExtensionNameString(ref)))
+	if !p.definition.InputObjectTypeExtensions[ref].HasInputFieldsDefinition {
+		p.Report.AddExternalError(operationreport.ErrTypeBodyMustNotBeEmpty("input extension", p.definition.InputObjectTypeExtensionNameString(ref)))
 		return
 	}
 }
 
 func (p populatedTypeBodiesVisitor) EnterInterfaceTypeDefinition(ref int) {
-	definition := p.definition
-	switch definition.InterfaceTypeDefinitions[ref].HasFieldDefinitions {
+	switch p.definition.InterfaceTypeDefinitions[ref].HasFieldDefinitions {
 	case true:
-		if !doesTypeOnlyContainReservedFields(definition, definition.InterfaceTypeDefinitions[ref].FieldsDefinition.Refs) {
+		if !doesTypeOnlyContainReservedFields(p.definition, p.definition.InterfaceTypeDefinitions[ref].FieldsDefinition.Refs) {
 			return
 		}
 		fallthrough
 	case false:
-		p.Report.AddExternalError(operationreport.ErrTypeBodyMustNotBeEmpty("interface", definition.InterfaceTypeDefinitionNameString(ref)))
+		p.Report.AddExternalError(operationreport.ErrTypeBodyMustNotBeEmpty("interface", p.definition.InterfaceTypeDefinitionNameString(ref)))
 		return
 	}
 }
 
 func (p *populatedTypeBodiesVisitor) EnterInterfaceTypeExtension(ref int) {
-	definition := p.definition
-	if !definition.InterfaceTypeExtensions[ref].HasFieldDefinitions {
-		p.Report.AddExternalError(operationreport.ErrTypeBodyMustNotBeEmpty("interface extension", definition.InterfaceTypeExtensionNameString(ref)))
+	if !p.definition.InterfaceTypeExtensions[ref].HasFieldDefinitions {
+		p.Report.AddExternalError(operationreport.ErrTypeBodyMustNotBeEmpty("interface extension", p.definition.InterfaceTypeExtensionNameString(ref)))
 		return
 	}
 }
 
 func (p populatedTypeBodiesVisitor) EnterObjectTypeDefinition(ref int) {
-	definition := p.definition
-	nameBytes := definition.ObjectTypeDefinitionNameBytes(ref)
-	object := definition.ObjectTypeDefinitions[ref]
+	nameBytes := p.definition.ObjectTypeDefinitionNameBytes(ref)
+	object := p.definition.ObjectTypeDefinitions[ref]
 	switch object.HasFieldDefinitions {
 	case true:
-		if ast.IsRootType(nameBytes) || !doesTypeOnlyContainReservedFields(definition, definition.ObjectTypeDefinitions[ref].FieldsDefinition.Refs) {
+		if ast.IsRootType(nameBytes) || !doesTypeOnlyContainReservedFields(p.definition, p.definition.ObjectTypeDefinitions[ref].FieldsDefinition.Refs) {
 			return
 		}
 		fallthrough
@@ -106,9 +99,8 @@ func (p populatedTypeBodiesVisitor) EnterObjectTypeDefinition(ref int) {
 }
 
 func (p *populatedTypeBodiesVisitor) EnterObjectTypeExtension(ref int) {
-	definition := p.definition
-	if !definition.ObjectTypeExtensions[ref].HasFieldDefinitions {
-		p.Report.AddExternalError(operationreport.ErrTypeBodyMustNotBeEmpty("object extension", definition.ObjectTypeExtensionNameString(ref)))
+	if !p.definition.ObjectTypeExtensions[ref].HasFieldDefinitions {
+		p.Report.AddExternalError(operationreport.ErrTypeBodyMustNotBeEmpty("object extension", p.definition.ObjectTypeExtensionNameString(ref)))
 		return
 	}
 }
