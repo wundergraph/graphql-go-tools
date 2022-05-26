@@ -1,6 +1,3 @@
-//go:build kafkaintegration
-// +build kafkaintegration
-
 package kafka_datasource
 
 import (
