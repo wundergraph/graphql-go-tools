@@ -21,8 +21,12 @@ import (
 // Solution: docker prune network
 
 const (
-	messageTemplate = "message-%d"
-	kafkaPort       = "9092/tcp"
+	messageTemplate   = "message-%d"
+	kafkaPort         = "9092/tcp"
+	testBrokerAddr    = "localhost:9092"
+	testTopic         = "start-consuming-latest-test"
+	testConsumerGroup = "start-consuming-latest-cg"
+	testClientID      = "graphql-go-tools-test"
 )
 
 var basicZooKeeperEnvVars = []string{
@@ -32,7 +36,7 @@ var basicZooKeeperEnvVars = []string{
 var basicKafkaEnvVars = []string{
 	"KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181",
 	"ALLOW_PLAINTEXT_LISTENER=yes",
-	"KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092",
+	fmt.Sprintf("KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://%s", testBrokerAddr),
 }
 
 type kafkaBroker struct {
@@ -335,10 +339,6 @@ func TestSarama_StartConsuming_And_Restart(t *testing.T) {
 	k := newKafkaBroker(t)
 	broker := k.start(t)
 
-	const (
-		testTopic         = "start-consuming-latest-test"
-		testConsumerGroup = "start-consuming-latest-cg"
-	)
 	brokerAddr := broker.GetHostPort(kafkaPort)
 
 	options := &GraphQLSubscriptionOptions{
@@ -406,13 +406,6 @@ func TestSarama_StartConsuming_And_Restart(t *testing.T) {
 }
 
 func TestSarama_Balance_Strategy(t *testing.T) {
-	const (
-		testBrokerAddr    = "localhost:9092"
-		testTopic         = "start-consuming-latest-test"
-		testConsumerGroup = "start-consuming-latest-cg"
-		testClientID      = "graphql-go-tools-test"
-	)
-
 	strategies := map[string]string{
 		BalanceStrategyRange:      "range",
 		BalanceStrategySticky:     "sticky",
@@ -445,13 +438,6 @@ func TestSarama_Balance_Strategy(t *testing.T) {
 }
 
 func TestSarama_Isolation_Level(t *testing.T) {
-	const (
-		testBrokerAddr    = "localhost:9092"
-		testTopic         = "start-consuming-latest-test"
-		testConsumerGroup = "start-consuming-latest-cg"
-		testClientID      = "graphql-go-tools-test"
-	)
-
 	strategies := map[string]sarama.IsolationLevel{
 		IsolationLevelReadUncommitted: sarama.ReadUncommitted,
 		IsolationLevelReadCommitted:   sarama.ReadCommitted,
