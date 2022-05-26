@@ -20,6 +20,11 @@ import (
 // Error: API error (404): could not find an available, non-overlapping IPv4 address pool among the defaults to assign to the network
 // Solution: docker prune network
 
+const (
+	messageTemplate = "message-%d"
+	kafkaPort       = "9092/tcp"
+)
+
 var basicZooKeeperEnvVars = []string{
 	"ALLOW_ANONYMOUS_LOGIN=yes",
 }
@@ -99,9 +104,9 @@ func (k *kafkaBroker) startKafka(t *testing.T) *dockertest.Resource {
 		Hostname:   "kafka",
 		Env:        basicKafkaEnvVars,
 		PortBindings: map[docker.Port][]docker.PortBinding{
-			"9092/tcp": {{HostIP: "localhost", HostPort: "9092/tcp"}},
+			kafkaPort: {{HostIP: "localhost", HostPort: kafkaPort}},
 		},
-		ExposedPorts: []string{"9092/tcp"},
+		ExposedPorts: []string{kafkaPort},
 	})
 	require.NoError(t, err)
 
@@ -113,7 +118,7 @@ func (k *kafkaBroker) startKafka(t *testing.T) *dockertest.Resource {
 		config := sarama.NewConfig()
 		config.Producer.Return.Successes = true
 		config.Producer.Return.Errors = true
-		brokerAddr := fmt.Sprintf("localhost:%s", resource.GetPort("9092/tcp"))
+		brokerAddr := fmt.Sprintf("localhost:%s", resource.GetPort(kafkaPort))
 		asyncProducer, err := sarama.NewAsyncProducer([]string{brokerAddr}, config)
 		if err != nil {
 			return err
@@ -177,7 +182,7 @@ func testAsyncProducer(t *testing.T, addr, topic string, start, end int) {
 	for i := start; i < end; i++ {
 		message := &sarama.ProducerMessage{
 			Topic: topic,
-			Value: sarama.StringEncoder(fmt.Sprintf("message-%d", i)),
+			Value: sarama.StringEncoder(fmt.Sprintf(messageTemplate, i)),
 		}
 		asyncProducer.Input() <- message
 	}
@@ -249,7 +254,7 @@ func TestSarama_StartConsumingLatest_True(t *testing.T) {
 		testTopic         = "start-consuming-latest-test"
 		testConsumerGroup = "start-consuming-latest-cg"
 	)
-	brokerAddr := broker.GetHostPort("9092/tcp")
+	brokerAddr := broker.GetHostPort(kafkaPort)
 
 	options := &GraphQLSubscriptionOptions{
 		BrokerAddr:           brokerAddr,
@@ -276,7 +281,7 @@ func TestSarama_StartConsumingLatest_True(t *testing.T) {
 	// ..
 	// message-9
 	for i := 0; i < 10; i++ {
-		value := fmt.Sprintf("message-%d", i)
+		value := fmt.Sprintf(messageTemplate, i)
 		require.Contains(t, consumedMessages, value)
 	}
 
@@ -307,7 +312,7 @@ func TestSarama_StartConsumingLatest_True(t *testing.T) {
 	// ..
 	// message-29
 	for i := 20; i < 30; i++ {
-		value := fmt.Sprintf("message-%d", i)
+		value := fmt.Sprintf(messageTemplate, i)
 		require.Contains(t, consumedMessages, value)
 	}
 
@@ -334,7 +339,7 @@ func TestSarama_StartConsuming_And_Restart(t *testing.T) {
 		testTopic         = "start-consuming-latest-test"
 		testConsumerGroup = "start-consuming-latest-cg"
 	)
-	brokerAddr := broker.GetHostPort("9092/tcp")
+	brokerAddr := broker.GetHostPort(kafkaPort)
 
 	options := &GraphQLSubscriptionOptions{
 		BrokerAddr:           brokerAddr,
@@ -361,7 +366,7 @@ func TestSarama_StartConsuming_And_Restart(t *testing.T) {
 	// ..
 	// message-9
 	for i := 0; i < 10; i++ {
-		value := fmt.Sprintf("message-%d", i)
+		value := fmt.Sprintf(messageTemplate, i)
 		require.Contains(t, consumedMessages, value)
 	}
 
@@ -392,7 +397,7 @@ func TestSarama_StartConsuming_And_Restart(t *testing.T) {
 	// ..
 	// message-29
 	for i := 10; i < 30; i++ {
-		value := fmt.Sprintf("message-%d", i)
+		value := fmt.Sprintf(messageTemplate, i)
 		require.Contains(t, consumedMessages, value)
 	}
 
