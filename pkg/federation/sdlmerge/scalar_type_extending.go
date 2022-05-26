@@ -3,6 +3,7 @@ package sdlmerge
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 func newExtendScalarTypeDefinition() *extendScalarTypeDefinitionVisitor {
@@ -10,28 +11,38 @@ func newExtendScalarTypeDefinition() *extendScalarTypeDefinitionVisitor {
 }
 
 type extendScalarTypeDefinitionVisitor struct {
-	operation *ast.Document
+	*astvisitor.Walker
+	document *ast.Document
 }
 
 func (e *extendScalarTypeDefinitionVisitor) Register(walker *astvisitor.Walker) {
+	e.Walker = walker
 	walker.RegisterEnterDocumentVisitor(e)
 	walker.RegisterEnterScalarTypeExtensionVisitor(e)
 }
 
 func (e *extendScalarTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
-	e.operation = operation
+	e.document = operation
 }
 
 func (e *extendScalarTypeDefinitionVisitor) EnterScalarTypeExtension(ref int) {
-	nodes, exists := e.operation.Index.NodesByNameBytes(e.operation.ScalarTypeExtensionNameBytes(ref))
+	nodes, exists := e.document.Index.NodesByNameBytes(e.document.ScalarTypeExtensionNameBytes(ref))
 	if !exists {
 		return
 	}
 
+	hasExtended := false
 	for i := range nodes {
 		if nodes[i].Kind != ast.NodeKindScalarTypeDefinition {
 			continue
 		}
-		e.operation.ExtendScalarTypeDefinitionByScalarTypeExtension(nodes[i].Ref, ref)
+		if hasExtended {
+			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.ScalarTypeExtensionNameString(ref)))
+		}
+		e.document.ExtendScalarTypeDefinitionByScalarTypeExtension(nodes[i].Ref, ref)
+		hasExtended = true
+	}
+	if !hasExtended {
+		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.ScalarTypeExtensionNameBytes(ref)))
 	}
 }

@@ -58,10 +58,8 @@ func TestExtendInputObjectType(t *testing.T) {
 		`)
 	})
 
-	// When federating, duplicate value types must be identical or the federation will fail.
-	// Consequently, when extending, all duplicate value types should also be extended.
-	t.Run("Duplicate inputs are each extended", func(t *testing.T) {
-		run(t, newExtendInputObjectTypeDefinition(), `
+	t.Run("Extending an input that is a shared type returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendInputObjectTypeDefinition(), `
 			input Mammal {
 				name: String
 			}
@@ -72,21 +70,14 @@ func TestExtendInputObjectType(t *testing.T) {
 				furType: String
 				age: Int
 			}
-		`, `
-			input Mammal @deprecated(reason: "some reason") @skip(if: false) {
-				name: String
-				furType: String
-				age: Int
+		`, SharedTypeExtensionErrorMessage("Mammal"))
+	})
+
+	t.Run("Unresolved input extension orphan returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendInputObjectTypeDefinition(), `
+			extend input Badges {
+				name: String!
 			}
-			input Mammal @deprecated(reason: "some reason") @skip(if: false) {
-				name: String
-				furType: String
-				age: Int
-			}
-			extend input Mammal @deprecated(reason: "some reason") @skip(if: false) {
-				furType: String
-				age: Int
-			}
-		`)
+		`, UnresolvedExtensionOrphansErrorMessage("Badges"))
 	})
 }

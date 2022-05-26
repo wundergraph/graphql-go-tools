@@ -104,10 +104,8 @@ func TestExtendObjectType(t *testing.T) {
 		`)
 	})
 
-	// When federating, duplicate value types must be identical or the federation will fail.
-	// Consequently, when extending, all duplicate value types should also be extended.
-	t.Run("Duplicate objects are each extended", func(t *testing.T) {
-		run(t, newExtendObjectTypeDefinition(), `
+	t.Run("Extending an object that is a shared type returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendObjectTypeDefinition(), `
 			type Cat {
 				name: String
 			}
@@ -120,23 +118,14 @@ func TestExtendObjectType(t *testing.T) {
 				age: Int
 				breed: String
 			}
-		`, `
-			type Cat @deprecated(reason: "not as cool as dogs") @skip(if: false) {
-				name: String
-				age: Int
-				breed: String
-			}
+		`, SharedTypeExtensionErrorMessage("Cat"))
+	})
 
-			type Cat @deprecated(reason: "not as cool as dogs") @skip(if: false) {
-				name: String
-				age: Int
-				breed: String
+	t.Run("Unresolved object extension orphan returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendObjectTypeDefinition(), `
+			extend type Badges {
+				name: String!
 			}
-
-			extend type Cat @deprecated(reason: "not as cool as dogs") @skip(if: false) {
-				age: Int
-				breed: String
-			}
-		`)
+		`, UnresolvedExtensionOrphansErrorMessage("Badges"))
 	})
 }

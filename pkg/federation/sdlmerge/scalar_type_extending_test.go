@@ -13,17 +13,17 @@ func TestExtendScalarType(t *testing.T) {
 		`)
 	})
 
-	// When federating, duplicate value types must be identical or the federation will fail.
-	// Consequently, when extending, all duplicate value types should also be extended.
-	t.Run("Duplicate unions are each extended", func(t *testing.T) {
-		run(t, newExtendScalarTypeDefinition(), `
+	t.Run("Extending a scalar that is a shared type returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendScalarTypeDefinition(), `
 			scalar Attack
 			scalar Attack
 			extend scalar Attack @deprecated(reason: "some reason") @skip(if: false)
-		`, `
-			scalar Attack @deprecated(reason: "some reason") @skip(if: false)
-			scalar Attack @deprecated(reason: "some reason") @skip(if: false)
-			extend scalar Attack @deprecated(reason: "some reason") @skip(if: false)
-		`)
+		`, SharedTypeExtensionErrorMessage("Attack"))
+	})
+
+	t.Run("Unresolved scalar extension orphan returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendScalarTypeDefinition(), `
+			extend scalar Badges @onScalar
+		`, UnresolvedExtensionOrphansErrorMessage("Badges"))
 	})
 }

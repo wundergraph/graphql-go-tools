@@ -52,7 +52,11 @@ var runAndExpectError = func(t *testing.T, visitor Visitor, operation, expectedE
 
 	var got string
 	if report.HasErrors() {
-		got = report.Error()
+		if report.InternalErrors == nil {
+			got = report.ExternalErrors[0].Message
+		} else {
+			got = report.InternalErrors[0].Error()
+		}
 	}
 
 	assert.Equal(t, expectedError, got)
@@ -99,13 +103,13 @@ func TestMergeSDLs(t *testing.T) {
 		accountSchema, productSchema, reviewSchema, likeSchema, disLikeSchema, paymentSchema, onlinePaymentSchema, classicPaymentSchema,
 	))
 
-	t.Run("should merge product and review sdl and leave `extend type User` in the schema", runMergeTest(
-		productAndReviewFederatedSchema,
+	t.Run("When merging product and review, the unresolved orphan extension for User will return an error", runMergeTestAndExpectError(
+		UnresolvedExtensionOrphansMergeErrorMessage("User"),
 		productSchema, reviewSchema,
 	))
 
-	t.Run("should merge product and extends directives sdl and leave the type extension definition in the schema", runMergeTest(
-		productAndExtendsDirectivesFederatedSchema,
+	t.Run("When merging product and extendsDirectives, the unresolved orphan extension for User will return an error", runMergeTestAndExpectError(
+		UnresolvedExtensionOrphansMergeErrorMessage("User"),
 		productSchema, extendsDirectivesSchema,
 	))
 
@@ -122,6 +126,11 @@ func TestMergeSDLs(t *testing.T) {
 	t.Run("Entity duplicates should return an error", runMergeTestAndExpectError(
 		DuplicateEntityMergeErrorMessage("User"),
 		accountSchema, negativeTestingAccountSchema,
+	))
+
+	t.Run("The first type encountered without a body should return an error", runMergeTestAndExpectError(
+		EmptyTypeBodyErrorMessage("object", "Message"),
+		accountSchema, negativeTestingProductSchema,
 	))
 }
 
@@ -214,6 +223,52 @@ const (
 
 		union AlphaNumeric = Int | String | Float
 	`
+
+	negativeTestingProductSchema = `
+		enum Satisfaction {
+			UNHAPPY,
+			HAPPY,
+			NEUTRAL,
+		}
+
+		scalar CustomScalar
+
+		extend type Query {
+			topProducts(first: Int = 5): [Product]
+		}
+
+		enum Department {
+			COSMETICS,
+			ELECTRONICS,
+			GROCERIES,
+		}
+
+		interface ProductInfo {
+			departments: [Department!]!
+			averageSatisfaction: Satisfaction!
+		}
+
+		type Message {
+		}
+
+		scalar BigInt
+		
+		type Product implements ProductInfo @key(fields: "upc") {
+			upc: String!
+			name: String!
+			price: Int!
+			worth: BigInt!
+			reputation: CustomScalar!
+			departments: [Department!]!
+			averageSatisfaction: Satisfaction!
+		}
+		
+		extend type Message {
+			content: String!
+		}
+
+		union AlphaNumeric = Int | String | Float
+	`
 	reviewSchema = `
 		scalar DateTime
 
@@ -255,7 +310,9 @@ const (
 			reviews: [Review]
 		}
 
-		extend type Product @key(fields: "upc") {
+		scalar BigInt
+
+		extend type Product implements ProductInfo @key(fields: "upc") {
 			upc: String! @external
 			name: String! @external
 			reviews: [Review] @requires(fields: "name")
@@ -324,12 +381,7 @@ const (
 			reviews: [Review]
 		}
 
-		extend type Product @key(fields: "upc") {
-			upc: String! @external
-			name: String! @external
-			reviews: [Review] @requires(fields: "name")
-			sales: BigInt!
-		}
+		scalar BigInt
 
 		union AlphaNumeric = BigInt | String
 		
@@ -448,20 +500,20 @@ const (
 	`
 	extendsDirectivesSchema = `
 		scalar DateTime
-
+	
 		type Comment {
 			body: String!
 			author: User!
 			created: DateTime!
 		}
-
+	
 		type User @extends @key(fields: "id") {
 			id: ID! @external
 			comments: [Comment]
 		}
-
+	
 		union AlphaNumeric = Int | String | Float
-
+	
 		interface PaymentType @extends {
 			name: String!
 		}
@@ -564,138 +616,6 @@ const (
 			reputation: CustomScalar!
 		}
 	`
-
-	productAndReviewFederatedSchema = `
-		type Query {
-			topProducts(first: Int = 5): [Product]
-			getReview(id: ID!): Review
-		}
-
-		type Mutation {
-			createReview(input: ReviewInput): Review
-			updateReview(id: ID!, input: ReviewInput): Review
-		}
-
-		type Subscription {
-			review: Review!
-		}
-		
-		enum Satisfaction {
-			UNHAPPY,
-			HAPPY,
-			NEUTRAL,
-		}
-		
-		scalar CustomScalar
-		
-		enum Department {
-			COSMETICS,
-			ELECTRONICS,
-			GROCERIES,
-		}
-
-		interface ProductInfo {
-			departments: [Department!]!
-			averageSatisfaction: Satisfaction!
-		}
-
-		scalar BigInt
-
-		type Product implements ProductInfo {
-			upc: String!
-			name: String!
-			price: Int!
-			worth: BigInt!
-			reputation: CustomScalar!
-			departments: [Department!]!
-			averageSatisfaction: Satisfaction!
-			reviews: [Review]
-			sales: BigInt!
-		}
-
-		union AlphaNumeric = Int | String | Float
-		
-		scalar DateTime
-
-		input ReviewInput {
-			body: String!
-			author: User! @provides(fields: "username")
-			product: Product!
-			updated: DateTime!
-			inputType: AlphaNumeric!
-		}
-
-		type Review {
-			id: ID!
-			created: DateTime!
-			body: String!
-			author: User!
-			product: Product!
-			updated: DateTime!
-			inputType: AlphaNumeric!
-		}
-		
-		extend type User @key(fields: "id") {
-			id: ID! @external
-			reviews: [Review]
-		}
-	`
-
-	productAndExtendsDirectivesFederatedSchema = `
-		type Query {
-			topProducts(first: Int = 5): [Product]
-		}
-
-		enum Satisfaction {
-			UNHAPPY,
-			HAPPY,
-			NEUTRAL,
-		}
-
-		scalar CustomScalar
-
-		enum Department {
-			COSMETICS,
-			ELECTRONICS,
-			GROCERIES,
-		}
-
-		interface ProductInfo {
-			departments: [Department!]!
-			averageSatisfaction: Satisfaction!
-		}
-
-		scalar BigInt
-		
-		type Product implements ProductInfo {
-			upc: String!
-			name: String!
-			price: Int!
-			worth: BigInt!
-			reputation: CustomScalar!
-			departments: [Department!]!
-			averageSatisfaction: Satisfaction!
-		}
-
-		union AlphaNumeric = Int | String | Float
-
-		scalar DateTime
-
-		type Comment {
-			body: String!
-			author: User!
-			created: DateTime!
-		}
-
-		extend type User @key(fields: "id") {
-			id: ID! @external
-			comments: [Comment]
-		}
-
-		extend interface PaymentType {
-			name: String!
-		}
-	`
 )
 
 func NonIdenticalSharedTypeMergeErrorMessage(typeName string) string {
@@ -704,4 +624,20 @@ func NonIdenticalSharedTypeMergeErrorMessage(typeName string) string {
 
 func DuplicateEntityMergeErrorMessage(typeName string) string {
 	return fmt.Sprintf("merge ast: walk: external: entities must not be shared types, but the entity named '%s' is duplicated in other subgraph(s), locations: [], path: []", typeName)
+}
+
+func SharedTypeExtensionErrorMessage(typeName string) string {
+	return fmt.Sprintf("the type named '%s' cannot be extended because it is a shared type", typeName)
+}
+
+func EmptyTypeBodyErrorMessage(definitionType, typeName string) string {
+	return fmt.Sprintf("validate schema: external: the %s named '%s' is invalid due to an empty body, locations: [], path: []", definitionType, typeName)
+}
+
+func UnresolvedExtensionOrphansErrorMessage(typeName string) string {
+	return fmt.Sprintf("the extension orphan named '%s' was never resolved in the supergraph", typeName)
+}
+
+func UnresolvedExtensionOrphansMergeErrorMessage(typeName string) string {
+	return fmt.Sprintf("merge ast: walk: external: the extension orphan named '%s' was never resolved in the supergraph, locations: [], path: []", typeName)
 }

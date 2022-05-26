@@ -64,10 +64,8 @@ func TestExtendInterfaceType(t *testing.T) {
 		`)
 	})
 
-	// When federating, duplicate value types must be identical or the federation will fail.
-	// Consequently, when extending, all duplicate value types should also be extended.
-	t.Run("Duplicate interfaces are each extended", func(t *testing.T) {
-		run(t, newExtendInterfaceTypeDefinition(), `
+	t.Run("Extending an interface that is a shared type returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendInterfaceTypeDefinition(), `
 			interface Mammal {
 				name: String
 			}
@@ -80,23 +78,14 @@ func TestExtendInterfaceType(t *testing.T) {
 				furType: String
 				age: Int
 			}
-		`, `
-			interface Mammal @deprecated(reason: "some reason") @skip(if: false) {
-				name: String
-				furType: String
-				age: Int
-			}
+		`, SharedTypeExtensionErrorMessage("Mammal"))
+	})
 
-			interface Mammal @deprecated(reason: "some reason") @skip(if: false) {
-				name: String
-				furType: String
-				age: Int
+	t.Run("Unresolved interface extension orphan returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendInterfaceTypeDefinition(), `
+			extend interface Badges {
+				name: String!
 			}
-
-			extend interface Mammal @deprecated(reason: "some reason") @skip(if: false) {
-				furType: String
-				age: Int
-			}
-		`)
+		`, UnresolvedExtensionOrphansErrorMessage("Badges"))
 	})
 }

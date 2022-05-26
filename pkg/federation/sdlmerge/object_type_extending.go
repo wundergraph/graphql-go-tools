@@ -3,6 +3,7 @@ package sdlmerge
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 func newExtendObjectTypeDefinition() *extendObjectTypeDefinitionVisitor {
@@ -10,28 +11,45 @@ func newExtendObjectTypeDefinition() *extendObjectTypeDefinitionVisitor {
 }
 
 type extendObjectTypeDefinitionVisitor struct {
-	operation *ast.Document
+	*astvisitor.Walker
+	document *ast.Document
 }
 
 func (e *extendObjectTypeDefinitionVisitor) Register(walker *astvisitor.Walker) {
+	e.Walker = walker
 	walker.RegisterEnterDocumentVisitor(e)
 	walker.RegisterEnterObjectTypeExtensionVisitor(e)
 }
 
 func (e *extendObjectTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
-	e.operation = operation
+	e.document = operation
 }
 
 func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
-	nodes, exists := e.operation.Index.NodesByNameBytes(e.operation.ObjectTypeExtensionNameBytes(ref))
+	nameBytes := e.document.ObjectTypeExtensionNameBytes(ref)
+	nodes, exists := e.document.Index.NodesByNameBytes(nameBytes)
 	if !exists {
 		return
 	}
 
+	hasExtended := false
+	shouldReturn := ast.IsRootType(nameBytes)
 	for i := range nodes {
 		if nodes[i].Kind != ast.NodeKindObjectTypeDefinition {
 			continue
 		}
-		e.operation.ExtendObjectTypeDefinitionByObjectTypeExtension(nodes[i].Ref, ref)
+		if hasExtended {
+			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.ObjectTypeExtensionNameString(ref)))
+		}
+
+		e.document.ExtendObjectTypeDefinitionByObjectTypeExtension(nodes[i].Ref, ref)
+		if shouldReturn {
+			return
+		}
+		hasExtended = true
+	}
+
+	if !hasExtended {
+		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.ObjectTypeExtensionNameBytes(ref)))
 	}
 }

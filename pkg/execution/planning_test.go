@@ -168,7 +168,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_type_name"),
-										Value: []byte("Query"),
+										Value: ast.DefaultQueryTypeName,
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_field_name"),
@@ -289,7 +289,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_type_name"),
-										Value: []byte("Mutation"),
+										Value: ast.DefaultMutationTypeName,
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_field_name"),
@@ -461,7 +461,7 @@ func TestPlanner_Plan(t *testing.T) {
 										Args: []datasource.Argument{
 											&datasource.StaticVariableArgument{
 												Name:  []byte("root_type_name"),
-												Value: []byte("Query"),
+												Value: ast.DefaultQueryTypeName,
 											},
 											&datasource.StaticVariableArgument{
 												Name:  []byte("root_field_name"),
@@ -488,7 +488,7 @@ func TestPlanner_Plan(t *testing.T) {
 										Args: []datasource.Argument{
 											&datasource.StaticVariableArgument{
 												Name:  []byte("root_type_name"),
-												Value: []byte("Query"),
+												Value: ast.DefaultQueryTypeName,
 											},
 											&datasource.StaticVariableArgument{
 												Name:  []byte("root_field_name"),
@@ -694,7 +694,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_type_name"),
-										Value: []byte("Query"),
+										Value: ast.DefaultQueryTypeName,
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_field_name"),
@@ -773,7 +773,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_type_name"),
-										Value: []byte("Query"),
+										Value: ast.DefaultQueryTypeName,
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_field_name"),
@@ -851,7 +851,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_type_name"),
-										Value: []byte("Query"),
+										Value: ast.DefaultQueryTypeName,
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_field_name"),
@@ -942,7 +942,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_type_name"),
-										Value: []byte("Query"),
+										Value: ast.DefaultQueryTypeName,
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_field_name"),
@@ -1046,7 +1046,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_type_name"),
-										Value: []byte("Query"),
+										Value: ast.DefaultQueryTypeName,
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_field_name"),
@@ -1377,7 +1377,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_type_name"),
-										Value: []byte("Query"),
+										Value: ast.DefaultQueryTypeName,
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_field_name"),
@@ -1498,7 +1498,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_type_name"),
-										Value: []byte("Query"),
+										Value: ast.DefaultQueryTypeName,
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_field_name"),
@@ -1632,7 +1632,7 @@ func TestPlanner_Plan(t *testing.T) {
 								Args: []datasource.Argument{
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_type_name"),
-										Value: []byte("Query"),
+										Value: ast.DefaultQueryTypeName,
 									},
 									&datasource.StaticVariableArgument{
 										Name:  []byte("root_field_name"),

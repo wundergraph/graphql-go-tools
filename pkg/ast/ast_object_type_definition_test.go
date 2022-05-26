@@ -35,15 +35,15 @@ func TestDocument_RemoveObjectTypeDefinition(t *testing.T) {
 
 	t.Run("remove query type", func(t *testing.T) {
 		doc := prepareDoc()
-		doc.RemoveObjectTypeDefinition([]byte("Query"))
+		doc.RemoveObjectTypeDefinition(ast.DefaultQueryTypeName)
 		docStr, _ := astprinter.PrintString(doc, nil)
 		assert.Equal(t, "type Mutation {mutationName: String} type Country {code: String} interface Model {id: String}", docStr)
 	})
 
 	t.Run("remove query and mutations types", func(t *testing.T) {
 		doc := prepareDoc()
-		doc.RemoveObjectTypeDefinition([]byte("Query"))
-		doc.RemoveObjectTypeDefinition([]byte("Mutation"))
+		doc.RemoveObjectTypeDefinition(ast.DefaultQueryTypeName)
+		doc.RemoveObjectTypeDefinition(ast.DefaultMutationTypeName)
 
 		docStr, _ := astprinter.PrintString(doc, nil)
 		assert.Equal(t, "type Country {code: String} interface Model {id: String}", docStr)
@@ -51,8 +51,8 @@ func TestDocument_RemoveObjectTypeDefinition(t *testing.T) {
 
 	t.Run("remove all types", func(t *testing.T) {
 		doc := prepareDoc()
-		doc.RemoveObjectTypeDefinition([]byte("Query"))
-		doc.RemoveObjectTypeDefinition([]byte("Mutation"))
+		doc.RemoveObjectTypeDefinition(ast.DefaultQueryTypeName)
+		doc.RemoveObjectTypeDefinition(ast.DefaultMutationTypeName)
 		doc.RemoveObjectTypeDefinition([]byte("Country"))
 
 		docStr, _ := astprinter.PrintString(doc, nil)

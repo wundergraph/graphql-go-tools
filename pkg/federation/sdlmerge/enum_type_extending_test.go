@@ -76,10 +76,8 @@ func TestExtendEnumObjectType(t *testing.T) {
 		`)
 	})
 
-	// When federating, duplicate value types must be identical or the federation will fail.
-	// Consequently, when extending, all duplicate value types should also be extended.
-	t.Run("Duplicate enums are each extended", func(t *testing.T) {
-		run(t, newExtendEnumTypeDefinition(), `
+	t.Run("Extending an enum that is a shared type returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendEnumTypeDefinition(), `
 			enum Starters {
 				BULBASAUR
 				CHARMANDER
@@ -96,27 +94,14 @@ func TestExtendEnumObjectType(t *testing.T) {
 				CHIKORITA
 				CYNDAQUIL
 			}
-		`, `
-			enum Starters @deprecated(reason: "some reason") @skip(if: false) {
-				BULBASAUR
-				CHARMANDER
-				SQUIRTLE
-				CHIKORITA
-				CYNDAQUIL
-			}
+		`, SharedTypeExtensionErrorMessage("Starters"))
+	})
 
-			enum Starters @deprecated(reason: "some reason") @skip(if: false) {
-				BULBASAUR
-				CHARMANDER
-				SQUIRTLE
-				CHIKORITA
-				CYNDAQUIL
+	t.Run("Unresolved enum extension orphan returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendEnumTypeDefinition(), `
+			extend enum Badges {
+				BOULDER
 			}
-
-			extend enum Starters @deprecated(reason: "some reason") @skip(if: false) {
-				CHIKORITA
-				CYNDAQUIL
-			}
-		`)
+		`, UnresolvedExtensionOrphansErrorMessage("Badges"))
 	})
 }

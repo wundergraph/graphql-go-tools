@@ -2,6 +2,8 @@ package sdlmerge
 
 import (
 	"fmt"
+	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
 	"strings"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
@@ -12,11 +14,15 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
-const rootOperationTypeDefinitions = `
-	type Query {}
-	type Mutation {}
-	type Subscription {}
-`
+const (
+	rootOperationTypeDefinitions = `
+		type Query {}
+		type Mutation {}
+		type Subscription {}
+	`
+
+	parseDocumentError = "parse graphql document string: %s"
+)
 
 type Visitor interface {
 	Register(walker *astvisitor.Walker)
@@ -33,8 +39,11 @@ func MergeSDLs(SDLs ...string) (string, error) {
 	rawDocs := make([]string, 0, len(SDLs)+1)
 	rawDocs = append(rawDocs, rootOperationTypeDefinitions)
 	rawDocs = append(rawDocs, SDLs...)
-	if err := normalizeSubgraphs(rawDocs); err != nil {
-		return "", err
+	if validationError := validateSubgraphs(rawDocs[1:]); validationError != nil {
+		return "", validationError
+	}
+	if normalizationError := normalizeSubgraphs(rawDocs[1:]); normalizationError != nil {
+		return "", normalizationError
 	}
 
 	doc, report := astparser.ParseGraphqlDocumentString(strings.Join(rawDocs, "\n"))
@@ -59,16 +68,36 @@ func MergeSDLs(SDLs ...string) (string, error) {
 	return out, nil
 }
 
+func validateSubgraphs(subgraphs []string) error {
+	validator := astvalidation.NewDefinitionValidator(
+		astvalidation.PopulatedTypeBodies(), astvalidation.KnownTypeNames(),
+	)
+	for _, subgraph := range subgraphs {
+		doc, report := astparser.ParseGraphqlDocumentString(subgraph)
+		if err := asttransform.MergeDefinitionWithBaseSchema(&doc); err != nil {
+			return err
+		}
+		if report.HasErrors() {
+			return fmt.Errorf(parseDocumentError, report.Error())
+		}
+		validator.Validate(&doc, &report)
+		if report.HasErrors() {
+			return fmt.Errorf("validate schema: %s", report.Error())
+		}
+	}
+	return nil
+}
+
 func normalizeSubgraphs(subgraphs []string) error {
 	subgraphNormalizer := astnormalization.NewSubgraphDefinitionNormalizer()
 	for i, subgraph := range subgraphs {
 		doc, report := astparser.ParseGraphqlDocumentString(subgraph)
 		if report.HasErrors() {
-			return fmt.Errorf("parse graphql document string: %s", report.Error())
+			return fmt.Errorf(parseDocumentError, report.Error())
 		}
 		subgraphNormalizer.NormalizeDefinition(&doc, &report)
 		if report.HasErrors() {
-			return fmt.Errorf("normalize subgraph: %s", report.Error())
+			return fmt.Errorf("normalize schema: %s", report.Error())
 		}
 		out, err := astprinter.PrintString(&doc, nil)
 		if err != nil {
@@ -183,12 +212,11 @@ func (f FieldedSharedType) fieldName(ref int) string {
 }
 
 func (f FieldedSharedType) fieldTypeRef(ref int) int {
-	document := f.document
 	switch f.fieldKind {
 	case ast.NodeKindInputValueDefinition:
-		return document.InputValueDefinitions[ref].Type
+		return f.document.InputValueDefinitions[ref].Type
 	default:
-		return document.FieldDefinitions[ref].Type
+		return f.document.FieldDefinitions[ref].Type
 	}
 }
 

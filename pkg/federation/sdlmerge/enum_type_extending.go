@@ -3,10 +3,12 @@ package sdlmerge
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 type extendEnumTypeDefinitionVisitor struct {
-	operation *ast.Document
+	*astvisitor.Walker
+	document *ast.Document
 }
 
 func newExtendEnumTypeDefinition() *extendEnumTypeDefinitionVisitor {
@@ -14,24 +16,34 @@ func newExtendEnumTypeDefinition() *extendEnumTypeDefinitionVisitor {
 }
 
 func (e *extendEnumTypeDefinitionVisitor) Register(walker *astvisitor.Walker) {
+	e.Walker = walker
 	walker.RegisterEnterDocumentVisitor(e)
 	walker.RegisterEnterEnumTypeExtensionVisitor(e)
 }
 
 func (e *extendEnumTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
-	e.operation = operation
+	e.document = operation
 }
 
 func (e *extendEnumTypeDefinitionVisitor) EnterEnumTypeExtension(ref int) {
-	nodes, exists := e.operation.Index.NodesByNameBytes(e.operation.EnumTypeExtensionNameBytes(ref))
+	nodes, exists := e.document.Index.NodesByNameBytes(e.document.EnumTypeExtensionNameBytes(ref))
 	if !exists {
 		return
 	}
 
+	hasExtended := false
 	for i := range nodes {
 		if nodes[i].Kind != ast.NodeKindEnumTypeDefinition {
 			continue
 		}
-		e.operation.ExtendEnumTypeDefinitionByEnumTypeExtension(nodes[i].Ref, ref)
+		if hasExtended {
+			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.EnumTypeExtensionNameString(ref)))
+		}
+		e.document.ExtendEnumTypeDefinitionByEnumTypeExtension(nodes[i].Ref, ref)
+		hasExtended = true
+	}
+
+	if !hasExtended {
+		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.EnumTypeExtensionNameBytes(ref)))
 	}
 }

@@ -47,9 +47,8 @@ func (r *removeDuplicateFieldedSharedTypesVisitor) EnterInputObjectTypeDefinitio
 	if ref <= r.lastInputRef {
 		return
 	}
-	document := r.document
-	name := document.InputObjectTypeDefinitionNameString(ref)
-	refs := document.InputObjectTypeDefinitions[ref].InputFieldsDefinition.Refs
+	name := r.document.InputObjectTypeDefinitionNameString(ref)
+	refs := r.document.InputObjectTypeDefinitions[ref].InputFieldsDefinition.Refs
 	input, exists := r.sharedTypeSet[name]
 	if exists {
 		if !input.AreFieldsIdentical(refs) {
@@ -57,7 +56,7 @@ func (r *removeDuplicateFieldedSharedTypesVisitor) EnterInputObjectTypeDefinitio
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindInputObjectTypeDefinition, Ref: ref})
 	} else {
-		r.sharedTypeSet[name] = NewFieldedSharedType(document, ast.NodeKindInputValueDefinition, refs)
+		r.sharedTypeSet[name] = NewFieldedSharedType(r.document, ast.NodeKindInputValueDefinition, refs)
 	}
 	r.lastInputRef = ref
 }
@@ -66,9 +65,8 @@ func (r *removeDuplicateFieldedSharedTypesVisitor) EnterInterfaceTypeDefinition(
 	if ref <= r.lastInterfaceRef {
 		return
 	}
-	document := r.document
-	name := document.InterfaceTypeDefinitionNameString(ref)
-	interfaceType := document.InterfaceTypeDefinitions[ref]
+	name := r.document.InterfaceTypeDefinitionNameString(ref)
+	interfaceType := r.document.InterfaceTypeDefinitions[ref]
 	r.checkForDuplicateEntity(interfaceType.HasDirectives, interfaceType.Directives.Refs, name)
 	refs := interfaceType.FieldsDefinition.Refs
 	iFace, exists := r.sharedTypeSet[name]
@@ -78,7 +76,7 @@ func (r *removeDuplicateFieldedSharedTypesVisitor) EnterInterfaceTypeDefinition(
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindInterfaceTypeDefinition, Ref: ref})
 	} else {
-		r.sharedTypeSet[name] = NewFieldedSharedType(document, ast.NodeKindFieldDefinition, refs)
+		r.sharedTypeSet[name] = NewFieldedSharedType(r.document, ast.NodeKindFieldDefinition, refs)
 	}
 	r.lastInterfaceRef = ref
 }
@@ -87,9 +85,8 @@ func (r *removeDuplicateFieldedSharedTypesVisitor) EnterObjectTypeDefinition(ref
 	if ref <= r.lastObjectRef {
 		return
 	}
-	document := r.document
-	name := document.ObjectTypeDefinitionNameString(ref)
-	objectType := document.ObjectTypeDefinitions[ref]
+	name := r.document.ObjectTypeDefinitionNameString(ref)
+	objectType := r.document.ObjectTypeDefinitions[ref]
 	r.checkForDuplicateEntity(objectType.HasDirectives, objectType.Directives.Refs, name)
 	refs := objectType.FieldsDefinition.Refs
 	object, exists := r.sharedTypeSet[name]
@@ -99,7 +96,7 @@ func (r *removeDuplicateFieldedSharedTypesVisitor) EnterObjectTypeDefinition(ref
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindObjectTypeDefinition, Ref: ref})
 	} else {
-		r.sharedTypeSet[name] = NewFieldedSharedType(document, ast.NodeKindFieldDefinition, refs)
+		r.sharedTypeSet[name] = NewFieldedSharedType(r.document, ast.NodeKindFieldDefinition, refs)
 	}
 	r.lastObjectRef = ref
 }

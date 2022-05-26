@@ -244,6 +244,11 @@ func ErrEnumValueNameMustBeUnique(enumName, enumValueName ast.ByteSlice) (err Ex
 	return err
 }
 
+func ErrUnionMembersMustBeUnique(unionName, memberName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("union member '%s.%s' can only be defined once", unionName, memberName)
+	return err
+}
+
 func ErrTransitiveInterfaceNotImplemented(typeName, transitiveInterfaceName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf("type %s does not implement transitive interface %s", typeName, transitiveInterfaceName)
 	return err
@@ -271,5 +276,20 @@ func ErrSharedTypesMustBeIdenticalToFederate(typeName string) (err ExternalError
 
 func ErrEntitiesMustNotBeSharedTypes(typeName string) (err ExternalError) {
 	err.Message = fmt.Sprintf("entities must not be shared types, but the entity named '%s' is duplicated in other subgraph(s)", typeName)
+	return err
+}
+
+func ErrSharedTypesMustNotBeExtended(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the type named '%s' cannot be extended because it is a shared type", typeName)
+	return err
+}
+
+func ErrExtensionOrphansMustResolveInSupergraph(extensionNameBytes []byte) (err ExternalError) {
+	err.Message = fmt.Sprintf("the extension orphan named '%s' was never resolved in the supergraph", extensionNameBytes)
+	return err
+}
+
+func ErrTypeBodyMustNotBeEmpty(definitionType, typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the %s named '%s' is invalid due to an empty body", definitionType, typeName)
 	return err
 }

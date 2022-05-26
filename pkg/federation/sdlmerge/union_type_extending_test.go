@@ -1,6 +1,8 @@
 package sdlmerge
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestExtendUnionType(t *testing.T) {
 	t.Run("extend union types", func(t *testing.T) {
@@ -39,10 +41,8 @@ func TestExtendUnionType(t *testing.T) {
 		`)
 	})
 
-	// When federating, duplicate value types must be identical or the federation will fail.
-	// Consequently, when extending, all duplicate value types should also be extended.
-	t.Run("Duplicate unions are each extended", func(t *testing.T) {
-		run(t, newExtendUnionTypeDefinition(), `
+	t.Run("Extending a union that is a shared type returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendUnionTypeDefinition(), `
 			type Dog {
 				name: String
 			}
@@ -60,24 +60,12 @@ func TestExtendUnionType(t *testing.T) {
 			union Animal = Dog
 
 			extend union Animal = Bird | Cat
-		`, `
-			type Dog {
-				name: String
-			}
+		`, SharedTypeExtensionErrorMessage("Animal"))
+	})
 
-			union Animal = Dog | Bird | Cat
-			
-			type Cat {
-				name: String
-			}
-
-			type Bird {
-				name: String
-			}
-
-			union Animal = Dog | Bird | Cat
-
-			extend union Animal = Bird | Cat
-		`)
+	t.Run("Unresolved union extension orphan returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendUnionTypeDefinition(), `
+			extend union Badges = Boulder
+		`, UnresolvedExtensionOrphansErrorMessage("Badges"))
 	})
 }
