@@ -3,6 +3,7 @@ package kafka_datasource
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 )
