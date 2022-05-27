@@ -73,19 +73,14 @@ func (g *GraphQLSubscriptionOptions) Sanitize() {
 }
 
 func (g *GraphQLSubscriptionOptions) Validate() error {
-	if g.BrokerAddr == "" {
+	switch {
+	case g.BrokerAddr == "":
 		return fmt.Errorf("broker_addr cannot be empty")
-	}
-
-	if g.Topic == "" {
+	case g.Topic == "":
 		return fmt.Errorf("topic cannot be empty")
-	}
-
-	if g.GroupID == "" {
+	case g.GroupID == "":
 		return fmt.Errorf("group_id cannot be empty")
-	}
-
-	if g.ClientID == "" {
+	case g.ClientID == "":
 		return fmt.Errorf("client_id cannot be empty")
 	}
 
