@@ -16,19 +16,21 @@ type KafkaConsumerGroupBridge struct {
 }
 
 type KafkaConsumerGroup struct {
-	consumerGroup sarama.ConsumerGroup
-	options       *GraphQLSubscriptionOptions
-	log           log.Logger
-	wg            sync.WaitGroup
-	ctx           context.Context
-	cancel        context.CancelFunc
+	consumerGroup   sarama.ConsumerGroup
+	options         *GraphQLSubscriptionOptions
+	log             log.Logger
+	startedCallback func()
+	wg              sync.WaitGroup
+	ctx             context.Context
+	cancel          context.CancelFunc
 }
 
 type kafkaConsumerGroupHandler struct {
-	log      log.Logger
-	options  *GraphQLSubscriptionOptions
-	messages chan *sarama.ConsumerMessage
-	ctx      context.Context
+	log             log.Logger
+	startedCallback func()
+	options         *GraphQLSubscriptionOptions
+	messages        chan *sarama.ConsumerMessage
+	ctx             context.Context
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim.
@@ -63,6 +65,10 @@ func (k *kafkaConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSes
 		session.ResetOffset(claim.Topic(), claim.Partition(), sarama.OffsetNewest, "")
 	}
 
+	if k.startedCallback != nil {
+		k.startedCallback()
+	}
+
 	for msg := range claim.Messages() {
 		ctx, cancel := context.WithTimeout(k.ctx, time.Second*5)
 		select {
@@ -95,11 +101,12 @@ func NewKafkaConsumerGroup(log log.Logger, saramaConfig *sarama.Config, options 
 
 	ctx, cancel := context.WithCancel(context.Background())
 	return &KafkaConsumerGroup{
-		consumerGroup: cg,
-		log:           log,
-		options:       options,
-		ctx:           ctx,
-		cancel:        cancel,
+		consumerGroup:   cg,
+		startedCallback: options.startedCallback,
+		log:             log,
+		options:         options,
+		ctx:             ctx,
+		cancel:          cancel,
 	}, nil
 }
 
@@ -131,10 +138,11 @@ func (k *KafkaConsumerGroup) startConsuming(handler sarama.ConsumerGroupHandler)
 // background.
 func (k *KafkaConsumerGroup) StartConsuming(messages chan *sarama.ConsumerMessage) {
 	handler := &kafkaConsumerGroupHandler{
-		log:      k.log,
-		options:  k.options,
-		messages: messages,
-		ctx:      k.ctx,
+		log:             k.log,
+		startedCallback: k.options.startedCallback,
+		options:         k.options,
+		messages:        messages,
+		ctx:             k.ctx,
 	}
 
 	k.wg.Add(1)
@@ -169,6 +177,40 @@ func NewKafkaConsumerGroupBridge(ctx context.Context, logger log.Logger) *KafkaC
 	}
 }
 
+func (c *KafkaConsumerGroupBridge) prepareSaramaConfig(options *GraphQLSubscriptionOptions) (*sarama.Config, error) {
+	sc := sarama.NewConfig()
+	sc.Version = SaramaSupportedKafkaVersions[options.KafkaVersion]
+	sc.ClientID = options.ClientID
+
+	// Strategy for allocating topic partitions to members (default BalanceStrategyRange)
+	// See this: https://chrzaszcz.dev/2021/09/kafka-assignors/
+	// Sanitize function doesn't allow an empty BalanceStrategy parameter.
+	switch options.BalanceStrategy {
+	case BalanceStrategyRange:
+		sc.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
+	case BalanceStrategySticky:
+		sc.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
+	case BalanceStrategyRoundRobin:
+		sc.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
+	}
+
+	if options.StartConsumingLatest {
+		// Start consuming from the latest offset after a client restart
+		sc.Consumer.Offsets.Initial = sarama.OffsetNewest
+	}
+
+	// IsolationLevel support 2 mode:
+	// 	- use `ReadUncommitted` (default) to consume and return all messages in message channel
+	//	- use `ReadCommitted` to hide messages that are part of an aborted transaction
+	switch options.IsolationLevel {
+	case IsolationLevelReadCommitted:
+		sc.Consumer.IsolationLevel = sarama.ReadCommitted
+	case IsolationLevelReadUncommitted:
+		sc.Consumer.IsolationLevel = sarama.ReadUncommitted
+	}
+	return sc, nil
+}
+
 // Subscribe creates a new consumer group with given config and streams messages via next channel.
 func (c *KafkaConsumerGroupBridge) Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
 	options.Sanitize()
@@ -176,12 +218,9 @@ func (c *KafkaConsumerGroupBridge) Subscribe(ctx context.Context, options GraphQ
 		return err
 	}
 
-	saramaConfig := sarama.NewConfig()
-	saramaConfig.Version = SaramaSupportedKafkaVersions[options.KafkaVersion]
-	saramaConfig.ClientID = options.ClientID
-	if options.StartConsumingLatest {
-		// Start consuming from the latest offset after a client restart
-		saramaConfig.Consumer.Offsets.Initial = sarama.OffsetNewest
+	saramaConfig, err := c.prepareSaramaConfig(&options)
+	if err != nil {
+		return err
 	}
 
 	cg, err := NewKafkaConsumerGroup(c.log, saramaConfig, &options)
