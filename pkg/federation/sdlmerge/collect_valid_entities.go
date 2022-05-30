@@ -22,7 +22,7 @@ func newCollectValidEntitiesVisitor(n *normalizer) *collectValidEntitiesVisitor 
 
 func (c *collectValidEntitiesVisitor) Register(walker *astvisitor.Walker) {
 	c.Walker = walker
-	c.normalizer.entities = make(map[string]map[string]bool, 0)
+	c.normalizer.entities = make(map[string]map[string]bool)
 	walker.RegisterEnterDocumentVisitor(c)
 	walker.RegisterEnterInterfaceTypeDefinitionVisitor(c)
 	walker.RegisterEnterObjectTypeDefinitionVisitor(c)
@@ -73,7 +73,7 @@ func (c *collectValidEntitiesVisitor) EnterObjectTypeDefinition(ref int) {
 }
 
 func (c *collectValidEntitiesVisitor) getPrimaryKeys(name string, directiveRefs []int) map[string]bool {
-	primaryKeys := make(map[string]bool, 0)
+	primaryKeys := make(map[string]bool)
 	for _, directiveRef := range directiveRefs {
 		if c.document.DirectiveNameString(directiveRef) != "key" {
 			continue
