@@ -335,7 +335,7 @@ type PotentialEntityType interface {
 func getPrimaryKeys(p PotentialEntityType, n *normalizer, name string, directiveRefs []int) map[string]bool {
 	baseKeys := n.entities[name]
 	document := p.getDocument()
-	primaryKeys := make(map[string]bool, 0)
+	primaryKeys := make(map[string]bool)
 	for _, directiveRef := range directiveRefs {
 		if document.DirectiveNameString(directiveRef) != "key" {
 			continue
