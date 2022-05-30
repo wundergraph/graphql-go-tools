@@ -109,19 +109,22 @@ func normalizeSubgraphs(subgraphs []string) error {
 }
 
 type normalizer struct {
-	walkers []*astvisitor.Walker
+	walkers  []*astvisitor.Walker
+	entities map[string]map[string]bool
 }
 
 func (m *normalizer) setupWalkers() {
 	visitorGroups := [][]Visitor{
-		// visitors for extending objects and interfaces
+		{
+			newCollectValidEntitiesVisitor(m),
+		},
 		{
 			newExtendEnumTypeDefinition(),
 			newExtendInputObjectTypeDefinition(),
-			newExtendInterfaceTypeDefinition(),
+			newExtendInterfaceTypeDefinition(m),
 			newExtendScalarTypeDefinition(),
 			newExtendUnionTypeDefinition(),
-			newExtendObjectTypeDefinition(),
+			newExtendObjectTypeDefinition(m),
 			newRemoveEmptyObjectTypeDefinition(),
 			newRemoveMergedTypeExtensions(),
 		},
@@ -321,4 +324,67 @@ func (_ ScalarSharedType) valueRefs() []int {
 
 func (_ ScalarSharedType) valueName(_ int) string {
 	return ""
+}
+
+type PotentialEntityType interface {
+	getWalker() *astvisitor.Walker
+	getDocument() *ast.Document
+	assessValidEntity(ref int, nameBytes []byte) bool
+}
+
+func getPrimaryKeys(p PotentialEntityType, n *normalizer, name string, directiveRefs []int) map[string]bool {
+	baseKeys := n.entities[name]
+	document := p.getDocument()
+	primaryKeys := make(map[string]bool, 0)
+	for _, directiveRef := range directiveRefs {
+		if document.DirectiveNameString(directiveRef) != "key" {
+			continue
+		}
+		directive := document.Directives[directiveRef]
+		if len(directive.Arguments.Refs) != 1 {
+			p.getWalker().StopWithExternalErr(operationreport.ErrKeyDirectiveMustHaveSingleArgument(name))
+		}
+		argumentRef := directive.Arguments.Refs[0]
+		if document.ArgumentNameString(argumentRef) != "fields" {
+			p.getWalker().StopWithExternalErr(operationreport.ErrKeyDirectiveMustHaveSingleArgument(name))
+		}
+		primaryKey := document.StringValueContentString(document.Arguments[argumentRef].Value.Ref)
+		if _, exists := baseKeys[primaryKey]; !exists || primaryKey == "" {
+			p.getWalker().StopWithExternalErr(operationreport.ErrPrimaryKeyReferencesMustExistOnEntity(primaryKey, name))
+		}
+		primaryKeys[primaryKey] = false
+	}
+	return primaryKeys
+}
+
+func checkAllPrimaryKeyReferencesAreExternal(p PotentialEntityType, name string, primaryKeys map[string]bool, fieldRefs []int) {
+	fieldReferences := len(primaryKeys)
+	if fieldReferences < 1 {
+		p.getWalker().StopWithExternalErr(operationreport.ErrEntityExtensionMustHaveKeyDirectiveAndExistingPrimaryKey(name))
+	}
+	document := p.getDocument()
+ParentLoop:
+	for _, fieldRef := range fieldRefs {
+		fieldName := document.FieldDefinitionNameString(fieldRef)
+		hasExternalDirective, isPrimaryKey := primaryKeys[fieldName]
+		if !isPrimaryKey {
+			continue
+		}
+		field := document.FieldDefinitions[fieldRef]
+		for _, directiveRef := range field.Directives.Refs {
+			if document.DirectiveNameString(directiveRef) != "external" {
+				continue
+			}
+			if !hasExternalDirective {
+				primaryKeys[fieldName] = true
+				fieldReferences -= 1
+			}
+			if fieldReferences == 0 {
+				return
+			}
+			continue ParentLoop
+		}
+		p.getWalker().StopWithExternalErr(operationreport.ErrEntityExtensionPrimaryKeyFieldReferenceMustHaveExternalDirective(name))
+	}
+	p.getWalker().StopWithExternalErr(operationreport.ErrEntityExtensionPrimaryKeyFieldReferenceMustHaveExternalDirective(name))
 }

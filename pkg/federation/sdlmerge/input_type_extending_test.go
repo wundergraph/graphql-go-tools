@@ -70,7 +70,7 @@ func TestExtendInputObjectType(t *testing.T) {
 				furType: String
 				age: Int
 			}
-		`, SharedTypeExtensionErrorMessage("Mammal"))
+		`, sharedTypeExtensionErrorMessage("Mammal"))
 	})
 
 	t.Run("Unresolved input extension orphan returns an error", func(t *testing.T) {
@@ -78,6 +78,6 @@ func TestExtendInputObjectType(t *testing.T) {
 			extend input Badges {
 				name: String!
 			}
-		`, UnresolvedExtensionOrphansErrorMessage("Badges"))
+		`, unresolvedExtensionOrphansErrorMessage("Badges"))
 	})
 }

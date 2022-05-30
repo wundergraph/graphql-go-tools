@@ -293,3 +293,27 @@ func ErrTypeBodyMustNotBeEmpty(definitionType, typeName string) (err ExternalErr
 	err.Message = fmt.Sprintf("the %s named '%s' is invalid due to an empty body", definitionType, typeName)
 	return err
 }
+
+func ErrKeyDirectiveMustHaveSingleArgument(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the key directive on the entity named '%s' must have a single argument named 'fields'", typeName)
+	return err
+}
+
+func ErrPrimaryKeyReferencesMustExistOnEntity(primaryKey, typeName string) (err ExternalError) {
+	if primaryKey == "" {
+		err.Message = fmt.Sprintf("the entity or extension named '%s' contains an empty primary key", typeName)
+	} else {
+		err.Message = fmt.Sprintf("the primary key '%s' does not exist as a field on the entity named '%s'", primaryKey, typeName)
+	}
+	return err
+}
+
+func ErrEntityExtensionMustHaveKeyDirectiveAndExistingPrimaryKey(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("an extension of the entity named '%s' does not have a key directive with an existing primary key", typeName)
+	return err
+}
+
+func ErrEntityExtensionPrimaryKeyFieldReferenceMustHaveExternalDirective(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("an extension of the entity named '%s' has a primary key whose referenced field does not have the external directive", typeName)
+	return err
+}

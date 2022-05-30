@@ -66,7 +66,7 @@ func (p *populatedTypeBodiesVisitor) EnterInputObjectTypeExtension(ref int) {
 func (p populatedTypeBodiesVisitor) EnterInterfaceTypeDefinition(ref int) {
 	switch p.definition.InterfaceTypeDefinitions[ref].HasFieldDefinitions {
 	case true:
-		if !doesTypeOnlyContainReservedFields(p.definition, p.definition.InterfaceTypeDefinitions[ref].FieldsDefinition.Refs) {
+		if !p.doesTypeOnlyContainReservedFields(p.definition.InterfaceTypeDefinitions[ref].FieldsDefinition.Refs) {
 			return
 		}
 		fallthrough
@@ -88,7 +88,7 @@ func (p populatedTypeBodiesVisitor) EnterObjectTypeDefinition(ref int) {
 	object := p.definition.ObjectTypeDefinitions[ref]
 	switch object.HasFieldDefinitions {
 	case true:
-		if ast.IsRootType(nameBytes) || !doesTypeOnlyContainReservedFields(p.definition, p.definition.ObjectTypeDefinitions[ref].FieldsDefinition.Refs) {
+		if ast.IsRootType(nameBytes) || !p.doesTypeOnlyContainReservedFields(p.definition.ObjectTypeDefinitions[ref].FieldsDefinition.Refs) {
 			return
 		}
 		fallthrough
@@ -105,9 +105,9 @@ func (p *populatedTypeBodiesVisitor) EnterObjectTypeExtension(ref int) {
 	}
 }
 
-func doesTypeOnlyContainReservedFields(definition *ast.Document, refs []int) bool {
+func (p *populatedTypeBodiesVisitor) doesTypeOnlyContainReservedFields(refs []int) bool {
 	for _, fieldRef := range refs {
-		fieldNameBytes := definition.FieldDefinitionNameBytes(fieldRef)
+		fieldNameBytes := p.definition.FieldDefinitionNameBytes(fieldRef)
 		if len(fieldNameBytes) < 2 || !bytes.HasPrefix(fieldNameBytes, reservedFieldPrefix) {
 			return false
 		}
