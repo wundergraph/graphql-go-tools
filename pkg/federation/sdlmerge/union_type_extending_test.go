@@ -60,12 +60,12 @@ func TestExtendUnionType(t *testing.T) {
 			union Animal = Dog
 
 			extend union Animal = Bird | Cat
-		`, SharedTypeExtensionErrorMessage("Animal"))
+		`, sharedTypeExtensionErrorMessage("Animal"))
 	})
 
 	t.Run("Unresolved union extension orphan returns an error", func(t *testing.T) {
 		runAndExpectError(t, newExtendUnionTypeDefinition(), `
 			extend union Badges = Boulder
-		`, UnresolvedExtensionOrphansErrorMessage("Badges"))
+		`, unresolvedExtensionOrphansErrorMessage("Badges"))
 	})
 }

@@ -12,6 +12,8 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
+var N = &normalizer{}
+
 type composeVisitor []Visitor
 
 func (c composeVisitor) Register(walker *astvisitor.Walker) {
@@ -21,7 +23,6 @@ func (c composeVisitor) Register(walker *astvisitor.Walker) {
 }
 
 var run = func(t *testing.T, visitor Visitor, operation, expectedOutput string) {
-
 	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
 	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
 	report := operationreport.Report{}
@@ -104,32 +105,32 @@ func TestMergeSDLs(t *testing.T) {
 	))
 
 	t.Run("When merging product and review, the unresolved orphan extension for User will return an error", runMergeTestAndExpectError(
-		UnresolvedExtensionOrphansMergeErrorMessage("User"),
+		unresolvedExtensionOrphansMergeErrorMessage("User"),
 		productSchema, reviewSchema,
 	))
 
 	t.Run("When merging product and extendsDirectives, the unresolved orphan extension for User will return an error", runMergeTestAndExpectError(
-		UnresolvedExtensionOrphansMergeErrorMessage("User"),
+		unresolvedExtensionOrphansMergeErrorMessage("User"),
 		productSchema, extendsDirectivesSchema,
 	))
 
 	t.Run("Non-identical duplicate enums should return an error", runMergeTestAndExpectError(
-		NonIdenticalSharedTypeMergeErrorMessage("Satisfaction"),
+		nonIdenticalSharedTypeMergeErrorMessage("Satisfaction"),
 		productSchema, negativeTestingLikeSchema,
 	))
 
 	t.Run("Non-identical duplicate unions should return an error", runMergeTestAndExpectError(
-		NonIdenticalSharedTypeMergeErrorMessage("AlphaNumeric"),
+		nonIdenticalSharedTypeMergeErrorMessage("AlphaNumeric"),
 		accountSchema, negativeTestingReviewSchema,
 	))
 
 	t.Run("Entity duplicates should return an error", runMergeTestAndExpectError(
-		DuplicateEntityMergeErrorMessage("User"),
+		duplicateEntityMergeErrorMessage("User"),
 		accountSchema, negativeTestingAccountSchema,
 	))
 
 	t.Run("The first type encountered without a body should return an error", runMergeTestAndExpectError(
-		EmptyTypeBodyErrorMessage("object", "Message"),
+		emptyTypeBodyErrorMessage("object", "Message"),
 		accountSchema, negativeTestingProductSchema,
 	))
 }
@@ -618,26 +619,46 @@ const (
 	`
 )
 
-func NonIdenticalSharedTypeMergeErrorMessage(typeName string) string {
+func nonIdenticalSharedTypeMergeErrorMessage(typeName string) string {
 	return fmt.Sprintf("merge ast: walk: external: the shared type named '%s' must be identical in any subgraphs to federate, locations: [], path: []", typeName)
 }
 
-func DuplicateEntityMergeErrorMessage(typeName string) string {
+func duplicateEntityMergeErrorMessage(typeName string) string {
 	return fmt.Sprintf("merge ast: walk: external: entities must not be shared types, but the entity named '%s' is duplicated in other subgraph(s), locations: [], path: []", typeName)
 }
 
-func SharedTypeExtensionErrorMessage(typeName string) string {
+func sharedTypeExtensionErrorMessage(typeName string) string {
 	return fmt.Sprintf("the type named '%s' cannot be extended because it is a shared type", typeName)
 }
 
-func EmptyTypeBodyErrorMessage(definitionType, typeName string) string {
+func emptyTypeBodyErrorMessage(definitionType, typeName string) string {
 	return fmt.Sprintf("validate schema: external: the %s named '%s' is invalid due to an empty body, locations: [], path: []", definitionType, typeName)
 }
 
-func UnresolvedExtensionOrphansErrorMessage(typeName string) string {
+func unresolvedExtensionOrphansErrorMessage(typeName string) string {
 	return fmt.Sprintf("the extension orphan named '%s' was never resolved in the supergraph", typeName)
 }
 
-func UnresolvedExtensionOrphansMergeErrorMessage(typeName string) string {
+func unresolvedExtensionOrphansMergeErrorMessage(typeName string) string {
 	return fmt.Sprintf("merge ast: walk: external: the extension orphan named '%s' was never resolved in the supergraph, locations: [], path: []", typeName)
+}
+
+func externalDirectiveErrorMessage(typeName string) string {
+	return fmt.Sprintf("an extension of the entity named '%s' has a primary key whose referenced field does not have the external directive", typeName)
+}
+
+func incorrectArgumentErrorMessage(typeName string) string {
+	return fmt.Sprintf("the key directive on the entity named '%s' must have a single argument named 'fields'", typeName)
+}
+
+func emptyPrimaryKeyErrorMessage(typeName string) string {
+	return fmt.Sprintf("the entity or extension named '%s' contains an empty primary key", typeName)
+}
+
+func unresolvedPrimaryKeyErrorMessage(primaryKey, typeName string) string {
+	return fmt.Sprintf("the primary key '%s' does not exist as a field on the entity named '%s'", primaryKey, typeName)
+}
+
+func noKeyDirectiveErrorMessage(typeName string) string {
+	return fmt.Sprintf("an extension of the entity named '%s' does not have a key directive with an existing primary key", typeName)
 }

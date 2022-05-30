@@ -94,7 +94,7 @@ func TestExtendEnumObjectType(t *testing.T) {
 				CHIKORITA
 				CYNDAQUIL
 			}
-		`, SharedTypeExtensionErrorMessage("Starters"))
+		`, sharedTypeExtensionErrorMessage("Starters"))
 	})
 
 	t.Run("Unresolved enum extension orphan returns an error", func(t *testing.T) {
@@ -102,6 +102,6 @@ func TestExtendEnumObjectType(t *testing.T) {
 			extend enum Badges {
 				BOULDER
 			}
-		`, UnresolvedExtensionOrphansErrorMessage("Badges"))
+		`, unresolvedExtensionOrphansErrorMessage("Badges"))
 	})
 }
