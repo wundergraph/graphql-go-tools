@@ -2,6 +2,7 @@ package sdlmerge
 
 import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
@@ -23,7 +24,7 @@ func (e *entityValidator) setDocument(document *ast.Document) {
 func (e *entityValidator) getPrimaryKeys(name string, directiveRefs []int, isExtension bool) (primaryKeySet, *operationreport.ExternalError) {
 	primaryKeys := make(primaryKeySet)
 	for _, directiveRef := range directiveRefs {
-		if e.document.DirectiveNameString(directiveRef) != keyDirectiveName {
+		if e.document.DirectiveNameString(directiveRef) != plan.FederationKeyDirectiveName {
 			continue
 		}
 		directive := e.document.Directives[directiveRef]
@@ -83,7 +84,7 @@ func (e *entityValidator) validatePrimaryKeyReferences(name string, fieldRefs []
 
 func (e *entityValidator) isEntityExtension(directiveRefs []int) bool {
 	for _, directiveRef := range directiveRefs {
-		if e.document.DirectiveNameString(directiveRef) == keyDirectiveName {
+		if e.document.DirectiveNameString(directiveRef) == plan.FederationKeyDirectiveName {
 			return true
 		}
 	}
@@ -105,7 +106,7 @@ func (e *entityValidator) validateExternalPrimaryKeys(name string, primaryKeys p
 		field := e.document.FieldDefinitions[fieldRef]
 		hasExternalDirective := false
 		for _, directiveRef := range field.Directives.Refs {
-			if e.document.DirectiveNameString(directiveRef) != externalDirective {
+			if e.document.DirectiveNameString(directiveRef) != plan.FederationExternalDirectiveName {
 				continue
 			}
 			hasExternalDirective = true

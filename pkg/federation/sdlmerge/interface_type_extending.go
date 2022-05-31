@@ -7,9 +7,7 @@ import (
 
 func newExtendInterfaceTypeDefinition(n *normalizer) *extendInterfaceTypeDefinitionVisitor {
 	return &extendInterfaceTypeDefinitionVisitor{
-		nil,
-		nil,
-		n,
+		normalizer: n,
 	}
 }
 

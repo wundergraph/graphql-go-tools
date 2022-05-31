@@ -21,13 +21,8 @@ const (
 		type Subscription {}
 	`
 
-	parseDocumentError = "parse graphql document string: %s"
-
-	keyDirectiveName = "key"
-
+	parseDocumentError   = "parse graphql document string: %s"
 	keyDirectiveArgument = "fields"
-
-	externalDirective = "external"
 )
 
 type Visitor interface {

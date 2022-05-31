@@ -1,8 +1,6 @@
 package sdlmerge
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestExtendObjectType(t *testing.T) {
 	t.Run("extend object type by field", func(t *testing.T) {
