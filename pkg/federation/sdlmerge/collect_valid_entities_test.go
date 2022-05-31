@@ -10,16 +10,16 @@ import (
 
 func TestCollectValidEntities(t *testing.T) {
 	t.Run("Valid entities are collected", func(t *testing.T) {
-		collectEntities(t, newCollectValidEntitiesVisitor(&normalizer{}), `
+		collectEntities(t, newCollectValidEntitiesVisitor(newTestNormalizer(false)), `
 			type Dog @key(fields: "name") @key(fields: "id"){
 				id: ID!
 				name: String!
 			}
-		`, map[string]map[string]bool{"Dog": {"name": true, "id": true}})
+		`, entitySet{"Dog": primaryKeySet{"name": true, "id": true}})
 	})
 }
 
-var collectEntities = func(t *testing.T, visitor *collectValidEntitiesVisitor, operation string, expectedEntities map[string]map[string]bool) {
+var collectEntities = func(t *testing.T, visitor *collectValidEntitiesVisitor, operation string, expectedEntities entitySet) {
 	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
 	report := operationreport.Report{}
 	walker := astvisitor.NewWalker(48)
@@ -32,7 +32,7 @@ var collectEntities = func(t *testing.T, visitor *collectValidEntitiesVisitor, o
 		t.Fatal(report.Error())
 	}
 
-	got := visitor.normalizer.entities
+	got := visitor.normalizer.entityValidator.entitySet
 
 	assert.Equal(t, expectedEntities, got)
 }

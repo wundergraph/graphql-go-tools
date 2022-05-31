@@ -1,7 +1,6 @@
 package sdlmerge
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -365,7 +364,7 @@ func TestRemoveDuplicateFieldedValueTypes(t *testing.T) {
 				name: String!
 				age: Int!
 			}
-		`, DuplicateEntityErrorMessage("Trainer"))
+		`, duplicateEntityErrorMessage("Trainer"))
 	})
 
 	t.Run("Duplicates of an interface entity returns an error, even if the entity is the last item in the schema", func(t *testing.T) {
@@ -384,7 +383,7 @@ func TestRemoveDuplicateFieldedValueTypes(t *testing.T) {
 				name: String!
 				age: Int!
 			}
-		`, DuplicateEntityErrorMessage("Trainer"))
+		`, duplicateEntityErrorMessage("Trainer"))
 	})
 
 	t.Run("Same name empty objects are merged into a single object", func(t *testing.T) {
@@ -572,7 +571,7 @@ func TestRemoveDuplicateFieldedValueTypes(t *testing.T) {
 				name: String!
 				age: Int!
 			}
-		`, DuplicateEntityErrorMessage("Trainer"))
+		`, duplicateEntityErrorMessage("Trainer"))
 	})
 
 	t.Run("Duplicates of an object entity returns an error, even if the entity is the last item in the schema", func(t *testing.T) {
@@ -591,10 +590,6 @@ func TestRemoveDuplicateFieldedValueTypes(t *testing.T) {
 				name: String!
 				age: Int!
 			}
-		`, DuplicateEntityErrorMessage("Trainer"))
+		`, duplicateEntityErrorMessage("Trainer"))
 	})
-}
-
-func DuplicateEntityErrorMessage(typeName string) string {
-	return fmt.Sprintf("entities must not be shared types, but the entity named '%s' is duplicated in other subgraph(s)", typeName)
 }

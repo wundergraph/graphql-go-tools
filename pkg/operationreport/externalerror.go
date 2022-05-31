@@ -274,8 +274,8 @@ func ErrSharedTypesMustBeIdenticalToFederate(typeName string) (err ExternalError
 	return err
 }
 
-func ErrEntitiesMustNotBeSharedTypes(typeName string) (err ExternalError) {
-	err.Message = fmt.Sprintf("entities must not be shared types, but the entity named '%s' is duplicated in other subgraph(s)", typeName)
+func ErrEntitiesMustNotBeDuplicated(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the entity named '%s' is defined in the subgraph(s) more than once", typeName)
 	return err
 }
 
@@ -294,26 +294,37 @@ func ErrTypeBodyMustNotBeEmpty(definitionType, typeName string) (err ExternalErr
 	return err
 }
 
-func ErrKeyDirectiveMustHaveSingleArgument(typeName string) (err ExternalError) {
+func ErrKeyDirectiveMustHaveSingleFieldsArgument(typeName string) (err ExternalError) {
 	err.Message = fmt.Sprintf("the key directive on the entity named '%s' must have a single argument named 'fields'", typeName)
 	return err
 }
 
-func ErrPrimaryKeyReferencesMustExistOnEntity(primaryKey, typeName string) (err ExternalError) {
-	if primaryKey == "" {
-		err.Message = fmt.Sprintf("the entity or extension named '%s' contains an empty primary key", typeName)
-	} else {
-		err.Message = fmt.Sprintf("the primary key '%s' does not exist as a field on the entity named '%s'", primaryKey, typeName)
-	}
+func ErrPrimaryKeyMustNotBeEmpty(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the entity or extension named '%s' contains an empty primary key", typeName)
 	return err
 }
 
-func ErrEntityExtensionMustHaveKeyDirectiveAndExistingPrimaryKey(typeName string) (err ExternalError) {
-	err.Message = fmt.Sprintf("an extension of the entity named '%s' does not have a key directive with an existing primary key", typeName)
+func ErrPrimaryKeyReferencesMustExistOnEntity(primaryKey, typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the primary key '%s' does not exist as a field on the entity named '%s'", primaryKey, typeName)
+	return err
+}
+
+func ErrEntityExtensionMustHaveKeyDirective(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("an extension of the entity named '%s' does not have a key directive", typeName)
+	return err
+}
+
+func ErrEntityExtensionPrimaryKeyMustExistAsField(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("an extension of the entity named '%s' contains at least one valid primary key that does not exist as an external field on the extension", typeName)
 	return err
 }
 
 func ErrEntityExtensionPrimaryKeyFieldReferenceMustHaveExternalDirective(typeName string) (err ExternalError) {
 	err.Message = fmt.Sprintf("an extension of the entity named '%s' has a primary key whose referenced field does not have the external directive", typeName)
+	return err
+}
+
+func ErrExtensionWithKeyDirectiveMustExtendEntity(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the extension named '%s' has a key directive but there is no entity of the same name", typeName)
 	return err
 }
