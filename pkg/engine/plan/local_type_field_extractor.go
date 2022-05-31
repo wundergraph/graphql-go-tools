@@ -5,9 +5,9 @@ import (
 )
 
 const (
-	federationKeyDirectiveName      = "key"
+	FederationKeyDirectiveName      = "key"
 	federationRequireDirectiveName  = "requires"
-	federationExternalDirectiveName = "external"
+	FederationExternalDirectiveName = "external"
 )
 
 // LocalTypeFieldExtractor takes an ast.Document as input and generates the
@@ -200,13 +200,13 @@ func (e *LocalTypeFieldExtractor) getNodeInfo(node ast.Node) *nodeInformation {
 	nodeInfo, ok := e.nodeInfoMap[typeName]
 	if ok {
 		// if this node has the key directive, we need to add it to the node information
-		nodeInfo.hasKeyDirective = nodeInfo.hasKeyDirective || e.document.NodeHasDirectiveByNameString(node, federationKeyDirectiveName)
+		nodeInfo.hasKeyDirective = nodeInfo.hasKeyDirective || e.document.NodeHasDirectiveByNameString(node, FederationKeyDirectiveName)
 		return nodeInfo
 	}
 
 	nodeInfo = &nodeInformation{
 		typeName:        typeName,
-		hasKeyDirective: e.document.NodeHasDirectiveByNameString(node, federationKeyDirectiveName),
+		hasKeyDirective: e.document.NodeHasDirectiveByNameString(node, FederationKeyDirectiveName),
 		requiredFields:  make(map[string]struct{}),
 	}
 
@@ -225,7 +225,7 @@ func (e *LocalTypeFieldExtractor) isRootNode(nodeInfo *nodeInformation) bool {
 func (e *LocalTypeFieldExtractor) collectFieldDefinitions(node ast.Node, nodeInfo *nodeInformation) {
 	for _, ref := range e.document.NodeFieldDefinitions(node) {
 		isExternal := e.document.FieldDefinitionHasNamedDirective(ref,
-			federationExternalDirectiveName)
+			FederationExternalDirectiveName)
 
 		if isExternal {
 			nodeInfo.externalFieldRefs = append(nodeInfo.externalFieldRefs, ref)
