@@ -12,7 +12,14 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
-var N = &normalizer{}
+var testEntitySet = entitySet{"Mammal": primaryKeySet{"name": true}}
+
+func newTestNormalizer(withEntity bool) *normalizer {
+	if withEntity {
+		return &normalizer{entityValidator: &entityValidator{entitySet: testEntitySet}}
+	}
+	return &normalizer{entityValidator: &entityValidator{entitySet: entitySet{}}}
+}
 
 type composeVisitor []Visitor
 
@@ -624,7 +631,7 @@ func nonIdenticalSharedTypeMergeErrorMessage(typeName string) string {
 }
 
 func duplicateEntityMergeErrorMessage(typeName string) string {
-	return fmt.Sprintf("merge ast: walk: external: entities must not be shared types, but the entity named '%s' is duplicated in other subgraph(s), locations: [], path: []", typeName)
+	return fmt.Sprintf("merge ast: walk: external: the entity named '%s' is defined in the subgraph(s) more than once, locations: [], path: []", typeName)
 }
 
 func sharedTypeExtensionErrorMessage(typeName string) string {
@@ -660,5 +667,17 @@ func unresolvedPrimaryKeyErrorMessage(primaryKey, typeName string) string {
 }
 
 func noKeyDirectiveErrorMessage(typeName string) string {
-	return fmt.Sprintf("an extension of the entity named '%s' does not have a key directive with an existing primary key", typeName)
+	return fmt.Sprintf("an extension of the entity named '%s' does not have a key directive", typeName)
+}
+
+func validPrimaryKeyMustBeFieldErrorMessage(typeName string) string {
+	return fmt.Sprintf("an extension of the entity named '%s' contains at least one valid primary key that does not exist as an external field on the extension", typeName)
+}
+
+func nonEntityExtensionErrorMessage(typeName string) string {
+	return fmt.Sprintf("the extension named '%s' has a key directive but there is no entity of the same name", typeName)
+}
+
+func duplicateEntityErrorMessage(typeName string) string {
+	return fmt.Sprintf("the entity named '%s' is defined in the subgraph(s) more than once", typeName)
 }

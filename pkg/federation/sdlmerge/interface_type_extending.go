@@ -28,6 +28,7 @@ func (e *extendInterfaceTypeDefinitionVisitor) Register(walker *astvisitor.Walke
 
 func (e *extendInterfaceTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
 	e.document = operation
+	e.normalizer.entityValidator.setDocument(operation)
 }
 
 func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref int) {
@@ -36,7 +37,6 @@ func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref i
 	if !exists {
 		return
 	}
-
 	hasExtended := false
 	isEntity := false
 	for _, node := range nodes {
@@ -45,38 +45,39 @@ func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref i
 		}
 		if hasExtended {
 			if isEntity {
-				e.Walker.StopWithExternalErr(operationreport.ErrEntitiesMustNotBeSharedTypes(string(nameBytes)))
+				e.Walker.StopWithExternalErr(operationreport.ErrEntitiesMustNotBeDuplicated(string(nameBytes)))
 			}
 			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.InterfaceTypeExtensionNameString(ref)))
 		}
-		isEntity = e.assessValidEntity(ref, nameBytes)
+		isEntity = e.isEntity(ref, nameBytes)
 		e.document.ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(node.Ref, ref)
 		hasExtended = true
 	}
-
 	if !hasExtended {
 		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.InterfaceTypeExtensionNameBytes(ref)))
 	}
 }
 
-func (e extendInterfaceTypeDefinitionVisitor) getWalker() *astvisitor.Walker {
-	return e.Walker
-}
-
-func (e extendInterfaceTypeDefinitionVisitor) getDocument() *ast.Document {
-	return e.document
-}
-
-func (e extendInterfaceTypeDefinitionVisitor) assessValidEntity(ref int, nameBytes []byte) bool {
+func (e *extendInterfaceTypeDefinitionVisitor) isEntity(ref int, nameBytes []byte) bool {
 	extension := e.document.InterfaceTypeExtensions[ref]
+	validator := e.normalizer.entityValidator
 	name := string(nameBytes)
-	if _, exists := e.normalizer.entities[name]; !exists {
-		return false
+	if _, exists := validator.entitySet[name]; !exists {
+		if !extension.HasDirectives || !validator.isEntityExtension(extension.Directives.Refs) {
+			return false
+		}
+		e.Walker.StopWithExternalErr(operationreport.ErrExtensionWithKeyDirectiveMustExtendEntity(name))
 	}
 	if !extension.HasDirectives {
-		e.Walker.StopWithExternalErr(operationreport.ErrEntityExtensionMustHaveKeyDirectiveAndExistingPrimaryKey(name))
+		e.Walker.StopWithExternalErr(operationreport.ErrEntityExtensionMustHaveKeyDirective(name))
 	}
-	primaryKeys := getPrimaryKeys(e, e.normalizer, name, extension.Directives.Refs)
-	checkAllPrimaryKeyReferencesAreExternal(e, name, primaryKeys, extension.FieldsDefinition.Refs)
+	primaryKeys, err := validator.getPrimaryKeys(name, extension.Directives.Refs, true)
+	if err != nil {
+		e.Walker.StopWithExternalErr(*err)
+	}
+	err = validator.validateExternalPrimaryKeys(name, primaryKeys, extension.FieldsDefinition.Refs)
+	if err != nil {
+		e.Walker.StopWithExternalErr(*err)
+	}
 	return true
 }

@@ -4,7 +4,7 @@ import "testing"
 
 func TestExtendInterfaceType(t *testing.T) {
 	t.Run("extend simple interface type by field", func(t *testing.T) {
-		run(t, newExtendInterfaceTypeDefinition(N), `
+		run(t, newExtendInterfaceTypeDefinition(newTestNormalizer(false)), `
 			interface Mammal {
 				name: String
 			}
@@ -25,7 +25,7 @@ func TestExtendInterfaceType(t *testing.T) {
 	})
 
 	t.Run("extend simple interface type by directive", func(t *testing.T) {
-		run(t, newExtendInterfaceTypeDefinition(N), `
+		run(t, newExtendInterfaceTypeDefinition(newTestNormalizer(false)), `
 			interface Mammal {
 				name: String
 			}
@@ -41,7 +41,7 @@ func TestExtendInterfaceType(t *testing.T) {
 	})
 
 	t.Run("extend interface type by complex extends", func(t *testing.T) {
-		run(t, newExtendInterfaceTypeDefinition(N), `
+		run(t, newExtendInterfaceTypeDefinition(newTestNormalizer(false)), `
 			interface Mammal {
 				name: String
 			}
@@ -65,7 +65,7 @@ func TestExtendInterfaceType(t *testing.T) {
 	})
 
 	t.Run("Extending an interface that is a shared type returns an error", func(t *testing.T) {
-		runAndExpectError(t, newExtendInterfaceTypeDefinition(N), `
+		runAndExpectError(t, newExtendInterfaceTypeDefinition(newTestNormalizer(false)), `
 			interface Mammal {
 				name: String
 			}
@@ -82,7 +82,7 @@ func TestExtendInterfaceType(t *testing.T) {
 	})
 
 	t.Run("Unresolved interface extension orphan returns an error", func(t *testing.T) {
-		runAndExpectError(t, newExtendInterfaceTypeDefinition(N), `
+		runAndExpectError(t, newExtendInterfaceTypeDefinition(newTestNormalizer(false)), `
 			extend interface Mammal {
 				name: String!
 			}
@@ -90,7 +90,7 @@ func TestExtendInterfaceType(t *testing.T) {
 	})
 
 	t.Run("Entity is extended successfully", func(t *testing.T) {
-		run(t, newExtendInterfaceTypeDefinition(&normalizer{nil, map[string]map[string]bool{"Mammal": {"name": true}}}), `
+		run(t, newExtendInterfaceTypeDefinition(newTestNormalizer(true)), `
 			 interface Mammal @key(fields: "name") {
 				name: String!
 			}
@@ -115,7 +115,7 @@ func TestExtendInterfaceType(t *testing.T) {
 	})
 
 	t.Run("Primary key field reference without an external directive returns an error", func(t *testing.T) {
-		runAndExpectError(t, newExtendInterfaceTypeDefinition(&normalizer{nil, map[string]map[string]bool{"Mammal": {"name": true}}}), `
+		runAndExpectError(t, newExtendInterfaceTypeDefinition(newTestNormalizer(true)), `
 			 interface Mammal @key(fields: "name") {
 				name: String!
 			}
@@ -128,7 +128,7 @@ func TestExtendInterfaceType(t *testing.T) {
 	})
 
 	t.Run("Multiple arguments in a key directive returns an error", func(t *testing.T) {
-		runAndExpectError(t, newExtendInterfaceTypeDefinition(&normalizer{nil, map[string]map[string]bool{"Mammal": {"name": true}}}), `
+		runAndExpectError(t, newExtendInterfaceTypeDefinition(newTestNormalizer(true)), `
 			 interface Mammal @key(fields: "name") {
 				name: String!
 			}
@@ -141,7 +141,7 @@ func TestExtendInterfaceType(t *testing.T) {
 	})
 
 	t.Run("Incorrect argument in a key directive returns an error", func(t *testing.T) {
-		runAndExpectError(t, newExtendInterfaceTypeDefinition(&normalizer{nil, map[string]map[string]bool{"Mammal": {"name": true}}}), `
+		runAndExpectError(t, newExtendInterfaceTypeDefinition(newTestNormalizer(true)), `
 			 interface Mammal @key(fields: "name") {
 				name: String!
 			}
@@ -154,7 +154,7 @@ func TestExtendInterfaceType(t *testing.T) {
 	})
 
 	t.Run("Empty primary key in key directive returns an error", func(t *testing.T) {
-		runAndExpectError(t, newExtendInterfaceTypeDefinition(&normalizer{nil, map[string]map[string]bool{"Mammal": {"name": true}}}), `
+		runAndExpectError(t, newExtendInterfaceTypeDefinition(newTestNormalizer(true)), `
 			 interface Mammal @key(fields: "name") {
 				name: String!
 			}
@@ -167,7 +167,7 @@ func TestExtendInterfaceType(t *testing.T) {
 	})
 
 	t.Run("Unresolved primary key in key directive returns an error", func(t *testing.T) {
-		runAndExpectError(t, newExtendInterfaceTypeDefinition(&normalizer{nil, map[string]map[string]bool{"Mammal": {"name": true}}}), `
+		runAndExpectError(t, newExtendInterfaceTypeDefinition(newTestNormalizer(true)), `
 			 interface Mammal @key(fields: "name") {
 				name: String!
 			}
@@ -179,8 +179,8 @@ func TestExtendInterfaceType(t *testing.T) {
 		`, unresolvedPrimaryKeyErrorMessage("coat", "Mammal"))
 	})
 
-	t.Run("No key directive when extending an entity returns an error", func(t *testing.T) {
-		runAndExpectError(t, newExtendInterfaceTypeDefinition(&normalizer{nil, map[string]map[string]bool{"Mammal": {"name": true}}}), `
+	t.Run("No key directive on entity extension returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendInterfaceTypeDefinition(newTestNormalizer(true)), `
 			 interface Mammal @key(fields: "name") {
 				name: String!
 			}
@@ -192,8 +192,21 @@ func TestExtendInterfaceType(t *testing.T) {
 		`, noKeyDirectiveErrorMessage("Mammal"))
 	})
 
+	t.Run("Non-key directive when extending an entity returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendInterfaceTypeDefinition(newTestNormalizer(true)), `
+			 interface Mammal @key(fields: "name") {
+				name: String!
+			}
+			
+			extend interface Mammal @deprecated {
+				name: String! @external
+				age: Int!
+			}
+		`, noKeyDirectiveErrorMessage("Mammal"))
+	})
+
 	t.Run("Extending multiple entities returns an error", func(t *testing.T) {
-		runAndExpectError(t, newExtendInterfaceTypeDefinition(&normalizer{nil, map[string]map[string]bool{"Mammal": {"name": true}}}), `
+		runAndExpectError(t, newExtendInterfaceTypeDefinition(newTestNormalizer(true)), `
 			 interface Mammal @key(fields: "name") {
 				name: String!
 			}
@@ -206,6 +219,31 @@ func TestExtendInterfaceType(t *testing.T) {
 				name: String! @external
 				age: Int!
 			}
-		`, DuplicateEntityErrorMessage("Mammal"))
+		`, duplicateEntityErrorMessage("Mammal"))
+	})
+
+	t.Run("A valid primary key whose reference does not exist as an external field returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendInterfaceTypeDefinition(newTestNormalizer(true)), `
+			 interface Mammal @key(fields: "name") {
+				name: String!
+			}
+			
+			extend interface Mammal @key(fields: "name") {
+				age: Int!
+			}
+		`, validPrimaryKeyMustBeFieldErrorMessage("Mammal"))
+	})
+
+	t.Run("A non-entity that is extended by an extension with a key directive returns an error", func(t *testing.T) {
+		runAndExpectError(t, newExtendInterfaceTypeDefinition(newTestNormalizer(false)), `
+			 interface Mammal {
+				name: String!
+			}
+			
+			extend interface Mammal @key(fields: "name") {
+				name: String! @external
+				age: Int!
+			}
+		`, nonEntityExtensionErrorMessage("Mammal"))
 	})
 }
