@@ -43,10 +43,7 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 			continue
 		}
 		if hasExtended {
-			if isEntity {
-				e.Walker.StopWithExternalErr(operationreport.ErrEntitiesMustNotBeDuplicated(string(nameBytes)))
-			}
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(string(nameBytes)))
+			e.Walker.StopWithExternalErr(*getMultipleExtensionError(isEntity, nameBytes))
 		}
 		isEntity = e.isEntity(ref, nameBytes)
 		e.document.ExtendObjectTypeDefinitionByObjectTypeExtension(nodes[i].Ref, ref)

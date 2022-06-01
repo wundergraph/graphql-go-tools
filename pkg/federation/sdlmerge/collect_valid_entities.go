@@ -35,7 +35,6 @@ func (c *collectValidEntitiesVisitor) EnterInterfaceTypeDefinition(ref int) {
 	if !interfaceType.HasDirectives {
 		return
 	}
-
 	name := c.document.InterfaceTypeDefinitionNameString(ref)
 	c.resolveEntity(name, interfaceType.Directives.Refs, interfaceType.FieldsDefinition.Refs)
 }
@@ -45,7 +44,6 @@ func (c *collectValidEntitiesVisitor) EnterObjectTypeDefinition(ref int) {
 	if !objectType.HasDirectives {
 		return
 	}
-
 	name := c.document.ObjectTypeDefinitionNameString(ref)
 	c.resolveEntity(name, objectType.Directives.Refs, objectType.FieldsDefinition.Refs)
 }
@@ -55,7 +53,6 @@ func (c *collectValidEntitiesVisitor) resolveEntity(name string, directiveRefs [
 	if _, exists := validator.entitySet[name]; exists {
 		c.Walker.StopWithExternalErr(operationreport.ErrEntitiesMustNotBeDuplicated(name))
 	}
-
 	primaryKeys, err := validator.getPrimaryKeys(name, directiveRefs, false)
 	if err != nil {
 		c.Walker.StopWithExternalErr(*err)
@@ -63,7 +60,6 @@ func (c *collectValidEntitiesVisitor) resolveEntity(name string, directiveRefs [
 	if primaryKeys == nil {
 		return
 	}
-
 	validator.entitySet[name] = primaryKeys
 	validator.validatePrimaryKeyReferences(name, fieldRefs)
 }

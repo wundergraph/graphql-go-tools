@@ -42,10 +42,7 @@ func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref i
 			continue
 		}
 		if hasExtended {
-			if isEntity {
-				e.Walker.StopWithExternalErr(operationreport.ErrEntitiesMustNotBeDuplicated(string(nameBytes)))
-			}
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.InterfaceTypeExtensionNameString(ref)))
+			e.Walker.StopWithExternalErr(*getMultipleExtensionError(isEntity, nameBytes))
 		}
 		isEntity = e.isEntity(ref, nameBytes)
 		e.document.ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(node.Ref, ref)

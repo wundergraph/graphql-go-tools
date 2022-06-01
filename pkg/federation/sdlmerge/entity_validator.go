@@ -103,27 +103,29 @@ func (e *entityValidator) validateExternalPrimaryKeys(name string, primaryKeys p
 		if !isPrimaryKey {
 			continue
 		}
-		field := e.document.FieldDefinitions[fieldRef]
-		hasExternalDirective := false
-		for _, directiveRef := range field.Directives.Refs {
-			if e.document.DirectiveNameString(directiveRef) != plan.FederationExternalDirectiveName {
-				continue
-			}
-			hasExternalDirective = true
-			if !isExternalDirectiveResolved {
-				primaryKeys[fieldName] = true
-				fieldReferences -= 1
-			}
-			if fieldReferences == 0 {
-				return nil
-			}
-			break
+		if err := e.validateExternalField(fieldRef, name, fieldName, isExternalDirectiveResolved, primaryKeys); err != nil {
+			return err
 		}
-		if !hasExternalDirective {
-			err := operationreport.ErrEntityExtensionPrimaryKeyFieldReferenceMustHaveExternalDirective(name)
-			return &err
+		fieldReferences -= 1
+		if fieldReferences == 0 {
+			return nil
 		}
 	}
 	err := operationreport.ErrEntityExtensionPrimaryKeyMustExistAsField(name)
+	return &err
+}
+
+func (e *entityValidator) validateExternalField(fieldRef int, name, fieldName string, isExternalDirectiveResolved bool, primaryKeys primaryKeySet) *operationreport.ExternalError {
+	field := e.document.FieldDefinitions[fieldRef]
+	for _, directiveRef := range field.Directives.Refs {
+		if e.document.DirectiveNameString(directiveRef) != plan.FederationExternalDirectiveName {
+			continue
+		}
+		if !isExternalDirectiveResolved {
+			primaryKeys[fieldName] = true
+		}
+		return nil
+	}
+	err := operationreport.ErrEntityExtensionPrimaryKeyFieldReferenceMustHaveExternalDirective(name)
 	return &err
 }

@@ -162,3 +162,12 @@ func (m *normalizer) normalize(operation *ast.Document) error {
 
 	return nil
 }
+
+func getMultipleExtensionError(isEntity bool, nameBytes []byte) *operationreport.ExternalError {
+	if isEntity {
+		err := operationreport.ErrEntitiesMustNotBeDuplicated(string(nameBytes))
+		return &err
+	}
+	err := operationreport.ErrSharedTypesMustNotBeExtended(string(nameBytes))
+	return &err
+}
