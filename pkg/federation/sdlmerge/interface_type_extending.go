@@ -44,35 +44,15 @@ func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref i
 		if hasExtended {
 			e.Walker.StopWithExternalErr(*getMultipleExtensionError(isEntity, nameBytes))
 		}
-		isEntity = e.isEntity(ref, nameBytes)
+		var err *operationreport.ExternalError
+		extension := e.document.InterfaceTypeExtensions[ref]
+		if isEntity, err = e.normalizer.entityValidator.isEntity(nameBytes, extension.HasDirectives, extension.Directives.Refs, extension.FieldsDefinition.Refs); err != nil {
+			e.Walker.StopWithExternalErr(*err)
+		}
 		e.document.ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(node.Ref, ref)
 		hasExtended = true
 	}
 	if !hasExtended {
 		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.InterfaceTypeExtensionNameBytes(ref)))
 	}
-}
-
-func (e *extendInterfaceTypeDefinitionVisitor) isEntity(ref int, nameBytes []byte) bool {
-	extension := e.document.InterfaceTypeExtensions[ref]
-	validator := e.normalizer.entityValidator
-	name := string(nameBytes)
-	if _, exists := validator.entitySet[name]; !exists {
-		if !extension.HasDirectives || !validator.isEntityExtension(extension.Directives.Refs) {
-			return false
-		}
-		e.Walker.StopWithExternalErr(operationreport.ErrExtensionWithKeyDirectiveMustExtendEntity(name))
-	}
-	if !extension.HasDirectives {
-		e.Walker.StopWithExternalErr(operationreport.ErrEntityExtensionMustHaveKeyDirective(name))
-	}
-	primaryKeys, err := validator.getPrimaryKeys(name, extension.Directives.Refs, true)
-	if err != nil {
-		e.Walker.StopWithExternalErr(*err)
-	}
-	err = validator.validateExternalPrimaryKeys(name, primaryKeys, extension.FieldsDefinition.Refs)
-	if err != nil {
-		e.Walker.StopWithExternalErr(*err)
-	}
-	return true
 }

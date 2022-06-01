@@ -129,3 +129,27 @@ func (e *entityValidator) validateExternalField(fieldRef int, name, fieldName st
 	err := operationreport.ErrEntityExtensionPrimaryKeyFieldReferenceMustHaveExternalDirective(name)
 	return &err
 }
+
+func (e *entityValidator) isEntity(nameBytes []byte, hasDirectives bool, directiveRefs, fieldRefs []int) (bool, *operationreport.ExternalError) {
+	name := string(nameBytes)
+	if _, exists := e.entitySet[name]; !exists {
+		if !hasDirectives || !e.isEntityExtension(directiveRefs) {
+			return false, nil
+		}
+		err := operationreport.ErrExtensionWithKeyDirectiveMustExtendEntity(name)
+		return false, &err
+	}
+	if !hasDirectives {
+		err := operationreport.ErrEntityExtensionMustHaveKeyDirective(name)
+		return false, &err
+	}
+	primaryKeys, err := e.getPrimaryKeys(name, directiveRefs, true)
+	if err != nil {
+		return false, err
+	}
+	err = e.validateExternalPrimaryKeys(name, primaryKeys, fieldRefs)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
