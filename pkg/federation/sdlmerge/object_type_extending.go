@@ -45,7 +45,11 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 		if hasExtended {
 			e.Walker.StopWithExternalErr(*getMultipleExtensionError(isEntity, nameBytes))
 		}
-		isEntity = e.isEntity(ref, nameBytes)
+		var err *operationreport.ExternalError
+		extension := e.document.ObjectTypeExtensions[ref]
+		if isEntity, err = e.normalizer.entityValidator.isEntity(nameBytes, extension.HasDirectives, extension.Directives.Refs, extension.FieldsDefinition.Refs); err != nil {
+			e.Walker.StopWithExternalErr(*err)
+		}
 		e.document.ExtendObjectTypeDefinitionByObjectTypeExtension(nodes[i].Ref, ref)
 		if shouldReturn {
 			return
@@ -53,30 +57,6 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 		hasExtended = true
 	}
 	if !hasExtended {
-		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.ObjectTypeExtensionNameBytes(ref)))
+		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(nameBytes))
 	}
-}
-
-func (e *extendObjectTypeDefinitionVisitor) isEntity(ref int, nameBytes []byte) bool {
-	extension := e.document.ObjectTypeExtensions[ref]
-	validator := e.normalizer.entityValidator
-	name := string(nameBytes)
-	if _, exists := validator.entitySet[name]; !exists {
-		if !extension.HasDirectives || !validator.isEntityExtension(extension.Directives.Refs) {
-			return false
-		}
-		e.Walker.StopWithExternalErr(operationreport.ErrExtensionWithKeyDirectiveMustExtendEntity(name))
-	}
-	if !extension.HasDirectives {
-		e.Walker.StopWithExternalErr(operationreport.ErrEntityExtensionMustHaveKeyDirective(name))
-	}
-	primaryKeys, err := validator.getPrimaryKeys(name, extension.Directives.Refs, true)
-	if err != nil {
-		e.Walker.StopWithExternalErr(*err)
-	}
-	err = validator.validateExternalPrimaryKeys(name, primaryKeys, extension.FieldsDefinition.Refs)
-	if err != nil {
-		e.Walker.StopWithExternalErr(*err)
-	}
-	return true
 }
