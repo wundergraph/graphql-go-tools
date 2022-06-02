@@ -23,14 +23,16 @@ type arguments struct {
 }
 
 func usage() {
-	var msg = `Usage: kafka_pubsub [options] ...
+	var msg = `Usage: transactional_producer [options] ...
 
-Simple test tool to generate test data
+Simple test tool to utilize transactional producer API
 
 Options:
-  -h, --help     Print this message and exit.
-  -b  --broker   Apache Kafka broker to connect (default: localhost:9092).
-  -p, --product Comma seperated list of product.
+  -h, --help               Print this message and exit.
+  -b  --broker             Apache Kafka broker to connect (default: localhost:9092).
+  -p, --product            Comma seperated list of product.
+      --enable-transaction Enable transactional producer and commit after producing 10 messages.
+      --abort-transaction  Abort the initialized transaction.
 `
 	_, err := fmt.Fprintf(os.Stdout, msg)
 	if err != nil {
@@ -74,8 +76,16 @@ func main() {
 		return
 	}
 
+	if args.product == "" {
+		log.Fatalf("product cannot be empty")
+	}
+
 	if args.broker == "" {
 		args.broker = "localhost:9092"
+	}
+
+	if !args.enableTransaction && args.abortTransaction {
+		log.Fatalf("invalid configuration: abort-transaction=true")
 	}
 
 	rand.Seed(time.Now().UnixNano())
@@ -110,7 +120,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to begin a new transaction: %s", err)
 		}
-		log.Printf("Transaction has been initalized")
+		log.Printf("\nTransaction has been initialized\n\n")
 	}
 
 	topic := fmt.Sprintf("test.topic.%s", args.product)
@@ -148,7 +158,7 @@ func main() {
 			if err != nil {
 				log.Fatalf("Failed to abort the transaction: %s", err)
 			}
-			log.Printf("Transaction has been aborted")
+			log.Printf("\nTransaction has been aborted\n")
 			return
 		}
 
@@ -156,6 +166,6 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to commit produced messages: %s", err)
 		}
-		log.Printf("Produced messages have been committed")
+		log.Printf("\nProduced messages have been committed\n")
 	}
 }
