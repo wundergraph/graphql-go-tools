@@ -69,4 +69,80 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 		err := g.Validate()
 		require.Equal(t, err.Error(), "kafka_version is invalid: 1.3.5")
 	})
+
+	t.Run("Invalid SASL configuration - SASL nil", func(t *testing.T) {
+		g := &GraphQLSubscriptionOptions{
+			BrokerAddr: "localhost:9092",
+			Topic:      "foobar",
+			GroupID:    "groupid",
+			ClientID:   "clientid",
+			SASL:       SASL{},
+		}
+		g.Sanitize()
+		err := g.Validate()
+		require.NoError(t, err)
+	})
+
+	t.Run("Invalid SASL configuration - auth disabled", func(t *testing.T) {
+		g := &GraphQLSubscriptionOptions{
+			BrokerAddr: "localhost:9092",
+			Topic:      "foobar",
+			GroupID:    "groupid",
+			ClientID:   "clientid",
+			SASL: SASL{
+				Enable: false,
+			},
+		}
+		g.Sanitize()
+		err := g.Validate()
+		require.NoError(t, err)
+	})
+
+	t.Run("Invalid SASL configuration - user cannot be empty", func(t *testing.T) {
+		g := &GraphQLSubscriptionOptions{
+			BrokerAddr: "localhost:9092",
+			Topic:      "foobar",
+			GroupID:    "groupid",
+			ClientID:   "clientid",
+			SASL: SASL{
+				Enable: true,
+			},
+		}
+		g.Sanitize()
+		err := g.Validate()
+		require.Equal(t, err.Error(), "sasl.user cannot be empty")
+	})
+
+	t.Run("Invalid SASL configuration - password cannot be empty", func(t *testing.T) {
+		g := &GraphQLSubscriptionOptions{
+			BrokerAddr: "localhost:9092",
+			Topic:      "foobar",
+			GroupID:    "groupid",
+			ClientID:   "clientid",
+			SASL: SASL{
+				Enable: true,
+				User:   "foobar",
+			},
+		}
+		g.Sanitize()
+		err := g.Validate()
+		require.Equal(t, err.Error(), "sasl.password cannot be empty")
+	})
+
+	t.Run("Valid SASL configuration", func(t *testing.T) {
+		g := &GraphQLSubscriptionOptions{
+			BrokerAddr: "localhost:9092",
+			Topic:      "foobar",
+			GroupID:    "groupid",
+			ClientID:   "clientid",
+			SASL: SASL{
+				Enable:   true,
+				User:     "foobar",
+				Password: "password",
+			},
+		}
+		g.Sanitize()
+		err := g.Validate()
+		require.NoError(t, err)
+	})
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 // Possible errors with dockertest setup:
 //
 // Error: API error (404): could not find an available, non-overlapping IPv4 address pool among the defaults to assign to the network
-// Solution: docker prune network
+// Solution: docker network prune
 
 const (
 	messageTemplate   = "message-%d"
@@ -27,21 +28,24 @@ const (
 	testTopic         = "start-consuming-latest-test"
 	testConsumerGroup = "start-consuming-latest-cg"
 	testClientID      = "graphql-go-tools-test"
+	testSASLUser      = "admin"
+	testSASLPassword  = "admin-secret"
 )
 
-var basicZooKeeperEnvVars = []string{
+var defaultZooKeeperEnvVars = []string{
 	"ALLOW_ANONYMOUS_LOGIN=yes",
 }
 
-var basicKafkaEnvVars = []string{
+var defaultKafkaEnvVars = []string{
 	"KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181",
 	"ALLOW_PLAINTEXT_LISTENER=yes",
 	fmt.Sprintf("KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://%s", testBrokerAddr),
 }
 
 type kafkaBroker struct {
-	pool    *dockertest.Pool
-	network *docker.Network
+	pool            *dockertest.Pool
+	network         *docker.Network
+	kafkaRunOptions kafkaRunOptions
 }
 
 func newKafkaBroker(t *testing.T) *kafkaBroker {
@@ -69,7 +73,7 @@ func (k *kafkaBroker) startZooKeeper(t *testing.T) {
 		NetworkID:    k.network.ID,
 		Hostname:     "zookeeper",
 		ExposedPorts: []string{"2181"},
-		Env:          basicZooKeeperEnvVars,
+		Env:          defaultZooKeeperEnvVars,
 	})
 	require.NoError(t, err)
 
@@ -97,6 +101,25 @@ func (k *kafkaBroker) startZooKeeper(t *testing.T) {
 	t.Log("ZooKeeper has been started")
 }
 
+type kafkaRunOption func(k *kafkaRunOptions)
+
+type kafkaRunOptions struct {
+	envVars  []string
+	saslAuth bool
+}
+
+func withKafkaEnvVars(envVars []string) kafkaRunOption {
+	return func(k *kafkaRunOptions) {
+		k.envVars = envVars
+	}
+}
+
+func withKafkaSASLAuth() kafkaRunOption {
+	return func(k *kafkaRunOptions) {
+		k.saslAuth = true
+	}
+}
+
 func (k *kafkaBroker) startKafka(t *testing.T) *dockertest.Resource {
 	t.Log("Trying to run Kafka")
 
@@ -106,11 +129,22 @@ func (k *kafkaBroker) startKafka(t *testing.T) *dockertest.Resource {
 		Tag:        "3.0.1",
 		NetworkID:  k.network.ID,
 		Hostname:   "kafka",
-		Env:        basicKafkaEnvVars,
+		Env:        k.kafkaRunOptions.envVars,
 		PortBindings: map[docker.Port][]docker.PortBinding{
 			kafkaPort: {{HostIP: "localhost", HostPort: kafkaPort}},
 		},
 		ExposedPorts: []string{kafkaPort},
+	}, func(config *docker.HostConfig) {
+		config.AutoRemove = true
+
+		if k.kafkaRunOptions.saslAuth {
+			wd, _ := os.Getwd()
+			config.Mounts = []docker.HostMount{{
+				Target: "/opt/bitnami/kafka/config/kafka_jaas.conf",
+				Source: fmt.Sprintf("%s/testdata/kafka_jaas.conf", wd),
+				Type:   "bind",
+			}}
+		}
 	})
 	require.NoError(t, err)
 
@@ -122,6 +156,11 @@ func (k *kafkaBroker) startKafka(t *testing.T) *dockertest.Resource {
 		config := sarama.NewConfig()
 		config.Producer.Return.Successes = true
 		config.Producer.Return.Errors = true
+		if k.kafkaRunOptions.saslAuth {
+			config.Net.SASL.Enable = true
+			config.Net.SASL.User = testSASLUser
+			config.Net.SASL.Password = testSASLPassword
+		}
 		brokerAddr := fmt.Sprintf("localhost:%s", resource.GetPort(kafkaPort))
 		asyncProducer, err := sarama.NewAsyncProducer([]string{brokerAddr}, config)
 		if err != nil {
@@ -170,22 +209,37 @@ func (k *kafkaBroker) startKafka(t *testing.T) *dockertest.Resource {
 	return resource
 }
 
-func (k *kafkaBroker) start(t *testing.T) *dockertest.Resource {
+func (k *kafkaBroker) start(t *testing.T, options ...kafkaRunOption) *dockertest.Resource {
+	for _, opt := range options {
+		opt(&k.kafkaRunOptions)
+	}
+	if len(k.kafkaRunOptions.envVars) == 0 {
+		k.kafkaRunOptions.envVars = defaultKafkaEnvVars
+	}
+
 	t.Cleanup(func() {
 		require.NoError(t, k.pool.Client.RemoveNetwork(k.network.ID))
 	})
+
 	k.startZooKeeper(t)
+
 	return k.startKafka(t)
 }
 
-func testAsyncProducer(t *testing.T, addr, topic string, start, end int) {
+func testAsyncProducer(t *testing.T, options *GraphQLSubscriptionOptions, start, end int) {
 	config := sarama.NewConfig()
-	asyncProducer, err := sarama.NewAsyncProducer([]string{addr}, config)
+	if options.SASL.Enable {
+		config.Net.SASL.Enable = true
+		config.Net.SASL.User = options.SASL.User
+		config.Net.SASL.Password = options.SASL.Password
+	}
+
+	asyncProducer, err := sarama.NewAsyncProducer([]string{options.BrokerAddr}, config)
 	require.NoError(t, err)
 
 	for i := start; i < end; i++ {
 		message := &sarama.ProducerMessage{
-			Topic: topic,
+			Topic: options.Topic,
 			Value: sarama.StringEncoder(fmt.Sprintf(messageTemplate, i)),
 		}
 		asyncProducer.Input() <- message
@@ -223,6 +277,11 @@ func testStartConsumer(t *testing.T, options *GraphQLSubscriptionOptions) (*Kafk
 
 	// Start a consumer
 	saramaConfig := sarama.NewConfig()
+	if options.SASL.Enable {
+		saramaConfig.Net.SASL.Enable = true
+		saramaConfig.Net.SASL.User = options.SASL.User
+		saramaConfig.Net.SASL.Password = options.SASL.Password
+	}
 	cg, err := NewKafkaConsumerGroup(logger(), saramaConfig, options)
 	require.NoError(t, err)
 
@@ -274,7 +333,7 @@ func TestSarama_StartConsumingLatest_True(t *testing.T) {
 	// message-1
 	// ...
 	// message-9
-	testAsyncProducer(t, brokerAddr, testTopic, 0, 10)
+	testAsyncProducer(t, options, 0, 10)
 
 	consumedMessages, err := testConsumeMessages(messages, 10)
 	require.NoError(t, err)
@@ -296,7 +355,7 @@ func TestSarama_StartConsumingLatest_True(t *testing.T) {
 	// message-10
 	// ...
 	// message-19
-	testAsyncProducer(t, brokerAddr, testTopic, 10, 20)
+	testAsyncProducer(t, options, 10, 20)
 
 	// Start a new consumer with the same consumer group name
 	cg, messages = testStartConsumer(t, options)
@@ -305,7 +364,7 @@ func TestSarama_StartConsumingLatest_True(t *testing.T) {
 	// message-20
 	// ...
 	// message-29
-	testAsyncProducer(t, brokerAddr, testTopic, 20, 30)
+	testAsyncProducer(t, options, 20, 30)
 
 	consumedMessages, err = testConsumeMessages(messages, 10)
 	require.NoError(t, err)
@@ -355,7 +414,7 @@ func TestSarama_StartConsuming_And_Restart(t *testing.T) {
 	// message-1
 	// ...
 	// message-9
-	testAsyncProducer(t, brokerAddr, testTopic, 0, 10)
+	testAsyncProducer(t, options, 0, 10)
 
 	consumedMessages, err := testConsumeMessages(messages, 10)
 	require.NoError(t, err)
@@ -377,7 +436,7 @@ func TestSarama_StartConsuming_And_Restart(t *testing.T) {
 	// message-10
 	// ...
 	// message-19
-	testAsyncProducer(t, brokerAddr, testTopic, 10, 20)
+	testAsyncProducer(t, options, 10, 20)
 
 	// Start a new consumer with the same consumer group name
 	cg, messages = testStartConsumer(t, options)
@@ -386,7 +445,7 @@ func TestSarama_StartConsuming_And_Restart(t *testing.T) {
 	// message-20
 	// ...
 	// message-29
-	testAsyncProducer(t, brokerAddr, testTopic, 20, 30)
+	testAsyncProducer(t, options, 20, 30)
 
 	consumedMessages, err = testConsumeMessages(messages, 20)
 	require.NoError(t, err)
@@ -402,6 +461,59 @@ func TestSarama_StartConsuming_And_Restart(t *testing.T) {
 	}
 
 	// Stop the second consumer group
+	require.NoError(t, cg.Close())
+}
+
+func TestSarama_ConsumerGroup_SASL_Authentication(t *testing.T) {
+	kafkaEnvVars := []string{
+		"ALLOW_PLAINTEXT_LISTENER=yes",
+		"KAFKA_OPTS=-Djava.security.auth.login.config=/opt/bitnami/kafka/conf/kafka_jaas.conf",
+		"KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181",
+		"KAFKA_CFG_SASL_ENABLED_MECHANISMS=PLAIN",
+		"KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL=PLAIN",
+		fmt.Sprintf("KAFKA_CFG_LISTENERS=SASL_PLAINTEXT://:9092"),
+		fmt.Sprintf("KAFKA_CFG_ADVERTISED_LISTENERS=SASL_PLAINTEXT://%s", testBrokerAddr),
+		"KAFKA_CFG_INTER_BROKER_LISTENER_NAME=SASL_PLAINTEXT",
+	}
+	k := newKafkaBroker(t)
+	broker := k.start(t, withKafkaEnvVars(kafkaEnvVars), withKafkaSASLAuth())
+
+	brokerAddr := broker.GetHostPort(kafkaPort)
+
+	options := &GraphQLSubscriptionOptions{
+		BrokerAddr:           brokerAddr,
+		Topic:                testTopic,
+		GroupID:              testConsumerGroup,
+		ClientID:             "graphql-go-tools-test",
+		StartConsumingLatest: false,
+		SASL: SASL{
+			Enable:   true,
+			User:     testSASLUser,
+			Password: testSASLPassword,
+		},
+	}
+
+	cg, messages := testStartConsumer(t, options)
+
+	// Produce messages
+	// message-1
+	// ...
+	// message-9
+	testAsyncProducer(t, options, 0, 10)
+
+	consumedMessages, err := testConsumeMessages(messages, 10)
+	require.NoError(t, err)
+	require.Len(t, consumedMessages, 10)
+
+	// Consume messages
+	// message-1
+	// ..
+	// message-9
+	for i := 0; i < 10; i++ {
+		value := fmt.Sprintf(messageTemplate, i)
+		require.Contains(t, consumedMessages, value)
+	}
+
 	require.NoError(t, cg.Close())
 }
 
@@ -465,4 +577,31 @@ func TestSarama_Isolation_Level(t *testing.T) {
 
 		sc.Consumer.IsolationLevel = value
 	}
+}
+
+func TestSarama_Config_SASL_Authentication(t *testing.T) {
+	options := &GraphQLSubscriptionOptions{
+		BrokerAddr: testBrokerAddr,
+		Topic:      testTopic,
+		GroupID:    testConsumerGroup,
+		ClientID:   testClientID,
+		SASL: SASL{
+			Enable:   true,
+			User:     "foobar",
+			Password: "password",
+		},
+	}
+	options.Sanitize()
+	require.NoError(t, options.Validate())
+
+	kc := &KafkaConsumerGroupBridge{
+		ctx: context.Background(),
+		log: logger(),
+	}
+
+	sc, err := kc.prepareSaramaConfig(options)
+	require.NoError(t, err)
+	require.True(t, sc.Net.SASL.Enable)
+	require.Equal(t, "foobar", sc.Net.SASL.User)
+	require.Equal(t, "password", sc.Net.SASL.Password)
 }
