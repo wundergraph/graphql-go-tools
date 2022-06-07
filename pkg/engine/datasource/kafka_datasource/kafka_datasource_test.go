@@ -52,6 +52,11 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 						KafkaVersion:    testMockKafkaVersion,
 						BalanceStrategy: DefaultBalanceStrategy,
 						IsolationLevel:  DefaultIsolationLevel,
+						SASL: SASL{
+							Enable:   true,
+							User:     testSASLUser,
+							Password: testSASLPassword,
+						},
 					},
 				}),
 				Factory: &Factory{},
@@ -86,10 +91,12 @@ func TestKafkaDataSource(t *testing.T) {
 	`, "RemainingJedis", &plan.SubscriptionResponsePlan{
 		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				Input: []byte(fmt.Sprintf(`{"broker_addr":"localhost:9092","topic":"test.topic","group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s","start_consuming_latest":false,"balance_strategy":"%s","isolation_level":"%s"}`,
+				Input: []byte(fmt.Sprintf(`{"broker_addr":"localhost:9092","topic":"test.topic","group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s","start_consuming_latest":false,"balance_strategy":"%s","isolation_level":"%s","sasl":{"enable":true,"user":"%s","password":"%s"}}`,
 					testMockKafkaVersion,
 					DefaultBalanceStrategy,
 					DefaultIsolationLevel,
+					testSASLUser,
+					testSASLPassword,
 				)),
 				Source: &SubscriptionSource{
 					client: NewKafkaConsumerGroupBridge(ctx, logger()),
@@ -126,10 +133,12 @@ func TestKafkaDataSource(t *testing.T) {
 	`, "SubscriptionWithVariables", &plan.SubscriptionResponsePlan{
 		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				Input: []byte(fmt.Sprintf(`{"broker_addr":"localhost:9092","topic":"test.topic.$$0$$","group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s","start_consuming_latest":false,"balance_strategy":"%s","isolation_level":"%s"}`,
+				Input: []byte(fmt.Sprintf(`{"broker_addr":"localhost:9092","topic":"test.topic.$$0$$","group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s","start_consuming_latest":false,"balance_strategy":"%s","isolation_level":"%s","sasl":{"enable":true,"user":"%s","password":"%s"}}`,
 					testMockKafkaVersion,
 					DefaultBalanceStrategy,
 					DefaultIsolationLevel,
+					testSASLUser,
+					testSASLPassword,
 				)),
 				Variables: resolve.NewVariables(
 					&resolve.ContextVariable{
@@ -177,6 +186,11 @@ func TestKafkaDataSource(t *testing.T) {
 						KafkaVersion:    testMockKafkaVersion,
 						BalanceStrategy: DefaultBalanceStrategy,
 						IsolationLevel:  DefaultIsolationLevel,
+						SASL: SASL{
+							Enable:   true,
+							User:     testSASLUser,
+							Password: testSASLPassword,
+						},
 					},
 				}),
 				Factory: factory,
