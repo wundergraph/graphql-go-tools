@@ -7,6 +7,7 @@ import (
 const inputCoercionForListDefinition = `
 schema {
 	query: Query
+	mutation: Mutation
 }
 
 type Character {
@@ -40,6 +41,8 @@ type Query {
 	characterById(id: Int): Character
 	nestedList(ids: [[Int]]): [Character]
 	charactersByIds(ids: [Int]): [Character]
+	charactersByStringIds(ids: [String]): [Character]
+	charactersByIdScalarIds(ids: [ID]): [Character]
 	characterByInput(input: Input): Character
 	charactersByInputs(inputs: [Input]): [Character]
 	charactersByIdsNonNull(ids: [Int]!): [Character]
@@ -50,24 +53,121 @@ type Query {
 	inputWithList(input: InputWithList): Character
 	inputWithListNonNull(input: InputWithListNonNull): Character
 	inputWithListNestedList(input: InputWithListNestedList): Character
+	inputWithNestedScalar(input: InputWithNestedScalarList): String
+}
+
+type Mutation {
+  mutate(input: InputWithNestedScalarList): String
+}
+
+input InputWithNestedScalarList {
+  stringList: [String!]
+  intList: [Int!]
 }`
 
 func TestInputCoercionForList(t *testing.T) {
 	t.Run("convert integer to list of integer", func(t *testing.T) {
 		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
-query {
-  charactersByIds(ids: 1) {
-    id
-    name
-  }
-}`, ``,
+			query {
+			  charactersByIds(ids: 1) {
+				id
+				name
+			  }
+			}`, ``,
 			`
-query ($a: [Int]){
-  charactersByIds(ids: $a) {
-    id
-    name
-  }
-}`, `{}`, `{"a":[1]}`, inputCoercionForList)
+			query ($a: [Int]){
+			  charactersByIds(ids: $a) {
+				id
+				name
+			  }
+			}`, `{}`, `{"a":[1]}`, inputCoercionForList)
+	})
+
+	t.Run("strings list variants", func(t *testing.T) {
+		t.Run("convert string to list of strings", func(t *testing.T) {
+			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+				query {
+				  charactersByStringIds(ids: "id") {
+					id
+					name
+				  }
+				}`, ``,
+				`
+				query ($a: [String]){
+				  charactersByStringIds(ids: $a) {
+					id
+					name
+				  }
+				}`, `{}`, `{"a":["id"]}`, inputCoercionForList)
+		})
+
+		t.Run("convert string id to list of ID", func(t *testing.T) {
+			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+				query {
+				  charactersByIdScalarIds(ids: "id") {
+					id
+					name
+				  }
+				}`, ``,
+				`
+				query ($a: [ID]){
+				  charactersByIdScalarIds(ids: $a) {
+					id
+					name
+				  }
+				}`, `{}`, `{"a":["id"]}`, inputCoercionForList)
+		})
+
+		t.Run("convert int id to list of ID", func(t *testing.T) {
+			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+				query Q {
+				  charactersByIdScalarIds(ids: 1) {
+					id
+					name
+				  }
+				}`, `Q`,
+				`
+				query Q ($a: [ID]){
+				  charactersByIdScalarIds(ids: $a) {
+					id
+					name
+				  }
+				}`, `{}`, `{"a":[1]}`, inputCoercionForList)
+		})
+
+	})
+
+	t.Run("input with nested scalar list", func(t *testing.T) {
+		t.Skip()
+
+		t.Run("query", func(t *testing.T) {
+			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			query Q {
+				inputWithNestedScalar(input: {
+					stringList: "str",
+					intList: 1
+				}) 
+			}`,
+				`Q`,
+				`
+			query Q($a: InputWithNestedScalarList) {
+				inputWithNestedScalar(input: $a) 
+			}`, `{}`, `{"a":{"stringList":["str"],"intList":[1]}}`, inputCoercionForList)
+		})
+
+		t.Run("mutation", func(t *testing.T) {
+			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			mutation Mutate {
+				mutate(input: {
+					stringList: "str"
+				}) 
+			}`,
+				`Mutate`,
+				`
+			mutation Mutate($a: InputWithNestedScalarList) {
+				mutate(input: $a) 
+			}`, `{}`, `{"a":{"stringList":["str"]}}`, inputCoercionForList)
+		})
 	})
 
 	t.Run("list of integers", func(t *testing.T) {
@@ -433,74 +533,82 @@ query ($a: [Int!]!){
 }`, `{}`, `{"a":null}`, inputCoercionForList)
 	})
 
-	t.Run("nested variables", func(t *testing.T) {
-		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
-query ($input: InputWithList) {
-  inputWithList(input: $input) {
-    id
-    name
-  }
-}`,
-			``,
-			`
-query ($input: InputWithList) {
-  inputWithList(input: $input) {
-    id
-    name
-  }
-}`, `{"input":{"list":{"foo":"bar","list":{"foo":"bar2","list":{"nested":{"foo":"bar3","list":{"foo":"bar4"}}}}}}}`, `{"input":{"list":[{"foo":"bar","list":[{"foo":"bar2","list":[{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}]}]}]}}`)
-	})
+	t.Run("nested variants", func(t *testing.T) {
+		t.Run("nested variables", func(t *testing.T) {
+			runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+				query ($input: InputWithList) {
+				  inputWithList(input: $input) {
+					id
+					name
+				  }
+				}`,
+				``, `
+				query ($input: InputWithList) {
+				  inputWithList(input: $input) {
+					id
+					name
+				  }
+				}`,
+				`{"input":{"list":{"foo":"bar","list":{"foo":"bar2","list":{"nested":{"foo":"bar3","list":{"foo":"bar4"}}}}}}}`,
+				`{"input":{"list":[{"foo":"bar","list":[{"foo":"bar2","list":[{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}]}]}]}}`)
+		})
 
-	t.Run("nested variables, non-null", func(t *testing.T) {
-		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
-query ($input: InputWithListNonNull) {
-  inputWithListNonNull(input: $input) {
-    id
-    name
-  }
-}`,
-			``,
-			`
-query ($input: InputWithListNonNull) {
-  inputWithListNonNull(input: $input) {
-    id
-    name
-  }
-}`, `{"input":{"list":{"foo":"bar","list":{"foo":"bar2","list":{"nested":{"foo":"bar3","list":{"foo":"bar4"}}}}}}}`, `{"input":{"list":[{"foo":"bar","list":[{"foo":"bar2","list":[{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}]}]}]}}`)
-	})
+		t.Run("nested variables, non-null", func(t *testing.T) {
+			runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+				query ($input: InputWithListNonNull) {
+				  inputWithListNonNull(input: $input) {
+					id
+					name
+				  }
+				}`,
+				``, `
+				query ($input: InputWithListNonNull) {
+				  inputWithListNonNull(input: $input) {
+					id
+					name
+				  }
+				}`,
+				`{"input":{"list":{"foo":"bar","list":{"foo":"bar2","list":{"nested":{"foo":"bar3","list":{"foo":"bar4"}}}}}}}`,
+				`{"input":{"list":[{"foo":"bar","list":[{"foo":"bar2","list":[{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}]}]}]}}`)
+		})
 
-	t.Run("nested variables, list", func(t *testing.T) {
-		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
-query ($input: InputWithListNestedList) {
-  inputWithListNestedList(input: $input) {
-    id
-    name
-  }
-}`,
-			``,
-			`
-query ($input: InputWithListNestedList) {
-  inputWithListNestedList(input: $input) {
-    id
-    name
-  }
-}`, `{"input":{"list":{"foo":"bar","list":{"foo":"bar2","list":{"nested":{"foo":"bar3","list":{"foo":"bar4"}}}}}}}`, `{"input":{"list":[[{"foo":"bar","list":[[{"foo":"bar2","list":[[{"nested":{"foo":"bar3","list":[[{"foo":"bar4"}]]}}]]}]]}]]}}`)
-	})
+		t.Run("nested variables, list", func(t *testing.T) {
+			runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
+				query ($input: InputWithListNestedList) {
+				  inputWithListNestedList(input: $input) {
+					id
+					name
+				  }
+				}`,
+				``, `
+				query ($input: InputWithListNestedList) {
+				  inputWithListNestedList(input: $input) {
+					id
+					name
+				  }
+				}`,
+				`{"input":{"list":{"foo":"bar","list":{"foo":"bar2","list":{"nested":{"foo":"bar3","list":{"foo":"bar4"}}}}}}}`,
+				`{"input":{"list":[[{"foo":"bar","list":[[{"foo":"bar2","list":[[{"nested":{"foo":"bar3","list":[[{"foo":"bar4"}]]}}]]}]]}]]}}`)
+		})
 
-	t.Run("nested test with inline values", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
-query Foo {
-  inputWithList(input: {list:{foo:"bar",input:{foo:"bar2",input:{nested:{foo:"bar3",list:{foo:"bar4"}}}}}}) {
-    id
-    name
-  }
-}`, `Foo`,
-			`
-query Foo($a: InputWithList) {
-  inputWithList(input: $a) {
-    id
-    name
-  }
-}`, `{}`, `{"a":{"list":[{"foo":"bar","input":{"foo":"bar2","input":{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}}}]}}`, inputCoercionForList)
+		t.Run("nested test with inline values", func(t *testing.T) {
+			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+				query Foo {
+				  inputWithList(input: {list:{foo:"bar",input:{foo:"bar2",input:{nested:{foo:"bar3",list:{foo:"bar4"}}}}}}) {
+					id
+					name
+				  }
+				}`, `Foo`,
+				`
+				query Foo($a: InputWithList) {
+				  inputWithList(input: $a) {
+					id
+					name
+				  }
+				}`,
+				`{}`,
+				`{"a":{"list":[{"foo":"bar","input":{"foo":"bar2","input":{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}}}]}}`, inputCoercionForList)
+		})
+
 	})
 }
