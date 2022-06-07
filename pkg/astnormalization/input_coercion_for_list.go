@@ -5,11 +5,12 @@ import (
 	"strconv"
 
 	"github.com/buger/jsonparser"
+	"github.com/tidwall/sjson"
+
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
 	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
 	"github.com/jensneuse/graphql-go-tools/pkg/pool"
-	"github.com/tidwall/sjson"
 )
 
 func inputCoercionForList(walker *astvisitor.Walker) {
@@ -29,6 +30,41 @@ type inputCoercionForListVisitor struct {
 
 func (i *inputCoercionForListVisitor) EnterDocument(operation, definition *ast.Document) {
 	i.operation, i.definition = operation, definition
+}
+
+func (i *inputCoercionForListVisitor) EnterOperationDefinition(ref int) {
+	i.operationDefinitionRef = ref
+}
+
+func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
+	variableNameString := i.operation.VariableDefinitionNameString(ref)
+	variableDefinition, exists := i.operation.VariableDefinitionByNameAndOperation(i.operationDefinitionRef, i.operation.VariableValueNameBytes(ref))
+	if !exists {
+		return
+	}
+	variableTypeRef := i.operation.VariableDefinitions[variableDefinition].Type
+	variableTypeRef = i.operation.ResolveListOrNameType(variableTypeRef)
+
+	value, dataType, _, err := jsonparser.Get(i.operation.Input.Variables, variableNameString)
+	if err == jsonparser.KeyPathNotFoundError {
+		// If the user doesn't provide any variable with that name,
+		// there is no need for coercion. Stop the operation
+		return
+	}
+	if err != nil {
+		i.StopWithInternalErr(err)
+		return
+	}
+
+	switch i.operation.Types[variableTypeRef].TypeKind {
+	case ast.TypeKindList:
+		i.processVariableTypeKindList(variableTypeRef, value, variableNameString, dataType)
+	case ast.TypeKindNamed:
+		// We build a query to insert changes to the original variable
+		// Sample query: inputs.list.1.list.nested.list.1
+		query := variableNameString
+		i.processVariableTypeKindNamed(query, ref, value, dataType)
+	}
 }
 
 func (i *inputCoercionForListVisitor) inspectInputFieldType(ref int, name string) (ast.TypeKind, int) {
@@ -58,7 +94,9 @@ func (i *inputCoercionForListVisitor) inspectInputFieldType(ref int, name string
 	return ast.TypeKindUnknown, ast.InvalidRef
 }
 
-func (i *inputCoercionForListVisitor) makeJSONArray(nestingDepth int, value []byte) ([]byte, error) {
+func (i *inputCoercionForListVisitor) makeJSONArray(nestingDepth int, value []byte, dataType jsonparser.ValueType) ([]byte, error) {
+	wrapValueInQuotes := dataType == jsonparser.String
+
 	out := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(out)
 
@@ -70,9 +108,23 @@ func (i *inputCoercionForListVisitor) makeJSONArray(nestingDepth int, value []by
 		}
 	}
 
+	if wrapValueInQuotes {
+		_, err := out.Write(literal.QUOTE)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	_, err := out.Write(value)
 	if err != nil {
 		return nil, err
+	}
+
+	if wrapValueInQuotes {
+		_, err := out.Write(literal.QUOTE)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	for idx := 0; idx < nestingDepth; idx++ {
@@ -99,12 +151,12 @@ func (i *inputCoercionForListVisitor) updateQuery(dataType jsonparser.ValueType,
 	return query
 }
 
-func (i *inputCoercionForListVisitor) calculateNestingDepth(ref int) int {
+func (i *inputCoercionForListVisitor) calculateNestingDepth(document *ast.Document, typeRef int) int {
 	var nestingDepth int
-	for ref != ast.InvalidRef {
-		first := i.definition.Types[ref]
+	for typeRef != ast.InvalidRef {
+		first := document.Types[typeRef]
 
-		ref = first.OfType
+		typeRef = first.OfType
 
 		switch first.TypeKind {
 		case ast.TypeKindList:
@@ -127,8 +179,8 @@ func (i *inputCoercionForListVisitor) processVariableTypeKindNamed(query string,
 
 			// The errors returned by the callback function are handled by jsonparser.ObjectEach
 			if typeKind == ast.TypeKindList && dataType != jsonparser.Array {
-				nestingDepth := i.calculateNestingDepth(typeRef)
-				value, err := i.makeJSONArray(nestingDepth, value)
+				nestingDepth := i.calculateNestingDepth(i.definition, typeRef)
+				value, err := i.makeJSONArray(nestingDepth, value, dataType)
 				if err != nil {
 					return err
 				}
@@ -173,20 +225,9 @@ func (i *inputCoercionForListVisitor) processVariableTypeKindList(variableTypeRe
 
 	// Calculate the nesting depth of variable definition
 	// For example: [[Int]], nestingDepth = 2
-	ofType := variableTypeRef
-	var nestingDepth int
-	for ofType != ast.InvalidRef {
-		first := i.operation.Types[ofType]
-		ofType = first.OfType
-		switch first.TypeKind {
-		case ast.TypeKindList:
-			nestingDepth++
-		default:
-			continue
-		}
-	}
+	nestingDepth := i.calculateNestingDepth(i.operation, variableTypeRef)
 
-	data, err := i.makeJSONArray(nestingDepth, value)
+	data, err := i.makeJSONArray(nestingDepth, value, dataType)
 	if err != nil {
 		i.StopWithInternalErr(err)
 		return
@@ -196,39 +237,4 @@ func (i *inputCoercionForListVisitor) processVariableTypeKindList(variableTypeRe
 		i.StopWithInternalErr(err)
 		return
 	}
-}
-
-func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
-	variableNameString := i.operation.VariableDefinitionNameString(ref)
-	variableDefinition, exists := i.operation.VariableDefinitionByNameAndOperation(i.operationDefinitionRef, i.operation.VariableValueNameBytes(ref))
-	if !exists {
-		return
-	}
-	variableTypeRef := i.operation.VariableDefinitions[variableDefinition].Type
-	variableTypeRef = i.operation.ResolveListOrNameType(variableTypeRef)
-
-	value, dataType, _, err := jsonparser.Get(i.operation.Input.Variables, variableNameString)
-	if err == jsonparser.KeyPathNotFoundError {
-		// If the user doesn't provide any variable with that name,
-		// there is no need for coercion. Stop the operation
-		return
-	}
-	if err != nil {
-		i.StopWithInternalErr(err)
-		return
-	}
-
-	switch i.operation.Types[variableTypeRef].TypeKind {
-	case ast.TypeKindList:
-		i.processVariableTypeKindList(variableTypeRef, value, variableNameString, dataType)
-	case ast.TypeKindNamed:
-		// We build a query to insert changes to the original variable
-		// Sample query: inputs.list.1.list.nested.list.1
-		query := variableNameString
-		i.processVariableTypeKindNamed(query, ref, value, dataType)
-	}
-}
-
-func (i *inputCoercionForListVisitor) EnterOperationDefinition(ref int) {
-	i.operationDefinitionRef = ref
 }
