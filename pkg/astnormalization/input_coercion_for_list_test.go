@@ -57,7 +57,18 @@ type Query {
 }
 
 type Mutation {
-  mutate(input: InputWithNestedScalarList): String
+	mutate(input: InputWithNestedScalarList): String
+	mutateNested(input: Nested): String
+	mutateDeepNested(input: DeepNested): String
+    mutateWithList(input: [InputWithNestedScalarList]): String
+}
+
+input DeepNested {
+  deepNested: Nested
+}
+
+input Nested {
+  nested: InputWithNestedScalarList
 }
 
 input InputWithNestedScalarList {
@@ -138,7 +149,6 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("input with nested scalar list", func(t *testing.T) {
-		t.Skip()
 
 		t.Run("query", func(t *testing.T) {
 			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
@@ -155,6 +165,23 @@ func TestInputCoercionForList(t *testing.T) {
 			}`, `{}`, `{"a":{"stringList":["str"],"intList":[1]}}`, inputCoercionForList)
 		})
 
+		t.Run("query with null values", func(t *testing.T) {
+			// t.Skip()
+
+			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			query Q {
+				inputWithNestedScalar(input: {
+					stringList: null,
+					intList: null
+				}) 
+			}`,
+				`Q`,
+				`
+			query Q($a: InputWithNestedScalarList) {
+				inputWithNestedScalar(input: $a) 
+			}`, `{}`, `{"a":{"stringList":null,"intList":null}}`, inputCoercionForList)
+		})
+
 		t.Run("mutation", func(t *testing.T) {
 			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
 			mutation Mutate {
@@ -167,6 +194,54 @@ func TestInputCoercionForList(t *testing.T) {
 			mutation Mutate($a: InputWithNestedScalarList) {
 				mutate(input: $a) 
 			}`, `{}`, `{"a":{"stringList":["str"]}}`, inputCoercionForList)
+		})
+
+		t.Run("mutation with list", func(t *testing.T) {
+			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			mutation Mutate {
+				mutate(input: {
+					stringList: "str"
+				}) 
+			}`,
+				`Mutate`,
+				`
+			mutation Mutate($a: [InputWithNestedScalarList]) {
+				mutate(input: $a) 
+			}`, `{}`, `{"a":[{"stringList":["str"]}]}`, inputCoercionForList)
+		})
+
+		t.Run("mutation nested", func(t *testing.T) {
+			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			mutation Mutate {
+				mutateNested(input: {
+					nested: {
+						stringList: "str"
+					}
+				}) 
+			}`,
+				`Mutate`,
+				`
+			mutation Mutate($a: Nested) {
+				mutateNested(input: $a) 
+			}`, `{}`, `{"a":{"nested":{"stringList":["str"]}}}`, inputCoercionForList)
+		})
+
+		t.Run("mutation deep nested", func(t *testing.T) {
+			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			mutation Mutate {
+				mutateDeepNested(input: {
+					deepNested: {
+						nested: {
+							stringList: "str"
+						}
+					}
+				}) 
+			}`,
+				`Mutate`,
+				`
+			mutation Mutate($a: DeepNested) {
+				mutateDeepNested(input: $a) 
+			}`, `{}`, `{"a":{"deepNested":{"nested":{"stringList":["str"]}}}}`, inputCoercionForList)
 		})
 	})
 
