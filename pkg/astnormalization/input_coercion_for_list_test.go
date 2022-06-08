@@ -33,7 +33,7 @@ input InputWithListNonNull {
 
 input InputWithListNestedList {
 	foo: String
-	list: [[InputWithList]]
+	doubleList: [[InputWithList]]
 	nested: InputWithList
 }
 
@@ -660,14 +660,14 @@ query ($a: [Int!]!){
 					name
 				  }
 				}`,
-				`{"input":{"list":{"foo":"bar","list":{"foo":"bar2","list":{"nested":{"foo":"bar3","list":{"foo":"bar4"}}}}}}}`,
-				`{"input":{"list":[[{"foo":"bar","list":[[{"foo":"bar2","list":[[{"nested":{"foo":"bar3","list":[[{"foo":"bar4"}]]}}]]}]]}]]}}`)
+				`{"input":{"doubleList":{"foo":"bar","list":{"foo":"bar2","list":{"nested":{"foo":"bar3","list":{"foo":"bar4"}}}}}}}`,
+				`{"input":{"doubleList":[[{"foo":"bar","list":[{"foo":"bar2","list":[{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}]}]}]]}}`)
 		})
 
 		t.Run("nested test with inline values", func(t *testing.T) {
 			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
 				query Foo {
-				  inputWithList(input: {list:{foo:"bar",input:{foo:"bar2",input:{nested:{foo:"bar3",list:{foo:"bar4"}}}}}}) {
+				  inputWithList(input: {list:{foo:"bar",list:{foo:"bar2",list:{nested:{foo:"bar3",list:{foo:"bar4"}}}}}}) {
 					id
 					name
 				  }
@@ -680,7 +680,7 @@ query ($a: [Int!]!){
 				  }
 				}`,
 				`{}`,
-				`{"a":{"list":[{"foo":"bar","input":{"foo":"bar2","input":{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}}}]}}`, inputCoercionForList)
+				`{"a":{"list":[{"foo":"bar","list":[{"foo":"bar2","list":[{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}]}]}]}}`, inputCoercionForList)
 		})
 
 	})
