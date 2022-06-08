@@ -196,17 +196,17 @@ func TestInputCoercionForList(t *testing.T) {
 			}`, `{}`, `{"a":{"stringList":["str"]}}`, inputCoercionForList)
 		})
 
-		t.Run("mutation with list", func(t *testing.T) {
+		t.Run("mutation with list of inputs with nested list fields", func(t *testing.T) {
 			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
 			mutation Mutate {
-				mutate(input: {
+				mutateWithList(input: {
 					stringList: "str"
 				}) 
 			}`,
 				`Mutate`,
 				`
 			mutation Mutate($a: [InputWithNestedScalarList]) {
-				mutate(input: $a) 
+				mutateWithList(input: $a) 
 			}`, `{}`, `{"a":[{"stringList":["str"]}]}`, inputCoercionForList)
 		})
 
@@ -537,9 +537,7 @@ query ($a: [[Int]!]){
 }`, `{}`, `{"a":[[1]]}`, inputCoercionForList)
 	})
 
-	t.Run("send list of integers as variable input, remains untouched", func(t *testing.T) {
-		// [1] is an invalid input for nestedList(ids: [[Int]]). It should be handled by the
-		// validator.
+	t.Run("send list of integers as variable input", func(t *testing.T) {
 		runWithVariablesAssert(t, inputCoercionForList, inputCoercionForListDefinition, `
 query ($ids: [[Int]]) {
   nestedList(ids: $ids) {
@@ -554,7 +552,7 @@ query ($ids: [[Int]]) {
     id
     name
   }
-}`, `{"ids":[1]}`, `{"ids":[1]}`)
+}`, `{"ids":[1]}`, `{"ids":[[1]]}`)
 	})
 
 	t.Run("send inline null to charactersByIdsNonNull", func(t *testing.T) {
