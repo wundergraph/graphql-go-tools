@@ -187,8 +187,7 @@ we could have data as:
 */
 
 func (i *inputCoercionForListVisitor) walkJsonObject(inputObjDefTypeRef int, data []byte) {
-	var err error
-	err = jsonparser.ObjectEach(data, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	err := jsonparser.ObjectEach(data, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		i.updateQuery(string(key))
 		defer i.popQuery()
 
