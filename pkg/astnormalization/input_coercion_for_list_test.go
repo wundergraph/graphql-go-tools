@@ -61,6 +61,8 @@ type Mutation {
 	mutateNested(input: Nested): String
 	mutateDeepNested(input: DeepNested): String
     mutateWithList(input: [InputWithNestedScalarList]): String
+	mutateNestedExtremeList(input: ExtremeNesting): String
+    mutateMultiArg(arg1: InputWithNestedScalarList, arg2: InputWithNestedScalarList): String
 }
 
 input DeepNested {
@@ -69,6 +71,10 @@ input DeepNested {
 
 input Nested {
   nested: InputWithNestedScalarList
+}
+
+input ExtremeNesting {
+  nested: [[[[[InputWithNestedScalarList]]]]]
 }
 
 input InputWithNestedScalarList {
@@ -149,7 +155,6 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("input with nested scalar list", func(t *testing.T) {
-
 		t.Run("query", func(t *testing.T) {
 			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
 			query Q {
@@ -166,8 +171,6 @@ func TestInputCoercionForList(t *testing.T) {
 		})
 
 		t.Run("query with null values", func(t *testing.T) {
-			// t.Skip()
-
 			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
 			query Q {
 				inputWithNestedScalar(input: {
@@ -210,6 +213,41 @@ func TestInputCoercionForList(t *testing.T) {
 			}`, `{}`, `{"a":[{"stringList":["str"]}]}`, inputCoercionForList)
 		})
 
+		t.Run("mutation: should coerse each nested field of element of a list", func(t *testing.T) {
+			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			mutation Mutate {
+				mutateWithList(input: [
+					{stringList: "str"},
+					{intList: 1}
+				]) 
+			}`,
+				`Mutate`,
+				`
+			mutation Mutate($a: [InputWithNestedScalarList]) {
+				mutateWithList(input: $a) 
+			}`, `{}`, `{"a":[{"stringList":["str"]},{"intList":[1]}]}`, inputCoercionForList)
+		})
+
+		t.Run("mutation list items as variables", func(t *testing.T) {
+			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			mutation Mutate($a: InputWithNestedScalarList, $b: InputWithNestedScalarList) {
+				mutateWithList(input: [
+					$a,
+					$b
+				])
+			}`,
+				`Mutate`,
+				`
+			mutation Mutate($a: InputWithNestedScalarList, $b: InputWithNestedScalarList) {
+				mutateWithList(input: [
+					$a,
+					$b
+				]) 
+			}`,
+				`{"a":{"stringList":"str"},"b":{"intList":1}}`,
+				`{"a":{"stringList":["str"]},"b":{"intList":[1]}}`, inputCoercionForList)
+		})
+
 		t.Run("mutation nested", func(t *testing.T) {
 			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
 			mutation Mutate {
@@ -243,6 +281,35 @@ func TestInputCoercionForList(t *testing.T) {
 				mutateDeepNested(input: $a) 
 			}`, `{}`, `{"a":{"deepNested":{"nested":{"stringList":["str"]}}}}`, inputCoercionForList)
 		})
+
+		t.Run("mutation deep nested in extreme list", func(t *testing.T) {
+			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			mutation Mutate {
+				mutateNestedExtremeList(input: {
+					nested: {
+						stringList: "str"
+					}
+				}) 
+			}`,
+				`Mutate`,
+				`
+			mutation Mutate($a: ExtremeNesting) {
+				mutateNestedExtremeList(input: $a) 
+			}`, `{}`, `{"a":{"nested":[[[[[{"stringList":["str"]}]]]]]}}`, inputCoercionForList)
+		})
+
+		t.Run("mutation multi arg", func(t *testing.T) {
+			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			mutation Mutate {
+				mutateMultiArg(arg1: {stringList: "str"}, arg2: {intList: 1})
+			}`,
+				`Mutate`,
+				`
+			mutation Mutate($a: InputWithNestedScalarList, $b: InputWithNestedScalarList) {
+				mutateMultiArg(arg1: $a, arg2: $b) 
+			}`, `{}`, `{"b":{"intList":[1]},"a":{"stringList":["str"]}}`, inputCoercionForList)
+		})
+
 	})
 
 	t.Run("list of integers", func(t *testing.T) {
@@ -396,6 +463,23 @@ query ($a: [Input]){
     name
   }
 }`, `{}`, `{"a":[{"foo":"bar"}]}`, inputCoercionForList)
+	})
+
+	t.Run("list of object type to list of object type remains unchanged", func(t *testing.T) {
+		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+query {
+  charactersByInputs(inputs: [{ foo: "bar" },{ foo: "bazz" }]) {
+    id
+    name
+  }
+}`, ``,
+			`
+query ($a: [Input]){
+  charactersByInputs(inputs: $a) {
+    id
+    name
+  }
+}`, `{}`, `{"a":[{"foo":"bar"},{"foo":"bazz"}]}`, inputCoercionForList)
 	})
 
 	t.Run("object type definition", func(t *testing.T) {

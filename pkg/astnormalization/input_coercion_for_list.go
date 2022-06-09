@@ -212,13 +212,15 @@ func (i *inputCoercionForListVisitor) walkJsonObject(inputObjDefTypeRef int, dat
 }
 
 func (i *inputCoercionForListVisitor) walkJsonArray(document *ast.Document, listItemTypeRef int, data []byte) {
+	index := -1
 	_, err := jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, cbErr error) {
 		if cbErr != nil {
 			i.StopWithInternalErr(cbErr)
 			return
 		}
+		index++
 
-		i.updateQuery(strconv.Itoa(offset - 1))
+		i.updateQuery(strconv.Itoa(index))
 		defer i.popQuery()
 
 		itemTypeRef := document.ResolveListOrNameType(listItemTypeRef)
