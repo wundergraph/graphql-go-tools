@@ -19,7 +19,7 @@ _fetch 1:_
    "url":"http://localhost:4003",
    "body":{
      "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}",
-     "variables":{"representations":[{"upc":"top-1","__typename":"Product"}]
+     "variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}
    }
  }
 ```

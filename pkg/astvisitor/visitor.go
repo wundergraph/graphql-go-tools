@@ -3581,6 +3581,10 @@ func (w *Walker) StopWithErr(internal error, external operationreport.ExternalEr
 	w.Report.AddExternalError(external)
 }
 
+func (w *Walker) ParentDefinition() ast.Node {
+	return w.typeDefinitions[len(w.typeDefinitions)-1]
+}
+
 func (w *Walker) ArgumentInputValueDefinition(argument int) (definition int, exits bool) {
 	argumentName := w.document.ArgumentNameBytes(argument)
 	ancestor := w.Ancestors[len(w.Ancestors)-1]

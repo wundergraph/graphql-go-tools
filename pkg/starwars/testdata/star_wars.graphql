@@ -10,6 +10,7 @@ type Query {
     hero: Character @deprecated
     droid(id: ID!): Droid
     search(name: String!): SearchResult
+    getBookmarks(bookmarkInput: BookmarkInput!): [Episode!]!
 }
 
 type Mutation {
@@ -18,6 +19,11 @@ type Mutation {
 
 type Subscription {
     remainingJedis: Int!
+}
+
+input BookmarkInput {
+    bookmarkName: String! = "default"
+    filter: String
 }
 
 input ReviewInput {

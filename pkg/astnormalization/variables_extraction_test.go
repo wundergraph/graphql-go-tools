@@ -54,6 +54,34 @@ func TestVariablesExtraction(t *testing.T) {
 			  }
 			}`, ``, `{"a":{"foo":"bar"}}`)
 	})
+	t.Run("extract variable input default value", func(t *testing.T) {
+		runWithVariables(t, extractVariables, warehouseExampleSchema, `
+			mutation {
+    			addToWarehouse(detail: {item: "food can"})
+			}`, "", `
+			mutation($a: AddWarehouseInput){
+				addToWarehouse(detail: $a)
+			}`, ``, `{"a":{"item":"food can","count":1}}`)
+	})
+	t.Run("use passed value instead of default value", func(t *testing.T) {
+		runWithVariables(t, extractVariables, warehouseExampleSchema, `
+			mutation {
+    			addToWarehouse(detail: {item: "food can", count: 2})
+			}`, "", `
+			mutation($a: AddWarehouseInput){
+				addToWarehouse(detail: $a)
+			}`, ``, `{"a":{"item":"food can","count":2}}`)
+	})
+	t.Run("extract variable input nested", func(t *testing.T) {
+		runWithVariables(t, extractVariables, warehouseExampleSchema, `
+		mutation {
+    		sortWarehouse(in: {item: {row: 2}})
+		}`, "", `
+		mutation($a: SortWarehouseItemInput){
+			sortWarehouse(in: $a)
+		}
+`, "", `{"a":{"item":{"row":2,"column":"default"}}}`)
+	})
 	t.Run("enum", func(t *testing.T) {
 		runWithVariables(t, extractVariables, forumExampleSchema, `
 			mutation EnumOperation {
@@ -298,6 +326,31 @@ func TestVariablesExtraction(t *testing.T) {
 			}`, `{}`, `{"c":"lucky7|UAE","b":1,"a":false}`)
 	})
 }
+
+const warehouseExampleSchema = `
+schema {
+    mutation: Mutation
+}
+
+type Mutation {
+    addToWarehouse(detail: AddWarehouseInput): Boolean!
+    sortWarehouse(in: SortWarehouseItemInput): Boolean!
+}
+
+input AddWarehouseInput {
+    item: String!
+    count: Int! = 1
+}
+
+input SortWarehouseItemInput {
+    item: SortItem!
+}
+
+input SortItem {
+    column: String! = "default"
+    row: Int!
+}
+`
 
 const forumExampleSchema = `
 schema {

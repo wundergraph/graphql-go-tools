@@ -149,6 +149,15 @@ func (d *Document) TypeIsScalar(ref int, definition *Document) bool {
 	return false
 }
 
+func (d *Document) BaseType(ref int) int {
+	switch d.Types[ref].TypeKind {
+	case TypeKindNonNull:
+		return d.BaseType(d.Types[ref].OfType)
+	default:
+		return ref
+	}
+}
+
 func (d *Document) TypeIsEnum(ref int, definition *Document) bool {
 	switch d.Types[ref].TypeKind {
 	case TypeKindNamed:

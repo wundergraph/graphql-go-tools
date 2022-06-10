@@ -212,6 +212,16 @@ func TestNormalizeOperation(t *testing.T) {
 			  simple(input: $a)
 			}`, ``, `{"a":"foo"}`)
 	})
+	t.Run("input object field default value coercion", func(t *testing.T) {
+		run(t, testDefinition, `
+			query {
+				findDogNonOptionalDefault(complex: {}) {
+					name
+				}
+			}`, `query($a:ComplexNonOptionalDefaultInput) {
+				findDogNonOptionalDefault(complex: $a)
+			}`, ``, `{"a":{"name":"default"}}`)
+	})
 	t.Run("input list coercion inline", func(t *testing.T) {
 		run(t, inputCoercionForListDefinition, `
 			query Foo {
@@ -528,6 +538,7 @@ type Subscription {
 
 input ComplexInput { name: String, owner: String }
 input ComplexNonOptionalInput { name: String! }
+input ComplexNonOptionalDefaultInput { name: String! = "default" }
 
 type Field {
 	subfieldA: String
@@ -545,6 +556,7 @@ type Query {
 	arguments: ValidArguments
 	findDog(complex: ComplexInput): Dog
 	findDogNonOptional(complex: ComplexNonOptionalInput): Dog
+	findDogNonOptionalDefault(complex: ComplexNonOptionalDefaultInput!): Dog
   	booleanList(booleanListArg: [Boolean!]): Boolean
 	extra: Extra
 	field: Field

@@ -32,6 +32,7 @@ const (
 	FileMultiQueries               = "testdata/queries/multi_queries.query"
 	FileMultiQueriesWithArguments  = "testdata/queries/multi_queries_with_arguments.query"
 	FileInvalidQuery               = "testdata/queries/invalid.query"
+	FileDefaultInputField          = "testdata/queries/default_input_field.query"
 )
 
 var (

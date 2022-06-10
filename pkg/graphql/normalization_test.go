@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"errors"
+	"github.com/buger/jsonparser"
 	"testing"
 
 	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeprinter"
@@ -24,6 +25,23 @@ func TestRequest_Normalize(t *testing.T) {
 		assert.Equal(t, ErrNilSchema, err)
 		assert.False(t, result.Successful)
 		assert.False(t, request.isNormalized)
+	})
+
+	t.Run("should successfully add variables from default input fields", func(t *testing.T) {
+		schema := starwarsSchema(t)
+		request := requestForQuery(t, starwars.FileDefaultInputField)
+
+		result, err := request.Normalize(schema)
+		assert.NoError(t, err)
+		assert.True(t, result.Successful)
+
+		value, err := jsonparser.GetString(request.Variables, "a", "filter")
+		assert.NoError(t, err)
+		assert.Equal(t, "test", value)
+
+		value, err = jsonparser.GetString(request.Variables, "a", "bookmarkName")
+		assert.NoError(t, err)
+		assert.Equal(t, "default", value)
 	})
 
 	t.Run("should successfully normalize request with fragments", func(t *testing.T) {

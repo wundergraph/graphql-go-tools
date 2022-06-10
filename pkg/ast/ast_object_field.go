@@ -26,6 +26,18 @@ func (d *Document) CopyObjectField(ref int) int {
 	})
 }
 
+func (d *Document) ObjectValueObjectFieldByName(objectValueRef int, fieldName ByteSlice) int {
+	if objectValueRef > len(d.ObjectValues)-1 {
+		return -1
+	}
+	for _, r := range d.ObjectValues[objectValueRef].Refs {
+		if bytes.Equal(d.ObjectFieldNameBytes(r), fieldName) {
+			return r
+		}
+	}
+	return -1
+}
+
 func (d *Document) ObjectField(ref int) ObjectField {
 	return d.ObjectFields[ref]
 }
