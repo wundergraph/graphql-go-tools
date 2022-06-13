@@ -21,7 +21,7 @@ func (e *entityValidator) setDocument(document *ast.Document) {
 	}
 }
 
-func (e *entityValidator) getPrimaryKeys(name string, directiveRefs []int, isExtension bool) (primaryKeySet, *operationreport.ExternalError) {
+func (e *entityValidator) getPrimaryKeys(name string, directiveRefs []int) (primaryKeySet, *operationreport.ExternalError) {
 	primaryKeys := make(primaryKeySet)
 	for _, directiveRef := range directiveRefs {
 		if e.document.DirectiveNameString(directiveRef) != plan.FederationKeyDirectiveName {
@@ -42,13 +42,43 @@ func (e *entityValidator) getPrimaryKeys(name string, directiveRefs []int, isExt
 			err := operationreport.ErrPrimaryKeyMustNotBeEmpty(name)
 			return nil, &err
 		}
-		if isExtension {
-			if _, exists := e.entitySet[name][primaryKey]; !exists {
-				err := operationreport.ErrPrimaryKeyReferencesMustExistOnEntity(primaryKey, name)
-				return nil, &err
-			}
+		primaryKeys[primaryKey] = false
+	}
+	return primaryKeys, nil
+}
+
+func (e *entityValidator) getExtensionPrimaryKeys(name string, directiveRefs []int) (primaryKeySet, *operationreport.ExternalError) {
+	primaryKeys := make(primaryKeySet)
+	keyNumber := 0
+	for _, directiveRef := range directiveRefs {
+		if e.document.DirectiveNameString(directiveRef) != plan.FederationKeyDirectiveName {
+			continue
+		}
+		if keyNumber > 1 {
+			err := operationreport.ErrEntityExtensionMustHaveExactlyOnePrimaryKey(name)
+			return nil, &err
+		}
+		directive := e.document.Directives[directiveRef]
+		if len(directive.Arguments.Refs) != 1 {
+			err := operationreport.ErrKeyDirectiveMustHaveSingleFieldsArgument(name)
+			return nil, &err
+		}
+		argumentRef := directive.Arguments.Refs[0]
+		if e.document.ArgumentNameString(argumentRef) != keyDirectiveArgument {
+			err := operationreport.ErrKeyDirectiveMustHaveSingleFieldsArgument(name)
+			return nil, &err
+		}
+		primaryKey := e.document.StringValueContentString(e.document.Arguments[argumentRef].Value.Ref)
+		if primaryKey == "" {
+			err := operationreport.ErrPrimaryKeyMustNotBeEmpty(name)
+			return nil, &err
+		}
+		if _, exists := e.entitySet[name][primaryKey]; !exists {
+			err := operationreport.ErrEntityPrimaryKeyMustExistAsField(name, primaryKey)
+			return nil, &err
 		}
 		primaryKeys[primaryKey] = false
+		keyNumber += 1
 	}
 	return primaryKeys, nil
 }
@@ -65,6 +95,10 @@ func (e *entityValidator) validatePrimaryKeyReferences(name string, fieldRefs []
 		if !isPrimaryKey {
 			continue
 		}
+		if !e.isPrimaryKeyValid(fieldRef) {
+			err := operationreport.ErrEntityPrimaryKeyMustBeValidType(name, fieldName)
+			return &err
+		}
 		if !isResolved {
 			primaryKeys[fieldName] = true
 			fieldReferences -= 1
@@ -75,7 +109,7 @@ func (e *entityValidator) validatePrimaryKeyReferences(name string, fieldRefs []
 	}
 	for primaryKey, isResolved := range primaryKeys {
 		if !isResolved {
-			err := operationreport.ErrPrimaryKeyReferencesMustExistOnEntity(primaryKey, name)
+			err := operationreport.ErrEntityPrimaryKeyMustExistAsField(name, primaryKey)
 			return &err
 		}
 	}
@@ -143,7 +177,7 @@ func (e *entityValidator) isEntity(nameBytes []byte, hasDirectives bool, directi
 		err := operationreport.ErrEntityExtensionMustHaveKeyDirective(name)
 		return false, &err
 	}
-	primaryKeys, err := e.getPrimaryKeys(name, directiveRefs, true)
+	primaryKeys, err := e.getExtensionPrimaryKeys(name, directiveRefs)
 	if err != nil {
 		return false, err
 	}
@@ -152,4 +186,22 @@ func (e *entityValidator) isEntity(nameBytes []byte, hasDirectives bool, directi
 		return false, err
 	}
 	return true, nil
+}
+
+func (e *entityValidator) isPrimaryKeyValid(fieldRef int) bool {
+	fieldType := e.document.Types[e.document.FieldDefinitions[fieldRef].Type]
+	for fieldType.OfType != -1 {
+		fieldType = e.document.Types[fieldType.OfType]
+	}
+	fieldTypeNameBytes := e.document.Input.ByteSlice(fieldType.Name)
+	nodes, exists := e.document.Index.NodesByNameBytes(fieldTypeNameBytes)
+	if !exists {
+		return true // we do not have the base schema at this point and so cannot validate
+	}
+	for i := range nodes {
+		if nodes[i].Kind == ast.NodeKindInterfaceTypeDefinition || nodes[i].Kind == ast.NodeKindUnionTypeDefinition {
+			return false
+		}
+	}
+	return true
 }
