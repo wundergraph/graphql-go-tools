@@ -70,7 +70,7 @@ func TestVariablesExtraction(t *testing.T) {
 			}`, "", `
 			mutation($a: AddWarehouseInput){
 				addToWarehouse(detail: $a)
-			}`, ``, `{"a":{"item":"food can","count":2}}`)
+			}`, ``, `{"a":{"name":"main","nested":{"New item":{"isle":"edible","column:":1}}}}`)
 	})
 	t.Run("extract variable input nested", func(t *testing.T) {
 		runWithVariables(t, extractVariables, warehouseExampleSchema, `
@@ -81,6 +81,20 @@ func TestVariablesExtraction(t *testing.T) {
 			sortWarehouse(in: $a)
 		}
 `, "", `{"a":{"item":{"row":2,"column":"default"}}}`)
+	})
+	t.Run("extract default input type value", func(t *testing.T) {
+		runWithVariables(t, extractVariables, warehouseExampleSchema, `
+		query {
+  			searchWarehouse(searchInput: { warehouse: "main" }) {
+    			name
+  			}
+		}`, "", `
+		query ($a: SearchWarehouseInput) {
+  			searchWarehouse(searchInput: $a) {
+    			name
+  			}
+		}
+`, "", `{"a":{"name":"main","params":{"isle":"edible","column":1}}}`)
 	})
 	t.Run("enum", func(t *testing.T) {
 		runWithVariables(t, extractVariables, forumExampleSchema, `
@@ -329,26 +343,48 @@ func TestVariablesExtraction(t *testing.T) {
 
 const warehouseExampleSchema = `
 schema {
-    mutation: Mutation
+  mutation: Mutation
 }
 
 type Mutation {
-    addToWarehouse(detail: AddWarehouseInput): Boolean!
-    sortWarehouse(in: SortWarehouseItemInput): Boolean!
+  addToWarehouse(detail: AddWarehouseInput): Boolean!
+  sortWarehouse(in: SortWarehouseItemInput): Boolean!
+}
+
+type Query {
+  searchWarehouse(searchInput: SearchWarehouseInput): Item
+}
+
+input SearchWarehouseInput {
+  nested: NestedParams! = { params: { isle: "edible", column: 1 } }
+  warehouse: String!
+}
+
+input NestedParams {
+  params: SearchParams
+}
+input SearchParams {
+  isle: String!
+  column: Int!
 }
 
 input AddWarehouseInput {
-    item: String!
-    count: Int! = 1
+  item: String!
+  count: Int! = 1
 }
 
 input SortWarehouseItemInput {
-    item: SortItem!
+  item: SortItem!
 }
 
 input SortItem {
-    column: String! = "default"
-    row: Int!
+  column: String! = "default"
+  row: Int!
+}
+
+type Item {
+  name: String!
+  count: Int
 }
 `
 

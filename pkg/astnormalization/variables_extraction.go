@@ -141,10 +141,11 @@ func (v *variablesExtractionVisitor) appendArgumentDefaultInputFields(argumentRe
 	fmt.Println(node, found)
 }
 
-// TODO pass error
+// TODO try enum
+// TODO cleanup
 func (v *variablesExtractionVisitor) recursiveInjectInputDefaultField(objectValueRef, inputObjectDefRef int) {
 	inputObjectDef := v.definition.InputObjectTypeDefinitions[inputObjectDefRef]
-	for i := 0; i <= len(inputObjectDef.InputFieldsDefinition.Refs)-1; i++ {
+	for i, _ := range inputObjectDef.InputFieldsDefinition.Refs {
 		//get the object value of the field that corresponds to the input value name
 		inputValueDefinitionRef := inputObjectDef.InputFieldsDefinition.Refs[i]
 
@@ -177,12 +178,46 @@ func (v *variablesExtractionVisitor) recursiveInjectInputDefaultField(objectValu
 		if !v.definition.InputValueDefinitions[inputValueDefinitionRef].DefaultValue.IsDefined {
 			return
 		}
-		if typeIsScalar {
-			v.addDefaultValueToInput(objectValueRef, inputObjectDefRef, inputValueDefinitionRef)
-			continue
-		}
+		v.addDefaultValueToInput(objectValueRef, inputObjectDefRef, inputValueDefinitionRef)
+		continue
 	}
 
+}
+
+func (v *variablesExtractionVisitor) recursiveAddDefinitionObjectValue(objectValueRef int) int {
+	objectVal := v.definition.ObjectValues[objectValueRef]
+	refs := make([]int, 0)
+	for i, _ := range objectVal.Refs {
+		fieldRef := objectVal.Refs[i]
+		fieldVal := v.definition.ObjectFields[fieldRef]
+		fieldValRef := fieldVal.Value.Ref
+		addedValRef := -1
+		switch fieldVal.Value.Kind {
+		case ast.ValueKindFloat:
+			addedValRef = v.operation.AddFloatValue(ast.FloatValue{
+				Negative: v.definition.FloatValueIsNegative(fieldValRef),
+				Raw:      v.operation.Input.AppendInputBytes(v.definition.FloatValueRaw(fieldValRef)),
+			})
+		case ast.ValueKindInteger:
+			addedValRef = v.operation.AddIntValue(ast.IntValue{
+				Negative: v.definition.IntValueIsNegative(fieldValRef),
+				Raw:      v.operation.Input.AppendInputBytes(v.definition.IntValueRaw(fieldValRef)),
+			})
+		case ast.ValueKindBoolean:
+			addedValRef = fieldValRef
+		case ast.ValueKindString:
+			addedValRef = v.operation.AddStringValue(ast.StringValue{
+				BlockString: v.definition.StringValueIsBlockString(fieldValRef),
+				Content:     v.operation.Input.AppendInputBytes(v.definition.StringValueContentBytes(fieldValRef)),
+			})
+		case ast.ValueKindObject:
+			addedValRef = v.recursiveAddDefinitionObjectValue(fieldValRef)
+		}
+		refs = append(refs, addedValRef)
+	}
+	return v.operation.AddObjectValue(ast.ObjectValue{
+		Refs: refs,
+	})
 }
 
 func (v *variablesExtractionVisitor) addDefaultValueToInput(objectValueRef, inputObjectDefRef, inputValueDefinitionRef int) {
@@ -216,6 +251,8 @@ func (v *variablesExtractionVisitor) addDefaultValueToInput(objectValueRef, inpu
 			Negative: floatVal < 0,
 			Raw:      v.operation.Input.AppendInputString(fmt.Sprintf("%f", math.Abs(float64(floatVal)))),
 		})
+	case ast.ValueKindObject:
+		valueRef = v.recursiveAddDefinitionObjectValue(valueRef)
 	default:
 		return
 	}
