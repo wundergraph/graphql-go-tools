@@ -206,42 +206,38 @@ func TestUniqueFieldDefinitionNames(t *testing.T) {
 
 		t.Run("Duplicate input fields are invalid", func(t *testing.T) {
 			runDefinitionValidation(t, `
-         input SomeInputObject {
-            foo: String
-			bar: String
-         }
-         extend input SomeInputObject {
-            foo: String
-			bar: String
-         }
-      `, Invalid, UniqueFieldDefinitionNames(),
-			)
+				input SomeInputObject {
+					foo: String
+				}
+				extend input SomeInputObject {
+					foo: String
+					bar: String
+				}
+      		`, Invalid, UniqueFieldDefinitionNames())
 		})
 
 		t.Run("Duplicate object fields are invalid", func(t *testing.T) {
 			runDefinitionValidation(t, `
-         type SomeObject {
-            foo: String
-         }
-         extend type SomeObject {
-            foo: String
-			bar: String
-         }
-      `, Invalid, UniqueFieldDefinitionNames(),
-			)
+				type SomeObject {
+					foo: String
+				}
+				extend type SomeObject {
+					foo: String
+					bar: String
+				}
+			`, Invalid, UniqueFieldDefinitionNames())
 		})
 
 		t.Run("Duplicate interface fields are invalid", func(t *testing.T) {
 			runDefinitionValidation(t, `
-         interface SomeInterface {
-            foo: String
-         }
-         extend interface SomeInterface {
-            foo: String
-			bar: String
-         }
-      `, Invalid, UniqueFieldDefinitionNames(),
-			)
+				interface SomeInterface {
+					foo: String
+				}
+				extend interface SomeInterface {
+					foo: String
+					bar: String
+				}
+			`, Invalid, UniqueFieldDefinitionNames())
 		})
 	})
 }
