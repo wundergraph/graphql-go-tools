@@ -94,7 +94,7 @@ func TestVariablesExtraction(t *testing.T) {
     			name
   			}
 		}
-`, "", `{"a":{"warehouse":"main","nested":{"params":{"isle":"edible","column":1}}}}`)
+`, "", `{"a":{"warehouse":"main","nested":{"params":{"isle":"edible","column":-1}}}}`)
 	})
 	t.Run("enum", func(t *testing.T) {
 		runWithVariables(t, extractVariables, forumExampleSchema, `
@@ -356,7 +356,7 @@ type Query {
 }
 
 input SearchWarehouseInput {
-  nested: NestedParams! = { params: { isle: "edible", column: 1 } }
+  nested: NestedParams! = { params: { isle: "edible", column: -1 } }
   warehouse: String!
 }
 
