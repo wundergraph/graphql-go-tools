@@ -216,7 +216,7 @@ func TestExtendObjectType(t *testing.T) {
 				name: String! @external
 				age: Int!
 			}
-		`, unresolvedPrimaryKeyErrorMessage("coat", "Mammal"))
+		`, noMatchingFieldForPrimaryKeyErrorMessage("Mammal", "coat"))
 	})
 
 	t.Run("No key directive on entity extension returns an error", func(t *testing.T) {

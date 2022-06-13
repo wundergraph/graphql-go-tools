@@ -53,7 +53,7 @@ func (c *collectValidEntitiesVisitor) resolveEntity(name string, directiveRefs [
 	if _, exists := validator.entitySet[name]; exists {
 		c.Walker.StopWithExternalErr(operationreport.ErrEntitiesMustNotBeDuplicated(name))
 	}
-	primaryKeys, err := validator.getPrimaryKeys(name, directiveRefs, false)
+	primaryKeys, err := validator.getPrimaryKeys(name, directiveRefs)
 	if err != nil {
 		c.Walker.StopWithExternalErr(*err)
 	}
@@ -61,5 +61,8 @@ func (c *collectValidEntitiesVisitor) resolveEntity(name string, directiveRefs [
 		return
 	}
 	validator.entitySet[name] = primaryKeys
-	validator.validatePrimaryKeyReferences(name, fieldRefs)
+	err = validator.validatePrimaryKeyReferences(name, fieldRefs)
+	if err != nil {
+		c.Walker.StopWithExternalErr(*err)
+	}
 }

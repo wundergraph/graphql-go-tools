@@ -662,8 +662,8 @@ func emptyPrimaryKeyErrorMessage(typeName string) string {
 	return fmt.Sprintf("the entity or extension named '%s' contains an empty primary key", typeName)
 }
 
-func unresolvedPrimaryKeyErrorMessage(primaryKey, typeName string) string {
-	return fmt.Sprintf("the primary key '%s' does not exist as a field on the entity named '%s'", primaryKey, typeName)
+func noMatchingFieldForPrimaryKeyErrorMessage(typeName, primaryKey string) string {
+	return fmt.Sprintf("the entity named '%s' has no field named '%s' to match its primary key", typeName, primaryKey)
 }
 
 func noKeyDirectiveErrorMessage(typeName string) string {
@@ -671,7 +671,7 @@ func noKeyDirectiveErrorMessage(typeName string) string {
 }
 
 func validPrimaryKeyMustBeFieldErrorMessage(typeName string) string {
-	return fmt.Sprintf("an extension of the entity named '%s' contains at least one valid primary key that does not exist as an external field on the extension", typeName)
+	return fmt.Sprintf("an extension of the entity named '%s' has at least one valid primary key that does not exist as an external field on the extension", typeName)
 }
 
 func nonEntityExtensionErrorMessage(typeName string) string {
