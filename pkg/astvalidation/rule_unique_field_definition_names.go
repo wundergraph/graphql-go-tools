@@ -99,7 +99,7 @@ func (u *uniqueFieldDefinitionNamesVisitor) LeaveInterfaceTypeExtension(ref int)
 
 func (u *uniqueFieldDefinitionNamesVisitor) EnterInputObjectTypeDefinition(ref int) {
 	typeName := u.definition.InputObjectTypeDefinitionNameBytes(ref)
-	u.setCurrentTypeName(typeName, ast.NodeKindObjectTypeDefinition)
+	u.setCurrentTypeName(typeName, ast.NodeKindInputObjectTypeDefinition)
 }
 
 func (u *uniqueFieldDefinitionNamesVisitor) LeaveInputObjectTypeDefinition(ref int) {
