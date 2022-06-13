@@ -70,7 +70,7 @@ func TestVariablesExtraction(t *testing.T) {
 			}`, "", `
 			mutation($a: AddWarehouseInput){
 				addToWarehouse(detail: $a)
-			}`, ``, `{"a":{"name":"main","nested":{"New item":{"isle":"edible","column:":1}}}}`)
+			}`, ``, `{"a":{"item":"food can","count":2}}`)
 	})
 	t.Run("extract variable input nested", func(t *testing.T) {
 		runWithVariables(t, extractVariables, warehouseExampleSchema, `
@@ -94,7 +94,7 @@ func TestVariablesExtraction(t *testing.T) {
     			name
   			}
 		}
-`, "", `{"a":{"name":"main","params":{"isle":"edible","column":1}}}`)
+`, "", `{"a":{"warehouse":"main","nested":{"params":{"isle":"edible","column":1}}}}`)
 	})
 	t.Run("enum", func(t *testing.T) {
 		runWithVariables(t, extractVariables, forumExampleSchema, `
