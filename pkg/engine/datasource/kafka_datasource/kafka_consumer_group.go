@@ -208,6 +208,15 @@ func (c *KafkaConsumerGroupBridge) prepareSaramaConfig(options *GraphQLSubscript
 	case IsolationLevelReadUncommitted:
 		sc.Consumer.IsolationLevel = sarama.ReadUncommitted
 	}
+
+	// SASL based authentication with broker. While there are multiple SASL authentication methods
+	// the current implementation is limited to plaintext (SASL/PLAIN) authentication
+	if options.SASL.Enable {
+		sc.Net.SASL.Enable = true
+		sc.Net.SASL.User = options.SASL.User
+		sc.Net.SASL.Password = options.SASL.Password
+	}
+
 	return sc, nil
 }
 

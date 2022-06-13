@@ -45,6 +45,17 @@ var (
 	}
 )
 
+type SASL struct {
+	// Whether or not to use SASL authentication when connecting to the broker
+	// (defaults to false).
+	Enable bool `json:"enable"`
+	// User is the authentication identity (authcid) to present for
+	// SASL/PLAIN or SASL/SCRAM authentication
+	User string `json:"user"`
+	// Password for SASL/PLAIN authentication
+	Password string `json:"password"`
+}
+
 type GraphQLSubscriptionOptions struct {
 	BrokerAddr           string `json:"broker_addr"`
 	Topic                string `json:"topic"`
@@ -54,6 +65,7 @@ type GraphQLSubscriptionOptions struct {
 	StartConsumingLatest bool   `json:"start_consuming_latest"`
 	BalanceStrategy      string `json:"balance_strategy"`
 	IsolationLevel       string `json:"isolation_level"`
+	SASL                 SASL   `json:"sasl"`
 	startedCallback      func()
 }
 
@@ -100,6 +112,15 @@ func (g *GraphQLSubscriptionOptions) Validate() error {
 		return fmt.Errorf("isolation_level is invalid: %s", g.IsolationLevel)
 	}
 
+	if g.SASL.Enable {
+		switch {
+		case g.SASL.User == "":
+			return fmt.Errorf("sasl.user cannot be empty")
+		case g.SASL.Password == "":
+			return fmt.Errorf("sasl.password cannot be empty")
+		}
+	}
+
 	return nil
 }
 
@@ -112,6 +133,7 @@ type SubscriptionConfiguration struct {
 	StartConsumingLatest bool   `json:"start_consuming_latest"`
 	BalanceStrategy      string `json:"balance_strategy"`
 	IsolationLevel       string `json:"isolation_level"`
+	SASL                 SASL   `json:"sasl"`
 }
 
 type Configuration struct {
