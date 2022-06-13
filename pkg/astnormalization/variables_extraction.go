@@ -130,6 +130,7 @@ func (v *variablesExtractionVisitor) appendArgumentDefaultInputFields(argumentRe
 		return
 	}
 	inputType := v.definition.InputValueDefinitions[inputValueDefinition].Type
+	inputType = v.definition.BaseType(inputType)
 	node, found := v.definition.Index.FirstNodeByNameBytes(v.definition.TypeNameBytes(inputType))
 	if !found {
 		return

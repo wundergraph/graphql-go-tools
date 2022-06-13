@@ -219,7 +219,7 @@ func TestNormalizeOperation(t *testing.T) {
 					name
 				}
 			}`, `query($a:ComplexNonOptionalDefaultInput) {
-				findDogNonOptionalDefault(complex: $a)
+				findDogNonOptionalDefault(complex: $a) { name}
 			}`, ``, `{"a":{"name":"default"}}`)
 	})
 	t.Run("input list coercion inline", func(t *testing.T) {
@@ -556,7 +556,7 @@ type Query {
 	arguments: ValidArguments
 	findDog(complex: ComplexInput): Dog
 	findDogNonOptional(complex: ComplexNonOptionalInput): Dog
-	findDogNonOptionalDefault(complex: ComplexNonOptionalDefaultInput!): Dog
+	findDogNonOptionalDefault(complex: ComplexNonOptionalDefaultInput): Dog
   	booleanList(booleanListArg: [Boolean!]): Boolean
 	extra: Extra
 	field: Field
