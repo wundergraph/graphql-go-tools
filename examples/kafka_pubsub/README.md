@@ -128,3 +128,61 @@ Sample message:
 	}
 }
 ```
+
+## SASL (Simple Authentication and Security Layer) Support
+
+Kafka data source supports SASL in plain mode.
+
+Run Kafka with the correct configuration:
+
+```
+docker-compose up kafka-sasl
+```
+
+With a properly configured Golang environment:
+
+```
+cd examples/kafka_pubsub
+go run main.go -p=product1,product2 --enable-sasl --sasl-user=admin --sasl-password=admin-secret
+```
+
+`--enable-sasl` parameter enables SASL support on the client side. 
+
+On the API definition side,
+
+```json
+{
+  "broker_addr": "localhost:9092",
+  "topic": "test.topic.product2",
+  "group_id": "test.group",
+  "client_id": "tyk-kafka-integration-{{.arguments.name}}",
+  "sasl": {
+    "enable": true,
+    "user": "admin",
+    "password": "admin-secret"
+  }
+}
+```
+If SASL enabled and `user` is an empty string, Tyk gateway returns: 
+
+```json
+{
+  "message": "sasl.user cannot be empty"
+}
+```
+
+If SASL enabled and `password` is an empty string, Tyk gateway returns:
+
+```json
+{
+  "message": "sasl.password cannot be empty"
+}
+```
+
+If password/user is wrong:
+
+```json
+{
+  "message": "kafka: client has run out of available brokers to talk to (Is your cluster reachable?)"
+}
+```
