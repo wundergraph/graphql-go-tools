@@ -20,9 +20,12 @@ import (
 var wg sync.WaitGroup
 
 type arguments struct {
-	products string
-	broker   string
-	help     bool
+	products     string
+	broker       string
+	help         bool
+	enableSASL   bool
+	saslUser     string
+	saslPassword string
 }
 
 func usage() {
@@ -31,9 +34,12 @@ func usage() {
 Simple test tool to generate test data
 
 Options:
-  -h, --help     Print this message and exit.
-  -b  --broker   Apache Kafka broker to connect (default: localhost:9092).
-  -p, --products Comma seperated list of products.
+  -h, --help          Print this message and exit.
+  -b  --broker        Apache Kafka broker to connect (default: localhost:9092).
+  -p, --products      Comma seperated list of products.
+      --enable-sasl   Enable Simple Authentication and Security Layer (SASL)
+      --sasl-user     User for SASL
+      --sasl-password Password for SASL
 `
 	_, err := fmt.Fprintf(os.Stdout, msg)
 	if err != nil {
@@ -97,6 +103,9 @@ func main() {
 	f.StringVar(&args.products, "products", "", "")
 	f.StringVar(&args.broker, "b", "", "")
 	f.StringVar(&args.broker, "broker", "", "")
+	f.BoolVar(&args.enableSASL, "enable-sasl", false, "")
+	f.StringVar(&args.saslUser, "sasl-user", "", "")
+	f.StringVar(&args.saslPassword, "sasl-password", "", "")
 
 	if err := f.Parse(os.Args[1:]); err != nil {
 		log.Fatalf("Failed to parse flags: %v", err)
@@ -119,6 +128,18 @@ func main() {
 	products = strings.Split(args.products, ",")
 
 	config := sarama.NewConfig()
+	if args.enableSASL {
+		if args.saslUser == "" {
+			log.Fatalf("User cannot be empty")
+		}
+		if args.saslPassword == "" {
+			log.Fatalf("Password cannot be empty")
+		}
+		config.Net.SASL.Enable = true
+		config.Net.SASL.User = args.saslUser
+		config.Net.SASL.Password = args.saslPassword
+	}
+
 	asyncProducer, err := sarama.NewAsyncProducer([]string{args.broker}, config)
 	if err != nil {
 		log.Fatalf("failed to create a new AsyncProducer: %v", err)
