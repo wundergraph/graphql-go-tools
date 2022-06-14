@@ -135,7 +135,7 @@ Kafka data source supports SASL in plain mode.
 
 Run Kafka with the correct configuration:
 
-```json
+```
 docker-compose up kafka-sasl
 ```
 
