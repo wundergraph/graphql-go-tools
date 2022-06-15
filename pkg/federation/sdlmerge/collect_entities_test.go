@@ -1,0 +1,86 @@
+package sdlmerge
+
+import (
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/stretchr/testify/assert"
+	"testing"
+)
+
+func TestCollectEntities(t *testing.T) {
+	t.Run("Valid entities are collected", func(t *testing.T) {
+		collectEntities(t, newCollectEntitiesVisitor(newTestNormalizer(false)), `
+			type Dog @key(fields: "name") @key(fields: "id") {
+				id: ID!
+				name: String!
+			}
+
+			type Cat @key(fields: "species") {
+				id: ID!
+				species: String!
+			}
+		`, map[string]bool{
+			"Dog": true,
+			"Cat": true,
+		})
+	})
+
+	t.Run("Valid entities are collected", func(t *testing.T) {
+		collectEntitiesAndExpectError(t, newCollectEntitiesVisitor(newTestNormalizer(false)), `
+			type Dog @key(fields: "name") @key(fields: "id") {
+				id: ID!
+				name: String!
+			}
+
+			type Dog @key(fields: "name") @key(fields: "id") {
+				id: ID!
+				name: String!
+			}
+
+			type Cat @key(fields: "species") {
+				id: ID!
+				species: String!
+			}
+		`, duplicateEntityErrorMessage("Dog"))
+	})
+}
+
+var collectEntities = func(t *testing.T, visitor *collectEntitiesVisitor, operation string, expectedEntities map[string]bool) {
+	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
+	report := operationreport.Report{}
+	walker := astvisitor.NewWalker(48)
+
+	visitor.Register(&walker)
+
+	walker.Walk(&operationDocument, nil, &report)
+
+	if report.HasErrors() {
+		t.Fatal(report.Error())
+	}
+
+	got := visitor.normalizer.entitySet
+
+	assert.Equal(t, expectedEntities, got)
+}
+
+var collectEntitiesAndExpectError = func(t *testing.T, visitor *collectEntitiesVisitor, operation string, expectedError string) {
+	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
+	report := operationreport.Report{}
+	walker := astvisitor.NewWalker(48)
+
+	visitor.Register(&walker)
+
+	walker.Walk(&operationDocument, nil, &report)
+
+	var got string
+	if report.HasErrors() {
+		if report.InternalErrors == nil {
+			got = report.ExternalErrors[0].Message
+		} else {
+			got = report.InternalErrors[0].Error()
+		}
+	}
+
+	assert.Equal(t, expectedError, got)
+}

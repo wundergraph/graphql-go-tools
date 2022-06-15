@@ -12,13 +12,13 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
-var testEntitySet = entitySet{"Mammal": primaryKeySet{"name": true}}
+var testEntitySet = map[string]bool{"Mammal": true}
 
 func newTestNormalizer(withEntity bool) *normalizer {
 	if withEntity {
-		return &normalizer{entityValidator: &entityValidator{entitySet: testEntitySet}}
+		return &normalizer{entitySet: testEntitySet}
 	}
-	return &normalizer{entityValidator: &entityValidator{entitySet: entitySet{}}}
+	return &normalizer{entitySet: make(map[string]bool)}
 }
 
 type composeVisitor []Visitor
@@ -650,28 +650,8 @@ func unresolvedExtensionOrphansMergeErrorMessage(typeName string) string {
 	return fmt.Sprintf("merge ast: walk: external: the extension orphan named '%s' was never resolved in the supergraph, locations: [], path: []", typeName)
 }
 
-func externalDirectiveErrorMessage(typeName string) string {
-	return fmt.Sprintf("an extension of the entity named '%s' has a primary key whose referenced field does not have the external directive", typeName)
-}
-
-func incorrectArgumentErrorMessage(typeName string) string {
-	return fmt.Sprintf("the key directive on the entity named '%s' must have a single argument named 'fields'", typeName)
-}
-
-func emptyPrimaryKeyErrorMessage(typeName string) string {
-	return fmt.Sprintf("the entity or extension named '%s' contains an empty primary key", typeName)
-}
-
-func noMatchingFieldForPrimaryKeyErrorMessage(typeName, primaryKey string) string {
-	return fmt.Sprintf("the entity named '%s' has no field named '%s' to match its primary key", typeName, primaryKey)
-}
-
 func noKeyDirectiveErrorMessage(typeName string) string {
 	return fmt.Sprintf("an extension of the entity named '%s' does not have a key directive", typeName)
-}
-
-func validPrimaryKeyMustBeFieldErrorMessage(typeName string) string {
-	return fmt.Sprintf("an extension of the entity named '%s' has at least one valid primary key that does not exist as an external field on the extension", typeName)
 }
 
 func nonEntityExtensionErrorMessage(typeName string) string {

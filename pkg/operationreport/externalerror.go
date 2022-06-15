@@ -294,47 +294,12 @@ func ErrTypeBodyMustNotBeEmpty(definitionType, typeName string) (err ExternalErr
 	return err
 }
 
-func ErrKeyDirectiveMustHaveSingleFieldsArgument(typeName string) (err ExternalError) {
-	err.Message = fmt.Sprintf("the key directive on the entity named '%s' must have a single argument named 'fields'", typeName)
-	return err
-}
-
-func ErrPrimaryKeyMustNotBeEmpty(typeName string) (err ExternalError) {
-	err.Message = fmt.Sprintf("the entity or extension named '%s' contains an empty primary key", typeName)
-	return err
-}
-
-func ErrEntityPrimaryKeyMustExistAsField(typeName, primaryKey string) (err ExternalError) {
-	err.Message = fmt.Sprintf("the entity named '%s' has no field named '%s' to match its primary key", typeName, primaryKey)
-	return err
-}
-
 func ErrEntityExtensionMustHaveKeyDirective(typeName string) (err ExternalError) {
 	err.Message = fmt.Sprintf("an extension of the entity named '%s' does not have a key directive", typeName)
 	return err
 }
 
-func ErrEntityExtensionPrimaryKeyMustExistAsField(typeName string) (err ExternalError) {
-	err.Message = fmt.Sprintf("an extension of the entity named '%s' has at least one valid primary key that does not exist as an external field on the extension", typeName)
-	return err
-}
-
-func ErrEntityExtensionPrimaryKeyFieldReferenceMustHaveExternalDirective(typeName string) (err ExternalError) {
-	err.Message = fmt.Sprintf("an extension of the entity named '%s' has a primary key whose referenced field does not have the external directive", typeName)
-	return err
-}
-
 func ErrExtensionWithKeyDirectiveMustExtendEntity(typeName string) (err ExternalError) {
 	err.Message = fmt.Sprintf("the extension named '%s' has a key directive but there is no entity of the same name", typeName)
-	return err
-}
-
-func ErrEntityPrimaryKeyMustBeValidType(typeName, primaryKey string) (err ExternalError) {
-	err.Message = fmt.Sprintf("an extension of the entity named '%s' has a field named '%s' whose type is invalid (union or interface) for a primary key", typeName, primaryKey)
-	return err
-}
-
-func ErrEntityExtensionMustHaveExactlyOnePrimaryKey(typeName string) (err ExternalError) {
-	err.Message = fmt.Sprintf("an extension of the entity named '%s' has more than one primary key", typeName)
 	return err
 }

@@ -26,7 +26,6 @@ func (e *extendObjectTypeDefinitionVisitor) Register(walker *astvisitor.Walker) 
 
 func (e *extendObjectTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
 	e.document = operation
-	e.normalizer.entityValidator.setDocument(operation)
 }
 
 func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
@@ -47,7 +46,7 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 		}
 		var err *operationreport.ExternalError
 		extension := e.document.ObjectTypeExtensions[ref]
-		if isEntity, err = e.normalizer.entityValidator.isEntity(nameBytes, extension.HasDirectives, extension.Directives.Refs, extension.FieldsDefinition.Refs); err != nil {
+		if isEntity, err = e.normalizer.isTypeEntity(nameBytes, extension.HasDirectives, extension.Directives.Refs, e.document); err != nil {
 			e.Walker.StopWithExternalErr(*err)
 		}
 		e.document.ExtendObjectTypeDefinitionByObjectTypeExtension(nodes[i].Ref, ref)

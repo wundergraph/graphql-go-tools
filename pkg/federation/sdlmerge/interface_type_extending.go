@@ -26,7 +26,6 @@ func (e *extendInterfaceTypeDefinitionVisitor) Register(walker *astvisitor.Walke
 
 func (e *extendInterfaceTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
 	e.document = operation
-	e.normalizer.entityValidator.setDocument(operation)
 }
 
 func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref int) {
@@ -46,7 +45,7 @@ func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref i
 		}
 		var err *operationreport.ExternalError
 		extension := e.document.InterfaceTypeExtensions[ref]
-		if isEntity, err = e.normalizer.entityValidator.isEntity(nameBytes, extension.HasDirectives, extension.Directives.Refs, extension.FieldsDefinition.Refs); err != nil {
+		if isEntity, err = e.normalizer.isTypeEntity(nameBytes, extension.HasDirectives, extension.Directives.Refs, e.document); err != nil {
 			e.Walker.StopWithExternalErr(*err)
 		}
 		e.document.ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(node.Ref, ref)

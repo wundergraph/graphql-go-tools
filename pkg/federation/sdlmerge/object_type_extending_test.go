@@ -154,71 +154,6 @@ func TestExtendObjectType(t *testing.T) {
 		`)
 	})
 
-	t.Run("Primary key field reference without an external directive returns an error", func(t *testing.T) {
-		runAndExpectError(t, newExtendObjectTypeDefinition(newTestNormalizer(true)), `
-			 type Mammal @key(fields: "name") {
-				name: String!
-			}
-
-			extend type Mammal @key(fields: "name") {
-				name: String!
-				age: Int!
-			}
-		`, externalDirectiveErrorMessage("Mammal"))
-	})
-
-	t.Run("Multiple arguments in a key directive returns an error", func(t *testing.T) {
-		runAndExpectError(t, newExtendObjectTypeDefinition(newTestNormalizer(true)), `
-			 type Mammal @key(fields: "name") {
-				name: String!
-			}
-			
-			extend type Mammal @key(fields: "name" arg: "name") {
-				name: String! @external
-				age: Int!
-			}
-		`, incorrectArgumentErrorMessage("Mammal"))
-	})
-
-	t.Run("Incorrect argument in a key directive returns an error", func(t *testing.T) {
-		runAndExpectError(t, newExtendObjectTypeDefinition(newTestNormalizer(true)), `
-			 type Mammal @key(fields: "name") {
-				name: String!
-			}
-			
-			extend type Mammal @key(feline: "name") {
-				name: String! @external
-				age: Int!
-			}
-		`, incorrectArgumentErrorMessage("Mammal"))
-	})
-
-	t.Run("Empty primary key in key directive returns an error", func(t *testing.T) {
-		runAndExpectError(t, newExtendObjectTypeDefinition(newTestNormalizer(true)), `
-			 type Mammal @key(fields: "name") {
-				name: String!
-			}
-			
-			extend type Mammal @key(fields: "") {
-				name: String! @external
-				age: Int!
-			}
-		`, emptyPrimaryKeyErrorMessage("Mammal"))
-	})
-
-	t.Run("Unresolved primary key in key directive returns an error", func(t *testing.T) {
-		runAndExpectError(t, newExtendObjectTypeDefinition(newTestNormalizer(true)), `
-			 type Mammal @key(fields: "name") {
-				name: String!
-			}
-			
-			extend type Mammal @key(fields: "coat") {
-				name: String! @external
-				age: Int!
-			}
-		`, noMatchingFieldForPrimaryKeyErrorMessage("Mammal", "coat"))
-	})
-
 	t.Run("No key directive on entity extension returns an error", func(t *testing.T) {
 		runAndExpectError(t, newExtendObjectTypeDefinition(newTestNormalizer(true)), `
 			 type Mammal @key(fields: "name") {
@@ -260,18 +195,6 @@ func TestExtendObjectType(t *testing.T) {
 				age: Int!
 			}
 		`, duplicateEntityErrorMessage("Mammal"))
-	})
-
-	t.Run("A valid primary key whose reference does not exist as an external field returns an error", func(t *testing.T) {
-		runAndExpectError(t, newExtendObjectTypeDefinition(newTestNormalizer(true)), `
-			 type Mammal @key(fields: "name") {
-				name: String!
-			}
-			
-			extend type Mammal @key(fields: "name") {
-				age: Int!
-			}
-		`, validPrimaryKeyMustBeFieldErrorMessage("Mammal"))
 	})
 
 	t.Run("A non-entity that is extended by an extension with a key directive returns an error", func(t *testing.T) {

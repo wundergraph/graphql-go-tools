@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"strings"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
@@ -21,8 +22,7 @@ const (
 		type Subscription {}
 	`
 
-	parseDocumentError   = "parse graphql document string: %s"
-	keyDirectiveArgument = "fields"
+	parseDocumentError = "parse graphql document string: %s"
 )
 
 type Visitor interface {
@@ -110,15 +110,15 @@ func normalizeSubgraphs(subgraphs []string) error {
 }
 
 type normalizer struct {
-	walkers         []*astvisitor.Walker
-	entityValidator *entityValidator
+	walkers   []*astvisitor.Walker
+	entitySet map[string]bool
 }
 
 func (m *normalizer) setupWalkers() {
-	m.entityValidator = &entityValidator{entitySet: make(entitySet)}
+	m.entitySet = make(map[string]bool)
 	visitorGroups := [][]Visitor{
 		{
-			newCollectValidEntitiesVisitor(m),
+			newCollectEntitiesVisitor(m),
 		},
 		{
 			newExtendEnumTypeDefinition(),
@@ -161,6 +161,35 @@ func (m *normalizer) normalize(operation *ast.Document) error {
 	}
 
 	return nil
+}
+
+func (m *normalizer) isTypeEntity(nameBytes []byte, hasDirectives bool, directiveRefs []int, document *ast.Document) (bool, *operationreport.ExternalError) {
+	name := string(nameBytes)
+	if _, exists := m.entitySet[name]; !exists {
+		if !hasDirectives || !isEntityExtension(directiveRefs, document) {
+			return false, nil
+		}
+		err := operationreport.ErrExtensionWithKeyDirectiveMustExtendEntity(name)
+		return false, &err
+	}
+	if !hasDirectives {
+		err := operationreport.ErrEntityExtensionMustHaveKeyDirective(name)
+		return false, &err
+	}
+	if isEntityExtension(directiveRefs, document) {
+		return true, nil
+	}
+	err := operationreport.ErrEntityExtensionMustHaveKeyDirective(name)
+	return false, &err
+}
+
+func isEntityExtension(directiveRefs []int, document *ast.Document) bool {
+	for _, directiveRef := range directiveRefs {
+		if document.DirectiveNameString(directiveRef) == plan.FederationKeyDirectiveName {
+			return true
+		}
+	}
+	return false
 }
 
 func getMultipleExtensionError(isEntity bool, nameBytes []byte) *operationreport.ExternalError {
