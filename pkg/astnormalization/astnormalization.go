@@ -180,7 +180,11 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	if o.options.removeUnusedVariables {
 		deleteUnusedVariables(&other)
 	}
-	o.operationWalkers = append(o.operationWalkers, &fragmentInline, &extractVariablesWalker, &other)
+
+	injectInputDefaultWalker := astvisitor.NewWalker(48)
+	injectInputFieldDefaults(&injectInputDefaultWalker)
+
+	o.operationWalkers = append(o.operationWalkers, &fragmentInline, &extractVariablesWalker, &other, &injectInputDefaultWalker)
 }
 
 func (o *OperationNormalizer) prepareDefinition(definition *ast.Document, report *operationreport.Report) {
