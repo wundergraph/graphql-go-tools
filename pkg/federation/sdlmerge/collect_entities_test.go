@@ -20,9 +20,9 @@ func TestCollectEntities(t *testing.T) {
 				id: ID!
 				species: String!
 			}
-		`, map[string]bool{
-			"Dog": true,
-			"Cat": true,
+		`, map[string]struct{}{
+			"Dog": {},
+			"Cat": {},
 		})
 	})
 
@@ -46,7 +46,7 @@ func TestCollectEntities(t *testing.T) {
 	})
 }
 
-var collectEntities = func(t *testing.T, visitor *collectEntitiesVisitor, operation string, expectedEntities map[string]bool) {
+var collectEntities = func(t *testing.T, visitor *collectEntitiesVisitor, operation string, expectedEntities map[string]struct{}) {
 	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
 	report := operationreport.Report{}
 	walker := astvisitor.NewWalker(48)

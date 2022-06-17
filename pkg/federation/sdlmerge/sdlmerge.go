@@ -111,11 +111,11 @@ func normalizeSubgraphs(subgraphs []string) error {
 
 type normalizer struct {
 	walkers   []*astvisitor.Walker
-	entitySet map[string]bool
+	entitySet map[string]struct{}
 }
 
 func (m *normalizer) setupWalkers() {
-	m.entitySet = make(map[string]bool)
+	m.entitySet = make(map[string]struct{})
 	visitorGroups := [][]Visitor{
 		{
 			newCollectEntitiesVisitor(m),

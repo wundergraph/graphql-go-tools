@@ -9,7 +9,6 @@ import (
 type removeDuplicateFieldedSharedTypesVisitor struct {
 	*astvisitor.Walker
 	document          *ast.Document
-	entitySet         map[string]bool
 	sharedTypeSet     map[string]fieldedSharedType
 	rootNodesToRemove []ast.Node
 	lastInputRef      int
@@ -21,7 +20,6 @@ func newRemoveDuplicateFieldedSharedTypesVisitor() *removeDuplicateFieldedShared
 	return &removeDuplicateFieldedSharedTypesVisitor{
 		nil,
 		nil,
-		make(map[string]bool),
 		make(map[string]fieldedSharedType),
 		nil,
 		ast.InvalidRef,
@@ -67,7 +65,6 @@ func (r *removeDuplicateFieldedSharedTypesVisitor) EnterInterfaceTypeDefinition(
 	}
 	name := r.document.InterfaceTypeDefinitionNameString(ref)
 	interfaceType := r.document.InterfaceTypeDefinitions[ref]
-	r.checkForDuplicateEntity(interfaceType.HasDirectives, interfaceType.Directives.Refs, name)
 	refs := interfaceType.FieldsDefinition.Refs
 	iFace, exists := r.sharedTypeSet[name]
 	if exists {
@@ -87,7 +84,6 @@ func (r *removeDuplicateFieldedSharedTypesVisitor) EnterObjectTypeDefinition(ref
 	}
 	name := r.document.ObjectTypeDefinitionNameString(ref)
 	objectType := r.document.ObjectTypeDefinitions[ref]
-	r.checkForDuplicateEntity(objectType.HasDirectives, objectType.Directives.Refs, name)
 	refs := objectType.FieldsDefinition.Refs
 	object, exists := r.sharedTypeSet[name]
 	if exists {
@@ -104,23 +100,5 @@ func (r *removeDuplicateFieldedSharedTypesVisitor) EnterObjectTypeDefinition(ref
 func (r *removeDuplicateFieldedSharedTypesVisitor) LeaveDocument(_, _ *ast.Document) {
 	if r.rootNodesToRemove != nil {
 		r.document.DeleteRootNodes(r.rootNodesToRemove)
-	}
-}
-
-func (r *removeDuplicateFieldedSharedTypesVisitor) checkForDuplicateEntity(hasDirectives bool, directiveRefs []int, name string) {
-	if r.entitySet[name] {
-		r.StopWithExternalErr(operationreport.ErrEntitiesMustNotBeDuplicated(name))
-	}
-	if !hasDirectives {
-		return
-	}
-	for _, directiveRef := range directiveRefs {
-		if r.document.DirectiveNameString(directiveRef) == "key" {
-			if _, exists := r.sharedTypeSet[name]; exists {
-				r.StopWithExternalErr(operationreport.ErrEntitiesMustNotBeDuplicated(name))
-			}
-			r.entitySet[name] = true
-			return
-		}
 	}
 }

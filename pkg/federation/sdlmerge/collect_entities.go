@@ -32,32 +32,32 @@ func (c *collectEntitiesVisitor) EnterDocument(operation, _ *ast.Document) {
 
 func (c *collectEntitiesVisitor) EnterInterfaceTypeDefinition(ref int) {
 	interfaceType := c.document.InterfaceTypeDefinitions[ref]
-	if !interfaceType.HasDirectives {
-		return
-	}
 	name := c.document.InterfaceTypeDefinitionNameString(ref)
-	c.resolveEntity(name, interfaceType.Directives.Refs)
+	if err := c.resolvePotentialEntity(name, interfaceType.Directives.Refs); err != nil {
+		c.Walker.StopWithExternalErr(*err)
+	}
 }
 
 func (c *collectEntitiesVisitor) EnterObjectTypeDefinition(ref int) {
 	objectType := c.document.ObjectTypeDefinitions[ref]
-	if !objectType.HasDirectives {
-		return
-	}
 	name := c.document.ObjectTypeDefinitionNameString(ref)
-	c.resolveEntity(name, objectType.Directives.Refs)
+	if err := c.resolvePotentialEntity(name, objectType.Directives.Refs); err != nil {
+		c.Walker.StopWithExternalErr(*err)
+	}
 }
 
-func (c *collectEntitiesVisitor) resolveEntity(name string, directiveRefs []int) {
+func (c *collectEntitiesVisitor) resolvePotentialEntity(name string, directiveRefs []int) *operationreport.ExternalError {
 	entitySet := c.normalizer.entitySet
 	if _, exists := entitySet[name]; exists {
-		c.Walker.StopWithExternalErr(operationreport.ErrEntitiesMustNotBeDuplicated(name))
+		err := operationreport.ErrEntitiesMustNotBeDuplicated(name)
+		return &err
 	}
 	for _, directiveRef := range directiveRefs {
 		if c.document.DirectiveNameString(directiveRef) != plan.FederationKeyDirectiveName {
 			continue
 		}
-		entitySet[name] = true
-		return
+		entitySet[name] = struct{}{}
+		return nil
 	}
+	return nil
 }

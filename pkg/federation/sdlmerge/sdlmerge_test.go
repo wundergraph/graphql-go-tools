@@ -12,13 +12,13 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
-var testEntitySet = map[string]bool{"Mammal": true}
+var testEntitySet = map[string]struct{}{"Mammal": {}}
 
 func newTestNormalizer(withEntity bool) *normalizer {
 	if withEntity {
 		return &normalizer{entitySet: testEntitySet}
 	}
-	return &normalizer{entitySet: make(map[string]bool)}
+	return &normalizer{entitySet: make(map[string]struct{})}
 }
 
 type composeVisitor []Visitor
