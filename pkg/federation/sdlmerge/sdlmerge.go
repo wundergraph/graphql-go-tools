@@ -110,23 +110,24 @@ func normalizeSubgraphs(subgraphs []string) error {
 }
 
 type normalizer struct {
-	walkers   []*astvisitor.Walker
-	entitySet map[string]struct{}
+	walkers []*astvisitor.Walker
 }
 
+type entitySet map[string]struct{}
+
 func (m *normalizer) setupWalkers() {
-	m.entitySet = make(map[string]struct{})
+	collectedEntities := make(entitySet)
 	visitorGroups := [][]Visitor{
 		{
-			newCollectEntitiesVisitor(m),
+			newCollectEntitiesVisitor(collectedEntities),
 		},
 		{
 			newExtendEnumTypeDefinition(),
 			newExtendInputObjectTypeDefinition(),
-			newExtendInterfaceTypeDefinition(m),
+			newExtendInterfaceTypeDefinition(collectedEntities),
 			newExtendScalarTypeDefinition(),
 			newExtendUnionTypeDefinition(),
-			newExtendObjectTypeDefinition(m),
+			newExtendObjectTypeDefinition(collectedEntities),
 			newRemoveEmptyObjectTypeDefinition(),
 			newRemoveMergedTypeExtensions(),
 		},
@@ -163,9 +164,9 @@ func (m *normalizer) normalize(operation *ast.Document) error {
 	return nil
 }
 
-func (m *normalizer) isTypeEntity(nameBytes []byte, hasDirectives bool, directiveRefs []int, document *ast.Document) (bool, *operationreport.ExternalError) {
+func (e entitySet) isTypeEntity(nameBytes []byte, hasDirectives bool, directiveRefs []int, document *ast.Document) (bool, *operationreport.ExternalError) {
 	name := string(nameBytes)
-	if _, exists := m.entitySet[name]; !exists {
+	if _, exists := e[name]; !exists {
 		if !hasDirectives || !isEntityExtension(directiveRefs, document) {
 			return false, nil
 		}
@@ -192,7 +193,7 @@ func isEntityExtension(directiveRefs []int, document *ast.Document) bool {
 	return false
 }
 
-func getMultipleExtensionError(isEntity bool, nameBytes []byte) *operationreport.ExternalError {
+func multipleExtensionError(isEntity bool, nameBytes []byte) *operationreport.ExternalError {
 	if isEntity {
 		err := operationreport.ErrEntitiesMustNotBeDuplicated(string(nameBytes))
 		return &err

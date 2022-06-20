@@ -37,13 +37,14 @@ func (e *extendUnionTypeDefinitionVisitor) EnterUnionTypeExtension(ref int) {
 			continue
 		}
 		if hasExtended {
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.UnionTypeExtensionNameString(ref)))
+			e.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.UnionTypeExtensionNameString(ref)))
+			return
 		}
 		e.document.ExtendUnionTypeDefinitionByUnionTypeExtension(nodes[i].Ref, ref)
 		hasExtended = true
 	}
 
 	if !hasExtended {
-		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.UnionTypeExtensionNameBytes(ref)))
+		e.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.UnionTypeExtensionNameBytes(ref)))
 	}
 }

@@ -37,13 +37,14 @@ func (e *extendEnumTypeDefinitionVisitor) EnterEnumTypeExtension(ref int) {
 			continue
 		}
 		if hasExtended {
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.EnumTypeExtensionNameString(ref)))
+			e.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.EnumTypeExtensionNameString(ref)))
+			return
 		}
 		e.document.ExtendEnumTypeDefinitionByEnumTypeExtension(nodes[i].Ref, ref)
 		hasExtended = true
 	}
 
 	if !hasExtended {
-		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.EnumTypeExtensionNameBytes(ref)))
+		e.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.EnumTypeExtensionNameBytes(ref)))
 	}
 }

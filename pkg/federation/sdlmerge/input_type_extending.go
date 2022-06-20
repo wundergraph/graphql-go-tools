@@ -37,13 +37,14 @@ func (e *extendInputObjectTypeDefinitionVisitor) EnterInputObjectTypeExtension(r
 			continue
 		}
 		if hasExtended {
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.InputObjectTypeExtensionNameString(ref)))
+			e.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.InputObjectTypeExtensionNameString(ref)))
+			return
 		}
 		e.document.ExtendInputObjectTypeDefinitionByInputObjectTypeExtension(nodes[i].Ref, ref)
 		hasExtended = true
 	}
 
 	if !hasExtended {
-		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.InputObjectTypeExtensionNameBytes(ref)))
+		e.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.InputObjectTypeExtensionNameBytes(ref)))
 	}
 }

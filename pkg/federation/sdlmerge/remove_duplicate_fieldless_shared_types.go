@@ -50,6 +50,7 @@ func (r *removeDuplicateFieldlessSharedTypesVisitor) EnterEnumTypeDefinition(ref
 	if exists {
 		if !enum.areValuesIdentical(r.document.EnumTypeDefinitions[ref].EnumValuesDefinition.Refs) {
 			r.StopWithExternalErr(operationreport.ErrSharedTypesMustBeIdenticalToFederate(name))
+			return
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindEnumTypeDefinition, Ref: ref})
 	} else {
@@ -81,6 +82,7 @@ func (r *removeDuplicateFieldlessSharedTypesVisitor) EnterUnionTypeDefinition(re
 	if exists {
 		if !union.areValuesIdentical(r.document.UnionTypeDefinitions[ref].UnionMemberTypes.Refs) {
 			r.StopWithExternalErr(operationreport.ErrSharedTypesMustBeIdenticalToFederate(name))
+			return
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindUnionTypeDefinition, Ref: ref})
 	} else {

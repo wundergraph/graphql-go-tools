@@ -20,7 +20,7 @@ func TestCollectEntities(t *testing.T) {
 				id: ID!
 				species: String!
 			}
-		`, map[string]struct{}{
+		`, entitySet{
 			"Dog": {},
 			"Cat": {},
 		})
@@ -46,7 +46,7 @@ func TestCollectEntities(t *testing.T) {
 	})
 }
 
-var collectEntities = func(t *testing.T, visitor *collectEntitiesVisitor, operation string, expectedEntities map[string]struct{}) {
+var collectEntities = func(t *testing.T, visitor *collectEntitiesVisitor, operation string, expectedEntities entitySet) {
 	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
 	report := operationreport.Report{}
 	walker := astvisitor.NewWalker(48)
@@ -59,7 +59,7 @@ var collectEntities = func(t *testing.T, visitor *collectEntitiesVisitor, operat
 		t.Fatal(report.Error())
 	}
 
-	got := visitor.normalizer.entitySet
+	got := visitor.collectedEntities
 
 	assert.Equal(t, expectedEntities, got)
 }

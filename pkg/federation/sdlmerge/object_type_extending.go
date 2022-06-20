@@ -6,16 +6,16 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
-func newExtendObjectTypeDefinition(n *normalizer) *extendObjectTypeDefinitionVisitor {
+func newExtendObjectTypeDefinition(collectedEntities entitySet) *extendObjectTypeDefinitionVisitor {
 	return &extendObjectTypeDefinitionVisitor{
-		normalizer: n,
+		collectedEntities: collectedEntities,
 	}
 }
 
 type extendObjectTypeDefinitionVisitor struct {
 	*astvisitor.Walker
-	document   *ast.Document
-	normalizer *normalizer
+	document          *ast.Document
+	collectedEntities entitySet
 }
 
 func (e *extendObjectTypeDefinitionVisitor) Register(walker *astvisitor.Walker) {
@@ -42,12 +42,14 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 			continue
 		}
 		if hasExtended {
-			e.Walker.StopWithExternalErr(*getMultipleExtensionError(isEntity, nameBytes))
+			e.StopWithExternalErr(*multipleExtensionError(isEntity, nameBytes))
+			return
 		}
 		var err *operationreport.ExternalError
 		extension := e.document.ObjectTypeExtensions[ref]
-		if isEntity, err = e.normalizer.isTypeEntity(nameBytes, extension.HasDirectives, extension.Directives.Refs, e.document); err != nil {
-			e.Walker.StopWithExternalErr(*err)
+		if isEntity, err = e.collectedEntities.isTypeEntity(nameBytes, extension.HasDirectives, extension.Directives.Refs, e.document); err != nil {
+			e.StopWithExternalErr(*err)
+			return
 		}
 		e.document.ExtendObjectTypeDefinitionByObjectTypeExtension(nodes[i].Ref, ref)
 		if shouldReturn {
@@ -56,6 +58,6 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 		hasExtended = true
 	}
 	if !hasExtended {
-		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(nameBytes))
+		e.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(nameBytes))
 	}
 }
