@@ -37,12 +37,13 @@ func (e *extendScalarTypeDefinitionVisitor) EnterScalarTypeExtension(ref int) {
 			continue
 		}
 		if hasExtended {
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.ScalarTypeExtensionNameString(ref)))
+			e.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.ScalarTypeExtensionNameString(ref)))
+			return
 		}
 		e.document.ExtendScalarTypeDefinitionByScalarTypeExtension(nodes[i].Ref, ref)
 		hasExtended = true
 	}
 	if !hasExtended {
-		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.ScalarTypeExtensionNameBytes(ref)))
+		e.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.ScalarTypeExtensionNameBytes(ref)))
 	}
 }

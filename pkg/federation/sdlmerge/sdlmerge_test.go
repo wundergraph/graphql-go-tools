@@ -12,13 +12,13 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
-var testEntitySet = map[string]struct{}{"Mammal": {}}
+var testEntitySet = entitySet{"Mammal": {}}
 
-func newTestNormalizer(withEntity bool) *normalizer {
+func newTestNormalizer(withEntity bool) entitySet {
 	if withEntity {
-		return &normalizer{entitySet: testEntitySet}
+		return testEntitySet
 	}
-	return &normalizer{entitySet: make(map[string]struct{})}
+	return make(entitySet)
 }
 
 type composeVisitor []Visitor

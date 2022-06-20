@@ -51,6 +51,7 @@ func (r *removeDuplicateFieldedSharedTypesVisitor) EnterInputObjectTypeDefinitio
 	if exists {
 		if !input.areFieldsIdentical(refs) {
 			r.StopWithExternalErr(operationreport.ErrSharedTypesMustBeIdenticalToFederate(name))
+			return
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindInputObjectTypeDefinition, Ref: ref})
 	} else {
@@ -70,6 +71,7 @@ func (r *removeDuplicateFieldedSharedTypesVisitor) EnterInterfaceTypeDefinition(
 	if exists {
 		if !iFace.areFieldsIdentical(refs) {
 			r.StopWithExternalErr(operationreport.ErrSharedTypesMustBeIdenticalToFederate(name))
+			return
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindInterfaceTypeDefinition, Ref: ref})
 	} else {
@@ -89,6 +91,7 @@ func (r *removeDuplicateFieldedSharedTypesVisitor) EnterObjectTypeDefinition(ref
 	if exists {
 		if !object.areFieldsIdentical(refs) {
 			r.StopWithExternalErr(operationreport.ErrSharedTypesMustBeIdenticalToFederate(name))
+			return
 		}
 		r.rootNodesToRemove = append(r.rootNodesToRemove, ast.Node{Kind: ast.NodeKindObjectTypeDefinition, Ref: ref})
 	} else {

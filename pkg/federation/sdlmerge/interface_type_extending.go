@@ -5,16 +5,16 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
 )
 
-func newExtendInterfaceTypeDefinition(n *normalizer) *extendInterfaceTypeDefinitionVisitor {
+func newExtendInterfaceTypeDefinition(collectedEntities entitySet) *extendInterfaceTypeDefinitionVisitor {
 	return &extendInterfaceTypeDefinitionVisitor{
-		normalizer: n,
+		collectedEntities: collectedEntities,
 	}
 }
 
 type extendInterfaceTypeDefinitionVisitor struct {
 	*astvisitor.Walker
-	document   *ast.Document
-	normalizer *normalizer
+	document          *ast.Document
+	collectedEntities entitySet
 }
 
 func (e *extendInterfaceTypeDefinitionVisitor) Register(walker *astvisitor.Walker) {
@@ -40,17 +40,19 @@ func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref i
 			continue
 		}
 		if hasExtended {
-			e.Walker.StopWithExternalErr(*getMultipleExtensionError(isEntity, nameBytes))
+			e.StopWithExternalErr(*multipleExtensionError(isEntity, nameBytes))
+			return
 		}
 		var err *operationreport.ExternalError
 		extension := e.document.InterfaceTypeExtensions[ref]
-		if isEntity, err = e.normalizer.isTypeEntity(nameBytes, extension.HasDirectives, extension.Directives.Refs, e.document); err != nil {
-			e.Walker.StopWithExternalErr(*err)
+		if isEntity, err = e.collectedEntities.isTypeEntity(nameBytes, extension.HasDirectives, extension.Directives.Refs, e.document); err != nil {
+			e.StopWithExternalErr(*err)
+			return
 		}
 		e.document.ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(node.Ref, ref)
 		hasExtended = true
 	}
 	if !hasExtended {
-		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.InterfaceTypeExtensionNameBytes(ref)))
+		e.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.InterfaceTypeExtensionNameBytes(ref)))
 	}
 }
