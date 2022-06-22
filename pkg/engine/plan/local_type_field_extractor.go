@@ -4,10 +4,11 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
 )
 
+const FederationKeyDirectiveName = "key"
+
 const (
-	FederationKeyDirectiveName      = "key"
 	federationRequireDirectiveName  = "requires"
-	FederationExternalDirectiveName = "external"
+	federationExternalDirectiveName = "external"
 )
 
 // LocalTypeFieldExtractor takes an ast.Document as input and generates the
@@ -225,7 +226,7 @@ func (e *LocalTypeFieldExtractor) isRootNode(nodeInfo *nodeInformation) bool {
 func (e *LocalTypeFieldExtractor) collectFieldDefinitions(node ast.Node, nodeInfo *nodeInformation) {
 	for _, ref := range e.document.NodeFieldDefinitions(node) {
 		isExternal := e.document.FieldDefinitionHasNamedDirective(ref,
-			FederationExternalDirectiveName)
+			federationExternalDirectiveName)
 
 		if isExternal {
 			nodeInfo.externalFieldRefs = append(nodeInfo.externalFieldRefs, ref)

@@ -34,30 +34,34 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 	if !exists {
 		return
 	}
-	hasExtended := false
+
+	var nodeToExtend *ast.Node
 	isEntity := false
 	shouldReturn := ast.IsRootType(nameBytes)
 	for i := range nodes {
 		if nodes[i].Kind != ast.NodeKindObjectTypeDefinition {
 			continue
 		}
-		if hasExtended {
+		if nodeToExtend != nil {
 			e.StopWithExternalErr(*multipleExtensionError(isEntity, nameBytes))
 			return
 		}
 		var err *operationreport.ExternalError
 		extension := e.document.ObjectTypeExtensions[ref]
-		if isEntity, err = e.collectedEntities.isTypeEntity(nameBytes, extension.HasDirectives, extension.Directives.Refs, e.document); err != nil {
+		if isEntity, err = e.collectedEntities.isExtensionForEntity(nameBytes, extension.Directives.Refs, e.document); err != nil {
 			e.StopWithExternalErr(*err)
 			return
 		}
-		e.document.ExtendObjectTypeDefinitionByObjectTypeExtension(nodes[i].Ref, ref)
+		nodeToExtend = &nodes[i]
 		if shouldReturn {
-			return
+			break
 		}
-		hasExtended = true
 	}
-	if !hasExtended {
+
+	if nodeToExtend == nil {
 		e.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(nameBytes))
+		return
 	}
+
+	e.document.ExtendObjectTypeDefinitionByObjectTypeExtension(nodeToExtend.Ref, ref)
 }

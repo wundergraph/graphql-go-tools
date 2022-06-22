@@ -164,8 +164,9 @@ func (m *normalizer) normalize(operation *ast.Document) error {
 	return nil
 }
 
-func (e entitySet) isTypeEntity(nameBytes []byte, hasDirectives bool, directiveRefs []int, document *ast.Document) (bool, *operationreport.ExternalError) {
+func (e entitySet) isExtensionForEntity(nameBytes []byte, directiveRefs []int, document *ast.Document) (bool, *operationreport.ExternalError) {
 	name := string(nameBytes)
+	hasDirectives := len(directiveRefs) > 0
 	if _, exists := e[name]; !exists {
 		if !hasDirectives || !isEntityExtension(directiveRefs, document) {
 			return false, nil
