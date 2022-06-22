@@ -37,7 +37,6 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 
 	var nodeToExtend *ast.Node
 	isEntity := false
-	shouldReturn := ast.IsRootType(nameBytes)
 	for i := range nodes {
 		if nodes[i].Kind != ast.NodeKindObjectTypeDefinition {
 			continue
@@ -53,7 +52,7 @@ func (e *extendObjectTypeDefinitionVisitor) EnterObjectTypeExtension(ref int) {
 			return
 		}
 		nodeToExtend = &nodes[i]
-		if shouldReturn {
+		if ast.IsRootType(nameBytes) {
 			break
 		}
 	}
