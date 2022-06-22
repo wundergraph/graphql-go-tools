@@ -127,7 +127,7 @@ func (v *inputFieldDefaultInjectionVisitor) isScalarTypeOrExtension(typeRef int,
 	if typeDoc.TypeIsScalar(typeRef, v.definition) || typeDoc.TypeIsEnum(typeRef, v.definition) {
 		return true
 	}
-	typeName := v.definition.TypeNameBytes(typeRef)
+	typeName := typeDoc.TypeNameBytes(typeRef)
 	node, found := v.definition.Index.FirstNonExtensionNodeByNameBytes(typeName)
 	if !found {
 		return false
