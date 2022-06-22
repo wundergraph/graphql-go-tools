@@ -119,7 +119,7 @@ func requiredFieldsByRequiresDirective(document *ast.Document, fieldDefinitionRe
 
 func (f *RequiredFieldExtractor) primaryKeyFieldsIfObjectTypeIsEntity(objectType ast.ObjectTypeDefinition) (keyFields []string, ok bool) {
 	for _, directiveRef := range objectType.Directives.Refs {
-		if directiveName := f.document.DirectiveNameString(directiveRef); directiveName != federationKeyDirectiveName {
+		if directiveName := f.document.DirectiveNameString(directiveRef); directiveName != FederationKeyDirectiveName {
 			continue
 		}
 

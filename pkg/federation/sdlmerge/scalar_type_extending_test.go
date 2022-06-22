@@ -18,12 +18,12 @@ func TestExtendScalarType(t *testing.T) {
 			scalar Attack
 			scalar Attack
 			extend scalar Attack @deprecated(reason: "some reason") @skip(if: false)
-		`, SharedTypeExtensionErrorMessage("Attack"))
+		`, sharedTypeExtensionErrorMessage("Attack"))
 	})
 
 	t.Run("Unresolved scalar extension orphan returns an error", func(t *testing.T) {
 		runAndExpectError(t, newExtendScalarTypeDefinition(), `
 			extend scalar Badges @onScalar
-		`, UnresolvedExtensionOrphansErrorMessage("Badges"))
+		`, unresolvedExtensionOrphansErrorMessage("Badges"))
 	})
 }

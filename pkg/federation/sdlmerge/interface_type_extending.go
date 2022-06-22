@@ -6,13 +6,16 @@ import (
 	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
-func newExtendInterfaceTypeDefinition() *extendInterfaceTypeDefinitionVisitor {
-	return &extendInterfaceTypeDefinitionVisitor{}
+func newExtendInterfaceTypeDefinition(collectedEntities entitySet) *extendInterfaceTypeDefinitionVisitor {
+	return &extendInterfaceTypeDefinitionVisitor{
+		collectedEntities: collectedEntities,
+	}
 }
 
 type extendInterfaceTypeDefinitionVisitor struct {
 	*astvisitor.Walker
-	document *ast.Document
+	document          *ast.Document
+	collectedEntities entitySet
 }
 
 func (e *extendInterfaceTypeDefinitionVisitor) Register(walker *astvisitor.Walker) {
@@ -26,24 +29,35 @@ func (e *extendInterfaceTypeDefinitionVisitor) EnterDocument(operation, _ *ast.D
 }
 
 func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref int) {
-	nodes, exists := e.document.Index.NodesByNameBytes(e.document.InterfaceTypeExtensionNameBytes(ref))
+	nameBytes := e.document.InterfaceTypeExtensionNameBytes(ref)
+	nodes, exists := e.document.Index.NodesByNameBytes(nameBytes)
 	if !exists {
 		return
 	}
 
-	hasExtended := false
-	for _, node := range nodes {
-		if node.Kind != ast.NodeKindInterfaceTypeDefinition {
+	var nodeToExtend *ast.Node
+	isEntity := false
+	for i := range nodes {
+		if nodes[i].Kind != ast.NodeKindInterfaceTypeDefinition {
 			continue
 		}
-		if hasExtended {
-			e.Walker.StopWithExternalErr(operationreport.ErrSharedTypesMustNotBeExtended(e.document.InterfaceTypeExtensionNameString(ref)))
+		if nodeToExtend != nil {
+			e.StopWithExternalErr(*multipleExtensionError(isEntity, nameBytes))
+			return
 		}
-		e.document.ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(node.Ref, ref)
-		hasExtended = true
+		var err *operationreport.ExternalError
+		extension := e.document.InterfaceTypeExtensions[ref]
+		if isEntity, err = e.collectedEntities.isExtensionForEntity(nameBytes, extension.Directives.Refs, e.document); err != nil {
+			e.StopWithExternalErr(*err)
+			return
+		}
+		nodeToExtend = &nodes[i]
 	}
 
-	if !hasExtended {
-		e.Walker.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.InterfaceTypeExtensionNameBytes(ref)))
+	if nodeToExtend == nil {
+		e.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.InterfaceTypeExtensionNameBytes(ref)))
+		return
 	}
+
+	e.document.ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(nodeToExtend.Ref, ref)
 }

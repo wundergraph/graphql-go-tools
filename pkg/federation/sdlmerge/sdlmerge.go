@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
 	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
+	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
 	"strings"
 
 	"github.com/jensneuse/graphql-go-tools/pkg/ast"
@@ -112,16 +113,21 @@ type normalizer struct {
 	walkers []*astvisitor.Walker
 }
 
+type entitySet map[string]struct{}
+
 func (m *normalizer) setupWalkers() {
+	collectedEntities := make(entitySet)
 	visitorGroups := [][]Visitor{
-		// visitors for extending objects and interfaces
+		{
+			newCollectEntitiesVisitor(collectedEntities),
+		},
 		{
 			newExtendEnumTypeDefinition(),
 			newExtendInputObjectTypeDefinition(),
-			newExtendInterfaceTypeDefinition(),
+			newExtendInterfaceTypeDefinition(collectedEntities),
 			newExtendScalarTypeDefinition(),
 			newExtendUnionTypeDefinition(),
-			newExtendObjectTypeDefinition(),
+			newExtendObjectTypeDefinition(collectedEntities),
 			newRemoveEmptyObjectTypeDefinition(),
 			newRemoveMergedTypeExtensions(),
 		},
@@ -158,167 +164,41 @@ func (m *normalizer) normalize(operation *ast.Document) error {
 	return nil
 }
 
-type FieldedSharedType struct {
-	document  *ast.Document
-	fieldKind ast.NodeKind
-	fieldRefs []int
-	fieldSet  map[string]int
-}
-
-func NewFieldedSharedType(document *ast.Document, fieldKind ast.NodeKind, fieldRefs []int) FieldedSharedType {
-	f := FieldedSharedType{
-		document,
-		fieldKind,
-		fieldRefs,
-		nil,
-	}
-	f.createFieldSet()
-	return f
-}
-
-func (f FieldedSharedType) AreFieldsIdentical(fieldRefsToCompare []int) bool {
-	if len(f.fieldRefs) != len(fieldRefsToCompare) {
-		return false
-	}
-	for _, fieldRef := range fieldRefsToCompare {
-		actualFieldName := f.fieldName(fieldRef)
-		expectedTypeRef, exists := f.fieldSet[actualFieldName]
-		if !exists {
-			return false
+func (e entitySet) isExtensionForEntity(nameBytes []byte, directiveRefs []int, document *ast.Document) (bool, *operationreport.ExternalError) {
+	name := string(nameBytes)
+	hasDirectives := len(directiveRefs) > 0
+	if _, exists := e[name]; !exists {
+		if !hasDirectives || !isEntityExtension(directiveRefs, document) {
+			return false, nil
 		}
-		actualTypeRef := f.fieldTypeRef(fieldRef)
-		if !f.document.TypesAreCompatibleDeep(expectedTypeRef, actualTypeRef) {
-			return false
+		err := operationreport.ErrExtensionWithKeyDirectiveMustExtendEntity(name)
+		return false, &err
+	}
+	if !hasDirectives {
+		err := operationreport.ErrEntityExtensionMustHaveKeyDirective(name)
+		return false, &err
+	}
+	if isEntityExtension(directiveRefs, document) {
+		return true, nil
+	}
+	err := operationreport.ErrEntityExtensionMustHaveKeyDirective(name)
+	return false, &err
+}
+
+func isEntityExtension(directiveRefs []int, document *ast.Document) bool {
+	for _, directiveRef := range directiveRefs {
+		if document.DirectiveNameString(directiveRef) == plan.FederationKeyDirectiveName {
+			return true
 		}
 	}
-	return true
+	return false
 }
 
-func (f *FieldedSharedType) createFieldSet() {
-	fieldSet := make(map[string]int)
-	for _, fieldRef := range f.fieldRefs {
-		fieldSet[f.fieldName(fieldRef)] = f.fieldTypeRef(fieldRef)
+func multipleExtensionError(isEntity bool, nameBytes []byte) *operationreport.ExternalError {
+	if isEntity {
+		err := operationreport.ErrEntitiesMustNotBeDuplicated(string(nameBytes))
+		return &err
 	}
-	f.fieldSet = fieldSet
-}
-
-func (f FieldedSharedType) fieldName(ref int) string {
-	switch f.fieldKind {
-	case ast.NodeKindInputValueDefinition:
-		return f.document.InputValueDefinitionNameString(ref)
-	default:
-		return f.document.FieldDefinitionNameString(ref)
-	}
-}
-
-func (f FieldedSharedType) fieldTypeRef(ref int) int {
-	switch f.fieldKind {
-	case ast.NodeKindInputValueDefinition:
-		return f.document.InputValueDefinitions[ref].Type
-	default:
-		return f.document.FieldDefinitions[ref].Type
-	}
-}
-
-type FieldlessSharedType interface {
-	AreValuesIdentical(valueRefsToCompare []int) bool
-	valueRefs() []int
-	valueName(ref int) string
-}
-
-func createValueSet(f FieldlessSharedType) map[string]bool {
-	valueSet := make(map[string]bool)
-	for _, valueRef := range f.valueRefs() {
-		valueSet[f.valueName(valueRef)] = true
-	}
-	return valueSet
-}
-
-type EnumSharedType struct {
-	*ast.EnumTypeDefinition
-	document *ast.Document
-	valueSet map[string]bool
-}
-
-func NewEnumSharedType(document *ast.Document, ref int) EnumSharedType {
-	e := EnumSharedType{
-		&document.EnumTypeDefinitions[ref],
-		document,
-		nil,
-	}
-	e.valueSet = createValueSet(e)
-	return e
-}
-
-func (e EnumSharedType) AreValuesIdentical(valueRefsToCompare []int) bool {
-	if len(e.valueRefs()) != len(valueRefsToCompare) {
-		return false
-	}
-	for _, valueRefToCompare := range valueRefsToCompare {
-		name := e.valueName(valueRefToCompare)
-		if !e.valueSet[name] {
-			return false
-		}
-	}
-	return true
-}
-
-func (e EnumSharedType) valueRefs() []int {
-	return e.EnumValuesDefinition.Refs
-}
-
-func (e EnumSharedType) valueName(ref int) string {
-	return e.document.EnumValueDefinitionNameString(ref)
-}
-
-type UnionSharedType struct {
-	*ast.UnionTypeDefinition
-	document *ast.Document
-	valueSet map[string]bool
-}
-
-func NewUnionSharedType(document *ast.Document, ref int) UnionSharedType {
-	u := UnionSharedType{
-		&document.UnionTypeDefinitions[ref],
-		document,
-		nil,
-	}
-	u.valueSet = createValueSet(u)
-	return u
-}
-
-func (u UnionSharedType) AreValuesIdentical(valueRefsToCompare []int) bool {
-	if len(u.valueRefs()) != len(valueRefsToCompare) {
-		return false
-	}
-	for _, refToCompare := range valueRefsToCompare {
-		name := u.valueName(refToCompare)
-		if !u.valueSet[name] {
-			return false
-		}
-	}
-	return true
-}
-
-func (u UnionSharedType) valueRefs() []int {
-	return u.UnionMemberTypes.Refs
-}
-
-func (u UnionSharedType) valueName(ref int) string {
-	return u.document.TypeNameString(ref)
-}
-
-type ScalarSharedType struct {
-}
-
-func (_ ScalarSharedType) AreValuesIdentical(_ []int) bool {
-	return true
-}
-
-func (_ ScalarSharedType) valueRefs() []int {
-	return nil
-}
-
-func (_ ScalarSharedType) valueName(_ int) string {
-	return ""
+	err := operationreport.ErrSharedTypesMustNotBeExtended(string(nameBytes))
+	return &err
 }

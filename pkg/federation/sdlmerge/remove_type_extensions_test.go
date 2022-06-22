@@ -17,7 +17,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 						favoriteToy: String
 					}
 					`,
-			newExtendObjectTypeDefinition(),
+			newExtendObjectTypeDefinition(newTestNormalizer(false)),
 			newRemoveMergedTypeExtensions())
 	})
 	t.Run("remove single type extension of directive", func(t *testing.T) {
@@ -31,7 +31,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 						name: String
 					}
 					`,
-			newExtendObjectTypeDefinition(),
+			newExtendObjectTypeDefinition(newTestNormalizer(false)),
 			newRemoveMergedTypeExtensions())
 	})
 	t.Run("remove multiple type extensions at once", func(t *testing.T) {
@@ -49,7 +49,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 						age: Int
 					}
 					`,
-			newExtendObjectTypeDefinition(),
+			newExtendObjectTypeDefinition(newTestNormalizer(false)),
 			newRemoveMergedTypeExtensions())
 	})
 	t.Run("remove interface type extensions", func(t *testing.T) {
@@ -68,7 +68,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 						age: Int
 					}
 					`,
-			newExtendInterfaceTypeDefinition(),
+			newExtendInterfaceTypeDefinition(newTestNormalizer(false)),
 			newRemoveMergedTypeExtensions())
 	})
 	t.Run("keep not merged type extension", func(t *testing.T) {
@@ -81,7 +81,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 					field: String! 
 				}
 		`,
-			newExtendInterfaceTypeDefinition(),
+			newExtendInterfaceTypeDefinition(newTestNormalizer(false)),
 			newRemoveMergedTypeExtensions(),
 		)
 	})

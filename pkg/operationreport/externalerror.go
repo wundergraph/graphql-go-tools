@@ -274,8 +274,8 @@ func ErrSharedTypesMustBeIdenticalToFederate(typeName string) (err ExternalError
 	return err
 }
 
-func ErrEntitiesMustNotBeSharedTypes(typeName string) (err ExternalError) {
-	err.Message = fmt.Sprintf("entities must not be shared types, but the entity named '%s' is duplicated in other subgraph(s)", typeName)
+func ErrEntitiesMustNotBeDuplicated(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the entity named '%s' is defined in the subgraph(s) more than once", typeName)
 	return err
 }
 
@@ -291,5 +291,15 @@ func ErrExtensionOrphansMustResolveInSupergraph(extensionNameBytes []byte) (err 
 
 func ErrTypeBodyMustNotBeEmpty(definitionType, typeName string) (err ExternalError) {
 	err.Message = fmt.Sprintf("the %s named '%s' is invalid due to an empty body", definitionType, typeName)
+	return err
+}
+
+func ErrEntityExtensionMustHaveKeyDirective(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("an extension of the entity named '%s' does not have a key directive", typeName)
+	return err
+}
+
+func ErrExtensionWithKeyDirectiveMustExtendEntity(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the extension named '%s' has a key directive but there is no entity of the same name", typeName)
 	return err
 }
