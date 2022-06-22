@@ -97,6 +97,14 @@ func TestNormalizeOperation(t *testing.T) {
 					disallowedSecondRootField
 				}`, "", "")
 	})
+	t.Run("inject default", func(t *testing.T) {
+		run(t,
+			injectDefaultValueDefinition, `
+			query{elQuery(input:{fieldB: "dupa"})}`,
+			`query($a: elInput){elQuery(input: $a)}`, "",
+			`{"a":{"fieldB":"dupa","fieldA":"VALUE_A"}}`,
+		)
+	})
 	t.Run("fragments", func(t *testing.T) {
 		run(t, testDefinition, `
 				query conflictingBecauseAlias ($unused: String) {
@@ -688,5 +696,24 @@ extend type Mutation {
 }
 extend type Subscription {
 	textCounter: String
+}
+`
+const injectDefaultValueDefinition = `
+type Query {
+  elQuery(input: elInput): Boolean!
+}
+
+type Mutation{
+  elMutation(input: elInput!): Boolean!
+}
+
+input elInput{
+  fieldA: MyEnum! = VALUE_A
+  fieldB: String
+}
+
+enum MyEnum {
+	VALUE_A
+	VALUE_B
 }
 `
