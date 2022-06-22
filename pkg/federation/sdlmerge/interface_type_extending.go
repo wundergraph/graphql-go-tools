@@ -33,26 +33,30 @@ func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref i
 	if !exists {
 		return
 	}
-	hasExtended := false
+
+	var nodeToExtend *ast.Node
 	isEntity := false
-	for _, node := range nodes {
-		if node.Kind != ast.NodeKindInterfaceTypeDefinition {
+	for i := range nodes {
+		if nodes[i].Kind != ast.NodeKindInterfaceTypeDefinition {
 			continue
 		}
-		if hasExtended {
+		if nodeToExtend != nil {
 			e.StopWithExternalErr(*multipleExtensionError(isEntity, nameBytes))
 			return
 		}
 		var err *operationreport.ExternalError
 		extension := e.document.InterfaceTypeExtensions[ref]
-		if isEntity, err = e.collectedEntities.isTypeEntity(nameBytes, extension.HasDirectives, extension.Directives.Refs, e.document); err != nil {
+		if isEntity, err = e.collectedEntities.isExtensionForEntity(nameBytes, extension.Directives.Refs, e.document); err != nil {
 			e.StopWithExternalErr(*err)
 			return
 		}
-		e.document.ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(node.Ref, ref)
-		hasExtended = true
+		nodeToExtend = &nodes[i]
 	}
-	if !hasExtended {
+
+	if nodeToExtend == nil {
 		e.StopWithExternalErr(operationreport.ErrExtensionOrphansMustResolveInSupergraph(e.document.InterfaceTypeExtensionNameBytes(ref)))
+		return
 	}
+
+	e.document.ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(nodeToExtend.Ref, ref)
 }

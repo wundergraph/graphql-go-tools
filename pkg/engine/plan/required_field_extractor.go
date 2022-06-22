@@ -42,7 +42,7 @@ func (f *RequiredFieldExtractor) addFieldsForObjectExtensionDefinitions(fieldReq
 		}
 
 		for _, fieldDefinitionRef := range objectType.FieldsDefinition.Refs {
-			if f.document.FieldDefinitionHasNamedDirective(fieldDefinitionRef, FederationExternalDirectiveName) {
+			if f.document.FieldDefinitionHasNamedDirective(fieldDefinitionRef, federationExternalDirectiveName) {
 				continue
 			}
 
