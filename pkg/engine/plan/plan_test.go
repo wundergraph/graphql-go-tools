@@ -8,12 +8,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
-	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvalidation"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/resolve"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/TykTechnologies/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astnormalization"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/asttransform"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astvalidation"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
 )
 
 func TestPlanner_Plan(t *testing.T) {

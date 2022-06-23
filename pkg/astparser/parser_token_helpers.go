@@ -1,10 +1,10 @@
 package astparser
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/identkeyword"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/token"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/identkeyword"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/keyword"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/token"
 )
 
 // read - reads and returns next token

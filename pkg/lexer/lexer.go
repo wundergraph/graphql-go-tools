@@ -2,10 +2,10 @@
 package lexer
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/runes"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/token"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/keyword"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/runes"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/token"
 )
 
 // Lexer emits tokens from a input reader

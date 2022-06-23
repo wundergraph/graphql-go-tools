@@ -7,11 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/codegen"
-	"github.com/jensneuse/graphql-go-tools/pkg/imports"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astparser"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/codegen"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/imports"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
 )
 
 var (

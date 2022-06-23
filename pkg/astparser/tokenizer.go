@@ -1,10 +1,10 @@
 package astparser
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/keyword"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/token"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/keyword"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/token"
 )
 
 // Tokenizer takes a raw input and turns it into set of tokens

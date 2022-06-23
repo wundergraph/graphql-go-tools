@@ -1,8 +1,8 @@
 package sdlmerge
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/astvisitor"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astvisitor"
 )
 
 func newRemoveMergedTypeExtensions() *removeMergedTypeExtensionsVisitor {

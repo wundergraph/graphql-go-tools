@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/jensneuse/graphql-go-tools/pkg/asttransform"
+	"github.com/TykTechnologies/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/asttransform"
 )
 
 type expectation func(t *testing.T, subscription, streaming bool, err error)
