@@ -3,8 +3,8 @@ package ast
 import (
 	"math"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/position"
+	"github.com/TykTechnologies/graphql-go-tools/internal/pkg/unsafebytes"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/position"
 )
 
 type OperationType int

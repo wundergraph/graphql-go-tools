@@ -1,4 +1,4 @@
-module github.com/jensneuse/graphql-go-tools/examples/chat
+module github.com/TykTechnologies/graphql-go-tools/examples/chat
 
 go 1.16
 

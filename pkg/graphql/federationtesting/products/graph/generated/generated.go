@@ -15,7 +15,7 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
 	"github.com/99designs/gqlgen/plugin/federation/fedruntime"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphql/federationtesting/products/graph/model"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/graphql/federationtesting/products/graph/model"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )

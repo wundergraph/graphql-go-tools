@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqlerrors"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/graphqlerrors"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
 )
 
 type Errors interface {

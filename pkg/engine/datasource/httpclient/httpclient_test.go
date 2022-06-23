@@ -12,8 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/quotes"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/TykTechnologies/graphql-go-tools/internal/pkg/quotes"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/literal"
 )
 
 func TestHttpClient(t *testing.T) {

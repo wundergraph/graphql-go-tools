@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/jensneuse/diffview"
-	"github.com/jensneuse/graphql-go-tools/pkg/astparser"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/astparser"
 	"github.com/sebdah/goldie"
 )
 
