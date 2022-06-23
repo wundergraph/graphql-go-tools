@@ -149,18 +149,22 @@ func (v *inputFieldDefaultInjectionVisitor) processObjectOrListInput(fieldType i
 	}
 	node, found := v.definition.Index.FirstNodeByNameBytes(typeDoc.ResolveTypeNameBytes(fieldType))
 	if !found {
-		return nil, nil
+		return finalVal, nil
+	}
+	if node.Kind == ast.NodeKindScalarTypeDefinition {
+		return finalVal, nil
 	}
 	valIsList := valType == jsonparser.Array
 	if fieldIsList && valIsList {
 		_, err := jsonparser.ArrayEach(varVal, v.jsonWalker(typeDoc.ResolveListOrNameType(fieldType), defaultValue, &node, typeDoc, &finalVal))
 		if err != nil {
-			return nil, nil
+			return nil, err
+
 		}
 	} else if !fieldIsList && !valIsList {
 		finalVal, err = v.recursiveInjectInputFields(node.Ref, defaultValue)
 		if err != nil {
-			return nil, nil
+			return nil, err
 		}
 	} else {
 		return nil, errors.New("mismatched input value")
