@@ -6,8 +6,8 @@ package graph
 import (
 	"context"
 
-	"github.com/TykTechnologies/graphql-go-tools/pkg/graphql/federationtesting/accounts/graph/generated"
-	"github.com/TykTechnologies/graphql-go-tools/pkg/graphql/federationtesting/accounts/graph/model"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphql/federationtesting/accounts/graph/generated"
+	"github.com/jensneuse/graphql-go-tools/pkg/graphql/federationtesting/accounts/graph/model"
 )
 
 func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {

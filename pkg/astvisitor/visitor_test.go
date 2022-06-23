@@ -10,9 +10,9 @@ import (
 	"github.com/jensneuse/diffview"
 	"github.com/sebdah/goldie"
 
-	"github.com/TykTechnologies/graphql-go-tools/internal/pkg/unsafeparser"
-	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
-	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
+	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/jensneuse/graphql-go-tools/pkg/ast"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 var must = func(err error) {

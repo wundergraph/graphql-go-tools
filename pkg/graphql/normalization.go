@@ -1,8 +1,8 @@
 package graphql
 
 import (
-	"github.com/TykTechnologies/graphql-go-tools/pkg/astnormalization"
-	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
+	"github.com/jensneuse/graphql-go-tools/pkg/astnormalization"
+	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
 )
 
 type NormalizationResult struct {

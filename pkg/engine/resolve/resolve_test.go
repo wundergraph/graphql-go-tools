@@ -14,7 +14,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/TykTechnologies/graphql-go-tools/pkg/fastbuffer"
+	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 )
 
 type _fakeDataSource struct {

@@ -6,7 +6,7 @@ import (
 
 	"github.com/buger/jsonparser"
 
-	"github.com/TykTechnologies/graphql-go-tools/pkg/fastbuffer"
+	"github.com/jensneuse/graphql-go-tools/pkg/fastbuffer"
 )
 
 const (
