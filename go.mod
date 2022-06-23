@@ -27,8 +27,8 @@ require (
 	github.com/jensneuse/abstractlogger v0.0.4
 	github.com/jensneuse/byte-template v0.0.0-20200214152254-4f3cf06e5c68
 	github.com/jensneuse/diffview v1.0.0
-	github.com/TykTechnologies/graphql-go-tools/examples/chat v0.0.0-20220623103043-073ac8dc733a
-	github.com/TykTechnologies/graphql-go-tools/examples/federation v0.0.0-20220623103043-073ac8dc733a
+	github.com/TykTechnologies/graphql-go-tools/examples/chat v0.0.0-20210714083836-7bf4457dc2b2
+	github.com/TykTechnologies/graphql-go-tools/examples/federation v0.0.0-20210714083836-7bf4457dc2b2
 	github.com/jensneuse/pipeline v0.0.0-20200117120358-9fb4de085cd6
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/nats-io/nats.go v1.11.1-0.20210623165838-4b75fc59ae30
