@@ -7,5 +7,5 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/rs/cors v1.7.0
 	github.com/stretchr/testify v1.7.0
-	github.com/vektah/gqlparser/v2 v2.2.0 // indirect
+	github.com/vektah/gqlparser/v2 v2.2.0
 )

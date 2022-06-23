@@ -61,11 +61,9 @@ echo "IMPORT_PATTERN: $IMPORT_PATTERN"
 if [[ "$OSTYPE" == "darwin"* ]]; then
   find . -type f -iname '*.go' -exec sed -i '' -e $IMPORT_PATTERN '{}' ';'
   find . -type f -iname 'go.mod' -exec sed -i '' -e $IMPORT_PATTERN '{}' ';'
-  find . -type f -iname '*gqlgen.yml' -exec sed -i '' -e $IMPORT_PATTERN '{}' ';'
 else
   find . -type f -iname '*.go' -exec sed -i $IMPORT_PATTERN '{}' ';'
   find . -type f -iname 'go.mod' -exec sed -i $IMPORT_PATTERN '{}' ';'
-  find . -type f -iname '*gqlgen.yml' -exec sed -i $IMPORT_PATTERN '{}' ';'
 fi
 
 
@@ -75,13 +73,11 @@ ROOT_DIR=$(pwd)
 echo "Tidy examples/chat ..."
 cd ./examples/chat
 go mod tidy
-go generate ./...
 
-echo "Tidy examples/federation and go generate ..."
+echo "Tidy examples/federation ..."
 cd $ROOT_DIR
 cd ./examples/federation
 go mod tidy
-go generate ./...
 
 echo "Tidy examples/kafka_pubsub ..."
 cd $ROOT_DIR
@@ -92,7 +88,3 @@ echo "Tidy ./ ..."
 cd $ROOT_DIR
 go mod tidy
 
-echo "Go generate in pkg/graphql/federationtesting ..."
-cd ./pkg/graphql/federationtesting
-go generate ./...
-cd $ROOT_DIR
