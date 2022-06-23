@@ -6,6 +6,8 @@ import (
 )
 
 const testInputDefaultSchema = `
+scalar CustomScalar
+
 enum TestEnum {
   ValueOne
   ValueTwo
@@ -27,6 +29,8 @@ type Mutation {
   mutationWithMultiNestedInput(in: MultiNestedInput): String
   mutationComplexNestedListInput(in: ComplexNestedListInput): String
   mutationSimpleInputList(in: [SimpleTestInput]): String
+  mutationUseCustomScalar(in: CustomScalar!): String
+  mutationUseCustomScalarList(in: [CustomScalar!]): String
 }
 
 input MultiNestedInput {
@@ -234,5 +238,29 @@ func TestInputDefaultValueExtraction(t *testing.T) {
 			mutation mutationSimpleInputList($a: [SimpleTestInput]) {
 			  mutationSimpleInputList(data: $a)
 			}`, `{"a":[{"thirdField":1}]}`, `{"a":[{"thirdField":1,"firstField":"firstField","secondField":1}]}`)
+	})
+
+	t.Run("use custom scalar variable", func(t *testing.T) {
+		runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
+			injectInputFieldDefaults(walker)
+		}, testInputDefaultSchema, `
+			mutation mutationUseCustomScalar($a: CustomScalar) {
+			  mutationUseCustomScalar(in: $a)
+			}`, "", `
+			mutation mutationUseCustomScalar($a: CustomScalar) {
+			  mutationUseCustomScalar(in: $a)
+			}`, `{"a":{}}`, `{"a":{}}`)
+	})
+
+	t.Run("custom scalar variable list", func(t *testing.T) {
+		runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
+			injectInputFieldDefaults(walker)
+		}, testInputDefaultSchema, `
+			mutation mutationUseCustomScalarList($a: [CustomScalar!]) {
+			  mutationUseCustomScalarList(in: $a)
+			}`, "", `
+			mutation mutationUseCustomScalarList($a: [CustomScalar!]) {
+			  mutationUseCustomScalarList(in: $a)
+			}`, `{"a":[{"test": "testval"}]}`, `{"a":[{"test": "testval"}]}`)
 	})
 }
