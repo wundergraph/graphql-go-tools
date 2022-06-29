@@ -234,7 +234,7 @@ func testAsyncProducer(t *testing.T, options *GraphQLSubscriptionOptions, start,
 		config.Net.SASL.Password = options.SASL.Password
 	}
 
-	asyncProducer, err := sarama.NewAsyncProducer([]string{options.BrokerAddr}, config)
+	asyncProducer, err := sarama.NewAsyncProducer(options.BrokerAddresses, config)
 	require.NoError(t, err)
 
 	for i := start; i < end; i++ {
@@ -328,7 +328,7 @@ func TestSarama_StartConsumingLatest_True(t *testing.T) {
 	brokerAddr := broker.GetHostPort(kafkaPort)
 
 	options := &GraphQLSubscriptionOptions{
-		BrokerAddr:           brokerAddr,
+		BrokerAddresses:      []string{brokerAddr},
 		Topic:                testTopic,
 		GroupID:              testConsumerGroup,
 		ClientID:             "graphql-go-tools-test",
@@ -411,7 +411,7 @@ func TestSarama_StartConsuming_And_Restart(t *testing.T) {
 	brokerAddr := broker.GetHostPort(kafkaPort)
 
 	options := &GraphQLSubscriptionOptions{
-		BrokerAddr:           brokerAddr,
+		BrokerAddresses:      []string{brokerAddr},
 		Topic:                testTopic,
 		GroupID:              testConsumerGroup,
 		ClientID:             "graphql-go-tools-test",
@@ -493,7 +493,7 @@ func TestSarama_ConsumerGroup_SASL_Authentication(t *testing.T) {
 	brokerAddr := broker.GetHostPort(kafkaPort)
 
 	options := &GraphQLSubscriptionOptions{
-		BrokerAddr:           brokerAddr,
+		BrokerAddresses:      []string{brokerAddr},
 		Topic:                testTopic,
 		GroupID:              testConsumerGroup,
 		ClientID:             "graphql-go-tools-test",
@@ -539,7 +539,7 @@ func TestSarama_Balance_Strategy(t *testing.T) {
 
 	for strategy, name := range strategies {
 		options := &GraphQLSubscriptionOptions{
-			BrokerAddr:      testBrokerAddr,
+			BrokerAddresses: []string{testBrokerAddr},
 			Topic:           testTopic,
 			GroupID:         testConsumerGroup,
 			ClientID:        testClientID,
@@ -570,11 +570,11 @@ func TestSarama_Isolation_Level(t *testing.T) {
 
 	for isolationLevel, value := range strategies {
 		options := &GraphQLSubscriptionOptions{
-			BrokerAddr:     testBrokerAddr,
-			Topic:          testTopic,
-			GroupID:        testConsumerGroup,
-			ClientID:       testClientID,
-			IsolationLevel: isolationLevel,
+			BrokerAddresses: []string{testBrokerAddr},
+			Topic:           testTopic,
+			GroupID:         testConsumerGroup,
+			ClientID:        testClientID,
+			IsolationLevel:  isolationLevel,
 		}
 		options.Sanitize()
 		require.NoError(t, options.Validate())
@@ -593,10 +593,10 @@ func TestSarama_Isolation_Level(t *testing.T) {
 
 func TestSarama_Config_SASL_Authentication(t *testing.T) {
 	options := &GraphQLSubscriptionOptions{
-		BrokerAddr: testBrokerAddr,
-		Topic:      testTopic,
-		GroupID:    testConsumerGroup,
-		ClientID:   testClientID,
+		BrokerAddresses: []string{testBrokerAddr},
+		Topic:           testTopic,
+		GroupID:         testConsumerGroup,
+		ClientID:        testClientID,
 		SASL: SASL{
 			Enable:   true,
 			User:     "foobar",

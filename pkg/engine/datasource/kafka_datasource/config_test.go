@@ -32,14 +32,14 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 		}
 		g.Sanitize()
 		err := g.Validate()
-		require.Equal(t, err.Error(), "broker_addr cannot be empty")
+		require.Equal(t, err.Error(), "broker_addresses cannot be empty")
 	})
 
 	t.Run("Empty topic not allowed", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{
-			BrokerAddr: "localhost:9092",
-			GroupID:    "groupid",
-			ClientID:   "clientid",
+			BrokerAddresses: []string{"localhost:9092"},
+			GroupID:         "groupid",
+			ClientID:        "clientid",
 		}
 		g.Sanitize()
 		err := g.Validate()
@@ -48,9 +48,9 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 
 	t.Run("Empty client_id not allowed", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{
-			BrokerAddr: "localhost:9092",
-			Topic:      "foobar",
-			GroupID:    "groupid",
+			BrokerAddresses: []string{"localhost:9092"},
+			Topic:           "foobar",
+			GroupID:         "groupid",
 		}
 		g.Sanitize()
 		err := g.Validate()
@@ -59,11 +59,11 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 
 	t.Run("Invalid Kafka version", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{
-			BrokerAddr:   "localhost:9092",
-			Topic:        "foobar",
-			GroupID:      "groupid",
-			ClientID:     "clientid",
-			KafkaVersion: "1.3.5",
+			BrokerAddresses: []string{"localhost:9092"},
+			Topic:           "foobar",
+			GroupID:         "groupid",
+			ClientID:        "clientid",
+			KafkaVersion:    "1.3.5",
 		}
 		g.Sanitize()
 		err := g.Validate()
@@ -72,11 +72,11 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 
 	t.Run("Invalid SASL configuration - SASL nil", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{
-			BrokerAddr: "localhost:9092",
-			Topic:      "foobar",
-			GroupID:    "groupid",
-			ClientID:   "clientid",
-			SASL:       SASL{},
+			BrokerAddresses: []string{"localhost:9092"},
+			Topic:           "foobar",
+			GroupID:         "groupid",
+			ClientID:        "clientid",
+			SASL:            SASL{},
 		}
 		g.Sanitize()
 		err := g.Validate()
@@ -85,10 +85,10 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 
 	t.Run("Invalid SASL configuration - auth disabled", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{
-			BrokerAddr: "localhost:9092",
-			Topic:      "foobar",
-			GroupID:    "groupid",
-			ClientID:   "clientid",
+			BrokerAddresses: []string{"localhost:9092"},
+			Topic:           "foobar",
+			GroupID:         "groupid",
+			ClientID:        "clientid",
 			SASL: SASL{
 				Enable: false,
 			},
@@ -100,10 +100,10 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 
 	t.Run("Invalid SASL configuration - user cannot be empty", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{
-			BrokerAddr: "localhost:9092",
-			Topic:      "foobar",
-			GroupID:    "groupid",
-			ClientID:   "clientid",
+			BrokerAddresses: []string{"localhost:9092"},
+			Topic:           "foobar",
+			GroupID:         "groupid",
+			ClientID:        "clientid",
 			SASL: SASL{
 				Enable: true,
 			},
@@ -115,10 +115,10 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 
 	t.Run("Invalid SASL configuration - password cannot be empty", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{
-			BrokerAddr: "localhost:9092",
-			Topic:      "foobar",
-			GroupID:    "groupid",
-			ClientID:   "clientid",
+			BrokerAddresses: []string{"localhost:9092"},
+			Topic:           "foobar",
+			GroupID:         "groupid",
+			ClientID:        "clientid",
 			SASL: SASL{
 				Enable: true,
 				User:   "foobar",
@@ -131,10 +131,10 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 
 	t.Run("Valid SASL configuration", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{
-			BrokerAddr: "localhost:9092",
-			Topic:      "foobar",
-			GroupID:    "groupid",
-			ClientID:   "clientid",
+			BrokerAddresses: []string{"localhost:9092"},
+			Topic:           "foobar",
+			GroupID:         "groupid",
+			ClientID:        "clientid",
 			SASL: SASL{
 				Enable:   true,
 				User:     "foobar",
