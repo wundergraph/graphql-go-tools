@@ -418,14 +418,18 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		},
 	))
 
-	t.Run("execute with .object placeholder", runWithoutError(
+	t.Run("execute with .object and .arguments placeholder", runWithoutError(
 		ExecutionEngineV2TestCase{
 			schema: func(t *testing.T) *Schema {
 				t.Helper()
 				schema := `
 					type Query {
-					  getPet(id: ID): Pet
+					  getPet(id: ID, metadata: APIMetadata): Pet
 					  countries: [Country]
+					}
+
+					input APIMetadata {
+						version: String!
 					}
 					
 					type Country {
@@ -451,8 +455,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				return Request{
 					OperationName: "MyQuery",
 					Query: `
-						query MyQuery {
-						  getPet(id: 1) {
+						query MyQuery($metadata: APIMetadata) {
+						  getPet(id: 1, metadata: $metadata) {
 							id
 							name
 							country {
@@ -461,6 +465,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						  }
 						}
 					`,
+					Variables: []byte(`{"metadata":{"version":"v2"}}`),
 				}
 			},
 			dataSources: []plan.DataSourceConfiguration{
@@ -476,13 +481,13 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							expectedHost:     "petstore.swagger.io",
 							expectedPath:     "/v2/pet/1",
 							expectedBody:     "",
-							sendResponseBody: `{"id":1,"category":{"id":1,"name":"string"},"name":"doggie"}`,
+							sendResponseBody: `{"id":1,"category":{"id":1,"name":"dog"},"name":"doggie"}`,
 							sendStatusCode:   200,
 						}),
 					},
 					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
 						Fetch: rest_datasource.FetchConfiguration{
-							URL:    "https://petstore.swagger.io/v2/pet/{{.arguments.id}}",
+							URL:    "https://petstore.swagger.io/{{.arguments.metadata.version}}/pet/{{.arguments.id}}",
 							Method: "GET",
 						},
 					}),
@@ -497,7 +502,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					Factory: &rest_datasource.Factory{
 						Client: testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "rest-countries.example.com",
-							expectedPath:     "/name/doggie",
+							expectedPath:     "/type/1-dog/name/doggie",
 							expectedBody:     "",
 							sendResponseBody: `{"name":"Germany"}`,
 							sendStatusCode:   200,
@@ -505,7 +510,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					},
 					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
 						Fetch: rest_datasource.FetchConfiguration{
-							URL:    "https://rest-countries.example.com/name/{{.object.name}}",
+							URL:    "https://rest-countries.example.com/type/{{.object.category.id}}-{{.object.category.name}}/name/{{.object.name}}",
 							Method: "POST",
 						},
 					}),
@@ -520,6 +525,10 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					Arguments: []plan.ArgumentConfiguration{
 						{
 							Name:       "id",
+							SourceType: plan.FieldArgumentSource,
+						},
+						{
+							Name:       "metadata",
 							SourceType: plan.FieldArgumentSource,
 						},
 					},

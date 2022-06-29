@@ -12,18 +12,59 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 )
 
-func FromTypeRef(operation, definition *ast.Document, typeRef int) JsonSchema {
-	resolver := &fromTypeRefResolver{
-		overrides: map[string]JsonSchema{},
-	}
-	return resolver.fromTypeRef(operation, definition, typeRef)
+type options struct {
+	overrides map[string]JsonSchema
+	path      []string
 }
 
-func FromTypeRefWithOverrides(operation, definition *ast.Document, typeRef int, overrides map[string]JsonSchema) JsonSchema {
-	resolver := &fromTypeRefResolver{
-		overrides: overrides,
+type Option func(opts *options)
+
+func WithOverrides(overrides map[string]JsonSchema) Option {
+	return func(opts *options) {
+		opts.overrides = overrides
 	}
-	return resolver.fromTypeRef(operation, definition, typeRef)
+}
+
+func WithPath(path []string) Option {
+	return func(opts *options) {
+		opts.path = path
+	}
+}
+
+func FromTypeRef(operation, definition *ast.Document, typeRef int, opts ...Option) JsonSchema {
+	appliedOptions := &options{}
+	for _, opt := range opts {
+		opt(appliedOptions)
+	}
+
+	var resolver *fromTypeRefResolver
+	if len(appliedOptions.overrides) > 0 {
+		resolver = &fromTypeRefResolver{
+			overrides: appliedOptions.overrides,
+		}
+	} else {
+		resolver = &fromTypeRefResolver{
+			overrides: map[string]JsonSchema{},
+		}
+	}
+
+	jsonSchema := resolver.fromTypeRef(operation, definition, typeRef)
+	return resolveJsonSchemaPath(jsonSchema, appliedOptions.path)
+}
+
+func resolveJsonSchemaPath(jsonSchema JsonSchema, path []string) JsonSchema {
+	switch typedJsonSchema := jsonSchema.(type) {
+	case Object:
+		for i := 0; i < len(path); i++ {
+			propertyJsonSchema, exists := typedJsonSchema.Properties[path[i]]
+			if !exists {
+				return jsonSchema
+			}
+			jsonSchema = propertyJsonSchema
+		}
+	}
+
+	return jsonSchema
 }
 
 type fromTypeRefResolver struct {
