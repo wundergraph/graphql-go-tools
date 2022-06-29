@@ -211,11 +211,11 @@ func TestKafkaConsumerGroup_StartConsuming_And_Stop(t *testing.T) {
 	fr.AddMessage(topic, defaultPartition, testMessageKey, testMessageValue, 0)
 
 	options := GraphQLSubscriptionOptions{
-		BrokerAddr:   mockBroker.Addr(),
-		Topic:        topic,
-		GroupID:      consumerGroup,
-		ClientID:     "graphql-go-tools-test",
-		KafkaVersion: testMockKafkaVersion,
+		BrokerAddresses: []string{mockBroker.Addr()},
+		Topic:           topic,
+		GroupID:         consumerGroup,
+		ClientID:        "graphql-go-tools-test",
+		KafkaVersion:    testMockKafkaVersion,
 	}
 	options.Sanitize()
 	require.NoError(t, options.Validate())

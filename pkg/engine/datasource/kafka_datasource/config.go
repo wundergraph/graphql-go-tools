@@ -57,15 +57,15 @@ type SASL struct {
 }
 
 type GraphQLSubscriptionOptions struct {
-	BrokerAddr           string `json:"broker_addr"`
-	Topic                string `json:"topic"`
-	GroupID              string `json:"group_id"`
-	ClientID             string `json:"client_id"`
-	KafkaVersion         string `json:"kafka_version"`
-	StartConsumingLatest bool   `json:"start_consuming_latest"`
-	BalanceStrategy      string `json:"balance_strategy"`
-	IsolationLevel       string `json:"isolation_level"`
-	SASL                 SASL   `json:"sasl"`
+	BrokerAddresses      []string `json:"broker_addresses"`
+	Topic                string   `json:"topic"`
+	GroupID              string   `json:"group_id"`
+	ClientID             string   `json:"client_id"`
+	KafkaVersion         string   `json:"kafka_version"`
+	StartConsumingLatest bool     `json:"start_consuming_latest"`
+	BalanceStrategy      string   `json:"balance_strategy"`
+	IsolationLevel       string   `json:"isolation_level"`
+	SASL                 SASL     `json:"sasl"`
 	startedCallback      func()
 }
 
@@ -86,8 +86,8 @@ func (g *GraphQLSubscriptionOptions) Sanitize() {
 
 func (g *GraphQLSubscriptionOptions) Validate() error {
 	switch {
-	case g.BrokerAddr == "":
-		return fmt.Errorf("broker_addr cannot be empty")
+	case len(g.BrokerAddresses) == 0:
+		return fmt.Errorf("broker_addresses cannot be empty")
 	case g.Topic == "":
 		return fmt.Errorf("topic cannot be empty")
 	case g.GroupID == "":
@@ -125,15 +125,15 @@ func (g *GraphQLSubscriptionOptions) Validate() error {
 }
 
 type SubscriptionConfiguration struct {
-	BrokerAddr           string `json:"broker_addr"`
-	Topic                string `json:"topic"`
-	GroupID              string `json:"group_id"`
-	ClientID             string `json:"client_id"`
-	KafkaVersion         string `json:"kafka_version"`
-	StartConsumingLatest bool   `json:"start_consuming_latest"`
-	BalanceStrategy      string `json:"balance_strategy"`
-	IsolationLevel       string `json:"isolation_level"`
-	SASL                 SASL   `json:"sasl"`
+	BrokerAddresses      []string `json:"broker_addresses"`
+	Topic                string   `json:"topic"`
+	GroupID              string   `json:"group_id"`
+	ClientID             string   `json:"client_id"`
+	KafkaVersion         string   `json:"kafka_version"`
+	StartConsumingLatest bool     `json:"start_consuming_latest"`
+	BalanceStrategy      string   `json:"balance_strategy"`
+	IsolationLevel       string   `json:"isolation_level"`
+	SASL                 SASL     `json:"sasl"`
 }
 
 type Configuration struct {

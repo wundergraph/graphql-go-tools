@@ -94,7 +94,7 @@ func (k *kafkaConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSes
 // NewKafkaConsumerGroup creates a new sarama.ConsumerGroup and returns a new
 // *KafkaConsumerGroup instance.
 func NewKafkaConsumerGroup(log log.Logger, saramaConfig *sarama.Config, options *GraphQLSubscriptionOptions) (*KafkaConsumerGroup, error) {
-	cg, err := sarama.NewConsumerGroup([]string{options.BrokerAddr}, options.GroupID, saramaConfig)
+	cg, err := sarama.NewConsumerGroup(options.BrokerAddresses, options.GroupID, saramaConfig)
 	if err != nil {
 		return nil, err
 	}
