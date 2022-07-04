@@ -22,12 +22,11 @@ import (
 // Solution: docker network prune
 
 const (
-	messageTemplate   = "message-%d"
-	kafkaPort         = "9092/tcp"
 	testBrokerAddr    = "localhost:9092"
+	testClientID      = "graphql-go-tools-test"
+	messageTemplate   = "message-%d"
 	testTopic         = "start-consuming-latest-test"
 	testConsumerGroup = "start-consuming-latest-cg"
-	testClientID      = "graphql-go-tools-test"
 	testSASLUser      = "admin"
 	testSASLPassword  = "admin-secret"
 )
@@ -36,19 +35,23 @@ var defaultZooKeeperEnvVars = []string{
 	"ALLOW_ANONYMOUS_LOGIN=yes",
 }
 
+// See the following blogpost to understand how Kafka listeners works:
+// https://www.confluent.io/blog/kafka-listeners-explained/
+
 var defaultKafkaEnvVars = []string{
 	"KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181",
 	"ALLOW_PLAINTEXT_LISTENER=yes",
-	fmt.Sprintf("KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://%s", testBrokerAddr),
+	"KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT",
+	"KAFKA_INTER_BROKER_LISTENER_NAME=INSIDE",
 }
 
-type kafkaBroker struct {
+type kafkaCluster struct {
 	pool            *dockertest.Pool
 	network         *docker.Network
-	kafkaRunOptions kafkaRunOptions
+	kafkaRunOptions kafkaClusterOptions
 }
 
-func newKafkaBroker(t *testing.T) *kafkaBroker {
+func newKafkaCluster(t *testing.T) *kafkaCluster {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err)
 
@@ -57,13 +60,17 @@ func newKafkaBroker(t *testing.T) *kafkaBroker {
 	network, err := pool.Client.CreateNetwork(docker.CreateNetworkOptions{Name: "zookeeper_kafka_network"})
 	require.NoError(t, err)
 
-	return &kafkaBroker{
+	return &kafkaCluster{
 		pool:    pool,
 		network: network,
 	}
 }
 
-func (k *kafkaBroker) startZooKeeper(t *testing.T) {
+func getPortID(port int) string {
+	return fmt.Sprintf("%d/tcp", port)
+}
+
+func (k *kafkaCluster) startZooKeeper(t *testing.T) {
 	t.Log("Trying to run ZooKeeper")
 
 	resource, err := k.pool.RunWithOptions(&dockertest.RunOptions{
@@ -74,6 +81,8 @@ func (k *kafkaBroker) startZooKeeper(t *testing.T) {
 		Hostname:     "zookeeper",
 		ExposedPorts: []string{"2181"},
 		Env:          defaultZooKeeperEnvVars,
+	}, func(config *docker.HostConfig) {
+		config.AutoRemove = true
 	})
 	require.NoError(t, err)
 
@@ -101,42 +110,50 @@ func (k *kafkaBroker) startZooKeeper(t *testing.T) {
 	t.Log("ZooKeeper has been started")
 }
 
-type kafkaRunOption func(k *kafkaRunOptions)
+type kafkaClusterOption func(k *kafkaClusterOptions)
 
-type kafkaRunOptions struct {
+type kafkaClusterOptions struct {
 	envVars  []string
 	saslAuth bool
 }
 
-func withKafkaEnvVars(envVars []string) kafkaRunOption {
-	return func(k *kafkaRunOptions) {
+func withKafkaEnvVars(envVars []string) kafkaClusterOption {
+	return func(k *kafkaClusterOptions) {
 		k.envVars = envVars
 	}
 }
 
-func withKafkaSASLAuth() kafkaRunOption {
-	return func(k *kafkaRunOptions) {
+func withKafkaSASLAuth() kafkaClusterOption {
+	return func(k *kafkaClusterOptions) {
 		k.saslAuth = true
 	}
 }
 
-func (k *kafkaBroker) startKafka(t *testing.T) *dockertest.Resource {
-	t.Log("Trying to run Kafka")
+func (k *kafkaCluster) startKafka(t *testing.T, port int, envVars []string) *dockertest.Resource {
+	t.Logf("Trying to run Kafka on %d", port)
 
+	internalPort := port + 1
+	hostname := fmt.Sprintf("kafka%d", port)
+
+	envVars = append(envVars, fmt.Sprintf("KAFKA_ADVERTISED_LISTENERS=INSIDE://%s:%d,OUTSIDE://localhost:%d", hostname, internalPort, port))
+	envVars = append(envVars, fmt.Sprintf("KAFKA_LISTENERS=INSIDE://0.0.0.0:%d,OUTSIDE://0.0.0.0:%d", internalPort, port))
+
+	portID := getPortID(port)
+
+	// Name and Hostname have to be unique
 	resource, err := k.pool.RunWithOptions(&dockertest.RunOptions{
-		Name:       "kafka-tyk-graphql",
+		Name:       fmt.Sprintf("kafka-tyk-graphql-%d", port),
 		Repository: "bitnami/kafka",
 		Tag:        "3.0.1",
 		NetworkID:  k.network.ID,
-		Hostname:   "kafka",
-		Env:        k.kafkaRunOptions.envVars,
+		Hostname:   hostname,
+		Env:        envVars,
 		PortBindings: map[docker.Port][]docker.PortBinding{
-			kafkaPort: {{HostIP: "localhost", HostPort: kafkaPort}},
+			docker.Port(portID): {{HostIP: "localhost", HostPort: portID}},
 		},
-		ExposedPorts: []string{kafkaPort},
+		ExposedPorts: []string{portID},
 	}, func(config *docker.HostConfig) {
-		config.AutoRemove = true
-
+		config.AutoRemove = false
 		if k.kafkaRunOptions.saslAuth {
 			wd, _ := os.Getwd()
 			config.Mounts = []docker.HostMount{{
@@ -161,7 +178,8 @@ func (k *kafkaBroker) startKafka(t *testing.T) *dockertest.Resource {
 			config.Net.SASL.User = testSASLUser
 			config.Net.SASL.Password = testSASLPassword
 		}
-		brokerAddr := fmt.Sprintf("localhost:%s", resource.GetPort(kafkaPort))
+
+		brokerAddr := resource.GetHostPort(portID)
 		asyncProducer, err := sarama.NewAsyncProducer([]string{brokerAddr}, config)
 		if err != nil {
 			return err
@@ -190,8 +208,6 @@ func (k *kafkaBroker) startKafka(t *testing.T) *dockertest.Resource {
 				// kafka server: In the middle of a leadership election, there is currently no leader for this
 				// partition and hence it is unavailable for writes.
 				continue loop
-			case <-time.After(time.Second):
-				continue loop
 			case <-asyncProducer.Successes():
 				break loop
 			}
@@ -205,11 +221,11 @@ func (k *kafkaBroker) startKafka(t *testing.T) *dockertest.Resource {
 	}
 	require.NoError(t, k.pool.Retry(retryFn))
 
-	t.Log("Kafka is ready to accept connections")
+	t.Logf("Kafka is ready to accept connections on %d", port)
 	return resource
 }
 
-func (k *kafkaBroker) start(t *testing.T, options ...kafkaRunOption) *dockertest.Resource {
+func (k *kafkaCluster) start(t *testing.T, numMembers int, options ...kafkaClusterOption) map[string]*dockertest.Resource {
 	for _, opt := range options {
 		opt(&k.kafkaRunOptions)
 	}
@@ -223,7 +239,19 @@ func (k *kafkaBroker) start(t *testing.T, options ...kafkaRunOption) *dockertest
 
 	k.startZooKeeper(t)
 
-	return k.startKafka(t)
+	resources := make(map[string]*dockertest.Resource)
+	var port = 9092
+	for i := 0; i < numMembers; i++ {
+		var envVars []string
+		for _, envVar := range k.kafkaRunOptions.envVars {
+			envVars = append(envVars, envVar)
+		}
+		portID := getPortID(port)
+		resources[portID] = k.startKafka(t, port, envVars)
+		port = port + 2
+	}
+	require.NotEmpty(t, resources)
+	return resources
 }
 
 func testAsyncProducer(t *testing.T, options *GraphQLSubscriptionOptions, start, end int) {
@@ -299,6 +327,13 @@ func skipWhenShort(t *testing.T) {
 	}
 }
 
+func getBrokerAddresses(brokers map[string]*dockertest.Resource) (brokerAddresses []string) {
+	for portID, broker := range brokers {
+		brokerAddresses = append(brokerAddresses, broker.GetHostPort(portID))
+	}
+	return brokerAddresses
+}
+
 func TestSarama_StartConsumingLatest_True(t *testing.T) {
 	skipWhenShort(t)
 
@@ -318,17 +353,16 @@ func TestSarama_StartConsumingLatest_True(t *testing.T) {
 	// config.Consumer.Offsets.Initial only takes effect when offsets are not committed to Kafka/Zookeeper.
 	// If the consumer group already has offsets committed, the consumer will resume from the committed offset.
 
-	k := newKafkaBroker(t)
-	broker := k.start(t)
+	k := newKafkaCluster(t)
+	brokers := k.start(t, 1)
 
 	const (
 		testTopic         = "start-consuming-latest-test"
 		testConsumerGroup = "start-consuming-latest-cg"
 	)
-	brokerAddr := broker.GetHostPort(kafkaPort)
 
 	options := &GraphQLSubscriptionOptions{
-		BrokerAddresses:      []string{brokerAddr},
+		BrokerAddresses:      getBrokerAddresses(brokers),
 		Topic:                testTopic,
 		GroupID:              testConsumerGroup,
 		ClientID:             "graphql-go-tools-test",
@@ -405,13 +439,11 @@ func TestSarama_StartConsuming_And_Restart(t *testing.T) {
 	// 7- Produce more messages
 	// 8- Consumer will consume all messages.
 
-	k := newKafkaBroker(t)
-	broker := k.start(t)
-
-	brokerAddr := broker.GetHostPort(kafkaPort)
+	k := newKafkaCluster(t)
+	brokers := k.start(t, 3)
 
 	options := &GraphQLSubscriptionOptions{
-		BrokerAddresses:      []string{brokerAddr},
+		BrokerAddresses:      getBrokerAddresses(brokers),
 		Topic:                testTopic,
 		GroupID:              testConsumerGroup,
 		ClientID:             "graphql-go-tools-test",
@@ -479,21 +511,18 @@ func TestSarama_ConsumerGroup_SASL_Authentication(t *testing.T) {
 
 	kafkaEnvVars := []string{
 		"ALLOW_PLAINTEXT_LISTENER=yes",
-		"KAFKA_OPTS=-Djava.security.auth.login.config=/opt/bitnami/kafka/conf/kafka_jaas.conf",
+		"KAFKA_OPTS=-Djava.security.auth.login.config=/opt/bitnami/kafka/config/kafka_jaas.conf",
 		"KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181",
+		"KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=INSIDE:PLAINTEXT,OUTSIDE:SASL_PLAINTEXT",
 		"KAFKA_CFG_SASL_ENABLED_MECHANISMS=PLAIN",
 		"KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL=PLAIN",
-		"KAFKA_CFG_LISTENERS=SASL_PLAINTEXT://:9092",
-		fmt.Sprintf("KAFKA_CFG_ADVERTISED_LISTENERS=SASL_PLAINTEXT://%s", testBrokerAddr),
-		"KAFKA_CFG_INTER_BROKER_LISTENER_NAME=SASL_PLAINTEXT",
+		"KAFKA_CFG_INTER_BROKER_LISTENER_NAME=INSIDE",
 	}
-	k := newKafkaBroker(t)
-	broker := k.start(t, withKafkaEnvVars(kafkaEnvVars), withKafkaSASLAuth())
-
-	brokerAddr := broker.GetHostPort(kafkaPort)
+	k := newKafkaCluster(t)
+	brokers := k.start(t, 1, withKafkaEnvVars(kafkaEnvVars), withKafkaSASLAuth())
 
 	options := &GraphQLSubscriptionOptions{
-		BrokerAddresses:      []string{brokerAddr},
+		BrokerAddresses:      getBrokerAddresses(brokers),
 		Topic:                testTopic,
 		GroupID:              testConsumerGroup,
 		ClientID:             "graphql-go-tools-test",
