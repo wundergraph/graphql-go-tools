@@ -10,9 +10,11 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/evanphx/json-patch/v5 v5.1.0
+	github.com/fullstorydev/grpcurl v1.8.6
 	github.com/go-test/deep v1.0.4
 	github.com/gobwas/ws v1.0.4
-	github.com/golang/mock v1.4.1
+	github.com/golang/mock v1.4.3
+	github.com/golang/protobuf v1.5.2
 	github.com/google/go-cmp v0.5.6
 	github.com/gorilla/websocket v1.4.2
 	github.com/hashicorp/golang-lru v0.5.4
@@ -21,6 +23,7 @@ require (
 	github.com/jensneuse/byte-template v0.0.0-20200214152254-4f3cf06e5c68
 	github.com/jensneuse/diffview v1.0.0
 	github.com/jensneuse/pipeline v0.0.0-20200117120358-9fb4de085cd6
+	github.com/jhump/protoreflect v1.12.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/nats-io/nats.go v1.14.0
 	github.com/qri-io/jsonschema v0.2.1
@@ -36,6 +39,7 @@ require (
 	go.uber.org/atomic v1.9.0
 	go.uber.org/zap v1.18.1
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
+	google.golang.org/grpc v1.47.0
 	gopkg.in/yaml.v2 v2.2.8
 	nhooyr.io/websocket v1.8.7
 )
@@ -48,8 +52,7 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gobwas/httphead v0.0.0-20180130184737-2c6c146eadee // indirect
 	github.com/gobwas/pool v0.2.0 // indirect
-	github.com/golang/protobuf v1.5.0 // indirect
-	github.com/google/uuid v1.1.1 // indirect
+	github.com/google/uuid v1.1.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/huandu/xstrings v1.2.1 // indirect
 	github.com/imdario/mergo v0.3.8 // indirect
@@ -81,7 +84,8 @@ require (
 	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd // indirect
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
 	golang.org/x/sys v0.0.0-20220111092808-5a964db01320 // indirect
-	golang.org/x/text v0.3.6 // indirect
+	golang.org/x/text v0.3.7 // indirect
+	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
