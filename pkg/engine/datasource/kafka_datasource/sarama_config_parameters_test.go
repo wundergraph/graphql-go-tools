@@ -293,7 +293,15 @@ func testStartConsumer(t *testing.T, options *GraphQLSubscriptionOptions) (*Kafk
 	return cg, messages
 }
 
+func skipWhenShort(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping kafka docker tests in short mode")
+	}
+}
+
 func TestSarama_StartConsumingLatest_True(t *testing.T) {
+	skipWhenShort(t)
+
 	// Test scenario:
 	//
 	// 1- Start a new consumer
@@ -384,6 +392,8 @@ func TestSarama_StartConsumingLatest_True(t *testing.T) {
 }
 
 func TestSarama_StartConsuming_And_Restart(t *testing.T) {
+	skipWhenShort(t)
+
 	// Test scenario:
 	//
 	// 1- Start a new consumer
@@ -465,6 +475,8 @@ func TestSarama_StartConsuming_And_Restart(t *testing.T) {
 }
 
 func TestSarama_ConsumerGroup_SASL_Authentication(t *testing.T) {
+	skipWhenShort(t)
+
 	kafkaEnvVars := []string{
 		"ALLOW_PLAINTEXT_LISTENER=yes",
 		"KAFKA_OPTS=-Djava.security.auth.login.config=/opt/bitnami/kafka/conf/kafka_jaas.conf",
