@@ -166,7 +166,15 @@ func (k *kafkaCluster) startKafka(t *testing.T, port int, envVars []string) *doc
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, k.pool.Purge(resource))
+		if err := k.pool.Purge(resource); err != nil {
+			err = errors.Unwrap(errors.Unwrap(err))
+			_, ok := err.(*docker.NoSuchContainer)
+			if ok {
+				// we closed this resource manually
+				err = nil
+			}
+		}
+		require.NoError(t, err)
 	})
 
 	retryFn := func() error {
@@ -272,7 +280,6 @@ func testAsyncProducer(t *testing.T, options *GraphQLSubscriptionOptions, start,
 		}
 		asyncProducer.Input() <- message
 	}
-	require.NoError(t, asyncProducer.Close())
 }
 
 func testConsumeMessages(messages chan *sarama.ConsumerMessage, numberOfMessages int) (map[string]struct{}, error) {
@@ -284,7 +291,10 @@ func testConsumeMessages(messages chan *sarama.ConsumerMessage, numberOfMessages
 		select {
 		case <-ctx.Done():
 			return nil, fmt.Errorf("timeout exceeded")
-		case msg := <-messages:
+		case msg, ok := <-messages:
+			if !ok {
+				return allMessages, nil
+			}
 			value := string(msg.Value)
 			allMessages[value] = struct{}{}
 			if len(allMessages) >= numberOfMessages {
@@ -430,7 +440,7 @@ func TestSarama_StartConsuming_And_Restart(t *testing.T) {
 	// 8- Consumer will consume all messages.
 
 	k := newKafkaCluster(t)
-	brokers := k.start(t, 3)
+	brokers := k.start(t, 1)
 
 	options := &GraphQLSubscriptionOptions{
 		BrokerAddresses:      getBrokerAddresses(brokers),
@@ -633,4 +643,40 @@ func TestSarama_Config_SASL_Authentication(t *testing.T) {
 	require.True(t, sc.Net.SASL.Enable)
 	require.Equal(t, "foobar", sc.Net.SASL.User)
 	require.Equal(t, "password", sc.Net.SASL.Password)
+}
+
+func TestSarama_Multiple_Broker(t *testing.T) {
+	k := newKafkaCluster(t)
+	brokers := k.start(t, 3)
+
+	options := &GraphQLSubscriptionOptions{
+		BrokerAddresses:      getBrokerAddresses(brokers),
+		Topic:                testTopic,
+		GroupID:              testConsumerGroup,
+		ClientID:             "graphql-go-tools-test",
+		StartConsumingLatest: false,
+	}
+
+	cg, messages := testStartConsumer(t, options)
+
+	// Produce messages
+	// message-1
+	// ...
+	// message-9
+	testAsyncProducer(t, options, 0, 10)
+
+	consumedMessages, err := testConsumeMessages(messages, 10)
+	require.NoError(t, err)
+	require.Len(t, consumedMessages, 10)
+
+	// Consumed messages
+	// message-1
+	// ..
+	// message-9
+	for i := 0; i < 10; i++ {
+		value := fmt.Sprintf(messageTemplate, i)
+		require.Contains(t, consumedMessages, value)
+	}
+
+	require.NoError(t, cg.Close())
 }
