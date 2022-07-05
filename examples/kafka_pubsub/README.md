@@ -186,3 +186,64 @@ If password/user is wrong:
   "message": "kafka: client has run out of available brokers to talk to (Is your cluster reachable?)"
 }
 ```
+
+## Creating an Apache Kafka cluster
+
+Simply run the following command to create an Apache Kafka cluster with 3 nodes:
+
+```
+docker-compose --file docker-compose-cluster.yml up
+```
+
+Cluster members:
+
+* localhost:9092
+* localhost:9093
+* localhost:9094
+
+**Important Note**: `kafka-topics` command is a part of Apache Kafka installation. You can choose to install Apache Kafka on your system or
+execute it in the container.
+
+### Creating a topic with a replication factor
+
+```
+kafka-topics --create --bootstrap-server localhost:9092 --topic test.topic.product1 --partitions 3 --replication-factor 3
+```
+
+This command creates `test.topic.product1` on the Kafka cluster. It spans over 3 partitions and has 3 replicas.
+
+You can use `describe` command to inspect the topic:
+
+```
+kafka-topics --describe --bootstrap-server localhost:9092 --topic test.topic.product1
+```
+
+Sample result:
+
+```
+Topic: test.topic.product1	TopicId: MNfDKrvQQV6WZM2SQjI0og	PartitionCount: 3	ReplicationFactor: 3	Configs: segment.bytes=1073741824
+	Topic: test.topic.product1	Partition: 0	Leader: 2	Replicas: 2,0,1	Isr: 2,0,1
+	Topic: test.topic.product1	Partition: 1	Leader: 1	Replicas: 1,2,0	Isr: 1,2,0
+	Topic: test.topic.product1	Partition: 2	Leader: 0	Replicas: 0,1,2	Isr: 0,1,2
+```
+
+### Deleting a topic
+
+If you want to delete a topic and drop all messages, you can run the following command:
+
+```
+kafka-topics --describe --bootstrap-server localhost:9092 --topic test.topic.product1
+```
+
+### Publishing messages with multiple broker addresses
+
+```
+go run main.go --brokers=localhost:9092,localhost:9093,localhost:9094 --products=product1
+```
+
+Sample result:
+
+```
+Enqueued message to test.topic.product1: {"stock":{"name":"product1","price":8162,"in_stock":89}}
+Enqueued message to test.topic.product1: {"stock":{"name":"product1","price":8287,"in_stock":888}}
+```

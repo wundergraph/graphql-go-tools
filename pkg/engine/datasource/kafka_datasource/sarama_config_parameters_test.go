@@ -248,7 +248,7 @@ func (k *kafkaCluster) start(t *testing.T, numMembers int, options ...kafkaClust
 	k.startZooKeeper(t)
 
 	resources := make(map[string]*dockertest.Resource)
-	var port = 9092
+	var port = 9092 // Initial port
 	for i := 0; i < numMembers; i++ {
 		var envVars []string
 		for _, envVar := range k.kafkaRunOptions.envVars {
@@ -256,6 +256,17 @@ func (k *kafkaCluster) start(t *testing.T, numMembers int, options ...kafkaClust
 		}
 		portID := getPortID(port)
 		resources[portID] = k.startKafka(t, port, envVars)
+
+		// Increase the port numbers. Every member uses different a hostname and port numbers.
+		// It was good for debugging:
+		//
+		// Member 1:
+		// 9092 - INSIDE
+		// 9093 - OUTSIDE
+		//
+		// Member 2:
+		// 9094 - INSIDE
+		// 9095 - OUTSIDE
 		port = port + 2
 	}
 	require.NotEmpty(t, resources)
