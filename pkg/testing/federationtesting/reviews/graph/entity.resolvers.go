@@ -6,8 +6,8 @@ package graph
 import (
 	"context"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/testing/federationtesting/reviews/graph/generated"
-	"github.com/jensneuse/graphql-go-tools/pkg/testing/federationtesting/reviews/graph/model"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/testing/federationtesting/reviews/graph/generated"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/testing/federationtesting/reviews/graph/model"
 )
 
 func (r *entityResolver) FindProductByUpc(ctx context.Context, upc string) (*model.Product, error) {

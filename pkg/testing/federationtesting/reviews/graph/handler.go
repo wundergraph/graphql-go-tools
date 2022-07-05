@@ -6,7 +6,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/debug"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/testing/federationtesting/reviews/graph/generated"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/testing/federationtesting/reviews/graph/generated"
 )
 
 type EndpointOptions struct {

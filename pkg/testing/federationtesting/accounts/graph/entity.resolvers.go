@@ -6,8 +6,8 @@ package graph
 import (
 	"context"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/testing/federationtesting/accounts/graph/generated"
-	"github.com/jensneuse/graphql-go-tools/pkg/testing/federationtesting/accounts/graph/model"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/testing/federationtesting/accounts/graph/generated"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/testing/federationtesting/accounts/graph/model"
 )
 
 func (r *entityResolver) FindUserByID(ctx context.Context, id string) (*model.User, error) {

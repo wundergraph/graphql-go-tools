@@ -9,9 +9,9 @@ import (
 
 	"github.com/buger/jsonparser"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/graphqljsonschema"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/graphqljsonschema"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/literal"
 )
 
 type VariableKind int

@@ -3,10 +3,10 @@ package introspection_datasource
 import (
 	"encoding/json"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/ast"
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
-	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
-	"github.com/jensneuse/graphql-go-tools/pkg/operationreport"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/plan"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/introspection"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
 )
 
 type IntrospectionConfigFactory struct {

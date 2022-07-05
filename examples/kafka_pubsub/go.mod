@@ -1,4 +1,4 @@
-module github.com/jensneuse/graphql-go-tools/examples/kafka_pubsub
+module github.com/TykTechnologies/graphql-go-tools/examples/kafka_pubsub
 
 go 1.15
 

@@ -7,9 +7,9 @@ import (
 
 	"github.com/tidwall/sjson"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/quotes"
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafebytes"
-	"github.com/jensneuse/graphql-go-tools/pkg/lexer/literal"
+	"github.com/TykTechnologies/graphql-go-tools/internal/pkg/quotes"
+	"github.com/TykTechnologies/graphql-go-tools/internal/pkg/unsafebytes"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/literal"
 )
 
 type ValueKind int

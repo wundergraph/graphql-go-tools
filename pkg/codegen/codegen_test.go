@@ -8,7 +8,7 @@ import (
 	"github.com/sebdah/goldie"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jensneuse/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/TykTechnologies/graphql-go-tools/internal/pkg/unsafeparser"
 )
 
 func TestCodeGen_GenerateDirectiveDefinitionStruct(t *testing.T) {

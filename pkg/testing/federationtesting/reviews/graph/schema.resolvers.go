@@ -7,8 +7,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/testing/federationtesting/reviews/graph/generated"
-	"github.com/jensneuse/graphql-go-tools/pkg/testing/federationtesting/reviews/graph/model"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/testing/federationtesting/reviews/graph/generated"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/testing/federationtesting/reviews/graph/model"
 )
 
 func (r *mutationResolver) AddReview(ctx context.Context, authorID string, upc string, review string) (*model.Review, error) {

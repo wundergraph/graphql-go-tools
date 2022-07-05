@@ -1,7 +1,7 @@
 package graph
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/testing/federationtesting/reviews/graph/model"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/testing/federationtesting/reviews/graph/model"
 )
 
 var reviews = []*model.Review{

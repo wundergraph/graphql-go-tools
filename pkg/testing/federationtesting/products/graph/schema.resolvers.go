@@ -9,8 +9,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/testing/federationtesting/products/graph/generated"
-	"github.com/jensneuse/graphql-go-tools/pkg/testing/federationtesting/products/graph/model"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/testing/federationtesting/products/graph/generated"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/testing/federationtesting/products/graph/model"
 )
 
 func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.Product, error) {

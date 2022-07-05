@@ -4,7 +4,7 @@ package products
 import (
 	"net/http"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/testing/federationtesting/products/graph"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/testing/federationtesting/products/graph"
 )
 
 func Handler() http.Handler {

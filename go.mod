@@ -1,4 +1,4 @@
-module github.com/jensneuse/graphql-go-tools
+module github.com/TykTechnologies/graphql-go-tools
 
 go 1.16
 
@@ -56,4 +56,4 @@ require (
 	nhooyr.io/websocket v1.8.7
 )
 
-replace github.com/jensneuse/graphql-go-tools/examples/federation => ./examples/federation
+replace github.com/TykTechnologies/graphql-go-tools/examples/federation => ./examples/federation

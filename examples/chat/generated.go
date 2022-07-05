@@ -531,7 +531,7 @@ func (ec *executionContext) _Chatroom_messages(ctx context.Context, field graphq
 	}
 	res := resTmp.([]Message)
 	fc.Result = res
-	return ec.marshalNMessage2ᚕgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐMessageᚄ(ctx, field.Selections, res)
+	return ec.marshalNMessage2ᚕgithubᚗcomᚋTykTechnologiesᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐMessageᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Message_id(ctx context.Context, field graphql.CollectedField, obj *Message) (ret graphql.Marshaler) {
@@ -713,7 +713,7 @@ func (ec *executionContext) _Mutation_post(ctx context.Context, field graphql.Co
 	}
 	res := resTmp.(*Message)
 	fc.Result = res
-	return ec.marshalNMessage2ᚖgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐMessage(ctx, field.Selections, res)
+	return ec.marshalNMessage2ᚖgithubᚗcomᚋTykTechnologiesᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐMessage(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_room(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -752,7 +752,7 @@ func (ec *executionContext) _Query_room(ctx context.Context, field graphql.Colle
 	}
 	res := resTmp.(*Chatroom)
 	fc.Result = res
-	return ec.marshalOChatroom2ᚖgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐChatroom(ctx, field.Selections, res)
+	return ec.marshalOChatroom2ᚖgithubᚗcomᚋTykTechnologiesᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐChatroom(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -872,7 +872,7 @@ func (ec *executionContext) _Subscription_messageAdded(ctx context.Context, fiel
 			w.Write([]byte{'{'})
 			graphql.MarshalString(field.Alias).MarshalGQL(w)
 			w.Write([]byte{':'})
-			ec.marshalNMessage2ᚖgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐMessage(ctx, field.Selections, res).MarshalGQL(w)
+			ec.marshalNMessage2ᚖgithubᚗcomᚋTykTechnologiesᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐMessage(ctx, field.Selections, res).MarshalGQL(w)
 			w.Write([]byte{'}'})
 		})
 	}
@@ -2463,11 +2463,11 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
-func (ec *executionContext) marshalNMessage2githubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐMessage(ctx context.Context, sel ast.SelectionSet, v Message) graphql.Marshaler {
+func (ec *executionContext) marshalNMessage2githubᚗcomᚋTykTechnologiesᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐMessage(ctx context.Context, sel ast.SelectionSet, v Message) graphql.Marshaler {
 	return ec._Message(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNMessage2ᚕgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []Message) graphql.Marshaler {
+func (ec *executionContext) marshalNMessage2ᚕgithubᚗcomᚋTykTechnologiesᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []Message) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -2491,7 +2491,7 @@ func (ec *executionContext) marshalNMessage2ᚕgithubᚗcomᚋjensneuseᚋgraphq
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNMessage2githubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐMessage(ctx, sel, v[i])
+			ret[i] = ec.marshalNMessage2githubᚗcomᚋTykTechnologiesᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐMessage(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -2504,7 +2504,7 @@ func (ec *executionContext) marshalNMessage2ᚕgithubᚗcomᚋjensneuseᚋgraphq
 	return ret
 }
 
-func (ec *executionContext) marshalNMessage2ᚖgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐMessage(ctx context.Context, sel ast.SelectionSet, v *Message) graphql.Marshaler {
+func (ec *executionContext) marshalNMessage2ᚖgithubᚗcomᚋTykTechnologiesᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐMessage(ctx context.Context, sel ast.SelectionSet, v *Message) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -2797,7 +2797,7 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return graphql.MarshalBoolean(*v)
 }
 
-func (ec *executionContext) marshalOChatroom2ᚖgithubᚗcomᚋjensneuseᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐChatroom(ctx context.Context, sel ast.SelectionSet, v *Chatroom) graphql.Marshaler {
+func (ec *executionContext) marshalOChatroom2ᚖgithubᚗcomᚋTykTechnologiesᚋgraphqlᚑgoᚑtoolsᚋexamplesᚋchatᚐChatroom(ctx context.Context, sel ast.SelectionSet, v *Chatroom) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

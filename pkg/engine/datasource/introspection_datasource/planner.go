@@ -1,8 +1,8 @@
 package introspection_datasource
 
 import (
-	"github.com/jensneuse/graphql-go-tools/pkg/engine/plan"
-	"github.com/jensneuse/graphql-go-tools/pkg/introspection"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/plan"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/introspection"
 )
 
 type Planner struct {

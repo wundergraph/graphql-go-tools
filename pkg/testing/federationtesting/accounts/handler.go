@@ -4,7 +4,7 @@ package accounts
 import (
 	"net/http"
 
-	"github.com/jensneuse/graphql-go-tools/pkg/testing/federationtesting/accounts/graph"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/testing/federationtesting/accounts/graph"
 )
 
 func Handler() http.Handler {
