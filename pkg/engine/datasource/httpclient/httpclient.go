@@ -43,7 +43,7 @@ var (
 	}
 )
 
-func wrapQuotesIfString(b []byte) []byte {
+func WrapQuotesIfString(b []byte) []byte {
 
 	if bytes.HasPrefix(b, []byte("$$")) && bytes.HasSuffix(b, []byte("$$")) {
 		return b
@@ -93,7 +93,7 @@ func SetInputURL(input, url []byte) []byte {
 	if len(url) == 0 {
 		return input
 	}
-	out, _ := sjson.SetRawBytes(input, URL, wrapQuotesIfString(url))
+	out, _ := sjson.SetRawBytes(input, URL, WrapQuotesIfString(url))
 	return out
 }
 
@@ -109,7 +109,7 @@ func SetInputMethod(input, method []byte) []byte {
 	if len(method) == 0 {
 		return input
 	}
-	out, _ := sjson.SetRawBytes(input, METHOD, wrapQuotesIfString(method))
+	out, _ := sjson.SetRawBytes(input, METHOD, WrapQuotesIfString(method))
 	return out
 }
 
@@ -126,7 +126,7 @@ func SetInputBodyWithPath(input, body []byte, path string) []byte {
 	} else {
 		path = BODY
 	}
-	out, _ := sjson.SetRawBytes(input, path, wrapQuotesIfString(body))
+	out, _ := sjson.SetRawBytes(input, path, WrapQuotesIfString(body))
 	return out
 }
 
@@ -134,7 +134,7 @@ func SetInputHeader(input, headers []byte) []byte {
 	if len(headers) == 0 {
 		return input
 	}
-	out, _ := sjson.SetRawBytes(input, HEADER, wrapQuotesIfString(headers))
+	out, _ := sjson.SetRawBytes(input, HEADER, WrapQuotesIfString(headers))
 	return out
 }
 
@@ -142,7 +142,7 @@ func SetInputQueryParams(input, queryParams []byte) []byte {
 	if len(queryParams) == 0 {
 		return input
 	}
-	out, _ := sjson.SetRawBytes(input, QUERYPARAMS, wrapQuotesIfString(queryParams))
+	out, _ := sjson.SetRawBytes(input, QUERYPARAMS, WrapQuotesIfString(queryParams))
 	return out
 }
 
@@ -150,7 +150,7 @@ func SetInputScheme(input, scheme []byte) []byte {
 	if len(scheme) == 0 {
 		return input
 	}
-	out, _ := sjson.SetRawBytes(input, SCHEME, wrapQuotesIfString(scheme))
+	out, _ := sjson.SetRawBytes(input, SCHEME, WrapQuotesIfString(scheme))
 	return out
 }
 
@@ -158,7 +158,7 @@ func SetInputHost(input, host []byte) []byte {
 	if len(host) == 0 {
 		return input
 	}
-	out, _ := sjson.SetRawBytes(input, HOST, wrapQuotesIfString(host))
+	out, _ := sjson.SetRawBytes(input, HOST, WrapQuotesIfString(host))
 	return out
 }
 
@@ -166,7 +166,7 @@ func SetInputPath(input, path []byte) []byte {
 	if len(path) == 0 {
 		return input
 	}
-	out, _ := sjson.SetRawBytes(input, PATH, wrapQuotesIfString(path))
+	out, _ := sjson.SetRawBytes(input, PATH, WrapQuotesIfString(path))
 	return out
 }
 
