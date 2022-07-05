@@ -153,7 +153,7 @@ func (k *kafkaCluster) startKafka(t *testing.T, port int, envVars []string) *doc
 		},
 		ExposedPorts: []string{portID},
 	}, func(config *docker.HostConfig) {
-		config.AutoRemove = false
+		config.AutoRemove = true
 		if k.kafkaRunOptions.saslAuth {
 			wd, _ := os.Getwd()
 			config.Mounts = []docker.HostMount{{
@@ -166,7 +166,8 @@ func (k *kafkaCluster) startKafka(t *testing.T, port int, envVars []string) *doc
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		if err := k.pool.Purge(resource); err != nil {
+		err := k.pool.Purge(resource)
+		if err != nil {
 			err = errors.Unwrap(errors.Unwrap(err))
 			_, ok := err.(*docker.NoSuchContainer)
 			if ok {
@@ -251,9 +252,7 @@ func (k *kafkaCluster) start(t *testing.T, numMembers int, options ...kafkaClust
 	var port = 9092 // Initial port
 	for i := 0; i < numMembers; i++ {
 		var envVars []string
-		for _, envVar := range k.kafkaRunOptions.envVars {
-			envVars = append(envVars, envVar)
-		}
+		envVars = append(envVars, k.kafkaRunOptions.envVars...)
 		portID := getPortID(port)
 		resources[portID] = k.startKafka(t, port, envVars)
 
