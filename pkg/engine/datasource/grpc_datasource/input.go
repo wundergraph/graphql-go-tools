@@ -15,6 +15,7 @@ const (
 	METHOD      = "method"
 	BODY        = "body"
 	HEADER      = "header"
+	TARGET      = "target"
 )
 
 var (
@@ -29,10 +30,11 @@ var (
 		{METHOD},
 		{BODY},
 		{HEADER},
+		{TARGET},
 	}
 )
 
-func RpcCallParams(input []byte) (pkgName, service, method, body, headers []byte) {
+func RpcCallParams(input []byte) (pkgName, service, method, body, header, target []byte) {
 	jsonparser.EachKey(input, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
 		switch i {
 		case 0:
@@ -44,7 +46,9 @@ func RpcCallParams(input []byte) (pkgName, service, method, body, headers []byte
 		case 3:
 			body = bytes
 		case 4:
-			headers = bytes
+			header = bytes
+		case 5:
+			target = bytes
 		}
 	}, inputPaths...)
 	return
@@ -98,5 +102,13 @@ func SetInputHeader(input, headers []byte) []byte {
 		return input
 	}
 	out, _ := sjson.SetRawBytes(input, HEADER, httpclient.WrapQuotesIfString(headers))
+	return out
+}
+
+func SetInputTarget(input, target []byte) []byte {
+	if len(target) == 0 {
+		return input
+	}
+	out, _ := sjson.SetRawBytes(input, TARGET, target)
 	return out
 }

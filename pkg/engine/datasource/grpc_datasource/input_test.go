@@ -7,15 +7,16 @@ import (
 )
 
 func TestRpcCallParams(t *testing.T) {
-	in := []byte(`{"package":"lucasfilms","service":"StartwarsService","method":"GetHero","body":{"foo":"bar"},"header":{"fizz":"buzz"}}`)
+	in := []byte(`{"package":"lucasfilms","service":"StartwarsService","method":"GetHero","body":{"foo":"bar"},"header":{"fizz":"buzz"},"target":"localhost:50051"}`)
 
-	pkgName, service, method, body, headers := RpcCallParams(in)
+	pkgName, service, method, body, headers, target := RpcCallParams(in)
 
 	assert.Equal(t, []byte("lucasfilms"), pkgName)
 	assert.Equal(t, []byte("StartwarsService"), service)
 	assert.Equal(t, []byte("GetHero"), method)
 	assert.Equal(t, []byte(`{"foo":"bar"}`), body)
 	assert.Equal(t, []byte(`{"fizz":"buzz"}`), headers)
+	assert.Equal(t, []byte("ocalhost:50051"), target)
 }
 
 func TestFullRpcMethodName(t *testing.T) {
@@ -46,4 +47,8 @@ func TestRpcInput(t *testing.T) {
 
 	in = SetInputHeader(nil, []byte(`["str"]`))
 	assert.Equal(t, `{"header":["str"]}`, string(in))
+
+	in = SetInputTarget(nil, []byte("localhost:50051"))
+	assert.Equal(t, `{"target":"localhost:50051"}`, string(in))
+
 }
