@@ -48,7 +48,7 @@ var testReport = Report{
 	},
 	ExternalErrors: []ExternalError{
 		{
-			Message:   "example external error 1",
+			Message:   externalErrorString,
 			Path:      nil,
 			Locations: nil,
 		},
