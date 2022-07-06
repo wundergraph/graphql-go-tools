@@ -101,8 +101,8 @@ func TestMergeSDLs(t *testing.T) {
 	runMergeTestAndExpectError := func(expectedError string, sdls ...string) func(t *testing.T) {
 		return func(t *testing.T) {
 			_, err := MergeSDLs(sdls...)
-
-			assert.Equal(t, expectedError, err.Error())
+			actual, _ := operationreport.ExternalErrorMessage(err, testFormatExternalErrorMessage)
+			assert.Equal(t, expectedError, actual)
 		}
 	}
 
@@ -112,27 +112,27 @@ func TestMergeSDLs(t *testing.T) {
 	))
 
 	t.Run("When merging product and review, the unresolved orphan extension for User will return an error", runMergeTestAndExpectError(
-		unresolvedExtensionOrphansMergeErrorMessage("User"),
+		unresolvedExtensionOrphansErrorMessage("User"),
 		productSchema, reviewSchema,
 	))
 
 	t.Run("When merging product and extendsDirectives, the unresolved orphan extension for User will return an error", runMergeTestAndExpectError(
-		unresolvedExtensionOrphansMergeErrorMessage("User"),
+		unresolvedExtensionOrphansErrorMessage("User"),
 		productSchema, extendsDirectivesSchema,
 	))
 
 	t.Run("Non-identical duplicate enums should return an error", runMergeTestAndExpectError(
-		nonIdenticalSharedTypeMergeErrorMessage("Satisfaction"),
+		nonIdenticalSharedTypeErrorMessage("Satisfaction"),
 		productSchema, negativeTestingLikeSchema,
 	))
 
 	t.Run("Non-identical duplicate unions should return an error", runMergeTestAndExpectError(
-		nonIdenticalSharedTypeMergeErrorMessage("AlphaNumeric"),
+		nonIdenticalSharedTypeErrorMessage("AlphaNumeric"),
 		accountSchema, negativeTestingReviewSchema,
 	))
 
 	t.Run("Entity duplicates should return an error", runMergeTestAndExpectError(
-		duplicateEntityMergeErrorMessage("User"),
+		duplicateEntityErrorMessage("User"),
 		accountSchema, negativeTestingAccountSchema,
 	))
 
@@ -626,12 +626,15 @@ const (
 	`
 )
 
-func nonIdenticalSharedTypeMergeErrorMessage(typeName string) string {
-	return fmt.Sprintf("merge ast: walk: external: the shared type named '%s' must be identical in any subgraphs to federate, locations: [], path: []", typeName)
+var testFormatExternalErrorMessage = func(report *operationreport.Report) string {
+	if len(report.ExternalErrors) > 0 {
+		return report.ExternalErrors[0].Message
+	}
+	return ""
 }
 
-func duplicateEntityMergeErrorMessage(typeName string) string {
-	return fmt.Sprintf("merge ast: walk: external: the entity named '%s' is defined in the subgraph(s) more than once, locations: [], path: []", typeName)
+func nonIdenticalSharedTypeErrorMessage(typeName string) string {
+	return fmt.Sprintf("the shared type named '%s' must be identical in any subgraphs to federate", typeName)
 }
 
 func sharedTypeExtensionErrorMessage(typeName string) string {
@@ -639,15 +642,11 @@ func sharedTypeExtensionErrorMessage(typeName string) string {
 }
 
 func emptyTypeBodyErrorMessage(definitionType, typeName string) string {
-	return fmt.Sprintf("validate schema: external: the %s named '%s' is invalid due to an empty body, locations: [], path: []", definitionType, typeName)
+	return fmt.Sprintf("the %s named '%s' is invalid due to an empty body", definitionType, typeName)
 }
 
 func unresolvedExtensionOrphansErrorMessage(typeName string) string {
 	return fmt.Sprintf("the extension orphan named '%s' was never resolved in the supergraph", typeName)
-}
-
-func unresolvedExtensionOrphansMergeErrorMessage(typeName string) string {
-	return fmt.Sprintf("merge ast: walk: external: the extension orphan named '%s' was never resolved in the supergraph, locations: [], path: []", typeName)
 }
 
 func noKeyDirectiveErrorMessage(typeName string) string {
