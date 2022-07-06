@@ -19,6 +19,9 @@ func (r Report) Error() string {
 		}
 		out += fmt.Sprintf("internal: %s", r.InternalErrors[i].Error())
 	}
+	if len(out) > 0 {
+		out += "\n"
+	}
 	for i := range r.ExternalErrors {
 		if i != 0 {
 			out += "\n"
@@ -45,13 +48,20 @@ func (r *Report) AddExternalError(gqlError ExternalError) {
 	r.ExternalErrors = append(r.ExternalErrors, gqlError)
 }
 
-type ExternalErrorMessageFormatFunc func(report *Report) string
+type FormatExternalErrorMessage func(report *Report) string
 
-func GetExternalErrorMessage(err error, formatFunc ExternalErrorMessageFormatFunc) (message string, ok bool) {
-	var report *Report
+func ExternalErrorMessage(err error, formatFunction FormatExternalErrorMessage) (message string, ok bool) {
+	var report Report
 	if errors.As(err, &report) {
-		msg := formatFunc(report)
+		msg := formatFunction(&report)
 		return msg, true
 	}
 	return "", false
+}
+
+func UnwrappedErrorMessage(err error) string {
+	for result := err; result != nil; result = errors.Unwrap(result) {
+		err = result
+	}
+	return err.Error()
 }

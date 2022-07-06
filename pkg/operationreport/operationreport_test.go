@@ -3,62 +3,61 @@ package operationreport
 import (
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-func TestConvenienceFunction(t *testing.T) {
-	report := &Report{
-		InternalErrors: []error{
-			errors.New("internal error"),
-		},
-		ExternalErrors: []ExternalError{
-			{
-				Message:   "i'm the external one",
-				Path:      nil,
-				Locations: nil,
-			},
-			{
-				Message: "I'm the second one",
-			},
-		},
-	}
-
-	err := fmt.Errorf("ast: %w", report)
-	err = fmt.Errorf("merge: %w", err)
-	//err = errors.New(fmt.Sprintf("another: %s", err.Error()))
-
-	fmt.Println(err)
-
-	fmt.Println("==== DASHBOARD:")
-	// Dashboard code
-	dashboardFormatFunc := func(report *Report) string {
-		if len(report.ExternalErrors) > 0 {
-			return report.ExternalErrors[0].Message
+func TestExternalErrorMessage(t *testing.T) {
+	runExternalErrorMessage := func(err error, expectedSuccess bool, expectedMessage string) func(t *testing.T) {
+		return func(t *testing.T) {
+			msg, ok := ExternalErrorMessage(err, testFormatExternalErrorMessage)
+			assert.Equal(t, expectedSuccess, ok)
+			assert.Equal(t, expectedMessage, msg)
 		}
-		return ""
 	}
 
-	if msg, ok := GetExternalErrorMessage(err, dashboardFormatFunc); ok {
-		fmt.Println(msg)
-	}
+	t.Run("Passing a non-report returns false",
+		runExternalErrorMessage(testErrorLevel1, false, ""),
+	)
 
-	fmt.Println("==== GATEWAY:")
-	gatewayFormatFunc := func(report *Report) string {
-		if len(report.ExternalErrors) > 0 {
-			return fmt.Sprintf("library error: %s", report.ExternalErrors[0].Message)
-		}
-		return ""
-	}
-
-	if msg, ok := GetExternalErrorMessage(err, gatewayFormatFunc); ok {
-		fmt.Println(msg)
-	}
-
-	noReportErr := errors.New("no report found")
-	noReportErr = fmt.Errorf("wrapped: %w", noReportErr)
-	_, ok := GetExternalErrorMessage(noReportErr, gatewayFormatFunc)
-	if !ok {
-		fmt.Println(noReportErr)
-	}
-	fmt.Println(ok)
+	t.Run("Passing a report retrieves the inner error",
+		runExternalErrorMessage(testWrappedReport, true, externalErrorString),
+	)
 }
+
+func TestUnwrappedErrorMessage(t *testing.T) {
+	actual := UnwrappedErrorMessage(testErrorLevel2)
+	assert.Equal(t, testErrorString, actual)
+}
+
+const (
+	externalErrorString = "example external error 1"
+	testErrorString     = "test error string"
+)
+
+var testFormatExternalErrorMessage = func(report *Report) string {
+	if len(report.ExternalErrors) > 0 {
+		return report.ExternalErrors[0].Message
+	}
+	return ""
+}
+
+var testReport = Report{
+	InternalErrors: []error{
+		errors.New("example internal error"),
+	},
+	ExternalErrors: []ExternalError{
+		{
+			Message:   "example external error 1",
+			Path:      nil,
+			Locations: nil,
+		},
+		{
+			Message: "example external error 2",
+		},
+	},
+}
+
+var testErrorLevel1 = errors.New(testErrorString)
+var testErrorLevel2 = fmt.Errorf("level 2: %w", testErrorLevel1)
+var testWrappedReport = fmt.Errorf("level 2: %w", testReport)
