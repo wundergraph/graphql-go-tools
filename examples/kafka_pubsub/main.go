@@ -21,7 +21,7 @@ var wg sync.WaitGroup
 
 type arguments struct {
 	products     string
-	broker       string
+	brokers      string
 	help         bool
 	enableSASL   bool
 	saslUser     string
@@ -35,7 +35,7 @@ Simple test tool to generate test data
 
 Options:
   -h, --help          Print this message and exit.
-  -b  --broker        Apache Kafka broker to connect (default: localhost:9092).
+  -b  --brokers       Comma seperated list of broker addresses (default: localhost:9092).
   -p, --products      Comma seperated list of products.
       --enable-sasl   Enable Simple Authentication and Security Layer (SASL)
       --sasl-user     User for SASL
@@ -101,8 +101,8 @@ func main() {
 	f.BoolVar(&args.help, "help", false, "")
 	f.StringVar(&args.products, "p", "", "")
 	f.StringVar(&args.products, "products", "", "")
-	f.StringVar(&args.broker, "b", "", "")
-	f.StringVar(&args.broker, "broker", "", "")
+	f.StringVar(&args.brokers, "b", "", "")
+	f.StringVar(&args.brokers, "brokers", "", "")
 	f.BoolVar(&args.enableSASL, "enable-sasl", false, "")
 	f.StringVar(&args.saslUser, "sasl-user", "", "")
 	f.StringVar(&args.saslPassword, "sasl-password", "", "")
@@ -116,8 +116,8 @@ func main() {
 		return
 	}
 
-	if args.broker == "" {
-		args.broker = "localhost:9092"
+	if args.brokers == "" {
+		args.brokers = "localhost:9092"
 	}
 
 	if args.products == "" {
@@ -140,7 +140,8 @@ func main() {
 		config.Net.SASL.Password = args.saslPassword
 	}
 
-	asyncProducer, err := sarama.NewAsyncProducer([]string{args.broker}, config)
+	brokers := strings.Split(args.brokers, ",")
+	asyncProducer, err := sarama.NewAsyncProducer(brokers, config)
 	if err != nil {
 		log.Fatalf("failed to create a new AsyncProducer: %v", err)
 	}
