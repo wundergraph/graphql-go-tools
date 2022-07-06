@@ -11,8 +11,9 @@ import (
 )
 
 type handler struct {
-	w   io.Writer
-	err error
+	w    io.Writer
+	err  error
+	body []byte
 }
 
 func (h *handler) OnReceiveResponse(msg proto.Message) {
@@ -27,6 +28,7 @@ func (h *handler) OnSendHeaders(md metadata.MD) {
 }
 
 func (h *handler) OnReceiveHeaders(md metadata.MD) {
+
 }
 
 func (h *handler) OnReceiveTrailers(stat *status.Status, md metadata.MD) {

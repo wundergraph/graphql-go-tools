@@ -11,20 +11,17 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 type Source struct {
-	descriptorSource     grpcurl.DescriptorSource
-	transportCredentials credentials.TransportCredentials
-	target               string
+	descriptorSource grpcurl.DescriptorSource
+	dialContext      func(ctx context.Context, target []byte) (conn *grpc.ClientConn, err error)
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
 	pkgName, service, method, body, header, target := RpcCallParams(input)
 
-	dialCtx, err := grpc.DialContext(ctx, string(target),
-		grpc.WithTransportCredentials(s.transportCredentials), grpc.WithBlock())
+	dialCtx, err := s.dialContext(ctx, target)
 	if err != nil {
 		return err
 	}
@@ -38,8 +35,20 @@ func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error
 
 	h := &handler{w: w}
 
+	var isMarshalled bool
+
 	err = grpcurl.InvokeRPC(context.Background(), s.descriptorSource, dialCtx, methodName, headers, h, func(m proto.Message) error {
-		return jsonpb.Unmarshal(bytes.NewReader(body), m)
+		if isMarshalled {
+			return io.EOF
+		}
+
+		err := jsonpb.Unmarshal(bytes.NewReader(body), m)
+		if err != nil {
+			return err
+		}
+
+		isMarshalled = true
+		return nil
 	})
 	if err != nil {
 		return err
