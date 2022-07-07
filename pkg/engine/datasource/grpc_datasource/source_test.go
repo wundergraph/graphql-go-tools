@@ -46,6 +46,13 @@ func TestSource_Load(t *testing.T) {
 	require.NoError(t, err)
 
 	src := Source{
+		config: Configuration{
+			Package:  "starwars",
+			Service:  "StartwarsService",
+			Method:   "GetHuman",
+			Target:   "bufnet",
+			Protoset: nil,
+		},
 		descriptorSource: sourceProtoFiles,
 		dialContext: func(ctx context.Context, target string) (conn *grpc.ClientConn, err error) {
 			conn, err = grpc.DialContext(ctx, target,
@@ -62,12 +69,13 @@ func TestSource_Load(t *testing.T) {
 
 	buf := &bytes.Buffer{}
 
-	input := []byte(`{"package":"starwars","service":"StartwarsService","method":"GetHuman","body":{"id":1},"header":{"fizz":["buzz"]},"target":"bufnet"}`)
+	input := []byte(`{"body":{"id":1},"header":{"fizz":["buzz"]}`)
 	require.NoError(t, src.Load(context.Background(), input, buf))
 	assert.Equal(t, `{"id":"1","name":"Luke Skywalker","appearsIn":["NEWHOPE"],"homePlanet":"Earth","primaryFunction":"jedy"}`, buf.String())
 	buf.Reset()
 
-	input = []byte(`{"package":"starwars","service":"StartwarsService","method":"GetDroid","body":{"id":1},"header":{"authorization":["FFEEBB"]},"target":"bufnet"}`)
+	src.config.Method = "GetDroid"
+	input = []byte(`{"body":{"id":1},"header":{"authorization":["FFEEBB"]}}`)
 	require.NoError(t, src.Load(context.Background(), input, buf))
 	assert.Equal(t, `{"id":"2","name":"C-3PO","appearsIn":["EMPIRE"],"homePlanet":"Alderaan","primaryFunction":"FFEEBB","type":"DROID"}`, buf.String())
 

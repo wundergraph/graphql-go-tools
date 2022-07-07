@@ -29,7 +29,7 @@ func (c Configuration) RpcMethodFullName() string {
 	buf.Write(dot)
 	buf.WriteString(c.Service)
 	buf.Write(slash)
-	buf.WriteString(c.Target)
+	buf.WriteString(c.Method)
 
 	return buf.String()
 }
