@@ -1,12 +1,13 @@
 package starwars
 
-//go:generate protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative starwars.proto
-
 import (
 	"context"
 
 	"google.golang.org/grpc/metadata"
 )
+
+//go:generate protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative starwars.proto
+//go:generate protoc --proto_path=./ --descriptor_set_out=starwars.protoset --include_imports starwars.proto
 
 var characters = []*Character{
 	{

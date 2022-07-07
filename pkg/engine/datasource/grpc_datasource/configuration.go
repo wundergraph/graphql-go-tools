@@ -11,10 +11,11 @@ var (
 )
 
 type Configuration struct {
-	Package string
-	Service string
-	Method  string
-	Target  string
+	Package  string
+	Service  string
+	Method   string
+	Target   string
+	Protoset []byte
 }
 
 func ConfigJson(config Configuration) json.RawMessage {
