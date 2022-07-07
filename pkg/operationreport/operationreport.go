@@ -1,7 +1,10 @@
 // Package operationreport helps generating the errors object for a GraphQL Operation.
 package operationreport
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 type Report struct {
 	InternalErrors []error
@@ -15,6 +18,9 @@ func (r Report) Error() string {
 			out += "\n"
 		}
 		out += fmt.Sprintf("internal: %s", r.InternalErrors[i].Error())
+	}
+	if len(out) > 0 {
+		out += "\n"
 	}
 	for i := range r.ExternalErrors {
 		if i != 0 {
@@ -40,4 +46,22 @@ func (r *Report) AddInternalError(err error) {
 
 func (r *Report) AddExternalError(gqlError ExternalError) {
 	r.ExternalErrors = append(r.ExternalErrors, gqlError)
+}
+
+type FormatExternalErrorMessage func(report *Report) string
+
+func ExternalErrorMessage(err error, formatFunction FormatExternalErrorMessage) (message string, ok bool) {
+	var report Report
+	if errors.As(err, &report) {
+		msg := formatFunction(&report)
+		return msg, true
+	}
+	return "", false
+}
+
+func UnwrappedErrorMessage(err error) string {
+	for result := err; result != nil; result = errors.Unwrap(result) {
+		err = result
+	}
+	return err.Error()
 }

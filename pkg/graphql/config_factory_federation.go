@@ -74,11 +74,11 @@ func (f *FederationEngineConfigFactory) MergedSchema() (*Schema, error) {
 
 	rawBaseSchema, err := federation.BuildBaseSchemaDocument(SDLs...)
 	if err != nil {
-		return nil, fmt.Errorf("build base schema: %v", err)
+		return nil, fmt.Errorf("build base schema: %w", err)
 	}
 
 	if f.schema, err = NewSchemaFromString(rawBaseSchema); err != nil {
-		return nil, fmt.Errorf("parse schema from strinig: %v", err)
+		return nil, fmt.Errorf("parse schema from string: %v", err)
 	}
 
 	return f.schema, nil
