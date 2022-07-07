@@ -3,6 +3,7 @@ package grpc_datasource
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
 )
 
 var (
@@ -11,6 +12,11 @@ var (
 )
 
 type Configuration struct {
+	Grpc    GrpcConfiguration
+	Request RequestConfiguration
+}
+
+type GrpcConfiguration struct {
 	Package  string
 	Service  string
 	Method   string
@@ -18,12 +24,17 @@ type Configuration struct {
 	Protoset []byte
 }
 
+type RequestConfiguration struct {
+	Header http.Header
+	Body   string
+}
+
 func ConfigJson(config Configuration) json.RawMessage {
 	out, _ := json.Marshal(config)
 	return out
 }
 
-func (c Configuration) RpcMethodFullName() string {
+func (c GrpcConfiguration) RpcMethodFullName() string {
 	buf := &bytes.Buffer{}
 	buf.WriteString(c.Package)
 	buf.Write(dot)

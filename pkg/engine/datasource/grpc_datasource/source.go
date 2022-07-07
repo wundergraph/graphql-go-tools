@@ -19,7 +19,7 @@ import (
 )
 
 type Source struct {
-	config           Configuration
+	config           GrpcConfiguration
 	descriptorSource grpcurl.DescriptorSource
 	dialContext      func(ctx context.Context, target string) (conn *grpc.ClientConn, err error)
 }

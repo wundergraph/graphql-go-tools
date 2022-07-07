@@ -46,7 +46,7 @@ func TestSource_Load(t *testing.T) {
 	require.NoError(t, err)
 
 	src := Source{
-		config: Configuration{
+		config: GrpcConfiguration{
 			Package:  "starwars",
 			Service:  "StarwarsService",
 			Method:   "GetHuman",
