@@ -5,7 +5,7 @@ option go_package = "github.com/wundergraph/graphql-go-tools/pkg/engine/datasour
 package starwars;
 
 message Character {
-  int64 id = 1;
+  string id = 1;
   string name = 2;
   repeated Character friends = 3;
   repeated Episode appears_in = 4;
@@ -31,11 +31,11 @@ message GetHeroRequest {
 }
 
 message GetHumanRequest {
-  int64 id = 1;
+  string id = 1;
 }
 
 message GetDroidRequest {
-  int64 id = 1;
+  string id = 1;
 }
 
 message ListEmptyRequest {
@@ -49,7 +49,7 @@ message ListDroidsResponse {
   repeated Character droids = 1;
 }
 
-service StartwarsService {
+service StarwarsService {
   rpc GetHero(GetHeroRequest) returns (Character);
 
   rpc GetHuman(GetHumanRequest) returns (Character);

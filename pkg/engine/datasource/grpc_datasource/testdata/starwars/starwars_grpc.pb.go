@@ -18,10 +18,10 @@ import (
 // Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
-// StartwarsServiceClient is the client API for StartwarsService service.
+// StarwarsServiceClient is the client API for StarwarsService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type StartwarsServiceClient interface {
+type StarwarsServiceClient interface {
 	GetHero(ctx context.Context, in *GetHeroRequest, opts ...grpc.CallOption) (*Character, error)
 	GetHuman(ctx context.Context, in *GetHumanRequest, opts ...grpc.CallOption) (*Character, error)
 	GetDroid(ctx context.Context, in *GetDroidRequest, opts ...grpc.CallOption) (*Character, error)
@@ -29,219 +29,219 @@ type StartwarsServiceClient interface {
 	ListDroids(ctx context.Context, in *ListEmptyRequest, opts ...grpc.CallOption) (*ListDroidsResponse, error)
 }
 
-type startwarsServiceClient struct {
+type starwarsServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewStartwarsServiceClient(cc grpc.ClientConnInterface) StartwarsServiceClient {
-	return &startwarsServiceClient{cc}
+func NewStarwarsServiceClient(cc grpc.ClientConnInterface) StarwarsServiceClient {
+	return &starwarsServiceClient{cc}
 }
 
-func (c *startwarsServiceClient) GetHero(ctx context.Context, in *GetHeroRequest, opts ...grpc.CallOption) (*Character, error) {
+func (c *starwarsServiceClient) GetHero(ctx context.Context, in *GetHeroRequest, opts ...grpc.CallOption) (*Character, error) {
 	out := new(Character)
-	err := c.cc.Invoke(ctx, "/starwars.StartwarsService/GetHero", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/starwars.StarwarsService/GetHero", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *startwarsServiceClient) GetHuman(ctx context.Context, in *GetHumanRequest, opts ...grpc.CallOption) (*Character, error) {
+func (c *starwarsServiceClient) GetHuman(ctx context.Context, in *GetHumanRequest, opts ...grpc.CallOption) (*Character, error) {
 	out := new(Character)
-	err := c.cc.Invoke(ctx, "/starwars.StartwarsService/GetHuman", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/starwars.StarwarsService/GetHuman", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *startwarsServiceClient) GetDroid(ctx context.Context, in *GetDroidRequest, opts ...grpc.CallOption) (*Character, error) {
+func (c *starwarsServiceClient) GetDroid(ctx context.Context, in *GetDroidRequest, opts ...grpc.CallOption) (*Character, error) {
 	out := new(Character)
-	err := c.cc.Invoke(ctx, "/starwars.StartwarsService/GetDroid", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/starwars.StarwarsService/GetDroid", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *startwarsServiceClient) ListHumans(ctx context.Context, in *ListEmptyRequest, opts ...grpc.CallOption) (*ListHumansResponse, error) {
+func (c *starwarsServiceClient) ListHumans(ctx context.Context, in *ListEmptyRequest, opts ...grpc.CallOption) (*ListHumansResponse, error) {
 	out := new(ListHumansResponse)
-	err := c.cc.Invoke(ctx, "/starwars.StartwarsService/ListHumans", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/starwars.StarwarsService/ListHumans", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *startwarsServiceClient) ListDroids(ctx context.Context, in *ListEmptyRequest, opts ...grpc.CallOption) (*ListDroidsResponse, error) {
+func (c *starwarsServiceClient) ListDroids(ctx context.Context, in *ListEmptyRequest, opts ...grpc.CallOption) (*ListDroidsResponse, error) {
 	out := new(ListDroidsResponse)
-	err := c.cc.Invoke(ctx, "/starwars.StartwarsService/ListDroids", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/starwars.StarwarsService/ListDroids", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// StartwarsServiceServer is the server API for StartwarsService service.
-// All implementations must embed UnimplementedStartwarsServiceServer
+// StarwarsServiceServer is the server API for StarwarsService service.
+// All implementations must embed UnimplementedStarwarsServiceServer
 // for forward compatibility
-type StartwarsServiceServer interface {
+type StarwarsServiceServer interface {
 	GetHero(context.Context, *GetHeroRequest) (*Character, error)
 	GetHuman(context.Context, *GetHumanRequest) (*Character, error)
 	GetDroid(context.Context, *GetDroidRequest) (*Character, error)
 	ListHumans(context.Context, *ListEmptyRequest) (*ListHumansResponse, error)
 	ListDroids(context.Context, *ListEmptyRequest) (*ListDroidsResponse, error)
-	mustEmbedUnimplementedStartwarsServiceServer()
+	mustEmbedUnimplementedStarwarsServiceServer()
 }
 
-// UnimplementedStartwarsServiceServer must be embedded to have forward compatible implementations.
-type UnimplementedStartwarsServiceServer struct {
+// UnimplementedStarwarsServiceServer must be embedded to have forward compatible implementations.
+type UnimplementedStarwarsServiceServer struct {
 }
 
-func (UnimplementedStartwarsServiceServer) GetHero(context.Context, *GetHeroRequest) (*Character, error) {
+func (UnimplementedStarwarsServiceServer) GetHero(context.Context, *GetHeroRequest) (*Character, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetHero not implemented")
 }
-func (UnimplementedStartwarsServiceServer) GetHuman(context.Context, *GetHumanRequest) (*Character, error) {
+func (UnimplementedStarwarsServiceServer) GetHuman(context.Context, *GetHumanRequest) (*Character, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetHuman not implemented")
 }
-func (UnimplementedStartwarsServiceServer) GetDroid(context.Context, *GetDroidRequest) (*Character, error) {
+func (UnimplementedStarwarsServiceServer) GetDroid(context.Context, *GetDroidRequest) (*Character, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDroid not implemented")
 }
-func (UnimplementedStartwarsServiceServer) ListHumans(context.Context, *ListEmptyRequest) (*ListHumansResponse, error) {
+func (UnimplementedStarwarsServiceServer) ListHumans(context.Context, *ListEmptyRequest) (*ListHumansResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListHumans not implemented")
 }
-func (UnimplementedStartwarsServiceServer) ListDroids(context.Context, *ListEmptyRequest) (*ListDroidsResponse, error) {
+func (UnimplementedStarwarsServiceServer) ListDroids(context.Context, *ListEmptyRequest) (*ListDroidsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDroids not implemented")
 }
-func (UnimplementedStartwarsServiceServer) mustEmbedUnimplementedStartwarsServiceServer() {}
+func (UnimplementedStarwarsServiceServer) mustEmbedUnimplementedStarwarsServiceServer() {}
 
-// UnsafeStartwarsServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to StartwarsServiceServer will
+// UnsafeStarwarsServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to StarwarsServiceServer will
 // result in compilation errors.
-type UnsafeStartwarsServiceServer interface {
-	mustEmbedUnimplementedStartwarsServiceServer()
+type UnsafeStarwarsServiceServer interface {
+	mustEmbedUnimplementedStarwarsServiceServer()
 }
 
-func RegisterStartwarsServiceServer(s grpc.ServiceRegistrar, srv StartwarsServiceServer) {
-	s.RegisterService(&StartwarsService_ServiceDesc, srv)
+func RegisterStarwarsServiceServer(s grpc.ServiceRegistrar, srv StarwarsServiceServer) {
+	s.RegisterService(&StarwarsService_ServiceDesc, srv)
 }
 
-func _StartwarsService_GetHero_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _StarwarsService_GetHero_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetHeroRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(StartwarsServiceServer).GetHero(ctx, in)
+		return srv.(StarwarsServiceServer).GetHero(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/starwars.StartwarsService/GetHero",
+		FullMethod: "/starwars.StarwarsService/GetHero",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(StartwarsServiceServer).GetHero(ctx, req.(*GetHeroRequest))
+		return srv.(StarwarsServiceServer).GetHero(ctx, req.(*GetHeroRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _StartwarsService_GetHuman_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _StarwarsService_GetHuman_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetHumanRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(StartwarsServiceServer).GetHuman(ctx, in)
+		return srv.(StarwarsServiceServer).GetHuman(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/starwars.StartwarsService/GetHuman",
+		FullMethod: "/starwars.StarwarsService/GetHuman",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(StartwarsServiceServer).GetHuman(ctx, req.(*GetHumanRequest))
+		return srv.(StarwarsServiceServer).GetHuman(ctx, req.(*GetHumanRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _StartwarsService_GetDroid_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _StarwarsService_GetDroid_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetDroidRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(StartwarsServiceServer).GetDroid(ctx, in)
+		return srv.(StarwarsServiceServer).GetDroid(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/starwars.StartwarsService/GetDroid",
+		FullMethod: "/starwars.StarwarsService/GetDroid",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(StartwarsServiceServer).GetDroid(ctx, req.(*GetDroidRequest))
+		return srv.(StarwarsServiceServer).GetDroid(ctx, req.(*GetDroidRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _StartwarsService_ListHumans_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _StarwarsService_ListHumans_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListEmptyRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(StartwarsServiceServer).ListHumans(ctx, in)
+		return srv.(StarwarsServiceServer).ListHumans(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/starwars.StartwarsService/ListHumans",
+		FullMethod: "/starwars.StarwarsService/ListHumans",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(StartwarsServiceServer).ListHumans(ctx, req.(*ListEmptyRequest))
+		return srv.(StarwarsServiceServer).ListHumans(ctx, req.(*ListEmptyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _StartwarsService_ListDroids_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _StarwarsService_ListDroids_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListEmptyRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(StartwarsServiceServer).ListDroids(ctx, in)
+		return srv.(StarwarsServiceServer).ListDroids(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/starwars.StartwarsService/ListDroids",
+		FullMethod: "/starwars.StarwarsService/ListDroids",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(StartwarsServiceServer).ListDroids(ctx, req.(*ListEmptyRequest))
+		return srv.(StarwarsServiceServer).ListDroids(ctx, req.(*ListEmptyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// StartwarsService_ServiceDesc is the grpc.ServiceDesc for StartwarsService service.
+// StarwarsService_ServiceDesc is the grpc.ServiceDesc for StarwarsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var StartwarsService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "starwars.StartwarsService",
-	HandlerType: (*StartwarsServiceServer)(nil),
+var StarwarsService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "starwars.StarwarsService",
+	HandlerType: (*StarwarsServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "GetHero",
-			Handler:    _StartwarsService_GetHero_Handler,
+			Handler:    _StarwarsService_GetHero_Handler,
 		},
 		{
 			MethodName: "GetHuman",
-			Handler:    _StartwarsService_GetHuman_Handler,
+			Handler:    _StarwarsService_GetHuman_Handler,
 		},
 		{
 			MethodName: "GetDroid",
-			Handler:    _StartwarsService_GetDroid_Handler,
+			Handler:    _StarwarsService_GetDroid_Handler,
 		},
 		{
 			MethodName: "ListHumans",
-			Handler:    _StartwarsService_ListHumans_Handler,
+			Handler:    _StarwarsService_ListHumans_Handler,
 		},
 		{
 			MethodName: "ListDroids",
-			Handler:    _StartwarsService_ListDroids_Handler,
+			Handler:    _StarwarsService_ListDroids_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

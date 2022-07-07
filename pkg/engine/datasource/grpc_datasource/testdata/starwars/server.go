@@ -11,7 +11,7 @@ import (
 
 var characters = []*Character{
 	{
-		Id:              1,
+		Id:              "1",
 		Name:            "Luke Skywalker",
 		Friends:         nil,
 		AppearsIn:       []Episode{Episode_NEWHOPE},
@@ -20,7 +20,7 @@ var characters = []*Character{
 		Type:            Type_HUMAN,
 	},
 	{
-		Id:              2,
+		Id:              "2",
 		Name:            "C-3PO",
 		Friends:         nil,
 		AppearsIn:       []Episode{Episode_EMPIRE},
@@ -31,7 +31,7 @@ var characters = []*Character{
 }
 
 type Server struct {
-	UnimplementedStartwarsServiceServer
+	UnimplementedStarwarsServiceServer
 }
 
 func (s *Server) GetHero(ctx context.Context, request *GetHeroRequest) (*Character, error) {

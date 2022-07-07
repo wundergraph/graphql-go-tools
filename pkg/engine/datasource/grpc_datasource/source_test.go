@@ -25,7 +25,7 @@ var lis *bufconn.Listener
 func TestMain(m *testing.M) {
 	lis = bufconn.Listen(bufSize)
 	s := grpc.NewServer()
-	pb.RegisterStartwarsServiceServer(s, &pb.Server{})
+	pb.RegisterStarwarsServiceServer(s, &pb.Server{})
 	go func() {
 		if err := s.Serve(lis); err != nil {
 			log.Fatalf("Server exited with error: %v", err)
@@ -48,7 +48,7 @@ func TestSource_Load(t *testing.T) {
 	src := Source{
 		config: Configuration{
 			Package:  "starwars",
-			Service:  "StartwarsService",
+			Service:  "StarwarsService",
 			Method:   "GetHuman",
 			Target:   "bufnet",
 			Protoset: nil,
@@ -69,13 +69,13 @@ func TestSource_Load(t *testing.T) {
 
 	buf := &bytes.Buffer{}
 
-	input := []byte(`{"body":{"id":1},"header":{"fizz":["buzz"]}`)
+	input := []byte(`{"body":{"id":"1"},"header":{"fizz":["buzz"]}`)
 	require.NoError(t, src.Load(context.Background(), input, buf))
 	assert.Equal(t, `{"id":"1","name":"Luke Skywalker","appearsIn":["NEWHOPE"],"homePlanet":"Earth","primaryFunction":"jedy"}`, buf.String())
 	buf.Reset()
 
 	src.config.Method = "GetDroid"
-	input = []byte(`{"body":{"id":1},"header":{"authorization":["FFEEBB"]}}`)
+	input = []byte(`{"body":{"id":"1"},"header":{"authorization":["FFEEBB"]}}`)
 	require.NoError(t, src.Load(context.Background(), input, buf))
 	assert.Equal(t, `{"id":"2","name":"C-3PO","appearsIn":["EMPIRE"],"homePlanet":"Alderaan","primaryFunction":"FFEEBB","type":"DROID"}`, buf.String())
 
