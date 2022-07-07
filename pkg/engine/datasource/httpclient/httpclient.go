@@ -170,7 +170,7 @@ func SetInputPath(input, path []byte) []byte {
 	return out
 }
 
-func requestInputParams(input []byte) (url, method, body, headers, queryParams []byte) {
+func RequestInputParams(input []byte) (url, method, body, headers, queryParams []byte) {
 	jsonparser.EachKey(input, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
 		switch i {
 		case 0:

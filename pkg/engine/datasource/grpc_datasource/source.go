@@ -10,46 +10,41 @@ import (
 	"github.com/fullstorydev/grpcurl"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
+	"github.com/jhump/protoreflect/desc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/httpclient"
 )
 
 type Source struct {
+	config           Configuration
 	descriptorSource grpcurl.DescriptorSource
-	dialContext      func(ctx context.Context, target []byte) (conn *grpc.ClientConn, err error)
+	dialContext      func(ctx context.Context, target string) (conn *grpc.ClientConn, err error)
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
-	pkgName, service, method, body, header, target := RpcCallParams(input)
+	_, _, body, header, _ := httpclient.RequestInputParams(input)
 
-	dialCtx, err := s.dialContext(ctx, target)
+	dialCtx, err := s.dialContext(ctx, s.config.Target)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = dialCtx.Close() }()
 
-	methodName := RpcMethodFullName(pkgName, service, method)
+	methodName := s.config.RpcMethodFullName()
 	headers, err := RpcHeaders(header)
 	if err != nil {
 		return err
 	}
 
-	h := &handler{w: w}
+	h := &handler{
+		w:    w,
+		body: body,
+	}
 
-	var isMarshalled bool
-
-	err = grpcurl.InvokeRPC(context.Background(), s.descriptorSource, dialCtx, methodName, headers, h, func(m proto.Message) error {
-		if isMarshalled {
-			return io.EOF
-		}
-
-		err := jsonpb.Unmarshal(bytes.NewReader(body), m)
-		if err != nil {
-			return err
-		}
-
-		isMarshalled = true
-		return nil
-	})
+	err = grpcurl.InvokeRPC(context.Background(), s.descriptorSource, dialCtx, methodName, headers, h, h.supplyRequest)
 	if err != nil {
 		return err
 	}
@@ -81,3 +76,34 @@ func RpcHeaders(header []byte) (out []string, err error) {
 
 	return
 }
+
+type handler struct {
+	w              io.Writer
+	err            error
+	body           []byte
+	isBodySupplied bool
+}
+
+func (h *handler) supplyRequest(m proto.Message) error {
+	if h.isBodySupplied {
+		return io.EOF
+	}
+
+	err := jsonpb.Unmarshal(bytes.NewReader(h.body), m)
+	if err != nil {
+		return err
+	}
+
+	h.isBodySupplied = true
+	return nil
+}
+
+func (h *handler) OnReceiveResponse(msg proto.Message) {
+	jsm := jsonpb.Marshaler{}
+	h.err = jsm.Marshal(h.w, msg)
+}
+
+func (h *handler) OnResolveMethod(md *desc.MethodDescriptor)             {}
+func (h *handler) OnSendHeaders(md metadata.MD)                          {}
+func (h *handler) OnReceiveHeaders(md metadata.MD)                       {}
+func (h *handler) OnReceiveTrailers(stat *status.Status, md metadata.MD) {}

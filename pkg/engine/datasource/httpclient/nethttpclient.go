@@ -35,7 +35,7 @@ var (
 
 func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Writer) (err error) {
 
-	url, method, body, headers, queryParams := requestInputParams(requestInput)
+	url, method, body, headers, queryParams := RequestInputParams(requestInput)
 
 	request, err := http.NewRequestWithContext(ctx, string(method), string(url), bytes.NewReader(body))
 	if err != nil {

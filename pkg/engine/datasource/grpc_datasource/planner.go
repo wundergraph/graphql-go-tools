@@ -7,6 +7,7 @@ import (
 type Planner struct {
 	v         *plan.Visitor
 	rootField int
+	config    Configuration
 }
 
 func (p *Planner) Register(visitor *plan.Visitor, _ plan.DataSourceConfiguration, _ bool) error {
@@ -31,14 +32,15 @@ func (p *Planner) EnterField(ref int) {
 }
 
 func (p *Planner) configureInput() string {
-
 	return ""
 }
 
 func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	return plan.FetchConfiguration{
-		Input:      p.configureInput(),
-		DataSource: &Source{},
+		Input: p.configureInput(),
+		DataSource: &Source{
+			config: p.config,
+		},
 	}
 }
 

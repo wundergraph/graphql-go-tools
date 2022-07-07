@@ -47,8 +47,8 @@ func TestSource_Load(t *testing.T) {
 
 	src := Source{
 		descriptorSource: sourceProtoFiles,
-		dialContext: func(ctx context.Context, target []byte) (conn *grpc.ClientConn, err error) {
-			conn, err = grpc.DialContext(ctx, string(target),
+		dialContext: func(ctx context.Context, target string) (conn *grpc.ClientConn, err error) {
+			conn, err = grpc.DialContext(ctx, target,
 				grpc.WithTransportCredentials(insecure.NewCredentials()),
 				grpc.WithBlock(),
 				grpc.WithContextDialer(bufDialer),
