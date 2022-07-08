@@ -8,11 +8,11 @@ import (
 	"testing"
 
 	"github.com/Shopify/sarama"
-	"github.com/buger/jsonparser"
-	"github.com/jensneuse/abstractlogger"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/plan"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
+	"github.com/buger/jsonparser"
+	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -227,7 +227,7 @@ func TestKafkaDataSource_Subscription_Start(t *testing.T) {
 
 	t.Run("should return error when input is invalid", func(t *testing.T) {
 		source := SubscriptionSource{client: FailingSubscriptionClient{}}
-		err := source.Start(context.Background(), []byte(`{"broker_addr":"",topic":"","group_id":""}`), nil)
+		err := source.Start(context.Background(), []byte(`{"broker_addresses":"",topic":"","group_id":""}`), nil)
 		assert.Error(t, err)
 	})
 
