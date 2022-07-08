@@ -228,7 +228,7 @@ func TestKafkaDataSource_Subscription_Start(t *testing.T) {
 
 	t.Run("should return error when input is invalid", func(t *testing.T) {
 		source := SubscriptionSource{client: FailingSubscriptionClient{}}
-		err := source.Start(context.Background(), []byte(`{"broker_addr":"",topic":"","group_id":""}`), nil)
+		err := source.Start(context.Background(), []byte(`{"broker_addresses":"",topic":"","group_id":""}`), nil)
 		assert.Error(t, err)
 	})
 
