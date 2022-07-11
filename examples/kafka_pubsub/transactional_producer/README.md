@@ -64,7 +64,7 @@ dirty writes, and your program will only receive the committed messages.
               }
             ],
             "config": {
-              "broker_addr": "localhost:9092",
+              "broker_addresses": ["localhost:9092"],
               "topic": "test.topic.{{.arguments.name}}",
               "group_id": "test.group",
               "client_id": "tyk-kafka-integration-{{.arguments.name}}",

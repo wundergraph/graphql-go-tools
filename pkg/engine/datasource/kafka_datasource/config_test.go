@@ -24,7 +24,7 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 		require.Equal(t, DefaultKafkaVersion, g.KafkaVersion)
 	})
 
-	t.Run("Empty broker_addr not allowed", func(t *testing.T) {
+	t.Run("Empty broker_addresses not allowed", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{
 			Topic:    "foobar",
 			GroupID:  "groupid",

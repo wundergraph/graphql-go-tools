@@ -84,7 +84,7 @@ Here is a sample data source configuration. It is a part of `examples/kafka_pubs
     ]
   }],
   "config": {
-    "broker_addr": "localhost:9092",
+    "broker_addresses": ["localhost:9092"],
     "topic": "test.topic.{{.arguments.name}}",
     "group_id": "test.group",
     "client_id": "tyk-kafka-integration-{{.arguments.name}}"
@@ -152,7 +152,7 @@ On the API definition side,
 
 ```json
 {
-  "broker_addr": "localhost:9092",
+  "broker_addresses": ["localhost:9092"],
   "topic": "test.topic.product2",
   "group_id": "test.group",
   "client_id": "tyk-kafka-integration-{{.arguments.name}}",
