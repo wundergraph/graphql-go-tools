@@ -45,25 +45,22 @@ func TestSource_Load(t *testing.T) {
 	sourceProtoFiles, err := grpcurl.DescriptorSourceFromProtoFiles([]string{"testdata/starwars"}, "starwars.proto")
 	require.NoError(t, err)
 
+	conn, err := grpc.DialContext(context.Background(), "bufnet",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
+		grpc.WithContextDialer(bufDialer),
+	)
+	require.NoError(t, err)
+	defer func() { _ = conn.Close() }()
+
 	src := Source{
-		config: GrpcConfiguration{
+		config: EndpointConfiguration{
 			Package: "starwars",
 			Service: "StarwarsService",
 			Method:  "GetHuman",
-			Target:  "bufnet",
 		},
 		descriptorSource: sourceProtoFiles,
-		dialContext: func(ctx context.Context, target string) (conn *grpc.ClientConn, err error) {
-			conn, err = grpc.DialContext(ctx, target,
-				grpc.WithTransportCredentials(insecure.NewCredentials()),
-				grpc.WithBlock(),
-				grpc.WithContextDialer(bufDialer),
-			)
-			if err != nil {
-				return nil, err
-			}
-			return conn, err
-		},
+		connection:       conn,
 	}
 
 	buf := &bytes.Buffer{}

@@ -13,6 +13,6 @@ func NewFactory() *Factory {
 	return &Factory{}
 }
 
-func (f *Factory) Planner(_ context.Context) plan.DataSourcePlanner {
-	return &Planner{}
+func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
+	return &Planner{ctx: ctx}
 }

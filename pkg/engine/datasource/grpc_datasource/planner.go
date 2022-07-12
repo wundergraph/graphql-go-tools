@@ -17,6 +17,7 @@ import (
 )
 
 type Planner struct {
+	ctx       context.Context
 	v         *plan.Visitor
 	rootField int
 	config    Configuration
@@ -57,7 +58,7 @@ func (p *Planner) configureInput() []byte {
 func (p *Planner) descriptorSource() grpcurl.DescriptorSource {
 	files := &descriptorpb.FileDescriptorSet{}
 	var fs descriptorpb.FileDescriptorSet
-	if err := proto.Unmarshal(p.config.Protoset, &fs); err != nil {
+	if err := proto.Unmarshal(p.config.Server.Protoset, &fs); err != nil {
 		p.v.Walker.StopWithInternalErr(err)
 		return nil
 	}
@@ -71,21 +72,24 @@ func (p *Planner) descriptorSource() grpcurl.DescriptorSource {
 	return src
 }
 
+// connection - temporary until lazy connection added
+func (p *Planner) connection() *grpc.ClientConn {
+	conn, err := grpc.DialContext(p.ctx, p.config.Server.Target,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		p.v.Walker.StopWithInternalErr(err)
+		return nil
+	}
+	return conn
+}
+
 func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	input := p.configureInput()
 	source := &Source{
-		config:           p.config.Grpc,
+		config:           p.config.Endpoint,
 		descriptorSource: p.descriptorSource(),
-		dialContext: func(ctx context.Context, target string) (conn *grpc.ClientConn, err error) {
-			conn, err = grpc.DialContext(ctx, target,
-				grpc.WithTransportCredentials(insecure.NewCredentials()),
-				grpc.WithBlock(),
-			)
-			if err != nil {
-				return nil, err
-			}
-			return conn, err
-		},
+		connection:       p.connection(),
 	}
 
 	return plan.FetchConfiguration{

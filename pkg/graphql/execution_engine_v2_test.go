@@ -1317,15 +1317,17 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 								Header: http.Header{"auth": []string{"abc"}},
 								Body:   "{{ .arguments.input }}",
 							},
-							Grpc: grpc_datasource.GrpcConfiguration{
+							Endpoint: grpc_datasource.EndpointConfiguration{
 								Package: "starwars",
 								Service: "StarwarsService",
 								Method:  "GetHero",
-								Target:  fmt.Sprintf("127.0.0.1:%d", grpcPort),
 							},
-							Protoset: starwarsGrpc.ProtoSet(t, "../engine/datasource/grpc_datasource/testdata/starwars"),
+							Server: grpc_datasource.ServerConfiguration{
+								Protoset: starwarsGrpc.ProtoSet(t, "../engine/datasource/grpc_datasource/testdata/starwars"),
+								Target:   fmt.Sprintf("127.0.0.1:%d", grpcPort),
+							},
 						}),
-						Factory: &grpc_datasource.Factory{},
+						Factory: grpc_datasource.NewFactory(),
 					},
 				},
 				fields: []plan.FieldConfiguration{

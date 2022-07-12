@@ -19,19 +19,13 @@ import (
 )
 
 type Source struct {
-	config           GrpcConfiguration
+	config           EndpointConfiguration
 	descriptorSource grpcurl.DescriptorSource
-	dialContext      func(ctx context.Context, target string) (conn *grpc.ClientConn, err error)
+	connection       *grpc.ClientConn
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
 	_, _, body, header, _ := httpclient.RequestInputParams(input)
-
-	dialCtx, err := s.dialContext(ctx, s.config.Target)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = dialCtx.Close() }()
 
 	methodName := s.config.RpcMethodFullName()
 	headers, err := RpcHeaders(header)
@@ -44,7 +38,7 @@ func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error
 		body: body,
 	}
 
-	err = grpcurl.InvokeRPC(context.Background(), s.descriptorSource, dialCtx, methodName, headers, h, h.supplyRequest)
+	err = grpcurl.InvokeRPC(ctx, s.descriptorSource, s.connection, methodName, headers, h, h.supplyRequest)
 	if err != nil {
 		return err
 	}

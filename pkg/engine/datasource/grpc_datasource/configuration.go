@@ -12,16 +12,20 @@ var (
 )
 
 type Configuration struct {
-	Grpc     GrpcConfiguration
+	Server   ServerConfiguration
+	Endpoint EndpointConfiguration
 	Request  RequestConfiguration
-	Protoset []byte
 }
 
-type GrpcConfiguration struct {
+type ServerConfiguration struct {
+	Protoset []byte
+	Target   string
+}
+
+type EndpointConfiguration struct {
 	Package string
 	Service string
 	Method  string
-	Target  string
 }
 
 type RequestConfiguration struct {
@@ -34,7 +38,7 @@ func ConfigJson(config Configuration) json.RawMessage {
 	return out
 }
 
-func (c GrpcConfiguration) RpcMethodFullName() string {
+func (c EndpointConfiguration) RpcMethodFullName() string {
 	buf := &bytes.Buffer{}
 	buf.WriteString(c.Package)
 	buf.Write(dot)
