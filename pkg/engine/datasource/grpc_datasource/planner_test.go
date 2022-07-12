@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/grpc_datasource/testdata/starwars"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
 
@@ -12,12 +13,12 @@ import (
 
 func TestGrpcDataSourcePlanning(t *testing.T) {
 	t.Run("inline object value with arguments", RunTest(
-		starwarsGeneratedSchema, `
+		starwars.GrpcGeneratedSchema, `
 			query GetHero($episode: starwars_Episode) {
-			  starwars_StarwarsService_GetHero(input: {episode: $episode}){
-				id
-				name
-			  }
+				starwars_StarwarsService_GetHero(input: {episode: $episode}){
+					id
+					name
+			  	}
 			}`,
 		"GetHero",
 		&plan.SynchronousResponsePlan{
@@ -43,7 +44,7 @@ func TestGrpcDataSourcePlanning(t *testing.T) {
 							Name:      []byte("starwars_StarwarsService_GetHero"),
 							Position: resolve.Position{
 								Line:   3,
-								Column: 6,
+								Column: 5,
 							},
 							Value: &resolve.Object{
 								Nullable: true,
@@ -56,7 +57,7 @@ func TestGrpcDataSourcePlanning(t *testing.T) {
 										},
 										Position: resolve.Position{
 											Line:   4,
-											Column: 5,
+											Column: 6,
 										},
 									},
 									{
@@ -67,7 +68,7 @@ func TestGrpcDataSourcePlanning(t *testing.T) {
 										},
 										Position: resolve.Position{
 											Line:   5,
-											Column: 5,
+											Column: 6,
 										},
 									},
 								},
@@ -106,66 +107,3 @@ func TestGrpcDataSourcePlanning(t *testing.T) {
 	))
 
 }
-
-const starwarsGeneratedSchema = `
-type Query {
-  starwars_StarwarsService_GetHero(input: starwars_GetHeroRequest_Input): starwars_Character
-  starwars_StarwarsService_GetHuman(input: starwars_GetHumanRequest_Input): starwars_Character
-  starwars_StarwarsService_GetDroid(input: starwars_GetDroidRequest_Input): starwars_Character
-  starwars_StarwarsService_ListHumans(input: starwars_ListEmptyRequest_Input): starwars_ListHumansResponse
-  starwars_StarwarsService_ListDroids(input: starwars_ListEmptyRequest_Input): starwars_ListDroidsResponse
-  starwars_StarwarsService_connectivityState(tryToConnect: Boolean): ConnectivityState
-}
-
-type starwars_Character {
-  id: String
-  name: String
-  friends: [starwars_Character]
-  appears_in: [starwars_Episode]
-  home_planet: String
-  primary_function: String
-  type: starwars_Type
-}
-
-enum starwars_Episode {
-  _
-  NEWHOPE
-  EMPIRE
-  JEDI
-}
-
-enum starwars_Type {
-  HUMAN
-  DROID
-}
-
-input starwars_GetHeroRequest_Input {
-  episode: starwars_Episode
-}
-
-input starwars_GetHumanRequest_Input {
-  id: String
-}
-
-input starwars_GetDroidRequest_Input {
-  id: String
-}
-
-type starwars_ListHumansResponse {
-  humans: [starwars_Character]
-}
-
-scalar starwars_ListEmptyRequest_Input @specifiedBy(url: "http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf")
-
-type starwars_ListDroidsResponse {
-  droids: [starwars_Character]
-}
-
-enum ConnectivityState {
-  IDLE
-  CONNECTING
-  READY
-  TRANSIENT_FAILURE
-  SHUTDOWN
-}
-`

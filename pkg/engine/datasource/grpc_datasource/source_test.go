@@ -47,11 +47,10 @@ func TestSource_Load(t *testing.T) {
 
 	src := Source{
 		config: GrpcConfiguration{
-			Package:  "starwars",
-			Service:  "StarwarsService",
-			Method:   "GetHuman",
-			Target:   "bufnet",
-			Protoset: nil,
+			Package: "starwars",
+			Service: "StarwarsService",
+			Method:  "GetHuman",
+			Target:  "bufnet",
 		},
 		descriptorSource: sourceProtoFiles,
 		dialContext: func(ctx context.Context, target string) (conn *grpc.ClientConn, err error) {

@@ -57,13 +57,15 @@ func (p *Planner) configureInput() []byte {
 func (p *Planner) descriptorSource() grpcurl.DescriptorSource {
 	files := &descriptorpb.FileDescriptorSet{}
 	var fs descriptorpb.FileDescriptorSet
-	if err := proto.Unmarshal(p.config.Grpc.Protoset, &fs); err != nil {
+	if err := proto.Unmarshal(p.config.Protoset, &fs); err != nil {
+		p.v.Walker.StopWithInternalErr(err)
 		return nil
 	}
 	files.File = append(files.File, fs.File...)
 
 	src, err := grpcurl.DescriptorSourceFromFileDescriptorSet(files)
 	if err != nil {
+		p.v.Walker.StopWithInternalErr(err)
 		return nil
 	}
 	return src

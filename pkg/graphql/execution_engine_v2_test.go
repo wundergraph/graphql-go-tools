@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -15,12 +16,15 @@ import (
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
 	federationExample "github.com/wundergraph/graphql-go-tools/examples/federation"
 	accounts "github.com/wundergraph/graphql-go-tools/examples/federation/accounts/graph"
 	products "github.com/wundergraph/graphql-go-tools/examples/federation/products/graph"
 	reviews "github.com/wundergraph/graphql-go-tools/examples/federation/reviews/graph"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/grpc_datasource"
+	starwarsGrpc "github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/grpc_datasource/testdata/starwars"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/rest_datasource"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/staticdatasource"
@@ -1267,6 +1271,74 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			expectedResponse: `{"data":{"hero":"Human"}}`,
 		},
 	))
+
+	t.Run("GRPC datasource", func(t *testing.T) {
+		schema, err := NewSchemaFromString(starwarsGrpc.GrpcGeneratedSchema)
+		require.NoError(t, err)
+
+		s := grpc.NewServer()
+		starwarsGrpc.RegisterStarwarsServiceServer(s, &starwarsGrpc.Server{})
+
+		var grpcPort int
+		if l, err := net.Listen("tcp", "127.0.0.1:0"); err != nil {
+			panic(err)
+		} else {
+			grpcPort = l.Addr().(*net.TCPAddr).Port
+			go s.Serve(l)
+		}
+		defer s.Stop()
+
+		t.Run("execute GetHero operation", runWithoutError(
+			ExecutionEngineV2TestCase{
+				schema: schema,
+				operation: func(t *testing.T) Request {
+					return Request{
+						OperationName: "",
+						Variables:     []byte(`{"episode": "NEWHOPE"}`),
+						Query: `
+						query GetHero($episode: starwars_Episode) {
+							hero: starwars_StarwarsService_GetHero(input: {episode: $episode}){
+								id
+								name
+							}
+						}`,
+					}
+				},
+				dataSources: []plan.DataSourceConfiguration{
+					{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"starwars_StarwarsService_GetHero"},
+							},
+						},
+						Custom: grpc_datasource.ConfigJson(grpc_datasource.Configuration{
+							Request: grpc_datasource.RequestConfiguration{
+								Header: http.Header{"auth": []string{"abc"}},
+								Body:   "{{ .arguments.input }}",
+							},
+							Grpc: grpc_datasource.GrpcConfiguration{
+								Package: "starwars",
+								Service: "StarwarsService",
+								Method:  "GetHero",
+								Target:  fmt.Sprintf("127.0.0.1:%d", grpcPort),
+							},
+							Protoset: starwarsGrpc.ProtoSet(t, "../engine/datasource/grpc_datasource/testdata/starwars"),
+						}),
+						Factory: &grpc_datasource.Factory{},
+					},
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:              "Query",
+						FieldName:             "starwars_StarwarsService_GetHero",
+						DisableDefaultMapping: true,
+					},
+				},
+				expectedResponse: `{"data":{"hero":{"id":"1","name":"Luke Skywalker"}}}`,
+			},
+		))
+	})
 }
 
 func TestExecutionEngineV2_FederationAndSubscription_IntegrationTest(t *testing.T) {

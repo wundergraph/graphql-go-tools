@@ -12,16 +12,16 @@ var (
 )
 
 type Configuration struct {
-	Grpc    GrpcConfiguration
-	Request RequestConfiguration
+	Grpc     GrpcConfiguration
+	Request  RequestConfiguration
+	Protoset []byte
 }
 
 type GrpcConfiguration struct {
-	Package  string
-	Service  string
-	Method   string
-	Target   string
-	Protoset []byte
+	Package string
+	Service string
+	Method  string
+	Target  string
 }
 
 type RequestConfiguration struct {
