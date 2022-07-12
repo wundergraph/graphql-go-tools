@@ -1284,7 +1284,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			panic(err)
 		} else {
 			grpcPort = l.Addr().(*net.TCPAddr).Port
-			go s.Serve(l)
+			go func(t *testing.T) { require.NoError(t, s.Serve(l)) }(t)
 		}
 		defer s.Stop()
 

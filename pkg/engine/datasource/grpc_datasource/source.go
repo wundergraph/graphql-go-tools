@@ -8,8 +8,8 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/fullstorydev/grpcurl"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/jsonpb" //lint:ignore SA1019 old package is required cause grpcurl uses it in interfaces
+	"github.com/golang/protobuf/proto"  //lint:ignore SA1019 old package is required cause grpcurl uses it in interfaces
 	"github.com/jhump/protoreflect/desc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
