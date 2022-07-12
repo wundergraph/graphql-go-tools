@@ -15,10 +15,7 @@ func (r *Request) ValidateForSchema(schema *Schema) (result ValidationResult, er
 		return ValidationResult{Valid: false, Errors: nil}, ErrNilSchema
 	}
 
-	schemaHash, err := schema.Hash()
-	if err != nil {
-		return ValidationResult{Valid: false}, err
-	}
+	schemaHash := schema.Hash()
 
 	if r.validForSchema == nil {
 		r.validForSchema = map[uint64]ValidationResult{}
