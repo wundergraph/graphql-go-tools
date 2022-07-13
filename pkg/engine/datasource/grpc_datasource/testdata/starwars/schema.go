@@ -3,7 +3,6 @@ package starwars
 import (
 	"io/ioutil"
 	"path"
-	"testing"
 
 	"github.com/stretchr/testify/require"
 )
@@ -71,9 +70,7 @@ enum ConnectivityState {
 }
 `
 
-func ProtoSet(t *testing.T, relativePath string) []byte {
-	t.Helper()
-
+func ProtoSet(t require.TestingT, relativePath string) []byte {
 	protosetPath := path.Join(relativePath, "starwars.protoset")
 	protoset, err := ioutil.ReadFile(protosetPath)
 	require.NoError(t, err)

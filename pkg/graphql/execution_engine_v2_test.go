@@ -1719,15 +1719,14 @@ func BenchmarkExecutionEngineV2(b *testing.B) {
 				},
 				Factory: &staticdatasource.Factory{},
 				Custom: staticdatasource.ConfigJSON(staticdatasource.Configuration{
-					Data: "world",
+					Data: `{"hello":"world"}`,
 				}),
 			},
 		})
 		engineConf.SetFieldConfigurations([]plan.FieldConfiguration{
 			{
-				TypeName:              "Query",
-				FieldName:             "hello",
-				DisableDefaultMapping: true,
+				TypeName:  "Query",
+				FieldName: "hello",
 			},
 		})
 
@@ -1754,6 +1753,120 @@ func BenchmarkExecutionEngineV2(b *testing.B) {
 	engine := newEngine()
 	require.NoError(b, engine.Execute(ctx, &req, &writer))
 	require.Equal(b, "{\"data\":{\"hello\":\"world\"}}", writer.String())
+
+	pool := sync.Pool{
+		New: func() interface{} {
+			return newBenchCase()
+		},
+	}
+
+	b.SetBytes(int64(writer.Len()))
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			bc := pool.Get().(*benchCase)
+			bc.writer.Reset()
+			_ = bc.engine.Execute(ctx, &req, bc.writer)
+			pool.Put(bc)
+		}
+	})
+
+}
+
+func BenchmarkExecutionEngineV2_GRPC(b *testing.B) {
+	s := grpc.NewServer()
+	starwarsGrpc.RegisterStarwarsServiceServer(s, &starwarsGrpc.Server{})
+
+	var grpcPort int
+	if l, err := net.Listen("tcp", "127.0.0.1:0"); err != nil {
+		panic(err)
+	} else {
+		grpcPort = l.Addr().(*net.TCPAddr).Port
+		go func(t *testing.B) { require.NoError(t, s.Serve(l)) }(b)
+	}
+	defer s.Stop()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	type benchCase struct {
+		engine *ExecutionEngineV2
+		writer *EngineResultWriter
+	}
+
+	newEngine := func() *ExecutionEngineV2 {
+		schema, err := NewSchemaFromString(starwarsGrpc.GrpcGeneratedSchema)
+		require.NoError(b, err)
+
+		engineConf := NewEngineV2Configuration(schema)
+		engineConf.SetDataSources([]plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"starwars_StarwarsService_GetHero"},
+					},
+				},
+				Custom: grpc_datasource.ConfigJson(grpc_datasource.Configuration{
+					Request: grpc_datasource.RequestConfiguration{
+						Header: http.Header{"auth": []string{"abc"}},
+						Body:   "{{ .arguments.input }}",
+					},
+					Endpoint: grpc_datasource.EndpointConfiguration{
+						Package: "starwars",
+						Service: "StarwarsService",
+						Method:  "GetHero",
+					},
+					Server: grpc_datasource.ServerConfiguration{
+						Protoset: starwarsGrpc.ProtoSet(b, "../engine/datasource/grpc_datasource/testdata/starwars"),
+						Target:   fmt.Sprintf("127.0.0.1:%d", grpcPort),
+						// Target: "127.0.0.1:9090",
+					},
+				}),
+				Factory: grpc_datasource.NewFactory(),
+			},
+		})
+		engineConf.SetFieldConfigurations([]plan.FieldConfiguration{
+			{
+				TypeName:              "Query",
+				FieldName:             "starwars_StarwarsService_GetHero",
+				DisableDefaultMapping: true,
+			},
+		})
+
+		engine, err := NewExecutionEngineV2(ctx, abstractlogger.NoopLogger, engineConf)
+		require.NoError(b, err)
+
+		return engine
+	}
+
+	newBenchCase := func() *benchCase {
+		writer := NewEngineResultWriter()
+		return &benchCase{
+			engine: newEngine(),
+			writer: &writer,
+		}
+	}
+
+	ctx = context.Background()
+	req := Request{
+		OperationName: "",
+		Variables:     []byte(`{"episode": "NEWHOPE"}`),
+		Query: `
+			query GetHero($episode: starwars_Episode) {
+				hero: starwars_StarwarsService_GetHero(input: {episode: $episode}){
+					id
+					name
+				}
+			}`,
+	}
+
+	writer := NewEngineResultWriter()
+	engine := newEngine()
+	require.NoError(b, engine.Execute(ctx, &req, &writer))
+	require.Equal(b, `{"data":{"hero":{"id":"1","name":"Luke Skywalker"}}}`, writer.String())
 
 	pool := sync.Pool{
 		New: func() interface{} {
