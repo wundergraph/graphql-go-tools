@@ -10,6 +10,8 @@ import (
 	log "github.com/jensneuse/abstractlogger"
 )
 
+const consumerGroupRetryInterval = time.Second
+
 type KafkaConsumerGroupBridge struct {
 	log log.Logger
 	ctx context.Context
@@ -51,7 +53,6 @@ func (k *kafkaConsumerGroupHandler) Cleanup(_ sarama.ConsumerGroupSession) error
 		log.String("groupID", k.options.GroupID),
 		log.String("clientID", k.options.ClientID),
 	)
-	close(k.messages)
 	return nil
 }
 
@@ -123,14 +124,53 @@ func (k *KafkaConsumerGroup) startConsuming(handler sarama.ConsumerGroupHandler)
 		}
 	}()
 
-	// Blocking call
-	err := k.consumerGroup.Consume(k.ctx, []string{k.options.Topic}, handler)
-	if err != nil {
-		k.log.Error("KafkaConsumerGroup.startConsuming",
+	k.wg.Add(1)
+	go func() {
+		defer k.wg.Done()
+
+		// Errors returns a read channel of errors that occurred during the consumer life-cycle.
+		// By default, errors are logged and not returned over this channel.
+		// If you want to implement any custom error handling, set your config's
+		// Consumer.Return.Errors setting to true, and read from this channel.
+		for err := range k.consumerGroup.Errors() {
+			k.log.Error("KafkaConsumerGroup.Consumer",
+				log.String("topic", k.options.Topic),
+				log.String("groupID", k.options.GroupID),
+				log.String("clientID", k.options.ClientID),
+				log.Error(err))
+		}
+	}()
+
+	// From Sarama documents:
+	//
+	// This method should be called inside an infinite loop, when a
+	// server-side rebalance happens, the consumer session will need to be
+	// recreated to get the new claims.
+	for {
+		select {
+		case <-k.ctx.Done():
+			return
+		default:
+		}
+
+		k.log.Info("KafkaConsumerGroup.consumerGroup.Consume has been called",
 			log.String("topic", k.options.Topic),
 			log.String("groupID", k.options.GroupID),
-			log.String("clientID", k.options.ClientID),
-			log.Error(err))
+			log.String("clientID", k.options.ClientID))
+
+		// Blocking call
+		err := k.consumerGroup.Consume(k.ctx, []string{k.options.Topic}, handler)
+		if err != nil {
+			k.log.Error("KafkaConsumerGroup.startConsuming",
+				log.String("topic", k.options.Topic),
+				log.String("groupID", k.options.GroupID),
+				log.String("clientID", k.options.ClientID),
+				log.Error(err))
+		}
+		// Rebalance or node restart takes time. Every Consume call
+		// triggers a context switch on the CPU. We should prevent an
+		// interrupt storm.
+		<-time.After(consumerGroupRetryInterval)
 	}
 }
 
@@ -181,6 +221,7 @@ func (c *KafkaConsumerGroupBridge) prepareSaramaConfig(options *GraphQLSubscript
 	sc := sarama.NewConfig()
 	sc.Version = SaramaSupportedKafkaVersions[options.KafkaVersion]
 	sc.ClientID = options.ClientID
+	sc.Consumer.Return.Errors = true
 
 	// Strategy for allocating topic partitions to members (default BalanceStrategyRange)
 	// See this: https://chrzaszcz.dev/2021/09/kafka-assignors/
