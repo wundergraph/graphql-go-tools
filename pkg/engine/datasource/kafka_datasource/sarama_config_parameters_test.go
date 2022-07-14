@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,6 +32,7 @@ const (
 	testConsumerGroup = "start-consuming-latest-cg"
 	testSASLUser      = "admin"
 	testSASLPassword  = "admin-secret"
+	initialBrokerPort = 9092
 )
 
 var defaultZooKeeperEnvVars = []string{
@@ -135,6 +139,15 @@ func (k *kafkaCluster) startKafka(t *testing.T, port int, envVars []string) *doc
 	internalPort := port + 1
 	hostname := fmt.Sprintf("kafka%d", port)
 
+	// We need a deterministic way to produce broker IDs. Kafka produces random IDs if we don't set
+	// deliberately. We need to use the same ID to handle node restarts properly.
+	// All port numbers have to be bigger or equal to 9092
+	//
+	// * If the port number is 9092, brokerID is 0
+	// * If the port number is 9094, brokerID is 2
+	brokerID := port % initialBrokerPort
+
+	envVars = append(envVars, fmt.Sprintf("KAFKA_CFG_BROKER_ID=%d", brokerID))
 	envVars = append(envVars, fmt.Sprintf("KAFKA_ADVERTISED_LISTENERS=INSIDE://%s:%d,OUTSIDE://localhost:%d", hostname, internalPort, port))
 	envVars = append(envVars, fmt.Sprintf("KAFKA_LISTENERS=INSIDE://0.0.0.0:%d,OUTSIDE://0.0.0.0:%d", internalPort, port))
 
@@ -144,7 +157,7 @@ func (k *kafkaCluster) startKafka(t *testing.T, port int, envVars []string) *doc
 	resource, err := k.pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       fmt.Sprintf("kafka-tyk-graphql-%d", port),
 		Repository: "bitnami/kafka",
-		Tag:        "3.0.1",
+		Tag:        "3.1",
 		NetworkID:  k.network.ID,
 		Hostname:   hostname,
 		Env:        envVars,
@@ -153,7 +166,7 @@ func (k *kafkaCluster) startKafka(t *testing.T, port int, envVars []string) *doc
 		},
 		ExposedPorts: []string{portID},
 	}, func(config *docker.HostConfig) {
-		config.AutoRemove = true
+		config.RestartPolicy = docker.RestartOnFailure(10)
 		if k.kafkaRunOptions.saslAuth {
 			wd, _ := os.Getwd()
 			config.Mounts = []docker.HostMount{{
@@ -200,7 +213,7 @@ func (k *kafkaCluster) startKafka(t *testing.T, port int, envVars []string) *doc
 		for {
 			total++
 			if total > 100 {
-				break
+				return fmt.Errorf("tried 100 times but no messages have been produced")
 			}
 			message := &sarama.ProducerMessage{
 				Topic: "grahpql-go-tools-health-check",
@@ -225,9 +238,6 @@ func (k *kafkaCluster) startKafka(t *testing.T, port int, envVars []string) *doc
 		return nil
 	}
 
-	if err = k.pool.Retry(retryFn); err != nil {
-		log.Fatalf("could not connect to kafka: %s", err)
-	}
 	require.NoError(t, k.pool.Retry(retryFn))
 
 	t.Logf("Kafka is ready to accept connections on %d", port)
@@ -249,7 +259,7 @@ func (k *kafkaCluster) start(t *testing.T, numMembers int, options ...kafkaClust
 	k.startZooKeeper(t)
 
 	resources := make(map[string]*dockertest.Resource)
-	var port = 9092 // Initial port
+	var port = initialBrokerPort // Initial port
 	for i := 0; i < numMembers; i++ {
 		var envVars []string
 		envVars = append(envVars, k.kafkaRunOptions.envVars...)
@@ -270,6 +280,36 @@ func (k *kafkaCluster) start(t *testing.T, numMembers int, options ...kafkaClust
 	}
 	require.NotEmpty(t, resources)
 	return resources
+}
+
+func (k *kafkaCluster) restart(t *testing.T, port int, broker *dockertest.Resource, options ...kafkaClusterOption) (*dockertest.Resource, error) {
+	if err := broker.Close(); err != nil {
+		return nil, err
+	}
+
+	for _, opt := range options {
+		opt(&k.kafkaRunOptions)
+	}
+	if len(k.kafkaRunOptions.envVars) == 0 {
+		k.kafkaRunOptions.envVars = defaultKafkaEnvVars
+	}
+
+	var envVars []string
+	envVars = append(envVars, k.kafkaRunOptions.envVars...)
+	return k.startKafka(t, port, envVars), nil
+}
+
+func (k *kafkaCluster) addNewBroker(t *testing.T, port int, options ...kafkaClusterOption) (*dockertest.Resource, error) {
+	for _, opt := range options {
+		opt(&k.kafkaRunOptions)
+	}
+	if len(k.kafkaRunOptions.envVars) == 0 {
+		k.kafkaRunOptions.envVars = defaultKafkaEnvVars
+	}
+
+	var envVars []string
+	envVars = append(envVars, k.kafkaRunOptions.envVars...)
+	return k.startKafka(t, port, envVars), nil
 }
 
 func testAsyncProducer(t *testing.T, options *GraphQLSubscriptionOptions, start, end int) {
@@ -293,25 +333,15 @@ func testAsyncProducer(t *testing.T, options *GraphQLSubscriptionOptions, start,
 }
 
 func testConsumeMessages(messages chan *sarama.ConsumerMessage, numberOfMessages int) (map[string]struct{}, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	allMessages := make(map[string]struct{})
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("timeout exceeded")
-		case msg, ok := <-messages:
-			if !ok {
-				return allMessages, nil
-			}
-			value := string(msg.Value)
-			allMessages[value] = struct{}{}
-			if len(allMessages) >= numberOfMessages {
-				return allMessages, nil
-			}
+	for msg := range messages {
+		value := string(msg.Value)
+		allMessages[value] = struct{}{}
+		if len(allMessages) >= numberOfMessages {
+			return allMessages, nil
 		}
 	}
+	return allMessages, nil
 }
 
 func testStartConsumer(t *testing.T, options *GraphQLSubscriptionOptions) (*KafkaConsumerGroup, chan *sarama.ConsumerMessage) {
@@ -330,6 +360,8 @@ func testStartConsumer(t *testing.T, options *GraphQLSubscriptionOptions) (*Kafk
 		saramaConfig.Net.SASL.User = options.SASL.User
 		saramaConfig.Net.SASL.Password = options.SASL.Password
 	}
+	saramaConfig.Consumer.Return.Errors = true
+
 	cg, err := NewKafkaConsumerGroup(logger(), saramaConfig, options)
 	require.NoError(t, err)
 
@@ -352,6 +384,33 @@ func getBrokerAddresses(brokers map[string]*dockertest.Resource) (brokerAddresse
 		brokerAddresses = append(brokerAddresses, broker.GetHostPort(portID))
 	}
 	return brokerAddresses
+}
+
+func publishMessagesContinuously(t *testing.T, ctx context.Context, options *GraphQLSubscriptionOptions) {
+	config := sarama.NewConfig()
+	if options.SASL.Enable {
+		config.Net.SASL.Enable = true
+		config.Net.SASL.User = options.SASL.User
+		config.Net.SASL.Password = options.SASL.Password
+	}
+
+	asyncProducer, err := sarama.NewAsyncProducer(options.BrokerAddresses, config)
+	require.NoError(t, err)
+
+	var i int
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		message := &sarama.ProducerMessage{
+			Topic: options.Topic,
+			Value: sarama.StringEncoder(fmt.Sprintf(messageTemplate, i)),
+		}
+		asyncProducer.Input() <- message
+		i++
+	}
 }
 
 func TestSarama_StartConsumingLatest_True(t *testing.T) {
@@ -701,4 +760,123 @@ func TestSarama_Multiple_Broker(t *testing.T) {
 	}
 
 	require.NoError(t, cg.Close())
+}
+
+func TestSarama_Cluster_Member_Restart(t *testing.T) {
+	k := newKafkaCluster(t)
+	brokers := k.start(t, 2)
+
+	options := &GraphQLSubscriptionOptions{
+		BrokerAddresses:      getBrokerAddresses(brokers),
+		Topic:                testTopic,
+		GroupID:              testConsumerGroup,
+		ClientID:             "graphql-go-tools-test",
+		StartConsumingLatest: false,
+	}
+
+	cg, messages := testStartConsumer(t, options)
+
+	// Stop one of the cluster members here.
+	// Please take care that we don't update the initial list of broker addresses.
+	for portID, broker := range brokers {
+		t.Logf(fmt.Sprintf("Restart the member on %s", portID))
+		port, err := strconv.Atoi(strings.Trim(portID, "/tcp"))
+		require.NoError(t, err)
+
+		newBroker, err := k.restart(t, port, broker)
+		require.NoError(t, err)
+		brokers[portID] = newBroker
+		break
+	}
+
+	// Stop publishMessagesContinuously properly. A leaking goroutine
+	// may lead to inconsistencies in the other tests.
+	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(context.Background())
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		publishMessagesContinuously(t, ctx, options)
+	}()
+
+L:
+	for {
+		select {
+		case <-time.After(10 * time.Second):
+			require.Fail(t, "No message received in 10 seconds")
+		case msg, ok := <-messages:
+			if !ok {
+				require.Fail(t, "messages channel is closed")
+			}
+			t.Logf("Message received from %s: %v", msg.Topic, string(msg.Value))
+			break L
+		}
+	}
+
+	require.NoError(t, cg.Close())
+
+	// Stop publishMessagesContinuously
+	cancel()
+	wg.Wait()
+}
+
+func TestSarama_Cluster_Add_Member(t *testing.T) {
+	k := newKafkaCluster(t)
+	brokers := k.start(t, 1)
+
+	options := &GraphQLSubscriptionOptions{
+		BrokerAddresses:      getBrokerAddresses(brokers),
+		Topic:                testTopic,
+		GroupID:              testConsumerGroup,
+		ClientID:             "graphql-go-tools-test",
+		StartConsumingLatest: false,
+	}
+
+	cg, messages := testStartConsumer(t, options)
+
+	// Add a new Kafka node to the cluster
+	var ports []int
+	for portID := range brokers {
+		port, err := strconv.Atoi(strings.Trim(portID, "/tcp"))
+		require.NoError(t, err)
+		ports = append(ports, port)
+	}
+	// Find an unoccupied port for the new node.
+	sort.Ints(ports)
+	// [9092, 9094, 9096]
+	port := ports[len(ports)-1] + 2 // A Kafka node uses 2 ports. Increase by 2 to find an unoccupied port.
+	_, err := k.addNewBroker(t, port)
+	require.NoError(t, err)
+
+	// Stop publishMessagesContinuously properly. A leaking goroutine
+	// may lead to inconsistencies in the other tests.
+	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(context.Background())
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		publishMessagesContinuously(t, ctx, options)
+	}()
+
+L:
+	for {
+		select {
+		case <-time.After(10 * time.Second):
+			require.Fail(t, "No message received in 10 seconds")
+		case msg, ok := <-messages:
+			if !ok {
+				require.Fail(t, "messages channel is closed")
+			}
+			t.Logf("Message received from %s: %v", msg.Topic, string(msg.Value))
+			break L
+		}
+	}
+
+	require.NoError(t, cg.Close())
+
+	// Stop publishMessagesContinuously
+	cancel()
+	wg.Wait()
 }
