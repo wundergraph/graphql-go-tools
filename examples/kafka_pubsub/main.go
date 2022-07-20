@@ -80,12 +80,18 @@ func produceMessages(ctx context.Context, product string, producer sarama.AsyncP
 			}
 
 			topic := fmt.Sprintf("test.topic.%s", product)
-			log.Printf("Enqueued message to %s: %s", topic, string(data))
 			message := &sarama.ProducerMessage{
 				Topic: topic,
 				Value: sarama.StringEncoder(data),
 			}
 			producer.Input() <- message
+
+			select {
+			case <-producer.Successes():
+				log.Printf("Enqueued message to %s: %s", topic, string(data))
+			case errMsg := <-producer.Errors():
+				log.Printf("Failed to enqueue message: %s, error: %s", string(data), errMsg.Error())
+			}
 		}
 	}
 }
@@ -128,6 +134,8 @@ func main() {
 	products = strings.Split(args.products, ",")
 
 	config := sarama.NewConfig()
+	config.Producer.Return.Errors = true
+	config.Producer.Return.Successes = true
 	if args.enableSASL {
 		if args.saslUser == "" {
 			log.Fatalf("User cannot be empty")
