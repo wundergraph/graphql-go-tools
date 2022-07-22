@@ -26,6 +26,15 @@ const (
 	connectionError = `{"errors":[{"message":"connection error"}]}`
 )
 
+const (
+	MessageTypeConnectionAck       = "connection_ack"
+	MessageTypeConnectionError     = "connection_error"
+	MessageTypeConnectionKeepAlive = "ka"
+	MessageTypeData                = "data"
+	MessageTypeError               = "error"
+	MessageTypeComplete            = "complete"
+)
+
 const ackWaitTimeout = time.Second * 30
 
 // WebSocketGraphQLSubscriptionClient is a WebSocket client that allows running multiple subscriptions via the same WebSocket Connection
@@ -174,15 +183,15 @@ func waitForAck(ctx context.Context, conn *websocket.Conn) error {
 			return err
 		}
 
-		if respType == "ka" {
+		switch respType {
+		case MessageTypeConnectionKeepAlive:
 			continue
-		} else if respType == "connection_ack" {
-			break
-		} else {
+		case MessageTypeConnectionAck:
+			return nil
+		default:
 			return fmt.Errorf("expected connection_ack or ka, got %s", respType)
 		}
 	}
-	return nil
 }
 
 // generateHandlerIDHash generates a Hash based on: URL and Headers to uniquely identify Upgrade Requests
@@ -267,14 +276,14 @@ func (h *connectionHandler) startBlocking(sub subscription) {
 				continue
 			}
 			switch messageType {
-			case "data":
+			case MessageTypeData:
 				h.handleMessageTypeData(data)
-			case "complete":
+			case MessageTypeComplete:
 				h.handleMessageTypeComplete(data)
-			case "connection_error":
+			case MessageTypeConnectionError:
 				h.handleMessageTypeConnectionError()
 				return
-			case "error":
+			case MessageTypeError:
 				h.handleMessageTypeError(data)
 				continue
 			default:
