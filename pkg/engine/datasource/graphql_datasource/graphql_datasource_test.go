@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wundergraph/graphql-go-tools/examples/chat"
 	. "github.com/wundergraph/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/subscriptiontesting"
 )
 
 func TestGraphQLDataSource(t *testing.T) {
@@ -5320,7 +5320,7 @@ func (f FailingSubscriptionClient) Subscribe(ctx context.Context, options GraphQ
 }
 
 func TestSubscriptionSource_Start(t *testing.T) {
-	chatServer := httptest.NewServer(chat.GraphQLEndpointHandler())
+	chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
 	defer chatServer.Close()
 
 	sendChatMessage := func(t *testing.T, username, message string) {
