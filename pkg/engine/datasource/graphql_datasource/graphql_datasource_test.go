@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wundergraph/graphql-go-tools/examples/chat"
 	. "github.com/wundergraph/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/subscriptiontesting"
 )
 
 func TestGraphQLDataSource(t *testing.T) {
@@ -5320,7 +5320,7 @@ func (f FailingSubscriptionClient) Subscribe(ctx context.Context, options GraphQ
 }
 
 func TestSubscriptionSource_Start(t *testing.T) {
-	chatServer := httptest.NewServer(chat.GraphQLEndpointHandler())
+	chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
 	defer chatServer.Close()
 
 	sendChatMessage := func(t *testing.T, username, message string) {
@@ -5396,7 +5396,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 
 		msg, ok := <-next
 		assert.True(t, ok)
-		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"messageAdded\" of type \"Subscription\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required but not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, string(msg))
+		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, string(msg))
 		_, ok = <-next
 		assert.False(t, ok)
 	})
