@@ -107,7 +107,7 @@ func (r *Request) parseQueryOnce() (report operationreport.Report) {
 	if !report.HasErrors() {
 		// If the given query has problems, and we failed to parse it,
 		// we shouldn't mark it as parsed. It can be misleading for
-		// the rest of the components. See TT-5704.
+		// the rest of the components.
 		r.isParsed = true
 	}
 	return report
