@@ -51,6 +51,42 @@ func TestRequest_Print(t *testing.T) {
 	assert.Equal(t, query, bytesBuf.String())
 }
 
+func TestRequest_parseQueryOnce(t *testing.T) {
+	request := func() *Request {
+		return &Request{
+			OperationName: "Hello",
+			Variables:     nil,
+			Query:         "query Hello { hello }",
+		}
+	}
+
+	t.Run("valid query", func(t *testing.T) {
+		req := request()
+		report := req.parseQueryOnce()
+		assert.False(t, report.HasErrors())
+		assert.True(t, req.isParsed)
+	})
+
+	t.Run("should not parse again", func(t *testing.T) {
+		req := request()
+		report := req.parseQueryOnce()
+		assert.False(t, report.HasErrors())
+		assert.True(t, req.isParsed)
+
+		req.Query = "{"
+		report = req.parseQueryOnce()
+		assert.False(t, report.HasErrors())
+	})
+
+	t.Run("should not set is parsed for invalid query", func(t *testing.T) {
+		req := request()
+		req.Query = "{"
+		report := req.parseQueryOnce()
+		assert.True(t, report.HasErrors())
+		assert.False(t, req.isParsed)
+	})
+}
+
 func TestRequest_CalculateComplexity(t *testing.T) {
 	t.Run("should return error when schema is nil", func(t *testing.T) {
 		request := Request{}
