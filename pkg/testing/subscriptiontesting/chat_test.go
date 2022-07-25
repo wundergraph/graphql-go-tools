@@ -14,7 +14,9 @@ func TestChatSubscriptions(t *testing.T) {
 	c := client.New(handler.NewDefaultServer(NewExecutableSchema(New())))
 
 	sub := c.Websocket(`subscription @user(username:"vektah") { messageAdded(roomName:"#gophers") { text createdBy } }`)
-	defer sub.Close()
+	defer func() {
+		_ = sub.Close()
+	}()
 
 	go func() {
 		var resp interface{}
