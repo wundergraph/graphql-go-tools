@@ -26,6 +26,17 @@ const (
 	connectionError = `{"errors":[{"message":"connection error"}]}`
 )
 
+const (
+	MessageTypeConnectionAck       = "connection_ack"
+	MessageTypeConnectionError     = "connection_error"
+	MessageTypeConnectionKeepAlive = "ka"
+	MessageTypeData                = "data"
+	MessageTypeError               = "error"
+	MessageTypeComplete            = "complete"
+)
+
+const ackWaitTimeout = time.Second * 30
+
 // WebSocketGraphQLSubscriptionClient is a WebSocket client that allows running multiple subscriptions via the same WebSocket Connection
 // It takes care of de-duplicating WebSocket connections to the same origin under certain circumstances
 // If Hash(URL,Body,Headers) result in the same result, an existing WS connection is re-used
@@ -132,19 +143,9 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, opti
 	if err != nil {
 		return err
 	}
-	msgType, connectionAckMsg, err := conn.Read(ctx)
-	if err != nil {
+
+	if err := waitForAck(ctx, conn); err != nil {
 		return err
-	}
-	if msgType != websocket.MessageText {
-		return fmt.Errorf("unexpected msg type")
-	}
-	connectionAck, err := jsonparser.GetString(connectionAckMsg, "type")
-	if err != nil {
-		return err
-	}
-	if connectionAck != "connection_ack" {
-		return fmt.Errorf("expected connection_ack, got: %s", connectionAck)
 	}
 
 	handler = newConnectionHandler(c.ctx, conn, c.readTimeout, c.log)
@@ -158,6 +159,39 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, opti
 	}(handlerID)
 
 	return nil
+}
+
+func waitForAck(ctx context.Context, conn *websocket.Conn) error {
+	timer := time.NewTimer(ackWaitTimeout)
+	for {
+		select {
+		case <-timer.C:
+			return fmt.Errorf("timeout while waiting for connection_ack")
+		default:
+		}
+
+		msgType, msg, err := conn.Read(ctx)
+		if err != nil {
+			return err
+		}
+		if msgType != websocket.MessageText {
+			return fmt.Errorf("unexpected message type")
+		}
+
+		respType, err := jsonparser.GetString(msg, "type")
+		if err != nil {
+			return err
+		}
+
+		switch respType {
+		case MessageTypeConnectionKeepAlive:
+			continue
+		case MessageTypeConnectionAck:
+			return nil
+		default:
+			return fmt.Errorf("expected connection_ack or ka, got %s", respType)
+		}
+	}
 }
 
 // generateHandlerIDHash generates a Hash based on: URL and Headers to uniquely identify Upgrade Requests
@@ -242,14 +276,14 @@ func (h *connectionHandler) startBlocking(sub subscription) {
 				continue
 			}
 			switch messageType {
-			case "data":
+			case MessageTypeData:
 				h.handleMessageTypeData(data)
-			case "complete":
+			case MessageTypeComplete:
 				h.handleMessageTypeComplete(data)
-			case "connection_error":
+			case MessageTypeConnectionError:
 				h.handleMessageTypeConnectionError()
 				return
-			case "error":
+			case MessageTypeError:
 				h.handleMessageTypeError(data)
 				continue
 			default:

@@ -103,8 +103,13 @@ func (r *Request) parseQueryOnce() (report operationreport.Report) {
 		return report
 	}
 
-	r.isParsed = true
 	r.document, report = astparser.ParseGraphqlDocumentString(r.Query)
+	if !report.HasErrors() {
+		// If the given query has problems, and we failed to parse it,
+		// we shouldn't mark it as parsed. It can be misleading for
+		// the rest of the components.
+		r.isParsed = true
+	}
 	return report
 }
 

@@ -14,12 +14,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wundergraph/graphql-go-tools/examples/chat"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/pkg/graphql"
 	"github.com/wundergraph/graphql-go-tools/pkg/starwars"
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/subscriptiontesting"
 )
 
 type handlerRoutine func(ctx context.Context) func() bool
@@ -292,7 +292,7 @@ func TestHandler_Handle(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		chatServer := httptest.NewServer(chat.GraphQLEndpointHandler())
+		chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
 		defer chatServer.Close()
 
 		t.Run("connection_init", func(t *testing.T) {
@@ -403,7 +403,7 @@ func TestHandler_Handle(t *testing.T) {
 			t.Run("should process query and return error when query is not valid", func(t *testing.T) {
 				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
-				payload, err := chat.GraphQLRequestForOperation(chat.InvalidOperation)
+				payload, err := subscriptiontesting.GraphQLRequestForOperation(subscriptiontesting.InvalidOperation)
 				require.NoError(t, err)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
@@ -431,7 +431,7 @@ func TestHandler_Handle(t *testing.T) {
 			t.Run("should process and send result for a query", func(t *testing.T) {
 				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
-				payload, err := chat.GraphQLRequestForOperation(chat.MutationSendMessage)
+				payload, err := subscriptiontesting.GraphQLRequestForOperation(subscriptiontesting.MutationSendMessage)
 				require.NoError(t, err)
 
 				hookHolder.hook = func(ctx context.Context, operation *graphql.Request) error {
@@ -477,7 +477,7 @@ func TestHandler_Handle(t *testing.T) {
 			t.Run("should process and send error message from hook for a query", func(t *testing.T) {
 				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
-				payload, err := chat.GraphQLRequestForOperation(chat.MutationSendMessage)
+				payload, err := subscriptiontesting.GraphQLRequestForOperation(subscriptiontesting.MutationSendMessage)
 				require.NoError(t, err)
 
 				errMsg := "error_on_operation"
@@ -523,7 +523,7 @@ func TestHandler_Handle(t *testing.T) {
 
 			t.Run("should start subscription on start", func(t *testing.T) {
 				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
-				payload, err := chat.GraphQLRequestForOperation(chat.SubscriptionLiveMessages)
+				payload, err := subscriptiontesting.GraphQLRequestForOperation(subscriptiontesting.SubscriptionLiveMessages)
 				require.NoError(t, err)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
@@ -553,7 +553,7 @@ func TestHandler_Handle(t *testing.T) {
 
 			t.Run("should fail with validation error for invalid Subscription", func(t *testing.T) {
 				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
-				payload, err := chat.GraphQLRequestForOperation(chat.InvalidSubscriptionLiveMessages)
+				payload, err := subscriptiontesting.GraphQLRequestForOperation(subscriptiontesting.InvalidSubscriptionLiveMessages)
 				require.NoError(t, err)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
@@ -610,7 +610,7 @@ func TestHandler_Handle(t *testing.T) {
 			t.Run("should interrupt subscription on start and return error message from hook", func(t *testing.T) {
 				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 
-				payload, err := chat.GraphQLRequestForOperation(chat.SubscriptionLiveMessages)
+				payload, err := subscriptiontesting.GraphQLRequestForOperation(subscriptiontesting.SubscriptionLiveMessages)
 				require.NoError(t, err)
 
 				errMsg := "sub_interrupted"
@@ -690,7 +690,7 @@ func TestHandler_Handle(t *testing.T) {
 }
 
 func setupEngineV2(t *testing.T, ctx context.Context, chatServerURL string) (*ExecutorV2Pool, *websocketHook) {
-	chatSchemaBytes, err := chat.LoadSchemaFromExamplesDirectoryWithinPkg()
+	chatSchemaBytes, err := subscriptiontesting.LoadSchemaFromExamplesDirectoryWithinPkg()
 	require.NoError(t, err)
 
 	chatSchema, err := graphql.NewSchemaFromReader(bytes.NewBuffer(chatSchemaBytes))
@@ -797,7 +797,7 @@ func jsonizePayload(t *testing.T, payload interface{}) json.RawMessage {
 }
 
 func sendChatMutation(t *testing.T, url string) {
-	reqBody, err := chat.GraphQLRequestForOperation(chat.MutationSendMessage)
+	reqBody, err := subscriptiontesting.GraphQLRequestForOperation(subscriptiontesting.MutationSendMessage)
 	require.NoError(t, err)
 
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(reqBody))
