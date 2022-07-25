@@ -11,8 +11,6 @@ import (
 
 const typenameFieldName = "__typename"
 
-var defaultSubscriptionName = []byte("Subscription")
-
 type TypeNameVisitor struct {
 	*astvisitor.Walker
 	definition *ast.Document
@@ -61,7 +59,7 @@ func (v *TypeNameVisitor) LeaveInterfaceTypeDefinition(ref int) {
 func (v *TypeNameVisitor) LeaveObjectTypeDefinition(ref int) {
 	objectTypeDefName := v.definition.ObjectTypeDefinitionNameBytes(ref)
 	if bytes.Equal(objectTypeDefName, v.definition.Index.SubscriptionTypeName) ||
-		bytes.Equal(objectTypeDefName, defaultSubscriptionName) {
+		bytes.Equal(objectTypeDefName, ast.DefaultSubscriptionTypeName) {
 		return
 	}
 

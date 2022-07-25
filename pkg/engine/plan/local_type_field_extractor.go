@@ -4,8 +4,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 )
 
+const FederationKeyDirectiveName = "key"
+
 const (
-	federationKeyDirectiveName      = "key"
 	federationRequireDirectiveName  = "requires"
 	federationExternalDirectiveName = "external"
 )
@@ -200,13 +201,13 @@ func (e *LocalTypeFieldExtractor) getNodeInfo(node ast.Node) *nodeInformation {
 	nodeInfo, ok := e.nodeInfoMap[typeName]
 	if ok {
 		// if this node has the key directive, we need to add it to the node information
-		nodeInfo.hasKeyDirective = nodeInfo.hasKeyDirective || e.document.NodeHasDirectiveByNameString(node, federationKeyDirectiveName)
+		nodeInfo.hasKeyDirective = nodeInfo.hasKeyDirective || e.document.NodeHasDirectiveByNameString(node, FederationKeyDirectiveName)
 		return nodeInfo
 	}
 
 	nodeInfo = &nodeInformation{
 		typeName:        typeName,
-		hasKeyDirective: e.document.NodeHasDirectiveByNameString(node, federationKeyDirectiveName),
+		hasKeyDirective: e.document.NodeHasDirectiveByNameString(node, FederationKeyDirectiveName),
 		requiredFields:  make(map[string]struct{}),
 	}
 

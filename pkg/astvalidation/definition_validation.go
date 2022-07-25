@@ -8,10 +8,12 @@ import (
 
 func DefaultDefinitionValidator() *DefinitionValidator {
 	return NewDefinitionValidator(
+		PopulatedTypeBodies(),
 		UniqueOperationTypes(),
 		UniqueTypeNames(),
 		UniqueFieldDefinitionNames(),
 		UniqueEnumValueNames(),
+		UniqueUnionMemberTypes(),
 		KnownTypeNames(),
 		RequireDefinedTypesForExtensions(),
 		ImplementTransitiveInterfaces(),
