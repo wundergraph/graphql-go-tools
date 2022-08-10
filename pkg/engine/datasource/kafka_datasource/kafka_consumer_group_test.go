@@ -212,7 +212,7 @@ func TestKafkaConsumerGroup_StartConsuming_And_Stop(t *testing.T) {
 
 	options := GraphQLSubscriptionOptions{
 		BrokerAddresses: []string{mockBroker.Addr()},
-		Topic:           topic,
+		Topics:          []string{topic},
 		GroupID:         consumerGroup,
 		ClientID:        "graphql-go-tools-test",
 		KafkaVersion:    testMockKafkaVersion,
@@ -270,7 +270,7 @@ func TestKafkaConsumerGroup_Config_StartConsumingLatest(t *testing.T) {
 		log:      logger(),
 		options: &GraphQLSubscriptionOptions{
 			StartConsumingLatest: true,
-			Topic:                mockTopicName,
+			Topics:               []string{mockTopicName},
 			GroupID:              "test.consumer.group",
 			ClientID:             "test.client.id",
 		},

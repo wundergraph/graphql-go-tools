@@ -58,7 +58,7 @@ type SASL struct {
 
 type GraphQLSubscriptionOptions struct {
 	BrokerAddresses      []string `json:"broker_addresses"`
-	Topic                string   `json:"topic"`
+	Topics               []string `json:"topics"`
 	GroupID              string   `json:"group_id"`
 	ClientID             string   `json:"client_id"`
 	KafkaVersion         string   `json:"kafka_version"`
@@ -88,8 +88,8 @@ func (g *GraphQLSubscriptionOptions) Validate() error {
 	switch {
 	case len(g.BrokerAddresses) == 0:
 		return fmt.Errorf("broker_addresses cannot be empty")
-	case g.Topic == "":
-		return fmt.Errorf("topic cannot be empty")
+	case len(g.Topics) == 0:
+		return fmt.Errorf("topics cannot be empty")
 	case g.GroupID == "":
 		return fmt.Errorf("group_id cannot be empty")
 	case g.ClientID == "":

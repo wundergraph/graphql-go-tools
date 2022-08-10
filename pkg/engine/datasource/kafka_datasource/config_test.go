@@ -1,8 +1,9 @@
 package kafka_datasource
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
@@ -26,7 +27,7 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 
 	t.Run("Empty broker_addresses not allowed", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{
-			Topic:    "foobar",
+			Topics:   []string{"foobar"},
 			GroupID:  "groupid",
 			ClientID: "clientid",
 		}
@@ -43,13 +44,13 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 		}
 		g.Sanitize()
 		err := g.Validate()
-		require.Equal(t, err.Error(), "topic cannot be empty")
+		require.Equal(t, err.Error(), "topics cannot be empty")
 	})
 
 	t.Run("Empty client_id not allowed", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{
 			BrokerAddresses: []string{"localhost:9092"},
-			Topic:           "foobar",
+			Topics:          []string{"foobar"},
 			GroupID:         "groupid",
 		}
 		g.Sanitize()
@@ -60,7 +61,7 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 	t.Run("Invalid Kafka version", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{
 			BrokerAddresses: []string{"localhost:9092"},
-			Topic:           "foobar",
+			Topics:          []string{"foobar"},
 			GroupID:         "groupid",
 			ClientID:        "clientid",
 			KafkaVersion:    "1.3.5",
@@ -73,7 +74,7 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 	t.Run("Invalid SASL configuration - SASL nil", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{
 			BrokerAddresses: []string{"localhost:9092"},
-			Topic:           "foobar",
+			Topics:          []string{"foobar"},
 			GroupID:         "groupid",
 			ClientID:        "clientid",
 			SASL:            SASL{},
@@ -86,7 +87,7 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 	t.Run("Invalid SASL configuration - auth disabled", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{
 			BrokerAddresses: []string{"localhost:9092"},
-			Topic:           "foobar",
+			Topics:          []string{"foobar"},
 			GroupID:         "groupid",
 			ClientID:        "clientid",
 			SASL: SASL{
@@ -101,7 +102,7 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 	t.Run("Invalid SASL configuration - user cannot be empty", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{
 			BrokerAddresses: []string{"localhost:9092"},
-			Topic:           "foobar",
+			Topics:          []string{"foobar"},
 			GroupID:         "groupid",
 			ClientID:        "clientid",
 			SASL: SASL{
@@ -116,7 +117,7 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 	t.Run("Invalid SASL configuration - password cannot be empty", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{
 			BrokerAddresses: []string{"localhost:9092"},
-			Topic:           "foobar",
+			Topics:          []string{"foobar"},
 			GroupID:         "groupid",
 			ClientID:        "clientid",
 			SASL: SASL{
@@ -132,7 +133,7 @@ func TestConfig_GraphQLSubscriptionOptions(t *testing.T) {
 	t.Run("Valid SASL configuration", func(t *testing.T) {
 		g := &GraphQLSubscriptionOptions{
 			BrokerAddresses: []string{"localhost:9092"},
-			Topic:           "foobar",
+			Topics:          []string{"foobar"},
 			GroupID:         "groupid",
 			ClientID:        "clientid",
 			SASL: SASL{

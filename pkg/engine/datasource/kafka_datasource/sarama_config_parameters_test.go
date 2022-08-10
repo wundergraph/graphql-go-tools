@@ -27,7 +27,7 @@ import (
 const (
 	testBrokerAddr    = "localhost:9092"
 	testClientID      = "graphql-go-tools-test"
-	messageTemplate   = "message-%d"
+	messageTemplate   = "topic: %s - message: %d"
 	testTopic         = "start-consuming-latest-test"
 	testConsumerGroup = "start-consuming-latest-cg"
 	testSASLUser      = "admin"
@@ -312,7 +312,7 @@ func (k *kafkaCluster) addNewBroker(t *testing.T, port int, options ...kafkaClus
 	return k.startKafka(t, port, envVars), nil
 }
 
-func testAsyncProducer(t *testing.T, options *GraphQLSubscriptionOptions, start, end int) {
+func produceTestMessages(t *testing.T, options *GraphQLSubscriptionOptions, messages map[string][]string) {
 	config := sarama.NewConfig()
 	if options.SASL.Enable {
 		config.Net.SASL.Enable = true
@@ -323,25 +323,39 @@ func testAsyncProducer(t *testing.T, options *GraphQLSubscriptionOptions, start,
 	asyncProducer, err := sarama.NewAsyncProducer(options.BrokerAddresses, config)
 	require.NoError(t, err)
 
-	for i := start; i < end; i++ {
-		message := &sarama.ProducerMessage{
-			Topic: options.Topic,
-			Value: sarama.StringEncoder(fmt.Sprintf(messageTemplate, i)),
+	for _, topic := range options.Topics {
+		values, ok := messages[topic]
+		if ok {
+			for _, value := range values {
+				message := &sarama.ProducerMessage{
+					Topic: topic,
+					Value: sarama.StringEncoder(value),
+				}
+				asyncProducer.Input() <- message
+			}
 		}
-		asyncProducer.Input() <- message
 	}
 }
 
-func testConsumeMessages(messages chan *sarama.ConsumerMessage, numberOfMessages int) (map[string]struct{}, error) {
-	allMessages := make(map[string]struct{})
+func consumeTestMessages(t *testing.T, messages chan *sarama.ConsumerMessage, producedMessages map[string][]string) {
+	var expectedNumMessages int
+	for _, values := range producedMessages {
+		expectedNumMessages += len(values)
+	}
+
+	consumedMessages := make(map[string][]string)
+	var numMessages int
 	for msg := range messages {
+		numMessages++
+		topic := msg.Topic
 		value := string(msg.Value)
-		allMessages[value] = struct{}{}
-		if len(allMessages) >= numberOfMessages {
-			return allMessages, nil
+		consumedMessages[topic] = append(consumedMessages[topic], value)
+		if numMessages >= expectedNumMessages {
+			break
 		}
 	}
-	return allMessages, nil
+
+	require.Equal(t, producedMessages, consumedMessages)
 }
 
 func testStartConsumer(t *testing.T, options *GraphQLSubscriptionOptions) (*KafkaConsumerGroup, chan *sarama.ConsumerMessage) {
@@ -398,11 +412,13 @@ func publishMessagesContinuously(t *testing.T, ctx context.Context, options *Gra
 			return
 		default:
 		}
-		message := &sarama.ProducerMessage{
-			Topic: options.Topic,
-			Value: sarama.StringEncoder(fmt.Sprintf(messageTemplate, i)),
+		for _, topic := range options.Topics {
+			message := &sarama.ProducerMessage{
+				Topic: topic,
+				Value: sarama.StringEncoder(fmt.Sprintf(messageTemplate, topic, i)),
+			}
+			asyncProducer.Input() <- message
 		}
-		asyncProducer.Input() <- message
 		i++
 	}
 }
@@ -434,7 +450,7 @@ func TestSarama_StartConsumingLatest_True(t *testing.T) {
 
 	options := &GraphQLSubscriptionOptions{
 		BrokerAddresses:      getBrokerAddresses(brokers),
-		Topic:                testTopic,
+		Topics:               []string{testTopic},
 		GroupID:              testConsumerGroup,
 		ClientID:             "graphql-go-tools-test",
 		StartConsumingLatest: true,
@@ -444,53 +460,36 @@ func TestSarama_StartConsumingLatest_True(t *testing.T) {
 
 	// Produce messages
 	// message-1
-	// ...
 	// message-9
-	testAsyncProducer(t, options, 0, 10)
-
-	consumedMessages, err := testConsumeMessages(messages, 10)
-	require.NoError(t, err)
-	require.Len(t, consumedMessages, 10)
-
-	// Consumed messages
-	// message-1
-	// ..
-	// message-9
-	for i := 0; i < 10; i++ {
-		value := fmt.Sprintf(messageTemplate, i)
-		require.Contains(t, consumedMessages, value)
+	testMessages := map[string][]string{
+		testTopic: {"message-1", "message-2"},
 	}
+	produceTestMessages(t, options, testMessages)
+	consumeTestMessages(t, messages, testMessages)
 
 	// Stop the first consumer group
 	require.NoError(t, cg.Close())
 
 	// Produce more messages
-	// message-10
-	// ...
-	// message-19
-	testAsyncProducer(t, options, 10, 20)
+	// message-3
+	// message-4
+	// These messages will be ignored by the consumer.
+	testMessages = map[string][]string{
+		testTopic: {"message-3", "message-4"},
+	}
+	produceTestMessages(t, options, testMessages)
 
 	// Start a new consumer with the same consumer group name
 	cg, messages = testStartConsumer(t, options)
 
 	// Produce more messages
-	// message-20
-	// ...
-	// message-29
-	testAsyncProducer(t, options, 20, 30)
-
-	consumedMessages, err = testConsumeMessages(messages, 10)
-	require.NoError(t, err)
-	require.Len(t, consumedMessages, 10)
-
-	// Consumed messages
-	// message-20
-	// ..
-	// message-29
-	for i := 20; i < 30; i++ {
-		value := fmt.Sprintf(messageTemplate, i)
-		require.Contains(t, consumedMessages, value)
+	// message-5
+	// message-6
+	testMessages = map[string][]string{
+		testTopic: {"message-5", "message-6"},
 	}
+	produceTestMessages(t, options, testMessages)
+	consumeTestMessages(t, messages, testMessages)
 
 	// Stop the second consumer group
 	require.NoError(t, cg.Close())
@@ -513,7 +512,7 @@ func TestSarama_StartConsuming_And_Restart(t *testing.T) {
 
 	options := &GraphQLSubscriptionOptions{
 		BrokerAddresses:      getBrokerAddresses(brokers),
-		Topic:                testTopic,
+		Topics:               []string{testTopic},
 		GroupID:              testConsumerGroup,
 		ClientID:             "graphql-go-tools-test",
 		StartConsumingLatest: false,
@@ -522,54 +521,34 @@ func TestSarama_StartConsuming_And_Restart(t *testing.T) {
 	cg, messages := testStartConsumer(t, options)
 
 	// Produce messages
-	// message-1
-	// ...
-	// message-9
-	testAsyncProducer(t, options, 0, 10)
-
-	consumedMessages, err := testConsumeMessages(messages, 10)
-	require.NoError(t, err)
-	require.Len(t, consumedMessages, 10)
-
-	// Consumed messages
-	// message-1
-	// ..
-	// message-9
-	for i := 0; i < 10; i++ {
-		value := fmt.Sprintf(messageTemplate, i)
-		require.Contains(t, consumedMessages, value)
+	testMessages := map[string][]string{
+		testTopic: {"message-1", "message-2"},
 	}
+	produceTestMessages(t, options, testMessages)
+	consumeTestMessages(t, messages, testMessages)
 
 	// Stop the first consumer group
 	require.NoError(t, cg.Close())
 
 	// Produce more messages
-	// message-10
-	// ...
-	// message-19
-	testAsyncProducer(t, options, 10, 20)
+	testMessages = map[string][]string{
+		testTopic: {"message-3", "message-4"},
+	}
+	produceTestMessages(t, options, testMessages)
 
 	// Start a new consumer with the same consumer group name
 	cg, messages = testStartConsumer(t, options)
 
 	// Produce more messages
-	// message-20
-	// ...
-	// message-29
-	testAsyncProducer(t, options, 20, 30)
-
-	consumedMessages, err = testConsumeMessages(messages, 20)
-	require.NoError(t, err)
-	require.Len(t, consumedMessages, 20)
-
-	// Consumed all remaining messages in the topic
-	// message-10
-	// ..
-	// message-29
-	for i := 10; i < 30; i++ {
-		value := fmt.Sprintf(messageTemplate, i)
-		require.Contains(t, consumedMessages, value)
+	testMessages = map[string][]string{
+		testTopic: {"message-5", "message-6"},
 	}
+	produceTestMessages(t, options, testMessages)
+
+	testMessages = map[string][]string{
+		testTopic: {"message-3", "message-4", "message-5", "message-6"},
+	}
+	consumeTestMessages(t, messages, testMessages)
 
 	// Stop the second consumer group
 	require.NoError(t, cg.Close())
@@ -590,7 +569,7 @@ func TestSarama_ConsumerGroup_SASL_Authentication(t *testing.T) {
 
 	options := &GraphQLSubscriptionOptions{
 		BrokerAddresses:      getBrokerAddresses(brokers),
-		Topic:                testTopic,
+		Topics:               []string{testTopic},
 		GroupID:              testConsumerGroup,
 		ClientID:             "graphql-go-tools-test",
 		StartConsumingLatest: false,
@@ -604,23 +583,11 @@ func TestSarama_ConsumerGroup_SASL_Authentication(t *testing.T) {
 	cg, messages := testStartConsumer(t, options)
 
 	// Produce messages
-	// message-1
-	// ...
-	// message-9
-	testAsyncProducer(t, options, 0, 10)
-
-	consumedMessages, err := testConsumeMessages(messages, 10)
-	require.NoError(t, err)
-	require.Len(t, consumedMessages, 10)
-
-	// Consume messages
-	// message-1
-	// ..
-	// message-9
-	for i := 0; i < 10; i++ {
-		value := fmt.Sprintf(messageTemplate, i)
-		require.Contains(t, consumedMessages, value)
+	testMessages := map[string][]string{
+		testTopic: {"message-1", "message-2"},
 	}
+	produceTestMessages(t, options, testMessages)
+	consumeTestMessages(t, messages, testMessages)
 
 	require.NoError(t, cg.Close())
 }
@@ -636,7 +603,7 @@ func TestSarama_Balance_Strategy(t *testing.T) {
 	for strategy, name := range strategies {
 		options := &GraphQLSubscriptionOptions{
 			BrokerAddresses: []string{testBrokerAddr},
-			Topic:           testTopic,
+			Topics:          []string{testTopic},
 			GroupID:         testConsumerGroup,
 			ClientID:        testClientID,
 			BalanceStrategy: strategy,
@@ -667,7 +634,7 @@ func TestSarama_Isolation_Level(t *testing.T) {
 	for isolationLevel, value := range strategies {
 		options := &GraphQLSubscriptionOptions{
 			BrokerAddresses: []string{testBrokerAddr},
-			Topic:           testTopic,
+			Topics:          []string{testTopic},
 			GroupID:         testConsumerGroup,
 			ClientID:        testClientID,
 			IsolationLevel:  isolationLevel,
@@ -690,7 +657,7 @@ func TestSarama_Isolation_Level(t *testing.T) {
 func TestSarama_Config_SASL_Authentication(t *testing.T) {
 	options := &GraphQLSubscriptionOptions{
 		BrokerAddresses: []string{testBrokerAddr},
-		Topic:           testTopic,
+		Topics:          []string{testTopic},
 		GroupID:         testConsumerGroup,
 		ClientID:        testClientID,
 		SASL: SASL{
@@ -720,7 +687,7 @@ func TestSarama_Multiple_Broker(t *testing.T) {
 
 	options := &GraphQLSubscriptionOptions{
 		BrokerAddresses:      getBrokerAddresses(brokers),
-		Topic:                testTopic,
+		Topics:               []string{testTopic},
 		GroupID:              testConsumerGroup,
 		ClientID:             "graphql-go-tools-test",
 		StartConsumingLatest: false,
@@ -729,23 +696,11 @@ func TestSarama_Multiple_Broker(t *testing.T) {
 	cg, messages := testStartConsumer(t, options)
 
 	// Produce messages
-	// message-1
-	// ...
-	// message-9
-	testAsyncProducer(t, options, 0, 10)
-
-	consumedMessages, err := testConsumeMessages(messages, 10)
-	require.NoError(t, err)
-	require.Len(t, consumedMessages, 10)
-
-	// Consumed messages
-	// message-1
-	// ..
-	// message-9
-	for i := 0; i < 10; i++ {
-		value := fmt.Sprintf(messageTemplate, i)
-		require.Contains(t, consumedMessages, value)
+	testMessages := map[string][]string{
+		testTopic: {"message-1", "message-2"},
 	}
+	produceTestMessages(t, options, testMessages)
+	consumeTestMessages(t, messages, testMessages)
 
 	require.NoError(t, cg.Close())
 }
@@ -756,7 +711,7 @@ func TestSarama_Cluster_Member_Restart(t *testing.T) {
 
 	options := &GraphQLSubscriptionOptions{
 		BrokerAddresses:      getBrokerAddresses(brokers),
-		Topic:                testTopic,
+		Topics:               []string{testTopic},
 		GroupID:              testConsumerGroup,
 		ClientID:             "graphql-go-tools-test",
 		StartConsumingLatest: false,
@@ -815,7 +770,7 @@ func TestSarama_Cluster_Add_Member(t *testing.T) {
 
 	options := &GraphQLSubscriptionOptions{
 		BrokerAddresses:      getBrokerAddresses(brokers),
-		Topic:                testTopic,
+		Topics:               []string{testTopic},
 		GroupID:              testConsumerGroup,
 		ClientID:             "graphql-go-tools-test",
 		StartConsumingLatest: false,
@@ -867,4 +822,29 @@ L:
 	// Stop publishMessagesContinuously
 	cancel()
 	wg.Wait()
+}
+
+func TestSarama_Subscribe_To_Multiple_Topics(t *testing.T) {
+	k := newKafkaCluster(t)
+	brokers := k.start(t, 1)
+
+	options := &GraphQLSubscriptionOptions{
+		BrokerAddresses:      getBrokerAddresses(brokers),
+		Topics:               []string{"test-topic-1", "test-topic-2"},
+		GroupID:              testConsumerGroup,
+		ClientID:             "graphql-go-tools-test",
+		StartConsumingLatest: false,
+	}
+
+	cg, messages := testStartConsumer(t, options)
+
+	testMessages := map[string][]string{
+		"test-topic-1": {"test-topic-1-message-1", "test-topic-1-message-2"},
+		"test-topic-2": {"test-topic-2-message-1", "test-topic-2-message-2"},
+	}
+
+	produceTestMessages(t, options, testMessages)
+
+	consumeTestMessages(t, messages, testMessages)
+	require.NoError(t, cg.Close())
 }
