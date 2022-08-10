@@ -248,7 +248,7 @@ func TestKafkaDataSource_Subscription_Start(t *testing.T) {
 
 		options := GraphQLSubscriptionOptions{
 			BrokerAddresses: []string{mockBroker.Addr()},
-			Topic:           topic,
+			Topics:          []string{topic},
 			GroupID:         groupID,
 			ClientID:        "graphql-go-tools.test.groupid",
 			KafkaVersion:    testMockKafkaVersion,
@@ -295,7 +295,7 @@ func TestKafkaConsumerGroupBridge_Subscribe(t *testing.T) {
 
 	options := GraphQLSubscriptionOptions{
 		BrokerAddresses: []string{mockBroker.Addr()},
-		Topic:           topic,
+		Topics:          []string{topic},
 		GroupID:         consumerGroup,
 		ClientID:        "graphql-go-tools-test",
 		KafkaVersion:    testMockKafkaVersion,

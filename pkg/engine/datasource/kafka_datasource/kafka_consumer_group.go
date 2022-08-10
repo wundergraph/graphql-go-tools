@@ -38,7 +38,7 @@ type kafkaConsumerGroupHandler struct {
 // Setup is run at the beginning of a new session, before ConsumeClaim.
 func (k *kafkaConsumerGroupHandler) Setup(_ sarama.ConsumerGroupSession) error {
 	k.log.Debug("kafkaConsumerGroupHandler.Setup",
-		log.String("topic", k.options.Topic),
+		log.Strings("topics", k.options.Topics),
 		log.String("groupID", k.options.GroupID),
 		log.String("clientID", k.options.ClientID),
 	)
@@ -49,7 +49,7 @@ func (k *kafkaConsumerGroupHandler) Setup(_ sarama.ConsumerGroupSession) error {
 // but before the offsets are committed for the very last time.
 func (k *kafkaConsumerGroupHandler) Cleanup(_ sarama.ConsumerGroupSession) error {
 	k.log.Debug("kafkaConsumerGroupHandler.Cleanup",
-		log.String("topic", k.options.Topic),
+		log.Strings("topics", k.options.Topics),
 		log.String("groupID", k.options.GroupID),
 		log.String("clientID", k.options.ClientID),
 	)
@@ -86,7 +86,7 @@ func (k *kafkaConsumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSes
 		}
 	}
 	k.log.Debug("kafkaConsumerGroupHandler.ConsumeClaim is gone",
-		log.String("topic", k.options.Topic),
+		log.Strings("topics", k.options.Topics),
 		log.String("groupID", k.options.GroupID),
 		log.String("clientID", k.options.ClientID))
 	return nil
@@ -117,7 +117,7 @@ func (k *KafkaConsumerGroup) startConsuming(handler sarama.ConsumerGroupHandler)
 	defer func() {
 		if err := k.consumerGroup.Close(); err != nil {
 			k.log.Error("KafkaConsumerGroup.Close returned an error",
-				log.String("topic", k.options.Topic),
+				log.Strings("topics", k.options.Topics),
 				log.String("groupID", k.options.GroupID),
 				log.String("clientID", k.options.ClientID),
 				log.Error(err))
@@ -134,7 +134,7 @@ func (k *KafkaConsumerGroup) startConsuming(handler sarama.ConsumerGroupHandler)
 		// Consumer.Return.Errors setting to true, and read from this channel.
 		for err := range k.consumerGroup.Errors() {
 			k.log.Error("KafkaConsumerGroup.Consumer",
-				log.String("topic", k.options.Topic),
+				log.Strings("topics", k.options.Topics),
 				log.String("groupID", k.options.GroupID),
 				log.String("clientID", k.options.ClientID),
 				log.Error(err))
@@ -154,15 +154,15 @@ func (k *KafkaConsumerGroup) startConsuming(handler sarama.ConsumerGroupHandler)
 		}
 
 		k.log.Info("KafkaConsumerGroup.consumerGroup.Consume has been called",
-			log.String("topic", k.options.Topic),
+			log.Strings("topics", k.options.Topics),
 			log.String("groupID", k.options.GroupID),
 			log.String("clientID", k.options.ClientID))
 
 		// Blocking call
-		err := k.consumerGroup.Consume(k.ctx, []string{k.options.Topic}, handler)
+		err := k.consumerGroup.Consume(k.ctx, k.options.Topics, handler)
 		if err != nil {
 			k.log.Error("KafkaConsumerGroup.startConsuming",
-				log.String("topic", k.options.Topic),
+				log.Strings("topics", k.options.Topics),
 				log.String("groupID", k.options.GroupID),
 				log.String("clientID", k.options.ClientID),
 				log.Error(err))
@@ -286,7 +286,7 @@ func (c *KafkaConsumerGroupBridge) Subscribe(ctx context.Context, options GraphQ
 		defer func() {
 			if err := cg.Close(); err != nil {
 				c.log.Error("KafkaConsumerGroup.Close returned an error",
-					log.String("topic", options.Topic),
+					log.Strings("topics", options.Topics),
 					log.String("groupID", options.GroupID),
 					log.String("clientID", options.ClientID),
 					log.Error(err),
