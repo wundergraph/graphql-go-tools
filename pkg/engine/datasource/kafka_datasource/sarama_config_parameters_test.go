@@ -25,14 +25,15 @@ import (
 // Solution: docker network prune
 
 const (
-	testBrokerAddr    = "localhost:9092"
-	testClientID      = "graphql-go-tools-test"
-	messageTemplate   = "topic: %s - message: %d"
-	testTopic         = "start-consuming-latest-test"
-	testConsumerGroup = "start-consuming-latest-cg"
-	testSASLUser      = "admin"
-	testSASLPassword  = "admin-secret"
-	initialBrokerPort = 9092
+	testBrokerAddr         = "localhost:9092"
+	testClientID           = "graphql-go-tools-test"
+	messageTemplate        = "topic: %s - message: %d"
+	testTopic              = "start-consuming-latest-test"
+	testConsumerGroup      = "start-consuming-latest-cg"
+	testSASLUser           = "admin"
+	testSASLPassword       = "admin-secret"
+	initialBrokerPort      = 9092
+	maxIdleConsumerSeconds = 10 * time.Second
 )
 
 var defaultZooKeeperEnvVars = []string{
@@ -345,13 +346,19 @@ func consumeTestMessages(t *testing.T, messages chan *sarama.ConsumerMessage, pr
 
 	consumedMessages := make(map[string][]string)
 	var numMessages int
-	for msg := range messages {
-		numMessages++
-		topic := msg.Topic
-		value := string(msg.Value)
-		consumedMessages[topic] = append(consumedMessages[topic], value)
-		if numMessages >= expectedNumMessages {
-			break
+L:
+	for {
+		select {
+		case <-time.After(maxIdleConsumerSeconds):
+			require.Failf(t, "all produced messages could not be consumed", "consumer is idle for %s", maxIdleConsumerSeconds)
+		case msg := <-messages:
+			numMessages++
+			topic := msg.Topic
+			value := string(msg.Value)
+			consumedMessages[topic] = append(consumedMessages[topic], value)
+			if numMessages >= expectedNumMessages {
+				break L
+			}
 		}
 	}
 
