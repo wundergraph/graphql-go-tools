@@ -47,7 +47,7 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 				Custom: ConfigJSON(Configuration{
 					Subscription: SubscriptionConfiguration{
 						BrokerAddresses: []string{"localhost:9092"},
-						Topic:           "test.topic",
+						Topics:          []string{"test.topic"},
 						GroupID:         "test.consumer.group",
 						ClientID:        "test.client.id",
 						KafkaVersion:    testMockKafkaVersion,
@@ -92,7 +92,7 @@ func TestKafkaDataSource(t *testing.T) {
 	`, "RemainingJedis", &plan.SubscriptionResponsePlan{
 		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				Input: []byte(fmt.Sprintf(`{"broker_addresses":["localhost:9092"],"topic":"test.topic","group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s","start_consuming_latest":false,"balance_strategy":"%s","isolation_level":"%s","sasl":{"enable":true,"user":"%s","password":"%s"}}`,
+				Input: []byte(fmt.Sprintf(`{"broker_addresses":["localhost:9092"],"topics":["test.topic"],"group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s","start_consuming_latest":false,"balance_strategy":"%s","isolation_level":"%s","sasl":{"enable":true,"user":"%s","password":"%s"}}`,
 					testMockKafkaVersion,
 					DefaultBalanceStrategy,
 					DefaultIsolationLevel,
@@ -134,7 +134,7 @@ func TestKafkaDataSource(t *testing.T) {
 	`, "SubscriptionWithVariables", &plan.SubscriptionResponsePlan{
 		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				Input: []byte(fmt.Sprintf(`{"broker_addresses":["localhost:9092"],"topic":"test.topic.$$0$$","group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s","start_consuming_latest":false,"balance_strategy":"%s","isolation_level":"%s","sasl":{"enable":true,"user":"%s","password":"%s"}}`,
+				Input: []byte(fmt.Sprintf(`{"broker_addresses":["localhost:9092"],"topics":["test.topic.$$0$$"],"group_id":"test.consumer.group","client_id":"test.client.id","kafka_version":"%s","start_consuming_latest":false,"balance_strategy":"%s","isolation_level":"%s","sasl":{"enable":true,"user":"%s","password":"%s"}}`,
 					testMockKafkaVersion,
 					DefaultBalanceStrategy,
 					DefaultIsolationLevel,
@@ -181,7 +181,7 @@ func TestKafkaDataSource(t *testing.T) {
 				Custom: ConfigJSON(Configuration{
 					Subscription: SubscriptionConfiguration{
 						BrokerAddresses: []string{"localhost:9092"},
-						Topic:           "test.topic.{{.arguments.bar}}",
+						Topics:          []string{"test.topic.{{.arguments.bar}}"},
 						GroupID:         "test.consumer.group",
 						ClientID:        "test.client.id",
 						KafkaVersion:    testMockKafkaVersion,
