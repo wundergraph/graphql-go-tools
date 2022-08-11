@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/jensneuse/abstractlogger"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/plan"
+	"github.com/jensneuse/abstractlogger"
 )
 
 type Planner struct {
