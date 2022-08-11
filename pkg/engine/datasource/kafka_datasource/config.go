@@ -126,7 +126,7 @@ func (g *GraphQLSubscriptionOptions) Validate() error {
 
 type SubscriptionConfiguration struct {
 	BrokerAddresses      []string `json:"broker_addresses"`
-	Topic                string   `json:"topic"`
+	Topics               []string `json:"topics"`
 	GroupID              string   `json:"group_id"`
 	ClientID             string   `json:"client_id"`
 	KafkaVersion         string   `json:"kafka_version"`
