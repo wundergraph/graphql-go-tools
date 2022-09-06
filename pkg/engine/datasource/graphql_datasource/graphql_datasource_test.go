@@ -3330,6 +3330,112 @@ func TestGraphQLDataSource(t *testing.T) {
 			DisableResolveFieldPositions: true,
 			DefaultFlushIntervalMillis:   500,
 		}))
+
+	t.Run("mutation with single __typename field on union", RunTest(wgSchema, `
+		mutation CreateNamespace($name: String! $personal: Boolean!) {
+			namespaceCreate(input: {name: $name, personal: $personal}){
+				__typename
+			}
+		}`, "CreateNamespace",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:             0,
+						Input:                `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){namespaceCreate(input: {name: $name,personal: $personal}){__typename}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
+						DataSource:           &Source{},
+						DisallowSingleFlight: true,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"name"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+							},
+							&resolve.ContextVariable{
+								Path:     []string{"personal"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+							},
+						),
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							Name:      []byte("namespaceCreate"),
+							HasBuffer: true,
+							BufferID:  0,
+							Value: &resolve.Object{
+								Path: []string{"namespaceCreate"},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("__typename"),
+										Value: &resolve.String{
+											Path:       []string{"__typename"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
+									},
+								}}},
+					},
+				},
+			},
+		}, plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName: "Mutation",
+							FieldNames: []string{
+								"namespaceCreate",
+							},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName: "NamespaceCreated",
+							FieldNames: []string{
+								"namespace",
+								"__typename",
+							},
+						},
+						{
+							TypeName:   "Namespace",
+							FieldNames: []string{"id", "name"},
+						},
+						{
+							TypeName:   "Error",
+							FieldNames: []string{"code", "message"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "http://api.com",
+							Method: "POST",
+						},
+						Subscription: SubscriptionConfiguration{
+							URL: "ws://api.com",
+						},
+					}),
+					Factory: &Factory{},
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Mutation",
+					FieldName: "namespaceCreate",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "input",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+					DisableDefaultMapping: false,
+					Path:                  []string{},
+				},
+			},
+			DisableResolveFieldPositions: true,
+			DefaultFlushIntervalMillis:   500,
+		}))
+
 	factory := &Factory{
 		HTTPClient: http.DefaultClient,
 	}
