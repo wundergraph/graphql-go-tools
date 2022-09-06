@@ -377,10 +377,14 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
-					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {__typename id displayName}}"}}`,
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					DataSource:           &Source{},
+					BufferId:             0,
+					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {__typename id displayName __typename @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					Variables: resolve.NewVariables(&resolve.ContextVariable{
+						Path:     []string{"skip"},
+						Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+					}),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
 				Fields: []*resolve.Field{
@@ -3394,7 +3398,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							TypeName: "NamespaceCreated",
 							FieldNames: []string{
 								"namespace",
-								"__typename",
 							},
 						},
 						{
@@ -3938,7 +3941,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate ssn}}","variables":{"a":$$0$$}}}`,
+						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate __typename ssn}}","variables":{"a":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ObjectVariable{
@@ -4253,7 +4256,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate ssn}}","variables":{"a":$$0$$}}}`,
+						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate __typename ssn}}","variables":{"a":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ObjectVariable{
