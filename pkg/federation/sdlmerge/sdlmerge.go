@@ -22,7 +22,7 @@ const (
 		type Subscription {}
 	`
 
-	parseDocumentError = "parse graphql document string: %s"
+	parseDocumentError = "parse graphql document string: %w"
 )
 
 type Visitor interface {
@@ -49,21 +49,21 @@ func MergeSDLs(SDLs ...string) (string, error) {
 
 	doc, report := astparser.ParseGraphqlDocumentString(strings.Join(rawDocs, "\n"))
 	if report.HasErrors() {
-		return "", fmt.Errorf("parse graphql document string: %s", report.Error())
+		return "", fmt.Errorf("parse graphql document string: %w", report)
 	}
 
 	astnormalization.NormalizeSubgraphSDL(&doc, &report)
 	if report.HasErrors() {
-		return "", fmt.Errorf("merge ast: %s", report.Error())
+		return "", fmt.Errorf("merge ast: %w", report)
 	}
 
 	if err := MergeAST(&doc); err != nil {
-		return "", fmt.Errorf("merge ast: %s", err.Error())
+		return "", fmt.Errorf("merge ast: %w", err)
 	}
 
 	out, err := astprinter.PrintString(&doc, nil)
 	if err != nil {
-		return "", fmt.Errorf("stringify schema: %s", err.Error())
+		return "", fmt.Errorf("stringify schema: %w", err)
 	}
 
 	return out, nil
@@ -79,11 +79,11 @@ func validateSubgraphs(subgraphs []string) error {
 			return err
 		}
 		if report.HasErrors() {
-			return fmt.Errorf(parseDocumentError, report.Error())
+			return fmt.Errorf(parseDocumentError, report)
 		}
 		validator.Validate(&doc, &report)
 		if report.HasErrors() {
-			return fmt.Errorf("validate schema: %s", report.Error())
+			return fmt.Errorf("validate schema: %w", report)
 		}
 	}
 	return nil
@@ -94,15 +94,15 @@ func normalizeSubgraphs(subgraphs []string) error {
 	for i, subgraph := range subgraphs {
 		doc, report := astparser.ParseGraphqlDocumentString(subgraph)
 		if report.HasErrors() {
-			return fmt.Errorf(parseDocumentError, report.Error())
+			return fmt.Errorf(parseDocumentError, report)
 		}
 		subgraphNormalizer.NormalizeDefinition(&doc, &report)
 		if report.HasErrors() {
-			return fmt.Errorf("normalize schema: %s", report.Error())
+			return fmt.Errorf("normalize schema: %w", report)
 		}
 		out, err := astprinter.PrintString(&doc, nil)
 		if err != nil {
-			return fmt.Errorf("stringify schema: %s", err.Error())
+			return fmt.Errorf("stringify schema: %w", err)
 		}
 		subgraphs[i] = out
 	}
@@ -157,7 +157,7 @@ func (m *normalizer) normalize(operation *ast.Document) error {
 	for _, walker := range m.walkers {
 		walker.Walk(operation, nil, &report)
 		if report.HasErrors() {
-			return fmt.Errorf("walk: %s", report.Error())
+			return fmt.Errorf("walk: %w", report)
 		}
 	}
 
