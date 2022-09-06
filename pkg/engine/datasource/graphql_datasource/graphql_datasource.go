@@ -190,6 +190,7 @@ func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 	return plan.DataSourcePlanningBehavior{
 		MergeAliasedRootNodes:      true,
 		OverrideFieldPathFromAlias: true,
+		IncludeTypeNameFields:      true,
 	}
 }
 
@@ -419,7 +420,7 @@ func (p *Planner) EnterField(ref int) {
 	typeName := p.lastFieldEnclosingTypeName
 
 	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(typeName, fieldName)
-	if fieldConfiguration == nil {
+	if fieldConfiguration == nil && fieldName != "__typename" {
 		p.addField(ref)
 		return
 	}
@@ -431,6 +432,10 @@ func (p *Planner) EnterField(ref int) {
 	p.addField(ref)
 
 	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
+
+	if fieldConfiguration == nil {
+		return
+	}
 
 	for i := range fieldConfiguration.Arguments {
 		argumentConfiguration := fieldConfiguration.Arguments[i]

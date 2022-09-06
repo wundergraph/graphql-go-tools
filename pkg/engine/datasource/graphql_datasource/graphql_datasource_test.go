@@ -377,10 +377,14 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
-					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {__typename id displayName}}"}}`,
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					DataSource:           &Source{},
+					BufferId:             0,
+					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {__typename id displayName __typename @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					Variables: resolve.NewVariables(&resolve.ContextVariable{
+						Path:     []string{"skip"},
+						Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+					}),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
 				Fields: []*resolve.Field{
@@ -3330,6 +3334,111 @@ func TestGraphQLDataSource(t *testing.T) {
 			DisableResolveFieldPositions: true,
 			DefaultFlushIntervalMillis:   500,
 		}))
+
+	t.Run("mutation with single __typename field on union", RunTest(wgSchema, `
+		mutation CreateNamespace($name: String! $personal: Boolean!) {
+			namespaceCreate(input: {name: $name, personal: $personal}){
+				__typename
+			}
+		}`, "CreateNamespace",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:             0,
+						Input:                `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){namespaceCreate(input: {name: $name,personal: $personal}){__typename}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
+						DataSource:           &Source{},
+						DisallowSingleFlight: true,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"name"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+							},
+							&resolve.ContextVariable{
+								Path:     []string{"personal"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+							},
+						),
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							Name:      []byte("namespaceCreate"),
+							HasBuffer: true,
+							BufferID:  0,
+							Value: &resolve.Object{
+								Path: []string{"namespaceCreate"},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("__typename"),
+										Value: &resolve.String{
+											Path:       []string{"__typename"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
+									},
+								}}},
+					},
+				},
+			},
+		}, plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName: "Mutation",
+							FieldNames: []string{
+								"namespaceCreate",
+							},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName: "NamespaceCreated",
+							FieldNames: []string{
+								"namespace",
+							},
+						},
+						{
+							TypeName:   "Namespace",
+							FieldNames: []string{"id", "name"},
+						},
+						{
+							TypeName:   "Error",
+							FieldNames: []string{"code", "message"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "http://api.com",
+							Method: "POST",
+						},
+						Subscription: SubscriptionConfiguration{
+							URL: "ws://api.com",
+						},
+					}),
+					Factory: &Factory{},
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Mutation",
+					FieldName: "namespaceCreate",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "input",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+					DisableDefaultMapping: false,
+					Path:                  []string{},
+				},
+			},
+			DisableResolveFieldPositions: true,
+			DefaultFlushIntervalMillis:   500,
+		}))
+
 	factory := &Factory{
 		HTTPClient: http.DefaultClient,
 	}
@@ -3832,7 +3941,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate ssn}}","variables":{"a":$$0$$}}}`,
+						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate __typename ssn}}","variables":{"a":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ObjectVariable{
@@ -4147,7 +4256,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate ssn}}","variables":{"a":$$0$$}}}`,
+						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate __typename ssn}}","variables":{"a":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ObjectVariable{
