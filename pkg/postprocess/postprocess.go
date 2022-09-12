@@ -12,6 +12,10 @@ type Processor struct {
 	postProcessors []PostProcessor
 }
 
+func (p *Processor) AddPostProcessor(pr PostProcessor) {
+	p.postProcessors = append([]PostProcessor{pr}, p.postProcessors...)
+}
+
 func DefaultProcessor() *Processor {
 	return &Processor{
 		[]PostProcessor{

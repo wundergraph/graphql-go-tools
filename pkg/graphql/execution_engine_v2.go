@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasource/introspection_datasource"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jensneuse/abstractlogger"
-	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasource/introspection_datasource"
 
 	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/astprinter"
@@ -157,6 +157,12 @@ type ExecutionOptionsV2 func(ctx *internalExecutionContext)
 func WithBeforeFetchHook(hook resolve.BeforeFetchHook) ExecutionOptionsV2 {
 	return func(ctx *internalExecutionContext) {
 		ctx.resolveContext.SetBeforeFetchHook(hook)
+	}
+}
+
+func WithUpstreamHeaders(header http.Header) ExecutionOptionsV2 {
+	return func(ctx *internalExecutionContext) {
+		ctx.postProcessor.AddPostProcessor(postprocess.NewProcessInjectHeader(header))
 	}
 }
 
