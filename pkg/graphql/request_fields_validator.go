@@ -6,6 +6,8 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
 )
 
+const asteriskCharacter = "*"
+
 type RequestFieldsValidator interface {
 	Validate(request *Request, schema *Schema, restrictions []Type) (RequestFieldsValidationResult, error)
 }
@@ -60,15 +62,23 @@ func (d DefaultFieldsValidator) ValidateByFieldList(request *Request, schema *Sc
 }
 
 func (d DefaultFieldsValidator) checkForBlockedFields(restrictionList FieldRestrictionList, requestTypes RequestTypes, report operationreport.Report) (RequestFieldsValidationResult, error) {
-	for _, typeFromList := range restrictionList.Types {
-		requestedFields, hasRestrictedType := requestTypes[typeFromList.Name]
-		if !hasRestrictedType {
-			continue
+	restrictedFieldsLookupMap := make(map[string]map[string]bool)
+	for _, restrictedType := range restrictionList.Types {
+		restrictedFieldsLookupMap[restrictedType.Name] = make(map[string]bool)
+		for _, restrictedField := range restrictedType.Fields {
+			restrictedFieldsLookupMap[restrictedType.Name][restrictedField] = true
 		}
-		for _, field := range typeFromList.Fields {
-			_, requestHasField := requestedFields[field]
-			if requestHasField {
-				return fieldsValidationResult(report, false, typeFromList.Name, field)
+	}
+
+	for requestType, requestFields := range requestTypes {
+		for requestField := range requestFields {
+			if _, ok := restrictedFieldsLookupMap[requestType][asteriskCharacter]; ok {
+				return fieldsValidationResultForAsterisk(report, false, requestType)
+			}
+
+			isRestrictedType := restrictedFieldsLookupMap[requestType][requestField]
+			if isRestrictedType {
+				return fieldsValidationResult(report, false, requestType, requestField)
 			}
 		}
 	}
@@ -87,6 +97,10 @@ func (d DefaultFieldsValidator) checkForAllowedFields(restrictionList FieldRestr
 
 	for requestType, requestFields := range requestTypes {
 		for requestField := range requestFields {
+			if _, ok := allowedFieldsLookupMap[requestType][asteriskCharacter]; ok {
+				return fieldsValidationResultForAsterisk(report, true, requestType)
+			}
+
 			isAllowedField := allowedFieldsLookupMap[requestType][requestField]
 			if !isAllowedField {
 				return fieldsValidationResult(report, false, requestType, requestField)
@@ -102,26 +116,19 @@ type RequestFieldsValidationResult struct {
 	Errors Errors
 }
 
-func fieldsValidationResult(report operationreport.Report, valid bool, typeName, fieldName string) (RequestFieldsValidationResult, error) {
+func fieldsValidationResultCommon(report operationreport.Report, valid bool, requestErrors RequestErrors) (RequestFieldsValidationResult, error) {
 	result := RequestFieldsValidationResult{
 		Valid:  valid,
 		Errors: nil,
 	}
 
-	var errors RequestErrors
-	if !result.Valid {
-		errors = append(errors, RequestError{
-			Message: fmt.Sprintf("field: %s is restricted on type: %s", fieldName, typeName),
-		})
-	}
-	result.Errors = errors
-
+	result.Errors = requestErrors
 	if !report.HasErrors() {
 		return result, nil
 	}
 
-	errors = append(errors, RequestErrorsFromOperationReport(report)...)
-	result.Errors = errors
+	requestErrors = append(requestErrors, RequestErrorsFromOperationReport(report)...)
+	result.Errors = requestErrors
 
 	var err error
 	if len(report.InternalErrors) > 0 {
@@ -129,4 +136,24 @@ func fieldsValidationResult(report operationreport.Report, valid bool, typeName,
 	}
 
 	return result, err
+}
+
+func fieldsValidationResult(report operationreport.Report, valid bool, typeName, fieldName string) (RequestFieldsValidationResult, error) {
+	var requestErrors RequestErrors
+	if !valid {
+		requestErrors = append(requestErrors, RequestError{
+			Message: fmt.Sprintf("field: %s is restricted on type: %s", fieldName, typeName),
+		})
+	}
+	return fieldsValidationResultCommon(report, valid, requestErrors)
+}
+
+func fieldsValidationResultForAsterisk(report operationreport.Report, valid bool, typeName string) (RequestFieldsValidationResult, error) {
+	var requestErrors RequestErrors
+	if !valid {
+		requestErrors = append(requestErrors, RequestError{
+			Message: fmt.Sprintf("all fields of %s type are restricted", typeName),
+		})
+	}
+	return fieldsValidationResultCommon(report, valid, requestErrors)
 }
