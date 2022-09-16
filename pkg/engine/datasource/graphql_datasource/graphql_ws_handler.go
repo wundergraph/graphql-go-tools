@@ -12,35 +12,10 @@ import (
 	"nhooyr.io/websocket"
 )
 
-const (
-	protocolGraphQLWS = "graphql-ws"
-	protocolGraphQL   = "graphql-transport-ws"
-)
-
-var (
-	connectionInitMessage = []byte(`{"type":"connection_init"}`)
-)
-
-const (
-	startMessage    = `{"type":"start","id":"%s","payload":%s}`
-	stopMessage     = `{"type":"stop","id":"%s"}`
-	internalError   = `{"errors":[{"message":"connection error"}]}`
-	connectionError = `{"errors":[{"message":"connection error"}]}`
-)
-
-const (
-	MessageTypeConnectionAck       = "connection_ack"
-	MessageTypeConnectionError     = "connection_error"
-	MessageTypeConnectionKeepAlive = "ka"
-	MessageTypeData                = "data"
-	MessageTypeError               = "error"
-	MessageTypeComplete            = "complete"
-)
-
-// connectionHandler is responsible for handling a connection to an origin
+// gqlWSConnectionHandler is responsible for handling a connection to an origin
 // it is responsible for managing all subscriptions using the underlying WebSocket connection
 // if all Subscriptions are complete or cancelled/unsubscribed the handler will terminate
-type connectionHandler struct {
+type gqlWSConnectionHandler struct {
 	conn               *websocket.Conn
 	ctx                context.Context
 	log                abstractlogger.Logger
@@ -50,8 +25,8 @@ type connectionHandler struct {
 	readTimeout        time.Duration
 }
 
-func newConnectionHandler(ctx context.Context, conn *websocket.Conn, readTimeout time.Duration, log abstractlogger.Logger) *connectionHandler {
-	return &connectionHandler{
+func newGQLWSConnectionHandler(ctx context.Context, conn *websocket.Conn, readTimeout time.Duration, log abstractlogger.Logger) *gqlWSConnectionHandler {
+	return &gqlWSConnectionHandler{
 		conn:               conn,
 		ctx:                ctx,
 		log:                log,
@@ -62,13 +37,13 @@ func newConnectionHandler(ctx context.Context, conn *websocket.Conn, readTimeout
 	}
 }
 
-func (h *connectionHandler) SubscribeCH() chan<- Subscription {
+func (h *gqlWSConnectionHandler) SubscribeCH() chan<- Subscription {
 	return h.subscribeCh
 }
 
 // StartBlocking starts the single threaded event loop of the handler
 // if the global context returns or the websocket connection is terminated, it will stop
-func (h *connectionHandler) StartBlocking(sub Subscription) {
+func (h *gqlWSConnectionHandler) StartBlocking(sub Subscription) {
 	readCtx, cancel := context.WithCancel(h.ctx)
 	defer func() {
 		h.unsubscribeAllAndCloseConn()
@@ -96,14 +71,14 @@ func (h *connectionHandler) StartBlocking(sub Subscription) {
 				continue
 			}
 			switch messageType {
-			case MessageTypeData:
+			case messageTypeData:
 				h.handleMessageTypeData(data)
-			case MessageTypeComplete:
+			case messageTypeComplete:
 				h.handleMessageTypeComplete(data)
-			case MessageTypeConnectionError:
+			case messageTypeConnectionError:
 				h.handleMessageTypeConnectionError()
 				return
-			case MessageTypeError:
+			case messageTypeError:
 				h.handleMessageTypeError(data)
 				continue
 			default:
@@ -115,8 +90,8 @@ func (h *connectionHandler) StartBlocking(sub Subscription) {
 
 // readBlocking is a dedicated loop running in a separate goroutine
 // because the library "nhooyr.io/websocket" doesn't allow reading with a context with Timeout
-// we'll block forever on reading until the context of the connectionHandler stops
-func (h *connectionHandler) readBlocking(ctx context.Context, dataCh chan []byte) {
+// we'll block forever on reading until the context of the gqlWSConnectionHandler stops
+func (h *gqlWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan []byte) {
 	for {
 		msgType, data, err := h.conn.Read(ctx)
 		if ctx.Err() != nil {
@@ -136,15 +111,15 @@ func (h *connectionHandler) readBlocking(ctx context.Context, dataCh chan []byte
 	}
 }
 
-func (h *connectionHandler) unsubscribeAllAndCloseConn() {
+func (h *gqlWSConnectionHandler) unsubscribeAllAndCloseConn() {
 	for id := range h.subscriptions {
 		h.unsubscribe(id)
 	}
 	_ = h.conn.Close(websocket.StatusNormalClosure, "")
 }
 
-// subscribe adds a new Subscription to the connectionHandler and sends the startMessage to the origin
-func (h *connectionHandler) subscribe(sub Subscription) {
+// subscribe adds a new Subscription to the gqlWSConnectionHandler and sends the startMessage to the origin
+func (h *gqlWSConnectionHandler) subscribe(sub Subscription) {
 	graphQLBody, err := json.Marshal(sub.options.Body)
 	if err != nil {
 		return
@@ -163,7 +138,7 @@ func (h *connectionHandler) subscribe(sub Subscription) {
 	h.subscriptions[subscriptionID] = sub
 }
 
-func (h *connectionHandler) handleMessageTypeData(data []byte) {
+func (h *gqlWSConnectionHandler) handleMessageTypeData(data []byte) {
 	id, err := jsonparser.GetString(data, "id")
 	if err != nil {
 		return
@@ -186,7 +161,7 @@ func (h *connectionHandler) handleMessageTypeData(data []byte) {
 	}
 }
 
-func (h *connectionHandler) handleMessageTypeConnectionError() {
+func (h *gqlWSConnectionHandler) handleMessageTypeConnectionError() {
 	for _, sub := range h.subscriptions {
 		ctx, cancel := context.WithTimeout(h.ctx, time.Second*5)
 		select {
@@ -200,7 +175,7 @@ func (h *connectionHandler) handleMessageTypeConnectionError() {
 	}
 }
 
-func (h *connectionHandler) handleMessageTypeComplete(data []byte) {
+func (h *gqlWSConnectionHandler) handleMessageTypeComplete(data []byte) {
 	id, err := jsonparser.GetString(data, "id")
 	if err != nil {
 		return
@@ -213,7 +188,7 @@ func (h *connectionHandler) handleMessageTypeComplete(data []byte) {
 	delete(h.subscriptions, id)
 }
 
-func (h *connectionHandler) handleMessageTypeError(data []byte) {
+func (h *gqlWSConnectionHandler) handleMessageTypeError(data []byte) {
 	id, err := jsonparser.GetString(data, "id")
 	if err != nil {
 		return
@@ -249,7 +224,7 @@ func (h *connectionHandler) handleMessageTypeError(data []byte) {
 	}
 }
 
-func (h *connectionHandler) unsubscribe(subscriptionID string) {
+func (h *gqlWSConnectionHandler) unsubscribe(subscriptionID string) {
 	sub, ok := h.subscriptions[subscriptionID]
 	if !ok {
 		return
@@ -260,7 +235,7 @@ func (h *connectionHandler) unsubscribe(subscriptionID string) {
 	_ = h.conn.Write(h.ctx, websocket.MessageText, []byte(stopRequest))
 }
 
-func (h *connectionHandler) checkActiveSubscriptions() (hasActiveSubscriptions bool) {
+func (h *gqlWSConnectionHandler) checkActiveSubscriptions() (hasActiveSubscriptions bool) {
 	for id, sub := range h.subscriptions {
 		if sub.ctx.Err() != nil {
 			h.unsubscribe(id)

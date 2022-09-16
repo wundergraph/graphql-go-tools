@@ -114,39 +114,6 @@ func (c *SubscriptionClient) Subscribe(reqCtx context.Context, options GraphQLSu
 	return nil
 }
 
-func waitForAck(ctx context.Context, conn *websocket.Conn) error {
-	timer := time.NewTimer(ackWaitTimeout)
-	for {
-		select {
-		case <-timer.C:
-			return fmt.Errorf("timeout while waiting for connection_ack")
-		default:
-		}
-
-		msgType, msg, err := conn.Read(ctx)
-		if err != nil {
-			return err
-		}
-		if msgType != websocket.MessageText {
-			return fmt.Errorf("unexpected message type")
-		}
-
-		respType, err := jsonparser.GetString(msg, "type")
-		if err != nil {
-			return err
-		}
-
-		switch respType {
-		case MessageTypeConnectionKeepAlive:
-			continue
-		case MessageTypeConnectionAck:
-			return nil
-		default:
-			return fmt.Errorf("expected connection_ack or ka, got %s", respType)
-		}
-	}
-}
-
 // generateHandlerIDHash generates a Hash based on: URL and Headers to uniquely identify Upgrade Requests
 func (c *SubscriptionClient) generateHandlerIDHash(options GraphQLSubscriptionOptions) (uint64, error) {
 	var (
@@ -182,8 +149,6 @@ func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 		return nil, fmt.Errorf("upgrade unsuccessful")
 	}
 
-	// wsProtocol := conn.Subprotocol()
-
 	// init + ack
 	err = conn.Write(reqCtx, websocket.MessageText, connectionInitMessage)
 	if err != nil {
@@ -194,7 +159,14 @@ func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 		return nil, err
 	}
 
-	return newConnectionHandler(c.engineCtx, conn, c.readTimeout, c.log), nil
+	switch conn.Subprotocol() {
+	case protocolGraphQLWS:
+		return newGQLWSConnectionHandler(c.engineCtx, conn, c.readTimeout, c.log), nil
+	case protocolGraphQL:
+		return newGQLTWSConnectionHandler(c.engineCtx, conn, c.readTimeout, c.log), nil
+	default:
+		return nil, fmt.Errorf("unknown protocol %s", conn.Subprotocol())
+	}
 }
 
 type ConnectionHandler interface {
@@ -206,4 +178,37 @@ type Subscription struct {
 	ctx     context.Context
 	options GraphQLSubscriptionOptions
 	next    chan<- []byte
+}
+
+func waitForAck(ctx context.Context, conn *websocket.Conn) error {
+	timer := time.NewTimer(ackWaitTimeout)
+	for {
+		select {
+		case <-timer.C:
+			return fmt.Errorf("timeout while waiting for connection_ack")
+		default:
+		}
+
+		msgType, msg, err := conn.Read(ctx)
+		if err != nil {
+			return err
+		}
+		if msgType != websocket.MessageText {
+			return fmt.Errorf("unexpected message type")
+		}
+
+		respType, err := jsonparser.GetString(msg, "type")
+		if err != nil {
+			return err
+		}
+
+		switch respType {
+		case messageTypeConnectionKeepAlive:
+			continue
+		case messageTypeConnectionAck:
+			return nil
+		default:
+			return fmt.Errorf("expected connection_ack or ka, got %s", respType)
+		}
+	}
 }
