@@ -20,7 +20,7 @@ const ackWaitTimeout = 30 * time.Second
 // If Hash(URL,Body,Headers) result in the same result, an existing WS connection is re-used
 type SubscriptionClient struct {
 	httpClient *http.Client
-	ctx        context.Context
+	engineCtx  context.Context
 	log        abstractlogger.Logger
 	hashPool   sync.Pool
 	handlers   map[uint64]ConnectionHandler
@@ -48,7 +48,7 @@ type opts struct {
 	log         abstractlogger.Logger
 }
 
-func NewGraphQLSubscriptionClient(httpClient *http.Client, ctx context.Context, options ...Options) *SubscriptionClient {
+func NewGraphQLSubscriptionClient(httpClient *http.Client, engineCtx context.Context, options ...Options) *SubscriptionClient {
 	op := &opts{
 		readTimeout: time.Second,
 		log:         abstractlogger.NoopLogger,
@@ -58,7 +58,7 @@ func NewGraphQLSubscriptionClient(httpClient *http.Client, ctx context.Context, 
 	}
 	return &SubscriptionClient{
 		httpClient:  httpClient,
-		ctx:         ctx,
+		engineCtx:   engineCtx,
 		handlers:    make(map[uint64]ConnectionHandler),
 		log:         op.log,
 		readTimeout: op.readTimeout,
@@ -74,15 +74,14 @@ func NewGraphQLSubscriptionClient(httpClient *http.Client, ctx context.Context, 
 // Each WebSocket (WS) to an origin is uniquely identified by the Hash(URL,Headers,Body)
 // If an existing WS with the same ID (Hash) exists, it is being re-used
 // If no connection exists, the client initiates a new one and sends the "init" and "connection ack" messages
-func (c *SubscriptionClient) Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
-	// TODO: starting point for the Subscription
+func (c *SubscriptionClient) Subscribe(reqCtx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
 	handlerID, err := c.generateHandlerIDHash(options)
 	if err != nil {
 		return err
 	}
 
 	sub := Subscription{
-		ctx:     ctx,
+		ctx:     reqCtx,
 		options: options,
 		next:    next,
 	}
@@ -93,12 +92,12 @@ func (c *SubscriptionClient) Subscribe(ctx context.Context, options GraphQLSubsc
 	if exists {
 		select {
 		case handler.SubscribeCH() <- sub:
-		case <-ctx.Done():
+		case <-reqCtx.Done():
 		}
 		return nil
 	}
 
-	handler, err = c.newWSConnectionHandler(options)
+	handler, err = c.newWSConnectionHandler(reqCtx, options)
 	if err != nil {
 		return err
 	}
@@ -169,8 +168,8 @@ func (c *SubscriptionClient) generateHandlerIDHash(options GraphQLSubscriptionOp
 	return xxh.Sum64(), nil
 }
 
-func (c *SubscriptionClient) newWSConnectionHandler(options GraphQLSubscriptionOptions) (ConnectionHandler, error) {
-	conn, upgradeResponse, err := websocket.Dial(c.ctx, options.URL, &websocket.DialOptions{
+func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, options GraphQLSubscriptionOptions) (ConnectionHandler, error) {
+	conn, upgradeResponse, err := websocket.Dial(reqCtx, options.URL, &websocket.DialOptions{
 		HTTPClient:      c.httpClient,
 		HTTPHeader:      options.Header,
 		CompressionMode: websocket.CompressionDisabled,
@@ -186,16 +185,16 @@ func (c *SubscriptionClient) newWSConnectionHandler(options GraphQLSubscriptionO
 	// wsProtocol := conn.Subprotocol()
 
 	// init + ack
-	err = conn.Write(c.ctx, websocket.MessageText, connectionInitMessage)
+	err = conn.Write(reqCtx, websocket.MessageText, connectionInitMessage)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := waitForAck(c.ctx, conn); err != nil {
+	if err := waitForAck(reqCtx, conn); err != nil {
 		return nil, err
 	}
 
-	return newConnectionHandler(c.ctx, conn, c.readTimeout, c.log), nil
+	return newConnectionHandler(c.engineCtx, conn, c.readTimeout, c.log), nil
 }
 
 type ConnectionHandler interface {
