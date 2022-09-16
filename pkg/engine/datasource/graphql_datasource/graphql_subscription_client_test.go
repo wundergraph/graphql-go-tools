@@ -58,7 +58,7 @@ func TestWebSocketSubscriptionClientInitIncludeKA(t *testing.T) {
 		msgType, data, err = conn.Read(ctx)
 		assertion.NoError(err)
 		assertion.Equal(websocket.MessageText, msgType)
-		assertion.Equal(`{"type":"start","id":"1","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+		assertion.Equal(`{"type":"start","id":"1","payload":{"query":"Subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
 		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
 		assertion.NoError(err)
 		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
@@ -78,7 +78,7 @@ func TestWebSocketSubscriptionClientInitIncludeKA(t *testing.T) {
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
 
-	client := NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 	)
@@ -86,7 +86,7 @@ func TestWebSocketSubscriptionClientInitIncludeKA(t *testing.T) {
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
 		URL: strings.Replace(server.URL, "http", "ws", -1),
 		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			Query: `Subscription {messageAdded(roomName: "room"){text}}`,
 		},
 	}, next)
 	assertion.NoError(err)
@@ -120,7 +120,7 @@ func TestWebsocketSubscriptionClient(t *testing.T) {
 		msgType, data, err = conn.Read(ctx)
 		assert.NoError(t, err)
 		assert.Equal(t, websocket.MessageText, msgType)
-		assert.Equal(t, `{"type":"start","id":"1","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+		assert.Equal(t, `{"type":"start","id":"1","payload":{"query":"Subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
 		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
 		assert.NoError(t, err)
 		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
@@ -140,7 +140,7 @@ func TestWebsocketSubscriptionClient(t *testing.T) {
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
 
-	client := NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 	)
@@ -148,7 +148,7 @@ func TestWebsocketSubscriptionClient(t *testing.T) {
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
 		URL: strings.Replace(server.URL, "http", "ws", -1),
 		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			Query: `Subscription {messageAdded(roomName: "room"){text}}`,
 		},
 	}, next)
 	assert.NoError(t, err)
@@ -179,7 +179,7 @@ func TestWebsocketSubscriptionClientImmediateClientCancel(t *testing.T) {
 	clientCancel()
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
-	client := NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 	)
@@ -187,7 +187,7 @@ func TestWebsocketSubscriptionClientImmediateClientCancel(t *testing.T) {
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
 		URL: strings.Replace(server.URL, "http", "ws", -1),
 		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			Query: `Subscription {messageAdded(roomName: "room"){text}}`,
 		},
 	}, next)
 	assert.Error(t, err)
@@ -215,7 +215,7 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 		msgType, data, err = conn.Read(ctx)
 		assert.NoError(t, err)
 		assert.Equal(t, websocket.MessageText, msgType)
-		assert.Equal(t, `{"type":"start","id":"1","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+		assert.Equal(t, `{"type":"start","id":"1","payload":{"query":"Subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
 		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
 		assert.NoError(t, err)
 		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
@@ -233,7 +233,7 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
 
-	client := NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 	)
@@ -241,7 +241,7 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
 		URL: strings.Replace(server.URL, "http", "ws", -1),
 		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			Query: `Subscription {messageAdded(roomName: "room"){text}}`,
 		},
 	}, next)
 	assert.NoError(t, err)
@@ -275,7 +275,7 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 		msgType, data, err = conn.Read(r.Context())
 		assert.NoError(t, err)
 		assert.Equal(t, websocket.MessageText, msgType)
-		assert.Equal(t, `{"type":"start","id":"1","payload":{"query":"subscription {messageAdded(roomNam: \"room\"){text}}"}}`, string(data))
+		assert.Equal(t, `{"type":"start","id":"1","payload":{"query":"Subscription {messageAdded(roomNam: \"room\"){text}}"}}`, string(data))
 		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"error","id":"1","payload":[{"message":"error"},{"message":"error"}]}`))
 		assert.NoError(t, err)
 		msgType, data, err = conn.Read(r.Context())
@@ -290,7 +290,7 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
 	clientCtx, clientCancel := context.WithCancel(context.Background())
-	client := NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 	)
@@ -298,7 +298,7 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 	err := client.Subscribe(clientCtx, GraphQLSubscriptionOptions{
 		URL: strings.Replace(server.URL, "http", "ws", -1),
 		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomNam: "room"){text}}`,
+			Query: `Subscription {messageAdded(roomNam: "room"){text}}`,
 		},
 	}, next)
 	assert.NoError(t, err)
@@ -327,7 +327,7 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 		msgType, data, err = conn.Read(r.Context())
 		assert.NoError(t, err)
 		assert.Equal(t, websocket.MessageText, msgType)
-		assert.Equal(t, `{"type":"start","id":"1","payload":{"query":"subscription {messageAdded(roomNam: \"room\"){text}}"}}`, string(data))
+		assert.Equal(t, `{"type":"start","id":"1","payload":{"query":"Subscription {messageAdded(roomNam: \"room\"){text}}"}}`, string(data))
 		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"error","id":"1","payload":{"message":"error"}}`))
 		assert.NoError(t, err)
 		msgType, data, err = conn.Read(r.Context())
@@ -342,7 +342,7 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
 	clientCtx, clientCancel := context.WithCancel(context.Background())
-	client := NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 	)
@@ -350,7 +350,7 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 	err := client.Subscribe(clientCtx, GraphQLSubscriptionOptions{
 		URL: strings.Replace(server.URL, "http", "ws", -1),
 		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomNam: "room"){text}}`,
+			Query: `Subscription {messageAdded(roomNam: "room"){text}}`,
 		},
 	}, next)
 	assert.NoError(t, err)
@@ -373,7 +373,7 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 		msgType, data, err := conn.Read(ctx)
 		assert.NoError(t, err)
 		assert.Equal(t, websocket.MessageText, msgType)
-		assert.Equal(t, fmt.Sprintf(`{"type":"start","id":"%d","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, subscriptionID), string(data))
+		assert.Equal(t, fmt.Sprintf(`{"type":"start","id":"%d","payload":{"query":"Subscription {messageAdded(roomName: \"room\"){text}}"}}`, subscriptionID), string(data))
 	}
 
 	assertSendMessages := func(ctx context.Context, conn *websocket.Conn, subscriptionID int) {
@@ -452,7 +452,7 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 	defer server.Close()
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
-	client := NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 	)
@@ -463,7 +463,7 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
 		URL: strings.Replace(server.URL, "http", "ws", -1),
 		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			Query: `Subscription {messageAdded(roomName: "room"){text}}`,
 		},
 	}, next)
 	assert.NoError(t, err)
@@ -478,7 +478,7 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 		err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
 			URL: strings.Replace(server.URL, "http", "ws", -1),
 			Body: GraphQLBody{
-				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				Query: `Subscription {messageAdded(roomName: "room"){text}}`,
 			},
 		}, next)
 		assert.NoError(t, err)
