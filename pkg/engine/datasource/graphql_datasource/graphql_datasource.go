@@ -999,25 +999,22 @@ Skips replace when:
 Example transformation:
 Original schema definition:
 
-	type Query {
-		serviceOne(serviceOneArg: String): ServiceOneResponse
-		serviceTwo(serviceTwoArg: Boolean): ServiceTwoResponse
-	}
-
-	type ServiceOneResponse {
-		fieldOne: String!
-		countries: [Country!]! # nested datasource without explicit field path
-	}
-
-	type ServiceTwoResponse {
-		fieldTwo: String
-		serviceOneField: String
-		serviceOneResponse: ServiceOneResponse # nested datasource with implicit field path "serviceOne"
-	}
-
-	type Country {
-		name: String!
-	}
+type Query {
+	serviceOne(serviceOneArg: String): ServiceOneResponse
+	serviceTwo(serviceTwoArg: Boolean): ServiceTwoResponse
+}
+type ServiceOneResponse {
+	fieldOne: String!
+	countries: [Country!]! # nested datasource without explicit field path
+}
+type ServiceTwoResponse {
+	fieldTwo: String
+	serviceOneField: String
+	serviceOneResponse: ServiceOneResponse # nested datasource with implicit field path "serviceOne"
+}
+type Country {
+	name: String!
+}
 
 `serviceOneResponse` field of a `ServiceTwoResponse` is nested but has a field path that exists on the Query type
 - In this case definition will not be modified
@@ -1027,25 +1024,24 @@ Original schema definition:
 
 Modified schema definition:
 
-	schema {
-	   query: ServiceOneResponse
-	}
+schema {
+   query: ServiceOneResponse
+}
 
-	type ServiceOneResponse {
-	   fieldOne: String!
-	   countries: [Country!]!
-	}
+type ServiceOneResponse {
+   fieldOne: String!
+   countries: [Country!]!
+}
 
-	type ServiceTwoResponse {
-	   fieldTwo: String
-	   serviceOneField: String
-	   serviceOneResponse: ServiceOneResponse
-	}
+type ServiceTwoResponse {
+   fieldTwo: String
+   serviceOneField: String
+   serviceOneResponse: ServiceOneResponse
+}
 
-	type Country {
-	   name: String!
-	}
-
+type Country {
+   name: String!
+}
 Refer to pkg/engine/datasource/graphql_datasource/graphql_datasource_test.go:632
 Case name: TestGraphQLDataSource/nested_graphql_engines
 
@@ -1232,10 +1228,9 @@ type GraphQLSubscriptionClient interface {
 }
 
 type GraphQLSubscriptionOptions struct {
-	URL            string      `json:"url"`
-	Body           GraphQLBody `json:"body"`
-	Header         http.Header `json:"header"`
-	ConnectionType string      `json:"connectionType"` // Either WS or SSE TODO: custom type?
+	URL    string      `json:"url"`
+	Body   GraphQLBody `json:"body"`
+	Header http.Header `json:"header"`
 }
 
 type GraphQLBody struct {

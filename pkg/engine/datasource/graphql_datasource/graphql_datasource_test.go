@@ -3445,13 +3445,13 @@ func TestGraphQLDataSource(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	t.Run("Subscription", runTestOnTestDefinition(`
-		Subscription RemainingJedis {
+		subscription RemainingJedis {
 			remainingJedis
 		}
 	`, "RemainingJedis", &plan.SubscriptionResponsePlan{
 		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"Subscription{remainingJedis}"}}`),
+				Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`),
 				Source: &SubscriptionSource{
 					NewGraphQLSubscriptionClient(http.DefaultClient, ctx),
 				},
@@ -3477,13 +3477,13 @@ func TestGraphQLDataSource(t *testing.T) {
 			foo(bar: String): Int!
  		}
 `, `
-		Subscription SubscriptionWithVariables {
+		subscription SubscriptionWithVariables {
 			foo(bar: "baz")
 		}
 	`, "SubscriptionWithVariables", &plan.SubscriptionResponsePlan{
 		Response: &resolve.GraphQLSubscription{
 			Trigger: resolve.GraphQLSubscriptionTrigger{
-				Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"Subscription($a: String){foo(bar: $a)}","variables":{"a":$$0$$}}}`),
+				Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription($a: String){foo(bar: $a)}","variables":{"a":$$0$$}}}`),
 				Variables: resolve.NewVariables(
 					&resolve.ContextVariable{
 						Path:     []string{"a"},
@@ -5420,7 +5420,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		}))
 }
 
-var errSubscriptionClientFail = errors.New("Subscription client fail error")
+var errSubscriptionClientFail = errors.New("subscription client fail error")
 
 type FailingSubscriptionClient struct{}
 
@@ -5475,7 +5475,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		assert.Error(t, err)
 	})
 
-	t.Run("should return error when Subscription client returns an error", func(t *testing.T) {
+	t.Run("should return error when subscription client returns an error", func(t *testing.T) {
 		source := SubscriptionSource{client: FailingSubscriptionClient{}}
 		err := source.Start(context.Background(), []byte(`{"url": "", "body": {}, "header": null}`), nil)
 		assert.Error(t, err)
@@ -5488,7 +5488,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		defer ctx.Done()
 
 		source := newSubscriptionSource(ctx)
-		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "Subscription LiveMessages { messageAdded(roomName: "#test") { text createdBy } }"}`)
+		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: "#test") { text createdBy } }"}`)
 		err := source.Start(ctx, chatSubscriptionOptions, next)
 		require.ErrorIs(t, err, resolve.ErrUnableToResolve)
 	})
@@ -5499,7 +5499,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		defer ctx.Done()
 
 		source := newSubscriptionSource(ctx)
-		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "Subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
+		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
 		err := source.Start(ctx, chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
@@ -5517,7 +5517,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		defer cancelResolver()
 
 		source := newSubscriptionSource(resolverLifecycle)
-		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "Subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
+		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
 		err := source.Start(subscriptionLifecycle, chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
@@ -5538,7 +5538,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		defer ctx.Done()
 
 		source := newSubscriptionSource(ctx)
-		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "Subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
+		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
 		err := source.Start(ctx, chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
@@ -6009,7 +6009,7 @@ directive @onVariable on VARIABLE_DEFINITION
 schema {
     query: Query
     mutation: Mutation
-    Subscription: Subscription
+    subscription: Subscription
 }
 
 type Query {
@@ -6086,7 +6086,7 @@ directive @export (
 schema {
     query: Query
     mutation: Mutation
-    Subscription: Subscription
+    subscription: Subscription
 }
 
 type Query {
@@ -6162,7 +6162,7 @@ scalar JSON_api
 schema {
     query: Query
     mutation: Mutation
-    Subscription: Subscription
+    subscription: Subscription
 }
 
 type Query {
@@ -6705,7 +6705,7 @@ scalar Date
 schema {
     query: Query
     mutation: Mutation
-    Subscription: Subscription
+    subscription: Subscription
 }
 
 type Query {
