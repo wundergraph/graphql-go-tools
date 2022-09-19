@@ -11,30 +11,34 @@ const (
 	messageTypeError         = "error"
 )
 
+// websocket sub-protocol:
 // https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md
 const (
 	protocolGraphQLWS = "graphql-ws"
 
-	startMessage    = `{"type":"start","id":"%s","payload":%s}`
-	stopMessage     = `{"type":"stop","id":"%s"}`
-	internalError   = `{"errors":[{"message":"connection error"}]}`
-	connectionError = `{"errors":[{"message":"connection error"}]}`
+	startMessage = `{"type":"start","id":"%s","payload":%s}`
+	stopMessage  = `{"type":"stop","id":"%s"}`
 
 	messageTypeConnectionKeepAlive = "ka"
 	messageTypeData                = "data"
 	messageTypeConnectionError     = "connection_error"
 )
 
+// websocket sub-protocol:
 // https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md
 const (
-	protocolGraphQL = "graphql-transport-ws"
+	protocolGraphQLTWS = "graphql-transport-ws"
 
-	subscribeMessage = `{"type":"subscribe","id":"%s","payload":%s}`
-	pingMessage      = `{"type":"ping"}`
+	subscribeMessage = `{"id":"%s","type":"subscribe","payload":%s}`
 	pongMessage      = `{"type":"pong"}`
-	completeMessage  = `{"type":"complete","id":"%s"}`
+	completeMessage  = `{"id":"%s","type":"complete"}`
 
 	messageTypePing = "ping"
-	messageTypePong = "pong"
 	messageTypeNext = "next"
+)
+
+// internal
+const (
+	internalError   = `{"errors":[{"message":"internal error"}]}`
+	connectionError = `{"errors":[{"message":"connection error"}]}`
 )

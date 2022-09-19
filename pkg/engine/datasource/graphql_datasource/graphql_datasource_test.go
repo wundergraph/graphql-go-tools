@@ -5551,6 +5551,107 @@ func TestSubscriptionSource_Start(t *testing.T) {
 	})
 }
 
+func TestSubscription_GTWS_SubProtocol(t *testing.T) {
+	chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
+	defer chatServer.Close()
+
+	sendChatMessage := func(t *testing.T, username, message string) {
+		time.Sleep(200 * time.Millisecond)
+		httpClient := http.Client{}
+		req, err := http.NewRequest(
+			http.MethodPost,
+			chatServer.URL,
+			bytes.NewBufferString(fmt.Sprintf(`{"variables": {}, "operationName": "SendMessage", "query": "mutation SendMessage { post(roomName: \"#test\", username: \"%s\", text: \"%s\") { id } }"}`, username, message)),
+		)
+		require.NoError(t, err)
+
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := httpClient.Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	}
+
+	chatServerSubscriptionOptions := func(t *testing.T, body string) []byte {
+		var gqlBody GraphQLBody
+		_ = json.Unmarshal([]byte(body), &gqlBody)
+		options := GraphQLSubscriptionOptions{
+			URL:    chatServer.URL,
+			Body:   gqlBody,
+			Header: nil,
+		}
+
+		optionsBytes, err := json.Marshal(options)
+		require.NoError(t, err)
+
+		return optionsBytes
+	}
+
+	newSubscriptionSource := func(ctx context.Context) SubscriptionSource {
+		httpClient := http.Client{}
+		subscriptionSource := SubscriptionSource{
+			client: NewGraphQLSubscriptionClient(&httpClient, ctx, WithWSSubProtocol(protocolGraphQLTWS)),
+		}
+		return subscriptionSource
+	}
+
+	t.Run("invalid syntax (roomNam)", func(t *testing.T) {
+		next := make(chan []byte)
+		ctx := context.Background()
+		defer ctx.Done()
+
+		source := newSubscriptionSource(ctx)
+		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
+		err := source.Start(ctx, chatSubscriptionOptions, next)
+		require.NoError(t, err)
+
+		msg, ok := <-next
+		assert.True(t, ok)
+		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, string(msg))
+		_, ok = <-next
+		assert.False(t, ok)
+	})
+
+	t.Run("should close connection on stop message", func(t *testing.T) {
+		next := make(chan []byte)
+		subscriptionLifecycle, cancelSubscription := context.WithCancel(context.Background())
+		resolverLifecycle, cancelResolver := context.WithCancel(context.Background())
+		defer cancelResolver()
+
+		source := newSubscriptionSource(resolverLifecycle)
+		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
+		err := source.Start(subscriptionLifecycle, chatSubscriptionOptions, next)
+		require.NoError(t, err)
+
+		username := "myuser"
+		message := "hello world!"
+		go sendChatMessage(t, username, message)
+
+		nextBytes := <-next
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, string(nextBytes))
+		cancelSubscription()
+		_, ok := <-next
+		assert.False(t, ok)
+	})
+
+	t.Run("should successfully subscribe with chat example", func(t *testing.T) {
+		next := make(chan []byte)
+		ctx := context.Background()
+		defer ctx.Done()
+
+		source := newSubscriptionSource(ctx)
+		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
+		err := source.Start(ctx, chatSubscriptionOptions, next)
+		require.NoError(t, err)
+
+		username := "myuser"
+		message := "hello world!"
+		go sendChatMessage(t, username, message)
+
+		nextBytes := <-next
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, string(nextBytes))
+	})
+}
+
 type _fakeDataSource struct {
 	data              []byte
 	artificialLatency time.Duration

@@ -15,16 +15,17 @@ import (
 
 const ackWaitTimeout = 30 * time.Second
 
-// SubscriptionClient is a WebSocket client that allows running multiple subscriptions via the same WebSocket Connection
-// It takes care of de-duplicating WebSocket connections to the same origin under certain circumstances
+// SubscriptionClient allows running multiple subscriptions via the same WebSocket either SSE connection
+// It takes care of de-duplicating connections to the same origin under certain circumstances
 // If Hash(URL,Body,Headers) result in the same result, an existing WS connection is re-used
 type SubscriptionClient struct {
-	httpClient *http.Client
-	engineCtx  context.Context
-	log        abstractlogger.Logger
-	hashPool   sync.Pool
-	handlers   map[uint64]ConnectionHandler
-	handlersMu sync.Mutex
+	httpClient    *http.Client
+	engineCtx     context.Context
+	log           abstractlogger.Logger
+	hashPool      sync.Pool
+	handlers      map[uint64]ConnectionHandler
+	handlersMu    sync.Mutex
+	wsSubProtocol string
 
 	readTimeout time.Duration
 }
@@ -43,9 +44,16 @@ func WithReadTimeout(timeout time.Duration) Options {
 	}
 }
 
+func WithWSSubProtocol(protocol string) Options {
+	return func(options *opts) {
+		options.wsSubProtocol = protocol
+	}
+}
+
 type opts struct {
-	readTimeout time.Duration
-	log         abstractlogger.Logger
+	readTimeout   time.Duration
+	log           abstractlogger.Logger
+	wsSubProtocol string
 }
 
 func NewGraphQLSubscriptionClient(httpClient *http.Client, engineCtx context.Context, options ...Options) *SubscriptionClient {
@@ -67,6 +75,7 @@ func NewGraphQLSubscriptionClient(httpClient *http.Client, engineCtx context.Con
 				return xxhash.New()
 			},
 		},
+		wsSubProtocol: op.wsSubProtocol,
 	}
 }
 
@@ -136,11 +145,16 @@ func (c *SubscriptionClient) generateHandlerIDHash(options GraphQLSubscriptionOp
 }
 
 func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, options GraphQLSubscriptionOptions) (ConnectionHandler, error) {
+	subProtocols := []string{protocolGraphQLWS, protocolGraphQLTWS}
+	if c.wsSubProtocol != "" {
+		subProtocols = []string{c.wsSubProtocol}
+	}
+
 	conn, upgradeResponse, err := websocket.Dial(reqCtx, options.URL, &websocket.DialOptions{
 		HTTPClient:      c.httpClient,
 		HTTPHeader:      options.Header,
 		CompressionMode: websocket.CompressionDisabled,
-		Subprotocols:    []string{protocolGraphQLWS, protocolGraphQL},
+		Subprotocols:    subProtocols,
 	})
 	if err != nil {
 		return nil, err
@@ -155,14 +169,18 @@ func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 		return nil, err
 	}
 
+	if c.wsSubProtocol == "" {
+		c.wsSubProtocol = conn.Subprotocol()
+	}
+
 	if err := waitForAck(reqCtx, conn); err != nil {
 		return nil, err
 	}
 
-	switch conn.Subprotocol() {
+	switch c.wsSubProtocol {
 	case protocolGraphQLWS:
 		return newGQLWSConnectionHandler(c.engineCtx, conn, c.readTimeout, c.log), nil
-	case protocolGraphQL:
+	case protocolGraphQLTWS:
 		return newGQLTWSConnectionHandler(c.engineCtx, conn, c.readTimeout, c.log), nil
 	default:
 		return nil, fmt.Errorf("unknown protocol %s", conn.Subprotocol())

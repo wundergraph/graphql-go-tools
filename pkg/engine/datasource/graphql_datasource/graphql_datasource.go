@@ -1237,11 +1237,11 @@ type GraphQLSubscriptionOptions struct {
 	Header http.Header `json:"header"`
 }
 
-// TODO: add new field (extensions?: Record<string, unknown> | null)
 type GraphQLBody struct {
 	Query         string          `json:"query,omitempty"`
 	OperationName string          `json:"operationName,omitempty"`
 	Variables     json.RawMessage `json:"variables,omitempty"`
+	Extensions    json.RawMessage `json:"extensions,omitempty"`
 }
 
 type SubscriptionSource struct {
