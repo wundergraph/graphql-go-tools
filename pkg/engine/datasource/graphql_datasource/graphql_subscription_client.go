@@ -223,6 +223,8 @@ func waitForAck(ctx context.Context, conn *websocket.Conn) error {
 		switch respType {
 		case messageTypeConnectionKeepAlive:
 			continue
+		case messageTypePing:
+			continue
 		case messageTypeConnectionAck:
 			return nil
 		default:

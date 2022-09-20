@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/stretchr/testify/assert"
 	"nhooyr.io/websocket"
 )
@@ -213,4 +215,84 @@ func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
 		<-serverDone
 		return true
 	}, time.Second, time.Millisecond*10, "server did not close")
+}
+
+func TestWebSocketSubscriptionClientInitIncludePing_GQLTWS(t *testing.T) {
+	serverDone := make(chan struct{})
+	assertion := require.New(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		assertion.NoError(err)
+
+		// write "ping" every second
+		go func() {
+			for {
+				err := conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"ping"}`))
+				if err != nil {
+					break
+				}
+				time.Sleep(time.Second)
+			}
+		}()
+
+		ctx := context.Background()
+		msgType, data, err := conn.Read(ctx)
+		assertion.NoError(err)
+
+		assertion.Equal(websocket.MessageText, msgType)
+		assertion.Equal(`{"type":"connection_init"}`, string(data))
+
+		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+		assertion.NoError(err)
+
+		msgType, data, err = conn.Read(ctx)
+		assertion.NoError(err)
+		assertion.Equal(websocket.MessageText, msgType)
+		assertion.Equal(`{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+		assertion.NoError(err)
+
+		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
+		assertion.NoError(err)
+
+		msgType, data, err = conn.Read(ctx)
+		assertion.NoError(err)
+		assertion.Equal(websocket.MessageText, msgType)
+		assertion.Equal(`{"id":"1","type":"complete"}`, string(data))
+		close(serverDone)
+	}))
+
+	defer server.Close()
+	ctx, clientCancel := context.WithCancel(context.Background())
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+		WithReadTimeout(time.Millisecond),
+		WithLogger(logger()),
+		WithWSSubProtocol(protocolGraphQLTWS),
+	)
+	next := make(chan []byte)
+	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+		URL: strings.Replace(server.URL, "http", "ws", -1),
+		Body: GraphQLBody{
+			Query: `subscription {messageAdded(roomName: "room"){text}}`,
+		},
+	}, next)
+	assertion.NoError(err)
+
+	first := <-next
+	second := <-next
+	assertion.Equal(`{"data":{"messageAdded":{"text":"first"}}}`, string(first))
+	assertion.Equal(`{"data":{"messageAdded":{"text":"second"}}}`, string(second))
+
+	clientCancel()
+	assertion.Eventuallyf(func() bool {
+		<-serverDone
+		return true
+	}, time.Second, time.Millisecond*10, "server did not close")
+	serverCancel()
+	assertion.Eventuallyf(func() bool {
+		return len(client.handlers) == 0
+	}, time.Second, time.Millisecond, "client handlers not 0")
 }
