@@ -248,6 +248,11 @@ func TestWebSocketSubscriptionClientInitIncludePing_GQLTWS(t *testing.T) {
 		msgType, data, err = conn.Read(ctx)
 		assertion.NoError(err)
 		assertion.Equal(websocket.MessageText, msgType)
+		assertion.Equal(`{"type":"pong"}`, string(data))
+
+		msgType, data, err = conn.Read(ctx)
+		assertion.NoError(err)
+		assertion.Equal(websocket.MessageText, msgType)
 		assertion.Equal(`{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
 
 		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))

@@ -224,6 +224,11 @@ func waitForAck(ctx context.Context, conn *websocket.Conn) error {
 		case messageTypeConnectionKeepAlive:
 			continue
 		case messageTypePing:
+			err := conn.Write(ctx, websocket.MessageText, []byte(pongMessage))
+			if err != nil {
+				return fmt.Errorf("failed to send pong message: %w", err)
+			}
+
 			continue
 		case messageTypeConnectionAck:
 			return nil
