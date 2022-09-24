@@ -187,7 +187,6 @@ func trim(data []byte) []byte {
 func (h *gqlSSEConnectionHandler) performSubscriptionRequest(ctx context.Context) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", h.options.URL, nil)
 	if err != nil {
-		// TODO: handle error
 		return nil, err
 	}
 
