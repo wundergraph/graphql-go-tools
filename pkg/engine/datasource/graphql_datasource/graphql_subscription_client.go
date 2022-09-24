@@ -7,8 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
+
+	"github.com/buger/jsonparser"
 	"github.com/jensneuse/abstractlogger"
 	"nhooyr.io/websocket"
 )
@@ -17,7 +18,7 @@ const ackWaitTimeout = 30 * time.Second
 
 // SubscriptionClient allows running multiple subscriptions via the same WebSocket either SSE connection
 // It takes care of de-duplicating connections to the same origin under certain circumstances
-// If Hash(URL,Body,Headers) result in the same result, an existing WS connection is re-used
+// If Hash(URL,Body,Headers) result in the same result, an existing connection is re-used
 type SubscriptionClient struct {
 	httpClient    *http.Client
 	engineCtx     context.Context
@@ -80,19 +81,46 @@ func NewGraphQLSubscriptionClient(httpClient *http.Client, engineCtx context.Con
 }
 
 // Subscribe initiates a new GraphQL Subscription with the origin
-// Each WebSocket (WS) to an origin is uniquely identified by the Hash(URL,Headers,Body)
-// If an existing WS with the same ID (Hash) exists, it is being re-used
-// If no connection exists, the client initiates a new one and sends the "init" and "connection ack" messages
+// If an existing WS connection with the same ID (Hash) exists, it is being re-used
+// If connection protocol is SSE, a new connection is always created
+// If no connection exists, the client initiates a new one
 func (c *SubscriptionClient) Subscribe(reqCtx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
-	handlerID, err := c.generateHandlerIDHash(options)
-	if err != nil {
-		return err
+	isSse := options.Header.Get("X-Internal-Subscription-SSE") != ""
+	if isSse {
+		options.Header.Del("X-Internal-Subscription-SSE")
+		return c.subscribeSSE(reqCtx, options, next)
 	}
 
+	return c.subscribeWS(reqCtx, options, next)
+}
+
+func (c *SubscriptionClient) subscribeSSE(reqCtx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
 	sub := Subscription{
 		ctx:     reqCtx,
 		options: options,
 		next:    next,
+	}
+
+	handler := newSSEConnectionHandler(reqCtx, c.httpClient, options, c.log)
+
+	go func() {
+		handler.StartBlocking(sub)
+	}()
+
+	return nil
+}
+
+func (c *SubscriptionClient) subscribeWS(reqCtx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+	sub := Subscription{
+		ctx:     reqCtx,
+		options: options,
+		next:    next,
+	}
+
+	// each WS connection to an origin is uniquely identified by the Hash(URL,Headers,Body)
+	handlerID, err := c.generateHandlerIDHash(options)
+	if err != nil {
+		return err
 	}
 
 	c.handlersMu.Lock()
