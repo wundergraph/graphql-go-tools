@@ -9,7 +9,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	log "github.com/jensneuse/abstractlogger"
-	sse "github.com/r3labs/sse/v2"
+	"github.com/r3labs/sse/v2"
 )
 
 var (
@@ -34,10 +34,6 @@ func newSSEConnectionHandler(ctx context.Context, conn *http.Client, opts GraphQ
 		log:     l,
 		options: opts,
 	}
-}
-
-func (h *gqlSSEConnectionHandler) SubscribeCH() chan<- Subscription {
-	panic("not allowed")
 }
 
 func (h *gqlSSEConnectionHandler) StartBlocking(sub Subscription) {
