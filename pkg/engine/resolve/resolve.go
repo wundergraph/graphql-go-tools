@@ -930,6 +930,9 @@ func (r *Resolver) resolveString(ctx *Context, str *String, data []byte, stringB
 				return nil
 			}
 		}
+		if value != nil && valueType != jsonparser.Null {
+			return fmt.Errorf("invalid value type '%s' for path %s, expecting string, got: %v. You can fix this by configuring this field as Int/Float Scalar", valueType, string(ctx.path()), string(value))
+		}
 		if !str.Nullable {
 			return errNonNullableFieldValueIsNull
 		}
