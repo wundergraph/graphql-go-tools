@@ -119,6 +119,9 @@ func (h *gqlSSEConnectionHandler) subscribe(ctx context.Context, sub Subscriptio
 				case bytes.Equal(event, eventTypeNext):
 					continue
 				}
+			case bytes.HasPrefix(msg, []byte(":")):
+				// according to the spec, we ignore messages starting with a colon
+				continue
 			default:
 				// ideally we should not get here, or if we do, we should ignore it
 				// but some providers send a json object with the error messages, without the event header
