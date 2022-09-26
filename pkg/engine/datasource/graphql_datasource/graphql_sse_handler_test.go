@@ -44,14 +44,12 @@ func TestGraphQLSubscriptionClientSubscribe_SSE(t *testing.T) {
 	)
 
 	next := make(chan []byte)
-	header := http.Header{}
-	header.Set("X-Internal-Subscription-SSE", "sse")
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-		Header: header,
+		UseSSE: true,
 	}, next)
 	assert.NoError(t, err)
 
@@ -103,14 +101,12 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_WithEvents(t *testing.T) {
 	)
 
 	next := make(chan []byte)
-	header := http.Header{}
-	header.Set("X-Internal-Subscription-SSE", "sse")
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-		Header: header,
+		UseSSE: true,
 	}, next)
 	assert.NoError(t, err)
 
@@ -157,14 +153,12 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Error(t *testing.T) {
 	)
 
 	next := make(chan []byte)
-	header := http.Header{}
-	header.Set("X-Internal-Subscription-SSE", "sse")
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-		Header: header,
+		UseSSE: true,
 	}, next)
 	assert.NoError(t, err)
 
@@ -209,14 +203,12 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Error_Without_Header(t *testing.
 	)
 
 	next := make(chan []byte)
-	header := http.Header{}
-	header.Set("X-Internal-Subscription-SSE", "sse")
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-		Header: header,
+		UseSSE: true,
 	}, next)
 	assert.NoError(t, err)
 
