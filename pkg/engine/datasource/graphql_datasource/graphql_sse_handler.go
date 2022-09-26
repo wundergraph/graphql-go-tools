@@ -1,0 +1,215 @@
+package graphql_datasource
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+
+	"github.com/buger/jsonparser"
+	log "github.com/jensneuse/abstractlogger"
+	"github.com/r3labs/sse/v2"
+)
+
+var (
+	headerData  = []byte("data:")
+	headerEvent = []byte("event:")
+
+	eventTypeComplete = []byte("complete")
+	eventTypeNext     = []byte("next")
+)
+
+type gqlSSEConnectionHandler struct {
+	conn    *http.Client
+	ctx     context.Context
+	log     log.Logger
+	options GraphQLSubscriptionOptions
+}
+
+func newSSEConnectionHandler(ctx context.Context, conn *http.Client, opts GraphQLSubscriptionOptions, l log.Logger) *gqlSSEConnectionHandler {
+	return &gqlSSEConnectionHandler{
+		conn:    conn,
+		ctx:     ctx,
+		log:     l,
+		options: opts,
+	}
+}
+
+func (h *gqlSSEConnectionHandler) StartBlocking(sub Subscription) {
+	reqCtx := sub.ctx
+
+	dataCh := make(chan []byte)
+	errCh := make(chan []byte)
+	defer func() {
+		close(dataCh)
+		close(errCh)
+		close(sub.next)
+	}()
+
+	go h.subscribe(reqCtx, sub, dataCh, errCh)
+
+	for {
+		select {
+		case data := <-dataCh:
+			sub.next <- data
+		case err := <-errCh:
+			sub.next <- err
+			return
+		case <-reqCtx.Done():
+			return
+		}
+	}
+}
+
+func (h *gqlSSEConnectionHandler) subscribe(ctx context.Context, sub Subscription, dataCh, errCh chan []byte) {
+	resp, err := h.performSubscriptionRequest(ctx)
+	if err != nil {
+		h.log.Error("failed to perform subscription request", log.Error(err))
+		sub.next <- []byte(internalError)
+
+		return
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	reader := sse.NewEventStreamReader(resp.Body, 1<<32)
+
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+
+		msg, err := reader.ReadEvent()
+		if err != nil {
+			if err == io.EOF {
+				return
+			}
+
+			h.log.Error("failed to read event", log.Error(err))
+
+			errCh <- []byte(internalError)
+			return
+		}
+
+		if len(msg) == 0 {
+			continue
+		}
+
+		// normalize the crlf to lf to make it easier to split the lines.
+		// split the line by "\n" or "\r", per the spec.
+		lines := bytes.FieldsFunc(msg, func(r rune) bool { return r == '\n' || r == '\r' })
+		for _, line := range lines {
+			switch {
+			case bytes.HasPrefix(line, headerData):
+				data := trim(line[len(headerData):])
+
+				if len(data) == 0 {
+					continue
+				}
+
+				dataCh <- data
+			case bytes.HasPrefix(line, headerEvent):
+				event := trim(line[len(headerEvent):])
+
+				switch {
+				case bytes.Equal(event, eventTypeComplete):
+					return
+				case bytes.Equal(event, eventTypeNext):
+					continue
+				}
+			case bytes.HasPrefix(msg, []byte(":")):
+				// according to the spec, we ignore messages starting with a colon
+				continue
+			default:
+				// ideally we should not get here, or if we do, we should ignore it
+				// but some providers send a json object with the error messages, without the event header
+
+				// check for errors which came without event header
+				data := trim(line)
+
+				val, valueType, _, err := jsonparser.Get(data, "errors")
+				switch err {
+				case jsonparser.KeyPathNotFoundError:
+					continue
+				case jsonparser.MalformedJsonError:
+					// ignore garbage
+					continue
+				case nil:
+					if valueType == jsonparser.Array {
+						response := []byte(`{}`)
+						response, err = jsonparser.Set(response, val, "errors")
+						if err != nil {
+							h.log.Error("failed to set errors", log.Error(err))
+
+							errCh <- []byte(internalError)
+							return
+						}
+
+						errCh <- response
+						return
+					} else if valueType == jsonparser.Object {
+						response := []byte(`{"errors":[]}`)
+						response, err = jsonparser.Set(response, val, "errors", "[0]")
+						if err != nil {
+							h.log.Error("failed to set errors", log.Error(err))
+
+							errCh <- []byte(internalError)
+							return
+						}
+
+						errCh <- response
+						return
+					}
+
+				default:
+					h.log.Error("failed to parse errors", log.Error(err))
+					errCh <- []byte(internalError)
+					return
+				}
+			}
+		}
+	}
+}
+
+func trim(data []byte) []byte {
+	// remove the leading space
+	data = bytes.TrimLeft(data, " \t")
+
+	// remove the trailing new line
+	data = bytes.TrimRight(data, "\n")
+
+	return data
+}
+
+func (h *gqlSSEConnectionHandler) performSubscriptionRequest(ctx context.Context) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", h.options.URL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if h.options.Header != nil {
+		req.Header = h.options.Header
+	}
+
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Cache-Control", "no-cache")
+
+	query := req.URL.Query()
+	query.Add("query", h.options.Body.Query)
+	req.URL.RawQuery = query.Encode()
+
+	resp, err := h.conn.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return resp, nil
+	default:
+		return nil, fmt.Errorf("failed to connect to stream unexpected resp status code: %d", resp.StatusCode)
+	}
+}

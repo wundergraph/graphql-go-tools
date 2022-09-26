@@ -2,51 +2,31 @@ package graphql_datasource
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"sync"
 	"time"
 
-	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
+
+	"github.com/buger/jsonparser"
 	"github.com/jensneuse/abstractlogger"
 	"nhooyr.io/websocket"
 )
 
-var (
-	connectionInitMessage = []byte(`{"type":"connection_init"}`)
-)
+const ackWaitTimeout = 30 * time.Second
 
-const (
-	startMessage    = `{"type":"start","id":"%s","payload":%s}`
-	stopMessage     = `{"type":"stop","id":"%s"}`
-	internalError   = `{"errors":[{"message":"connection error"}]}`
-	connectionError = `{"errors":[{"message":"connection error"}]}`
-)
-
-const (
-	MessageTypeConnectionAck       = "connection_ack"
-	MessageTypeConnectionError     = "connection_error"
-	MessageTypeConnectionKeepAlive = "ka"
-	MessageTypeData                = "data"
-	MessageTypeError               = "error"
-	MessageTypeComplete            = "complete"
-)
-
-const ackWaitTimeout = time.Second * 30
-
-// WebSocketGraphQLSubscriptionClient is a WebSocket client that allows running multiple subscriptions via the same WebSocket Connection
-// It takes care of de-duplicating WebSocket connections to the same origin under certain circumstances
-// If Hash(URL,Body,Headers) result in the same result, an existing WS connection is re-used
-type WebSocketGraphQLSubscriptionClient struct {
-	httpClient *http.Client
-	ctx        context.Context
-	log        abstractlogger.Logger
-	hashPool   sync.Pool
-	handlers   map[uint64]*connectionHandler
-	handlersMu sync.Mutex
+// SubscriptionClient allows running multiple subscriptions via the same WebSocket either SSE connection
+// It takes care of de-duplicating connections to the same origin under certain circumstances
+// If Hash(URL,Body,Headers) result in the same result, an existing connection is re-used
+type SubscriptionClient struct {
+	httpClient    *http.Client
+	engineCtx     context.Context
+	log           abstractlogger.Logger
+	hashPool      sync.Pool
+	handlers      map[uint64]ConnectionHandler
+	handlersMu    sync.Mutex
+	wsSubProtocol string
 
 	readTimeout time.Duration
 }
@@ -65,12 +45,19 @@ func WithReadTimeout(timeout time.Duration) Options {
 	}
 }
 
-type opts struct {
-	readTimeout time.Duration
-	log         abstractlogger.Logger
+func WithWSSubProtocol(protocol string) Options {
+	return func(options *opts) {
+		options.wsSubProtocol = protocol
+	}
 }
 
-func NewWebSocketGraphQLSubscriptionClient(httpClient *http.Client, ctx context.Context, options ...Options) *WebSocketGraphQLSubscriptionClient {
+type opts struct {
+	readTimeout   time.Duration
+	log           abstractlogger.Logger
+	wsSubProtocol string
+}
+
+func NewGraphQLSubscriptionClient(httpClient *http.Client, engineCtx context.Context, options ...Options) *SubscriptionClient {
 	op := &opts{
 		readTimeout: time.Second,
 		log:         abstractlogger.NoopLogger,
@@ -78,10 +65,10 @@ func NewWebSocketGraphQLSubscriptionClient(httpClient *http.Client, ctx context.
 	for _, option := range options {
 		option(op)
 	}
-	return &WebSocketGraphQLSubscriptionClient{
+	return &SubscriptionClient{
 		httpClient:  httpClient,
-		ctx:         ctx,
-		handlers:    map[uint64]*connectionHandler{},
+		engineCtx:   engineCtx,
+		handlers:    make(map[uint64]ConnectionHandler),
 		log:         op.log,
 		readTimeout: op.readTimeout,
 		hashPool: sync.Pool{
@@ -89,24 +76,49 @@ func NewWebSocketGraphQLSubscriptionClient(httpClient *http.Client, ctx context.
 				return xxhash.New()
 			},
 		},
+		wsSubProtocol: op.wsSubProtocol,
 	}
 }
 
 // Subscribe initiates a new GraphQL Subscription with the origin
-// Each WebSocket (WS) to an origin is uniquely identified by the Hash(URL,Headers,Body)
-// If an existing WS with the same ID (Hash) exists, it is being re-used
-// If no connection exists, the client initiates a new one and sends the "init" and "connection ack" messages
-func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+// If an existing WS connection with the same ID (Hash) exists, it is being re-used
+// If connection protocol is SSE, a new connection is always created
+// If no connection exists, the client initiates a new one
+func (c *SubscriptionClient) Subscribe(reqCtx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+	if options.UseSSE {
+		return c.subscribeSSE(reqCtx, options, next)
+	}
 
+	return c.subscribeWS(reqCtx, options, next)
+}
+
+func (c *SubscriptionClient) subscribeSSE(reqCtx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+	sub := Subscription{
+		ctx:     reqCtx,
+		options: options,
+		next:    next,
+	}
+
+	handler := newSSEConnectionHandler(reqCtx, c.httpClient, options, c.log)
+
+	go func() {
+		handler.StartBlocking(sub)
+	}()
+
+	return nil
+}
+
+func (c *SubscriptionClient) subscribeWS(reqCtx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+	sub := Subscription{
+		ctx:     reqCtx,
+		options: options,
+		next:    next,
+	}
+
+	// each WS connection to an origin is uniquely identified by the Hash(URL,Headers,Body)
 	handlerID, err := c.generateHandlerIDHash(options)
 	if err != nil {
 		return err
-	}
-
-	sub := subscription{
-		ctx:     ctx,
-		options: options,
-		next:    next,
 	}
 
 	c.handlersMu.Lock()
@@ -114,51 +126,102 @@ func (c *WebSocketGraphQLSubscriptionClient) Subscribe(ctx context.Context, opti
 	handler, exists := c.handlers[handlerID]
 	if exists {
 		select {
-		case handler.subscribeCh <- sub:
-		case <-ctx.Done():
+		case handler.SubscribeCH() <- sub:
+		case <-reqCtx.Done():
 		}
 		return nil
 	}
 
-	if options.Header == nil {
-		options.Header = http.Header{}
-	}
-	options.Header.Set("Sec-WebSocket-Protocol", "graphql-ws")
-	options.Header.Set("Sec-WebSocket-Version", "13")
-
-	conn, upgradeResponse, err := websocket.Dial(ctx, options.URL, &websocket.DialOptions{
-		HTTPClient:      c.httpClient,
-		HTTPHeader:      options.Header,
-		CompressionMode: websocket.CompressionDisabled,
-		Subprotocols:    []string{"graphql-ws"},
-	})
-	if err != nil {
-		return err
-	}
-	if upgradeResponse.StatusCode != http.StatusSwitchingProtocols {
-		return fmt.Errorf("upgrade unsuccessful")
-	}
-	// init + ack
-	err = conn.Write(ctx, websocket.MessageText, connectionInitMessage)
+	handler, err = c.newWSConnectionHandler(reqCtx, options)
 	if err != nil {
 		return err
 	}
 
-	if err := waitForAck(ctx, conn); err != nil {
-		return err
-	}
-
-	handler = newConnectionHandler(c.ctx, conn, c.readTimeout, c.log)
 	c.handlers[handlerID] = handler
 
 	go func(handlerID uint64) {
-		handler.startBlocking(sub)
+		handler.StartBlocking(sub)
 		c.handlersMu.Lock()
 		delete(c.handlers, handlerID)
 		c.handlersMu.Unlock()
 	}(handlerID)
 
 	return nil
+}
+
+// generateHandlerIDHash generates a Hash based on: URL and Headers to uniquely identify Upgrade Requests
+func (c *SubscriptionClient) generateHandlerIDHash(options GraphQLSubscriptionOptions) (uint64, error) {
+	var (
+		err error
+	)
+	xxh := c.hashPool.Get().(*xxhash.Digest)
+	defer c.hashPool.Put(xxh)
+	xxh.Reset()
+
+	_, err = xxh.WriteString(options.URL)
+	if err != nil {
+		return 0, err
+	}
+	err = options.Header.Write(xxh)
+	if err != nil {
+		return 0, err
+	}
+
+	return xxh.Sum64(), nil
+}
+
+func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, options GraphQLSubscriptionOptions) (ConnectionHandler, error) {
+	subProtocols := []string{protocolGraphQLWS, protocolGraphQLTWS}
+	if c.wsSubProtocol != "" {
+		subProtocols = []string{c.wsSubProtocol}
+	}
+
+	conn, upgradeResponse, err := websocket.Dial(reqCtx, options.URL, &websocket.DialOptions{
+		HTTPClient:      c.httpClient,
+		HTTPHeader:      options.Header,
+		CompressionMode: websocket.CompressionDisabled,
+		Subprotocols:    subProtocols,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if upgradeResponse.StatusCode != http.StatusSwitchingProtocols {
+		return nil, fmt.Errorf("upgrade unsuccessful")
+	}
+
+	// init + ack
+	err = conn.Write(reqCtx, websocket.MessageText, connectionInitMessage)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.wsSubProtocol == "" {
+		c.wsSubProtocol = conn.Subprotocol()
+	}
+
+	if err := waitForAck(reqCtx, conn); err != nil {
+		return nil, err
+	}
+
+	switch c.wsSubProtocol {
+	case protocolGraphQLWS:
+		return newGQLWSConnectionHandler(c.engineCtx, conn, c.readTimeout, c.log), nil
+	case protocolGraphQLTWS:
+		return newGQLTWSConnectionHandler(c.engineCtx, conn, c.readTimeout, c.log), nil
+	default:
+		return nil, fmt.Errorf("unknown protocol %s", conn.Subprotocol())
+	}
+}
+
+type ConnectionHandler interface {
+	StartBlocking(sub Subscription)
+	SubscribeCH() chan<- Subscription
+}
+
+type Subscription struct {
+	ctx     context.Context
+	options GraphQLSubscriptionOptions
+	next    chan<- []byte
 }
 
 func waitForAck(ctx context.Context, conn *websocket.Conn) error {
@@ -184,267 +247,19 @@ func waitForAck(ctx context.Context, conn *websocket.Conn) error {
 		}
 
 		switch respType {
-		case MessageTypeConnectionKeepAlive:
+		case messageTypeConnectionKeepAlive:
 			continue
-		case MessageTypeConnectionAck:
+		case messageTypePing:
+			err := conn.Write(ctx, websocket.MessageText, []byte(pongMessage))
+			if err != nil {
+				return fmt.Errorf("failed to send pong message: %w", err)
+			}
+
+			continue
+		case messageTypeConnectionAck:
 			return nil
 		default:
 			return fmt.Errorf("expected connection_ack or ka, got %s", respType)
 		}
 	}
-}
-
-// generateHandlerIDHash generates a Hash based on: URL and Headers to uniquely identify Upgrade Requests
-func (c *WebSocketGraphQLSubscriptionClient) generateHandlerIDHash(options GraphQLSubscriptionOptions) (uint64, error) {
-	var (
-		err error
-	)
-	xxh := c.hashPool.Get().(*xxhash.Digest)
-	defer c.hashPool.Put(xxh)
-	xxh.Reset()
-
-	_, err = xxh.WriteString(options.URL)
-	if err != nil {
-		return 0, err
-	}
-	err = options.Header.Write(xxh)
-	if err != nil {
-		return 0, err
-	}
-
-	return xxh.Sum64(), nil
-}
-
-func newConnectionHandler(ctx context.Context, conn *websocket.Conn, readTimeout time.Duration, log abstractlogger.Logger) *connectionHandler {
-	return &connectionHandler{
-		conn:               conn,
-		ctx:                ctx,
-		log:                log,
-		subscribeCh:        make(chan subscription),
-		nextSubscriptionID: 0,
-		subscriptions:      map[string]subscription{},
-		readTimeout:        readTimeout,
-	}
-}
-
-// connectionHandler is responsible for handling a connection to an origin
-// it is responsible for managing all subscriptions using the underlying WebSocket connection
-// if all Subscriptions are complete or cancelled/unsubscribed the handler will terminate
-type connectionHandler struct {
-	conn               *websocket.Conn
-	ctx                context.Context
-	log                abstractlogger.Logger
-	subscribeCh        chan subscription
-	nextSubscriptionID int
-	subscriptions      map[string]subscription
-	readTimeout        time.Duration
-}
-
-type subscription struct {
-	ctx     context.Context
-	options GraphQLSubscriptionOptions
-	next    chan<- []byte
-}
-
-// startBlocking starts the single threaded event loop of the handler
-// if the global context returns or the websocket connection is terminated, it will stop
-func (h *connectionHandler) startBlocking(sub subscription) {
-	readCtx, cancel := context.WithCancel(h.ctx)
-	defer func() {
-		h.unsubscribeAllAndCloseConn()
-		cancel()
-	}()
-	h.subscribe(sub)
-	dataCh := make(chan []byte)
-	go h.readBlocking(readCtx, dataCh)
-	for {
-		if h.ctx.Err() != nil {
-			return
-		}
-		hasActiveSubscriptions := h.checkActiveSubscriptions()
-		if !hasActiveSubscriptions {
-			return
-		}
-		select {
-		case <-time.After(h.readTimeout):
-			continue
-		case sub = <-h.subscribeCh:
-			h.subscribe(sub)
-		case data := <-dataCh:
-			messageType, err := jsonparser.GetString(data, "type")
-			if err != nil {
-				continue
-			}
-			switch messageType {
-			case MessageTypeData:
-				h.handleMessageTypeData(data)
-			case MessageTypeComplete:
-				h.handleMessageTypeComplete(data)
-			case MessageTypeConnectionError:
-				h.handleMessageTypeConnectionError()
-				return
-			case MessageTypeError:
-				h.handleMessageTypeError(data)
-				continue
-			default:
-				continue
-			}
-		}
-	}
-}
-
-// readBlocking is a dedicated loop running in a separate goroutine
-// because the library "nhooyr.io/websocket" doesn't allow reading with a context with Timeout
-// we'll block forever on reading until the context of the connectionHandler stops
-func (h *connectionHandler) readBlocking(ctx context.Context, dataCh chan []byte) {
-	for {
-		msgType, data, err := h.conn.Read(ctx)
-		if ctx.Err() != nil {
-			return
-		}
-		if err != nil {
-			continue
-		}
-		if msgType != websocket.MessageText {
-			continue
-		}
-		select {
-		case dataCh <- data:
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-func (h *connectionHandler) unsubscribeAllAndCloseConn() {
-	for id := range h.subscriptions {
-		h.unsubscribe(id)
-	}
-	_ = h.conn.Close(websocket.StatusNormalClosure, "")
-}
-
-// subscribe adds a new subscription to the connectionHandler and sends the startMessage to the origin
-func (h *connectionHandler) subscribe(sub subscription) {
-	graphQLBody, err := json.Marshal(sub.options.Body)
-	if err != nil {
-		return
-	}
-
-	h.nextSubscriptionID++
-
-	subscriptionID := strconv.Itoa(h.nextSubscriptionID)
-
-	startRequest := fmt.Sprintf(startMessage, subscriptionID, string(graphQLBody))
-	err = h.conn.Write(h.ctx, websocket.MessageText, []byte(startRequest))
-	if err != nil {
-		return
-	}
-
-	h.subscriptions[subscriptionID] = sub
-}
-
-func (h *connectionHandler) handleMessageTypeData(data []byte) {
-	id, err := jsonparser.GetString(data, "id")
-	if err != nil {
-		return
-	}
-	sub, ok := h.subscriptions[id]
-	if !ok {
-		return
-	}
-	payload, _, _, err := jsonparser.Get(data, "payload")
-	if err != nil {
-		return
-	}
-	ctx, cancel := context.WithTimeout(h.ctx, time.Second*5)
-	defer cancel()
-
-	select {
-	case <-ctx.Done():
-	case sub.next <- payload:
-	case <-sub.ctx.Done():
-	}
-}
-
-func (h *connectionHandler) handleMessageTypeConnectionError() {
-	for _, sub := range h.subscriptions {
-		ctx, cancel := context.WithTimeout(h.ctx, time.Second*5)
-		select {
-		case sub.next <- []byte(connectionError):
-			cancel()
-			continue
-		case <-ctx.Done():
-			cancel()
-			continue
-		}
-	}
-}
-
-func (h *connectionHandler) handleMessageTypeComplete(data []byte) {
-	id, err := jsonparser.GetString(data, "id")
-	if err != nil {
-		return
-	}
-	sub, ok := h.subscriptions[id]
-	if !ok {
-		return
-	}
-	close(sub.next)
-	delete(h.subscriptions, id)
-}
-
-func (h *connectionHandler) handleMessageTypeError(data []byte) {
-	id, err := jsonparser.GetString(data, "id")
-	if err != nil {
-		return
-	}
-	sub, ok := h.subscriptions[id]
-	if !ok {
-		return
-	}
-	value, valueType, _, err := jsonparser.Get(data, "payload")
-	if err != nil {
-		sub.next <- []byte(internalError)
-		return
-	}
-	switch valueType {
-	case jsonparser.Array:
-		response := []byte(`{}`)
-		response, err = jsonparser.Set(response, value, "errors")
-		if err != nil {
-			sub.next <- []byte(internalError)
-			return
-		}
-		sub.next <- response
-	case jsonparser.Object:
-		response := []byte(`{"errors":[]}`)
-		response, err = jsonparser.Set(response, value, "errors", "[0]")
-		if err != nil {
-			sub.next <- []byte(internalError)
-			return
-		}
-		sub.next <- response
-	default:
-		sub.next <- []byte(internalError)
-	}
-}
-
-func (h *connectionHandler) unsubscribe(subscriptionID string) {
-	sub, ok := h.subscriptions[subscriptionID]
-	if !ok {
-		return
-	}
-	close(sub.next)
-	delete(h.subscriptions, subscriptionID)
-	stopRequest := fmt.Sprintf(stopMessage, subscriptionID)
-	_ = h.conn.Write(h.ctx, websocket.MessageText, []byte(stopRequest))
-}
-
-func (h *connectionHandler) checkActiveSubscriptions() (hasActiveSubscriptions bool) {
-	for id, sub := range h.subscriptions {
-		if sub.ctx.Err() != nil {
-			h.unsubscribe(id)
-		}
-	}
-	return len(h.subscriptions) != 0
 }
