@@ -83,6 +83,21 @@ input InputWithNestedScalarList {
 }`
 
 func TestInputCoercionForList(t *testing.T) {
+	t.Run("run with extra input field not defined", func(t *testing.T) {
+		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			query testQuery($in: InputWithList){
+			  inputWithList (input: $in){
+			     id
+			  }
+			}
+`, "testQuery", `
+			query testQuery($in: InputWithList){
+			  inputWithList (input: $in){
+			     id
+			  }
+			}
+`, `{"in":{"foo":"test","new":"new value"}}`, `{"in":{"foo":"test","new":"new value"}}`, inputCoercionForList)
+	})
 	t.Run("convert integer to list of integer", func(t *testing.T) {
 		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
 			query {
