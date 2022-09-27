@@ -199,6 +199,23 @@ func (h *gqlSSEConnectionHandler) performSubscriptionRequest(ctx context.Context
 
 	query := req.URL.Query()
 	query.Add("query", h.options.Body.Query)
+
+	if h.options.Body.Variables != nil {
+		variables, _ := h.options.Body.Variables.MarshalJSON()
+
+		query.Add("variables", string(variables))
+	}
+
+	if h.options.Body.OperationName != "" {
+		query.Add("operationName", h.options.Body.OperationName)
+	}
+
+	if h.options.Body.Extensions != nil {
+		extensions, _ := h.options.Body.Extensions.MarshalJSON()
+
+		query.Add("extensions", string(extensions))
+	}
+
 	req.URL.RawQuery = query.Encode()
 
 	resp, err := h.conn.Do(req)
