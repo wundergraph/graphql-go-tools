@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -125,7 +124,7 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 	next := make(chan []byte)
 	ctx, clientCancel := context.WithCancel(context.Background())
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
-		URL: strings.Replace(server.URL, "http", "ws", -1),
+		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
@@ -140,7 +139,7 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
 		err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
-			URL: strings.Replace(server.URL, "http", "ws", -1),
+			URL: server.URL,
 			Body: GraphQLBody{
 				Query: `subscription {messageAdded(roomName: "room"){text}}`,
 			},
@@ -179,7 +178,7 @@ func TestWebsocketSubscriptionClientImmediateClientCancel(t *testing.T) {
 	)
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
-		URL: strings.Replace(server.URL, "http", "ws", -1),
+		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
@@ -234,7 +233,7 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 	)
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
-		URL: strings.Replace(server.URL, "http", "ws", -1),
+		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
