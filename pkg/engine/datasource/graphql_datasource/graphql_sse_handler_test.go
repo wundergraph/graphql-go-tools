@@ -41,7 +41,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE(t *testing.T) {
 
 	ctx, clientCancel := context.WithCancel(context.Background())
 
-	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 	)
@@ -98,7 +98,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_WithEvents(t *testing.T) {
 
 	ctx, clientCancel := context.WithCancel(context.Background())
 
-	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 	)
@@ -150,7 +150,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Error(t *testing.T) {
 
 	ctx, clientCancel := context.WithCancel(context.Background())
 
-	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 	)
@@ -200,7 +200,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Error_Without_Header(t *testing.
 
 	ctx, clientCancel := context.WithCancel(context.Background())
 
-	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 	)
@@ -255,7 +255,7 @@ func TestGraphQLSubscriptionClientSubscribe_QueryParams(t *testing.T) {
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	ctx, clientCancel := context.WithCancel(context.Background())
 
-	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 	)

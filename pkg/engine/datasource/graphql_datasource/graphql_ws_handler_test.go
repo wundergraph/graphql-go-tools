@@ -63,7 +63,7 @@ func TestWebSocketSubscriptionClientInitIncludeKA_GQLWS(t *testing.T) {
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
 
-	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 		WithWSSubProtocol(protocolGraphQLWS),
@@ -126,7 +126,7 @@ func TestWebsocketSubscriptionClient_GQLWS(t *testing.T) {
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
 
-	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 		WithWSSubProtocol(protocolGraphQLWS),
@@ -185,7 +185,7 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
 	clientCtx, clientCancel := context.WithCancel(context.Background())
-	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 		WithWSSubProtocol(protocolGraphQLWS),
@@ -238,7 +238,7 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
 	clientCtx, clientCancel := context.WithCancel(context.Background())
-	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 		WithWSSubProtocol(protocolGraphQLWS),

@@ -1151,12 +1151,13 @@ func (p *Planner) addField(ref int) {
 type Factory struct {
 	BatchFactory       resolve.DataSourceBatchFactory
 	HTTPClient         *http.Client
+	StreamingClient    *http.Client
 	subscriptionClient *SubscriptionClient
 }
 
 func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 	if f.subscriptionClient == nil {
-		f.subscriptionClient = NewGraphQLSubscriptionClient(f.HTTPClient, ctx)
+		f.subscriptionClient = NewGraphQLSubscriptionClient(f.HTTPClient, f.StreamingClient, ctx)
 	}
 	return &Planner{
 		batchFactory:       f.BatchFactory,

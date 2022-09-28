@@ -20,13 +20,14 @@ const ackWaitTimeout = 30 * time.Second
 // It takes care of de-duplicating connections to the same origin under certain circumstances
 // If Hash(URL,Body,Headers) result in the same result, an existing connection is re-used
 type SubscriptionClient struct {
-	httpClient    *http.Client
-	engineCtx     context.Context
-	log           abstractlogger.Logger
-	hashPool      sync.Pool
-	handlers      map[uint64]ConnectionHandler
-	handlersMu    sync.Mutex
-	wsSubProtocol string
+	streamingClient *http.Client
+	httpClient      *http.Client
+	engineCtx       context.Context
+	log             abstractlogger.Logger
+	hashPool        sync.Pool
+	handlers        map[uint64]ConnectionHandler
+	handlersMu      sync.Mutex
+	wsSubProtocol   string
 
 	readTimeout time.Duration
 }
@@ -57,7 +58,7 @@ type opts struct {
 	wsSubProtocol string
 }
 
-func NewGraphQLSubscriptionClient(httpClient *http.Client, engineCtx context.Context, options ...Options) *SubscriptionClient {
+func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context, options ...Options) *SubscriptionClient {
 	op := &opts{
 		readTimeout: time.Second,
 		log:         abstractlogger.NoopLogger,
@@ -66,11 +67,12 @@ func NewGraphQLSubscriptionClient(httpClient *http.Client, engineCtx context.Con
 		option(op)
 	}
 	return &SubscriptionClient{
-		httpClient:  httpClient,
-		engineCtx:   engineCtx,
-		handlers:    make(map[uint64]ConnectionHandler),
-		log:         op.log,
-		readTimeout: op.readTimeout,
+		httpClient:      httpClient,
+		streamingClient: streamingClient,
+		engineCtx:       engineCtx,
+		handlers:        make(map[uint64]ConnectionHandler),
+		log:             op.log,
+		readTimeout:     op.readTimeout,
 		hashPool: sync.Pool{
 			New: func() interface{} {
 				return xxhash.New()
@@ -99,7 +101,7 @@ func (c *SubscriptionClient) subscribeSSE(reqCtx context.Context, options GraphQ
 		next:    next,
 	}
 
-	handler := newSSEConnectionHandler(reqCtx, c.httpClient, options, c.log)
+	handler := newSSEConnectionHandler(reqCtx, c.streamingClient, options, c.log)
 
 	go func() {
 		handler.StartBlocking(sub)
