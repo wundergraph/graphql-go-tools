@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -70,7 +69,7 @@ func TestWebSocketSubscriptionClientInitIncludeKA_GQLWS(t *testing.T) {
 	)
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
-		URL: strings.Replace(server.URL, "http", "ws", -1),
+		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
@@ -133,7 +132,7 @@ func TestWebsocketSubscriptionClient_GQLWS(t *testing.T) {
 	)
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
-		URL: strings.Replace(server.URL, "http", "ws", -1),
+		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
@@ -192,7 +191,7 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 	)
 	next := make(chan []byte)
 	err := client.Subscribe(clientCtx, GraphQLSubscriptionOptions{
-		URL: strings.Replace(server.URL, "http", "ws", -1),
+		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomNam: "room"){text}}`,
 		},
@@ -245,7 +244,7 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 	)
 	next := make(chan []byte)
 	err := client.Subscribe(clientCtx, GraphQLSubscriptionOptions{
-		URL: strings.Replace(server.URL, "http", "ws", -1),
+		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomNam: "room"){text}}`,
 		},

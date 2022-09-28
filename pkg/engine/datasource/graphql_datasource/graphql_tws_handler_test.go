@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -60,7 +59,7 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
-		URL: strings.Replace(server.URL, "http", "ws", -1),
+		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
@@ -135,7 +134,7 @@ func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
 
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
-		URL: strings.Replace(server.URL, "http", "ws", -1),
+		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
@@ -196,7 +195,7 @@ func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
 
 	next := make(chan []byte)
 	err := client.Subscribe(clientCtx, GraphQLSubscriptionOptions{
-		URL: strings.Replace(server.URL, "http", "ws", -1),
+		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `wrongQuery {messageAdded(roomName: "room"){text}}`,
 		},
@@ -279,7 +278,7 @@ func TestWebSocketSubscriptionClientInitIncludePing_GQLTWS(t *testing.T) {
 	)
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
-		URL: strings.Replace(server.URL, "http", "ws", -1),
+		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
