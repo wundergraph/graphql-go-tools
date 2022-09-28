@@ -95,6 +95,10 @@ func (c *SubscriptionClient) Subscribe(reqCtx context.Context, options GraphQLSu
 }
 
 func (c *SubscriptionClient) subscribeSSE(reqCtx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+	if c.streamingClient == nil {
+		return fmt.Errorf("streaming http client is nil")
+	}
+
 	sub := Subscription{
 		ctx:     reqCtx,
 		options: options,
@@ -111,6 +115,10 @@ func (c *SubscriptionClient) subscribeSSE(reqCtx context.Context, options GraphQ
 }
 
 func (c *SubscriptionClient) subscribeWS(reqCtx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+	if c.httpClient == nil {
+		return fmt.Errorf("http client is nil")
+	}
+
 	sub := Subscription{
 		ctx:     reqCtx,
 		options: options,
