@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -52,7 +51,7 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 
-	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 		WithWSSubProtocol(protocolGraphQLTWS),
@@ -60,7 +59,7 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
-		URL: strings.Replace(server.URL, "http", "ws", -1),
+		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
@@ -127,7 +126,7 @@ func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
 
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 
-	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 		WithWSSubProtocol(protocolGraphQLTWS),
@@ -135,7 +134,7 @@ func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
 
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
-		URL: strings.Replace(server.URL, "http", "ws", -1),
+		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
@@ -188,7 +187,7 @@ func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 
 	clientCtx, clientCancel := context.WithCancel(context.Background())
-	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 		WithWSSubProtocol(protocolGraphQLTWS),
@@ -196,7 +195,7 @@ func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
 
 	next := make(chan []byte)
 	err := client.Subscribe(clientCtx, GraphQLSubscriptionOptions{
-		URL: strings.Replace(server.URL, "http", "ws", -1),
+		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `wrongQuery {messageAdded(roomName: "room"){text}}`,
 		},
@@ -272,14 +271,14 @@ func TestWebSocketSubscriptionClientInitIncludePing_GQLTWS(t *testing.T) {
 	ctx, clientCancel := context.WithCancel(context.Background())
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 
-	client := NewGraphQLSubscriptionClient(http.DefaultClient, serverCtx,
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
 		WithWSSubProtocol(protocolGraphQLTWS),
 	)
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
-		URL: strings.Replace(server.URL, "http", "ws", -1),
+		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
