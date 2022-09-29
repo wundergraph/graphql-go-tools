@@ -11,5 +11,5 @@ func Assert(t *testing.T, name string, actual []byte) {
 }
 
 func Update(t *testing.T, name string, actual []byte) {
-	New(t).Update(t, name, actual)
+	_ = New(t).Update(t, name, actual)
 }

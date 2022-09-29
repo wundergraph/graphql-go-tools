@@ -8,9 +8,9 @@ import (
 )
 
 func Assert(t *testing.T, name string, actual []byte) {
-	New(t).Assert(t, name, bytes.ReplaceAll(actual, []byte("\n\r"), []byte("\n")))
+	New(t).Assert(t, name, bytes.ReplaceAll(actual, []byte("\r\n"), []byte("\n")))
 }
 
 func Update(t *testing.T, name string, actual []byte) {
-	New(t).Update(t, name, actual)
+	_ = New(t).Update(t, name, actual)
 }
