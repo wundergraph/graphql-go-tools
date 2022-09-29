@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/sebdah/goldie"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 )
 
 func TestNewSchemaFromReader(t *testing.T) {
@@ -417,7 +417,7 @@ func TestSchemaIntrospection(t *testing.T) {
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 
-	goldie.Assert(t, "introspection_response", bytes.TrimSpace(bodyBytes))
+	goldie.Assert(t, "introspection_response", bodyBytes)
 }
 
 func TestSchema_GetAllFieldArguments(t *testing.T) {

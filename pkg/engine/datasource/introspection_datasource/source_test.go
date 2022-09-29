@@ -6,8 +6,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/sebdah/goldie"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"

@@ -5,8 +5,9 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/sebdah/goldie"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
 )

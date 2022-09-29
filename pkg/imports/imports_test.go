@@ -7,7 +7,8 @@ import (
 	"testing"
 
 	"github.com/jensneuse/diffview"
-	"github.com/sebdah/goldie"
+
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 )
 
 func TestScanner(t *testing.T) {
