@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 
 	"github.com/buger/jsonparser"
@@ -74,7 +75,7 @@ func (h *gqlSSEConnectionHandler) subscribe(ctx context.Context, sub Subscriptio
 		_ = resp.Body.Close()
 	}()
 
-	reader := sse.NewEventStreamReader(resp.Body, 1<<32)
+	reader := sse.NewEventStreamReader(resp.Body, math.MaxInt)
 
 	for {
 		if ctx.Err() != nil {
