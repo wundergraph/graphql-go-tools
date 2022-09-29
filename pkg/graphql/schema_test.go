@@ -417,7 +417,7 @@ func TestSchemaIntrospection(t *testing.T) {
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 
-	goldie.Assert(t, "introspection_response", bodyBytes)
+	goldie.Assert(t, "introspection_response", bytes.TrimSpace(bodyBytes))
 }
 
 func TestSchema_GetAllFieldArguments(t *testing.T) {
