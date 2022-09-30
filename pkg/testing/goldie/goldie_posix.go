@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func Assert(t *testing.T, name string, actual []byte) {
+func Assert(t *testing.T, name string, actual []byte, _ ...bool) {
 	New(t).Assert(t, name, actual)
 }
 
