@@ -269,6 +269,7 @@ func TestArrayStream_InitialBatch_2(t *testing.T) {
 }
 
 func TestStreamAndDefer(t *testing.T) {
+	t.Skip("temporary disabled")
 
 	controller := gomock.NewController(t)
 
