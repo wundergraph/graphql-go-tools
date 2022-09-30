@@ -19,6 +19,7 @@ func TestArrayStream(t *testing.T) {
 		"")
 
 	res := &GraphQLStreamingResponse{
+		FlushInterval: 500,
 		InitialResponse: &GraphQLResponse{
 			Data: &Object{
 				Fetch: &SingleFetch{
@@ -76,19 +77,15 @@ func TestArrayStream(t *testing.T) {
 	err := resolver.ResolveGraphQLStreamingResponse(ctx, res, nil, writer)
 	assert.NoError(t, err)
 
-	assert.Equal(t, 3, len(writer.flushed))
+	assert.Equal(t, 2, len(writer.flushed))
 
 	expected, err := ioutil.ReadFile("./testdata/stream_1.json")
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expected), writer.flushed[0])
 
-	expected, err = ioutil.ReadFile("./testdata/stream_2.json")
+	expected, err = ioutil.ReadFile("./testdata/stream_2_3.json")
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expected), writer.flushed[1])
-
-	expected, err = ioutil.ReadFile("./testdata/stream_3.json")
-	assert.NoError(t, err)
-	assert.JSONEq(t, string(expected), writer.flushed[2])
 }
 
 func TestArrayStream_InitialBatch_1(t *testing.T) {
