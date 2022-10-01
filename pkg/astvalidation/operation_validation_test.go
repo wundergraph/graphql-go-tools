@@ -3524,6 +3524,48 @@ func TestExecutionValidation(t *testing.T) {
 								}`,
 					AllVariablesUsed(), Valid)
 			})
+			t.Run("variables in nested array object", func(t *testing.T) {
+				run(`query variableUnused($name: String) {
+					dog(where: {
+						AND: [
+						  { nestedDog: { nickname: { eq: "Scooby Doo" } } }
+						  { nestedDog: { name: { eq: $name } } }
+						  {
+							OR: [
+							  {
+								AND: [
+								  {
+									nestedDog: {
+									  birthday: { eq: "2021-07-29" }
+									}
+								  }
+								  {
+									nestedDog: { barkVolume: { eq: 20 } }
+								  }
+								]
+							  }
+							  {
+								AND: [
+								  {
+									nestedDog: {
+										birthday: { eq: "2021-08-02" }
+									}
+								  }
+								  {
+									nestedDog: { barkVolume: { eq: 35 } }
+								  }
+								]
+							  }
+							]
+						  }
+						]
+					  }) {
+						id
+						name
+					}
+				}`,
+					AllVariablesUsed(), Valid)
+			})
 		})
 		t.Run("5.8.5 All VariableValue Usages are Allowed", func(t *testing.T) {
 			t.Run("169", func(t *testing.T) {
