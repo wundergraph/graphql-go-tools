@@ -189,12 +189,10 @@ func (h *Handler) ChangeSubscriptionUpdateInterval(d time.Duration) {
 // handleInit will handle an init message.
 func (h *Handler) handleInit(ctx context.Context, payload []byte) (extendedCtx context.Context, err error) {
 	if h.initFunc != nil {
-		initPayload := make(InitPayload)
+		var initPayload InitPayload
 		// decode initial payload
 		if len(payload) > 0 {
-			if err = json.Unmarshal(payload, &initPayload); err != nil {
-				return extendedCtx, err
-			}
+			initPayload = payload
 		}
 		// check initial payload to see whether to accept the websocket connection
 		if extendedCtx, err = h.initFunc(ctx, initPayload); err != nil {
