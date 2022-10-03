@@ -18,6 +18,10 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
         id: go
+      - name: Set git to use LF
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
       - name: Check out code into the Go module directory
         uses: actions/checkout@v1
       - name: CI
