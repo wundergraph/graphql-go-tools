@@ -1,9 +1,9 @@
 name: ci
 on:
-  push:
   pull_request:
+  push:
     branches:
-    - master
+      - master
 jobs:
   build:
     name: Build (go ${{ matrix.go }}/${{ matrix.os }})
