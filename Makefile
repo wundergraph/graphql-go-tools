@@ -8,6 +8,10 @@ HAS_CORRECT_VERSION := $(shell command -v if [[ $(INSTALLED_VERSION) == *$(GOLAN
 
 .PHONY: test
 test:
+	go test --short -count=1 ./...
+
+.PHONY: test-full
+test-full:
 	go test -count=1 ./...
 
 # updateTestFixtures will update all! golden fixtures
@@ -28,6 +32,9 @@ prepare-merge: format test lint
 
 .PHONY: ci
 ci: bootstrap test lint
+
+.PHONY: ci-full
+ci-full: bootstrap test-full lint
 
 .PHONY: generate
 generate: $(GOPATH)/bin/go-enum $(GOPATH)/bin/mockgen $(GOPATH)/bin/stringer

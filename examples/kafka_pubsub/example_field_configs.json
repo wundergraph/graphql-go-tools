@@ -1,0 +1,17 @@
+    {
+      "type_name": "Query",
+      "field_name": "topProducts",
+      "disable_default_mapping": false,
+      "path": [
+        "topProducts"
+      ]
+    },
+    {
+      "type_name": "Subscription",
+      "field_name": "stock",
+      "disable_default_mapping": false,
+      "path": [
+        "stock"
+      ]
+    }
+  ]
