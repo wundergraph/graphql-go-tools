@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-func Assert(t *testing.T, name string, actual []byte, replaceLineEndings ...bool) {
-	if len(replaceLineEndings) == 1 {
+func Assert(t *testing.T, name string, actual []byte, normalizeLineEndings ...bool) {
+	if len(normalizeLineEndings) == 1 {
 		actual = NormalizeNewlines(actual)
 	}
 

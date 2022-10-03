@@ -92,7 +92,7 @@ func TestCodeGen_GenerateDirectiveDefinitionStruct(t *testing.T) {
 
 	data := out.Bytes()
 
-	goldie.Assert(t, "DataSource", data)
+	goldie.Assert(t, "DataSource", data, true)
 	if t.Failed() {
 
 		fixture, err := ioutil.ReadFile("./fixtures/DataSource.golden")

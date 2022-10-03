@@ -34,7 +34,7 @@ func TestSource_Load(t *testing.T) {
 
 			actualResponse := &bytes.Buffer{}
 			require.NoError(t, json.Indent(actualResponse, buf.Bytes(), "", "  "))
-			goldie.Assert(t, fixtureName, actualResponse.Bytes())
+			goldie.Assert(t, fixtureName, actualResponse.Bytes(), true)
 		}
 	}
 
