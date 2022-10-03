@@ -38,9 +38,15 @@ type Schema struct {
 	hash         uint64
 }
 
-func (s *Schema) Hash() (uint64, error) {
+// Hash returns the hash of the schema.
+func (s *Schema) Hash() uint64 {
+	return s.hash
+}
+
+// calcHash calculates the hash of the schema.
+func (s *Schema) calcHash() error {
 	if s.hash != 0 {
-		return s.hash, nil
+		return nil
 	}
 	h := pool.Hash64.Get()
 	h.Reset()
@@ -48,10 +54,10 @@ func (s *Schema) Hash() (uint64, error) {
 	printer := astprinter.Printer{}
 	err := printer.Print(&s.document, nil, h)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	s.hash = h.Sum64()
-	return s.hash, nil
+	return nil
 }
 
 func NewSchemaFromReader(reader io.Reader) (*Schema, error) {
@@ -419,11 +425,16 @@ func createSchema(schemaContent []byte, mergeWithBaseSchema bool) (*Schema, erro
 		rawSchema = rawSchemaBuffer.Bytes()
 	}
 
-	return &Schema{
+	schema := &Schema{
 		rawInput:  schemaContent,
 		rawSchema: rawSchema,
 		document:  document,
-	}, nil
+	}
+	if err := schema.calcHash(); err != nil {
+		return nil, err
+	}
+
+	return schema, nil
 }
 
 func SchemaIntrospection(schema *Schema) (*ExecutionResult, error) {

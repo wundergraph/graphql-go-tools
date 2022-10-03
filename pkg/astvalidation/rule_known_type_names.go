@@ -35,13 +35,13 @@ type knownTypeNamesVisitor struct {
 	referencedTypeNames  map[uint64][]byte
 }
 
-func (u *knownTypeNamesVisitor) EnterDocument(operation, definition *ast.Document) {
+func (u *knownTypeNamesVisitor) EnterDocument(operation, _ *ast.Document) {
 	u.definition = operation
 	u.definedTypeNameHashs = make(map[uint64]bool)
 	u.referencedTypeNames = make(map[uint64][]byte)
 }
 
-func (u *knownTypeNamesVisitor) LeaveDocument(operation, definition *ast.Document) {
+func (u *knownTypeNamesVisitor) LeaveDocument(_, _ *ast.Document) {
 	for referencedTypeNameHash, referencedTypeName := range u.referencedTypeNames {
 		if !u.definedTypeNameHashs[referencedTypeNameHash] {
 			u.Report.AddExternalError(operationreport.ErrTypeUndefined(referencedTypeName))
@@ -53,7 +53,6 @@ func (u *knownTypeNamesVisitor) LeaveDocument(operation, definition *ast.Documen
 
 func (u *knownTypeNamesVisitor) EnterRootOperationTypeDefinition(ref int) {
 	referencedTypeName := u.definition.Input.ByteSlice(u.definition.RootOperationTypeDefinitions[ref].NamedType.Name)
-	u.saveReferencedTypeName(referencedTypeName)
 	u.saveReferencedTypeName(referencedTypeName)
 }
 

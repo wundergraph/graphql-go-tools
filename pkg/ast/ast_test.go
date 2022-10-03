@@ -400,7 +400,7 @@ func TestDocument_NodeByName(t *testing.T) {
 
 		t.Run("when node name is Query", func(t *testing.T) {
 			t.Run("NodeByName", func(t *testing.T) {
-				node, exists := doc.NodeByName([]byte("Query"))
+				node, exists := doc.NodeByName(ast.DefaultQueryTypeName)
 				assert.Equal(t, ast.NodeKindObjectTypeDefinition, node.Kind)
 				assert.True(t, exists)
 			})

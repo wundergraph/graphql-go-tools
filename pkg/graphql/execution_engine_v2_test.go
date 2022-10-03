@@ -16,10 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	federationExample "github.com/wundergraph/graphql-go-tools/examples/federation"
-	accounts "github.com/wundergraph/graphql-go-tools/examples/federation/accounts/graph"
-	products "github.com/wundergraph/graphql-go-tools/examples/federation/products/graph"
-	reviews "github.com/wundergraph/graphql-go-tools/examples/federation/reviews/graph"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/rest_datasource"
@@ -28,6 +24,10 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/pkg/starwars"
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting"
+	accounts "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/accounts/graph"
+	products "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/products/graph"
+	reviews "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/reviews/graph"
 )
 
 func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
@@ -1290,7 +1290,7 @@ func TestExecutionEngineV2_FederationAndSubscription_IntegrationTest(t *testing.
 			gqlRequest := &Request{
 				OperationName: "",
 				Variables:     nil,
-				Query:         federationExample.QueryReviewsOfMe,
+				Query:         federationtesting.QueryReviewsOfMe,
 			}
 
 			validationResult, err := gqlRequest.ValidateForSchema(schema)
@@ -1352,7 +1352,7 @@ subscription UpdatedPrice {
 
 			if assert.NoError(t, err) {
 				assert.Eventuallyf(t, func() bool {
-					msg := `{"data":{"updatedPrice":{"name":"Trilby","price":%d,"reviews":[{"body":"A highly effective form of birth control.","author":{"id":"1234","username":"User 1234"}}]}}}`
+					msg := `{"data":{"updatedPrice":{"name":"Trilby","price":%d,"reviews":[{"body":"A highly effective form of birth control.","author":{"id":"1234","username":"Me"}}]}}}`
 					price := 10
 					if secondRun {
 						price += 2
@@ -1719,17 +1719,17 @@ func newFederationSetup() *federationSetup {
 }
 
 func newFederationEngine(ctx context.Context, setup *federationSetup, enableDataLoader bool) (engine *ExecutionEngineV2, schema *Schema, err error) {
-	accountsSDL, err := federationExample.LoadSDLFromExamplesDirectoryWithinPkg(federationExample.UpstreamAccounts)
+	accountsSDL, err := federationtesting.LoadSDLFromExamplesDirectoryWithinPkg(federationtesting.UpstreamAccounts)
 	if err != nil {
 		return
 	}
 
-	productsSDL, err := federationExample.LoadSDLFromExamplesDirectoryWithinPkg(federationExample.UpstreamProducts)
+	productsSDL, err := federationtesting.LoadSDLFromExamplesDirectoryWithinPkg(federationtesting.UpstreamProducts)
 	if err != nil {
 		return
 	}
 
-	reviewsSDL, err := federationExample.LoadSDLFromExamplesDirectoryWithinPkg(federationExample.UpstreamReviews)
+	reviewsSDL, err := federationtesting.LoadSDLFromExamplesDirectoryWithinPkg(federationtesting.UpstreamReviews)
 	if err != nil {
 		return
 	}

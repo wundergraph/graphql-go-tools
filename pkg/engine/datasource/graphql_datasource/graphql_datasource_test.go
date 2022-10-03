@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wundergraph/graphql-go-tools/examples/chat"
 	. "github.com/wundergraph/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/subscriptiontesting"
 )
 
 func TestGraphQLDataSource(t *testing.T) {
@@ -377,10 +377,14 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
-					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {__typename id displayName}}"}}`,
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					DataSource:           &Source{},
+					BufferId:             0,
+					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {__typename id displayName __typename @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					Variables: resolve.NewVariables(&resolve.ContextVariable{
+						Path:     []string{"skip"},
+						Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+					}),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
 				Fields: []*resolve.Field{
@@ -3330,12 +3334,117 @@ func TestGraphQLDataSource(t *testing.T) {
 			DisableResolveFieldPositions: true,
 			DefaultFlushIntervalMillis:   500,
 		}))
+
+	t.Run("mutation with single __typename field on union", RunTest(wgSchema, `
+		mutation CreateNamespace($name: String! $personal: Boolean!) {
+			namespaceCreate(input: {name: $name, personal: $personal}){
+				__typename
+			}
+		}`, "CreateNamespace",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:             0,
+						Input:                `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){namespaceCreate(input: {name: $name,personal: $personal}){__typename}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
+						DataSource:           &Source{},
+						DisallowSingleFlight: true,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"name"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+							},
+							&resolve.ContextVariable{
+								Path:     []string{"personal"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+							},
+						),
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							Name:      []byte("namespaceCreate"),
+							HasBuffer: true,
+							BufferID:  0,
+							Value: &resolve.Object{
+								Path: []string{"namespaceCreate"},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("__typename"),
+										Value: &resolve.String{
+											Path:       []string{"__typename"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
+									},
+								}}},
+					},
+				},
+			},
+		}, plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName: "Mutation",
+							FieldNames: []string{
+								"namespaceCreate",
+							},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName: "NamespaceCreated",
+							FieldNames: []string{
+								"namespace",
+							},
+						},
+						{
+							TypeName:   "Namespace",
+							FieldNames: []string{"id", "name"},
+						},
+						{
+							TypeName:   "Error",
+							FieldNames: []string{"code", "message"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "http://api.com",
+							Method: "POST",
+						},
+						Subscription: SubscriptionConfiguration{
+							URL: "ws://api.com",
+						},
+					}),
+					Factory: &Factory{},
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Mutation",
+					FieldName: "namespaceCreate",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "input",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+					DisableDefaultMapping: false,
+					Path:                  []string{},
+				},
+			},
+			DisableResolveFieldPositions: true,
+			DefaultFlushIntervalMillis:   500,
+		}))
+
 	factory := &Factory{
 		HTTPClient: http.DefaultClient,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	t.Run("subscription", runTestOnTestDefinition(`
+	t.Run("Subscription", runTestOnTestDefinition(`
 		subscription RemainingJedis {
 			remainingJedis
 		}
@@ -3344,7 +3453,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			Trigger: resolve.GraphQLSubscriptionTrigger{
 				Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`),
 				Source: &SubscriptionSource{
-					NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, ctx),
+					NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
 				},
 			},
 			Response: &resolve.GraphQLResponse{
@@ -3363,7 +3472,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 	}, testWithFactory(factory)))
 
-	t.Run("subscription with variables", RunTest(`
+	t.Run("Subscription with variables", RunTest(`
 		type Subscription {
 			foo(bar: String): Int!
  		}
@@ -3382,7 +3491,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				),
 				Source: &SubscriptionSource{
-					client: NewWebSocketGraphQLSubscriptionClient(http.DefaultClient, ctx),
+					client: NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
 				},
 			},
 			Response: &resolve.GraphQLResponse{
@@ -3832,7 +3941,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate ssn}}","variables":{"a":$$0$$}}}`,
+						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate __typename ssn}}","variables":{"a":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ObjectVariable{
@@ -4147,7 +4256,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate ssn}}","variables":{"a":$$0$$}}}`,
+						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate __typename ssn}}","variables":{"a":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ObjectVariable{
@@ -5320,7 +5429,7 @@ func (f FailingSubscriptionClient) Subscribe(ctx context.Context, options GraphQ
 }
 
 func TestSubscriptionSource_Start(t *testing.T) {
-	chatServer := httptest.NewServer(chat.GraphQLEndpointHandler())
+	chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
 	defer chatServer.Close()
 
 	sendChatMessage := func(t *testing.T, username, message string) {
@@ -5356,7 +5465,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 
 	newSubscriptionSource := func(ctx context.Context) SubscriptionSource {
 		httpClient := http.Client{}
-		subscriptionSource := SubscriptionSource{client: NewWebSocketGraphQLSubscriptionClient(&httpClient, ctx)}
+		subscriptionSource := SubscriptionSource{client: NewGraphQLSubscriptionClient(&httpClient, http.DefaultClient, ctx)}
 		return subscriptionSource
 	}
 
@@ -5396,7 +5505,108 @@ func TestSubscriptionSource_Start(t *testing.T) {
 
 		msg, ok := <-next
 		assert.True(t, ok)
-		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"messageAdded\" of type \"Subscription\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required but not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, string(msg))
+		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, string(msg))
+		_, ok = <-next
+		assert.False(t, ok)
+	})
+
+	t.Run("should close connection on stop message", func(t *testing.T) {
+		next := make(chan []byte)
+		subscriptionLifecycle, cancelSubscription := context.WithCancel(context.Background())
+		resolverLifecycle, cancelResolver := context.WithCancel(context.Background())
+		defer cancelResolver()
+
+		source := newSubscriptionSource(resolverLifecycle)
+		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
+		err := source.Start(subscriptionLifecycle, chatSubscriptionOptions, next)
+		require.NoError(t, err)
+
+		username := "myuser"
+		message := "hello world!"
+		go sendChatMessage(t, username, message)
+
+		nextBytes := <-next
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, string(nextBytes))
+		cancelSubscription()
+		_, ok := <-next
+		assert.False(t, ok)
+	})
+
+	t.Run("should successfully subscribe with chat example", func(t *testing.T) {
+		next := make(chan []byte)
+		ctx := context.Background()
+		defer ctx.Done()
+
+		source := newSubscriptionSource(ctx)
+		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
+		err := source.Start(ctx, chatSubscriptionOptions, next)
+		require.NoError(t, err)
+
+		username := "myuser"
+		message := "hello world!"
+		go sendChatMessage(t, username, message)
+
+		nextBytes := <-next
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, string(nextBytes))
+	})
+}
+
+func TestSubscription_GTWS_SubProtocol(t *testing.T) {
+	chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
+	defer chatServer.Close()
+
+	sendChatMessage := func(t *testing.T, username, message string) {
+		time.Sleep(200 * time.Millisecond)
+		httpClient := http.Client{}
+		req, err := http.NewRequest(
+			http.MethodPost,
+			chatServer.URL,
+			bytes.NewBufferString(fmt.Sprintf(`{"variables": {}, "operationName": "SendMessage", "query": "mutation SendMessage { post(roomName: \"#test\", username: \"%s\", text: \"%s\") { id } }"}`, username, message)),
+		)
+		require.NoError(t, err)
+
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := httpClient.Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	}
+
+	chatServerSubscriptionOptions := func(t *testing.T, body string) []byte {
+		var gqlBody GraphQLBody
+		_ = json.Unmarshal([]byte(body), &gqlBody)
+		options := GraphQLSubscriptionOptions{
+			URL:    chatServer.URL,
+			Body:   gqlBody,
+			Header: nil,
+		}
+
+		optionsBytes, err := json.Marshal(options)
+		require.NoError(t, err)
+
+		return optionsBytes
+	}
+
+	newSubscriptionSource := func(ctx context.Context) SubscriptionSource {
+		httpClient := http.Client{}
+		subscriptionSource := SubscriptionSource{
+			client: NewGraphQLSubscriptionClient(&httpClient, http.DefaultClient, ctx, WithWSSubProtocol(protocolGraphQLTWS)),
+		}
+		return subscriptionSource
+	}
+
+	t.Run("invalid syntax (roomNam)", func(t *testing.T) {
+		next := make(chan []byte)
+		ctx := context.Background()
+		defer ctx.Done()
+
+		source := newSubscriptionSource(ctx)
+		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
+		err := source.Start(ctx, chatSubscriptionOptions, next)
+		require.NoError(t, err)
+
+		msg, ok := <-next
+		assert.True(t, ok)
+		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, string(msg))
 		_, ok = <-next
 		assert.False(t, ok)
 	})

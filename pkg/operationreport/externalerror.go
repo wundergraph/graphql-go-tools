@@ -244,6 +244,11 @@ func ErrEnumValueNameMustBeUnique(enumName, enumValueName ast.ByteSlice) (err Ex
 	return err
 }
 
+func ErrUnionMembersMustBeUnique(unionName, memberName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("union member '%s.%s' can only be defined once", unionName, memberName)
+	return err
+}
+
 func ErrTransitiveInterfaceNotImplemented(typeName, transitiveInterfaceName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf("type %s does not implement transitive interface %s", typeName, transitiveInterfaceName)
 	return err
@@ -261,5 +266,40 @@ func ErrTypeDoesNotImplementFieldFromInterface(typeName, interfaceName, fieldNam
 
 func ErrImplementingTypeDoesNotHaveFields(typeName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf("type '%s' implements an interface but does not have any fields defined", typeName)
+	return err
+}
+
+func ErrSharedTypesMustBeIdenticalToFederate(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the shared type named '%s' must be identical in any subgraphs to federate", typeName)
+	return err
+}
+
+func ErrEntitiesMustNotBeDuplicated(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the entity named '%s' is defined in the subgraph(s) more than once", typeName)
+	return err
+}
+
+func ErrSharedTypesMustNotBeExtended(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the type named '%s' cannot be extended because it is a shared type", typeName)
+	return err
+}
+
+func ErrExtensionOrphansMustResolveInSupergraph(extensionNameBytes []byte) (err ExternalError) {
+	err.Message = fmt.Sprintf("the extension orphan named '%s' was never resolved in the supergraph", extensionNameBytes)
+	return err
+}
+
+func ErrTypeBodyMustNotBeEmpty(definitionType, typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the %s named '%s' is invalid due to an empty body", definitionType, typeName)
+	return err
+}
+
+func ErrEntityExtensionMustHaveKeyDirective(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("an extension of the entity named '%s' does not have a key directive", typeName)
+	return err
+}
+
+func ErrExtensionWithKeyDirectiveMustExtendEntity(typeName string) (err ExternalError) {
+	err.Message = fmt.Sprintf("the extension named '%s' has a key directive but there is no entity of the same name", typeName)
 	return err
 }

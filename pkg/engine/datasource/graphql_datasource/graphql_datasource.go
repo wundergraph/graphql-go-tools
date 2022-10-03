@@ -190,6 +190,7 @@ func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 	return plan.DataSourcePlanningBehavior{
 		MergeAliasedRootNodes:      true,
 		OverrideFieldPathFromAlias: true,
+		IncludeTypeNameFields:      true,
 	}
 }
 
@@ -211,7 +212,8 @@ type FederationConfiguration struct {
 }
 
 type SubscriptionConfiguration struct {
-	URL string
+	URL    string
+	UseSSE bool
 }
 
 type FetchConfiguration struct {
@@ -290,6 +292,9 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 	input := httpclient.SetInputBodyWithPath(nil, p.upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
 	input = httpclient.SetInputURL(input, []byte(p.config.Subscription.URL))
+	if p.config.Subscription.UseSSE {
+		input = httpclient.SetInputFlag(input, httpclient.USESSE)
+	}
 
 	header, err := json.Marshal(p.config.Fetch.Header)
 	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
@@ -419,7 +424,7 @@ func (p *Planner) EnterField(ref int) {
 	typeName := p.lastFieldEnclosingTypeName
 
 	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(typeName, fieldName)
-	if fieldConfiguration == nil {
+	if fieldConfiguration == nil && fieldName != "__typename" {
 		p.addField(ref)
 		return
 	}
@@ -431,6 +436,10 @@ func (p *Planner) EnterField(ref int) {
 	p.addField(ref)
 
 	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
+
+	if fieldConfiguration == nil {
+		return
+	}
 
 	for i := range fieldConfiguration.Arguments {
 		argumentConfiguration := fieldConfiguration.Arguments[i]
@@ -994,22 +1003,25 @@ Skips replace when:
 Example transformation:
 Original schema definition:
 
-type Query {
-	serviceOne(serviceOneArg: String): ServiceOneResponse
-	serviceTwo(serviceTwoArg: Boolean): ServiceTwoResponse
-}
-type ServiceOneResponse {
-	fieldOne: String!
-	countries: [Country!]! # nested datasource without explicit field path
-}
-type ServiceTwoResponse {
-	fieldTwo: String
-	serviceOneField: String
-	serviceOneResponse: ServiceOneResponse # nested datasource with implicit field path "serviceOne"
-}
-type Country {
-	name: String!
-}
+	type Query {
+		serviceOne(serviceOneArg: String): ServiceOneResponse
+		serviceTwo(serviceTwoArg: Boolean): ServiceTwoResponse
+	}
+
+	type ServiceOneResponse {
+		fieldOne: String!
+		countries: [Country!]! # nested datasource without explicit field path
+	}
+
+	type ServiceTwoResponse {
+		fieldTwo: String
+		serviceOneField: String
+		serviceOneResponse: ServiceOneResponse # nested datasource with implicit field path "serviceOne"
+	}
+
+	type Country {
+		name: String!
+	}
 
 `serviceOneResponse` field of a `ServiceTwoResponse` is nested but has a field path that exists on the Query type
 - In this case definition will not be modified
@@ -1019,24 +1031,25 @@ type Country {
 
 Modified schema definition:
 
-schema {
-   query: ServiceOneResponse
-}
+	schema {
+	   query: ServiceOneResponse
+	}
 
-type ServiceOneResponse {
-   fieldOne: String!
-   countries: [Country!]!
-}
+	type ServiceOneResponse {
+	   fieldOne: String!
+	   countries: [Country!]!
+	}
 
-type ServiceTwoResponse {
-   fieldTwo: String
-   serviceOneField: String
-   serviceOneResponse: ServiceOneResponse
-}
+	type ServiceTwoResponse {
+	   fieldTwo: String
+	   serviceOneField: String
+	   serviceOneResponse: ServiceOneResponse
+	}
 
-type Country {
-   name: String!
-}
+	type Country {
+	   name: String!
+	}
+
 Refer to pkg/engine/datasource/graphql_datasource/graphql_datasource_test.go:632
 Case name: TestGraphQLDataSource/nested_graphql_engines
 
@@ -1136,19 +1149,20 @@ func (p *Planner) addField(ref int) {
 }
 
 type Factory struct {
-	BatchFactory resolve.DataSourceBatchFactory
-	HTTPClient   *http.Client
-	wsClient     *WebSocketGraphQLSubscriptionClient
+	BatchFactory       resolve.DataSourceBatchFactory
+	HTTPClient         *http.Client
+	StreamingClient    *http.Client
+	subscriptionClient *SubscriptionClient
 }
 
 func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
-	if f.wsClient == nil {
-		f.wsClient = NewWebSocketGraphQLSubscriptionClient(f.HTTPClient, ctx)
+	if f.subscriptionClient == nil {
+		f.subscriptionClient = NewGraphQLSubscriptionClient(f.HTTPClient, f.StreamingClient, ctx)
 	}
 	return &Planner{
 		batchFactory:       f.BatchFactory,
 		fetchClient:        f.HTTPClient,
-		subscriptionClient: f.wsClient,
+		subscriptionClient: f.subscriptionClient,
 	}
 }
 
@@ -1226,12 +1240,14 @@ type GraphQLSubscriptionOptions struct {
 	URL    string      `json:"url"`
 	Body   GraphQLBody `json:"body"`
 	Header http.Header `json:"header"`
+	UseSSE bool        `json:"use_sse"`
 }
 
 type GraphQLBody struct {
 	Query         string          `json:"query,omitempty"`
 	OperationName string          `json:"operationName,omitempty"`
 	Variables     json.RawMessage `json:"variables,omitempty"`
+	Extensions    json.RawMessage `json:"extensions,omitempty"`
 }
 
 type SubscriptionSource struct {

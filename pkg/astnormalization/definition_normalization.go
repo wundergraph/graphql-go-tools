@@ -41,6 +41,26 @@ func (o *DefinitionNormalizer) setupWalkers() {
 	o.walker = &walker
 }
 
+func NewSubgraphDefinitionNormalizer() *DefinitionNormalizer {
+	normalizer := &DefinitionNormalizer{}
+	normalizer.setupSubgraphWalkers()
+	return normalizer
+}
+
+func (o *DefinitionNormalizer) setupSubgraphWalkers() {
+	walker := astvisitor.NewWalker(48)
+
+	extendObjectTypeDefinitionKeepingOrphans(&walker)
+	extendInputObjectTypeDefinitionKeepingOrphans(&walker)
+	extendEnumTypeDefinitionKeepingOrphans(&walker)
+	extendInterfaceTypeDefinitionKeepingOrphans(&walker)
+	extendScalarTypeDefinitionKeepingOrphans(&walker)
+	extendUnionTypeDefinitionKeepingOrphans(&walker)
+	removeMergedTypeExtensions(&walker)
+
+	o.walker = &walker
+}
+
 // NormalizeDefinition applies all registered rules to the AST
 func (o *DefinitionNormalizer) NormalizeDefinition(definition *ast.Document, report *operationreport.Report) {
 	o.walker.Walk(definition, nil, report)

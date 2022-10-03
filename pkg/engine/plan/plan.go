@@ -1312,6 +1312,9 @@ type DataSourcePlanningBehavior struct {
 	// When true expected response will be { "rootField": ..., "alias": ... }
 	// When false expected response will be { "rootField": ..., "original": ... }
 	OverrideFieldPathFromAlias bool
+	// IncludeTypeNameFields should be set to true if the planner wants to get EnterField & LeaveField events
+	// for __typename fields
+	IncludeTypeNameFields bool
 }
 
 type DataSourcePlanner interface {
@@ -1500,15 +1503,20 @@ func (c *configurationVisitor) EnterField(ref int) {
 		return
 	}
 	isSubscription := c.isSubscription(root.Ref, current)
-	for i, planner := range c.planners {
-		if planner.hasParent(parent) && planner.hasRootNode(typeName, fieldName) && planner.planner.DataSourcePlanningBehavior().MergeAliasedRootNodes {
+	for i, plannerConfig := range c.planners {
+		planningBehaviour := plannerConfig.planner.DataSourcePlanningBehavior()
+		if plannerConfig.hasParent(parent) && plannerConfig.hasRootNode(typeName, fieldName) && planningBehaviour.MergeAliasedRootNodes {
 			// same parent + root node = root sibling
 			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current})
-			c.fieldBuffers[ref] = planner.bufferID
+			c.fieldBuffers[ref] = plannerConfig.bufferID
 			return
 		}
-		if planner.hasPath(parent) && planner.hasChildNode(typeName, fieldName) {
+		if plannerConfig.hasPath(parent) && plannerConfig.hasChildNode(typeName, fieldName) {
 			// has parent path + has child node = child
+			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current})
+			return
+		}
+		if fieldAliasOrName == "__typename" && planningBehaviour.IncludeTypeNameFields {
 			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current})
 			return
 		}

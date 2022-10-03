@@ -23,6 +23,7 @@ const (
 	BODY          = "body"
 	HEADER        = "header"
 	QUERYPARAMS   = "query_params"
+	USESSE        = "use_sse"
 
 	SCHEME = "scheme"
 	HOST   = "host"
@@ -102,6 +103,11 @@ func SetInputURLEncodeBody(input []byte, urlEncodeBody bool) []byte {
 		return input
 	}
 	out, _ := sjson.SetRawBytes(input, URLENCODEBODY, []byte("true"))
+	return out
+}
+
+func SetInputFlag(input []byte, flagName string) []byte {
+	out, _ := sjson.SetRawBytes(input, flagName, []byte("true"))
 	return out
 }
 

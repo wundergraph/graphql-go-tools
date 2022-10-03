@@ -13,17 +13,26 @@ func extendInterfaceTypeDefinition(walker *astvisitor.Walker) {
 	walker.RegisterEnterInterfaceTypeExtensionVisitor(&visitor)
 }
 
-type extendInterfaceTypeDefinitionVisitor struct {
-	*astvisitor.Walker
-	operation *ast.Document
+func extendInterfaceTypeDefinitionKeepingOrphans(walker *astvisitor.Walker) {
+	visitor := extendInterfaceTypeDefinitionVisitor{
+		Walker:               walker,
+		keepExtensionOrphans: true,
+	}
+	walker.RegisterEnterDocumentVisitor(&visitor)
+	walker.RegisterEnterInterfaceTypeExtensionVisitor(&visitor)
 }
 
-func (e *extendInterfaceTypeDefinitionVisitor) EnterDocument(operation, definition *ast.Document) {
+type extendInterfaceTypeDefinitionVisitor struct {
+	*astvisitor.Walker
+	operation            *ast.Document
+	keepExtensionOrphans bool
+}
+
+func (e *extendInterfaceTypeDefinitionVisitor) EnterDocument(operation, _ *ast.Document) {
 	e.operation = operation
 }
 
 func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref int) {
-
 	nodes, exists := e.operation.Index.NodesByNameBytes(e.operation.InterfaceTypeExtensionNameBytes(ref))
 	if !exists {
 		return
@@ -34,6 +43,10 @@ func (e *extendInterfaceTypeDefinitionVisitor) EnterInterfaceTypeExtension(ref i
 			continue
 		}
 		e.operation.ExtendInterfaceTypeDefinitionByInterfaceTypeExtension(nodes[i].Ref, ref)
+		return
+	}
+
+	if e.keepExtensionOrphans {
 		return
 	}
 
