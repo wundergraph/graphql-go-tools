@@ -1,3 +1,5 @@
+//go:build !windows
+
 package resolve
 
 import (
@@ -171,7 +173,6 @@ func TestDefer(t *testing.T) {
 	)
 
 	res := &GraphQLStreamingResponse{
-		FlushInterval: 500,
 		InitialResponse: &GraphQLResponse{
 			Data: &Object{
 				Fetch: &SingleFetch{
@@ -263,7 +264,7 @@ func TestDefer(t *testing.T) {
 
 	err := resolver.ResolveGraphQLStreamingResponse(ctx, res, nil, writer)
 	assert.NoError(t, err)
-	assert.Equal(t, 2, len(writer.flushed))
+	assert.Equal(t, 3, len(writer.flushed))
 
 	expectedBytes, err := ioutil.ReadFile("./testdata/defer_1.json")
 	assert.NoError(t, err)
@@ -272,11 +273,18 @@ func TestDefer(t *testing.T) {
 		fmt.Println(writer.flushed[0])
 	}
 
-	expectedBytes, err = ioutil.ReadFile("./testdata/defer_2_3.json")
+	expectedBytes, err = ioutil.ReadFile("./testdata/defer_2.json")
 	require.NoError(t, err)
 	assert.JSONEq(t, string(expectedBytes), writer.flushed[1])
 	if t.Failed() {
 		fmt.Println(writer.flushed[1])
+	}
+
+	expectedBytes, err = ioutil.ReadFile("./testdata/defer_3.json")
+	require.NoError(t, err)
+	assert.JSONEq(t, string(expectedBytes), writer.flushed[2])
+	if t.Failed() {
+		fmt.Println(writer.flushed[2])
 	}
 }
 
