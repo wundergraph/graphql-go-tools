@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -1270,6 +1271,9 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 }
 
 func TestExecutionEngineV2_FederationAndSubscription_IntegrationTest(t *testing.T) {
+	if goldie.IsWindows {
+		t.Skip("skip on windows - test is timing dependendent")
+	}
 
 	runIntegration := func(t *testing.T, enableDataLoader bool, secondRun bool) {
 		t.Helper()

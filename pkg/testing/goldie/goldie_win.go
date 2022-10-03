@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+const IsWindows = true
+
 func Assert(t *testing.T, name string, actual []byte, normalizeLineEndings ...bool) {
 	if len(normalizeLineEndings) == 1 {
 		actual = NormalizeNewlines(actual)

@@ -6,6 +6,8 @@ import (
 	"testing"
 )
 
+const IsWindows = false
+
 func Assert(t *testing.T, name string, actual []byte, _ ...bool) {
 	New(t).Assert(t, name, actual)
 }
