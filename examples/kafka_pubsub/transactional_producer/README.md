@@ -37,7 +37,7 @@ Sample message body:
 }
 ```
 
-### Setup Kafka Data Source in Tyk Gateway
+### Setup Kafka Data Source
 
 You can see the full example in [kafka_pubsub/README.md](../README.md).
 
@@ -47,7 +47,7 @@ You can see the full example in [kafka_pubsub/README.md](../README.md).
 ./main --product=product2 --enable-transaction
 ```
 
-In Tyk Gateway, you need to add `"isolation_level": "ReadCommitted"` to the Kafka data source config. This prevents reading
+You need to add `"isolation_level": "ReadCommitted"` to the Kafka data source config. This prevents reading
 dirty writes, and your program will only receive the committed messages.
 
 ```json
@@ -67,7 +67,7 @@ dirty writes, and your program will only receive the committed messages.
               "broker_addresses": ["localhost:9092"],
               "topic": "test.topic.{{.arguments.name}}",
               "group_id": "test.group",
-              "client_id": "tyk-kafka-integration-{{.arguments.name}}",
+              "client_id": "kafka-integration-{{.arguments.name}}",
               "isolation_level": "ReadCommitted"
             }
           }

@@ -91,12 +91,12 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	producerConfig := &kafka.ConfigMap{
-		"client.id":         fmt.Sprintf("tyk-transactional-producer-%d", rand.Intn(10000)),
+		"client.id":         fmt.Sprintf("transactional-producer-%d", rand.Intn(10000)),
 		"bootstrap.servers": args.broker,
 	}
 
 	if args.enableTransaction {
-		producerConfig.SetKey("transactional.id", fmt.Sprintf("tyk-transactional-producer-%d", rand.Intn(10000)))
+		producerConfig.SetKey("transactional.id", fmt.Sprintf("transactional-producer-%d", rand.Intn(10000)))
 		producerConfig.SetKey("enable.idempotence", true)
 	}
 

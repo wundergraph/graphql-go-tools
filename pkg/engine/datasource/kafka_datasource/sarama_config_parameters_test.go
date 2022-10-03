@@ -79,7 +79,7 @@ func (k *kafkaCluster) startZooKeeper(t *testing.T) {
 	t.Log("Trying to run ZooKeeper")
 
 	resource, err := k.pool.RunWithOptions(&dockertest.RunOptions{
-		Name:         "zookeeper-tyk-graphql",
+		Name:         "zookeeper-graphql",
 		Repository:   "zookeeper",
 		Tag:          "3.8.0",
 		NetworkID:    k.network.ID,
@@ -156,7 +156,7 @@ func (k *kafkaCluster) startKafka(t *testing.T, port int, envVars []string) *doc
 
 	// Name and Hostname have to be unique
 	resource, err := k.pool.RunWithOptions(&dockertest.RunOptions{
-		Name:       fmt.Sprintf("kafka-tyk-graphql-%d", port),
+		Name:       fmt.Sprintf("kafka-graphql-%d", port),
 		Repository: "bitnami/kafka",
 		Tag:        "3.1",
 		NetworkID:  k.network.ID,
@@ -612,6 +612,8 @@ func TestSarama_ConsumerGroup_SASL_Authentication(t *testing.T) {
 }
 
 func TestSarama_Balance_Strategy(t *testing.T) {
+	skipWhenShort(t)
+
 	strategies := map[string]string{
 		BalanceStrategyRange:      "range",
 		BalanceStrategySticky:     "sticky",
@@ -644,6 +646,8 @@ func TestSarama_Balance_Strategy(t *testing.T) {
 }
 
 func TestSarama_Isolation_Level(t *testing.T) {
+	skipWhenShort(t)
+
 	strategies := map[string]sarama.IsolationLevel{
 		IsolationLevelReadUncommitted: sarama.ReadUncommitted,
 		IsolationLevelReadCommitted:   sarama.ReadCommitted,
@@ -674,6 +678,8 @@ func TestSarama_Isolation_Level(t *testing.T) {
 }
 
 func TestSarama_Config_SASL_Authentication(t *testing.T) {
+	skipWhenShort(t)
+
 	options := &GraphQLSubscriptionOptions{
 		BrokerAddresses: []string{testBrokerAddr},
 		Topics:          []string{testTopic},
@@ -701,6 +707,8 @@ func TestSarama_Config_SASL_Authentication(t *testing.T) {
 }
 
 func TestSarama_Multiple_Broker(t *testing.T) {
+	skipWhenShort(t)
+
 	k := newKafkaCluster(t)
 	brokers := k.start(t, 3)
 
@@ -725,6 +733,8 @@ func TestSarama_Multiple_Broker(t *testing.T) {
 }
 
 func TestSarama_Cluster_Member_Restart(t *testing.T) {
+	skipWhenShort(t)
+
 	k := newKafkaCluster(t)
 	brokers := k.start(t, 2)
 
@@ -784,6 +794,8 @@ L:
 }
 
 func TestSarama_Cluster_Add_Member(t *testing.T) {
+	skipWhenShort(t)
+
 	k := newKafkaCluster(t)
 	brokers := k.start(t, 1)
 
@@ -844,6 +856,8 @@ L:
 }
 
 func TestSarama_Subscribe_To_Multiple_Topics(t *testing.T) {
+	skipWhenShort(t)
+
 	k := newKafkaCluster(t)
 	brokers := k.start(t, 1)
 

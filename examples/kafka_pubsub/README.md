@@ -15,9 +15,6 @@ You need to wait some time while the cluster is being formed.
 
 ## Building an API to consume messages from Kafka cluster
 
-You can find the full API definition in Tyk format here: `examples/kafka_pubsub/tyk-api-definition.json`. You just need to import this API definition. Here is 
-some information about the API definition. 
-
 GraphQL schema:
 
 ```graphql
@@ -70,13 +67,11 @@ Sample response:
 
 The producer publishes a new message to `test.topic.$product_name` topic every second, and it updates `price` and `in_stock` in every message.
 
-Here is a sample data source configuration. It is a part of `examples/kafka_pubsub/tyk-api-definition.json` file.
 
 ```json
  {
   "kind": "Kafka",
   "name": "kafka-consumer-group",
-  "internal": false,
   "root_fields": [{
     "type": "Subscription",
     "fields": [
@@ -87,7 +82,7 @@ Here is a sample data source configuration. It is a part of `examples/kafka_pubs
     "broker_addresses": ["localhost:9092"],
     "topics": ["test.topic.{{.arguments.name}}"],
     "group_id": "test.group",
-    "client_id": "tyk-kafka-integration-{{.arguments.name}}"
+    "client_id": "kafka-integration-{{.arguments.name}}"
   }
 }
 ```
@@ -155,7 +150,7 @@ On the API definition side,
   "broker_addresses": ["localhost:9092"],
   "topics": ["test.topic.product2"],
   "group_id": "test.group",
-  "client_id": "tyk-kafka-integration-{{.arguments.name}}",
+  "client_id": "kafka-integration-{{.arguments.name}}",
   "sasl": {
     "enable": true,
     "user": "admin",
@@ -163,7 +158,7 @@ On the API definition side,
   }
 }
 ```
-If SASL enabled and `user` is an empty string, Tyk gateway returns: 
+If SASL enabled and `user` is an empty string, gateway returns: 
 
 ```json
 {
@@ -171,7 +166,7 @@ If SASL enabled and `user` is an empty string, Tyk gateway returns:
 }
 ```
 
-If SASL enabled and `password` is an empty string, Tyk gateway returns:
+If SASL enabled and `password` is an empty string, gateway returns:
 
 ```json
 {
