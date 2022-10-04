@@ -17,13 +17,12 @@ import (
 	log "github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
-
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/execution/datasource"
 	"github.com/wundergraph/graphql-go-tools/pkg/introspection"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 )
 
 // nolint

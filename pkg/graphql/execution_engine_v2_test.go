@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -29,6 +28,7 @@ import (
 	accounts "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/accounts/graph"
 	products "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/products/graph"
 	reviews "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/reviews/graph"
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/flags"
 )
 
 func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
@@ -1271,7 +1271,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 }
 
 func TestExecutionEngineV2_FederationAndSubscription_IntegrationTest(t *testing.T) {
-	if goldie.IsWindows {
+	if flags.IsWindows {
 		t.Skip("skip on windows - test is timing dependendent")
 	}
 
