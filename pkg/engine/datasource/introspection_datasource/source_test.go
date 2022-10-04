@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/sebdah/goldie"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/pkg/introspection"
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 )
 
 func TestSource_Load(t *testing.T) {

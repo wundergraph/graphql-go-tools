@@ -6,12 +6,12 @@ import (
 	"testing"
 
 	"github.com/jensneuse/diffview"
-	"github.com/sebdah/goldie"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 )
 
 func TestPrint(t *testing.T) {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -70,7 +69,7 @@ func (s *Scanner) scanFile(inputFilePath string) (*GraphQLFile, error) {
 	importStatements := importStatementRegex.FindAll(content, -1)
 	for i := 0; i < len(importStatements); i++ {
 		importFilePath := s.importFilePath(string(importStatements[i]))
-		filePathPattern := path.Join(fileDir, importFilePath)
+		filePathPattern := filepath.Join(fileDir, importFilePath)
 		if importFilePath != "" {
 			imports, err := s.fileImportsForPattern(filePathPattern)
 			if err != nil {

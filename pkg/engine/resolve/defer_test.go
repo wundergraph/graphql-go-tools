@@ -1,3 +1,5 @@
+//go:build !windows
+
 package resolve
 
 import (
@@ -352,6 +354,7 @@ func BenchmarkDefer(b *testing.B) {
 		},
 		Patches: []*GraphQLResponsePatch{
 			{
+				Operation: literal.REPLACE,
 				Fetch: &SingleFetch{
 					DataSource: postsService,
 					InputTemplate: InputTemplate{
@@ -360,6 +363,7 @@ func BenchmarkDefer(b *testing.B) {
 								SegmentType:        VariableSegmentType,
 								VariableKind:       ObjectVariableKind,
 								VariableSourcePath: []string{"id"},
+								Renderer:           NewGraphQLVariableRenderer(`{"type":"number"}`),
 							},
 						},
 					},
@@ -391,7 +395,8 @@ func BenchmarkDefer(b *testing.B) {
 
 	resolver := New(rCtx, NewFetcher(false), false)
 
-	ctx := NewContext(context.Background())
+	bgCtx := context.Background()
+	ctx := NewContext(bgCtx)
 
 	writer := &DiscardFlushWriter{}
 	// writer := &TestFlushWriter{}
@@ -419,6 +424,7 @@ func BenchmarkDefer(b *testing.B) {
 		_ = resolver.ResolveGraphQLStreamingResponse(ctx, res, nil, writer)
 
 		ctx.Free()
+		ctx.Context = bgCtx
 		// writer.flushed = writer.flushed[:0]
 	}
 }
