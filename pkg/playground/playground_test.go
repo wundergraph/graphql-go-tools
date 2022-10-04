@@ -7,9 +7,10 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/jensneuse/diffview"
-	"github.com/sebdah/goldie"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 )
 
 func TestNew(t *testing.T) {

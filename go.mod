@@ -28,7 +28,7 @@ require (
 	github.com/ory/dockertest v3.3.5+incompatible
 	github.com/qri-io/jsonschema v0.2.1
 	github.com/r3labs/sse/v2 v2.8.1
-	github.com/sebdah/goldie v0.0.0-20180424091453-8784dd1ab561
+	github.com/sebdah/goldie/v2 v2.5.3
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.3.2
 	github.com/stretchr/testify v1.7.1
@@ -94,6 +94,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/qri-io/jsonpointer v0.1.1 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
+	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/spf13/afero v1.6.0 // indirect
 	github.com/spf13/cast v1.3.0 // indirect

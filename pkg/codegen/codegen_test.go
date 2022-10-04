@@ -5,10 +5,10 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/sebdah/goldie"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 )
 
 func TestCodeGen_GenerateDirectiveDefinitionStruct(t *testing.T) {

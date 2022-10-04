@@ -3,11 +3,16 @@ package imports
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"path/filepath"
 	"testing"
 
 	"github.com/jensneuse/diffview"
-	"github.com/sebdah/goldie"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 )
 
 func TestScanner(t *testing.T) {
@@ -22,7 +27,7 @@ func TestScanner(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	goldie.Assert(t, "scanner_result", dump)
+	goldie.Assert(t, "scanner_result", dump, true)
 	if t.Failed() {
 		fixture, err := ioutil.ReadFile("./fixtures/scanner_result.golden")
 		if err != nil {
@@ -45,7 +50,7 @@ func TestScanner_ScanRegex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	goldie.Assert(t, "scanner_regex", dump)
+	goldie.Assert(t, "scanner_regex", dump, true)
 	if t.Failed() {
 		fixture, err := ioutil.ReadFile("./fixtures/scanner_regex.golden")
 		if err != nil {
@@ -74,13 +79,10 @@ func TestScanner_ScanRegex(t *testing.T) {
 
 func TestScannerImportCycle(t *testing.T) {
 	scanner := Scanner{}
-	_, err := scanner.ScanFile("./testdata/import_cycle.graphql")
-	if err == nil {
-		t.Fatal("want err")
-	}
-	want := "file forms import cycle: testdata/cycle/a/a.graphql"
-	got := err.Error()
-	if want != got {
-		t.Fatalf("want err:\n\"%s\"\ngot:\n\"%s\"\n", want, got)
-	}
+	file, err := scanner.ScanFile("./testdata/import_cycle.graphql")
+	_ = file
+	require.Error(t, err)
+
+	cycleFilePath := filepath.Join("testdata", "/cycle/a/a.graphql")
+	assert.Equal(t, fmt.Sprintf("file forms import cycle: %s", cycleFilePath), err.Error())
 }

@@ -15,7 +15,6 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	log "github.com/jensneuse/abstractlogger"
-	"github.com/sebdah/goldie"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
@@ -23,6 +22,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/introspection"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 )
 
 // nolint

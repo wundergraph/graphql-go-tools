@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/jensneuse/diffview"
-	"github.com/sebdah/goldie"
 
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/astprinter"
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 )
 
 func runTestMerge(definition, fixtureName string) func(t *testing.T) {

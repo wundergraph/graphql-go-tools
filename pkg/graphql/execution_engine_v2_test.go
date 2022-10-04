@@ -28,6 +28,7 @@ import (
 	accounts "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/accounts/graph"
 	products "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/products/graph"
 	reviews "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/reviews/graph"
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/flags"
 )
 
 func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
@@ -1270,6 +1271,9 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 }
 
 func TestExecutionEngineV2_FederationAndSubscription_IntegrationTest(t *testing.T) {
+	if flags.IsWindows {
+		t.Skip("skip on windows - test is timing dependendent")
+	}
 
 	runIntegration := func(t *testing.T, enableDataLoader bool, secondRun bool) {
 		t.Helper()
