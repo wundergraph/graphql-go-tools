@@ -2,15 +2,15 @@
   "RelativePath": "",
   "Imports": [
     {
-      "RelativePath": "testdata\regexonly\flat.graphql",
+      "RelativePath": "testdata\\regexonly\\flat.graphql",
       "Imports": null
     },
     {
-      "RelativePath": "testdata\regexonly\mutation.graphql",
+      "RelativePath": "testdata\\regexonly\\mutation.graphql",
       "Imports": null
     },
     {
-      "RelativePath": "testdata\regexonly\query.graphql",
+      "RelativePath": "testdata\\regexonly\\query.graphql",
       "Imports": null
     }
   ]
