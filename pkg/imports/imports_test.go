@@ -1,18 +1,16 @@
-//go:build !windows
-
 package imports
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
 
 	"github.com/jensneuse/diffview"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 )
@@ -29,7 +27,7 @@ func TestScanner(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	goldie.Assert(t, "scanner_result", dump)
+	goldie.Assert(t, "scanner_result", dump, true)
 	if t.Failed() {
 		fixture, err := ioutil.ReadFile("./fixtures/scanner_result.golden")
 		if err != nil {
@@ -52,7 +50,7 @@ func TestScanner_ScanRegex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	goldie.Assert(t, "scanner_regex", dump)
+	goldie.Assert(t, "scanner_regex", dump, true)
 	if t.Failed() {
 		fixture, err := ioutil.ReadFile("./fixtures/scanner_regex.golden")
 		if err != nil {

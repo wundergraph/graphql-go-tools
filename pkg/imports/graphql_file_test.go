@@ -1,5 +1,3 @@
-//go:build !windows
-
 package imports
 
 import (
@@ -27,7 +25,7 @@ func TestGraphQLFile_Render(t *testing.T) {
 
 	dump := out.Bytes()
 
-	goldie.Assert(t, "render_result", dump)
+	goldie.Assert(t, "render_result", dump, true)
 	if t.Failed() {
 		fixture, err := ioutil.ReadFile("./fixtures/render_result.golden")
 		if err != nil {
