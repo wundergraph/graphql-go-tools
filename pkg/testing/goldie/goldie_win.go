@@ -7,7 +7,7 @@ import (
 )
 
 func Assert(t *testing.T, name string, actual []byte, useOSSuffix ...bool) {
-	if len(normalizeLineEndings) == 1 && useOSSuffix[0] {
+	if len(useOSSuffix) == 1 && useOSSuffix[0] {
 		name = name + "_windows"
 	}
 
