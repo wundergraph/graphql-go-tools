@@ -63,6 +63,10 @@ type Executor interface {
 	Reset()
 }
 
+// WebsocketInitFunc is called when the server receives connection init message from the client.
+// This can be used to check initial payload to see whether to accept the websocket connection.
+type WebsocketInitFunc func(ctx context.Context, initPayload InitPayload) (context.Context, error)
+
 // Handler is the actual subscription handler which will keep track on how to handle messages coming from the client.
 type Handler struct {
 	logger abstractlogger.Logger
@@ -78,10 +82,16 @@ type Handler struct {
 	executorPool ExecutorPool
 	// bufferPool will hold buffers.
 	bufferPool *sync.Pool
+	// initFunc will check initial payload to see whether to accept the websocket connection.
+	initFunc WebsocketInitFunc
 }
 
-// NewHandler creates a new subscription handler.
-func NewHandler(logger abstractlogger.Logger, client Client, executorPool ExecutorPool) (*Handler, error) {
+func NewHandlerWithInitFunc(
+	logger abstractlogger.Logger,
+	client Client,
+	executorPool ExecutorPool,
+	initFunc WebsocketInitFunc,
+) (*Handler, error) {
 	keepAliveInterval, err := time.ParseDuration(DefaultKeepAliveInterval)
 	if err != nil {
 		return nil, err
@@ -105,7 +115,13 @@ func NewHandler(logger abstractlogger.Logger, client Client, executorPool Execut
 				return &writer
 			},
 		},
+		initFunc: initFunc,
 	}, nil
+}
+
+// NewHandler creates a new subscription handler.
+func NewHandler(logger abstractlogger.Logger, client Client, executorPool ExecutorPool) (*Handler, error) {
+	return NewHandlerWithInitFunc(logger, client, executorPool, nil)
 }
 
 // Handle will handle the subscription connection.
@@ -134,10 +150,15 @@ func (h *Handler) Handle(ctx context.Context) {
 		} else if message != nil {
 			switch message.Type {
 			case MessageTypeConnectionInit:
-				h.handleInit()
+				ctx, err = h.handleInit(ctx, message.Payload)
+				if err != nil {
+					h.terminateConnection("failed to accept the websocket connection")
+					return
+				}
+
 				go h.handleKeepAlive(ctx)
 			case MessageTypeStart:
-				h.handleStart(message.Id, message.Payload)
+				h.handleStart(ctx, message.Id, message.Payload)
 			case MessageTypeStop:
 				h.handleStop(message.Id)
 			case MessageTypeConnectionTerminate:
@@ -166,21 +187,34 @@ func (h *Handler) ChangeSubscriptionUpdateInterval(d time.Duration) {
 }
 
 // handleInit will handle an init message.
-func (h *Handler) handleInit() {
+func (h *Handler) handleInit(ctx context.Context, payload []byte) (extendedCtx context.Context, err error) {
+	if h.initFunc != nil {
+		var initPayload InitPayload
+		// decode initial payload
+		if len(payload) > 0 {
+			initPayload = payload
+		}
+		// check initial payload to see whether to accept the websocket connection
+		if extendedCtx, err = h.initFunc(ctx, initPayload); err != nil {
+			return extendedCtx, err
+		}
+	} else {
+		extendedCtx = ctx
+	}
+
 	ackMessage := Message{
 		Type: MessageTypeConnectionAck,
 	}
 
-	err := h.client.WriteToClient(ackMessage)
-	if err != nil {
-		h.logger.Error("subscription.Handler.handleInit()",
-			abstractlogger.Error(err),
-		)
+	if err = h.client.WriteToClient(ackMessage); err != nil {
+		return extendedCtx, err
 	}
+
+	return extendedCtx, nil
 }
 
 // handleStart will handle s start message.
-func (h *Handler) handleStart(id string, payload []byte) {
+func (h *Handler) handleStart(ctx context.Context, id string, payload []byte) {
 	executor, err := h.executorPool.Get(payload)
 	if err != nil {
 		h.logger.Error("subscription.Handler.handleStart()",
@@ -197,12 +231,12 @@ func (h *Handler) handleStart(id string, payload []byte) {
 	}
 
 	if executor.OperationType() == ast.OperationTypeSubscription {
-		ctx := h.subCancellations.Add(id)
+		ctx := h.subCancellations.AddWithParent(id, ctx)
 		go h.startSubscription(ctx, id, executor)
 		return
 	}
 
-	go h.handleNonSubscriptionOperation(id, executor)
+	go h.handleNonSubscriptionOperation(ctx, id, executor)
 }
 
 func (h *Handler) handleOnBeforeStart(executor Executor) error {
@@ -219,7 +253,7 @@ func (h *Handler) handleOnBeforeStart(executor Executor) error {
 }
 
 // handleNonSubscriptionOperation will handle a non-subscription operation like a query or a mutation.
-func (h *Handler) handleNonSubscriptionOperation(id string, executor Executor) {
+func (h *Handler) handleNonSubscriptionOperation(ctx context.Context, id string, executor Executor) {
 	defer func() {
 		err := h.executorPool.Put(executor)
 		if err != nil {
@@ -229,6 +263,7 @@ func (h *Handler) handleNonSubscriptionOperation(id string, executor Executor) {
 		}
 	}()
 
+	executor.SetContext(ctx)
 	buf := h.bufferPool.Get().(*graphql.EngineResultWriter)
 	buf.Reset()
 
@@ -385,6 +420,35 @@ func (h *Handler) sendKeepAlive() {
 		h.logger.Error("subscription.Handler.sendKeepAlive()",
 			abstractlogger.Error(err),
 		)
+	}
+}
+
+func (h *Handler) terminateConnection(reason interface{}) {
+	payloadBytes, err := json.Marshal(reason)
+	if err != nil {
+		h.logger.Error("subscription.Handler.terminateConnection()",
+			abstractlogger.Error(err),
+			abstractlogger.Any("errorPayload", reason),
+		)
+	}
+
+	connectionErrorMessage := Message{
+		Type:    MessageTypeConnectionTerminate,
+		Payload: payloadBytes,
+	}
+
+	err = h.client.WriteToClient(connectionErrorMessage)
+	if err != nil {
+		h.logger.Error("subscription.Handler.terminateConnection()",
+			abstractlogger.Error(err),
+		)
+
+		err := h.client.Disconnect()
+		if err != nil {
+			h.logger.Error("subscription.Handler.terminateConnection()",
+				abstractlogger.Error(err),
+			)
+		}
 	}
 }
 
