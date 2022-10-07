@@ -87,6 +87,7 @@ func (d DefaultFieldsValidator) checkForBlockedFields(restrictionList FieldRestr
 }
 
 func (d DefaultFieldsValidator) checkForAllowedFields(restrictionList FieldRestrictionList, requestTypes RequestTypes, report operationreport.Report) (RequestFieldsValidationResult, error) {
+	// Group allowed fields and types for easy access.
 	allowedFieldsLookupMap := make(map[string]map[string]bool)
 	for _, allowedType := range restrictionList.Types {
 		allowedFieldsLookupMap[allowedType.Name] = make(map[string]bool)
@@ -95,14 +96,17 @@ func (d DefaultFieldsValidator) checkForAllowedFields(restrictionList FieldRestr
 		}
 	}
 
+	// Try to find a disallowed field.
 	for requestType, requestFields := range requestTypes {
-		for requestField := range requestFields {
-			if _, ok := allowedFieldsLookupMap[requestType][asteriskCharacter]; ok {
-				return fieldsValidationResultForAsterisk(report, true, requestType)
-			}
+		if _, ok := allowedFieldsLookupMap[requestType][asteriskCharacter]; ok {
+			// Every field is allowed to access for this type.
+			continue
+		}
 
+		for requestField := range requestFields {
 			isAllowedField := allowedFieldsLookupMap[requestType][requestField]
 			if !isAllowedField {
+				// The requested field is not allowed to access.
 				return fieldsValidationResult(report, false, requestType, requestField)
 			}
 		}

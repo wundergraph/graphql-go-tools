@@ -171,6 +171,24 @@ func TestFieldsValidator_ValidateByFieldList(t *testing.T) {
 			assert.True(t, result.Valid)
 			assert.Equal(t, 0, result.Errors.Count())
 		})
+
+		t.Run("should invalidate if only the fields of Query are allowed to access", func(t *testing.T) {
+			allowList := FieldRestrictionList{
+				Kind: AllowList,
+				Types: []Type{
+					{
+						Name:   "Query",
+						Fields: []string{"*"},
+					},
+				},
+			}
+
+			validator := DefaultFieldsValidator{}
+			result, err := validator.ValidateByFieldList(&request, schema, allowList)
+			assert.NoError(t, err)
+			assert.False(t, result.Valid)
+			assert.Equal(t, 1, result.Errors.Count())
+		})
 	})
 
 }
