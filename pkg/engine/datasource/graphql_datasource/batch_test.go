@@ -104,6 +104,54 @@ func TestBatch(t *testing.T) {
 			2,
 		)
 	})
+	t.Run("handle null variables", func(t *testing.T) {
+		runTestBatch(
+			t,
+			[]string{
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}}`,
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}}}`,
+				"null",
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-4","__typename":"Product"}]}}}`,
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-5","__typename":"Product"}]}}}`,
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-6","__typename":"Product"}]}}}`,
+			},
+			`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"},{"upc":"top-4","__typename":"Product"},{"upc":"top-5","__typename":"Product"},{"upc":"top-6","__typename":"Product"}]}}}`,
+			[]inputResponseBufferMappings{
+				{
+					responseIndex:         0,
+					originalInput:         []byte(`{"upc":"top-1","__typename":"Product"}`),
+					assignedBufferIndices: []int{0},
+				},
+				{
+					responseIndex:         1,
+					originalInput:         []byte(`{"upc":"top-2","__typename":"Product"}`),
+					assignedBufferIndices: []int{1},
+				},
+				{
+					responseIndex:         2,
+					originalInput:         []byte(`null`),
+					assignedBufferIndices: []int{2},
+					skip:                  true,
+				},
+				{
+					responseIndex:         3,
+					originalInput:         []byte(`{"upc":"top-4","__typename":"Product"}`),
+					assignedBufferIndices: []int{3},
+				},
+				{
+					responseIndex:         4,
+					originalInput:         []byte(`{"upc":"top-5","__typename":"Product"}`),
+					assignedBufferIndices: []int{4},
+				},
+				{
+					responseIndex:         5,
+					originalInput:         []byte(`{"upc":"top-6","__typename":"Product"}`),
+					assignedBufferIndices: []int{5},
+				},
+			},
+			6,
+		)
+	})
 	t.Run("deduplicate the same args with overlaps", func(t *testing.T) {
 		runTestBatch(
 			t,
@@ -198,6 +246,28 @@ func TestBatch_Demultiplex(t *testing.T) {
 				newBufPair(`{"name":"Name 1", "price": 1.01, "__typename":"Product"}`, ""),
 				newBufPair(`{"name":"Name 2", "price": 2.01, "__typename":"Product"}`, ""),
 				newBufPair(`{"name":"Name 1", "price": 1.01, "__typename":"Product"}`, ""),
+			},
+		)
+	})
+	t.Run("demultiplex null inputs", func(t *testing.T) {
+		runTestDemultiplex(
+			t,
+			[]string{
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}}`,
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}}}`,
+				"null",
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-4","__typename":"Product"}]}}}`,
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-5","__typename":"Product"}]}}}`,
+				`{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name price}}}","variables":{"representations":[{"upc":"top-6","__typename":"Product"}]}}}`,
+			},
+			newBufPair(`[{"name":"Name 1","price":1,"__typename":"Product"},{"name":"Name 2","price":2,"__typename":"Product"},{"name":"Name 4","price":4,"__typename":"Product"},{"name":"Name 5","price":5,"__typename":"Product"},{"name":"Name 6","price":6,"__typename":"Product"}]`, ""),
+			[]*resolve.BufPair{
+				newBufPair(`{"name":"Name 1","price":1,"__typename":"Product"}`, ""),
+				newBufPair(`{"name":"Name 2","price":2,"__typename":"Product"}`, ""),
+				newBufPair(`null`, ""),
+				newBufPair(`{"name":"Name 4","price":4,"__typename":"Product"}`, ""),
+				newBufPair(`{"name":"Name 5","price":5,"__typename":"Product"}`, ""),
+				newBufPair(`{"name":"Name 6","price":6,"__typename":"Product"}`, ""),
 			},
 		)
 	})
