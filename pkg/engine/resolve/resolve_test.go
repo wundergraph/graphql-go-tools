@@ -2845,6 +2845,228 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`
 	}))
+	t.Run("federation with null response", testFn(true, true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		userService := NewMockDataSource(ctrl)
+		userService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
+				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
+				pair.Data.WriteString(`{"me": {"id": "1234","username": "Me","__typename": "User"}}`)
+				return writeGraphqlResponse(pair, w, false)
+			})
+
+		reviewBatchFactory := NewMockDataSourceBatchFactory(ctrl)
+		reviewBatchFactory.EXPECT().
+			CreateBatch([][]byte{
+				[]byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`),
+			}).
+			Return(NewFakeDataSourceBatch(
+				`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`,
+				[]resultedBufPair{
+					{data: `{"reviews":[{"body":"foo","product":{"upc":"top-1","__typename":"Product"}},{"body":"bar","product":{"upc":"top-2","__typename":"Product"}},{"body":"baz","product":null},{"body":"bat","product":{"upc":"top-4","__typename":"Product"}},{"body":"bal","product":{"upc":"top-5","__typename":"Product"}},{"body":"ban","product":{"upc":"top-6","__typename":"Product"}}]}`},
+				}), nil)
+		reviewsService := NewMockDataSource(ctrl)
+		reviewsService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`
+				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
+				pair.Data.WriteString(`{"reviews": [
+						{"body": "foo","product": {"upc": "top-1","__typename": "Product"}},
+						{"body": "bar","product": {"upc": "top-2","__typename": "Product"}},
+						{"body": "baz","product": null},
+						{"body": "bat","product": {"upc": "top-4","__typename": "Product"}},
+						{"body": "bal","product": {"upc": "top-5","__typename": "Product"}},
+						{"body": "ban","product": {"upc": "top-6","__typename": "Product"}}
+]}`)
+				return writeGraphqlResponse(pair, w, false)
+			})
+
+		productBatchFactory := NewMockDataSourceBatchFactory(ctrl)
+		productBatchFactory.EXPECT().
+			CreateBatch(
+				[][]byte{
+					[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}}`),
+					[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}}}`),
+					[]byte("null"),
+					[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-4","__typename":"Product"}]}}}`),
+					[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-5","__typename":"Product"}]}}}`),
+					[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-6","__typename":"Product"}]}}}`),
+				},
+			).Return(NewFakeDataSourceBatch(
+			`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"},{"upc":"top-4","__typename":"Product"},{"upc":"top-5","__typename":"Product"},{"upc":"top-6","__typename":"Product"}]}}}`,
+			[]resultedBufPair{
+				{data: `{"name": "Trilby"}`},
+				{data: `{"name": "Fedora"}`},
+				{data: `null`},
+				{data: `{"name": "Boater"}`},
+				{data: `{"name": "Top Hat"}`},
+				{data: `{"name": "Bowler"}`},
+			}), nil)
+		productService := NewMockDataSource(ctrl)
+		productService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"},{"upc":"top-4","__typename":"Product"},{"upc":"top-5","__typename":"Product"},{"upc":"top-6","__typename":"Product"}]}}}`
+				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
+				pair.Data.WriteString(`[{"name":"Trilby"},{"name":"Fedora"},{"name":"Boater"},{"name":"Top Hat"},{"name":"Bowler"}]`)
+				return writeGraphqlResponse(pair, w, false)
+			})
+
+		return &GraphQLResponse{
+			Data: &Object{
+				Fetch: &SingleFetch{
+					BufferId: 0,
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+					DataSource: userService,
+					ProcessResponseConfig: ProcessResponseConfig{
+						ExtractGraphqlResponse: true,
+					},
+				},
+				Fields: []*Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("me"),
+						Value: &Object{
+							Fetch: &BatchFetch{
+								Fetch: &SingleFetch{
+									BufferId: 1,
+									InputTemplate: InputTemplate{
+										Segments: []TemplateSegment{
+											{
+												Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":`),
+												SegmentType: StaticSegmentType,
+											},
+											{
+												SegmentType:        VariableSegmentType,
+												VariableKind:       ObjectVariableKind,
+												VariableSourcePath: []string{"id"},
+												Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+											},
+											{
+												Data:        []byte(`,"__typename":"User"}]}}}`),
+												SegmentType: StaticSegmentType,
+											},
+										},
+										SetTemplateOutputToNullOnVariableNull: true,
+									},
+									DataSource: reviewsService,
+									ProcessResponseConfig: ProcessResponseConfig{
+										ExtractGraphqlResponse: true,
+									},
+								},
+								BatchFactory: reviewBatchFactory,
+							},
+							Path:     []string{"me"},
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("id"),
+									Value: &String{
+										Path: []string{"id"},
+									},
+								},
+								{
+									Name: []byte("username"),
+									Value: &String{
+										Path: []string{"username"},
+									},
+								},
+								{
+
+									HasBuffer: true,
+									BufferID:  1,
+									Name:      []byte("reviews"),
+									Value: &Array{
+										Path:     []string{"reviews"},
+										Nullable: true,
+										Item: &Object{
+											Nullable: true,
+											Fields: []*Field{
+												{
+													Name: []byte("body"),
+													Value: &String{
+														Path: []string{"body"},
+													},
+												},
+												{
+													Name: []byte("product"),
+													Value: &Object{
+														Nullable: true,
+														Path:     []string{"product"},
+														Fetch: &BatchFetch{
+															Fetch: &SingleFetch{
+																BufferId:   2,
+																DataSource: productService,
+																InputTemplate: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":`),
+																			SegmentType: StaticSegmentType,
+																		},
+																		{
+																			SegmentType:        VariableSegmentType,
+																			VariableKind:       ObjectVariableKind,
+																			VariableSourcePath: []string{"upc"},
+																			Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+																		},
+																		{
+																			Data:        []byte(`,"__typename":"Product"}]}}}`),
+																			SegmentType: StaticSegmentType,
+																		},
+																	},
+																	SetTemplateOutputToNullOnVariableNull: true,
+																},
+																ProcessResponseConfig: ProcessResponseConfig{
+																	ExtractGraphqlResponse: true,
+																},
+															},
+															BatchFactory: productBatchFactory,
+														},
+														Fields: []*Field{
+															{
+																Name: []byte("upc"),
+																Value: &String{
+																	Path: []string{"upc"},
+																},
+															},
+															{
+																HasBuffer: true,
+																BufferID:  2,
+																Name:      []byte("name"),
+																Value: &String{
+																	Path: []string{"name"},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, // ...															 `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"foo","product":{"upc":"top-1","name":"Trilby"}},{"body":"bar","product":{"upc":"top-2","name":"Fedora"}},{"body":"baz","product":null},{"body":"bat","product":null},{"body":"bal","product":{"upc":"top-5","name":"Boater"}},{"body":"ban","product":{"upc":"top-6","name":"Top Hat"}}]}}}
+		}, Context{Context: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"foo","product":{"upc":"top-1","name":"Trilby"}},{"body":"bar","product":{"upc":"top-2","name":"Fedora"}},{"body":"baz","product":null},{"body":"bat","product":{"upc":"top-4","name":"Boater"}},{"body":"bal","product":{"upc":"top-5","name":"Top Hat"}},{"body":"ban","product":{"upc":"top-6","name":"Bowler"}}]}}}`
+	}))
 	t.Run("federation with enabled dataloader and fetch error ", testFn(true, true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 		userService := NewMockDataSource(ctrl)

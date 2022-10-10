@@ -284,7 +284,8 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 			ExtractGraphqlResponse:    true,
 			ExtractFederationEntities: p.extractEntities,
 		},
-		BatchConfig: batchConfig,
+		BatchConfig:                           batchConfig,
+		SetTemplateOutputToNullOnVariableNull: batchConfig.AllowBatch,
 	}
 }
 
