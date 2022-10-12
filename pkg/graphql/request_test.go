@@ -157,6 +157,50 @@ func TestRequest_IsIntrospectionQuery(t *testing.T) {
 	})
 }
 
+func TestRequest_IsIntrospectionQueryStrict(t *testing.T) {
+	run := func(queryPayload string, expectedIsIntrospection bool) func(t *testing.T) {
+		return func(t *testing.T) {
+			t.Helper()
+
+			var request Request
+			err := UnmarshalRequest(strings.NewReader(queryPayload), &request)
+			assert.NoError(t, err)
+
+			actualIsIntrospection, err := request.IsIntrospectionQueryStrict()
+			assert.NoError(t, err)
+			assert.Equal(t, expectedIsIntrospection, actualIsIntrospection)
+		}
+	}
+
+	t.Run("schema introspection query", func(t *testing.T) {
+		t.Run("with operation name IntrospectionQuery", run(namedIntrospectionQuery, true))
+		t.Run("without operation name IntrospectionQuery but as single query", run(singleNamedIntrospectionQueryWithoutOperationName, true))
+		t.Run("with empty operation name", run(silentIntrospectionQuery, true))
+		t.Run("with operation name but as silent query", run(silentIntrospectionQueryWithOperationName, true))
+		t.Run("with multiple queries in payload", run(schemaIntrospectionQueryWithMultipleQueries, true))
+		t.Run("with inline fragment", run(inlineFragmentedIntrospectionQueryType, true))
+		t.Run("with inline fragment on type query", run(inlineFragmentedIntrospectionQueryWithFragmentOnQuery, true))
+		t.Run("with fragment", run(fragmentedIntrospectionQuery, true))
+		t.Run("schema introspection query with additional non-introspection fields", run(nonSchemaIntrospectionQueryWithAdditionalFields, true))
+		t.Run("type introspection query with additional non-introspection fields", run(nonTypeIntrospectionQueryWithAdditionalFields, true))
+	})
+
+	t.Run("type introspection query", func(t *testing.T) {
+		t.Run("as single introspection", run(typeIntrospectionQuery, true))
+		t.Run("with multiple queries in payload", run(typeIntrospectionQueryWithMultipleQueries, true))
+	})
+
+	t.Run("not introspection query", func(t *testing.T) {
+		t.Run("query with operation name IntrospectionQuery", run(nonIntrospectionQueryWithIntrospectionQueryName, false))
+		t.Run("Foo query", run(nonIntrospectionQuery, false))
+		t.Run("Foo mutation", run(mutationQuery, false))
+		t.Run("fake schema introspection with alias", run(nonSchemaIntrospectionQueryWithAliases, false))
+		t.Run("fake type introspection with alias", run(nonTypeIntrospectionQueryWithAliases, false))
+		t.Run("schema introspection with multiple queries in payload", run(nonSchemaIntrospectionQueryWithMultipleQueries, false))
+		t.Run("type introspection with multiple queries in payload", run(nonTypeIntrospectionQueryWithMultipleQueries, false))
+	})
+}
+
 func TestRequest_OperationType(t *testing.T) {
 	request := Request{
 		OperationName: "",
