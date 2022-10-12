@@ -25,20 +25,17 @@ import (
 )
 
 type Planner struct {
-	visitor                    *plan.Visitor
-	dataSourceConfig           plan.DataSourceConfiguration
-	config                     Configuration
-	upstreamOperation          *ast.Document
-	upstreamVariables          []byte
-	representationsJson        []byte
-	nodes                      []ast.Node
-	variables                  resolve.Variables
-	lastFieldEnclosingTypeName string
-	disallowSingleFlight       bool
-	hasFederationRoot          bool
-	// federationDepth is the depth in the response tree where the federation root is located.
-	// this field allows us to dismiss all federated fields that belong to a different subgraph easily
-	federationDepth                    int
+	visitor                            *plan.Visitor
+	dataSourceConfig                   plan.DataSourceConfiguration
+	config                             Configuration
+	upstreamOperation                  *ast.Document
+	upstreamVariables                  []byte
+	representationsJson                []byte
+	nodes                              []ast.Node
+	variables                          resolve.Variables
+	lastFieldEnclosingTypeName         string
+	disallowSingleFlight               bool
+	hasFederationRoot                  bool
 	extractEntities                    bool
 	fetchClient                        *http.Client
 	subscriptionClient                 GraphQLSubscriptionClient
@@ -285,8 +282,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 			ExtractGraphqlResponse:    true,
 			ExtractFederationEntities: p.extractEntities,
 		},
-		BatchConfig:                           batchConfig,
-		SetTemplateOutputToNullOnVariableNull: batchConfig.AllowBatch,
+		BatchConfig: batchConfig,
 	}
 }
 
@@ -519,7 +515,6 @@ func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
 		return
 	}
 	p.hasFederationRoot = true
-	p.federationDepth = p.visitor.Walker.Depth
 	// query($representations: [_Any!]!){_entities(representations: $representations){... on Product
 	p.addRepresentationsVariableDefinition()     // $representations: [_Any!]!
 	p.addEntitiesSelectionSet()                  // {_entities(representations: $representations)
@@ -528,16 +523,6 @@ func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
 }
 
 func (p *Planner) updateRepresentationsVariable(fieldConfig *plan.FieldConfiguration) {
-
-	if p.visitor.Walker.Depth != p.federationDepth {
-		// given that this field has a different depth than the federation root, we skip this field
-		// this is because we only have to handle federated fields that are part of the "current" federated request
-		// we're calling this func with the current field because it's both another federated subfield,
-		// but the current subgraph is also capable of resolving it
-		// in this case, we don't need to add the required fields to the variables because the context differs
-		return
-	}
-
 	// "variables\":{\"representations\":[{\"upc\":\$$0$$\,\"__typename\":\"Product\"}]}}
 	parser := astparser.NewParser()
 	doc := ast.NewDocument()

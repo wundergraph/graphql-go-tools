@@ -29,8 +29,6 @@ type inputResponseBufferMappings struct {
 	originalInput []byte
 	// assignedBufferIndices are the buffers to which the response needs to be assigned
 	assignedBufferIndices []int
-
-	skip bool
 }
 
 func NewBatchFactory() *BatchFactory {
@@ -46,7 +44,7 @@ func (b *BatchFactory) CreateBatch(inputs [][]byte) (resolve.DataSourceBatch, er
 
 	resultedInput := pool.FastBuffer.Get()
 
-	responseMappings, batchSize, err := b.multiplexBatch(resultedInput, inputs)
+	responseMappings, err := b.multiplexBatch(resultedInput, inputs)
 	if err != nil {
 		return nil, nil
 	}
@@ -54,7 +52,7 @@ func (b *BatchFactory) CreateBatch(inputs [][]byte) (resolve.DataSourceBatch, er
 	return &Batch{
 		resultedInput:    resultedInput,
 		responseMappings: responseMappings,
-		batchSize:        batchSize,
+		batchSize:        len(inputs),
 	}, nil
 }
 
@@ -76,9 +74,9 @@ func (b *Batch) Demultiplex(responseBufPair *resolve.BufPair, bufPairs []*resolv
 	return
 }
 
-func (b *BatchFactory) multiplexBatch(out *fastbuffer.FastBuffer, inputs [][]byte) (responseMappings []inputResponseBufferMappings, batchSize int, err error) {
+func (b *BatchFactory) multiplexBatch(out *fastbuffer.FastBuffer, inputs [][]byte) (responseMappings []inputResponseBufferMappings, err error) {
 	if len(inputs) == 0 {
-		return nil, 0, nil
+		return nil, nil
 	}
 
 	variablesBuf := pool.FastBuffer.Get()
@@ -88,26 +86,14 @@ func (b *BatchFactory) multiplexBatch(out *fastbuffer.FastBuffer, inputs [][]byt
 
 	var (
 		variablesIdx              int
-		skippedInputs             int
 		firstRepresentationsStart int
 		firstRepresentationsEnd   int
 	)
 
 	for i := range inputs {
-		if bytes.Equal(inputs[i], literal.NULL) {
-			responseMappings = append(responseMappings, inputResponseBufferMappings{
-				responseIndex:         i,
-				originalInput:         inputs[i],
-				assignedBufferIndices: []int{i},
-				skip:                  true,
-			})
-			variablesIdx++
-			skippedInputs++
-			continue
-		}
 		inputVariables, _, representationsOffset, err := jsonparser.Get(inputs[i], representationPath...)
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 
 		if i == 0 {
@@ -138,7 +124,7 @@ func (b *BatchFactory) multiplexBatch(out *fastbuffer.FastBuffer, inputs [][]byt
 			variablesIdx++
 		})
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 	}
 
@@ -155,7 +141,7 @@ func (b *BatchFactory) multiplexBatch(out *fastbuffer.FastBuffer, inputs [][]byt
 	out.WriteBytes(representationJsonCopy)
 	out.WriteBytes(trailer)
 
-	return responseMappings, len(inputs), nil
+	return
 }
 
 func (b *Batch) demultiplexBatch(responsePair *resolve.BufPair, responseMappings []inputResponseBufferMappings, resultBufPairs []*resolve.BufPair) (err error) {
@@ -168,11 +154,6 @@ func (b *Batch) demultiplexBatch(responsePair *resolve.BufPair, responseMappings
 			}
 
 			mapping := responseMappings[outPosition]
-			for mapping.skip {
-				resultBufPairs[outPosition].Data.WriteBytes(literal.NULL)
-				outPosition++
-				mapping = responseMappings[outPosition]
-			}
 
 			for _, index := range mapping.assignedBufferIndices {
 				if resultBufPairs[index].Data.Len() != 0 {

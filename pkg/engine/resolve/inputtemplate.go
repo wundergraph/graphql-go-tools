@@ -2,7 +2,6 @@ package resolve
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/buger/jsonparser"
@@ -28,13 +27,7 @@ type TemplateSegment struct {
 
 type InputTemplate struct {
 	Segments []TemplateSegment
-	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
-	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
-	// Returning null in this case tells the batch implementation to skip this item
-	SetTemplateOutputToNullOnVariableNull bool
 }
-
-var setTemplateOutputNull = errors.New("set to null")
 
 func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuffer.FastBuffer) (err error) {
 	for j := range i.Segments {
@@ -53,11 +46,6 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuf
 				err = fmt.Errorf("InputTemplate.Render: cannot resolve variable of kind: %d", i.Segments[j].VariableKind)
 			}
 			if err != nil {
-				if errors.Is(err, setTemplateOutputNull) {
-					preparedInput.Reset()
-					preparedInput.WriteBytes(literal.NULL)
-					return nil
-				}
 				return err
 			}
 		}
@@ -68,9 +56,6 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuf
 func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []byte, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {
 	value, valueType, offset, err := jsonparser.Get(variables, segment.VariableSourcePath...)
 	if err != nil || valueType == jsonparser.Null {
-		if i.SetTemplateOutputToNullOnVariableNull {
-			return setTemplateOutputNull
-		}
 		preparedInput.WriteBytes(literal.NULL)
 		return nil
 	}
@@ -89,9 +74,6 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []by
 func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {
 	value, valueType, offset, err := jsonparser.Get(ctx.Variables, segment.VariableSourcePath...)
 	if err != nil || valueType == jsonparser.Null {
-		if i.SetTemplateOutputToNullOnVariableNull {
-			return setTemplateOutputNull
-		}
 		preparedInput.WriteBytes(literal.NULL)
 		return nil
 	}
@@ -113,10 +95,7 @@ func (i *InputTemplate) renderHeaderVariable(ctx *Context, path []string, prepar
 	}
 	value := ctx.Request.Header.Values(path[0])
 	if len(value) == 0 {
-		if i.SetTemplateOutputToNullOnVariableNull {
-			return setTemplateOutputNull
-		}
-		return errHeaderValueNotFound
+		return nil
 	}
 	if len(value) == 1 {
 		preparedInput.WriteString(value[0])

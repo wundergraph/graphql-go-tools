@@ -42,7 +42,6 @@ func TestDataSourceInput_Process(t *testing.T) {
 									ExtractGraphqlResponse:    true,
 									ExtractFederationEntities: true,
 								},
-								SetTemplateOutputToNullOnVariableNull: true,
 							},
 							Path:     []string{"me"},
 							Nullable: true,
@@ -94,7 +93,6 @@ func TestDataSourceInput_Process(t *testing.T) {
 																ExtractGraphqlResponse:    true,
 																ExtractFederationEntities: true,
 															},
-															SetTemplateOutputToNullOnVariableNull: true,
 														},
 														Fields: []*resolve.Field{
 															{
@@ -168,7 +166,6 @@ func TestDataSourceInput_Process(t *testing.T) {
 											SegmentType: resolve.StaticSegmentType,
 										},
 									},
-									SetTemplateOutputToNullOnVariableNull: true,
 								},
 								DataSource: nil,
 								ProcessResponseConfig: resolve.ProcessResponseConfig{
@@ -231,7 +228,6 @@ func TestDataSourceInput_Process(t *testing.T) {
 																		SegmentType: resolve.StaticSegmentType,
 																	},
 																},
-																SetTemplateOutputToNullOnVariableNull: true,
 															},
 															ProcessResponseConfig: resolve.ProcessResponseConfig{
 																ExtractGraphqlResponse:    true,
