@@ -49,7 +49,6 @@ var (
 	errNonNullableFieldValueIsNull = errors.New("non Nullable field value is null")
 	errTypeNameSkipped             = errors.New("skipped because of __typename condition")
 	errHeaderPathInvalid           = errors.New("invalid header path: header variables must be of this format: .request.header.{{ key }} ")
-	errHeaderValueNotFound         = errors.New("header value not found")
 
 	ErrUnableToResolve = errors.New("unable to resolve operation")
 )

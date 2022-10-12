@@ -116,7 +116,7 @@ func (i *InputTemplate) renderHeaderVariable(ctx *Context, path []string, prepar
 		if i.SetTemplateOutputToNullOnVariableNull {
 			return setTemplateOutputNull
 		}
-		return errHeaderValueNotFound
+		return nil
 	}
 	if len(value) == 1 {
 		preparedInput.WriteString(value[0])
