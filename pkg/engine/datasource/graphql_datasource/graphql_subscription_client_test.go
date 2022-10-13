@@ -31,8 +31,8 @@ func logger() ll.Logger {
 }
 
 func TestGetConnectionInitMessageHelper(t *testing.T) {
-	var callback OnWsConnectionInitCallback = func(ctx context.Context) json.RawMessage {
-		return json.RawMessage(`{"authorization":"secret"}`)
+	var callback OnWsConnectionInitCallback = func(ctx context.Context, url string, header http.Header) (json.RawMessage, error) {
+		return json.RawMessage(`{"authorization":"secret"}`), nil
 	}
 
 	tests := []struct {
@@ -55,7 +55,7 @@ func TestGetConnectionInitMessageHelper(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := SubscriptionClient{onWsConnectionInitCallback: tt.callback}
-			got, err := client.getConnectionInitMessage(context.Background())
+			got, err := client.getConnectionInitMessage(context.Background(), "", nil)
 			require.NoError(t, err)
 			require.NotEmpty(t, got)
 

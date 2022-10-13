@@ -207,7 +207,7 @@ func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 		return nil, fmt.Errorf("upgrade unsuccessful")
 	}
 
-	connectionInitMessage, err := c.getConnectionInitMessage(reqCtx)
+	connectionInitMessage, err := c.getConnectionInitMessage(reqCtx, options.URL, options.Header)
 	if err != nil {
 		return nil, err
 	}
@@ -236,14 +236,18 @@ func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 	}
 }
 
-func (c *SubscriptionClient) getConnectionInitMessage(ctx context.Context) ([]byte, error) {
+func (c *SubscriptionClient) getConnectionInitMessage(ctx context.Context, url string, header http.Header) ([]byte, error) {
 	if c.onWsConnectionInitCallback == nil {
 		return connectionInitMessage, nil
 	}
 
 	callback := *c.onWsConnectionInitCallback
 
-	payload := callback(ctx)
+	payload, err := callback(ctx, url, header)
+	if err != nil {
+		return nil, err
+	}
+
 	if len(payload) == 0 {
 		return connectionInitMessage, nil
 	}

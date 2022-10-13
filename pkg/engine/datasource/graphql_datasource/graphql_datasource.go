@@ -1163,21 +1163,21 @@ func (p *Planner) addField(ref int) {
 	p.nodes = append(p.nodes, field)
 }
 
-type OnWsConnectionInitCallback func(ctx context.Context) json.RawMessage
+type OnWsConnectionInitCallback func(ctx context.Context, url string, header http.Header) (json.RawMessage, error)
 
 type Factory struct {
 	BatchFactory               resolve.DataSourceBatchFactory
 	HTTPClient                 *http.Client
 	StreamingClient            *http.Client
-	onWsConnectionInitCallback *OnWsConnectionInitCallback
+	OnWsConnectionInitCallback *OnWsConnectionInitCallback
 	subscriptionClient         *SubscriptionClient
 }
 
 func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 	if f.subscriptionClient == nil {
 		opts := make([]Options, 0)
-		if f.onWsConnectionInitCallback != nil {
-			opts = append(opts, WithOnWsConnectionInitCallback(f.onWsConnectionInitCallback))
+		if f.OnWsConnectionInitCallback != nil {
+			opts = append(opts, WithOnWsConnectionInitCallback(f.OnWsConnectionInitCallback))
 		}
 
 		f.subscriptionClient = NewGraphQLSubscriptionClient(f.HTTPClient, f.StreamingClient, ctx, opts...)
