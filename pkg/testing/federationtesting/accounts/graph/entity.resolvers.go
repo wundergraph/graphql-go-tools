@@ -10,6 +10,7 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/pkg/testing/federationtesting/accounts/graph/model"
 )
 
+// FindUserByID is the resolver for the findUserByID field.
 func (r *entityResolver) FindUserByID(ctx context.Context, id string) (*model.User, error) {
 	name := "User " + id
 	if id == "1234" {

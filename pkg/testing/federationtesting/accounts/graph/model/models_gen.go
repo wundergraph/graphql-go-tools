@@ -8,6 +8,8 @@ type History interface {
 
 type Wallet interface {
 	IsWallet()
+	GetCurrency() string
+	GetAmount() float64
 }
 
 type Product struct {
@@ -44,7 +46,9 @@ type WalletType1 struct {
 	SpecialField1 string  `json:"specialField1"`
 }
 
-func (WalletType1) IsWallet() {}
+func (WalletType1) IsWallet()                {}
+func (this WalletType1) GetCurrency() string { return this.Currency }
+func (this WalletType1) GetAmount() float64  { return this.Amount }
 
 type WalletType2 struct {
 	Currency      string  `json:"currency"`
@@ -52,4 +56,6 @@ type WalletType2 struct {
 	SpecialField2 string  `json:"specialField2"`
 }
 
-func (WalletType2) IsWallet() {}
+func (WalletType2) IsWallet()                {}
+func (this WalletType2) GetCurrency() string { return this.Currency }
+func (this WalletType2) GetAmount() float64  { return this.Amount }
