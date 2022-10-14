@@ -40,6 +40,7 @@ require (
 	github.com/pelletier/go-toml v1.6.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/qri-io/jsonschema v0.2.1
+	github.com/r3labs/sse/v2 v2.8.1
 	github.com/sebdah/goldie v0.0.0-20180424091453-8784dd1ab561
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.3.2
