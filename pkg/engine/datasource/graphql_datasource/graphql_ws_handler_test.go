@@ -65,7 +65,7 @@ func TestWebSocketSubscriptionClientInitIncludeKA_GQLWS(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(protocolGraphQLWS),
+		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
@@ -128,7 +128,7 @@ func TestWebsocketSubscriptionClient_GQLWS(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(protocolGraphQLWS),
+		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
@@ -187,7 +187,7 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(protocolGraphQLWS),
+		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
 	err := client.Subscribe(clientCtx, GraphQLSubscriptionOptions{
@@ -240,7 +240,7 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(protocolGraphQLWS),
+		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
 	err := client.Subscribe(clientCtx, GraphQLSubscriptionOptions{

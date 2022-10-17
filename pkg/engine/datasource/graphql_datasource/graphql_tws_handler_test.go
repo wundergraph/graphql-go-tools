@@ -54,7 +54,7 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(protocolGraphQLTWS),
+		WithWSSubProtocol(ProtocolGraphQLTWS),
 	)
 
 	next := make(chan []byte)
@@ -129,7 +129,7 @@ func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(protocolGraphQLTWS),
+		WithWSSubProtocol(ProtocolGraphQLTWS),
 	)
 
 	next := make(chan []byte)
@@ -190,7 +190,7 @@ func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(protocolGraphQLTWS),
+		WithWSSubProtocol(ProtocolGraphQLTWS),
 	)
 
 	next := make(chan []byte)
@@ -274,7 +274,7 @@ func TestWebSocketSubscriptionClientInitIncludePing_GQLTWS(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(protocolGraphQLTWS),
+		WithWSSubProtocol(ProtocolGraphQLTWS),
 	)
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{

@@ -117,7 +117,7 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(protocolGraphQLWS),
+		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	clientsDone := &sync.WaitGroup{}
 
@@ -174,7 +174,7 @@ func TestWebsocketSubscriptionClientImmediateClientCancel(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(protocolGraphQLWS),
+		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
@@ -229,7 +229,7 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(protocolGraphQLWS),
+		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
