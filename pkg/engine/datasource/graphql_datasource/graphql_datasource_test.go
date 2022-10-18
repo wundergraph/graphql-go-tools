@@ -5600,7 +5600,7 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 	newSubscriptionSource := func(ctx context.Context) SubscriptionSource {
 		httpClient := http.Client{}
 		subscriptionSource := SubscriptionSource{
-			client: NewGraphQLSubscriptionClient(&httpClient, http.DefaultClient, ctx, WithWSSubProtocol(protocolGraphQLTWS)),
+			client: NewGraphQLSubscriptionClient(&httpClient, http.DefaultClient, ctx, WithWSSubProtocol(ProtocolGraphQLTWS)),
 		}
 		return subscriptionSource
 	}

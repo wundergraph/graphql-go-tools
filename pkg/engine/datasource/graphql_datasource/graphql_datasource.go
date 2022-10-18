@@ -1170,22 +1170,24 @@ type Factory struct {
 	HTTPClient                 *http.Client
 	StreamingClient            *http.Client
 	OnWsConnectionInitCallback *OnWsConnectionInitCallback
-	subscriptionClient         *SubscriptionClient
+	SubscriptionClient         *SubscriptionClient
 }
 
 func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
-	if f.subscriptionClient == nil {
+	if f.SubscriptionClient == nil {
 		opts := make([]Options, 0)
 		if f.OnWsConnectionInitCallback != nil {
 			opts = append(opts, WithOnWsConnectionInitCallback(f.OnWsConnectionInitCallback))
 		}
 
-		f.subscriptionClient = NewGraphQLSubscriptionClient(f.HTTPClient, f.StreamingClient, ctx, opts...)
+		f.SubscriptionClient = NewGraphQLSubscriptionClient(f.HTTPClient, f.StreamingClient, ctx, opts...)
+	} else if f.SubscriptionClient.engineCtx == nil {
+		f.SubscriptionClient.engineCtx = ctx
 	}
 	return &Planner{
 		batchFactory:       f.BatchFactory,
 		fetchClient:        f.HTTPClient,
-		subscriptionClient: f.subscriptionClient,
+		subscriptionClient: f.SubscriptionClient,
 	}
 }
 
