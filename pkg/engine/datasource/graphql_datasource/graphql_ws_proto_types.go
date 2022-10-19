@@ -14,7 +14,7 @@ const (
 // websocket sub-protocol:
 // https://github.com/apollographql/subscriptions-transport-ws/blob/master/PROTOCOL.md
 const (
-	protocolGraphQLWS = "graphql-ws"
+	ProtocolGraphQLWS = "graphql-ws"
 
 	startMessage = `{"type":"start","id":"%s","payload":%s}`
 	stopMessage  = `{"type":"stop","id":"%s"}`
@@ -27,7 +27,7 @@ const (
 // websocket sub-protocol:
 // https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md
 const (
-	protocolGraphQLTWS = "graphql-transport-ws"
+	ProtocolGraphQLTWS = "graphql-transport-ws"
 
 	subscribeMessage = `{"id":"%s","type":"subscribe","payload":%s}`
 	pongMessage      = `{"type":"pong"}`

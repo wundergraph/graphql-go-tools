@@ -189,7 +189,7 @@ func (c *SubscriptionClient) generateHandlerIDHash(options GraphQLSubscriptionOp
 }
 
 func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, options GraphQLSubscriptionOptions) (ConnectionHandler, error) {
-	subProtocols := []string{protocolGraphQLWS, protocolGraphQLTWS}
+	subProtocols := []string{ProtocolGraphQLWS, ProtocolGraphQLTWS}
 	if c.wsSubProtocol != "" {
 		subProtocols = []string{c.wsSubProtocol}
 	}
@@ -227,9 +227,9 @@ func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 	}
 
 	switch c.wsSubProtocol {
-	case protocolGraphQLWS:
+	case ProtocolGraphQLWS:
 		return newGQLWSConnectionHandler(c.engineCtx, conn, c.readTimeout, c.log), nil
-	case protocolGraphQLTWS:
+	case ProtocolGraphQLTWS:
 		return newGQLTWSConnectionHandler(c.engineCtx, conn, c.readTimeout, c.log), nil
 	default:
 		return nil, fmt.Errorf("unknown protocol %s", conn.Subprotocol())
