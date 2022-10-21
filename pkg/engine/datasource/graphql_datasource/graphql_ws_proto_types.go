@@ -39,6 +39,7 @@ const (
 
 // internal
 const (
-	internalError   = `{"errors":[{"message":"internal error"}]}`
-	connectionError = `{"errors":[{"message":"connection error"}]}`
+	internalError        = `{"errors":[{"message":"internal error"}]}`
+	connectionError      = `{"errors":[{"message":"connection error"}]}`
+	errorMessageTemplate = `{"errors":[{"message":"%s"}]}`
 )
