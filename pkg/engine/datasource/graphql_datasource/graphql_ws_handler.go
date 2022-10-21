@@ -51,9 +51,13 @@ func (h *gqlWSConnectionHandler) StartBlocking(sub Subscription) {
 	}()
 	h.subscribe(sub)
 	dataCh := make(chan []byte)
-	go h.readBlocking(readCtx, dataCh)
+	errCh := make(chan error)
+	go h.readBlocking(readCtx, dataCh, errCh)
 	for {
-		if h.ctx.Err() != nil {
+		err := h.ctx.Err()
+		if err != nil {
+			h.log.Error("gqlWSConnectionHandler.StartBlocking", abstractlogger.Error(err))
+			h.broadcastErrorMessage(err)
 			return
 		}
 		hasActiveSubscriptions := h.checkActiveSubscriptions()
@@ -65,6 +69,10 @@ func (h *gqlWSConnectionHandler) StartBlocking(sub Subscription) {
 			continue
 		case sub = <-h.subscribeCh:
 			h.subscribe(sub)
+		case err = <-errCh:
+			h.log.Error("gqlWSConnectionHandler.StartBlocking", abstractlogger.Error(err))
+			h.broadcastErrorMessage(err)
+			return
 		case data := <-dataCh:
 			messageType, err := jsonparser.GetString(data, "type")
 			if err != nil {
@@ -91,14 +99,16 @@ func (h *gqlWSConnectionHandler) StartBlocking(sub Subscription) {
 // readBlocking is a dedicated loop running in a separate goroutine
 // because the library "nhooyr.io/websocket" doesn't allow reading with a context with Timeout
 // we'll block forever on reading until the context of the gqlWSConnectionHandler stops
-func (h *gqlWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan []byte) {
+func (h *gqlWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan []byte, errCh chan error) {
 	for {
 		msgType, data, err := h.conn.Read(ctx)
 		if ctx.Err() != nil {
+			errCh <- ctx.Err()
 			return
 		}
 		if err != nil {
-			continue
+			errCh <- err
+			return
 		}
 		if msgType != websocket.MessageText {
 			continue
@@ -166,6 +176,21 @@ func (h *gqlWSConnectionHandler) handleMessageTypeConnectionError() {
 		ctx, cancel := context.WithTimeout(h.ctx, time.Second*5)
 		select {
 		case sub.next <- []byte(connectionError):
+			cancel()
+			continue
+		case <-ctx.Done():
+			cancel()
+			continue
+		}
+	}
+}
+
+func (h *gqlWSConnectionHandler) broadcastErrorMessage(err error) {
+	errMsg := fmt.Sprintf(errorMessageTemplate, err)
+	for _, sub := range h.subscriptions {
+		ctx, cancel := context.WithTimeout(h.ctx, time.Second*5)
+		select {
+		case sub.next <- []byte(errMsg):
 			cancel()
 			continue
 		case <-ctx.Done():
