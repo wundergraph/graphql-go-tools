@@ -3723,6 +3723,28 @@ func TestExecutionValidation(t *testing.T) {
 					}
 					`, Values(), Valid)
 			})
+			t.Run("with boolean input", func(t *testing.T) {
+				runWithDefinition(wundergraphSchema, `
+					query QueryWithBooleanInput($a: Boolean) {
+						findFirstnodepool(
+							where: { shared: { equals: $a } }
+						) {
+							id
+						}
+					}
+					`, Values(), Valid)
+			})
+			t.Run("with nested boolean where clause", func(t *testing.T) {
+				runWithDefinition(wundergraphSchema, `
+					query QueryWithNestedBooleanClause($a: String) {
+						findFirstnodepool(
+							where: { id: { equals: $a }, AND: { shared: { equals: true } } }
+						) {
+							id
+						}
+					}
+					`, Values(), Valid)
+			})
 		})
 	})
 }
