@@ -3388,7 +3388,7 @@ func (f *_fakeStream) Start(ctx context.Context, input []byte, next chan<- []byt
 
 func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
-	setup := func(ctx context.Context, stream *_fakeStream) (*Resolver, *GraphQLSubscription, *TestFlushWriter) {
+	setup := func(ctx context.Context, stream SubscriptionDataSource) (*Resolver, *GraphQLSubscription, *TestFlushWriter) {
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
 				Source: stream,
@@ -3432,6 +3432,22 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(out.flushed))
 		assert.Equal(t, `{"errors":[{"message":"unable to resolve","locations":[{"line":0,"column":0}]},{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":null}`, out.flushed[0])
+	})
+
+	t.Run("should return an error if the data source has not been defined", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		resolver, plan, out := setup(c, nil)
+
+		ctx := Context{
+			Context: c,
+		}
+
+		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(out.flushed))
+		assert.Equal(t, `{"errors":[{"message":"no data source found"}]}`, out.flushed[0])
 	})
 
 	t.Run("should successfully get result from upstream", func(t *testing.T) {
