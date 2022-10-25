@@ -8,7 +8,7 @@ Open a terminal run the following:
 
 ```
 cd examples/kafka_pubsub
-docker-compose up
+docker-compose up kafka
 ```
 
 You need to wait some time while the cluster is being formed. 
