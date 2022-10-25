@@ -508,6 +508,15 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	return writeGraphqlResponse(buf, writer, ignoreData)
 }
 
+func writeAndFlush(writer FlushWriter, msg []byte) error {
+	_, err := writer.Write(msg)
+	if err != nil {
+		return err
+	}
+	writer.Flush()
+	return nil
+}
+
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer FlushWriter) (err error) {
 
 	buf := r.getBufPair()
@@ -525,15 +534,16 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	resolverDone := r.ctx.Done()
 
 	next := make(chan []byte)
+	if subscription.Trigger.Source == nil {
+		msg := []byte(`{"errors":[{"message":"no data source found"}]}`)
+		return writeAndFlush(writer, msg)
+	}
+
 	err = subscription.Trigger.Source.Start(c, subscriptionInput, next)
 	if err != nil {
 		if errors.Is(err, ErrUnableToResolve) {
-			_, err = writer.Write([]byte(`{"errors":[{"message":"unable to resolve"}]}`))
-			if err != nil {
-				return err
-			}
-			writer.Flush()
-			return nil
+			msg := []byte(`{"errors":[{"message":"unable to resolve"}]}`)
+			return writeAndFlush(writer, msg)
 		}
 		return err
 	}
