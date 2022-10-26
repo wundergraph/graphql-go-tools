@@ -13,7 +13,10 @@ import (
 )
 
 type federationEngineConfigFactoryOptions struct {
-	httpClient *http.Client
+	httpClient                *http.Client
+	streamingClient           *http.Client
+	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
+	subscriptionType          SubscriptionType
 }
 
 type FederationEngineConfigFactoryOption func(options *federationEngineConfigFactoryOptions)
@@ -21,6 +24,24 @@ type FederationEngineConfigFactoryOption func(options *federationEngineConfigFac
 func WithFederationHttpClient(client *http.Client) FederationEngineConfigFactoryOption {
 	return func(options *federationEngineConfigFactoryOptions) {
 		options.httpClient = client
+	}
+}
+
+func WithFederationStreamingClient(client *http.Client) FederationEngineConfigFactoryOption {
+	return func(options *federationEngineConfigFactoryOptions) {
+		options.streamingClient = client
+	}
+}
+
+func WithFederationSubscriptionClientFactory(factory graphqlDataSource.GraphQLSubscriptionClientFactory) FederationEngineConfigFactoryOption {
+	return func(options *federationEngineConfigFactoryOptions) {
+		options.subscriptionClientFactory = factory
+	}
+}
+
+func WithFederationSubscriptionType(subscriptionType SubscriptionType) FederationEngineConfigFactoryOption {
+	return func(options *federationEngineConfigFactoryOptions) {
+		options.subscriptionType = subscriptionType
 	}
 }
 
@@ -33,6 +54,11 @@ func NewFederationEngineConfigFactory(dataSourceConfigs []graphqlDataSource.Conf
 				TLSHandshakeTimeout: 0 * time.Second,
 			},
 		},
+		streamingClient: &http.Client{
+			Timeout: 0,
+		},
+		subscriptionClientFactory: &graphqlDataSource.DefaultSubscriptionClientFactory{},
+		subscriptionType:          SubscriptionTypeUnknown,
 	}
 
 	for _, optFunc := range opts {
@@ -40,18 +66,24 @@ func NewFederationEngineConfigFactory(dataSourceConfigs []graphqlDataSource.Conf
 	}
 
 	return &FederationEngineConfigFactory{
-		httpClient:        options.httpClient,
-		dataSourceConfigs: dataSourceConfigs,
-		batchFactory:      batchFactory,
+		httpClient:                options.httpClient,
+		streamingClient:           options.streamingClient,
+		dataSourceConfigs:         dataSourceConfigs,
+		batchFactory:              batchFactory,
+		subscriptionClientFactory: options.subscriptionClientFactory,
+		subscriptionType:          options.subscriptionType,
 	}
 }
 
 // FederationEngineConfigFactory is used to create a v2 engine config for a supergraph with multiple data sources for subgraphs.
 type FederationEngineConfigFactory struct {
-	httpClient        *http.Client
-	dataSourceConfigs []graphqlDataSource.Configuration
-	schema            *Schema
-	batchFactory      resolve.DataSourceBatchFactory
+	httpClient                *http.Client
+	streamingClient           *http.Client
+	dataSourceConfigs         []graphqlDataSource.Configuration
+	schema                    *Schema
+	batchFactory              resolve.DataSourceBatchFactory
+	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
+	subscriptionType          SubscriptionType
 }
 
 func (f *FederationEngineConfigFactory) SetMergedSchemaFromString(mergedSchema string) (err error) {
@@ -131,7 +163,17 @@ func (f *FederationEngineConfigFactory) engineConfigDataSources() (planDataSourc
 			return nil, fmt.Errorf("parse graphql document string: %s", report.Error())
 		}
 
-		planDataSource := newGraphQLDataSourceV2Generator(&doc).Generate(dataSourceConfig, f.batchFactory, f.httpClient)
+		planDataSource, err := newGraphQLDataSourceV2Generator(&doc).Generate(
+			dataSourceConfig,
+			f.batchFactory,
+			f.httpClient,
+			WithDataSourceV2GeneratorSubscriptionConfiguration(f.streamingClient, f.subscriptionType),
+			WithDataSourceV2GeneratorSubscriptionClientFactory(f.subscriptionClientFactory),
+		)
+		if err != nil {
+			return nil, err
+		}
+
 		planDataSources = append(planDataSources, planDataSource)
 	}
 

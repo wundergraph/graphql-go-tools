@@ -10,7 +10,9 @@ import (
 )
 
 type proxyEngineConfigFactoryOptions struct {
-	httpClient *http.Client
+	httpClient                *http.Client
+	streamingClient           *http.Client
+	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
 }
 
 type ProxyEngineConfigFactoryOption func(options *proxyEngineConfigFactoryOptions)
@@ -21,19 +23,34 @@ func WithProxyHttpClient(client *http.Client) ProxyEngineConfigFactoryOption {
 	}
 }
 
+func WithProxyStreamingClient(client *http.Client) ProxyEngineConfigFactoryOption {
+	return func(options *proxyEngineConfigFactoryOptions) {
+		options.streamingClient = client
+	}
+}
+
+func WithProxySubscriptionClientFactory(factory graphqlDataSource.GraphQLSubscriptionClientFactory) ProxyEngineConfigFactoryOption {
+	return func(options *proxyEngineConfigFactoryOptions) {
+		options.subscriptionClientFactory = factory
+	}
+}
+
 // ProxyUpstreamConfig holds configuration to configure a single data source to a single upstream.
 type ProxyUpstreamConfig struct {
-	URL           string
-	Method        string
-	StaticHeaders http.Header
+	URL              string
+	Method           string
+	StaticHeaders    http.Header
+	SubscriptionType SubscriptionType
 }
 
 // ProxyEngineConfigFactory is used to create a v2 engine config with a single upstream and a single data source for this upstream.
 type ProxyEngineConfigFactory struct {
-	httpClient          *http.Client
-	schema              *Schema
-	proxyUpstreamConfig ProxyUpstreamConfig
-	batchFactory        resolve.DataSourceBatchFactory
+	httpClient                *http.Client
+	streamingClient           *http.Client
+	schema                    *Schema
+	proxyUpstreamConfig       ProxyUpstreamConfig
+	batchFactory              resolve.DataSourceBatchFactory
+	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
 }
 
 func NewProxyEngineConfigFactory(schema *Schema, proxyUpstreamConfig ProxyUpstreamConfig, batchFactory resolve.DataSourceBatchFactory, opts ...ProxyEngineConfigFactoryOption) *ProxyEngineConfigFactory {
@@ -45,6 +62,10 @@ func NewProxyEngineConfigFactory(schema *Schema, proxyUpstreamConfig ProxyUpstre
 				TLSHandshakeTimeout: 0 * time.Second,
 			},
 		},
+		streamingClient: &http.Client{
+			Timeout: 0,
+		},
+		subscriptionClientFactory: &graphqlDataSource.DefaultSubscriptionClientFactory{},
 	}
 
 	for _, optFunc := range opts {
@@ -52,10 +73,12 @@ func NewProxyEngineConfigFactory(schema *Schema, proxyUpstreamConfig ProxyUpstre
 	}
 
 	return &ProxyEngineConfigFactory{
-		httpClient:          options.httpClient,
-		schema:              schema,
-		proxyUpstreamConfig: proxyUpstreamConfig,
-		batchFactory:        batchFactory,
+		httpClient:                options.httpClient,
+		streamingClient:           options.streamingClient,
+		schema:                    schema,
+		proxyUpstreamConfig:       proxyUpstreamConfig,
+		batchFactory:              batchFactory,
+		subscriptionClientFactory: options.subscriptionClientFactory,
 	}
 }
 
@@ -67,7 +90,8 @@ func (p *ProxyEngineConfigFactory) EngineV2Configuration() (EngineV2Configuratio
 			Header: p.proxyUpstreamConfig.StaticHeaders,
 		},
 		Subscription: graphqlDataSource.SubscriptionConfiguration{
-			URL: p.proxyUpstreamConfig.URL,
+			URL:    p.proxyUpstreamConfig.URL,
+			UseSSE: p.proxyUpstreamConfig.SubscriptionType == SubscriptionTypeSSE,
 		},
 	}
 
@@ -78,9 +102,18 @@ func (p *ProxyEngineConfigFactory) EngineV2Configuration() (EngineV2Configuratio
 		return EngineV2Configuration{}, report
 	}
 
-	dataSource := newGraphQLDataSourceV2Generator(&rawDoc).Generate(dataSourceConfig, p.batchFactory, p.httpClient)
-	conf.AddDataSource(dataSource)
+	dataSource, err := newGraphQLDataSourceV2Generator(&rawDoc).Generate(
+		dataSourceConfig,
+		p.batchFactory,
+		p.httpClient,
+		WithDataSourceV2GeneratorSubscriptionConfiguration(p.streamingClient, p.proxyUpstreamConfig.SubscriptionType),
+		WithDataSourceV2GeneratorSubscriptionClientFactory(p.subscriptionClientFactory),
+	)
+	if err != nil {
+		return EngineV2Configuration{}, err
+	}
 
+	conf.AddDataSource(dataSource)
 	fieldConfigs := newGraphQLFieldConfigsV2Generator(p.schema).Generate()
 	conf.SetFieldConfigurations(fieldConfigs)
 

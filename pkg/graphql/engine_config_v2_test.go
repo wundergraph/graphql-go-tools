@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"context"
 	"net/http"
 	"sort"
 	"testing"
@@ -68,21 +69,12 @@ func TestNewEngineV2Configuration(t *testing.T) {
 
 func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 	client := &http.Client{}
-	dataSourceConfig := graphqlDataSource.Configuration{
-		Fetch: graphqlDataSource.FetchConfiguration{
-			URL:    "http://localhost:8080",
-			Method: http.MethodGet,
-			Header: map[string][]string{
-				"Authorization": {"123abc"},
-			},
-		},
-	}
+	streamingClient := &http.Client{}
 
 	doc, report := astparser.ParseGraphqlDocumentString(graphqlGeneratorSchema)
 	require.Falsef(t, report.HasErrors(), "document parser report has errors")
 
 	batchFactory := graphqlDataSource.NewBatchFactory()
-	dataSource := newGraphQLDataSourceV2Generator(&doc).Generate(dataSourceConfig, batchFactory, client)
 	expectedRootNodes := []plan.TypeField{
 		{
 			TypeName:   "Query",
@@ -108,8 +100,72 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, expectedRootNodes, dataSource.RootNodes)
-	assert.Equal(t, expectedChildNodes, dataSource.ChildNodes)
+	t.Run("without subscription configuration", func(t *testing.T) {
+		dataSourceConfig := graphqlDataSource.Configuration{
+			Fetch: graphqlDataSource.FetchConfiguration{
+				URL:    "http://localhost:8080",
+				Method: http.MethodGet,
+				Header: map[string][]string{
+					"Authorization": {"123abc"},
+				},
+			},
+		}
+
+		expectedDataSourceFactory := &graphqlDataSource.Factory{
+			BatchFactory:       batchFactory,
+			HTTPClient:         client,
+			StreamingClient:    streamingClient,
+			SubscriptionClient: mockSubscriptionClient,
+		}
+
+		dataSource, err := newGraphQLDataSourceV2Generator(&doc).Generate(
+			dataSourceConfig,
+			batchFactory,
+			client,
+			WithDataSourceV2GeneratorSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
+		)
+		require.NoError(t, err)
+
+		assert.Equal(t, expectedRootNodes, dataSource.RootNodes)
+		assert.Equal(t, expectedChildNodes, dataSource.ChildNodes)
+		assert.Equal(t, expectedDataSourceFactory, dataSource.Factory)
+	})
+
+	t.Run("with subscription configuration (SSE)", func(t *testing.T) {
+		dataSourceConfig := graphqlDataSource.Configuration{
+			Fetch: graphqlDataSource.FetchConfiguration{
+				URL:    "http://localhost:8080",
+				Method: http.MethodGet,
+				Header: map[string][]string{
+					"Authorization": {"123abc"},
+				},
+			},
+			Subscription: graphqlDataSource.SubscriptionConfiguration{
+				UseSSE: true,
+			},
+		}
+
+		expectedDataSourceFactory := &graphqlDataSource.Factory{
+			BatchFactory:       batchFactory,
+			HTTPClient:         client,
+			StreamingClient:    streamingClient,
+			SubscriptionClient: mockSubscriptionClient,
+		}
+
+		dataSource, err := newGraphQLDataSourceV2Generator(&doc).Generate(
+			dataSourceConfig,
+			batchFactory,
+			client,
+			WithDataSourceV2GeneratorSubscriptionConfiguration(streamingClient, SubscriptionTypeSSE),
+			WithDataSourceV2GeneratorSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
+		)
+		require.NoError(t, err)
+
+		assert.Equal(t, expectedRootNodes, dataSource.RootNodes)
+		assert.Equal(t, expectedChildNodes, dataSource.ChildNodes)
+		assert.Equal(t, expectedDataSourceFactory, dataSource.Factory)
+	})
+
 }
 
 func TestGraphqlFieldConfigurationsV2Generator_Generate(t *testing.T) {
@@ -219,6 +275,14 @@ func TestGraphqlFieldConfigurationsV2Generator_Generate(t *testing.T) {
 		assert.Equal(t, expectedFieldConfigurations, fieldConfigurations)
 	})
 
+}
+
+var mockSubscriptionClient = &graphqlDataSource.SubscriptionClient{}
+
+type MockSubscriptionClientFactory struct{}
+
+func (m *MockSubscriptionClientFactory) NewSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context, options ...graphqlDataSource.Options) graphqlDataSource.GraphQLSubscriptionClient {
+	return mockSubscriptionClient
 }
 
 var graphqlGeneratorSchema = `scalar _Any
