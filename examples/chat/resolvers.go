@@ -31,7 +31,7 @@ func (r *resolver) Subscription() SubscriptionResolver {
 	return &subscriptionResolver{r}
 }
 
-func (r *resolver) __Directive() __DirectiveResolver {
+func (r *resolver) __Directive() directiveResolver {
 	return directiveResolver{r}
 }
 

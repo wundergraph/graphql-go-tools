@@ -11,6 +11,7 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/examples/federation/reviews/graph/model"
 )
 
+// Reviews is the resolver for the reviews field.
 func (r *productResolver) Reviews(ctx context.Context, obj *model.Product) ([]*model.Review, error) {
 	var res []*model.Review
 
@@ -23,10 +24,12 @@ func (r *productResolver) Reviews(ctx context.Context, obj *model.Product) ([]*m
 	return res, nil
 }
 
+// Username is the resolver for the username field.
 func (r *userResolver) Username(ctx context.Context, obj *model.User) (string, error) {
 	return fmt.Sprintf("User %s", obj.ID), nil
 }
 
+// Reviews is the resolver for the reviews field.
 func (r *userResolver) Reviews(ctx context.Context, obj *model.User) ([]*model.Review, error) {
 	var res []*model.Review
 

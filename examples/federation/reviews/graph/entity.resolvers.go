@@ -10,12 +10,14 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/examples/federation/reviews/graph/model"
 )
 
+// FindProductByUpc is the resolver for the findProductByUpc field.
 func (r *entityResolver) FindProductByUpc(ctx context.Context, upc string) (*model.Product, error) {
 	return &model.Product{
 		Upc: upc,
 	}, nil
 }
 
+// FindUserByID is the resolver for the findUserByID field.
 func (r *entityResolver) FindUserByID(ctx context.Context, id string) (*model.User, error) {
 	return &model.User{
 		ID: id,

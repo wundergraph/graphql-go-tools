@@ -13,10 +13,12 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/examples/federation/products/graph/model"
 )
 
+// TopProducts is the resolver for the topProducts field.
 func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.Product, error) {
 	return hats, nil
 }
 
+// UpdatedPrice is the resolver for the updatedPrice field.
 func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.Product, error) {
 	updatedPrice := make(chan *model.Product)
 	go func() {
@@ -44,6 +46,7 @@ func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.
 	return updatedPrice, nil
 }
 
+// UpdateProductPrice is the resolver for the updateProductPrice field.
 func (r *subscriptionResolver) UpdateProductPrice(ctx context.Context, upc string) (<-chan *model.Product, error) {
 	updatedPrice := make(chan *model.Product)
 	var product *model.Product
@@ -77,6 +80,7 @@ func (r *subscriptionResolver) UpdateProductPrice(ctx context.Context, upc strin
 	return updatedPrice, nil
 }
 
+// Stock is the resolver for the stock field.
 func (r *subscriptionResolver) Stock(ctx context.Context) (<-chan []*model.Product, error) {
 	stock := make(chan []*model.Product)
 

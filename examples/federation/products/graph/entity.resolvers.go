@@ -10,6 +10,7 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/examples/federation/products/graph/model"
 )
 
+// FindProductByUpc is the resolver for the findProductByUpc field.
 func (r *entityResolver) FindProductByUpc(ctx context.Context, upc string) (*model.Product, error) {
 	for _, h := range hats {
 		if h.Upc == upc {
