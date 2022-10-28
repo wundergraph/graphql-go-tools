@@ -2,6 +2,8 @@ package operationreport
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/graphqlerrors"
@@ -18,8 +20,16 @@ func ErrDocumentDoesntContainExecutableOperation() (err ExternalError) {
 	return
 }
 
-func ErrFieldUndefinedOnType(fieldName, typeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("field: %s not defined on type: %s", fieldName, typeName)
+func ErrFieldUndefinedOnType(fieldName, typeName ast.ByteSlice, typeFieldNames []ast.ByteSlice) (err ExternalError) {
+	suffix := ""
+	if len(typeFieldNames) > 0 {
+		names := make([]string, len(typeFieldNames))
+		for ii, n := range typeFieldNames {
+			names[ii] = strconv.Quote(n.String())
+		}
+		suffix = fmt.Sprintf(" (available fields: %s)", strings.Join(names, ", "))
+	}
+	err.Message = fmt.Sprintf("field: %s not defined on type: %s%s", fieldName, typeName, suffix)
 	return err
 }
 

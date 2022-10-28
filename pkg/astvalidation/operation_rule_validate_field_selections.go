@@ -49,6 +49,7 @@ func (f *fieldDefined) ValidateInterfaceObjectTypeField(ref int, enclosingTypeDe
 	typeName := f.definition.NodeNameBytes(enclosingTypeDefinition)
 	hasSelections := f.operation.FieldHasSelections(ref)
 	definitions := f.definition.NodeFieldDefinitions(enclosingTypeDefinition)
+	var fieldNames []ast.ByteSlice
 	for _, i := range definitions {
 		definitionName := f.definition.FieldDefinitionNameBytes(i)
 		if bytes.Equal(fieldName, definitionName) {
@@ -62,9 +63,10 @@ func (f *fieldDefined) ValidateInterfaceObjectTypeField(ref int, enclosingTypeDe
 			}
 			return
 		}
+		fieldNames = append(fieldNames, definitionName)
 	}
 
-	f.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, typeName))
+	f.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, typeName, fieldNames))
 }
 
 func (f *fieldDefined) ValidateScalarField(ref int, enclosingTypeDefinition ast.Node) {

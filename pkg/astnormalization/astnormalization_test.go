@@ -284,7 +284,7 @@ schema {
 		assert.True(t, report.HasErrors())
 		assert.Equal(t, 1, len(report.ExternalErrors))
 		assert.Equal(t, 0, len(report.InternalErrors))
-		assert.Equal(t, "external: field: nam not defined on type: Country, locations: [], path: [query,country,nam]", report.Error())
+		assert.Equal(t, `external: field: nam not defined on type: Country (available fields: "name"), locations: [], path: [query,country,nam]`, report.Error())
 	})
 }
 

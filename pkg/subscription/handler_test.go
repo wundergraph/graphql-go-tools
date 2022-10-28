@@ -162,7 +162,7 @@ func TestHandler_Handle(t *testing.T) {
 				assert.Len(t, messagesFromServer, 1)
 				assert.Equal(t, "1", messagesFromServer[0].Id)
 				assert.Equal(t, MessageTypeError, messagesFromServer[0].Type)
-				assert.Equal(t, `[{"message":"field: invalid not defined on type: Character","path":["query","hero","invalid"]}]`, string(messagesFromServer[0].Payload))
+				assert.Equal(t, `[{"message":"field: invalid not defined on type: Character (available fields: \"name\", \"friends\", \"__typename\")","path":["query","hero","invalid"]}]`, string(messagesFromServer[0].Payload))
 				assert.Equal(t, 0, subscriptionHandler.ActiveSubscriptions())
 			})
 
@@ -472,7 +472,7 @@ func TestHandler_Handle(t *testing.T) {
 				expectedErrorMessage := Message{
 					Id:      "1",
 					Type:    MessageTypeError,
-					Payload: []byte(`[{"message":"field: serverName not defined on type: Query","path":["query","serverName"]}]`),
+					Payload: []byte(`[{"message":"field: serverName not defined on type: Query (available fields: \"room\", \"__schema\", \"__type\", \"__typename\")","path":["query","serverName"]}]`),
 				}
 
 				messagesFromServer := client.readFromServer()

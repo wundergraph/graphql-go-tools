@@ -1373,15 +1373,18 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 			typeName = literal.STRING
 		}
 		fields := w.definition.NodeFieldDefinitions(w.typeDefinitions[len(w.typeDefinitions)-1])
+		var fieldNames []ast.ByteSlice
 		for _, i := range fields {
-			if bytes.Equal(fieldName, w.definition.FieldDefinitionNameBytes(i)) {
+			definitionName := w.definition.FieldDefinitionNameBytes(i)
+			if bytes.Equal(fieldName, definitionName) {
 				typeName = w.definition.ResolveTypeNameBytes(w.definition.FieldDefinitionType(i))
 				break
 			}
+			fieldNames = append(fieldNames, definitionName)
 		}
 		if typeName == nil {
 			typeName := w.definition.NodeNameBytes(w.typeDefinitions[len(w.typeDefinitions)-1])
-			w.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, typeName))
+			w.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, typeName, fieldNames))
 			return
 		}
 	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
