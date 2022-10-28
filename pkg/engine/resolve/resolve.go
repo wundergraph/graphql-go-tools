@@ -731,6 +731,9 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 
 		*arrayItems = append(*arrayItems, value)
 	})
+	if err != nil {
+		return err
+	}
 
 	if len(*arrayItems) == 0 {
 		if !array.Nullable {
