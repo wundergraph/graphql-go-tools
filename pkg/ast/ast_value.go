@@ -10,6 +10,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/quotes"
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
+	"github.com/wundergraph/graphql-go-tools/pkg/lexer/position"
 )
 
 type ValueKind int

@@ -2160,7 +2160,7 @@ func TestExecutionValidation(t *testing.T) {
 					KnownArguments(), Invalid)
 			})
 			t.Run("118 variant", func(t *testing.T) {
-				run(`	
+				run(t, `	
 							{
 								dog { ...invalidArgName}
 							}
@@ -2733,7 +2733,7 @@ func TestExecutionValidation(t *testing.T) {
 							Fragments(), Valid)
 					})
 					t.Run("143 variant", func(t *testing.T) {
-						run(`
+						run(t, `
 									{
 										dog {
 											...interfaceWithUnion
