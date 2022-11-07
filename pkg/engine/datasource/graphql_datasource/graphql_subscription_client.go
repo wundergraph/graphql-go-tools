@@ -65,6 +65,18 @@ type opts struct {
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
 }
 
+// GraphQLSubscriptionClientFactory abstracts the way of creating a new GraphQLSubscriptionClient.
+// This can be very handy for testing purposes.
+type GraphQLSubscriptionClientFactory interface {
+	NewSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context, options ...Options) GraphQLSubscriptionClient
+}
+
+type DefaultSubscriptionClientFactory struct{}
+
+func (d *DefaultSubscriptionClientFactory) NewSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context, options ...Options) GraphQLSubscriptionClient {
+	return NewGraphQLSubscriptionClient(httpClient, streamingClient, engineCtx, options...)
+}
+
 func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context, options ...Options) *SubscriptionClient {
 	op := &opts{
 		readTimeout: time.Second,
