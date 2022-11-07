@@ -24,7 +24,7 @@ require (
 	github.com/jensneuse/diffview v1.0.0
 	github.com/jensneuse/pipeline v0.0.0-20200117120358-9fb4de085cd6
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/nats-io/nats.go v1.14.0
+	github.com/nats-io/nats.go v1.19.1
 	github.com/ory/dockertest v3.3.5+incompatible
 	github.com/qri-io/jsonschema v0.2.1
 	github.com/r3labs/sse/v2 v2.8.1
