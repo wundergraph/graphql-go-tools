@@ -17,62 +17,8 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 	require.NoError(t, err)
 
 	client := &http.Client{}
-	upstreamConfig := ProxyUpstreamConfig{
-		URL:    "http://localhost:8080",
-		Method: http.MethodGet,
-		StaticHeaders: map[string][]string{
-			"Authorization": {"123abc"},
-		},
-	}
+	streamingClient := &http.Client{}
 	batchFactory := graphqlDataSource.NewBatchFactory()
-	configFactory := NewProxyEngineConfigFactory(schema, upstreamConfig, batchFactory, WithProxyHttpClient(client))
-	config, err := configFactory.EngineV2Configuration()
-	if !assert.NoError(t, err) {
-		return
-	}
-
-	expectedDataSource := plan.DataSourceConfiguration{
-		RootNodes: []plan.TypeField{
-			{
-				TypeName:   "Query",
-				FieldNames: []string{"me", "_entities"},
-			},
-			{
-				TypeName:   "Mutation",
-				FieldNames: []string{"addUser"},
-			},
-			{
-				TypeName:   "Subscription",
-				FieldNames: []string{"userCount"},
-			},
-		},
-		ChildNodes: []plan.TypeField{
-			{
-				TypeName:   "User",
-				FieldNames: []string{"id", "name", "age", "language"},
-			},
-			{
-				TypeName:   "Language",
-				FieldNames: []string{"code", "name"},
-			},
-		},
-		Factory: &graphqlDataSource.Factory{
-			HTTPClient:   client,
-			BatchFactory: batchFactory,
-		},
-		Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{
-			Fetch: graphqlDataSource.FetchConfiguration{
-				URL:    "http://localhost:8080",
-				Method: "GET",
-				Header: map[string][]string{
-					"Authorization": {"123abc"},
-				},
-			},
-			Subscription: graphqlDataSource.SubscriptionConfiguration{
-				URL: "http://localhost:8080",
-			},
-		}),
-	}
 
 	expectedFieldConfigs := plan.FieldConfigurations{
 		{
@@ -105,13 +51,241 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 		},
 	}
 
-	expectedConfig := NewEngineV2Configuration(schema)
-	expectedConfig.AddDataSource(expectedDataSource)
-	expectedConfig.SetFieldConfigurations(expectedFieldConfigs)
+	t.Run("engine config with unknown subscription type", func(t *testing.T) {
+		upstreamConfig := ProxyUpstreamConfig{
+			URL:    "http://localhost:8080",
+			Method: http.MethodGet,
+			StaticHeaders: map[string][]string{
+				"Authorization": {"123abc"},
+			},
+		}
 
-	sort.Slice(config.plannerConfig.Fields, func(i, j int) bool { // make slice deterministic again
-		return config.plannerConfig.Fields[i].TypeName < config.plannerConfig.Fields[j].TypeName
+		configFactory := NewProxyEngineConfigFactory(
+			schema,
+			upstreamConfig,
+			batchFactory,
+			WithProxyHttpClient(client),
+			WithProxyStreamingClient(streamingClient),
+			WithProxySubscriptionClientFactory(&MockSubscriptionClientFactory{}),
+		)
+		config, err := configFactory.EngineV2Configuration()
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		expectedDataSource := plan.DataSourceConfiguration{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"me", "_entities"},
+				},
+				{
+					TypeName:   "Mutation",
+					FieldNames: []string{"addUser"},
+				},
+				{
+					TypeName:   "Subscription",
+					FieldNames: []string{"userCount"},
+				},
+			},
+			ChildNodes: []plan.TypeField{
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id", "name", "age", "language"},
+				},
+				{
+					TypeName:   "Language",
+					FieldNames: []string{"code", "name"},
+				},
+			},
+			Factory: &graphqlDataSource.Factory{
+				HTTPClient:         client,
+				StreamingClient:    streamingClient,
+				BatchFactory:       batchFactory,
+				SubscriptionClient: mockSubscriptionClient,
+			},
+			Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{
+				Fetch: graphqlDataSource.FetchConfiguration{
+					URL:    "http://localhost:8080",
+					Method: "GET",
+					Header: map[string][]string{
+						"Authorization": {"123abc"},
+					},
+				},
+				Subscription: graphqlDataSource.SubscriptionConfiguration{
+					URL:    "http://localhost:8080",
+					UseSSE: false,
+				},
+			}),
+		}
+
+		expectedConfig := NewEngineV2Configuration(schema)
+		expectedConfig.AddDataSource(expectedDataSource)
+		expectedConfig.SetFieldConfigurations(expectedFieldConfigs)
+		sortFieldConfigurations(config.FieldConfigurations())
+
+		assert.Equal(t, expectedConfig, config)
 	})
 
-	assert.Equal(t, expectedConfig, config)
+	t.Run("engine config with specific WS subscription type", func(t *testing.T) {
+		upstreamConfig := ProxyUpstreamConfig{
+			URL:    "http://localhost:8080",
+			Method: http.MethodGet,
+			StaticHeaders: map[string][]string{
+				"Authorization": {"123abc"},
+			},
+			SubscriptionType: SubscriptionTypeGraphQLTransportWS,
+		}
+
+		configFactory := NewProxyEngineConfigFactory(
+			schema,
+			upstreamConfig,
+			batchFactory,
+			WithProxyHttpClient(client),
+			WithProxyStreamingClient(streamingClient),
+			WithProxySubscriptionClientFactory(&MockSubscriptionClientFactory{}),
+		)
+		config, err := configFactory.EngineV2Configuration()
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		expectedDataSource := plan.DataSourceConfiguration{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"me", "_entities"},
+				},
+				{
+					TypeName:   "Mutation",
+					FieldNames: []string{"addUser"},
+				},
+				{
+					TypeName:   "Subscription",
+					FieldNames: []string{"userCount"},
+				},
+			},
+			ChildNodes: []plan.TypeField{
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id", "name", "age", "language"},
+				},
+				{
+					TypeName:   "Language",
+					FieldNames: []string{"code", "name"},
+				},
+			},
+			Factory: &graphqlDataSource.Factory{
+				HTTPClient:         client,
+				StreamingClient:    streamingClient,
+				BatchFactory:       batchFactory,
+				SubscriptionClient: mockSubscriptionClient,
+			},
+			Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{
+				Fetch: graphqlDataSource.FetchConfiguration{
+					URL:    "http://localhost:8080",
+					Method: "GET",
+					Header: map[string][]string{
+						"Authorization": {"123abc"},
+					},
+				},
+				Subscription: graphqlDataSource.SubscriptionConfiguration{
+					URL:    "http://localhost:8080",
+					UseSSE: false,
+				},
+			}),
+		}
+
+		expectedConfig := NewEngineV2Configuration(schema)
+		expectedConfig.AddDataSource(expectedDataSource)
+		expectedConfig.SetFieldConfigurations(expectedFieldConfigs)
+		sortFieldConfigurations(config.FieldConfigurations())
+
+		assert.Equal(t, expectedConfig, config)
+	})
+
+	t.Run("engine config with SSE subscription type", func(t *testing.T) {
+		upstreamConfig := ProxyUpstreamConfig{
+			URL:    "http://localhost:8080",
+			Method: http.MethodGet,
+			StaticHeaders: map[string][]string{
+				"Authorization": {"123abc"},
+			},
+			SubscriptionType: SubscriptionTypeSSE,
+		}
+
+		configFactory := NewProxyEngineConfigFactory(
+			schema,
+			upstreamConfig,
+			batchFactory,
+			WithProxyHttpClient(client),
+			WithProxyStreamingClient(streamingClient),
+			WithProxySubscriptionClientFactory(&MockSubscriptionClientFactory{}),
+		)
+		config, err := configFactory.EngineV2Configuration()
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		expectedDataSource := plan.DataSourceConfiguration{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"me", "_entities"},
+				},
+				{
+					TypeName:   "Mutation",
+					FieldNames: []string{"addUser"},
+				},
+				{
+					TypeName:   "Subscription",
+					FieldNames: []string{"userCount"},
+				},
+			},
+			ChildNodes: []plan.TypeField{
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id", "name", "age", "language"},
+				},
+				{
+					TypeName:   "Language",
+					FieldNames: []string{"code", "name"},
+				},
+			},
+			Factory: &graphqlDataSource.Factory{
+				HTTPClient:         client,
+				StreamingClient:    streamingClient,
+				BatchFactory:       batchFactory,
+				SubscriptionClient: mockSubscriptionClient,
+			},
+			Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{
+				Fetch: graphqlDataSource.FetchConfiguration{
+					URL:    "http://localhost:8080",
+					Method: "GET",
+					Header: map[string][]string{
+						"Authorization": {"123abc"},
+					},
+				},
+				Subscription: graphqlDataSource.SubscriptionConfiguration{
+					URL:    "http://localhost:8080",
+					UseSSE: true,
+				},
+			}),
+		}
+
+		expectedConfig := NewEngineV2Configuration(schema)
+		expectedConfig.AddDataSource(expectedDataSource)
+		expectedConfig.SetFieldConfigurations(expectedFieldConfigs)
+		sortFieldConfigurations(config.FieldConfigurations())
+
+		assert.Equal(t, expectedConfig, config)
+	})
+
+}
+
+// sortFieldConfigurations makes field configurations deterministic for testing
+func sortFieldConfigurations(fieldConfigs []plan.FieldConfiguration) {
+	sort.Slice(fieldConfigs, func(i, j int) bool {
+		return fieldConfigs[i].TypeName < fieldConfigs[j].TypeName
+	})
 }
