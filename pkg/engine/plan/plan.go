@@ -1211,14 +1211,15 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external Fet
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 
 	singleFetch := &resolve.SingleFetch{
-		BufferId:              internal.bufferID,
-		Input:                 external.Input,
-		DataSource:            external.DataSource,
-		Variables:             external.Variables,
-		DisallowSingleFlight:  external.DisallowSingleFlight,
-		DataSourceIdentifier:  []byte(dataSourceType),
-		ProcessResponseConfig: external.ProcessResponseConfig,
-		DisableDataLoader:     external.DisableDataLoader,
+		BufferId:                              internal.bufferID,
+		Input:                                 external.Input,
+		DataSource:                            external.DataSource,
+		Variables:                             external.Variables,
+		DisallowSingleFlight:                  external.DisallowSingleFlight,
+		DataSourceIdentifier:                  []byte(dataSourceType),
+		ProcessResponseConfig:                 external.ProcessResponseConfig,
+		DisableDataLoader:                     external.DisableDataLoader,
+		SetTemplateOutputToNullOnVariableNull: external.SetTemplateOutputToNullOnVariableNull,
 	}
 
 	// if a field depends on an exported variable, data loader needs to be disabled
@@ -1363,6 +1364,10 @@ type FetchConfiguration struct {
 	DisableDataLoader     bool
 	ProcessResponseConfig resolve.ProcessResponseConfig
 	BatchConfig           BatchConfig
+	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
+	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
+	// Returning null in this case tells the batch implementation to skip this item
+	SetTemplateOutputToNullOnVariableNull bool
 }
 
 type BatchConfig struct {

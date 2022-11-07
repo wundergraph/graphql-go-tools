@@ -30,7 +30,7 @@ func TestSubscriptionCancellations(t *testing.T) {
 	t.Run("should add a cancellation func to map", func(t *testing.T) {
 		require.Equal(t, 0, len(cancellations))
 
-		ctx = cancellations.Add("1")
+		ctx = cancellations.AddWithParent("1", context.Background())
 		assert.Equal(t, 1, len(cancellations))
 		assert.NotNil(t, ctx)
 	})

@@ -65,6 +65,8 @@ func (d *ProcessDataSource) traverseSingleFetch(fetch *resolve.SingleFetch) {
 	d.resolveInputTemplate(fetch.Variables, fetch.Input, &fetch.InputTemplate)
 	fetch.Input = ""
 	fetch.Variables = nil
+	fetch.InputTemplate.SetTemplateOutputToNullOnVariableNull = fetch.SetTemplateOutputToNullOnVariableNull
+	fetch.SetTemplateOutputToNullOnVariableNull = false
 }
 
 func (d *ProcessDataSource) resolveInputTemplate(variables resolve.Variables, input string, template *resolve.InputTemplate) {

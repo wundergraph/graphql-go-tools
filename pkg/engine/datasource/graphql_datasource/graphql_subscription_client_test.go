@@ -2,6 +2,7 @@ package graphql_datasource
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/buger/jsonparser"
 	ll "github.com/jensneuse/abstractlogger"
@@ -25,6 +28,40 @@ func logger() ll.Logger {
 	}
 
 	return ll.NewZapLogger(logger, ll.DebugLevel)
+}
+
+func TestGetConnectionInitMessageHelper(t *testing.T) {
+	var callback OnWsConnectionInitCallback = func(ctx context.Context, url string, header http.Header) (json.RawMessage, error) {
+		return json.RawMessage(`{"authorization":"secret"}`), nil
+	}
+
+	tests := []struct {
+		name     string
+		callback *OnWsConnectionInitCallback
+		want     string
+	}{
+		{
+			name:     "without payload",
+			callback: nil,
+			want:     `{"type":"connection_init"}`,
+		},
+		{
+			name:     "with payload",
+			callback: &callback,
+			want:     `{"type":"connection_init","payload":{"authorization":"secret"}}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := SubscriptionClient{onWsConnectionInitCallback: tt.callback}
+			got, err := client.getConnectionInitMessage(context.Background(), "", nil)
+			require.NoError(t, err)
+			require.NotEmpty(t, got)
+
+			assert.Equal(t, tt.want, string(got))
+		})
+	}
 }
 
 func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
@@ -117,7 +154,7 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(protocolGraphQLWS),
+		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	clientsDone := &sync.WaitGroup{}
 
@@ -174,7 +211,7 @@ func TestWebsocketSubscriptionClientImmediateClientCancel(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(protocolGraphQLWS),
+		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
@@ -229,7 +266,7 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(protocolGraphQLWS),
+		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{

@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
@@ -73,6 +74,27 @@ func (e *EngineV2Configuration) SetWebsocketBeforeStartHook(hook WebsocketBefore
 	e.websocketBeforeStartHook = hook
 }
 
+type dataSourceV2GeneratorOptions struct {
+	streamingClient           *http.Client
+	subscriptionType          SubscriptionType
+	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
+}
+
+type DataSourceV2GeneratorOption func(options *dataSourceV2GeneratorOptions)
+
+func WithDataSourceV2GeneratorSubscriptionConfiguration(streamingClient *http.Client, subscriptionType SubscriptionType) DataSourceV2GeneratorOption {
+	return func(options *dataSourceV2GeneratorOptions) {
+		options.streamingClient = streamingClient
+		options.subscriptionType = subscriptionType
+	}
+}
+
+func WithDataSourceV2GeneratorSubscriptionClientFactory(factory graphqlDataSource.GraphQLSubscriptionClientFactory) DataSourceV2GeneratorOption {
+	return func(options *dataSourceV2GeneratorOptions) {
+		options.subscriptionClientFactory = factory
+	}
+}
+
 type graphqlDataSourceV2Generator struct {
 	document *ast.Document
 }
@@ -83,20 +105,64 @@ func newGraphQLDataSourceV2Generator(document *ast.Document) *graphqlDataSourceV
 	}
 }
 
-func (d *graphqlDataSourceV2Generator) Generate(config graphqlDataSource.Configuration, batchFactory resolve.DataSourceBatchFactory, httpClient *http.Client) plan.DataSourceConfiguration {
+func (d *graphqlDataSourceV2Generator) Generate(config graphqlDataSource.Configuration, batchFactory resolve.DataSourceBatchFactory, httpClient *http.Client, options ...DataSourceV2GeneratorOption) (plan.DataSourceConfiguration, error) {
 	var planDataSource plan.DataSourceConfiguration
 	extractor := plan.NewLocalTypeFieldExtractor(d.document)
 	planDataSource.RootNodes, planDataSource.ChildNodes = extractor.GetAllNodes()
 
-	factory := &graphqlDataSource.Factory{
-		HTTPClient:   httpClient,
-		BatchFactory: batchFactory,
+	definedOptions := &dataSourceV2GeneratorOptions{
+		streamingClient:           &http.Client{Timeout: 0},
+		subscriptionType:          SubscriptionTypeUnknown,
+		subscriptionClientFactory: &graphqlDataSource.DefaultSubscriptionClientFactory{},
 	}
+
+	for _, option := range options {
+		option(definedOptions)
+	}
+
+	factory := &graphqlDataSource.Factory{
+		HTTPClient:      httpClient,
+		StreamingClient: definedOptions.streamingClient,
+		BatchFactory:    batchFactory,
+	}
+
+	subscriptionClient, err := d.generateSubscriptionClient(httpClient, definedOptions)
+	if err != nil {
+		return plan.DataSourceConfiguration{}, err
+	}
+	factory.SubscriptionClient = subscriptionClient
 
 	planDataSource.Factory = factory
 	planDataSource.Custom = graphqlDataSource.ConfigJson(config)
 
-	return planDataSource
+	return planDataSource, nil
+}
+
+func (d *graphqlDataSourceV2Generator) generateSubscriptionClient(httpClient *http.Client, definedOptions *dataSourceV2GeneratorOptions) (*graphqlDataSource.SubscriptionClient, error) {
+	var graphqlSubscriptionClient graphqlDataSource.GraphQLSubscriptionClient
+	switch definedOptions.subscriptionType {
+	case SubscriptionTypeGraphQLTransportWS:
+		graphqlSubscriptionClient = definedOptions.subscriptionClientFactory.NewSubscriptionClient(
+			httpClient,
+			definedOptions.streamingClient,
+			nil,
+			graphqlDataSource.WithWSSubProtocol(graphqlDataSource.ProtocolGraphQLTWS),
+		)
+	default:
+		// for compatibility reasons we fall back to graphql-ws protocol
+		graphqlSubscriptionClient = definedOptions.subscriptionClientFactory.NewSubscriptionClient(
+			httpClient,
+			definedOptions.streamingClient,
+			nil,
+			graphqlDataSource.WithWSSubProtocol(graphqlDataSource.ProtocolGraphQLWS),
+		)
+	}
+
+	subscriptionClient, ok := graphqlSubscriptionClient.(*graphqlDataSource.SubscriptionClient)
+	if !ok {
+		return nil, errors.New("invalid SubscriptionClient was instantiated")
+	}
+	return subscriptionClient, nil
 }
 
 type graphqlFieldConfigurationsV2Generator struct {

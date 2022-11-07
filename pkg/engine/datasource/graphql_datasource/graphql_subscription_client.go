@@ -7,9 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
-
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
 	"nhooyr.io/websocket"
 )
@@ -20,14 +19,15 @@ const ackWaitTimeout = 30 * time.Second
 // It takes care of de-duplicating connections to the same origin under certain circumstances
 // If Hash(URL,Body,Headers) result in the same result, an existing connection is re-used
 type SubscriptionClient struct {
-	streamingClient *http.Client
-	httpClient      *http.Client
-	engineCtx       context.Context
-	log             abstractlogger.Logger
-	hashPool        sync.Pool
-	handlers        map[uint64]ConnectionHandler
-	handlersMu      sync.Mutex
-	wsSubProtocol   string
+	streamingClient            *http.Client
+	httpClient                 *http.Client
+	engineCtx                  context.Context
+	log                        abstractlogger.Logger
+	hashPool                   sync.Pool
+	handlers                   map[uint64]ConnectionHandler
+	handlersMu                 sync.Mutex
+	wsSubProtocol              string
+	onWsConnectionInitCallback *OnWsConnectionInitCallback
 
 	readTimeout time.Duration
 }
@@ -52,10 +52,29 @@ func WithWSSubProtocol(protocol string) Options {
 	}
 }
 
+func WithOnWsConnectionInitCallback(callback *OnWsConnectionInitCallback) Options {
+	return func(options *opts) {
+		options.onWsConnectionInitCallback = callback
+	}
+}
+
 type opts struct {
-	readTimeout   time.Duration
-	log           abstractlogger.Logger
-	wsSubProtocol string
+	readTimeout                time.Duration
+	log                        abstractlogger.Logger
+	wsSubProtocol              string
+	onWsConnectionInitCallback *OnWsConnectionInitCallback
+}
+
+// GraphQLSubscriptionClientFactory abstracts the way of creating a new GraphQLSubscriptionClient.
+// This can be very handy for testing purposes.
+type GraphQLSubscriptionClientFactory interface {
+	NewSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context, options ...Options) GraphQLSubscriptionClient
+}
+
+type DefaultSubscriptionClientFactory struct{}
+
+func (d *DefaultSubscriptionClientFactory) NewSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context, options ...Options) GraphQLSubscriptionClient {
+	return NewGraphQLSubscriptionClient(httpClient, streamingClient, engineCtx, options...)
 }
 
 func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context, options ...Options) *SubscriptionClient {
@@ -78,7 +97,8 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 				return xxhash.New()
 			},
 		},
-		wsSubProtocol: op.wsSubProtocol,
+		wsSubProtocol:              op.wsSubProtocol,
+		onWsConnectionInitCallback: op.onWsConnectionInitCallback,
 	}
 }
 
@@ -181,7 +201,7 @@ func (c *SubscriptionClient) generateHandlerIDHash(options GraphQLSubscriptionOp
 }
 
 func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, options GraphQLSubscriptionOptions) (ConnectionHandler, error) {
-	subProtocols := []string{protocolGraphQLWS, protocolGraphQLTWS}
+	subProtocols := []string{ProtocolGraphQLWS, ProtocolGraphQLTWS}
 	if c.wsSubProtocol != "" {
 		subProtocols = []string{c.wsSubProtocol}
 	}
@@ -199,6 +219,11 @@ func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 		return nil, fmt.Errorf("upgrade unsuccessful")
 	}
 
+	connectionInitMessage, err := c.getConnectionInitMessage(reqCtx, options.URL, options.Header)
+	if err != nil {
+		return nil, err
+	}
+
 	// init + ack
 	err = conn.Write(reqCtx, websocket.MessageText, connectionInitMessage)
 	if err != nil {
@@ -214,13 +239,37 @@ func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 	}
 
 	switch c.wsSubProtocol {
-	case protocolGraphQLWS:
+	case ProtocolGraphQLWS:
 		return newGQLWSConnectionHandler(c.engineCtx, conn, c.readTimeout, c.log), nil
-	case protocolGraphQLTWS:
+	case ProtocolGraphQLTWS:
 		return newGQLTWSConnectionHandler(c.engineCtx, conn, c.readTimeout, c.log), nil
 	default:
 		return nil, fmt.Errorf("unknown protocol %s", conn.Subprotocol())
 	}
+}
+
+func (c *SubscriptionClient) getConnectionInitMessage(ctx context.Context, url string, header http.Header) ([]byte, error) {
+	if c.onWsConnectionInitCallback == nil {
+		return connectionInitMessage, nil
+	}
+
+	callback := *c.onWsConnectionInitCallback
+
+	payload, err := callback(ctx, url, header)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(payload) == 0 {
+		return connectionInitMessage, nil
+	}
+
+	msg, err := jsonparser.Set(connectionInitMessage, payload, "payload")
+	if err != nil {
+		return nil, err
+	}
+
+	return msg, nil
 }
 
 type ConnectionHandler interface {
