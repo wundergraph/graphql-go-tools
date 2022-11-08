@@ -15,16 +15,10 @@ import (
 )
 
 func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
-	_ = func(t *testing.T, httpClient *http.Client, batchFactory resolve.DataSourceBatchFactory, dataSourceConfigs []graphqlDataSource.Configuration, expectedErr error) {
-		engineConfigV2Factory := NewFederationEngineConfigFactory(dataSourceConfigs, batchFactory, WithFederationHttpClient(httpClient))
-		_, err := engineConfigV2Factory.EngineV2Configuration()
-		assert.Error(t, err)
-		assert.Equal(t, expectedErr, err)
-	}
-
 	runWithoutError := func(
 		t *testing.T,
 		httpClient *http.Client,
+		streamingClient *http.Client,
 		batchFactory resolve.DataSourceBatchFactory,
 		dataSourceConfigs []graphqlDataSource.Configuration,
 		baseSchema string,
@@ -37,17 +31,24 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 		printedBaseSchema, err := astprinter.PrintString(&doc, nil)
 		require.NoError(t, err)
 
-		engineConfigV2Factory := NewFederationEngineConfigFactory(dataSourceConfigs, batchFactory, WithFederationHttpClient(httpClient))
+		engineConfigV2Factory := NewFederationEngineConfigFactory(
+			dataSourceConfigs,
+			batchFactory,
+			WithFederationHttpClient(httpClient),
+			WithFederationStreamingClient(streamingClient),
+			WithFederationSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
+		)
 		config, err := engineConfigV2Factory.EngineV2Configuration()
 		assert.NoError(t, err)
 		assert.Equal(t, expectedConfigFactory(t, printedBaseSchema), config)
 	}
 
 	httpClient := &http.Client{}
+	streamingClient := &http.Client{}
 	batchFactory := graphqlDataSource.NewBatchFactory()
 
 	t.Run("should create engine V2 configuration", func(t *testing.T) {
-		runWithoutError(t, httpClient, batchFactory, []graphqlDataSource.Configuration{
+		runWithoutError(t, httpClient, streamingClient, batchFactory, []graphqlDataSource.Configuration{
 			{
 				Fetch: graphqlDataSource.FetchConfiguration{
 					URL: "http://user.service",
@@ -73,6 +74,9 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 				Federation: graphqlDataSource.FederationConfiguration{
 					Enabled:    true,
 					ServiceSDL: reviewSchema,
+				},
+				Subscription: graphqlDataSource.SubscriptionConfiguration{
+					UseSSE: true,
 				},
 			},
 		}, baseFederationSchema, func(t *testing.T, baseSchema string) EngineV2Configuration {
@@ -146,8 +150,10 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 					}),
 					Factory: &graphqlDataSource.Factory{
-						HTTPClient:   httpClient,
-						BatchFactory: batchFactory,
+						HTTPClient:         httpClient,
+						StreamingClient:    streamingClient,
+						BatchFactory:       batchFactory,
+						SubscriptionClient: mockSubscriptionClient,
 					},
 				},
 				{
@@ -177,8 +183,10 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 					}),
 					Factory: &graphqlDataSource.Factory{
-						HTTPClient:   httpClient,
-						BatchFactory: batchFactory,
+						HTTPClient:         httpClient,
+						StreamingClient:    streamingClient,
+						BatchFactory:       batchFactory,
+						SubscriptionClient: mockSubscriptionClient,
 					},
 				},
 				{
@@ -207,8 +215,10 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 					},
 					Factory: &graphqlDataSource.Factory{
-						HTTPClient:   httpClient,
-						BatchFactory: batchFactory,
+						HTTPClient:         httpClient,
+						StreamingClient:    streamingClient,
+						BatchFactory:       batchFactory,
+						SubscriptionClient: mockSubscriptionClient,
 					},
 					Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{
 						Fetch: graphqlDataSource.FetchConfiguration{
@@ -217,6 +227,9 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						Federation: graphqlDataSource.FederationConfiguration{
 							Enabled:    true,
 							ServiceSDL: reviewSchema,
+						},
+						Subscription: graphqlDataSource.SubscriptionConfiguration{
+							UseSSE: true,
 						},
 					}),
 				},
