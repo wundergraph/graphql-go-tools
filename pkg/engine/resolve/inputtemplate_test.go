@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/buger/jsonparser"
@@ -162,32 +163,218 @@ func TestInputTemplate_Render(t *testing.T) {
 		out := buf.String()
 		assert.Equal(t, "[1,2,3]", out)
 	})
-	t.Run("json render with value missing", func(t *testing.T) {
-		template := InputTemplate{
-			Segments: []TemplateSegment{
-				{
-					SegmentType: StaticSegmentType,
-					Data:        []byte(`{"key":`),
+
+	t.Run("header variable", func(t *testing.T) {
+		t.Run("missing value for header variable - results into empty segment", func(t *testing.T) {
+			template := InputTemplate{
+				Segments: []TemplateSegment{
+					{
+						SegmentType: StaticSegmentType,
+						Data:        []byte(`{"key":"`),
+					},
+					{
+						SegmentType:        VariableSegmentType,
+						VariableKind:       HeaderVariableKind,
+						VariableSourcePath: []string{"Auth"},
+					},
+					{
+						SegmentType: StaticSegmentType,
+						Data:        []byte(`"}`),
+					},
 				},
-				{
-					SegmentType:        VariableSegmentType,
-					VariableKind:       ContextVariableKind,
-					VariableSourcePath: []string{"a"},
-					Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+			}
+			ctx := &Context{
+				Variables: []byte(""),
+			}
+			buf := fastbuffer.New()
+			err := template.Render(ctx, nil, buf)
+			assert.NoError(t, err)
+			out := buf.String()
+			assert.Equal(t, `{"key":""}`, out)
+		})
+
+		t.Run("renders single value", func(t *testing.T) {
+			template := InputTemplate{
+				Segments: []TemplateSegment{
+					{
+						SegmentType: StaticSegmentType,
+						Data:        []byte(`{"key":"`),
+					},
+					{
+						SegmentType:        VariableSegmentType,
+						VariableKind:       HeaderVariableKind,
+						VariableSourcePath: []string{"Auth"},
+					},
+					{
+						SegmentType: StaticSegmentType,
+						Data:        []byte(`"}`),
+					},
 				},
-				{
-					SegmentType: StaticSegmentType,
-					Data:        []byte(`}`),
+			}
+			ctx := &Context{
+				Variables: []byte(""),
+				Request: Request{
+					Header: http.Header{"Auth": []string{"value"}},
 				},
-			},
-		}
-		ctx := &Context{
-			Variables: []byte(""),
-		}
-		buf := fastbuffer.New()
-		err := template.Render(ctx, nil, buf)
-		assert.NoError(t, err)
-		out := buf.String()
-		assert.Equal(t, `{"key":null}`, out)
+			}
+			buf := fastbuffer.New()
+			err := template.Render(ctx, nil, buf)
+			assert.NoError(t, err)
+			out := buf.String()
+			assert.Equal(t, `{"key":"value"}`, out)
+		})
+
+		t.Run("renders multi value", func(t *testing.T) {
+			template := InputTemplate{
+				Segments: []TemplateSegment{
+					{
+						SegmentType: StaticSegmentType,
+						Data:        []byte(`{"key":"`),
+					},
+					{
+						SegmentType:        VariableSegmentType,
+						VariableKind:       HeaderVariableKind,
+						VariableSourcePath: []string{"Auth"},
+					},
+					{
+						SegmentType: StaticSegmentType,
+						Data:        []byte(`"}`),
+					},
+				},
+			}
+			ctx := &Context{
+				Variables: []byte(""),
+				Request: Request{
+					Header: http.Header{"Auth": []string{"value1", "value2"}},
+				},
+			}
+			buf := fastbuffer.New()
+			err := template.Render(ctx, nil, buf)
+			assert.NoError(t, err)
+			out := buf.String()
+			assert.Equal(t, `{"key":"value1,value2"}`, out)
+		})
+	})
+
+	t.Run("JSONVariableRenderer", func(t *testing.T) {
+		t.Run("missing value for context variable - renders segment to null", func(t *testing.T) {
+			template := InputTemplate{
+				Segments: []TemplateSegment{
+					{
+						SegmentType: StaticSegmentType,
+						Data:        []byte(`{"key":`),
+					},
+					{
+						SegmentType:        VariableSegmentType,
+						VariableKind:       ContextVariableKind,
+						VariableSourcePath: []string{"a"},
+						Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+					},
+					{
+						SegmentType: StaticSegmentType,
+						Data:        []byte(`}`),
+					},
+				},
+			}
+			ctx := &Context{
+				Variables: []byte(""),
+			}
+			buf := fastbuffer.New()
+			err := template.Render(ctx, nil, buf)
+			assert.NoError(t, err)
+			out := buf.String()
+			assert.Equal(t, `{"key":null}`, out)
+		})
+
+		t.Run("when SetTemplateOutputToNullOnVariableNull: true", func(t *testing.T) {
+			t.Run("null value for object variable - renders whole template as null", func(t *testing.T) {
+				template := InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`{"key":`),
+						},
+						{
+							SegmentType:        VariableSegmentType,
+							VariableKind:       ObjectVariableKind,
+							VariableSourcePath: []string{"id"},
+							Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+						},
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`}`),
+						},
+					},
+					SetTemplateOutputToNullOnVariableNull: true,
+				}
+				ctx := &Context{
+					Variables: []byte(""),
+				}
+				buf := fastbuffer.New()
+				err := template.Render(ctx, nil, buf)
+				assert.NoError(t, err)
+				out := buf.String()
+				assert.Equal(t, `null`, out)
+			})
+
+			t.Run("null value for context variable - renders segment as null", func(t *testing.T) {
+				template := InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`{"key":`),
+						},
+						{
+							SegmentType:        VariableSegmentType,
+							VariableKind:       ContextVariableKind,
+							VariableSourcePath: []string{"x"},
+							Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+						},
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`}`),
+						},
+					},
+					SetTemplateOutputToNullOnVariableNull: true,
+				}
+				ctx := &Context{
+					Variables: []byte(`{"x":null}`),
+				}
+				buf := fastbuffer.New()
+				err := template.Render(ctx, nil, buf)
+				assert.NoError(t, err)
+				out := buf.String()
+				assert.Equal(t, `{"key":null}`, out)
+			})
+
+			t.Run("missing value for header variable - results into empty segment", func(t *testing.T) {
+				template := InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`{"key":"`),
+						},
+						{
+							SegmentType:        VariableSegmentType,
+							VariableKind:       HeaderVariableKind,
+							VariableSourcePath: []string{"Auth"},
+						},
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`"}`),
+						},
+					},
+					SetTemplateOutputToNullOnVariableNull: true,
+				}
+				ctx := &Context{
+					Variables: []byte(""),
+				}
+				buf := fastbuffer.New()
+				err := template.Render(ctx, nil, buf)
+				assert.NoError(t, err)
+				out := buf.String()
+				assert.Equal(t, `{"key":""}`, out)
+			})
+		})
 	})
 }
