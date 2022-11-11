@@ -69,6 +69,10 @@ func (e *EngineV2Configuration) EnableDataLoader(enable bool) {
 	e.dataLoaderConfig.EnableDataLoader = enable
 }
 
+func (e *EngineV2Configuration) EnableSingleFlight(enable bool) {
+	e.dataLoaderConfig.EnableSingleFlightLoader = enable
+}
+
 // SetWebsocketBeforeStartHook - sets before start hook which will be called before processing any operation sent over websockets
 func (e *EngineV2Configuration) SetWebsocketBeforeStartHook(hook WebsocketBeforeStartHook) {
 	e.websocketBeforeStartHook = hook
