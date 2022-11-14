@@ -170,11 +170,16 @@ func (v *valuesVisitor) valuesSatisfiesNonNullType(value ast.Value, definitionTy
 		v.handleUnexpectedNullError(value, definitionTypeRef)
 		return false
 	case ast.ValueKindVariable:
-		_, variableTypeRef, _, ok := v.operationVariableType(value.Ref)
+		variableDefinitionRef, variableTypeRef, _, ok := v.operationVariableType(value.Ref)
 		if !ok {
 			v.handleTypeError(value, definitionTypeRef)
 			return false
 		}
+
+		if v.operation.VariableDefinitionHasDefaultValue(variableDefinitionRef) {
+			return v.valueSatisfiesInputValueDefinitionType(v.operation.VariableDefinitions[variableDefinitionRef].DefaultValue.Value, definitionTypeRef)
+		}
+
 		importedDefinitionType := v.importer.ImportType(definitionTypeRef, v.definition, v.operation)
 		if !v.operation.TypesAreEqualDeep(importedDefinitionType, variableTypeRef) {
 			v.handleVariableHasIncompatibleTypeError(value, definitionTypeRef)
@@ -204,11 +209,16 @@ func (v *valuesVisitor) valuesSatisfiesNamedType(value ast.Value, definitionType
 func (v *valuesVisitor) valueSatisfiesListType(value ast.Value, definitionTypeRef int, listItemType int) bool {
 
 	if value.Kind == ast.ValueKindVariable {
-		_, actualType, _, ok := v.operationVariableType(value.Ref)
+		variableDefinitionRef, actualType, _, ok := v.operationVariableType(value.Ref)
 		if !ok {
 			v.handleTypeError(value, definitionTypeRef)
 			return false
 		}
+
+		if v.operation.VariableDefinitionHasDefaultValue(variableDefinitionRef) {
+			return v.valueSatisfiesInputValueDefinitionType(v.operation.VariableDefinitions[variableDefinitionRef].DefaultValue.Value, definitionTypeRef)
+		}
+
 		expectedType := v.importer.ImportType(listItemType, v.definition, v.operation)
 		if v.operation.Types[actualType].TypeKind == ast.TypeKindNonNull {
 			actualType = v.operation.Types[actualType].OfType
@@ -504,10 +514,14 @@ func (v *valuesVisitor) objectValueSatisfiesInputValueDefinition(objectValue ast
 }
 
 func (v *valuesVisitor) variableValueHasMatchingTypeName(value ast.Value, definitionTypeRef int, expectedTypeName []byte) bool {
-	_, _, actualTypeName, ok := v.operationVariableType(value.Ref)
+	variableDefinitionRef, _, actualTypeName, ok := v.operationVariableType(value.Ref)
 	if !ok {
 		v.handleVariableHasIncompatibleTypeError(value, definitionTypeRef)
 		return false
+	}
+
+	if v.operation.VariableDefinitionHasDefaultValue(variableDefinitionRef) {
+		return v.valueSatisfiesInputValueDefinitionType(v.operation.VariableDefinitions[variableDefinitionRef].DefaultValue.Value, definitionTypeRef)
 	}
 
 	if !bytes.Equal(actualTypeName, expectedTypeName) {
