@@ -6,6 +6,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astimport"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
@@ -301,16 +302,16 @@ func (v *valuesVisitor) valueSatisfiesScalar(value ast.Value, definitionTypeRef 
 		return v.variableValueHasMatchingTypeName(value, definitionTypeRef, scalarName)
 	}
 
-	switch string(scalarName) {
-	case "ID":
+	switch {
+	case bytes.Equal(scalarName, literal.ID):
 		return v.valueSatisfiesScalarID(value, definitionTypeRef)
-	case "Boolean":
+	case bytes.Equal(scalarName, literal.BOOLEAN):
 		return v.valueSatisfiesScalarBoolean(value, definitionTypeRef)
-	case "Int":
+	case bytes.Equal(scalarName, literal.INT):
 		return v.valueSatisfiesScalarInt(value, definitionTypeRef)
-	case "Float":
+	case bytes.Equal(scalarName, literal.FLOAT):
 		return v.valueSatisfiesScalarFloat(value, definitionTypeRef)
-	case "String":
+	case bytes.Equal(scalarName, literal.STRING):
 		return v.valueSatisfiesScalarString(value, definitionTypeRef, true)
 	default:
 		return v.valueSatisfiesScalarString(value, definitionTypeRef, false)
@@ -388,7 +389,7 @@ func (v *valuesVisitor) valueSatisfiesScalarFloat(value ast.Value, definitionTyp
 	return false
 }
 
-func (v *valuesVisitor) valueSatisfiesScalarString(value ast.Value, definitionTypeRef int, stringScalar bool) bool {
+func (v *valuesVisitor) valueSatisfiesScalarString(value ast.Value, definitionTypeRef int, builtInStringScalar bool) bool {
 	if value.Kind == ast.ValueKindString {
 		return true
 	}
@@ -398,7 +399,7 @@ func (v *valuesVisitor) valueSatisfiesScalarString(value ast.Value, definitionTy
 		return false
 	}
 
-	if stringScalar {
+	if builtInStringScalar {
 		v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyString(printedValue, printedType, value.Position))
 	} else {
 		v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyType(printedValue, printedType, value.Position))
