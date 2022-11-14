@@ -280,7 +280,7 @@ func (p *Parser) parseRootOperationTypeDefinitionList(list *ast.RootOperationTyp
 				NamedType: ast.Type{
 					TypeKind: ast.TypeKindNamed,
 					Name:     namedType.Literal,
-					OfType:   -1,
+					OfType:   ast.InvalidRef,
 				},
 			}
 
@@ -524,7 +524,7 @@ func (p *Parser) parseValueList() int {
 		}
 
 		if p.report.HasErrors() {
-			return -1
+			return ast.InvalidRef
 		}
 	}
 }
@@ -573,7 +573,7 @@ func (p *Parser) parseIntegerValue(negativeSign *position.Position) (ref int, po
 
 	if negativeSign != nil && negativeSign.CharEnd != value.TextPosition.CharStart {
 		p.errUnexpectedToken(value)
-		return -1, position.Position{}
+		return ast.InvalidRef, position.Position{}
 	}
 
 	intValue := ast.IntValue{
@@ -810,13 +810,13 @@ func (p *Parser) parseFieldDefinition() int {
 		break
 	default:
 		p.errUnexpectedToken(p.read())
-		return -1
+		return ast.InvalidRef
 	}
 
 	nameToken := p.read()
 	if nameToken.Keyword != keyword.IDENT {
 		p.errUnexpectedToken(nameToken, keyword.IDENT)
-		return -1
+		return ast.InvalidRef
 	}
 
 	fieldDefinition.Name = nameToken.Literal
@@ -923,7 +923,7 @@ func (p *Parser) parseInputValueDefinition() int {
 		break
 	default:
 		p.errUnexpectedToken(p.read())
-		return -1
+		return ast.InvalidRef
 	}
 
 	inputValueDefinition.Name = p.read().Literal
@@ -1165,7 +1165,7 @@ func (p *Parser) parseEnumValueDefinition() int {
 		break
 	default:
 		p.errUnexpectedToken(p.read())
-		return -1
+		return ast.InvalidRef
 	}
 
 	enumValueDefinition.EnumValue = p.mustRead(keyword.IDENT).Literal
@@ -1300,7 +1300,7 @@ func (p *Parser) parseSelectionSet() (int, bool) {
 		}
 
 		if p.report.HasErrors() {
-			return -1, false
+			return ast.InvalidRef, false
 		}
 	}
 }
@@ -1320,7 +1320,7 @@ func (p *Parser) parseSelection() int {
 	default:
 		nextToken := p.read()
 		p.errUnexpectedToken(nextToken, keyword.IDENT, keyword.SPREAD)
-		return -1
+		return ast.InvalidRef
 	}
 }
 
@@ -1404,7 +1404,7 @@ func (p *Parser) parseFragmentSpread(spread position.Position) int {
 func (p *Parser) parseInlineFragment(spread position.Position) int {
 	fragment := ast.InlineFragment{
 		TypeCondition: ast.TypeCondition{
-			Type: -1,
+			Type: ast.InvalidRef,
 		},
 	}
 	fragment.Spread = spread
