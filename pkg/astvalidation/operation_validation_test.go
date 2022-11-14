@@ -112,6 +112,14 @@ func TestExecutionValidation(t *testing.T) {
 	}
 	_ = runManyRulesWithDefinition
 
+	runManyRules := func(t *testing.T, operationInput string, expectation ValidationState, rules ...Rule) {
+		t.Helper()
+		for _, rule := range rules {
+			runWithDefinition(t, testDefinition, operationInput, rule, expectation)
+		}
+	}
+	_ = runManyRules
+
 	run := func(t *testing.T, operationInput string, rule Rule, expectation ValidationState, opts ...option) {
 		t.Helper()
 		runWithDefinition(t, testDefinition, operationInput, rule, expectation, opts...)
@@ -2017,8 +2025,6 @@ func TestExecutionValidation(t *testing.T) {
 	})
 	t.Run("5.4 Arguments", func(t *testing.T) {
 		t.Run("5.4.1 Argument Names", func(t *testing.T) {
-			// TODO: check this section test rule
-		
 			t.Run("117", func(t *testing.T) {
 				run(t, `	
 							fragment argOnRequiredArg on Dog {
@@ -2073,7 +2079,7 @@ func TestExecutionValidation(t *testing.T) {
 									doesKnowCommand(dogCommand: $catCommand)
 								}
 							}`,
-					ValidArguments(), Invalid)
+					ValidArguments(), Invalid, withValidationErrors(`Variable "$catCommand" of type "CatCommand" used in position expecting type "DogCommand!".`))
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `query argOnRequiredArg($dogCommand: CatCommand) {
@@ -2083,7 +2089,7 @@ func TestExecutionValidation(t *testing.T) {
 										}
 									}
 								}`,
-					ValidArguments(), Invalid)
+					ValidArguments(), Invalid, withValidationErrors(`Variable "$dogCommand" of type "CatCommand" used in position expecting type "DogCommand!".`))
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	query argOnRequiredArg($booleanArg: Boolean) {
@@ -2118,7 +2124,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: $booleanArg) @include(if: $booleanArg)
 							}`,
-					ValidArguments(), Invalid)
+					ValidArguments(), Invalid, withValidationErrors(`Variable "$booleanArg" of type "Boolean" used in position expecting type "Boolean!".`))
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	query argOnRequiredArg($booleanArg: Boolean!) {
@@ -2142,7 +2148,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: $intArg) @include(if: true)
 							}`,
-					ValidArguments(), Invalid)
+					ValidArguments(), Invalid, withValidationErrors(`Variable "$intArg" of type "Integer" used in position expecting type "Boolean".`))
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	query argOnRequiredArg($intArg: Integer) {
@@ -2153,7 +2159,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: $intArg) @include(if: true)
 							}`,
-					ValidArguments(), Invalid)
+					ValidArguments(), Invalid, withValidationErrors(`Variable "$intArg" of type "Integer" used in position expecting type "Boolean".`))
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	query argOnRequiredArg($intArg: Integer) {
@@ -2166,7 +2172,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: $intArg) @include(if: true)
 							}`,
-					ValidArguments(), Invalid)
+					ValidArguments(), Invalid, withValidationErrors(`Variable "$intArg" of type "Integer" used in position expecting type "Boolean".`))
 			})
 			t.Run("118", func(t *testing.T) {
 				run(t, `	
@@ -2197,7 +2203,7 @@ func TestExecutionValidation(t *testing.T) {
 									fragment invalidArgName on Dog {
 										isHousetrained(atOtherHomes: true) @include(unless: false)
 									}`,
-					KnownArguments(), Invalid)
+					KnownArguments(), Invalid, withValidationErrors(`Unknown argument "unless" on directive "@include".`))
 			})
 			t.Run("121 args in reversed order", func(t *testing.T) {
 				run(t, `	fragment multipleArgs on ValidArguments {
@@ -2214,7 +2220,7 @@ func TestExecutionValidation(t *testing.T) {
 									name
 								}
 							}`,
-					KnownArguments(), Invalid)
+					KnownArguments(), Invalid, withValidationErrors(`Unknown argument "name" on field "Query.dog".`))
 			})
 		})
 		t.Run("5.4.2 Argument Uniqueness", func(t *testing.T) {
@@ -2246,7 +2252,7 @@ func TestExecutionValidation(t *testing.T) {
 											requiredString(s: foo)
 										}
 									}`,
-					Values(), Invalid)
+					Values(), Invalid, withValidationErrors(`String cannot represent a non string value: foo`))
 			})
 			t.Run("required String", func(t *testing.T) {
 				run(t, `	query requiredString {
@@ -2254,7 +2260,7 @@ func TestExecutionValidation(t *testing.T) {
 											requiredString(s: null)
 										}
 									}`,
-					Values(), Invalid)
+					Values(), Invalid, withValidationErrors(`Expected value of type "String!", found null`))
 			})
 
 			t.Run("required Float", func(t *testing.T) {
@@ -2263,7 +2269,7 @@ func TestExecutionValidation(t *testing.T) {
 											requiredFloat(f: "1.1")
 										}
 									}`,
-					Values(), Invalid)
+					Values(), Invalid, withValidationErrors(`Float cannot represent non numeric value: "1.1"`))
 			})
 			t.Run("required Float", func(t *testing.T) {
 				run(t, `	query requiredFloat {
@@ -2271,7 +2277,7 @@ func TestExecutionValidation(t *testing.T) {
 											requiredFloat(f: null)
 										}
 									}`,
-					Values(), Invalid)
+					Values(), Invalid, withValidationErrors(`Expected value of type "Float!", found null`))
 			})
 		})
 
@@ -2854,18 +2860,20 @@ func TestExecutionValidation(t *testing.T) {
 					Values(), Valid)
 			})
 			t.Run("145 variant variable non null", func(t *testing.T) {
+				t.Errorf("TODO: invalid result")
+
 				run(t, `
 							query goodComplexDefaultValue($name: String ) {
 								findDogNonOptional(complex: { name: $name })
 							}`,
-					Values(), Invalid)
+					Values(), Invalid, withValidationErrors(`Variable "$name" of type "String" used in position expecting type "String"`))
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(t, `
 							query goodComplexDefaultValue($search: ComplexInput = { name: 123 }) {
 								findDog(complex: $search)
 							}`,
-					Values(), Invalid, withDisableNormalization())
+					Values(), Invalid, withDisableNormalization(), withValidationErrors(`String cannot represent a non string value: 123`))
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(t, `query goodComplexDefaultValue($search: ComplexInput = { name: "123" }) {
@@ -2877,7 +2885,7 @@ func TestExecutionValidation(t *testing.T) {
 				run(t, `	query goodComplexDefaultValue {
 										findDog(complex: { name: 123 })
 									}`,
-					Values(), Invalid)
+					Values(), Invalid, withValidationErrors(`String cannot represent a non string value: 123`))
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(t, `	query goodComplexDefaultValue {
@@ -2899,15 +2907,17 @@ func TestExecutionValidation(t *testing.T) {
 									doesKnowCommand(dogCommand: MEOW)
 								}
 							}`,
-					Values(), Invalid)
+					Values(), Invalid, withValidationErrors(`Value "MEOW" does not exist in "DogCommand" enum`))
 			})
 			t.Run("145 variant", func(t *testing.T) {
+				t.Errorf("TODO: check result")
+
 				run(t, `	{
 								dog {
 									doesKnowCommand(dogCommand: [true])
 								}
 							}`,
-					Values(), Invalid)
+					Values(), Invalid, withValidationErrors(`Boolean cannot represent a non boolean value: [true]`))
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(t, `	{
@@ -2915,7 +2925,7 @@ func TestExecutionValidation(t *testing.T) {
 									doesKnowCommand(dogCommand: {foo: "bar"})
 								}
 							}`,
-					Values(), Invalid)
+					Values(), Invalid, withValidationErrors(`Enum "DogCommand" cannot represent non-enum value: {foo: "bar"}`))
 			})
 			t.Run("146", func(t *testing.T) {
 				run(t, `
@@ -2925,12 +2935,12 @@ func TestExecutionValidation(t *testing.T) {
 							fragment stringIntoInt on ValidArguments {
 								intArgField(intArg: "123")
 							}`,
-					Values(), Invalid)
+					Values(), Invalid, withValidationErrors(`Int cannot represent non-integer value: "123"`))
 				run(t, `
 							query badComplexValue {
 								findDog(complex: { name: 123 })
 							}`,
-					Values(), Invalid)
+					Values(), Invalid, withValidationErrors(`String cannot represent a non string value: 123`))
 			})
 			t.Run("146 variant", func(t *testing.T) {
 				run(t, `
@@ -2951,7 +2961,7 @@ func TestExecutionValidation(t *testing.T) {
 				run(t, `{
  									findDog(complex: { favoriteCookieFlavor: "Bacon" })
 								}`,
-					Values(), Invalid)
+					Values(), Invalid, withValidationErrors(`Field "favoriteCookieFlavor" is not defined by type "ComplexInput"`))
 			})
 		})
 		t.Run("5.6.3 Input Object Field Uniqueness", func(t *testing.T) {
@@ -2959,7 +2969,7 @@ func TestExecutionValidation(t *testing.T) {
 				run(t, `{
 									findDog(complex: { name: "Fido", name: "Goofy"})
 								}`,
-					Values(), Invalid)
+					Values(), Invalid, withValidationErrors(`There can be only one input field named "name"`))
 			})
 		})
 		t.Run("5.6.4 Input Object Required Fields", func(t *testing.T) {
@@ -2973,19 +2983,19 @@ func TestExecutionValidation(t *testing.T) {
 				run(t, `query goodComplexDefaultValue($search: ComplexNonOptionalInput = { name: null }) {
 									findDogNonOptional(complex: $search)
 								}`,
-					Values(), Invalid, withDisableNormalization())
+					Values(), Invalid, withDisableNormalization(), withValidationErrors(`Expected value of type "String!", found null`))
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(t, `query goodComplexDefaultValue($search: ComplexNonOptionalInput = {}) {
 									findDogNonOptional(complex: $search)
 								}`,
-					Values(), Invalid, withDisableNormalization())
+					Values(), Invalid, withDisableNormalization(), withValidationErrors(`Field "ComplexNonOptionalInput.name" of required type "String!" was not provided.`))
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(t, `query goodComplexDefaultValue {
 									findDogNonOptional(complex: {})
 								}`,
-					Values(), Invalid)
+					Values(), Invalid, withValidationErrors(`Field "ComplexNonOptionalInput.name" of required type "String!" was not provided.`))
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(t, `query goodComplexDefaultValue {
@@ -3009,7 +3019,7 @@ func TestExecutionValidation(t *testing.T) {
 								fragment viaFragment on Query {
 									findDogNonOptional(complex: { name: 123 })
 								}`,
-					Values(), Invalid)
+					Values(), Invalid, withValidationErrors(`String cannot represent a non string value: 123`))
 			})
 		})
 		t.Run("complex nested validation", func(t *testing.T) {
@@ -3018,7 +3028,7 @@ func TestExecutionValidation(t *testing.T) {
 						{
 							nested(input: {})
 						}
-						`, Values(), Invalid)
+						`, Values(), Invalid, withValidationErrors(`Field "NestedInput.requiredString" of required type "String!" was not provided.`))
 			})
 			t.Run("complex nested ok", func(t *testing.T) {
 				run(t, `
@@ -3094,7 +3104,7 @@ func TestExecutionValidation(t *testing.T) {
 								]
 							})
 						}
-						`, Values(), Invalid)
+						`, Values(), Invalid, withValidationErrors(`Field "NestedInput.requiredString" of required type "String!" was not provided.`))
 			})
 			t.Run("complex nested 'str' is not String", func(t *testing.T) {
 				run(t, `
@@ -3106,9 +3116,11 @@ func TestExecutionValidation(t *testing.T) {
 								requiredListOfOptionalStringsWithDefault: ["more strings"]
 							})
 						}
-						`, Values(), Invalid)
+						`, Values(), Invalid, withValidationErrors(`String cannot represent a non string value: str`))
 			})
 			t.Run("complex nested requiredListOfRequiredStrings must not be empty", func(t *testing.T) {
+				t.Errorf("TODO: Need support better error")
+
 				run(t, `
 						{
 							nested(input: {
@@ -3117,7 +3129,7 @@ func TestExecutionValidation(t *testing.T) {
 								requiredListOfRequiredStrings: []
 							})
 						}
-						`, Values(), Invalid)
+						`, Values(), Invalid, withValidationErrors(`Field "NestedInput.requiredListOfRequiredStrings" of required type "[String!]!" must not be empty.`))
 			})
 			t.Run("complex 2x nested", func(t *testing.T) {
 				run(t, `
@@ -3148,7 +3160,7 @@ func TestExecutionValidation(t *testing.T) {
 								}
 							})
 						}
-						`, Values(), Invalid)
+						`, Values(), Invalid, withValidationErrors(`Field "NestedInput.requiredString" of required type "String!" was not provided.`))
 			})
 			t.Run("complex 2x nested '123' is no String", func(t *testing.T) {
 				run(t, `
@@ -3164,7 +3176,7 @@ func TestExecutionValidation(t *testing.T) {
 								}
 							})
 						}
-						`, Values(), Invalid)
+						`, Values(), Invalid, withValidationErrors(`String cannot represent a non string value: 123`))
 			})
 		})
 	})
