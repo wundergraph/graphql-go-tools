@@ -48,12 +48,12 @@ func TestExecutionValidation(t *testing.T) {
 	must := func(err error) {
 		if report, ok := err.(operationreport.Report); ok {
 			if report.HasErrors() {
-				panic(report.Error())
+				t.Fatal(report.Error())
 			}
 			return
 		}
 		if err != nil {
-			panic(err)
+			t.Fatal(err)
 		}
 	}
 
@@ -105,6 +105,7 @@ func TestExecutionValidation(t *testing.T) {
 	}
 
 	runManyRulesWithDefinition := func(t *testing.T, definitionInput, operationInput string, expectation ValidationState, rules ...Rule) {
+		t.Helper()
 		for _, rule := range rules {
 			runWithDefinition(t, definitionInput, operationInput, rule, expectation)
 		}
@@ -2016,6 +2017,8 @@ func TestExecutionValidation(t *testing.T) {
 	})
 	t.Run("5.4 Arguments", func(t *testing.T) {
 		t.Run("5.4.1 Argument Names", func(t *testing.T) {
+			// TODO: check this section test rule
+		
 			t.Run("117", func(t *testing.T) {
 				run(t, `	
 							fragment argOnRequiredArg on Dog {
@@ -2024,7 +2027,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: true) @include(if: true)
 							}`,
-					Values(), Valid)
+					KnownArguments(), Valid)
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	query argOnRequiredArg {
@@ -2036,7 +2039,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: true) @include(if: true)
 							}`,
-					Values(), Valid)
+					KnownArguments(), Valid)
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	query argOnRequiredArg($dogCommand: DogCommand!) {
@@ -2048,7 +2051,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: true) @include(if: true)
 							}`,
-					Values(), Valid)
+					KnownArguments(), Valid)
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	
@@ -2061,7 +2064,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: true) @include(if: true)
 							}`,
-					Values(), Valid, withDisableNormalization())
+					KnownArguments(), Valid, withDisableNormalization())
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `
@@ -3562,6 +3565,48 @@ func TestExecutionValidation(t *testing.T) {
 										}
 									  }
 								}`,
+					AllVariablesUsed(), Valid)
+			})
+			t.Run("variables in nested array object", func(t *testing.T) {
+				run(t, `query variableUnused($name: String) {
+					dog(where: {
+						AND: [
+						  { nestedDog: { nickname: { eq: "Scooby Doo" } } }
+						  { nestedDog: { name: { eq: $name } } }
+						  {
+							OR: [
+							  {
+								AND: [
+								  {
+									nestedDog: {
+									  birthday: { eq: "2021-07-29" }
+									}
+								  }
+								  {
+									nestedDog: { barkVolume: { eq: 20 } }
+								  }
+								]
+							  }
+							  {
+								AND: [
+								  {
+									nestedDog: {
+										birthday: { eq: "2021-08-02" }
+									}
+								  }
+								  {
+									nestedDog: { barkVolume: { eq: 35 } }
+								  }
+								]
+							  }
+							]
+						  }
+						]
+					  }) {
+						id
+						name
+					}
+				}`,
 					AllVariablesUsed(), Valid)
 			})
 		})

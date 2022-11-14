@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/buger/jsonparser"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
@@ -3266,6 +3265,241 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{Context: context.Background(), Variables: nil}, `{"errors":[{"message":"errorMessage"},{"message":"unable to resolve","locations":[{"line":0,"column":0}],"path":["me","reviews","0","product"]},{"message":"unable to resolve","locations":[{"line":0,"column":0}],"path":["me","reviews","1","product"]}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`
 	}))
+	t.Run("federation with optional variable", testFn(true, true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		userService := NewMockDataSource(ctrl)
+		userService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:8080/query","body":{"query":"{me {id}}"}}`
+				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
+				pair.Data.WriteString(`{"me":{"id":"1234","__typename":"User"}}`)
+				return writeGraphqlResponse(pair, w, false)
+			})
+
+		employeeBatchFactory := NewMockDataSourceBatchFactory(ctrl)
+		employeeBatchFactory.EXPECT().
+			CreateBatch([][]byte{
+				[]byte(`{"method":"POST","url":"http://localhost:8081/query","body":{"query":"query($representations: [_Any!]!, $companyId: ID!){_entities(representations: $representations){... on User {employment(companyId: $companyId){id}}}}","variables":{"companyId":"abc123","representations":[{"id":"1234","__typename":"User"}]}}}`),
+			}).
+			Return(NewFakeDataSourceBatch(
+				`{"method":"POST","url":"http://localhost:8081/query","body":{"query":"query($representations: [_Any!]!, $companyId: ID!){_entities(representations: $representations){... on User {employment(companyId: $companyId){id}}}}","variables":{"companyId":"abc123","representations":[{"id":"1234","__typename":"User"}]}}}`,
+				[]resultedBufPair{
+					{data: `{"employment": {"id": "xyz987"}}`},
+				}), nil)
+		employeeService := NewMockDataSource(ctrl)
+		employeeService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:8081/query","body":{"query":"query($representations: [_Any!]!, $companyId: ID!){_entities(representations: $representations){... on User {employment(companyId: $companyId){id}}}}","variables":{"companyId":"abc123","representations":[{"id":"1234","__typename":"User"}]}}}`
+				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
+				pair.Data.WriteString(`{"employment": {"id": "xyz987"}}`)
+				return writeGraphqlResponse(pair, w, false)
+			})
+
+		timeBatchFactory := NewMockDataSourceBatchFactory(ctrl)
+		timeBatchFactory.EXPECT().
+			CreateBatch(
+				[][]byte{
+					[]byte(`{"method":"POST","url":"http://localhost:8082/query","body":{"query":"query($representations: [_Any!]!, $date: LocalTime){_entities(representations: $representations){... on Employee {times(date: $date){id employee {id} start end}}}}","variables":{"date":null,"representations":[{"id":"xyz987","__typename":"Employee"}]}}}`),
+				},
+			).Return(NewFakeDataSourceBatch(
+			`{"method":"POST","url":"http://localhost:8082/query","body":{"query":"query($representations: [_Any!]!, $date: LocalTime){_entities(representations: $representations){... on Employee {times(date: $date){id employee {id} start end}}}}","variables":{"date":null,"representations":[{"id":"xyz987","__typename":"Employee"}]}}}`,
+			[]resultedBufPair{
+				{data: `{"times":[{"id": "t1","employee":{"id":"xyz987"},"start":"2022-11-02T08:00:00","end":"2022-11-02T12:00:00"}]}`},
+			}), nil)
+		timeService := NewMockDataSource(ctrl)
+		timeService.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://localhost:8082/query","body":{"query":"query($representations: [_Any!]!, $date: LocalTime){_entities(representations: $representations){... on Employee {times(date: $date){id employee {id} start end}}}}","variables":{"date":null,"representations":[{"id":"xyz987","__typename":"Employee"}]}}}`
+				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
+				pair.Data.WriteString(`{"times":[{"id": "t1","employee":{"id":"xyz987"},"start":"2022-11-02T08:00:00","end":"2022-11-02T12:00:00"}]}`)
+				return writeGraphqlResponse(pair, w, false)
+			})
+
+		return &GraphQLResponse{
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("me"),
+						Value: &Object{
+							Nullable: false,
+							Path:     []string{"me"},
+							Fields: []*Field{
+								{
+									Name: []byte("employment"),
+									Value: &Object{
+										Nullable: false,
+										Path:     []string{"employment"},
+										Fields: []*Field{
+											{
+												Name: []byte("id"),
+												Value: &String{
+													Path:     []string{"id"},
+													Nullable: false,
+												},
+											},
+											{
+												Name: []byte("times"),
+												Value: &Array{
+													Path:     []string{"times"},
+													Nullable: false,
+													Item: &Object{
+														Nullable: true,
+														Fields: []*Field{
+															{
+																Name:  []byte("id"),
+																Value: &String{Path: []string{"id"}},
+															},
+															{
+																Name: []byte("employee"),
+																Value: &Object{
+																	Path: []string{"employee"},
+																	Fields: []*Field{
+																		{
+																			Name: []byte("id"),
+																			Value: &String{
+																				Path: []string{"id"},
+																			},
+																		},
+																	},
+																},
+															},
+															{
+																Name:  []byte("start"),
+																Value: &String{Path: []string{"start"}},
+															},
+															{
+																Name: []byte("end"),
+																Value: &String{
+																	Path:     []string{"end"},
+																	Nullable: true,
+																},
+															},
+														},
+													},
+													Stream: Stream{
+														Enabled: false,
+													},
+												},
+												HasBuffer: true,
+												BufferID:  2,
+											},
+										},
+										Fetch: &BatchFetch{
+											Fetch: &SingleFetch{
+												BufferId: 2,
+												InputTemplate: InputTemplate{
+													Segments: []TemplateSegment{
+														{
+															Data:        []byte(`{"method":"POST","url":"http://localhost:8082/query","body":{"query":"query($representations: [_Any!]!, $date: LocalTime){_entities(representations: $representations){... on Employee {times(date: $date){id employee {id} start end}}}}","variables":{"date":`),
+															SegmentType: StaticSegmentType,
+														},
+														{
+															SegmentType:        VariableSegmentType,
+															VariableKind:       ContextVariableKind,
+															VariableSourcePath: []string{"date"},
+															Renderer:           NewJSONVariableRendererWithValidation(`{}`),
+														},
+														{
+															Data:        []byte(`,"representations":[{"id":`),
+															SegmentType: StaticSegmentType,
+														},
+														{
+															SegmentType:        VariableSegmentType,
+															VariableKind:       ObjectVariableKind,
+															VariableSourcePath: []string{"id"},
+															Renderer:           NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+														},
+														{
+															Data:        []byte(`,"__typename":"Employee"}]}}}`),
+															SegmentType: StaticSegmentType,
+														},
+													},
+													SetTemplateOutputToNullOnVariableNull: true,
+												},
+												DataSource: timeService,
+												ProcessResponseConfig: ProcessResponseConfig{
+													ExtractGraphqlResponse:    true,
+													ExtractFederationEntities: true,
+												},
+											},
+											BatchFactory: timeBatchFactory,
+										},
+									},
+									HasBuffer: true,
+									BufferID:  1,
+								},
+							},
+							Fetch: &BatchFetch{
+								Fetch: &SingleFetch{
+									BufferId: 1,
+									InputTemplate: InputTemplate{
+										Segments: []TemplateSegment{
+											{
+												Data:        []byte(`{"method":"POST","url":"http://localhost:8081/query","body":{"query":"query($representations: [_Any!]!, $companyId: ID!){_entities(representations: $representations){... on User {employment(companyId: $companyId){id}}}}","variables":{"companyId":`),
+												SegmentType: StaticSegmentType,
+											},
+											{
+												SegmentType:        VariableSegmentType,
+												VariableKind:       ContextVariableKind,
+												VariableSourcePath: []string{"companyId"},
+												Renderer:           NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+											{
+												Data:        []byte(`,"representations":[{"id":`),
+												SegmentType: StaticSegmentType,
+											},
+											{
+												SegmentType:        VariableSegmentType,
+												VariableKind:       ObjectVariableKind,
+												VariableSourcePath: []string{"id"},
+												Renderer:           NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+											{
+												Data:        []byte(`,"__typename":"User"}]}}}`),
+												SegmentType: StaticSegmentType,
+											},
+										},
+										SetTemplateOutputToNullOnVariableNull: true,
+									},
+									DataSource: employeeService,
+									ProcessResponseConfig: ProcessResponseConfig{
+										ExtractGraphqlResponse:    true,
+										ExtractFederationEntities: true,
+									},
+								},
+								BatchFactory: employeeBatchFactory,
+							},
+						},
+						HasBuffer: true,
+						BufferID:  0,
+					},
+				},
+				Fetch: &SingleFetch{
+					BufferId: 0,
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"method":"POST","url":"http://localhost:8080/query","body":{"query":"{me {id}}"}}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+					DataSource: userService,
+					ProcessResponseConfig: ProcessResponseConfig{
+						ExtractGraphqlResponse: true,
+					},
+				},
+			},
+		}, Context{Context: context.Background(), Variables: []byte(`{"companyId":"abc123","date":null}`)}, `{"data":{"me":{"employment":{"id":"xyz987","times":[{"id":"t1","employee":{"id":"xyz987"},"start":"2022-11-02T08:00:00","end":"2022-11-02T12:00:00"}]}}}}`
+	}))
 }
 
 func TestResolver_WithHeader(t *testing.T) {
@@ -3760,187 +3994,4 @@ func useTestJSONVariableRenderer() initTestVariableRenderer {
 	return func(jsonSchema string) VariableRenderer {
 		return NewJSONVariableRendererWithValidation(jsonSchema)
 	}
-}
-
-func TestInputTemplate_Render(t *testing.T) {
-	runTest := func(t *testing.T, initRenderer initTestVariableRenderer, variables string, sourcePath []string, jsonSchema string, expectErr bool, expected string) {
-		t.Helper()
-
-		template := InputTemplate{
-			Segments: []TemplateSegment{
-				{
-					SegmentType:        VariableSegmentType,
-					VariableKind:       ContextVariableKind,
-					VariableSourcePath: sourcePath,
-					Renderer:           initRenderer(jsonSchema),
-				},
-			},
-		}
-		ctx := &Context{
-			Variables: []byte(variables),
-		}
-		buf := fastbuffer.New()
-		err := template.Render(ctx, nil, buf)
-		if expectErr {
-			assert.Error(t, err)
-		} else {
-			assert.NoError(t, err)
-		}
-		out := buf.String()
-		assert.Equal(t, expected, out)
-	}
-
-	t.Run("plain renderer", func(t *testing.T) {
-		renderer := useTestPlainVariableRenderer()
-		t.Run("string scalar", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":"bar"}`, []string{"foo"}, `{"type":"string"}`, false, `bar`)
-		})
-		t.Run("boolean scalar", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":true}`, []string{"foo"}, `{"type":"boolean"}`, false, "true")
-		})
-		t.Run("nested string", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":{"bar":"value"}}`, []string{"foo", "bar"}, `{"type":"string"}`, false, `value`)
-		})
-		t.Run("json object pass through", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":{"bar":"baz"}}`, []string{"foo"}, `{"type":"object","properties":{"bar":{"type":"string"}}}`, false, `{"bar":"baz"}`)
-		})
-		t.Run("json object as graphql object", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":{"bar":"baz"}}`, []string{"foo"}, `{"type":"object","properties":{"bar":{"type":"string"}}}`, false, `{"bar":"baz"}`)
-		})
-		t.Run("json object as graphql object with null", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":null}`, []string{"foo"}, `{"type":"string"}`, false, `null`)
-		})
-		t.Run("json object as graphql object with number", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":123}`, []string{"foo"}, `{"type":"integer"}`, false, `123`)
-		})
-		t.Run("json object as graphql object with invalid number", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":123}`, []string{"foo"}, `{"type":"string"}`, true, "")
-		})
-		t.Run("json object as graphql object with boolean", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":{"bar":true}}`, []string{"foo"}, `{"type":"object","properties":{"bar":{"type":"boolean"}}}`, false, `{"bar":true}`)
-		})
-		t.Run("json object as graphql object with number", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":{"bar":123}}`, []string{"foo"}, `{"type":"object","properties":{"bar":{"type":"integer"}}}`, false, `{"bar":123}`)
-		})
-		t.Run("json object as graphql object with float", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":{"bar":1.23}}`, []string{"foo"}, `{"type":"object","properties":{"bar":{"type":"number"}}}`, false, `{"bar":1.23}`)
-		})
-		t.Run("json object as graphql object with nesting", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":{"bar":{"baz":"bat"}}}`, []string{"foo"}, `{"type":"object","properties":{"bar":{"type":"object","properties":{"baz":{"type":"string"}}}}}`, false, `{"bar":{"baz":"bat"}}`)
-		})
-		t.Run("json object as graphql object with single array", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":["bar"]}`, []string{"foo"}, `{"type":"array","item":{"type":"string"}}`, false, `["bar"]`)
-		})
-		t.Run("json object as graphql object with array", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":["bar","baz"]}`, []string{"foo"}, `{"type":"array","item":{"type":"string"}}`, false, `["bar","baz"]`)
-		})
-		t.Run("json object as graphql object with object array", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":[{"bar":"baz"},{"bar":"bat"}]}`, []string{"foo"}, `{"type":"array","item":{"type":"object","properties":{"bar":{"type":"string"}}}}`, false, `[{"bar":"baz"},{"bar":"bat"}]`)
-		})
-	})
-
-	t.Run("json renderer", func(t *testing.T) {
-		renderer := useTestJSONVariableRenderer()
-		t.Run("string scalar", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":"bar"}`, []string{"foo"}, `{"type":"string"}`, false, `"bar"`)
-		})
-		t.Run("boolean scalar", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":true}`, []string{"foo"}, `{"type":"boolean"}`, false, "true")
-		})
-		t.Run("number scalar", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":1}`, []string{"foo"}, `{"type":"number"}`, false, "1")
-		})
-		t.Run("nested string", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":{"bar":"value"}}`, []string{"foo", "bar"}, `{"type":"string"}`, false, `"value"`)
-		})
-	})
-
-	t.Run("array with csv render string", func(t *testing.T) {
-		template := InputTemplate{
-			Segments: []TemplateSegment{
-				{
-					SegmentType:        VariableSegmentType,
-					VariableKind:       ContextVariableKind,
-					VariableSourcePath: []string{"a"},
-					Renderer:           NewCSVVariableRenderer(JsonRootType{Value: jsonparser.String, Kind: JsonRootTypeKindSingle}),
-				},
-			},
-		}
-		ctx := &Context{
-			Variables: []byte(`{"a":["foo","bar"]}`),
-		}
-		buf := fastbuffer.New()
-		err := template.Render(ctx, nil, buf)
-		assert.NoError(t, err)
-		out := buf.String()
-		assert.Equal(t, "foo,bar", out)
-	})
-	t.Run("array with csv render int", func(t *testing.T) {
-		template := InputTemplate{
-			Segments: []TemplateSegment{
-				{
-					SegmentType:        VariableSegmentType,
-					VariableKind:       ContextVariableKind,
-					VariableSourcePath: []string{"a"},
-					Renderer:           NewCSVVariableRenderer(JsonRootType{Value: jsonparser.Number}),
-				},
-			},
-		}
-		ctx := &Context{
-			Variables: []byte(`{"a":[1,2,3]}`),
-		}
-		buf := fastbuffer.New()
-		err := template.Render(ctx, nil, buf)
-		assert.NoError(t, err)
-		out := buf.String()
-		assert.Equal(t, "1,2,3", out)
-	})
-	t.Run("array with default render int", func(t *testing.T) {
-		template := InputTemplate{
-			Segments: []TemplateSegment{
-				{
-					SegmentType:        VariableSegmentType,
-					VariableKind:       ContextVariableKind,
-					VariableSourcePath: []string{"a"},
-					Renderer:           NewGraphQLVariableRenderer(`{"type":"array","items":{"type":"number"}}`),
-				},
-			},
-		}
-		ctx := &Context{
-			Variables: []byte(`{"a":[1,2,3]}`),
-		}
-		buf := fastbuffer.New()
-		err := template.Render(ctx, nil, buf)
-		assert.NoError(t, err)
-		out := buf.String()
-		assert.Equal(t, "[1,2,3]", out)
-	})
-	t.Run("json render with value missing", func(t *testing.T) {
-		template := InputTemplate{
-			Segments: []TemplateSegment{
-				{
-					SegmentType: StaticSegmentType,
-					Data:        []byte(`{"key":`),
-				},
-				{
-					SegmentType:        VariableSegmentType,
-					VariableKind:       ContextVariableKind,
-					VariableSourcePath: []string{"a"},
-					Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
-				},
-				{
-					SegmentType: StaticSegmentType,
-					Data:        []byte(`}`),
-				},
-			},
-		}
-		ctx := &Context{
-			Variables: []byte(""),
-		}
-		buf := fastbuffer.New()
-		err := template.Render(ctx, nil, buf)
-		assert.NoError(t, err)
-		out := buf.String()
-		assert.Equal(t, `{"key":null}`, out)
-	})
 }
