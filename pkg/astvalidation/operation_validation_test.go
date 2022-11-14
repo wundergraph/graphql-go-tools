@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
@@ -15,8 +16,10 @@ import (
 )
 
 type options struct {
-	disableNormalization     bool
-	expectNormalizationError bool
+	disableNormalization        bool
+	expectNormalizationError    bool
+	expectValidationErrors      bool
+	expectedValidationErrorMsgs []string
 }
 
 type option func(options *options)
@@ -31,6 +34,13 @@ func withDisableNormalization() option {
 func withExpectNormalizationError() option {
 	return func(options *options) {
 		options.expectNormalizationError = true
+	}
+}
+
+func withValidationErrors(errMsgs ...string) option {
+	return func(options *options) {
+		options.expectValidationErrors = true
+		options.expectedValidationErrorMsgs = errMsgs
 	}
 }
 
@@ -84,6 +94,12 @@ func TestExecutionValidation(t *testing.T) {
 		result := validator.Validate(&operation, &definition, &report)
 
 		printedOperation := mustString(astprinter.PrintString(&operation, &definition))
+
+		if options.expectValidationErrors {
+			for _, msg := range options.expectedValidationErrorMsgs {
+				assert.Contains(t, report.Error(), msg)
+			}
+		}
 
 		require.Equal(t, expectation, result, "wrong validation result expected: %v got: %v\nreason: %v\noperation:\n%s\n", expectation, result, report.Error(), printedOperation)
 	}
@@ -3554,7 +3570,7 @@ func TestExecutionValidation(t *testing.T) {
 										booleanArgField(booleanArg: $intArg)
 									}
 								}`,
-					ValidArguments(), Invalid)
+					ValidArguments(), Invalid, withValidationErrors(`Variable "$intArg" of type "Int" used in position expecting type "Boolean".`))
 			})
 			t.Run("170", func(t *testing.T) {
 				run(t, `query booleanListCannotGoIntoBoolean($booleanListArg: [Boolean]) {
@@ -3562,7 +3578,7 @@ func TestExecutionValidation(t *testing.T) {
 										booleanArgField(booleanArg: $booleanListArg)
 									}
 								}`,
-					ValidArguments(), Invalid)
+					ValidArguments(), Invalid, withValidationErrors(`Variable "$booleanListArg" of type "[Boolean]" used in position expecting type "Boolean".`))
 			})
 			t.Run("171", func(t *testing.T) {
 				run(t, `query booleanArgQuery($booleanArg: Boolean) {
@@ -3570,7 +3586,7 @@ func TestExecutionValidation(t *testing.T) {
 										nonNullBooleanArgField(nonNullBooleanArg: $booleanArg)
 									}
 								}`,
-					ValidArguments(), Invalid)
+					ValidArguments(), Invalid, withValidationErrors(`Variable "$booleanArg" of type "Boolean" used in position expecting type "Boolean!".`))
 			})
 			// Non-null types are compatible with nullable types.
 			t.Run("172", func(t *testing.T) {
@@ -3620,7 +3636,7 @@ func TestExecutionValidation(t *testing.T) {
 										nonNullListOfBooleanArgField(nonNullListOfBooleanArg: [true,false,"123"])
 									}
 								}`,
-					Values(), Invalid)
+					Values(), Invalid, withValidationErrors(`Boolean cannot represent a non boolean value: "123"`))
 			})
 			t.Run("172 variant", func(t *testing.T) {
 				run(t, `query listContainingIncorrectType {
@@ -3628,7 +3644,7 @@ func TestExecutionValidation(t *testing.T) {
 										nonNullListOfBooleanArgField(nonNullListOfBooleanArg: [true,false,123])
 									}
 								}`,
-					Values(), Invalid)
+					Values(), Invalid, withValidationErrors(`Boolean cannot represent a non boolean value: 123`))
 			})
 			// Nullable types are NOT compatible with non-null types.
 			t.Run("172 variant", func(t *testing.T) {
@@ -3637,7 +3653,7 @@ func TestExecutionValidation(t *testing.T) {
 										listOfNonNullBooleanArgField(listOfNonNullBooleanArg: $listOfBoolean)
 									}
 								}`,
-					ValidArguments(), Invalid)
+					ValidArguments(), Invalid, withValidationErrors(`Variable "$listOfBoolean" of type "[Boolean]" used in position expecting type "[Boolean!]"`))
 			})
 			t.Run("172 variant", func(t *testing.T) {
 				run(t, `query nonNullListToListOfNonNull($nonNullListOfBoolean: [Boolean]!) {
@@ -3645,7 +3661,7 @@ func TestExecutionValidation(t *testing.T) {
 										listOfNonNullBooleanArgField(listOfNonNullBooleanArg: $nonNullListOfBoolean)
 									}
 								}`,
-					ValidArguments(), Invalid)
+					ValidArguments(), Invalid, withValidationErrors(`Variable "$nonNullListOfBoolean" of type "[Boolean]!" used in position expecting type "[Boolean!]"`))
 			})
 			t.Run("172 variant", func(t *testing.T) {
 				run(t, `query listOfNonNullToNonNullList($listOfNonNullBoolean: [Boolean!]) {
@@ -3653,7 +3669,7 @@ func TestExecutionValidation(t *testing.T) {
 										nonNullListOfBooleanArgField(nonNullListOfBooleanArg: $listOfNonNullBoolean)
 									}
 								}`,
-					ValidArguments(), Invalid)
+					ValidArguments(), Invalid, withValidationErrors(`Variable "$listOfNonNullBoolean" of type "[Boolean!]" used in position expecting type "[Boolean]!"`))
 			})
 			t.Run("173", func(t *testing.T) {
 				run(t, `query listToNonNullList($listOfBoolean: [Boolean]) {
@@ -3661,7 +3677,7 @@ func TestExecutionValidation(t *testing.T) {
 										nonNullListOfBooleanArgField(nonNullListOfBooleanArg: $listOfBoolean)
 									}
 								}`,
-					ValidArguments(), Invalid)
+					ValidArguments(), Invalid, withValidationErrors(`Variable "$listOfBoolean" of type "[Boolean]" used in position expecting type "[Boolean]!"`))
 			})
 			t.Run("174", func(t *testing.T) {
 				run(t, `query booleanArgQueryWithDefault($booleanArg: Boolean) {
@@ -3724,7 +3740,7 @@ func TestExecutionValidation(t *testing.T) {
 					`, Values(), Valid)
 			})
 			t.Run("with boolean input", func(t *testing.T) {
-				runWithDefinition(wundergraphSchema, `
+				runWithDefinition(t, wundergraphSchema, `
 					query QueryWithBooleanInput($a: Boolean) {
 						findFirstnodepool(
 							where: { shared: { equals: $a } }
@@ -3735,7 +3751,7 @@ func TestExecutionValidation(t *testing.T) {
 					`, Values(), Valid)
 			})
 			t.Run("with nested boolean where clause", func(t *testing.T) {
-				runWithDefinition(wundergraphSchema, `
+				runWithDefinition(t, wundergraphSchema, `
 					query QueryWithNestedBooleanClause($a: String) {
 						findFirstnodepool(
 							where: { id: { equals: $a }, AND: { shared: { equals: true } } }
@@ -3744,6 +3760,21 @@ func TestExecutionValidation(t *testing.T) {
 						}
 					}
 					`, Values(), Valid)
+			})
+			t.Run("with variables inside an input object", func(t *testing.T) {
+				runWithDefinition(t, wundergraphSchema, `
+					query QueryWithNestedBooleanClause($a: String, $b: Boolean) {
+						findFirstnodepool(
+							where: { id: { equals: $b }, AND: { shared: { equals: $a } } }
+						) {
+							id
+						}
+					}
+					`, Values(), Invalid,
+					withValidationErrors(
+						`Variable "$a" of type "String" used in position expecting type "Boolean"`,
+						`Variable "$b" of type "Boolean" used in position expecting type "String"`,
+					))
 			})
 		})
 	})
@@ -5280,6 +5311,7 @@ schema {
 }
 
 scalar String
+scalar Boolean
 
 enum QueryMode {
   default

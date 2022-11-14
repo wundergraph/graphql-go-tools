@@ -170,16 +170,17 @@ func (v *valuesVisitor) valuesSatisfiesNonNullType(value ast.Value, definitionTy
 		v.handleUnexpectedNullError(value, definitionTypeRef)
 		return false
 	case ast.ValueKindVariable:
-		variableTypeRef, _, ok := v.operationVariableType(value.Ref)
+		_, variableTypeRef, _, ok := v.operationVariableType(value.Ref)
 		if !ok {
 			v.handleTypeError(value, definitionTypeRef)
 			return false
 		}
 		importedDefinitionType := v.importer.ImportType(definitionTypeRef, v.definition, v.operation)
 		if !v.operation.TypesAreEqualDeep(importedDefinitionType, variableTypeRef) {
-			v.handleTypeError(value, definitionTypeRef)
+			v.handleVariableHasIncompatibleTypeError(value, definitionTypeRef)
 			return false
 		}
+		return true
 	}
 	return v.valueSatisfiesInputValueDefinitionType(value, v.definition.Types[definitionTypeRef].OfType)
 }
@@ -203,7 +204,7 @@ func (v *valuesVisitor) valuesSatisfiesNamedType(value ast.Value, definitionType
 func (v *valuesVisitor) valueSatisfiesListType(value ast.Value, definitionTypeRef int, listItemType int) bool {
 
 	if value.Kind == ast.ValueKindVariable {
-		actualType, _, ok := v.operationVariableType(value.Ref)
+		_, actualType, _, ok := v.operationVariableType(value.Ref)
 		if !ok {
 			v.handleTypeError(value, definitionTypeRef)
 			return false
@@ -216,9 +217,10 @@ func (v *valuesVisitor) valueSatisfiesListType(value ast.Value, definitionTypeRe
 			actualType = v.operation.Types[actualType].OfType
 		}
 		if !v.operation.TypesAreEqualDeep(expectedType, actualType) {
-			v.handleTypeError(value, definitionTypeRef)
+			v.handleVariableHasIncompatibleTypeError(value, definitionTypeRef)
 			return false
 		}
+		return true
 	}
 
 	if value.Kind == ast.ValueKindNull {
@@ -264,18 +266,10 @@ func (v *valuesVisitor) valueSatisfiesTypeDefinitionNode(value ast.Value, defini
 
 func (v *valuesVisitor) valueSatisfiesEnum(value ast.Value, definitionTypeRef int, node ast.Node) bool {
 	if value.Kind == ast.ValueKindVariable {
-		_, actualTypeName, ok := v.operationVariableType(value.Ref)
-		if !ok {
-			v.handleUnexpectedEnumValueError(value, definitionTypeRef)
-			return false
-		}
 		expectedTypeName := node.NameBytes(v.definition)
-
-		if !bytes.Equal(actualTypeName, expectedTypeName) {
-			v.handleUnexpectedEnumValueError(value, definitionTypeRef)
-			return false
-		}
+		return v.variableValueHasMatchingTypeName(value, definitionTypeRef, expectedTypeName)
 	}
+
 	if value.Kind != ast.ValueKindEnum {
 		v.handleUnexpectedEnumValueError(value, definitionTypeRef)
 		return false
@@ -292,17 +286,11 @@ func (v *valuesVisitor) valueSatisfiesEnum(value ast.Value, definitionTypeRef in
 
 func (v *valuesVisitor) valueSatisfiesScalar(value ast.Value, definitionTypeRef int, scalar int) bool {
 	scalarName := v.definition.ScalarTypeDefinitionNameBytes(scalar)
+
 	if value.Kind == ast.ValueKindVariable {
-		_, typeName, ok := v.operationVariableType(value.Ref)
-		if !ok {
-			v.handleTypeError(value, definitionTypeRef)
-			return false
-		}
-		if !bytes.Equal(scalarName, typeName) {
-			v.handleTypeError(value, definitionTypeRef)
-			return false
-		}
+		return v.variableValueHasMatchingTypeName(value, definitionTypeRef, scalarName)
 	}
+
 	switch string(scalarName) {
 	case "ID":
 		return v.valueSatisfiesScalarID(value, definitionTypeRef)
@@ -410,19 +398,9 @@ func (v *valuesVisitor) valueSatisfiesScalarString(value ast.Value, definitionTy
 }
 
 func (v *valuesVisitor) valueSatisfiesInputObjectTypeDefinition(value ast.Value, definitionTypeRef int, inputObjectTypeDefinition int) bool {
-
 	if value.Kind == ast.ValueKindVariable {
-		_, actualTypeName, ok := v.operationVariableType(value.Ref)
-		if !ok {
-			v.handleTypeError(value, definitionTypeRef)
-			return false
-		}
-
 		expectedTypeName := v.definition.InputObjectTypeDefinitionNameBytes(inputObjectTypeDefinition)
-		if !bytes.Equal(actualTypeName, expectedTypeName) {
-			v.handleTypeError(value, definitionTypeRef)
-			return false
-		}
+		return v.variableValueHasMatchingTypeName(value, definitionTypeRef, expectedTypeName)
 	}
 
 	if value.Kind != ast.ValueKindObject {
@@ -525,16 +503,19 @@ func (v *valuesVisitor) objectValueSatisfiesInputValueDefinition(objectValue ast
 	return true
 }
 
-func (v *valuesVisitor) operationVariableType(valueRef int) (variableTypeRef int, typeName ast.ByteSlice, ok bool) {
-	variableName := v.operation.VariableValueNameBytes(valueRef)
-	variableDefinition, exists := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref, variableName)
-	if !exists {
-		return ast.InvalidRef, nil, false
+func (v *valuesVisitor) variableValueHasMatchingTypeName(value ast.Value, definitionTypeRef int, expectedTypeName []byte) bool {
+	_, _, actualTypeName, ok := v.operationVariableType(value.Ref)
+	if !ok {
+		v.handleVariableHasIncompatibleTypeError(value, definitionTypeRef)
+		return false
 	}
-	variableTypeRef = v.operation.VariableDefinitions[variableDefinition].Type
-	typeName = v.operation.ResolveTypeNameBytes(variableTypeRef)
 
-	return variableTypeRef, typeName, true
+	if !bytes.Equal(actualTypeName, expectedTypeName) {
+		v.handleVariableHasIncompatibleTypeError(value, definitionTypeRef)
+		return false
+	}
+
+	return true
 }
 
 func (v *valuesVisitor) handleTypeError(value ast.Value, definitionTypeRef int) {
@@ -582,21 +563,24 @@ func (v *valuesVisitor) handleNotExistingEnumValueError(value ast.Value, definit
 	v.Report.AddExternalError(operationreport.ErrValueDoesntExistsInEnum(printedValue, printedType, value.Position))
 }
 
-func (v *valuesVisitor) printValueAndUnderlyingType(value ast.Value, definitionTypeRef int) (printedValue, printedType []byte, ok bool) {
-	var err error
-
-	printedValue, ok = v.printOperationValue(value)
+func (v *valuesVisitor) handleVariableHasIncompatibleTypeError(value ast.Value, definitionTypeRef int) {
+	printedValue, expectedTypeName, ok := v.printValueAndUnderlyingType(value, definitionTypeRef)
 	if !ok {
-		return nil, nil, false
+		return
 	}
 
-	underlyingType := v.definition.ResolveUnderlyingType(definitionTypeRef)
-	printedType, err = v.definition.PrintTypeBytes(underlyingType, nil)
-	if v.HandleInternalErr(err) {
-		return nil, nil, false
+	variableDefinitionRef, _, actualTypeName, ok := v.operationVariableType(value.Ref)
+	if !ok {
+		return
 	}
 
-	return printedValue, printedType, true
+	v.Report.AddExternalError(operationreport.ErrVariableTypeDoesntSatisfyInputValueDefinition(
+		printedValue,
+		actualTypeName,
+		expectedTypeName,
+		value.Position,
+		v.operation.VariableDefinitions[variableDefinitionRef].VariableValue.Position,
+	))
 }
 
 func (v *valuesVisitor) handleMissingRequiredFieldOfInputObjectError(value ast.Value, fieldName ast.ByteSlice, inputObjectDefinition, inputValueDefinition int) {
@@ -629,6 +613,23 @@ func (v *valuesVisitor) handleOperationUnexpectedNullError(value ast.Value, oper
 	}
 
 	v.Report.AddExternalError(operationreport.ErrNullValueDoesntSatisfyInputValueDefinition(printedType, value.Position))
+}
+
+func (v *valuesVisitor) printValueAndUnderlyingType(value ast.Value, definitionTypeRef int) (printedValue, printedType []byte, ok bool) {
+	var err error
+
+	printedValue, ok = v.printOperationValue(value)
+	if !ok {
+		return nil, nil, false
+	}
+
+	underlyingType := v.definition.ResolveUnderlyingType(definitionTypeRef)
+	printedType, err = v.definition.PrintTypeBytes(underlyingType, nil)
+	if v.HandleInternalErr(err) {
+		return nil, nil, false
+	}
+
+	return printedValue, printedType, true
 }
 
 func (v *valuesVisitor) printOperationValueAndUnderlyingType(value ast.Value, operationTypeRef int) (printedValue, printedType []byte, ok bool) {
@@ -665,4 +666,33 @@ func (v *valuesVisitor) printOperationValue(value ast.Value) (printedValue []byt
 	}
 
 	return printedValue, true
+}
+
+func (v *valuesVisitor) operationVariableDefinition(variableValueRef int) (ref int, exists bool) {
+	variableName := v.operation.VariableValueNameBytes(variableValueRef)
+
+	if v.Ancestors[0].Kind == ast.NodeKindOperationDefinition {
+		return v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref, variableName)
+	}
+
+	for opDefRef := 0; opDefRef < len(v.operation.OperationDefinitions); opDefRef++ {
+		ref, exists = v.operation.VariableDefinitionByNameAndOperation(opDefRef, variableName)
+		if exists {
+			return
+		}
+	}
+
+	return ast.InvalidRef, false
+}
+
+func (v *valuesVisitor) operationVariableType(variableValueRef int) (variableDefinitionRef int, variableTypeRef int, typeName ast.ByteSlice, ok bool) {
+	variableDefRef, exists := v.operationVariableDefinition(variableValueRef)
+	if !exists {
+		return ast.InvalidRef, ast.InvalidRef, nil, false
+	}
+
+	variableTypeRef = v.operation.VariableDefinitions[variableDefRef].Type
+	typeName = v.operation.ResolveTypeNameBytes(variableTypeRef)
+
+	return variableDefRef, variableTypeRef, typeName, true
 }
