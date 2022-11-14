@@ -2173,7 +2173,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment invalidArgName on Dog {
 								doesKnowCommand(command: CLEAN_UP_HOUSE)
 							}`,
-					KnownArguments(), Invalid)
+					KnownArguments(), Invalid, withValidationErrors(`Unknown argument "command" on field "Dog.doesKnowCommand"`))
 			})
 			t.Run("118 variant", func(t *testing.T) {
 				run(t, `	
@@ -2183,7 +2183,9 @@ func TestExecutionValidation(t *testing.T) {
 							fragment invalidArgName on Dog {
 								doesKnowCommand(dogCommand: CLEAN_UP_HOUSE)
 							}`,
-					ValidArguments(), Invalid)
+					Values(),
+					Invalid,
+					withValidationErrors(`Value "CLEAN_UP_HOUSE" does not exist in "DogCommand" enum.`))
 			})
 			t.Run("119", func(t *testing.T) {
 				run(t, ` 	{
