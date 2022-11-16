@@ -89,9 +89,6 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []by
 func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {
 	value, valueType, offset, err := jsonparser.Get(ctx.Variables, segment.VariableSourcePath...)
 	if err != nil || valueType == jsonparser.Null {
-		if i.SetTemplateOutputToNullOnVariableNull {
-			return setTemplateOutputNull
-		}
 		preparedInput.WriteBytes(literal.NULL)
 		return nil
 	}
@@ -113,10 +110,7 @@ func (i *InputTemplate) renderHeaderVariable(ctx *Context, path []string, prepar
 	}
 	value := ctx.Request.Header.Values(path[0])
 	if len(value) == 0 {
-		if i.SetTemplateOutputToNullOnVariableNull {
-			return setTemplateOutputNull
-		}
-		return errHeaderValueNotFound
+		return nil
 	}
 	if len(value) == 1 {
 		preparedInput.WriteString(value[0])

@@ -49,7 +49,6 @@ var (
 	errNonNullableFieldValueIsNull = errors.New("non Nullable field value is null")
 	errTypeNameSkipped             = errors.New("skipped because of __typename condition")
 	errHeaderPathInvalid           = errors.New("invalid header path: header variables must be of this format: .request.header.{{ key }} ")
-	errHeaderValueNotFound         = errors.New("header value not found")
 
 	ErrUnableToResolve = errors.New("unable to resolve operation")
 )
@@ -735,7 +734,7 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 		r.byteSlicesPool.Put(arrayItems)
 	}()
 
-	_, err = jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+	_, _ = jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 		if err == nil && dataType == jsonparser.String {
 			value = data[offset-2 : offset+len(value)] // add quotes to string values
 		}
