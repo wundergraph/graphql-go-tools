@@ -76,6 +76,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_POST(t *testing.T) {
 		Query: `subscription {messageAdded(roomName: "room"){text}}`,
 	}
 	expectedReqBody, err := json.Marshal(postReqBody)
+	assert.NoError(t, err)
 
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
