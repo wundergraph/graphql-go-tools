@@ -5440,13 +5440,13 @@ func TestGraphQLDataSource(t *testing.T) {
 			}
           }
 		}
-	`, "", &plan.SynchronousResponsePlan{
+	`, "Custom", &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
 					BufferId:   0,
-					Input:      `{"body":{"variables":{"id":$$0$$},"query":"query($id: ID!){custom_user: user(id: $id){id name tier meta}}"},"header":{},"url":"http://localhost:8084/query","method":"POST"}`,
+					Input:      `{"method":"POST","url":"http://localhost:8084/query","body":{"query":"query($id: ID!){custom_user: user(id: $id){id name tier meta}}","variables":{"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"id"},
@@ -5480,13 +5480,22 @@ func TestGraphQLDataSource(t *testing.T) {
 								{
 									Name: []byte("tier"),
 									Value: &resolve.String{
-										Path: []string{"tier"},
+										Nullable: true,
+										Path:     []string{"tier"},
 									},
 								},
 								{
 									Name: []byte("meta"),
-									Value: &resolve.String{
+									Value: &resolve.Object{
 										Path: []string{"meta"},
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("foo"),
+												Value: &resolve.String{
+													Path: []string{"foo"},
+												},
+											},
+										},
 									},
 								},
 							},
@@ -5533,6 +5542,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			{
 				TypeName:  "Query",
 				FieldName: "custom_user",
+				Path:      []string{"user"},
 				Arguments: []plan.ArgumentConfiguration{
 					{
 						Name:       "id",
