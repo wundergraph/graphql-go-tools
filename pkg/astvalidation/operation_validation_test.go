@@ -3114,9 +3114,7 @@ func TestExecutionValidation(t *testing.T) {
 						}
 						`, Values(), Invalid, withValidationErrors(`String cannot represent a non string value: str`))
 			})
-			t.Run("complex nested requiredListOfRequiredStrings must not be empty", func(t *testing.T) {
-				t.Errorf("TODO: Need support better error")
-
+			t.Run("complex nested requiredListOfRequiredStrings could be empty but not `null` or `[null]`", func(t *testing.T) {
 				run(t, `
 						{
 							nested(input: {
@@ -3125,7 +3123,7 @@ func TestExecutionValidation(t *testing.T) {
 								requiredListOfRequiredStrings: []
 							})
 						}
-						`, Values(), Invalid, withValidationErrors(`Field "NestedInput.requiredListOfRequiredStrings" of required type "[String!]!" must not be empty.`))
+						`, Values(), Valid)
 			})
 			t.Run("complex 2x nested", func(t *testing.T) {
 				run(t, `

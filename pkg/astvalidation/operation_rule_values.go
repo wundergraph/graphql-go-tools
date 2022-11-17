@@ -244,9 +244,8 @@ func (v *valuesVisitor) valueSatisfiesListType(value ast.Value, definitionTypeRe
 
 	if v.definition.Types[listItemType].TypeKind == ast.TypeKindNonNull {
 		if len(v.operation.ListValues[value.Ref].Refs) == 0 {
-			v.handleTypeError(value, definitionTypeRef)
-			// TODO: check error format when list should not be empty
-			return false
+			// [] empty list is a valid input for [item!] lists
+			return true
 		}
 		listItemType = v.definition.Types[listItemType].OfType
 	}
