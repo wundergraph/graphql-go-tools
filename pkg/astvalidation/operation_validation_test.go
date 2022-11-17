@@ -2859,14 +2859,12 @@ func TestExecutionValidation(t *testing.T) {
 							}`,
 					Values(), Valid)
 			})
-			t.Run("145 variant variable non null", func(t *testing.T) {
-				t.Errorf("TODO: invalid result")
-
+			t.Run("145 variant variable non null into required field", func(t *testing.T) {
 				run(t, `
 							query goodComplexDefaultValue($name: String ) {
 								findDogNonOptional(complex: { name: $name })
 							}`,
-					Values(), Invalid, withValidationErrors(`Variable "$name" of type "String" used in position expecting type "String"`))
+					Values(), Invalid, withValidationErrors(`Variable "$name" of type "String" used in position expecting type "String!"`))
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(t, `
@@ -2910,14 +2908,12 @@ func TestExecutionValidation(t *testing.T) {
 					Values(), Invalid, withValidationErrors(`Value "MEOW" does not exist in "DogCommand" enum`))
 			})
 			t.Run("145 variant", func(t *testing.T) {
-				t.Errorf("TODO: check result")
-
 				run(t, `	{
 								dog {
 									doesKnowCommand(dogCommand: [true])
 								}
 							}`,
-					Values(), Invalid, withValidationErrors(`Boolean cannot represent a non boolean value: [true]`))
+					Values(), Invalid, withValidationErrors(`Enum "DogCommand" cannot represent non-enum value: [true]`))
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(t, `	{
@@ -3835,6 +3831,19 @@ func TestExecutionValidation(t *testing.T) {
 						`Variable "$b" of type "Boolean" used in position expecting type "String"`,
 					))
 			})
+
+			t.Run("with variables inside an input object", func(t *testing.T) {
+				run(t, `
+					query booleanIntoStringList($a: Boolean) {
+						findDog(complex: {optionalListOfOptionalStrings: $a}) {
+							id
+						}
+					}
+					`, Values(), Invalid,
+					withValidationErrors(
+						`Variable "$a" of type "Boolean" used in position expecting type "[String]"`,
+					))
+			})
 		})
 	})
 }
@@ -4404,7 +4413,7 @@ type Mutation {
 	mutateDog: Dog
 }
 
-input ComplexInput { name: String, owner: String }
+input ComplexInput { name: String, owner: String, optionalListOfOptionalStrings: [String]}
 input ComplexNestedInput { complex: ComplexInput }
 input ComplexNonOptionalInput { name: String! }
 

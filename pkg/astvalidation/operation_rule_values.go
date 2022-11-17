@@ -579,8 +579,13 @@ func (v *valuesVisitor) handleNotExistingEnumValueError(value ast.Value, definit
 }
 
 func (v *valuesVisitor) handleVariableHasIncompatibleTypeError(value ast.Value, definitionTypeRef int) {
-	printedValue, expectedTypeName, ok := v.printValueAndUnderlyingType(value, definitionTypeRef)
+	printedValue, ok := v.printOperationValue(value)
 	if !ok {
+		return
+	}
+
+	expectedTypeName, err := v.definition.PrintTypeBytes(definitionTypeRef, nil)
+	if v.HandleInternalErr(err) {
 		return
 	}
 
