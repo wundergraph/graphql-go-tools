@@ -11,9 +11,10 @@ import (
 // example:
 // lon: 12.43
 type ObjectField struct {
-	Name  ByteSliceReference // e.g. lon
-	Colon position.Position  // :
-	Value Value              // e.g. 12.43
+	Name     ByteSliceReference // e.g. lon
+	Colon    position.Position  // :
+	Value    Value              // e.g. 12.43
+	Position position.Position
 }
 
 func (d *Document) CopyObjectField(ref int) int {

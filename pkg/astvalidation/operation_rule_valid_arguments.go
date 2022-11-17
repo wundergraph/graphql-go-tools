@@ -6,11 +6,11 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
-	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
-// ValidArguments validates if arguments are valid
+// ValidArguments validates if arguments are valid: values and variables has compatible types
+// deep variables comparison is handled by Values
 func ValidArguments() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := validArgumentsVisitor{
@@ -32,39 +32,35 @@ func (v *validArgumentsVisitor) EnterDocument(operation, definition *ast.Documen
 }
 
 func (v *validArgumentsVisitor) EnterArgument(ref int) {
-	definition, exists := v.ArgumentInputValueDefinition(ref)
+	definitionRef, exists := v.ArgumentInputValueDefinition(ref)
 
 	if !exists {
-		argumentName := v.operation.ArgumentNameBytes(ref)
-		ancestorName := v.AncestorNameBytes()
-		v.StopWithExternalErr(operationreport.ErrArgumentNotDefinedOnNode(argumentName, ancestorName))
 		return
 	}
 
 	value := v.operation.ArgumentValue(ref)
-	v.validateIfValueSatisfiesInputFieldDefinition(value, definition)
+	v.validateIfValueSatisfiesInputFieldDefinition(value, definitionRef)
 }
 
-func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(value ast.Value, inputValueDefinition int) {
-	var satisfied bool
+func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(value ast.Value, inputValueDefinitionRef int) {
+	var (
+		satisfied             bool
+		operationTypeRef      int
+		variableDefinitionRef int
+	)
 
 	switch value.Kind {
 	case ast.ValueKindVariable:
-		satisfied = v.variableValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinition)
-	case ast.ValueKindEnum:
-		satisfied = v.enumValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinition)
-	case ast.ValueKindNull:
-		satisfied = v.nullValueSatisfiesInputValueDefinition(inputValueDefinition)
-	case ast.ValueKindBoolean:
-		satisfied = v.booleanValueSatisfiesInputValueDefinition(inputValueDefinition)
-	case ast.ValueKindInteger:
-		satisfied = v.intValueSatisfiesInputValueDefinition(value, inputValueDefinition)
-	case ast.ValueKindString:
-		satisfied = v.stringValueSatisfiesInputValueDefinition(value, inputValueDefinition)
-	case ast.ValueKindFloat:
-		satisfied = v.floatValueSatisfiesInputValueDefinition(value, inputValueDefinition)
-	case ast.ValueKindObject, ast.ValueKindList:
-		// object- and list values are covered by Values() / valuesVisitor
+		satisfied, operationTypeRef, variableDefinitionRef = v.variableValueSatisfiesInputValueDefinition(value.Ref, inputValueDefinitionRef)
+	case ast.ValueKindEnum,
+		ast.ValueKindNull,
+		ast.ValueKindBoolean,
+		ast.ValueKindInteger,
+		ast.ValueKindString,
+		ast.ValueKindFloat,
+		ast.ValueKindObject,
+		ast.ValueKindList:
+		// this types of values are covered by Values() / valuesVisitor
 		return
 	default:
 		v.StopWithInternalErr(fmt.Errorf("validateIfValueSatisfiesInputFieldDefinition: not implemented for value.Kind: %s", value.Kind))
@@ -80,112 +76,59 @@ func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(val
 		return
 	}
 
-	typeRef := v.definition.InputValueDefinitionType(inputValueDefinition)
-
-	printedType, err := v.definition.PrintTypeBytes(typeRef, nil)
+	typeRef := v.definition.InputValueDefinitionType(inputValueDefinitionRef)
+	expectedTypeName, err := v.definition.PrintTypeBytes(typeRef, nil)
 	if v.HandleInternalErr(err) {
 		return
 	}
 
-	v.StopWithExternalErr(operationreport.ErrValueDoesntSatisfyInputValueDefinition(printedValue, printedType))
+	actualTypeName, err := v.operation.PrintTypeBytes(operationTypeRef, nil)
+	if v.HandleInternalErr(err) {
+		return
+	}
+
+	v.StopWithExternalErr(operationreport.ErrVariableTypeDoesntSatisfyInputValueDefinition(printedValue, actualTypeName, expectedTypeName, value.Position, v.operation.VariableDefinitions[variableDefinitionRef].VariableValue.Position))
 }
 
-func (v *validArgumentsVisitor) floatValueSatisfiesInputValueDefinition(value ast.Value, inputValueDefinition int) bool {
-	inputType := v.definition.Types[v.definition.InputValueDefinitionType(inputValueDefinition)]
-	if inputType.TypeKind == ast.TypeKindNonNull {
-		inputType = v.definition.Types[inputType.OfType]
-	}
-	if inputType.TypeKind != ast.TypeKindNamed {
-		return false
-	}
-	if !bytes.Equal(v.definition.Input.ByteSlice(inputType.Name), literal.FLOAT) {
-		return false
-	}
-	return true
-}
-
-func (v *validArgumentsVisitor) stringValueSatisfiesInputValueDefinition(value ast.Value, inputValueDefinition int) bool {
-	inputType := v.definition.Types[v.definition.InputValueDefinitionType(inputValueDefinition)]
-	if inputType.TypeKind == ast.TypeKindNonNull {
-		inputType = v.definition.Types[inputType.OfType]
-	}
-	if inputType.TypeKind != ast.TypeKindNamed {
-		return false
-	}
-
-	inputTypeName := v.definition.Input.ByteSlice(inputType.Name)
-	if !bytes.Equal(inputTypeName, literal.STRING) && !bytes.Equal(inputTypeName, literal.ID) {
-		return false
-	}
-	return true
-}
-
-func (v *validArgumentsVisitor) intValueSatisfiesInputValueDefinition(value ast.Value, inputValueDefinition int) bool {
-	inputType := v.definition.Types[v.definition.InputValueDefinitionType(inputValueDefinition)]
-	if inputType.TypeKind == ast.TypeKindNonNull {
-		inputType = v.definition.Types[inputType.OfType]
-	}
-	if inputType.TypeKind != ast.TypeKindNamed {
-		return false
-	}
-	if !bytes.Equal(v.definition.Input.ByteSlice(inputType.Name), literal.INT) {
-		return false
-	}
-	return true
-}
-
-func (v *validArgumentsVisitor) booleanValueSatisfiesInputValueDefinition(inputValueDefinition int) bool {
-	inputType := v.definition.Types[v.definition.InputValueDefinitionType(inputValueDefinition)]
-	if inputType.TypeKind == ast.TypeKindNonNull {
-		inputType = v.definition.Types[inputType.OfType]
-	}
-	if inputType.TypeKind != ast.TypeKindNamed {
-		return false
-	}
-	if !bytes.Equal(v.definition.Input.ByteSlice(inputType.Name), literal.BOOLEAN) {
-		return false
-	}
-	return true
-}
-
-func (v *validArgumentsVisitor) nullValueSatisfiesInputValueDefinition(inputValueDefinition int) bool {
-	inputType := v.definition.Types[v.definition.InputValueDefinitionType(inputValueDefinition)]
-	return inputType.TypeKind != ast.TypeKindNonNull
-}
-
-func (v *validArgumentsVisitor) enumValueSatisfiesInputValueDefinition(enumValue, inputValueDefinition int) bool {
-	definitionTypeName := v.definition.ResolveTypeNameBytes(v.definition.InputValueDefinitions[inputValueDefinition].Type)
-	node, exists := v.definition.Index.FirstNodeByNameBytes(definitionTypeName)
+func (v *validArgumentsVisitor) variableValueSatisfiesInputValueDefinition(variableValue, inputValueDefinition int) (satisfies bool, operationTypeRef int, variableDefRef int) {
+	variableDefinitionRef, exists := v.variableDefinition(variableValue)
 	if !exists {
-		return false
+		return false, ast.InvalidRef, variableDefinitionRef
 	}
 
-	if node.Kind != ast.NodeKindEnumTypeDefinition {
-		return false
-	}
+	operationTypeRef = v.operation.VariableDefinitions[variableDefinitionRef].Type
+	definitionTypeRef := v.definition.InputValueDefinitions[inputValueDefinition].Type
 
-	enumValueName := v.operation.Input.ByteSlice(v.operation.EnumValueName(enumValue))
-	return v.definition.EnumTypeDefinitionContainsEnumValue(node.Ref, enumValueName)
+	hasDefaultValue := v.validDefaultValue(v.operation.VariableDefinitions[variableDefinitionRef].DefaultValue) ||
+		v.validDefaultValue(v.definition.InputValueDefinitions[inputValueDefinition].DefaultValue)
+
+	return v.operationTypeSatisfiesDefinitionType(operationTypeRef, definitionTypeRef, hasDefaultValue), operationTypeRef, variableDefinitionRef
 }
 
-func (v *validArgumentsVisitor) variableValueSatisfiesInputValueDefinition(variableValue, inputValueDefinition int) bool {
-	variableName := v.operation.VariableValueNameBytes(variableValue)
-	variableDefinition, exists := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref, variableName)
-	if !exists {
-		return false
+func (v *validArgumentsVisitor) variableDefinition(variableValueRef int) (ref int, exists bool) {
+	variableName := v.operation.VariableValueNameBytes(variableValueRef)
+
+	if v.Ancestors[0].Kind == ast.NodeKindOperationDefinition {
+		return v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref, variableName)
 	}
 
-	operationType := v.operation.VariableDefinitions[variableDefinition].Type
-	definitionType := v.definition.InputValueDefinitions[inputValueDefinition].Type
-	hasDefaultValue := v.operation.VariableDefinitions[variableDefinition].DefaultValue.IsDefined ||
-		v.definition.InputValueDefinitions[inputValueDefinition].DefaultValue.IsDefined
+	for opDefRef := 0; opDefRef < len(v.operation.OperationDefinitions); opDefRef++ {
+		ref, exists = v.operation.VariableDefinitionByNameAndOperation(opDefRef, variableName)
+		if exists {
+			return
+		}
+	}
 
-	return v.operationTypeSatisfiesDefinitionType(operationType, definitionType, hasDefaultValue)
+	return ast.InvalidRef, false
 }
 
-func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationType int, definitionType int, hasDefaultValue bool) bool {
-	opKind := v.operation.Types[operationType].TypeKind
-	defKind := v.definition.Types[definitionType].TypeKind
+func (v *validArgumentsVisitor) validDefaultValue(value ast.DefaultValue) bool {
+	return value.IsDefined && value.Value.Kind != ast.ValueKindNull
+}
+
+func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationTypeRef int, definitionTypeRef int, hasDefaultValue bool) bool {
+	opKind := v.operation.Types[operationTypeRef].TypeKind
+	defKind := v.definition.Types[definitionTypeRef].TypeKind
 
 	// A nullable op type is compatible with a non-null def type if the def has
 	// a default value. Strip the def non-null and continue comparing. This
@@ -196,17 +139,17 @@ func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationTy
 	// Op:  someField(arg: Boolean): String
 	// Def: someField(arg: Boolean! = false): String  #  Boolean! -> Boolean
 	if opKind != ast.TypeKindNonNull && defKind == ast.TypeKindNonNull && hasDefaultValue {
-		definitionType = v.definition.Types[definitionType].OfType
+		definitionTypeRef = v.definition.Types[definitionTypeRef].OfType
 	}
 
 	// Unnest the op and def arg types until a named type is reached,
 	// then compare.
 	for {
-		if operationType == -1 || definitionType == -1 {
+		if operationTypeRef == -1 || definitionTypeRef == -1 {
 			return false
 		}
-		opKind = v.operation.Types[operationType].TypeKind
-		defKind = v.definition.Types[definitionType].TypeKind
+		opKind = v.operation.Types[operationTypeRef].TypeKind
+		defKind = v.definition.Types[definitionTypeRef].TypeKind
 
 		// If the op arg type is stricter than the def arg type, that's okay.
 		// Strip the op non-null and continue comparing.
@@ -215,7 +158,7 @@ func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationTy
 		// Op:  someField(arg: Boolean!): String  # Boolean! -> Boolean
 		// Def: someField(arg: Boolean): String
 		if opKind == ast.TypeKindNonNull && defKind != ast.TypeKindNonNull {
-			operationType = v.operation.Types[operationType].OfType
+			operationTypeRef = v.operation.Types[operationTypeRef].OfType
 			continue
 		}
 
@@ -225,11 +168,12 @@ func (v *validArgumentsVisitor) operationTypeSatisfiesDefinitionType(operationTy
 		if opKind == ast.TypeKindNamed {
 			// defKind is also a named type because at this point both kinds
 			// are the same! Compare the names.
-			return bytes.Equal(v.operation.Input.ByteSlice(v.operation.Types[operationType].Name),
-				v.definition.Input.ByteSlice(v.definition.Types[definitionType].Name))
+
+			return bytes.Equal(v.operation.Input.ByteSlice(v.operation.Types[operationTypeRef].Name),
+				v.definition.Input.ByteSlice(v.definition.Types[definitionTypeRef].Name))
 		}
 		// Both types are non-null or list. Unnest and continue comparing.
-		operationType = v.operation.Types[operationType].OfType
-		definitionType = v.definition.Types[definitionType].OfType
+		operationTypeRef = v.operation.Types[operationTypeRef].OfType
+		definitionTypeRef = v.definition.Types[definitionTypeRef].OfType
 	}
 }

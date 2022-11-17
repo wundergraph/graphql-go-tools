@@ -114,6 +114,7 @@ type QueryRoot {
     dogOrHuman: DogOrHuman
     humanOrAlien: HumanOrAlien
     complicatedArgs: ComplicatedArgs
+    field(strArg: String, boolListArg: [Boolean!]!, inputArg: ComplexInput): String # need to be here to not have an error of not existing field in visitor in TestVariablesAreInputTypesRule
 }
 
 schema {
