@@ -51,6 +51,9 @@ type Planner struct {
 	upstreamDefinition                 *ast.Document
 	currentVariableDefinition          int
 	addDirectivesToVariableDefinitions map[int][]int
+
+	insideCustomScalarField bool
+	customScalarFieldRef    int
 }
 
 func (p *Planner) EnterVariableDefinition(ref int) {
@@ -198,10 +201,16 @@ func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 }
 
 type Configuration struct {
-	Fetch          FetchConfiguration
-	Subscription   SubscriptionConfiguration
-	Federation     FederationConfiguration
-	UpstreamSchema string
+	Fetch                  FetchConfiguration
+	Subscription           SubscriptionConfiguration
+	Federation             FederationConfiguration
+	UpstreamSchema         string
+	CustomScalarTypeFields []SingleTypeField
+}
+
+type SingleTypeField struct {
+	TypeName  string
+	FieldName string
 }
 
 func ConfigJson(config Configuration) json.RawMessage {
@@ -331,6 +340,10 @@ func (p *Planner) LeaveOperationDefinition(ref int) {
 }
 
 func (p *Planner) EnterSelectionSet(ref int) {
+	if p.insideCustomScalarField {
+		return
+	}
+
 	parent := p.nodes[len(p.nodes)-1]
 	set := p.upstreamOperation.AddSelectionSet()
 	switch parent.Kind {
@@ -360,11 +373,19 @@ func (p *Planner) EnterSelectionSet(ref int) {
 	}
 }
 
-func (p *Planner) LeaveSelectionSet(ref int) {
+func (p *Planner) LeaveSelectionSet(_ int) {
+	if p.insideCustomScalarField {
+		return
+	}
+
 	p.nodes = p.nodes[:len(p.nodes)-1]
 }
 
 func (p *Planner) EnterInlineFragment(ref int) {
+	if p.insideCustomScalarField {
+		return
+	}
+
 	typeCondition := p.visitor.Operation.InlineFragmentTypeConditionName(ref)
 	if typeCondition == nil && !p.visitor.Operation.InlineFragments[ref].HasDirectives {
 		return
@@ -403,6 +424,10 @@ func (p *Planner) EnterInlineFragment(ref int) {
 }
 
 func (p *Planner) LeaveInlineFragment(_ int) {
+	if p.insideCustomScalarField {
+		return
+	}
+
 	if p.nodes[len(p.nodes)-1].Kind != ast.NodeKindInlineFragment {
 		return
 	}
@@ -410,8 +435,21 @@ func (p *Planner) LeaveInlineFragment(_ int) {
 }
 
 func (p *Planner) EnterField(ref int) {
+	if p.insideCustomScalarField {
+		return
+	}
 
 	fieldName := p.visitor.Operation.FieldNameString(ref)
+	enclosingTypeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+
+	for i := range p.config.CustomScalarTypeFields {
+		if p.config.CustomScalarTypeFields[i].TypeName == enclosingTypeName && p.config.CustomScalarTypeFields[i].FieldName == fieldName {
+			p.insideCustomScalarField = true
+			p.customScalarFieldRef = ref
+			p.addCustomField(ref)
+			return
+		}
+	}
 
 	// store root field name and ref
 	if p.rootFieldName == "" {
@@ -451,12 +489,35 @@ func (p *Planner) EnterField(ref int) {
 	}
 }
 
+func (p *Planner) addCustomField(ref int) {
+	fieldName := p.visitor.Operation.FieldNameString(ref)
+	field := p.upstreamOperation.AddField(ast.Field{
+		Name: p.upstreamOperation.Input.AppendInputString(fieldName),
+	})
+	selection := ast.Selection{
+		Kind: ast.SelectionKindField,
+		Ref:  field.Ref,
+	}
+	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, selection)
+}
+
 func (p *Planner) LeaveField(ref int) {
+	if p.insideCustomScalarField {
+		if p.customScalarFieldRef == ref {
+			p.insideCustomScalarField = false
+			p.customScalarFieldRef = 0
+		}
+		return
+	}
+
 	// fmt.Printf("Planner::%s::%s::LeaveField::%s::%d\n", p.id, p.visitor.Walker.Path.DotDelimitedString(), p.visitor.Operation.FieldNameUnsafeString(ref), ref)
 	p.nodes = p.nodes[:len(p.nodes)-1]
 }
 
-func (p *Planner) EnterArgument(ref int) {
+func (p *Planner) EnterArgument(_ int) {
+	if p.insideCustomScalarField {
+		return
+	}
 }
 
 func (p *Planner) EnterDocument(operation, definition *ast.Document) {
@@ -925,21 +986,6 @@ func (p *Planner) printOperation() []byte {
 
 	rawQuery := buf.Bytes()
 
-	baseSchema, err := astprinter.PrintString(p.visitor.Definition, nil)
-	if err != nil {
-		return nil
-	}
-
-	if p.config.UpstreamSchema != "" {
-		baseSchema = p.config.UpstreamSchema
-	}
-
-	federationSchema, err := federation.BuildFederationSchema(baseSchema, p.config.Federation.ServiceSDL)
-	if err != nil {
-		p.visitor.Walker.StopWithInternalErr(err)
-		return nil
-	}
-
 	// create empty operation and definition documents
 	operation := ast.NewDocument()
 	definition := ast.NewDocument()
@@ -954,31 +1000,38 @@ func (p *Planner) printOperation() []byte {
 		return nil
 	}
 
-	// creates a copy of operation and schema to be able to safely modify them
-	// if an upstream schema was supplied, we use it to validate and normalize against
-	// otherwise, normalization would fail because the downstream schema doesn't contain the upstream fields
-	if !p.config.Federation.Enabled && p.config.UpstreamSchema != "" {
-		definition.Input.ResetInputString(p.config.UpstreamSchema)
-		definitionParser.Parse(definition, report)
-		if report.HasErrors() {
-			p.stopWithError("unable to parse upstream schema")
+	if p.config.UpstreamSchema == "" {
+		p.config.UpstreamSchema, err = astprinter.PrintString(p.visitor.Definition, nil)
+		if err != nil {
+			p.visitor.Walker.StopWithInternalErr(err)
 			return nil
 		}
-		if err := asttransform.MergeDefinitionWithBaseSchema(definition); err != nil {
-			p.stopWithError("unable to merge upstream schema with base schema")
+	}
+
+	if p.config.Federation.Enabled {
+		federationSchema, err := federation.BuildFederationSchema(p.config.UpstreamSchema, p.config.Federation.ServiceSDL)
+		if err != nil {
+			p.visitor.Walker.StopWithInternalErr(err)
 			return nil
 		}
-	} else {
 		definition.Input.ResetInputString(federationSchema)
 		definitionParser.Parse(definition, report)
 		if report.HasErrors() {
 			p.stopWithError(parseDocumentFailedErrMsg, "definition")
 			return nil
 		}
-		if err := asttransform.MergeDefinitionWithBaseSchema(definition); err != nil {
-			p.stopWithError("unable to merge upstream schema with base schema")
+	} else {
+		definition.Input.ResetInputString(p.config.UpstreamSchema)
+		definitionParser.Parse(definition, report)
+		if report.HasErrors() {
+			p.stopWithError("unable to parse upstream schema")
 			return nil
 		}
+	}
+
+	if err := asttransform.MergeDefinitionWithBaseSchema(definition); err != nil {
+		p.stopWithError("unable to merge upstream schema with base schema")
+		return nil
 	}
 
 	// When datasource is nested and definition query type do not contain operation field

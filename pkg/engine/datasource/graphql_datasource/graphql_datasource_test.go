@@ -5429,6 +5429,130 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		}))
+	t.Run("custom scalar type fields", RunTest(customUserSchema, `
+		query Custom($id: ID!) {
+          custom_user(id: $id) {
+			id
+			name
+			tier
+			meta {
+              foo
+			}
+          }
+		}
+	`, "Custom", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"http://localhost:8084/query","body":{"query":"query($id: ID!){custom_user: user(id: $id){id name tier meta}}","variables":{"id":$$0$$}}}`,
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path:     []string{"id"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+						},
+					),
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("custom_user"),
+						Value: &resolve.Object{
+							Path:     []string{"custom_user"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("id"),
+									Value: &resolve.String{
+										Path: []string{"id"},
+									},
+								},
+								{
+									Name: []byte("name"),
+									Value: &resolve.String{
+										Path: []string{"name"},
+									},
+								},
+								{
+									Name: []byte("tier"),
+									Value: &resolve.String{
+										Nullable: true,
+										Path:     []string{"tier"},
+									},
+								},
+								{
+									Name: []byte("meta"),
+									Value: &resolve.Object{
+										Path: []string{"meta"},
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("foo"),
+												Value: &resolve.String{
+													Path: []string{"foo"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"custom_user"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "custom_User",
+						FieldNames: []string{"id", "name", "tier", "meta"},
+					},
+					{
+						TypeName:   "custom_Meta",
+						FieldNames: []string{"foo"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://localhost:8084/query",
+					},
+					UpstreamSchema: userSchema,
+					CustomScalarTypeFields: []SingleTypeField{
+						{
+							TypeName:  "custom_User",
+							FieldName: "meta",
+						},
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "custom_user",
+				Path:      []string{"user"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		DisableResolveFieldPositions: true,
+	}))
 }
 
 var errSubscriptionClientFail = errors.New("subscription client fail error")
@@ -7462,4 +7586,50 @@ type Api {
 }
 
 union DeleteDeploymentResponse = Success | Error
+`
+
+const userSchema = `
+type Query {
+  user(id: ID!): User
+}
+
+type User {
+  id: ID!
+  name: String!
+  tier: Tier
+  meta: Map!
+}
+
+enum Tier {
+  A
+  B
+  C
+}
+
+scalar Map
+`
+
+const customUserSchema = `
+type Query {
+  custom_user(id: ID!): custom_User
+}
+
+type custom_User {
+  id: ID!
+  name: String!
+  tier: custom_Tier
+  meta: custom_Meta!
+}
+
+enum custom_Tier {
+  A
+  B
+  C
+}
+
+type custom_Meta {
+  foo: String!
+}
+
+scalar custom_Map
 `
