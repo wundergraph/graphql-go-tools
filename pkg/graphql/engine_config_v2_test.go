@@ -277,6 +277,20 @@ func TestGraphqlFieldConfigurationsV2Generator_Generate(t *testing.T) {
 
 }
 
+func TestEngineV2Configuration_EnableSingleFlight(t *testing.T) {
+	schema, err := NewSchemaFromString(graphqlGeneratorSchema)
+	require.NoError(t, err)
+
+	conf := NewEngineV2Configuration(schema)
+	require.Falsef(t, conf.dataLoaderConfig.EnableSingleFlightLoader, "single flight is not disabled by default")
+
+	conf.EnableSingleFlight(true)
+	assert.True(t, conf.dataLoaderConfig.EnableSingleFlightLoader)
+
+	conf.EnableSingleFlight(false)
+	assert.False(t, conf.dataLoaderConfig.EnableSingleFlightLoader)
+}
+
 var mockSubscriptionClient = &graphqlDataSource.SubscriptionClient{}
 
 type MockSubscriptionClientFactory struct{}
