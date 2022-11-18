@@ -20,6 +20,7 @@ func DefaultOperationValidator() *OperationValidator {
 	validator.RegisterRule(SubscriptionSingleRootField())
 	validator.RegisterRule(FieldSelections())
 	validator.RegisterRule(FieldSelectionMerging())
+	validator.RegisterRule(KnownArguments())
 	validator.RegisterRule(ValidArguments())
 	validator.RegisterRule(Values())
 	validator.RegisterRule(ArgumentUniqueness())

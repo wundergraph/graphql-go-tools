@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	// NotSupportedSuggestionsSkipMsg = "Suggestions is not supported"
+	NotSupportedSuggestionsSkipMsg = "Suggestions is not supported"
 
 	RuleHasNoMapping = `Validation rule: "%s" has no mapped rule`
 )
@@ -27,6 +27,7 @@ const (
 	KnownArgumentNamesOnDirectivesRule        = "KnownArgumentNamesOnDirectivesRule"
 	KnownDirectivesRule                       = "KnownDirectivesRule"
 	KnownTypeNamesRule                        = "KnownTypeNamesRule"
+	KnownTypeNamesOperationRule               = "KnownTypeNamesOperationRule"
 	LoneAnonymousOperationRule                = "LoneAnonymousOperationRule"
 	NoUndefinedVariablesRule                  = "NoUndefinedVariablesRule"
 	NoUnusedVariablesRule                     = "NoUnusedVariablesRule"
@@ -63,7 +64,7 @@ const (
 var rulesMap = map[string][]astvalidation.Rule{
 	ExecutableDefinitionsRule:                 {astvalidation.DocumentContainsExecutableOperation()},
 	FieldsOnCorrectTypeRule:                   {astvalidation.FieldSelections()},
-	KnownArgumentNamesRule:                    {}, // {astvalidation.KnownArguments()},
+	KnownArgumentNamesRule:                    {astvalidation.KnownArguments()},
 	KnownArgumentNamesOnDirectivesRule:        {},
 	KnownDirectivesRule:                       {astvalidation.DirectivesAreDefined()},
 	KnownTypeNamesRule:                        {astvalidation.KnownTypeNames()},
@@ -84,7 +85,8 @@ var rulesMap = map[string][]astvalidation.Rule{
 	UniqueVariableNamesRule:                   {astvalidation.VariableUniqueness()},
 	ValuesOfCorrectTypeRule:                   {astvalidation.Values()},
 	VariablesAreInputTypesRule:                {astvalidation.VariablesAreInputTypes()},
-	VariablesInAllowedPositionRule:            {astvalidation.ValidArguments()},
+	KnownTypeNamesOperationRule:               {astvalidation.VariablesAreInputTypes(), astvalidation.Fragments()},
+	VariablesInAllowedPositionRule:            {astvalidation.ValidArguments(), astvalidation.Values()},
 
 	// fragments rules
 	FragmentsOnCompositeTypesRule: {astvalidation.Fragments()},

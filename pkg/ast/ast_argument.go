@@ -16,9 +16,10 @@ type ArgumentList struct {
 }
 
 type Argument struct {
-	Name  ByteSliceReference // e.g. foo
-	Colon position.Position  // :
-	Value Value              // e.g. 100 or "Bar"
+	Name     ByteSliceReference // e.g. foo
+	Colon    position.Position  // :
+	Value    Value              // e.g. 100 or "Bar"
+	Position position.Position
 }
 
 func (d *Document) CopyArgument(ref int) int {

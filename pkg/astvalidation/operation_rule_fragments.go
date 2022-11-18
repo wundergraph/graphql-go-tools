@@ -65,7 +65,9 @@ func (f *fragmentsVisitor) EnterInlineFragment(ref int) {
 
 	node, exists := f.definition.Index.FirstNonExtensionNodeByNameBytes(typeName)
 	if !exists {
-		f.StopWithExternalErr(operationreport.ErrTypeUndefined(typeName))
+		typePosition := f.operation.Types[f.operation.InlineFragments[ref].TypeCondition.Type].Position
+		f.Report.AddExternalError(operationreport.ErrUnknownType(typeName, typePosition))
+		f.SkipNode() // skipping node cause otherwise visitor will not be able to get enclosing type and will stop with error but error is already added here
 		return
 	}
 
@@ -94,7 +96,8 @@ func (f *fragmentsVisitor) EnterFragmentDefinition(ref int) {
 
 	node, exists := f.definition.Index.FirstNodeByNameBytes(typeName)
 	if !exists {
-		f.StopWithExternalErr(operationreport.ErrTypeUndefined(typeName))
+		typePosition := f.operation.Types[f.operation.FragmentDefinitions[ref].TypeCondition.Type].Position
+		f.StopWithExternalErr(operationreport.ErrUnknownType(typeName, typePosition))
 		return
 	}
 

@@ -5,8 +5,6 @@ import (
 )
 
 func TestKnownArgumentNamesRule(t *testing.T) {
-	t.Skip()
-
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
 		return ExpectValidationErrors(t, KnownArgumentNamesRule, queryStr)
 	}
@@ -79,7 +77,7 @@ func TestKnownArgumentNamesRule(t *testing.T) {
           doesKnowCommand(dogCommand: SIT)
         }
         human {
-          pet {
+          pets { # we are using pets instead of pet: to not fail in visitor with unknown field name on a type
             ... on Dog {
               doesKnowCommand(dogCommand: SIT)
             }
@@ -138,6 +136,21 @@ func TestKnownArgumentNamesRule(t *testing.T) {
       }
     `)([]Err{
 				{
+					message:   `Unknown argument "iff" on directive "@skip".`,
+					locations: []Loc{{line: 3, column: 19}},
+				},
+			})
+		})
+
+		t.Run("misspelled directive args are reported with suggestions", func(t *testing.T) {
+			t.Skip(NotSupportedSuggestionsSkipMsg)
+
+			ExpectErrors(t, `
+      {
+        dog @skip(iff: true)
+      }
+    `)([]Err{
+				{
 					message:   `Unknown argument "iff" on directive "@skip". Did you mean "if"?`,
 					locations: []Loc{{line: 3, column: 19}},
 				},
@@ -158,6 +171,21 @@ func TestKnownArgumentNamesRule(t *testing.T) {
 		})
 
 		t.Run("misspelled arg name is reported", func(t *testing.T) {
+			ExpectErrors(t, `
+      fragment invalidArgName on Dog {
+        doesKnowCommand(DogCommand: true)
+      }
+    `)([]Err{
+				{
+					message:   `Unknown argument "DogCommand" on field "Dog.doesKnowCommand".`,
+					locations: []Loc{{line: 3, column: 25}},
+				},
+			})
+		})
+
+		t.Run("misspelled arg name is reported with suggestions", func(t *testing.T) {
+			t.Skip(NotSupportedSuggestionsSkipMsg)
+
 			ExpectErrors(t, `
       fragment invalidArgName on Dog {
         doesKnowCommand(DogCommand: true)
@@ -194,7 +222,7 @@ func TestKnownArgumentNamesRule(t *testing.T) {
           doesKnowCommand(unknown: true)
         }
         human {
-          pet {
+          pets { # we are using pets instead of pet: to not fail in visitor with unknown field name on a type
             ... on Dog {
               doesKnowCommand(unknown: true)
             }
@@ -214,6 +242,8 @@ func TestKnownArgumentNamesRule(t *testing.T) {
 		})
 
 		t.Run("within SDL", func(t *testing.T) {
+			t.Skip("Definition directive args validation is not supported yet")
+
 			t.Run("known arg on directive defined inside SDL", func(t *testing.T) {
 				ExpectValidSDL(t, `
         type Query {

@@ -41,6 +41,11 @@ func (d *Document) IntValueAsInt32(ref int) (out int32) {
 	return
 }
 
+func (d *Document) IntValueValidInt32(ref int) bool {
+	in := d.Input.ByteSlice(d.IntValues[ref].Raw)
+	return unsafebytes.BytesIsValidInt32(in)
+}
+
 func (d *Document) IntValue(ref int) IntValue {
 	return d.IntValues[ref]
 }

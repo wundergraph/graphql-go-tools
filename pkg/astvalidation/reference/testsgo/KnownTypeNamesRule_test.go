@@ -5,14 +5,12 @@ import (
 )
 
 func TestKnownTypeNamesRule(t *testing.T) {
-	t.Skip()
-
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
-		return ExpectValidationErrors(t, KnownTypeNamesRule, queryStr)
+		return ExpectValidationErrors(t, KnownTypeNamesOperationRule, queryStr)
 	}
 
 	ExpectErrorsWithSchema := func(t *testing.T, schema string, queryStr string) ResultCompare {
-		return ExpectValidationErrorsWithSchema(t, schema, KnownTypeNamesRule, queryStr)
+		return ExpectValidationErrorsWithSchema(t, schema, KnownTypeNamesOperationRule, queryStr)
 	}
 
 	ExpectValid := func(t *testing.T, queryStr string) {
@@ -37,15 +35,11 @@ func TestKnownTypeNamesRule(t *testing.T) {
       query Foo(
         $var: String
         $required: [Int!]!
-        $introspectionType: __EnumValue
+        # $introspectionType: __EnumValue - disabled cause it is not valid input type
       ) {
-        user(id: 4) {
-          pets { ... on Pet { name }, ...PetFields, ... { name } }
+        human(id: 4) {
+          pets { ... on Pet { name }, ... { name } }
         }
-      }
-
-      fragment PetFields on Pet {
-        name
       }
     `)
 		})
@@ -53,9 +47,38 @@ func TestKnownTypeNamesRule(t *testing.T) {
 		t.Run("unknown type names are invalid", func(t *testing.T) {
 			ExpectErrors(t, `
       query Foo($var: JumbledUpLetters) {
-        user(id: 4) {
+        human(id: 4) {
           name
-          pets { ... on Badger { name }, ...PetFields }
+          pets { ... on Badger { name } }
+        }
+      }
+      fragment PetFields on Peat {
+        name
+      }
+    `)([]Err{
+				{
+					message:   `Unknown type "JumbledUpLetters".`,
+					locations: []Loc{{line: 2, column: 23}},
+				},
+				{
+					message:   `Unknown type "Badger".`,
+					locations: []Loc{{line: 5, column: 25}},
+				},
+				{
+					message:   `Unknown type "Peat".`,
+					locations: []Loc{{line: 8, column: 29}},
+				},
+			})
+		})
+
+		t.Run("unknown type names are invalid", func(t *testing.T) {
+			t.Skip("1. Suggestions is not supported. 2. Fragment cycle is reported incorrectly for PetFields fragment")
+
+			ExpectErrors(t, `
+      query Foo($var: JumbledUpLetters) {
+        human(id: 4) {
+          name
+          pets { ... on Badger { name } ...PetFields }
         }
       }
       fragment PetFields on Peat {
@@ -78,6 +101,8 @@ func TestKnownTypeNamesRule(t *testing.T) {
 		})
 
 		t.Run("references to standard scalars that are missing in schema", func(t *testing.T) {
+			t.Skip("think fix or remove - currently harness helpers are always merging base schema with schema")
+
 			schema := BuildSchema("type Query { foo: String }")
 			query := `
       query ($id: ID, $float: Float, $int: Int) {
@@ -101,6 +126,8 @@ func TestKnownTypeNamesRule(t *testing.T) {
 		})
 
 		t.Run("within SDL", func(t *testing.T) {
+			t.Skip()
+
 			t.Run("use standard types", func(t *testing.T) {
 				ExpectValidSDL(t, `
         type Query {
