@@ -51,6 +51,11 @@ func BytesIsValidInt64(byteSlice []byte) bool {
 	return err == nil
 }
 
+func BytesIsValidInt32(byteSlice []byte) bool {
+	_, err := strconv.ParseInt(*(*string)(unsafe.Pointer(&byteSlice)), 10, 32)
+	return err == nil
+}
+
 func BytesIsValidBool(byteSlice []byte) bool {
 	_, err := strconv.ParseBool(*(*string)(unsafe.Pointer(&byteSlice)))
 	return err == nil

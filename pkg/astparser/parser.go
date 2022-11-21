@@ -280,7 +280,7 @@ func (p *Parser) parseRootOperationTypeDefinitionList(list *ast.RootOperationTyp
 				NamedType: ast.Type{
 					TypeKind: ast.TypeKindNamed,
 					Name:     namedType.Literal,
-					OfType:   -1,
+					OfType:   ast.InvalidRef,
 				},
 			}
 
@@ -389,9 +389,10 @@ Loop:
 		value := p.ParseValue()
 
 		argument := ast.Argument{
-			Name:  name.Literal,
-			Colon: colon.TextPosition,
-			Value: value,
+			Name:     name.Literal,
+			Colon:    colon.TextPosition,
+			Value:    value,
+			Position: name.TextPosition,
 		}
 
 		p.document.Arguments = append(p.document.Arguments, argument)
@@ -423,29 +424,29 @@ func (p *Parser) ParseValue() (value ast.Value) {
 	switch next {
 	case keyword.STRING, keyword.BLOCKSTRING:
 		value.Kind = ast.ValueKindString
-		value.Ref = p.parseStringValue()
+		value.Ref, value.Position = p.parseStringValue()
 	case keyword.IDENT:
 		key := p.identKeywordSliceRef(literal)
 		switch key {
 		case identkeyword.TRUE, identkeyword.FALSE:
 			value.Kind = ast.ValueKindBoolean
-			value.Ref = p.parseBooleanValue()
+			value.Ref, value.Position = p.parseBooleanValue()
 		case identkeyword.NULL:
 			value.Kind = ast.ValueKindNull
-			p.read()
+			value.Position = p.read().TextPosition
 		default:
 			value.Kind = ast.ValueKindEnum
-			value.Ref = p.parseEnumValue()
+			value.Ref, value.Position = p.parseEnumValue()
 		}
 	case keyword.DOLLAR:
 		value.Kind = ast.ValueKindVariable
-		value.Ref = p.parseVariableValue()
+		value.Ref, value.Position = p.parseVariableValue()
 	case keyword.INTEGER:
 		value.Kind = ast.ValueKindInteger
-		value.Ref = p.parseIntegerValue(nil)
+		value.Ref, value.Position = p.parseIntegerValue(nil)
 	case keyword.FLOAT:
 		value.Kind = ast.ValueKindFloat
-		value.Ref = p.parseFloatValue(nil)
+		value.Ref, value.Position = p.parseFloatValue(nil)
 	case keyword.SUB:
 		value = p.parseNegativeNumberValue()
 	case keyword.LBRACK:
@@ -453,7 +454,7 @@ func (p *Parser) ParseValue() (value ast.Value) {
 		value.Ref = p.parseValueList()
 	case keyword.LBRACE:
 		value.Kind = ast.ValueKindObject
-		value.Ref = p.parseObjectValue()
+		value.Ref, value.Position = p.parseObjectValue()
 	default:
 		p.errUnexpectedToken(p.read())
 	}
@@ -461,7 +462,7 @@ func (p *Parser) ParseValue() (value ast.Value) {
 	return
 }
 
-func (p *Parser) parseObjectValue() int {
+func (p *Parser) parseObjectValue() (ref int, pos position.Position) {
 	var objectValue ast.ObjectValue
 	objectValue.LBRACE = p.mustRead(keyword.LBRACE).TextPosition
 
@@ -470,8 +471,7 @@ func (p *Parser) parseObjectValue() int {
 		switch next {
 		case keyword.RBRACE:
 			objectValue.RBRACE = p.read().TextPosition
-			p.document.ObjectValues = append(p.document.ObjectValues, objectValue)
-			return len(p.document.ObjectValues) - 1
+			return p.document.AddObjectValue(objectValue), objectValue.LBRACE
 		case keyword.IDENT:
 			ref := p.parseObjectField()
 			if cap(objectValue.Refs) == 0 {
@@ -480,23 +480,26 @@ func (p *Parser) parseObjectValue() int {
 			objectValue.Refs = append(objectValue.Refs, ref)
 		default:
 			p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.RBRACE)
-			return -1
+			return ast.InvalidRef, position.Position{}
 		}
 
 		if p.report.HasErrors() {
-			return -1
+			return ast.InvalidRef, position.Position{}
 		}
 	}
 }
 
 func (p *Parser) parseObjectField() int {
+	nameToken := p.mustRead(keyword.IDENT)
+
 	objectField := ast.ObjectField{
-		Name:  p.mustRead(keyword.IDENT).Literal,
-		Colon: p.mustRead(keyword.COLON).TextPosition,
-		Value: p.ParseValue(),
+		Name:     nameToken.Literal,
+		Colon:    p.mustRead(keyword.COLON).TextPosition,
+		Value:    p.ParseValue(),
+		Position: nameToken.TextPosition,
 	}
-	p.document.ObjectFields = append(p.document.ObjectFields, objectField)
-	return len(p.document.ObjectFields) - 1
+
+	return p.document.AddObjectField(objectField)
 }
 
 func (p *Parser) parseValueList() int {
@@ -521,7 +524,7 @@ func (p *Parser) parseValueList() int {
 		}
 
 		if p.report.HasErrors() {
-			return -1
+			return ast.InvalidRef
 		}
 	}
 }
@@ -531,10 +534,12 @@ func (p *Parser) parseNegativeNumberValue() (value ast.Value) {
 	switch p.peek() {
 	case keyword.INTEGER:
 		value.Kind = ast.ValueKindInteger
-		value.Ref = p.parseIntegerValue(&negativeSign)
+		value.Ref, _ = p.parseIntegerValue(&negativeSign)
+		value.Position = negativeSign
 	case keyword.FLOAT:
 		value.Kind = ast.ValueKindFloat
-		value.Ref = p.parseFloatValue(&negativeSign)
+		value.Ref, _ = p.parseFloatValue(&negativeSign)
+		value.Position = negativeSign
 	default:
 		p.errUnexpectedToken(p.read(), keyword.INTEGER, keyword.FLOAT)
 	}
@@ -542,13 +547,13 @@ func (p *Parser) parseNegativeNumberValue() (value ast.Value) {
 	return
 }
 
-func (p *Parser) parseFloatValue(negativeSign *position.Position) int {
+func (p *Parser) parseFloatValue(negativeSign *position.Position) (ref int, pos position.Position) {
 
 	value := p.mustRead(keyword.FLOAT)
 
 	if negativeSign != nil && negativeSign.CharEnd != value.TextPosition.CharStart {
 		p.errUnexpectedToken(value)
-		return -1
+		return ast.InvalidRef, position.Position{}
 	}
 
 	floatValue := ast.FloatValue{
@@ -559,17 +564,16 @@ func (p *Parser) parseFloatValue(negativeSign *position.Position) int {
 		floatValue.NegativeSign = *negativeSign
 	}
 
-	p.document.FloatValues = append(p.document.FloatValues, floatValue)
-	return len(p.document.FloatValues) - 1
+	return p.document.AddFloatValue(floatValue), value.TextPosition
 }
 
-func (p *Parser) parseIntegerValue(negativeSign *position.Position) int {
+func (p *Parser) parseIntegerValue(negativeSign *position.Position) (ref int, pos position.Position) {
 
 	value := p.mustRead(keyword.INTEGER)
 
 	if negativeSign != nil && negativeSign.CharEnd != value.TextPosition.CharStart {
 		p.errUnexpectedToken(value)
-		return -1
+		return ast.InvalidRef, position.Position{}
 	}
 
 	intValue := ast.IntValue{
@@ -581,10 +585,10 @@ func (p *Parser) parseIntegerValue(negativeSign *position.Position) int {
 	}
 
 	p.document.IntValues = append(p.document.IntValues, intValue)
-	return len(p.document.IntValues) - 1
+	return len(p.document.IntValues) - 1, value.TextPosition
 }
 
-func (p *Parser) parseVariableValue() int {
+func (p *Parser) parseVariableValue() (ref int, pos position.Position) {
 	dollar := p.mustRead(keyword.DOLLAR)
 	var value token.Token
 
@@ -594,12 +598,12 @@ func (p *Parser) parseVariableValue() int {
 		value = p.read()
 	default:
 		p.errUnexpectedToken(p.read(), keyword.IDENT)
-		return -1
+		return ast.InvalidRef, position.Position{}
 	}
 
 	if dollar.TextPosition.CharEnd != value.TextPosition.CharStart {
 		p.errUnexpectedToken(p.read(), keyword.IDENT)
-		return -1
+		return ast.InvalidRef, position.Position{}
 	}
 
 	variable := ast.VariableValue{
@@ -608,43 +612,45 @@ func (p *Parser) parseVariableValue() int {
 	}
 
 	p.document.VariableValues = append(p.document.VariableValues, variable)
-	return len(p.document.VariableValues) - 1
+	return len(p.document.VariableValues) - 1, dollar.TextPosition
 }
 
-func (p *Parser) parseBooleanValue() int {
+func (p *Parser) parseBooleanValue() (ref int, pos position.Position) {
 	value := p.read()
 	identKey := p.identKeywordToken(value)
 	switch identKey {
 	case identkeyword.FALSE:
-		return 0
+		return 0, value.TextPosition
 	case identkeyword.TRUE:
-		return 1
+		return 1, value.TextPosition
 	default:
 		p.errUnexpectedIdentKey(value, identKey, identkeyword.TRUE, identkeyword.FALSE)
-		return -1
+		return ast.InvalidRef, position.Position{}
 	}
 }
 
-func (p *Parser) parseEnumValue() int {
+func (p *Parser) parseEnumValue() (ref int, pos position.Position) {
+	value := p.mustRead(keyword.IDENT)
+
 	enum := ast.EnumValue{
-		Name: p.mustRead(keyword.IDENT).Literal,
+		Name: value.Literal,
 	}
-	p.document.EnumValues = append(p.document.EnumValues, enum)
-	return len(p.document.EnumValues) - 1
+
+	return p.document.AddEnumValue(enum), value.TextPosition
 }
 
-func (p *Parser) parseStringValue() int {
+func (p *Parser) parseStringValue() (ref int, pos position.Position) {
 	value := p.read()
 	if value.Keyword != keyword.STRING && value.Keyword != keyword.BLOCKSTRING {
 		p.errUnexpectedToken(value, keyword.STRING, keyword.BLOCKSTRING)
-		return -1
+		return ast.InvalidRef, position.Position{}
 	}
 	stringValue := ast.StringValue{
 		Content:     value.Literal,
 		BlockString: value.Keyword == keyword.BLOCKSTRING,
 	}
-	p.document.StringValues = append(p.document.StringValues, stringValue)
-	return len(p.document.StringValues) - 1
+
+	return p.document.AddStringValue(stringValue), value.TextPosition
 }
 
 func (p *Parser) parseObjectTypeDefinition(description *ast.Description) {
@@ -738,7 +744,7 @@ func (p *Parser) parseImplementsInterfaces() (list ast.TypeList) {
 				acceptIdent = false
 				acceptAnd = true
 				name := p.read()
-				ref := p.document.AddNamedTypeByNameRef(name.Literal)
+				ref := p.document.AddNamedTypeWithPosition(name.Literal, name.TextPosition)
 				if cap(list.Refs) == 0 {
 					list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 				}
@@ -804,13 +810,13 @@ func (p *Parser) parseFieldDefinition() int {
 		break
 	default:
 		p.errUnexpectedToken(p.read())
-		return -1
+		return ast.InvalidRef
 	}
 
 	nameToken := p.read()
 	if nameToken.Keyword != keyword.IDENT {
 		p.errUnexpectedToken(nameToken, keyword.IDENT)
-		return -1
+		return ast.InvalidRef
 	}
 
 	fieldDefinition.Name = nameToken.Literal
@@ -832,7 +838,7 @@ func (p *Parser) parseFieldDefinition() int {
 func (p *Parser) parseNamedType() (ref int) {
 	ident := p.mustRead(keyword.IDENT)
 
-	return p.document.AddNamedTypeByNameRef(ident.Literal)
+	return p.document.AddNamedTypeWithPosition(ident.Literal, ident.TextPosition)
 }
 
 func (p *Parser) ParseType() (ref int) {
@@ -840,7 +846,8 @@ func (p *Parser) ParseType() (ref int) {
 	first := p.peek()
 
 	if first == keyword.IDENT {
-		ref = p.document.AddNamedTypeByNameRef(p.read().Literal)
+		tok := p.read()
+		ref = p.document.AddNamedTypeWithPosition(tok.Literal, tok.TextPosition)
 	} else if first == keyword.LBRACK {
 
 		openList := p.read()
@@ -861,7 +868,7 @@ func (p *Parser) ParseType() (ref int) {
 			return
 		}
 
-		ref = p.document.AddNonNullTypeWithPosition(ref, bangPosition)
+		ref = p.document.AddNonNullTypeWithBangPosition(ref, bangPosition)
 	}
 
 	return
@@ -916,7 +923,7 @@ func (p *Parser) parseInputValueDefinition() int {
 		break
 	default:
 		p.errUnexpectedToken(p.read())
-		return -1
+		return ast.InvalidRef
 	}
 
 	inputValueDefinition.Name = p.read().Literal
@@ -1072,7 +1079,7 @@ func (p *Parser) parseUnionMemberTypes() (list ast.TypeList) {
 
 				ident := p.read()
 
-				ref := p.document.AddNamedTypeByNameRef(ident.Literal)
+				ref := p.document.AddNamedTypeWithPosition(ident.Literal, ident.TextPosition)
 
 				if cap(list.Refs) == 0 {
 					list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
@@ -1158,7 +1165,7 @@ func (p *Parser) parseEnumValueDefinition() int {
 		break
 	default:
 		p.errUnexpectedToken(p.read())
-		return -1
+		return ast.InvalidRef
 	}
 
 	enumValueDefinition.EnumValue = p.mustRead(keyword.IDENT).Literal
@@ -1293,7 +1300,7 @@ func (p *Parser) parseSelectionSet() (int, bool) {
 		}
 
 		if p.report.HasErrors() {
-			return -1, false
+			return ast.InvalidRef, false
 		}
 	}
 }
@@ -1313,7 +1320,7 @@ func (p *Parser) parseSelection() int {
 	default:
 		nextToken := p.read()
 		p.errUnexpectedToken(nextToken, keyword.IDENT, keyword.SPREAD)
-		return -1
+		return ast.InvalidRef
 	}
 }
 
@@ -1397,7 +1404,7 @@ func (p *Parser) parseFragmentSpread(spread position.Position) int {
 func (p *Parser) parseInlineFragment(spread position.Position) int {
 	fragment := ast.InlineFragment{
 		TypeCondition: ast.TypeCondition{
-			Type: -1,
+			Type: ast.InvalidRef,
 		},
 	}
 	fragment.Spread = spread
@@ -1517,7 +1524,7 @@ func (p *Parser) parseVariableDefinition() int {
 	var variableDefinition ast.VariableDefinition
 
 	variableDefinition.VariableValue.Kind = ast.ValueKindVariable
-	variableDefinition.VariableValue.Ref = p.parseVariableValue()
+	variableDefinition.VariableValue.Ref, variableDefinition.VariableValue.Position = p.parseVariableValue()
 
 	variableDefinition.Colon = p.mustRead(keyword.COLON).TextPosition
 	variableDefinition.Type = p.ParseType()

@@ -5,12 +5,43 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/graphqlerrors"
+	"github.com/wundergraph/graphql-go-tools/pkg/lexer/position"
+)
+
+const (
+	NotCompatibleTypeErrMsg                 = "%s cannot represent value: %s"
+	NotStringErrMsg                         = "%s cannot represent a non string value: %s"
+	NotIntegerErrMsg                        = "%s cannot represent non-integer value: %s"
+	BigIntegerErrMsg                        = "%s cannot represent non 32-bit signed integer value: %s"
+	NotFloatErrMsg                          = "%s cannot represent non numeric value: %s"
+	NotBooleanErrMsg                        = "%s cannot represent a non boolean value: %s"
+	NotIDErrMsg                             = "%s cannot represent a non-string and non-integer value: %s"
+	NotEnumErrMsg                           = `Enum "%s" cannot represent non-enum value: %s.`
+	NotAnEnumMemberErrMsg                   = `Value "%s" does not exist in "%s" enum.`
+	NullValueErrMsg                         = `Expected value of type "%s", found null.`
+	UnknownArgumentOnDirectiveErrMsg        = `Unknown argument "%s" on directive "@%s".`
+	UnknownArgumentOnFieldErrMsg            = `Unknown argument "%s" on field "%s.%s".`
+	UnknownTypeErrMsg                       = `Unknown type "%s".`
+	VariableIsNotInputTypeErrMsg            = `Variable "$%s" cannot be non-input type "%s".`
+	MissingRequiredFieldOfInputObjectErrMsg = `Field "%s.%s" of required type "%s" was not provided.`
+	UnknownFieldOfInputObjectErrMsg         = `Field "%s" is not defined by type "%s".`
+	DuplicatedFieldInputObjectErrMsg        = `There can be only one input field named "%s".`
+	ValueIsNotAnInputObjectTypeErrMsg       = `Expected value of type "%s", found %s.`
 )
 
 type ExternalError struct {
 	Message   string                   `json:"message"`
 	Path      ast.Path                 `json:"path"`
 	Locations []graphqlerrors.Location `json:"locations"`
+}
+
+func LocationsFromPosition(position position.Position) []graphqlerrors.Location {
+	return []graphqlerrors.Location{
+		{
+			Line:   position.LineStart,
+			Column: position.CharStart,
+		},
+	}
 }
 
 func ErrDocumentDoesntContainExecutableOperation() (err ExternalError) {
@@ -29,7 +60,7 @@ func ErrFieldNameMustBeUniqueOnType(fieldName, typeName ast.ByteSlice) (err Exte
 }
 
 func ErrTypeUndefined(typeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("type not defined: %s", typeName)
+	err.Message = fmt.Sprintf(UnknownTypeErrMsg, typeName)
 	return err
 }
 
@@ -124,13 +155,147 @@ func ErrMissingFieldSelectionOnNonScalar(fieldName, enclosingTypeName ast.ByteSl
 	return err
 }
 
-func ErrArgumentNotDefinedOnNode(argName, node ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("argument: %s not defined on node: %s", argName, node)
+func ErrArgumentNotDefinedOnDirective(argName, directiveName ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(UnknownArgumentOnDirectiveErrMsg, argName, directiveName)
+	err.Locations = LocationsFromPosition(position)
+
 	return err
 }
 
-func ErrValueDoesntSatisfyInputValueDefinition(value, inputType ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("value: %s doesn't satisfy inputType: %s", value, inputType)
+func ErrUnknownType(typeName ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(UnknownTypeErrMsg, typeName)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrMissingRequiredFieldOfInputObject(objName, fieldName, typeName ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(MissingRequiredFieldOfInputObjectErrMsg, objName, fieldName, typeName)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrUnknownFieldOfInputObject(objName, fieldName ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(UnknownFieldOfInputObjectErrMsg, objName, fieldName)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrDuplicatedFieldInputObject(fieldName ast.ByteSlice, first, duplicated position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(DuplicatedFieldInputObjectErrMsg, fieldName)
+
+	err.Locations = []graphqlerrors.Location{
+		{
+			Line:   first.LineStart,
+			Column: first.CharStart,
+		},
+		{
+			Line:   duplicated.LineStart,
+			Column: duplicated.CharStart,
+		},
+	}
+
+	return err
+}
+
+func ErrArgumentNotDefinedOnField(argName, typeName, fieldName ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(UnknownArgumentOnFieldErrMsg, argName, typeName, fieldName)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrNullValueDoesntSatisfyInputValueDefinition(inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NullValueErrMsg, inputType)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrValueDoesntSatisfyEnum(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NotEnumErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrValueDoesntExistsInEnum(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NotAnEnumMemberErrMsg, value, inputType)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrValueDoesntSatisfyType(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NotCompatibleTypeErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrValueIsNotAnInputObjectType(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(ValueIsNotAnInputObjectTypeErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrValueDoesntSatisfyString(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NotStringErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrValueDoesntSatisfyInt(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NotIntegerErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrBigIntValueDoesntSatisfyInt(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(BigIntegerErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrValueDoesntSatisfyFloat(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NotFloatErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrValueDoesntSatisfyBoolean(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NotBooleanErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrValueDoesntSatisfyID(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NotIDErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrVariableTypeDoesntSatisfyInputValueDefinition(value, inputType, expectedType ast.ByteSlice, valuePos, variableDefinitionPos position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`Variable "%v" of type "%v" used in position expecting type "%v".`, value, inputType, expectedType)
+	err.Locations = []graphqlerrors.Location{
+		{
+			Line:   variableDefinitionPos.LineStart,
+			Column: variableDefinitionPos.CharStart,
+		},
+		{
+			Line:   valuePos.LineStart,
+			Column: valuePos.CharStart,
+		},
+	}
 	return err
 }
 
@@ -154,8 +319,10 @@ func ErrVariableNotDefinedOnArgument(variableName, argumentName ast.ByteSlice) (
 	return err
 }
 
-func ErrVariableOfTypeIsNoValidInputValue(variableName, ofTypeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("variable: %s of type: %s is no valid input value type", variableName, ofTypeName)
+func ErrVariableOfTypeIsNoValidInputValue(variableName, ofTypeName ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(VariableIsNotInputTypeErrMsg, variableName, ofTypeName)
+	err.Locations = LocationsFromPosition(position)
+
 	return err
 }
 
