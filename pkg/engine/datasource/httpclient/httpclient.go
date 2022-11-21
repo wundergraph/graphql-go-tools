@@ -24,7 +24,7 @@ const (
 	HEADER        = "header"
 	QUERYPARAMS   = "query_params"
 	USESSE        = "use_sse"
-	SSEMETHOD     = "sse_method"
+	SSEMETHODPOST = "sse_method_post"
 	SCHEME        = "scheme"
 	HOST          = "host"
 )
@@ -116,14 +116,6 @@ func SetInputMethod(input, method []byte) []byte {
 		return input
 	}
 	out, _ := sjson.SetRawBytes(input, METHOD, wrapQuotesIfString(method))
-	return out
-}
-
-func SetInputSSEMethod(input, sseMethod []byte) []byte {
-	if len(sseMethod) == 0 {
-		return input
-	}
-	out, _ := sjson.SetRawBytes(input, SSEMETHOD, wrapQuotesIfString(sseMethod))
 	return out
 }
 

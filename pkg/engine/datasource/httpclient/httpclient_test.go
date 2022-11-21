@@ -23,12 +23,6 @@ func TestHttpClient(t *testing.T) {
 	in = SetInputMethod(nil, quotes.WrapBytes(literal.HTTP_METHOD_POST))
 	assert.Equal(t, `{"method":"POST"}`, string(in))
 
-	in = SetInputSSEMethod(nil, literal.HTTP_METHOD_GET)
-	assert.Equal(t, `{"sse_method":"GET"}`, string(in))
-
-	in = SetInputSSEMethod(nil, quotes.WrapBytes(literal.HTTP_METHOD_POST))
-	assert.Equal(t, `{"sse_method":"POST"}`, string(in))
-
 	in = SetInputURL(nil, []byte("foo.bar.com"))
 	assert.Equal(t, `{"url":"foo.bar.com"}`, string(in))
 

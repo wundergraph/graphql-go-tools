@@ -190,8 +190,8 @@ func (h *gqlSSEConnectionHandler) performSubscriptionRequest(ctx context.Context
 	var req *http.Request
 	var err error
 
-	// default to GET requests when POST is not specified in the SubscriptionConfiguration
-	if h.options.SSEMethod == http.MethodPost {
+	// default to GET requests when SSEMethodPost is not enabled in the SubscriptionConfiguration
+	if h.options.SSEMethodPost {
 		req, err = h.buildPOSTRequest(ctx)
 	} else {
 		req, err = h.buildGETRequest(ctx)
@@ -270,6 +270,6 @@ func (h *gqlSSEConnectionHandler) buildPOSTRequest(ctx context.Context) (*http.R
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("Connection", "keep-alive")
 	req.Header.Set("Cache-Control", "no-cache")
-	
+
 	return req, nil
 }

@@ -116,10 +116,10 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_POST(t *testing.T) {
 
 	next := make(chan []byte)
 	err = client.Subscribe(ctx, GraphQLSubscriptionOptions{
-		URL:       server.URL,
-		Body:      postReqBody,
-		UseSSE:    true,
-		SSEMethod: http.MethodPost,
+		URL:           server.URL,
+		Body:          postReqBody,
+		UseSSE:        true,
+		SSEMethodPost: true,
 	}, next)
 	assert.NoError(t, err)
 
