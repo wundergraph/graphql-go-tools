@@ -766,7 +766,7 @@ func (p *Planner) configureArgument(upstreamFieldRef, downstreamFieldRef int, fi
 
 	switch argumentConfiguration.SourceType {
 	case plan.FieldArgumentSource:
-		p.configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef, argumentConfiguration.Name, argumentConfiguration.SourcePath)
+		p.configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef, argumentConfiguration.Name, argumentConfiguration.SourcePath, argumentConfiguration.CustomOriginTypeReplacement)
 	case plan.ObjectFieldSource:
 		p.configureObjectFieldSource(upstreamFieldRef, downstreamFieldRef, fieldConfig, argumentConfiguration)
 	}
@@ -775,7 +775,7 @@ func (p *Planner) configureArgument(upstreamFieldRef, downstreamFieldRef int, fi
 }
 
 // configureFieldArgumentSource - creates variables for a plain argument types, in case object or list types goes deep and calls applyInlineFieldArgument
-func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef int, argumentName string, sourcePath []string) {
+func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef int, argumentName string, sourcePath []string, argumentTypeNameOverride string) {
 	fieldArgument, ok := p.visitor.Operation.FieldArgument(downstreamFieldRef, []byte(argumentName))
 	if !ok {
 		return
@@ -821,6 +821,9 @@ func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamField
 		}
 		typeName := p.visitor.Operation.ResolveTypeNameString(p.visitor.Operation.VariableDefinitions[i].Type)
 		typeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(typeName)
+		if argumentTypeNameOverride != "" {
+			typeName = argumentTypeNameOverride
+		}
 		importedType := p.visitor.Importer.ImportTypeWithRename(p.visitor.Operation.VariableDefinitions[i].Type, p.visitor.Operation, p.upstreamOperation, typeName)
 		p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValueRef, importedType)
 

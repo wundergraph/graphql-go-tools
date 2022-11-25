@@ -5429,6 +5429,175 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		}))
+		t.Run("custom scalar replacement query", RunTest(starWarsSchema, `
+		query MyQuery($droidId: ID!, $reviewId: Int!){
+			droid(id: $droidId){
+				name
+				aliased: name
+				friends {
+					name
+				}
+				primaryFunction
+			}
+			review(id: $reviewId){
+				stars
+			}
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($droidId: ID!, $reviewId: ReviewID!){droid(id: $droidId){name aliased: name friends {name} primaryFunction} review(id: $reviewId){stars}}","variables":{"reviewId":$$1$$,"droidId":$$0$$}}}`,
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path:     []string{"droidId"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+						},
+						&resolve.ContextVariable{
+							Path:     []string{"reviewId"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["integer"]}`),
+						},
+						&resolve.HeaderVariable{
+							Path: []string{"Authorization"},
+						},
+					),
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("droid"),
+						Value: &resolve.Object{
+							Path:     []string{"droid"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("name"),
+									Value: &resolve.String{
+										Path: []string{"name"},
+									},
+								},
+								{
+									Name: []byte("aliased"),
+									Value: &resolve.String{
+										Path: []string{"aliased"},
+									},
+								},
+								{
+									Name: []byte("friends"),
+									Value: &resolve.Array{
+										Nullable: true,
+										Path:     []string{"friends"},
+										Item: &resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Path: []string{"name"},
+													},
+												},
+											},
+										},
+									},
+								},
+								{
+									Name: []byte("primaryFunction"),
+									Value: &resolve.String{
+										Path: []string{"primaryFunction"},
+									},
+								},
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("review"),
+						Value: &resolve.Object{
+							Path:     []string{"review"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("stars"),
+									Value: &resolve.Integer{
+										Path: []string{"stars"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"droid", "review", "hero", "stringList", "nestedStringList"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Character",
+						FieldNames: []string{"name", "friends"},
+					},
+					{
+						TypeName:   "Human",
+						FieldNames: []string{"name", "height", "friends"},
+					},
+					{
+						TypeName:   "Droid",
+						FieldNames: []string{"name", "primaryFunction", "friends"},
+					},
+					{
+						TypeName:   "Review",
+						FieldNames: []string{"id", "stars", "commentary"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+						Header: http.Header{
+							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
+							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
+						},
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "droid",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "review",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+						CustomOriginTypeReplacement: "ReviewID",
+					},
+				},
+			},
+		},
+		DisableResolveFieldPositions: true,
+	}))
 	t.Run("custom scalar type fields", RunTest(customUserSchema, `
 		query Custom($id: ID!) {
           custom_user(id: $id) {
@@ -6251,6 +6420,7 @@ schema {
 type Query {
     hero: Character
     droid(id: ID!): Droid
+    review(id: Int!): Review
     search(name: String!): SearchResult
     searchWithInput(input: SearchInput!): SearchResult
 	stringList: [String]
