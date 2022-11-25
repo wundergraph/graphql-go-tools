@@ -1445,11 +1445,15 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
 					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$3$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $input: SearchInput! @onVariable, $options: JSON)@onOperation {api_droid: droid(id: $id){name @format aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search {__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}} withOptions: searchWithInput(input: {options: $options}){__typename ... on Droid {primaryFunction}}}","variables":{"options":$$2$$,"input":$$1$$,"id":$$0$$}}}`,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$4$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $a: String! @onVariable, $input: SearchInput!, $options: JSON)@onOperation {api_droid: droid(id: $id){name @format aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search(name: $a){__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}} withOptions: searchWithInput(input: {options: $options}){__typename ... on Droid {primaryFunction}}}","variables":{"options":$$3$$,"input":$$2$$,"a":$$1$$,"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"id"},
 							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+						},
+						&resolve.ContextVariable{
+							Path:     []string{"a"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 						},
 						&resolve.ContextVariable{
 							Path:     []string{"input"},
@@ -1704,6 +1708,14 @@ func TestGraphQLDataSource(t *testing.T) {
 				TypeName:  "Query",
 				FieldName: "api_search",
 				Path:      []string{"search"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:         "name",
+						SourceType:   plan.FieldArgumentSource,
+						SourcePath:   []string{"name"},
+						RenderConfig: plan.RenderArgumentAsGraphQLValue,
+					},
+				},
 			},
 			{
 				TypeName:  "Query",
@@ -4745,7 +4757,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
 										BufferId: 1,
-										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: XBoolean!, $publicOnly: XBoolean!){_entities(representations: $representations){... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"publicOnly":$$2$$,"someSkipCondition":$$1$$,"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: XBoolean!){_entities(representations: $representations){... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"publicOnly":$$2$$,"someSkipCondition":$$1$$,"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
 												Path:     []string{"id"},
@@ -4838,6 +4850,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							Enabled:    true,
 							ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
 						},
+						UpstreamSchema: federationTestSchemaWithRename,
 					}),
 					Factory: federationFactory,
 				},
@@ -4865,8 +4878,9 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "type Review { body: String! notes: String likes(filterToPublicOnly: Boolean): Int! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
+							ServiceSDL: "scalar XBoolean type Review { body: String! notes: String likes(filterToPublicOnly: XBoolean!): Int! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
 						},
+						UpstreamSchema: federationTestSchemaWithRename,
 					}),
 				},
 			},
@@ -4881,19 +4895,14 @@ func TestGraphQLDataSource(t *testing.T) {
 					FieldName: "likes",
 					Arguments: []plan.ArgumentConfiguration{
 						{
-							Name:       "filterToPublicOnly",
-							SourceType: plan.FieldArgumentSource,
+							Name:         "filterToPublicOnly",
+							SourceType:   plan.FieldArgumentSource,
+							RenameTypeTo: "XBoolean",
 						},
 					},
 				},
 			},
 			DisableResolveFieldPositions: true,
-			Types: []plan.TypeConfiguration{
-				{
-					TypeName: "Boolean",
-					RenameTo: "XBoolean",
-				},
-			},
 		}))
 
 	t.Run("federated entity with requires", RunTest(requiredFieldTestSchema,
@@ -5295,7 +5304,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "extend type Query {me: User} type User_api @key(fields: \"id\"){ id: ID! username: String!}",
+							ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! username: String!}",
 						},
 						UpstreamSchema: federationTestSchema,
 					}),
@@ -5331,7 +5340,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product_api]} type Product_api @key(fields: \"upc\") {upc: String! price: Int!}",
+							ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") {upc: String! price: Int!}",
 						},
 						UpstreamSchema: federationTestSchema,
 					}),
@@ -5369,7 +5378,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "type Review_api { body: String! author: User_api! @provides(fields: \"username\") product: Product_api! } extend type User_api @key(fields: \"id\") { id: ID! @external reviews: [Review_api] } extend type Product_api @key(fields: \"upc\") { upc: String! @external reviews: [Review_api] }",
+							ServiceSDL: "type Review { body: String! author: User! @provides(fields: \"username\") product: Product! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] } extend type Product @key(fields: \"upc\") { upc: String! @external reviews: [Review] }",
 						},
 						UpstreamSchema: federationTestSchema,
 					}),
@@ -5429,7 +5438,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		}))
-		t.Run("custom scalar replacement query", RunTest(starWarsSchema, `
+	t.Run("custom scalar replacement query", RunTest(starWarsSchema, `
 		query MyQuery($droidId: ID!, $reviewId: ID!){
 			droid(id: $droidId){
 				name
@@ -5570,6 +5579,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
 						},
 					},
+					UpstreamSchema: starWarsSchemaWithRenamedArgument,
 				}),
 			},
 		},
@@ -5589,9 +5599,9 @@ func TestGraphQLDataSource(t *testing.T) {
 				FieldName: "review",
 				Arguments: []plan.ArgumentConfiguration{
 					{
-						Name:       "id",
-						SourceType: plan.FieldArgumentSource,
-						CustomOriginTypeReplacement: "ReviewID",
+						Name:         "id",
+						SourceType:   plan.FieldArgumentSource,
+						RenameTypeTo: "ReviewID",
 					},
 				},
 			},
@@ -6411,6 +6421,8 @@ directive @format on FIELD
 directive @onOperation on QUERY
 directive @onVariable on VARIABLE_DEFINITION
 
+scalar JSON
+
 schema {
     query: Query
     mutation: Mutation
@@ -6421,6 +6433,83 @@ type Query {
     hero: Character
     droid(id: ID!): Droid
     review(id: ID!): Review
+    search(name: String!): SearchResult
+    searchWithInput(input: SearchInput!): SearchResult
+	stringList: [String]
+	nestedStringList: [String]
+}
+
+input SearchInput {
+	name: String
+	options: JSON
+}
+
+type Mutation {
+	createReview(episode: Episode!, review: ReviewInput!): Review
+}
+
+type Subscription {
+    remainingJedis: Int!
+}
+
+input ReviewInput {
+    stars: Int!
+    commentary: String
+}
+
+type Review {
+    id: ID!
+    stars: Int!
+    commentary: String
+}
+
+enum Episode {
+    NEWHOPE
+    EMPIRE
+    JEDI
+}
+
+interface Character {
+    name: String!
+    friends: [Character]
+}
+
+type Human implements Character {
+    name: String!
+    height: String!
+    friends: [Character]
+}
+
+type Droid implements Character {
+    name: String!
+    primaryFunction: String!
+    friends: [Character]
+}
+
+type Startship {
+    name: String!
+    length: Float!
+}`
+
+const starWarsSchemaWithRenamedArgument = `
+union SearchResult = Human | Droid | Starship
+
+directive @format on FIELD
+directive @onOperation on QUERY
+directive @onVariable on VARIABLE_DEFINITION
+
+schema {
+    query: Query
+    mutation: Mutation
+    subscription: Subscription
+}
+
+scalar ReviewID
+
+type Query {
+    hero: Character
+    droid(id: ID!): Droid
+    review(id: ReviewID!): Review
     search(name: String!): SearchResult
     searchWithInput(input: SearchInput!): SearchResult
 	stringList: [String]
@@ -7198,6 +7287,43 @@ type Review {
   product: Product!
   notes: String
   likes(filterToPublicOnly: Boolean): Int!
+}
+
+type User {
+  id: ID!
+  username: String!
+  reviews: [Review]
+}
+`
+
+const federationTestSchemaWithRename = `
+scalar String
+scalar Int
+scalar ID
+scalar XBoolean
+
+schema {
+	query: Query
+}
+
+type Product {
+  upc: String!
+  name: String!
+  price: Int!
+  reviews: [Review]
+}
+
+type Query {
+  me: User
+  topProducts(first: Int = 5): [Product]
+}
+
+type Review {
+  body: String!
+  author: User!
+  product: Product!
+  notes: String
+  likes(filterToPublicOnly: XBoolean!): Int!
 }
 
 type User {

@@ -151,7 +151,7 @@ type ArgumentConfiguration struct {
 	SourceType   SourceType
 	SourcePath   []string
 	RenderConfig ArgumentRenderConfig
-	CustomOriginTypeReplacement string
+	RenameTypeTo string
 }
 
 type DataSourceConfiguration struct {
