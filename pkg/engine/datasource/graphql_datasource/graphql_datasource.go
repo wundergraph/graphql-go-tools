@@ -10,6 +10,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
+	"github.com/wundergraph/graphql-go-tools/pkg/astvalidation"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astnormalization"
@@ -766,7 +767,7 @@ func (p *Planner) configureArgument(upstreamFieldRef, downstreamFieldRef int, fi
 
 	switch argumentConfiguration.SourceType {
 	case plan.FieldArgumentSource:
-		p.configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef, argumentConfiguration.Name, argumentConfiguration.SourcePath)
+		p.configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef, argumentConfiguration)
 	case plan.ObjectFieldSource:
 		p.configureObjectFieldSource(upstreamFieldRef, downstreamFieldRef, fieldConfig, argumentConfiguration)
 	}
@@ -775,21 +776,21 @@ func (p *Planner) configureArgument(upstreamFieldRef, downstreamFieldRef int, fi
 }
 
 // configureFieldArgumentSource - creates variables for a plain argument types, in case object or list types goes deep and calls applyInlineFieldArgument
-func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef int, argumentName string, sourcePath []string) {
-	fieldArgument, ok := p.visitor.Operation.FieldArgument(downstreamFieldRef, []byte(argumentName))
+func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef int, argumentConfiguration plan.ArgumentConfiguration) {
+	fieldArgument, ok := p.visitor.Operation.FieldArgument(downstreamFieldRef, []byte(argumentConfiguration.Name))
 	if !ok {
 		return
 	}
 	value := p.visitor.Operation.ArgumentValue(fieldArgument)
 	if value.Kind != ast.ValueKindVariable {
-		p.applyInlineFieldArgument(upstreamFieldRef, downstreamFieldRef, argumentName, sourcePath)
+		p.applyInlineFieldArgument(upstreamFieldRef, downstreamFieldRef, argumentConfiguration.Name, argumentConfiguration.SourcePath)
 		return
 	}
 	variableName := p.visitor.Operation.VariableValueNameBytes(value.Ref)
 	variableNameStr := p.visitor.Operation.VariableValueNameString(value.Ref)
 
 	fieldName := p.visitor.Operation.FieldNameBytes(downstreamFieldRef)
-	argumentDefinition := p.visitor.Definition.NodeFieldDefinitionArgumentDefinitionByName(p.visitor.Walker.EnclosingTypeDefinition, fieldName, []byte(argumentName))
+	argumentDefinition := p.visitor.Definition.NodeFieldDefinitionArgumentDefinitionByName(p.visitor.Walker.EnclosingTypeDefinition, fieldName, []byte(argumentConfiguration.Name))
 
 	if argumentDefinition == -1 {
 		return
@@ -807,7 +808,7 @@ func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamField
 	}
 
 	contextVariableName, exists := p.variables.AddVariable(contextVariable)
-	variableValueRef, argRef := p.upstreamOperation.AddVariableValueArgument([]byte(argumentName), variableName) // add the argument to the field, but don't redefine it
+	variableValueRef, argRef := p.upstreamOperation.AddVariableValueArgument([]byte(argumentConfiguration.Name), variableName) // add the argument to the field, but don't redefine it
 	p.upstreamOperation.AddArgumentToField(upstreamFieldRef, argRef)
 
 	if exists { // if the variable exists we don't have to put it onto the variables declaration again, skip
@@ -821,6 +822,9 @@ func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamField
 		}
 		typeName := p.visitor.Operation.ResolveTypeNameString(p.visitor.Operation.VariableDefinitions[i].Type)
 		typeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(typeName)
+		if argumentConfiguration.RenameTypeTo != "" {
+			typeName = argumentConfiguration.RenameTypeTo
+		}
 		importedType := p.visitor.Importer.ImportTypeWithRename(p.visitor.Operation.VariableDefinitions[i].Type, p.visitor.Operation, p.upstreamOperation, typeName)
 		p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValueRef, importedType)
 
@@ -950,6 +954,9 @@ func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRe
 
 	typeName := p.visitor.Operation.ResolveTypeNameString(argumentType)
 	typeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(typeName)
+	if argumentConfiguration.RenameTypeTo != "" {
+		typeName = argumentConfiguration.RenameTypeTo
+	}
 
 	importedType := p.visitor.Importer.ImportTypeWithRename(argumentType, p.visitor.Definition, p.upstreamOperation, typeName)
 	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
@@ -1041,6 +1048,13 @@ func (p *Planner) printOperation() []byte {
 	// normalize upstream operation
 	if !p.normalizeOperation(operation, definition, report) {
 		p.stopWithError(normalizationFailedErrMsg)
+		return nil
+	}
+
+	validator := astvalidation.DefaultOperationValidator()
+	validator.Validate(operation, definition, report)
+	if report.HasErrors() {
+		p.stopWithError("validation failed: %s", report.Error())
 		return nil
 	}
 
