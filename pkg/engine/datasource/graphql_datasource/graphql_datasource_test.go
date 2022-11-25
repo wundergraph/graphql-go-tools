@@ -5430,7 +5430,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		}))
 		t.Run("custom scalar replacement query", RunTest(starWarsSchema, `
-		query MyQuery($droidId: ID!, $reviewId: Int!){
+		query MyQuery($droidId: ID!, $reviewId: ID!){
 			droid(id: $droidId){
 				name
 				aliased: name
@@ -5457,7 +5457,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						&resolve.ContextVariable{
 							Path:     []string{"reviewId"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["integer"]}`),
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 						},
 						&resolve.HeaderVariable{
 							Path: []string{"Authorization"},
@@ -6420,7 +6420,7 @@ schema {
 type Query {
     hero: Character
     droid(id: ID!): Droid
-    review(id: Int!): Review
+    review(id: ID!): Review
     search(name: String!): SearchResult
     searchWithInput(input: SearchInput!): SearchResult
 	stringList: [String]
