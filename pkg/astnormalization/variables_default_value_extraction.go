@@ -78,6 +78,12 @@ func (v *variablesDefaultValueExtractionVisitor) EnterVariableDefinition(ref int
 		return
 	}
 
+	// if variable is nullable, make it not null as it satisfies both not null and nullable types
+	// it is required to keep operation valid after variable extraction
+	if v.operation.Types[v.operation.VariableDefinitions[ref].Type].TypeKind != ast.TypeKindNonNull {
+		v.operation.VariableDefinitions[ref].Type = v.operation.AddNonNullType(v.operation.VariableDefinitions[ref].Type)
+	}
+
 	valueBytes, err := v.operation.ValueToJSON(v.operation.VariableDefinitionDefaultValue(ref))
 	if err != nil {
 		return
