@@ -225,8 +225,9 @@ type FederationConfiguration struct {
 }
 
 type SubscriptionConfiguration struct {
-	URL    string
-	UseSSE bool
+	URL           string
+	UseSSE        bool
+	SSEMethodPost bool
 }
 
 type FetchConfiguration struct {
@@ -308,6 +309,9 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 	input = httpclient.SetInputURL(input, []byte(p.config.Subscription.URL))
 	if p.config.Subscription.UseSSE {
 		input = httpclient.SetInputFlag(input, httpclient.USESSE)
+		if p.config.Subscription.SSEMethodPost {
+			input = httpclient.SetInputFlag(input, httpclient.SSEMETHODPOST)
+		}
 	}
 
 	header, err := json.Marshal(p.config.Fetch.Header)
@@ -1329,10 +1333,11 @@ type GraphQLSubscriptionClient interface {
 }
 
 type GraphQLSubscriptionOptions struct {
-	URL    string      `json:"url"`
-	Body   GraphQLBody `json:"body"`
-	Header http.Header `json:"header"`
-	UseSSE bool        `json:"use_sse"`
+	URL           string      `json:"url"`
+	Body          GraphQLBody `json:"body"`
+	Header        http.Header `json:"header"`
+	UseSSE        bool        `json:"use_sse"`
+	SSEMethodPost bool        `json:"sse_method_post"`
 }
 
 type GraphQLBody struct {
