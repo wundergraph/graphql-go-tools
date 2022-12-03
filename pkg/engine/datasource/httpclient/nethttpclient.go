@@ -7,10 +7,11 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/buger/jsonparser"
-
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 )
 
@@ -88,6 +89,11 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 			return err
 		}
 		request.URL.RawQuery = query.Encode()
+	}
+
+	resolveCtx, _ := ctx.(*resolve.Context)
+	for key, value := range resolveCtx.Request.Header {
+		request.Header.Add(key, strings.Join(value, ","))
 	}
 
 	request.Header.Add("accept", "application/json")

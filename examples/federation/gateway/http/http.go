@@ -25,6 +25,9 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	//set of custom headers for sending to subservices
+	gqlRequest.SetHeader(http.Header{"Trace-ID": []string{"cb649def1023bb5a56dca48a8c46c32c"}})
+
 	buf := bytes.NewBuffer(make([]byte, 0, 4096))
 	resultWriter := graphql.NewEngineResultWriterFromBuffer(buf)
 	if err = g.engine.Execute(r.Context(), &gqlRequest, &resultWriter); err != nil {
