@@ -35,12 +35,31 @@ var (
 )
 
 func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Writer) (err error) {
-
-	url, method, body, headers, queryParams := requestInputParams(requestInput)
-
-	request, err := http.NewRequestWithContext(ctx, string(method), string(url), bytes.NewReader(body))
+	request, err := BuildRequest(ctx, requestInput)
 	if err != nil {
 		return err
+	}
+
+	response, err := client.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	respReader, err := respBodyReader(request, response)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(out, respReader)
+	return
+}
+
+func BuildRequest(ctx context.Context, requestInput []byte) (*http.Request, error) {
+	url, method, body, headers, queryParams := requestInputParams(requestInput)
+	request, err := http.NewRequestWithContext(ctx, string(method), string(url), bytes.NewReader(body))
+	if err != nil {
+		return nil, err
 	}
 
 	if headers != nil {
@@ -57,7 +76,7 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 			return err
 		})
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -86,32 +105,21 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 			}
 		})
 		if err != nil {
-			return err
+			return nil, err
 		}
 		request.URL.RawQuery = query.Encode()
 	}
 
-	resolveCtx, _ := ctx.(*resolve.Context)
-	for key, value := range resolveCtx.Request.Header {
-		request.Header.Add(key, strings.Join(value, ","))
+	if resolveCtx, ok := ctx.(*resolve.Context); ok {
+		for key, value := range resolveCtx.Request.Header {
+			request.Header.Add(key, strings.Join(value, ","))
+		}
 	}
 
 	request.Header.Add("accept", "application/json")
 	request.Header.Add("content-type", "application/json")
 
-	response, err := client.Do(request)
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-
-	respReader, err := respBodyReader(request, response)
-	if err != nil {
-		return err
-	}
-
-	_, err = io.Copy(out, respReader)
-	return
+	return request, nil
 }
 
 func respBodyReader(req *http.Request, resp *http.Response) (io.ReadCloser, error) {
