@@ -13,7 +13,7 @@ func TestSetRequestHeaders(t *testing.T) {
 	expectedRequest := resolve.Request{Header: http.Header{expectedHeaderKey: []string{expectedHeaderValue}}}
 	ctx := &resolve.Context{Request: expectedRequest}
 
-	actualRequest, _ := BuildRequest(ctx, []byte{})
+	actualRequest, _ := buildRequest(ctx, []byte{})
 
 	assert.Equal(t, expectedHeaderValue, actualRequest.Header.Get(expectedHeaderKey))
 }

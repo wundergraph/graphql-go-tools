@@ -35,7 +35,7 @@ var (
 )
 
 func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Writer) (err error) {
-	request, err := BuildRequest(ctx, requestInput)
+	request, err := buildRequest(ctx, requestInput)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 	return
 }
 
-func BuildRequest(ctx context.Context, requestInput []byte) (*http.Request, error) {
+func buildRequest(ctx context.Context, requestInput []byte) (*http.Request, error) {
 	url, method, body, headers, queryParams := requestInputParams(requestInput)
 	request, err := http.NewRequestWithContext(ctx, string(method), string(url), bytes.NewReader(body))
 	if err != nil {
