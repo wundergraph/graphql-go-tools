@@ -5,6 +5,7 @@ package resolve
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -1107,6 +1108,21 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			fieldData = data
 		}
 
+		if bytes.Equal(object.Fields[i].Name, literal.TYPENAME) {
+			// Don't overwrite the existing __typename values.
+			_, _, _, err = jsonparser.Get(fieldData, string(literal.TYPENAME))
+			if errors.Is(err, jsonparser.KeyPathNotFoundError) {
+				if len(fieldData) == 0 {
+					fieldData = []byte(`{}`)
+				}
+				typeNameValue, _ := json.Marshal(object.Fields[i].TypeName)
+				fieldData, err = jsonparser.Set(fieldData, typeNameValue, string(literal.TYPENAME))
+				if err != nil {
+					return
+				}
+			}
+		}
+
 		if object.Fields[i].OnTypeName != nil {
 			typeName, _, _, _ := jsonparser.Get(fieldData, "__typename")
 			if !bytes.Equal(typeName, object.Fields[i].OnTypeName) {
@@ -1348,6 +1364,7 @@ type Field struct {
 	HasBuffer               bool
 	BufferID                int
 	OnTypeName              []byte
+	TypeName                string
 	SkipDirectiveDefined    bool
 	SkipVariableName        string
 	IncludeDirectiveDefined bool

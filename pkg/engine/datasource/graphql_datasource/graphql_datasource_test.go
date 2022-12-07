@@ -409,7 +409,8 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 								},
 								{
-									Name: []byte("__typename"),
+									Name:     []byte("__typename"),
+									TypeName: "User",
 									Value: &resolve.String{
 										Path:       []string{"__typename"},
 										IsTypeName: true,
@@ -418,7 +419,8 @@ func TestGraphQLDataSource(t *testing.T) {
 									SkipVariableName:     "skip",
 								},
 								{
-									Name: []byte("tn2"),
+									Name:     []byte("tn2"),
+									TypeName: "User",
 									Value: &resolve.String{
 										Path:       []string{"__typename"},
 										IsTypeName: true,
@@ -3213,7 +3215,8 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							Name: []byte("__typename"),
+							Name:     []byte("__typename"),
+							TypeName: "Mutation",
 							Value: &resolve.String{
 								Path:       []string{"__typename"},
 								Nullable:   false,
@@ -3228,7 +3231,8 @@ func TestGraphQLDataSource(t *testing.T) {
 								Path: []string{"namespaceCreate"},
 								Fields: []*resolve.Field{
 									{
-										Name: []byte("__typename"),
+										Name:     []byte("__typename"),
+										TypeName: "CreateNamespaceResponse",
 										Value: &resolve.String{
 											Path:       []string{"__typename"},
 											Nullable:   false,
@@ -3371,7 +3375,8 @@ func TestGraphQLDataSource(t *testing.T) {
 								Path: []string{"namespaceCreate"},
 								Fields: []*resolve.Field{
 									{
-										Name: []byte("__typename"),
+										Name:     []byte("__typename"),
+										TypeName: "CreateNamespaceResponse",
 										Value: &resolve.String{
 											Path:       []string{"__typename"},
 											Nullable:   false,
@@ -4056,7 +4061,8 @@ func TestGraphQLDataSource(t *testing.T) {
 													},
 												},
 												{
-													Name: []byte("__typename"),
+													Name:     []byte("__typename"),
+													TypeName: "Vehicle",
 													Value: &resolve.String{
 														Path:       []string{"__typename"},
 														IsTypeName: true,
@@ -4429,7 +4435,8 @@ func TestGraphQLDataSource(t *testing.T) {
 													},
 												},
 												{
-													Name: []byte("__typename"),
+													Name:     []byte("__typename"),
+													TypeName: "Vehicle",
 													Value: &resolve.String{
 														Path:       []string{"__typename"},
 														IsTypeName: true,

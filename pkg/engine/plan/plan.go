@@ -525,6 +525,7 @@ func (v *Visitor) EnterField(ref int) {
 				IsTypeName: true,
 			},
 			OnTypeName:              v.resolveOnTypeName(),
+			TypeName:                v.Walker.EnclosingTypeDefinition.NameString(v.Definition),
 			Position:                v.resolveFieldPosition(ref),
 			SkipDirectiveDefined:    skip,
 			SkipVariableName:        skipVariableName,
