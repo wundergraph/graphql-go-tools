@@ -1046,13 +1046,14 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 			if !exists {
 				break
 			}
+
 			var variablePath []string
-			switch node.Kind {
-			case ast.NodeKindInputObjectTypeDefinition:
-				variablePath = append(variablePath, path...)
-			default:
-				variablePath = append(variablePath, variableValue)
+			if len(parts) > 2 && node.Kind == ast.NodeKindInputObjectTypeDefinition {
+					variablePath = append(variablePath, path...)
+			} else {
+					variablePath = append(variablePath, variableValue)
 			}
+
 			variable := &resolve.ContextVariable{
 				Path: variablePath,
 			}
