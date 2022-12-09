@@ -24,9 +24,9 @@ const (
 	HEADER        = "header"
 	QUERYPARAMS   = "query_params"
 	USESSE        = "use_sse"
-
-	SCHEME = "scheme"
-	HOST   = "host"
+	SSEMETHODPOST = "sse_method_post"
+	SCHEME        = "scheme"
+	HOST          = "host"
 )
 
 var (

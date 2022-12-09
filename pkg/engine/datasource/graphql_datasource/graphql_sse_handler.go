@@ -3,6 +3,7 @@ package graphql_datasource
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -185,6 +186,35 @@ func trim(data []byte) []byte {
 }
 
 func (h *gqlSSEConnectionHandler) performSubscriptionRequest(ctx context.Context) (*http.Response, error) {
+
+	var req *http.Request
+	var err error
+
+	// default to GET requests when SSEMethodPost is not enabled in the SubscriptionConfiguration
+	if h.options.SSEMethodPost {
+		req, err = h.buildPOSTRequest(ctx)
+	} else {
+		req, err = h.buildGETRequest(ctx)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := h.conn.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return resp, nil
+	default:
+		return nil, fmt.Errorf("failed to connect to stream unexpected resp status code: %d", resp.StatusCode)
+	}
+}
+
+func (h *gqlSSEConnectionHandler) buildGETRequest(ctx context.Context) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", h.options.URL, nil)
 	if err != nil {
 		return nil, err
@@ -219,15 +249,27 @@ func (h *gqlSSEConnectionHandler) performSubscriptionRequest(ctx context.Context
 
 	req.URL.RawQuery = query.Encode()
 
-	resp, err := h.conn.Do(req)
+	return req, nil
+}
+
+func (h *gqlSSEConnectionHandler) buildPOSTRequest(ctx context.Context) (*http.Request, error) {
+	body, err := json.Marshal(h.options.Body)
 	if err != nil {
 		return nil, err
 	}
 
-	switch resp.StatusCode {
-	case http.StatusOK:
-		return resp, nil
-	default:
-		return nil, fmt.Errorf("failed to connect to stream unexpected resp status code: %d", resp.StatusCode)
+	req, err := http.NewRequestWithContext(ctx, "POST", h.options.URL, bytes.NewBuffer(body))
+	if err != nil {
+		return nil, err
 	}
+
+	if h.options.Header != nil {
+		req.Header = h.options.Header
+	}
+
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Cache-Control", "no-cache")
+
+	return req, nil
 }
