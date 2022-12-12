@@ -17,7 +17,7 @@ func extractVariablesDefaultValue(walker *astvisitor.Walker) *variablesDefaultVa
 		Walker: walker,
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
-	walker.RegisterEnterOperationVisitor(visitor)
+	walker.RegisterOperationDefinitionVisitor(visitor)
 	walker.RegisterEnterVariableDefinitionVisitor(visitor)
 	walker.RegisterEnterFieldVisitor(visitor)
 	return visitor
@@ -25,11 +25,13 @@ func extractVariablesDefaultValue(walker *astvisitor.Walker) *variablesDefaultVa
 
 type variablesDefaultValueExtractionVisitor struct {
 	*astvisitor.Walker
-	operation, definition *ast.Document
-	importer              astimport.Importer
-	operationName         []byte
-	operationRef          int
-	skip                  bool
+	operation, definition     *ast.Document
+	importer                  astimport.Importer
+	operationName             []byte
+	operationRef              int
+	skip                      bool
+	nonNullableVariablesNames [][]byte
+	extractedVariablesRefs    []int
 }
 
 func (v *variablesDefaultValueExtractionVisitor) EnterField(ref int) {
@@ -49,10 +51,13 @@ func (v *variablesDefaultValueExtractionVisitor) EnterField(ref int) {
 		return
 	}
 
-	for _, argRef := range v.definition.FieldDefinitions[fieldDefRef].ArgumentsDefinition.Refs {
-		_, exists := v.operation.FieldArgument(ref, v.definition.InputValueDefinitionNameBytes(argRef))
-		if !exists {
-			v.processDefaultFieldArguments(ref, argRef)
+	for _, defArgRef := range v.definition.FieldDefinitions[fieldDefRef].ArgumentsDefinition.Refs {
+		operationArgRef, exists := v.operation.FieldArgument(ref, v.definition.InputValueDefinitionNameBytes(defArgRef))
+
+		if exists {
+			v.inspectArgument(operationArgRef, defArgRef)
+		} else {
+			v.processDefaultFieldArguments(ref, defArgRef)
 		}
 	}
 }
@@ -78,11 +83,8 @@ func (v *variablesDefaultValueExtractionVisitor) EnterVariableDefinition(ref int
 		return
 	}
 
-	// if variable is nullable, make it not null as it satisfies both not null and nullable types
-	// it is required to keep operation valid after variable extraction
-	if v.operation.Types[v.operation.VariableDefinitions[ref].Type].TypeKind != ast.TypeKindNonNull {
-		v.operation.VariableDefinitions[ref].Type = v.operation.AddNonNullType(v.operation.VariableDefinitions[ref].Type)
-	}
+	// store extracted variable ref
+	v.extractedVariablesRefs = append(v.extractedVariablesRefs, ref)
 
 	valueBytes, err := v.operation.ValueToJSON(v.operation.VariableDefinitionDefaultValue(ref))
 	if err != nil {
@@ -104,6 +106,57 @@ func (v *variablesDefaultValueExtractionVisitor) EnterOperationDefinition(ref in
 	operationName := v.operation.OperationDefinitionNameBytes(ref)
 	v.operationRef = ref
 	v.skip = !bytes.Equal(operationName, v.operationName)
+
+	v.nonNullableVariablesNames = make([][]byte, 0, len(v.operation.VariableDefinitions))
+	v.extractedVariablesRefs = make([]int, 0, len(v.operation.VariableDefinitions))
+}
+
+func (v *variablesDefaultValueExtractionVisitor) LeaveOperationDefinition(_ int) {
+	// find and make variable not null
+	for j := 0; j < len(v.extractedVariablesRefs); j++ {
+		variableDefRef := v.extractedVariablesRefs[j]
+
+		if v.operation.Types[v.operation.VariableDefinitions[variableDefRef].Type].TypeKind == ast.TypeKindNonNull {
+			// when variable is already not null, skip
+			continue
+		}
+
+		for i := 0; i < len(v.nonNullableVariablesNames); i++ {
+			if bytes.Equal(v.operation.VariableDefinitionNameBytes(variableDefRef), v.nonNullableVariablesNames[i]) {
+				// if variable is nullable, make it not null as it satisfies both not null and nullable types
+				// it is required to keep operation valid after variable extraction
+				v.operation.VariableDefinitions[variableDefRef].Type = v.operation.AddNonNullType(v.operation.VariableDefinitions[variableDefRef].Type)
+			}
+		}
+	}
+}
+
+func (v *variablesDefaultValueExtractionVisitor) inspectArgument(operationArgRef, definitionInputValueDefRef int) {
+	operationArgValue := v.operation.ArgumentValue(operationArgRef)
+
+	switch operationArgValue.Kind {
+	case ast.ValueKindVariable:
+		v.saveArgumentsWithTypeNotNull(operationArgValue.Ref, v.definition.InputValueDefinitions[definitionInputValueDefRef].Type)
+	case ast.ValueKindList:
+		for _, listItemValueRef := range v.operation.ListValues[operationArgValue.Ref].Refs {
+			if v.operation.Values[listItemValueRef].Kind == ast.ValueKindVariable {
+				listTypeRef := v.definition.ResolveListOrNameType(v.definition.InputValueDefinitions[definitionInputValueDefRef].Type)
+				v.saveArgumentsWithTypeNotNull(v.operation.Values[listItemValueRef].Ref, v.definition.Types[listTypeRef].OfType)
+			}
+		}
+	case ast.ValueKindObject:
+		// should be handled by EnterField
+	default:
+		return
+	}
+}
+
+func (v *variablesDefaultValueExtractionVisitor) saveArgumentsWithTypeNotNull(operationVariableValueRef, defTypeRef int) {
+	if v.definition.Types[defTypeRef].TypeKind != ast.TypeKindNonNull {
+		return
+	}
+
+	v.nonNullableVariablesNames = append(v.nonNullableVariablesNames, v.operation.VariableValueNameBytes(operationVariableValueRef))
 }
 
 func (v *variablesDefaultValueExtractionVisitor) processDefaultFieldArguments(operationFieldRef, definitionInputValueDefRef int) {
