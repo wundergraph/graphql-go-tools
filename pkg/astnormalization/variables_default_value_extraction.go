@@ -56,8 +56,10 @@ func (v *variablesDefaultValueExtractionVisitor) EnterField(ref int) {
 
 		if exists {
 			operationArgValue := v.operation.ArgumentValue(operationArgRef)
-			defTypeRef := v.definition.InputValueDefinitions[definitionInputValueDefRef].Type
-			v.traverseValue(operationArgValue, defTypeRef)
+			if v.operation.ValueContainsVariable(operationArgValue) {
+				defTypeRef := v.definition.InputValueDefinitions[definitionInputValueDefRef].Type
+				v.traverseValue(operationArgValue, defTypeRef)
+			}
 		} else {
 			v.processDefaultFieldArguments(ref, definitionInputValueDefRef)
 		}
