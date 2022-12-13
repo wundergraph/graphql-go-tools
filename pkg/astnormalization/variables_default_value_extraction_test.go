@@ -10,6 +10,14 @@ const (
 		type Query {
 			complex(input: ComplexInput): String
 			mixedArgs(a: String, b: String!): String
+			objectInList(input: [Nested]): String
+			objectInNestedList(input: [[Nested]]): String
+			stringInNestedList(input: [[String!]]): String
+			nullableStringInNestedList(input: [[String]]): String
+		}
+		input Nested {
+			NotNullable: String!
+			Nullable: String
 		}
 		input ComplexInput {
 			NotNullable: String!
@@ -166,6 +174,68 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 					}`,
 					``,
 					`{"listNonNullItemNotNull":["4"],"listNonNullItemNullable":["3"],"listOfNonNull":["2"],"list":["1"],"notNullable":"b","nullable":"a"}`)
+			})
+		})
+
+		t.Run("variables in lists", func(t *testing.T) {
+			t.Run("object in list", func(t *testing.T) {
+				runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+					query q(
+						$nullable: String = "a",
+						$notNullable: String = "b",	
+					) {
+						objectInList(input: [{NotNullable: $notNullable, Nullable: $nullable}])
+					}`, "", `
+					query q(	
+						$nullable: String,
+						$notNullable: String!,
+					) {	
+						objectInList(input: [{NotNullable: $notNullable, Nullable: $nullable}])
+					}`, ``, `{"notNullable":"b","nullable":"a"}`)
+			})
+
+			t.Run("object in nested list", func(t *testing.T) {
+				runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+					query q(
+						$nullable: String = "a",
+						$notNullable: String = "b",	
+					) {
+						objectInNestedList(input: [[{NotNullable: $notNullable, Nullable: $nullable}]])
+					}`, "", `
+					query q(	
+						$nullable: String,
+						$notNullable: String!,
+					) {	
+						objectInNestedList(input: [[{NotNullable: $notNullable, Nullable: $nullable}]])
+					}`, ``, `{"notNullable":"b","nullable":"a"}`)
+			})
+
+			t.Run("not nullable string in nested list", func(t *testing.T) {
+				runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+					query q(
+						$notNullable: String = "foo",
+					) {
+						stringInNestedList(input: [["a", $notNullable]])
+					}`, "", `
+					query q(
+						$notNullable: String!,
+					) {	
+						stringInNestedList(input: [["a", $notNullable]])
+					}`, ``, `{"notNullable":"foo"}`)
+			})
+
+			t.Run("nullable string in nested list", func(t *testing.T) {
+				runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+					query q(
+						$nullable: String = "foo",
+					) {
+						nullableStringInNestedList(input: [["a", null, $nullable]])
+					}`, "", `
+					query q(
+						$nullable: String,
+					) {	
+						nullableStringInNestedList(input: [["a", null, $nullable]])
+					}`, ``, `{"nullable":"foo"}`)
 			})
 		})
 	})
