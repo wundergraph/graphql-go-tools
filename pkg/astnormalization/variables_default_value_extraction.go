@@ -114,6 +114,10 @@ func (v *variablesDefaultValueExtractionVisitor) EnterOperationDefinition(ref in
 }
 
 func (v *variablesDefaultValueExtractionVisitor) LeaveOperationDefinition(_ int) {
+	if v.skip {
+		return
+	}
+
 	// find and make variable not null
 	for j := 0; j < len(v.extractedVariablesRefs); j++ {
 		variableDefRef := v.extractedVariablesRefs[j]
