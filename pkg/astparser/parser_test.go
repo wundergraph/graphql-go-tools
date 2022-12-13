@@ -528,6 +528,25 @@ func TestParser_Parse(t *testing.T) {
 				}
 			})
 		})
+		t.Run("block string before extend type", func(t *testing.T) {
+			run(`"""
+                           BlockString to ignore
+                           """
+							extend type Person {
+ 								name: String
+							}`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					person := doc.ObjectTypeExtensions[0]
+					if doc.Input.ByteSliceString(person.Name) != "Person" {
+						panic("want Person")
+					}
+					// fields
+					name := doc.FieldDefinitions[person.FieldsDefinition.Refs[0]]
+					if doc.Input.ByteSliceString(name.Name) != "name" {
+						panic("want name")
+					}
+				})
+		})
 	})
 	t.Run("interface type extension", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
