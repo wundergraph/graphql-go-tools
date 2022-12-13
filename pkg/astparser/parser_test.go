@@ -396,7 +396,6 @@ func TestParser_Parse(t *testing.T) {
 				  #comment
 				}#comment`, parse, false)
 		})
-
 	})
 	t.Run("schema extension", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
@@ -715,6 +714,38 @@ func TestParser_Parse(t *testing.T) {
 					}
 				})
 		})
+	})
+	t.Run("ignore block string before extend type", func(t *testing.T) {
+		run(`"""
+		   Schema BlockString to ignore
+		   """
+		   extend type Schema {
+		   }
+		   """"
+		   Object Type BlockString to ignore
+		   """
+		   extend type Person {
+		   }
+		   """"
+		   Interface Type BlockString to ignore
+		   """
+		   extend interface NamedEntity {
+		   }
+		   """"
+		   Scalar Type BlockString to ignore
+		   """
+		   extend scalar JSON {
+		   }
+		   """"
+		   Union Type BlockString to ignore
+		   """
+		   extend union SearchResult = Photo | Person {
+		   }
+		   """"
+		   Input Type BlockString to ignore
+		   """
+		   extend input NamedEntity {
+		   }`, parse, false)
 	})
 	t.Run("scalar type definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {

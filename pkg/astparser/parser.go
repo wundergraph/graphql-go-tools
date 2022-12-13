@@ -715,6 +715,8 @@ func (p *Parser) parseRootDescription() {
 		p.parseEnumTypeDefinition(&description)
 	case identkeyword.DIRECTIVE:
 		p.parseDirectiveDefinition(&description)
+	case identkeyword.EXTEND:
+		p.parseExtension()
 	default:
 		p.errUnexpectedIdentKey(p.read(), next, identkeyword.TYPE, identkeyword.INPUT, identkeyword.SCALAR, identkeyword.INTERFACE, identkeyword.UNION, identkeyword.ENUM, identkeyword.DIRECTIVE)
 	}
@@ -1594,7 +1596,7 @@ func (p *Parser) parseExtension() {
 	case identkeyword.INPUT:
 		p.parseInputObjectTypeExtension(extend)
 	default:
-		p.errUnexpectedIdentKey(p.read(), key, identkeyword.SCHEMA, identkeyword.TYPE, identkeyword.INTERFACE, identkeyword.SCALAR, identkeyword.UNION, identkeyword.ENUM, identkeyword.INPUT)
+		p.errUnexpectedIdentKey(p.read(), key, identkeyword.SCHEMA, identkeyword.TYPE, identkeyword.INTERFACE, identkeyword.SCALAR, identkeyword.UNION, identkeyword.ENUM, identkeyword.INPUT, identkeyword.EXTEND)
 	}
 }
 
