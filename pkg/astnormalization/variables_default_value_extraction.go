@@ -51,13 +51,14 @@ func (v *variablesDefaultValueExtractionVisitor) EnterField(ref int) {
 		return
 	}
 
-	for _, defArgRef := range v.definition.FieldDefinitions[fieldDefRef].ArgumentsDefinition.Refs {
-		operationArgRef, exists := v.operation.FieldArgument(ref, v.definition.InputValueDefinitionNameBytes(defArgRef))
+	for _, inputValueDefRef := range v.definition.FieldDefinitions[fieldDefRef].ArgumentsDefinition.Refs {
+		operationArgRef, exists := v.operation.FieldArgument(ref, v.definition.InputValueDefinitionNameBytes(inputValueDefRef))
 
 		if exists {
-			v.inspectArgument(operationArgRef, defArgRef)
+			operationArgValue := v.operation.ArgumentValue(operationArgRef)
+			v.traverseValue(operationArgValue, inputValueDefRef)
 		} else {
-			v.processDefaultFieldArguments(ref, defArgRef)
+			v.processDefaultFieldArguments(ref, inputValueDefRef)
 		}
 	}
 }
@@ -131,23 +132,63 @@ func (v *variablesDefaultValueExtractionVisitor) LeaveOperationDefinition(_ int)
 	}
 }
 
-func (v *variablesDefaultValueExtractionVisitor) inspectArgument(operationArgRef, definitionInputValueDefRef int) {
-	operationArgValue := v.operation.ArgumentValue(operationArgRef)
-
-	switch operationArgValue.Kind {
+func (v *variablesDefaultValueExtractionVisitor) traverseValue(value ast.Value, definitionInputValueDefRef int) {
+	switch value.Kind {
 	case ast.ValueKindVariable:
-		v.saveArgumentsWithTypeNotNull(operationArgValue.Ref, v.definition.InputValueDefinitions[definitionInputValueDefRef].Type)
+		v.saveArgumentsWithTypeNotNull(value.Ref, v.definition.InputValueDefinitions[definitionInputValueDefRef].Type)
 	case ast.ValueKindList:
-		for _, listItemValueRef := range v.operation.ListValues[operationArgValue.Ref].Refs {
-			if v.operation.Values[listItemValueRef].Kind == ast.ValueKindVariable {
-				listTypeRef := v.definition.ResolveListOrNameType(v.definition.InputValueDefinitions[definitionInputValueDefRef].Type)
-				v.saveArgumentsWithTypeNotNull(v.operation.Values[listItemValueRef].Ref, v.definition.Types[listTypeRef].OfType)
+		for _, ref := range v.operation.ListValues[value.Ref].Refs {
+			listValue := v.operation.Value(ref)
+			if !v.operation.ValueContainsVariable(listValue) {
+				continue
 			}
+
+			// listTypeRef := v.definition.InputValueDefinitions[definitionInputValueDefRef].Type
+			// if v.definition.Types[listTypeRef].TypeKind == ast.TypeKindNonNull {
+			// 	listTypeRef = v.definition.Types[listTypeRef].OfType
+			// }
+			//
+			// if v.definition.TypeIsList(listTypeRef) {
+			//
+			// }
+			//
+			// typeName := v.definition.ResolveTypeNameString(listTypeRef)
+			// typeDefinitionNode, ok := v.definition.Index.FirstNodeByNameStr(typeName)
+			// if !ok {
+			// 	continue
+			// }
+			//
+			// switch typeDefinitionNode.Kind {
+			// case ast.NodeKindObjectTypeDefinition:
+			// case ast.NodeKindScalarTypeDefinition:
+			// }
+			// objectFieldDefinition, ok := v.definition.NodeInputFieldDefinitionByName(typeDefinitionNode, fieldName)
+			// if !ok {
+			// 	continue
+			// }
+
+			v.traverseValue(listValue, definitionInputValueDefRef)
+
 		}
 	case ast.ValueKindObject:
-		// should be handled by EnterField
-	default:
-		return
+		for _, ref := range v.operation.ObjectValues[value.Ref].Refs {
+			fieldName := v.operation.Input.ByteSlice(v.operation.ObjectFields[ref].Name)
+			fieldValue := v.operation.ObjectFields[ref].Value
+
+			typeName := v.definition.ResolveTypeNameString(v.definition.InputValueDefinitions[definitionInputValueDefRef].Type)
+			typeDefinitionNode, ok := v.definition.Index.FirstNodeByNameStr(typeName)
+			if !ok {
+				continue
+			}
+			objectFieldDefinition, ok := v.definition.NodeInputFieldDefinitionByName(typeDefinitionNode, fieldName)
+			if !ok {
+				continue
+			}
+
+			if v.operation.ValueContainsVariable(fieldValue) {
+				v.traverseValue(fieldValue, objectFieldDefinition)
+			}
+		}
 	}
 }
 
