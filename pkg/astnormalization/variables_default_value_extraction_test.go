@@ -12,6 +12,16 @@ const (
 			mixed(a: String, b: String, input: String = "foo"): String
 		}
 		scalar String
+		input StringsInput {
+			NotNullable: String!
+			Nullable: String
+		}
+		input ListsInput {
+			list: [String]
+			listNonNull: [String]!
+			listNonNullItemNonNull: [String!]!
+			listNonNull: [String!]
+		}
 	`
 )
 
@@ -54,7 +64,7 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 			mutation simple($in: String = "bar" ) {
 			  simple(input: $in)
 			}`, "", `
-			mutation simple($in: String!) {
+			mutation simple($in: String) {
 			  simple(input: $in)
 			}`, ``, `{"in":"bar"}`)
 		})
@@ -74,7 +84,7 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 			mutation simple($a: String = "bar", $b: String = "bazz") {
 			  mixed(a: $a, b: $b)
 			}`, "", `
-			mutation simple($a: String, $b: String!, $c: String) {
+			mutation simple($a: String, $b: String, $c: String) {
 			  mixed(a: $a, b: $b, input: $c)
 			}`, `{"a":"aaa"}`, `{"c":"foo","b":"bazz","a":"aaa"}`)
 	})
