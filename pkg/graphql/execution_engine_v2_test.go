@@ -552,7 +552,16 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			dataSources: []plan.DataSourceConfiguration{
 				{
 					RootNodes: []plan.TypeField{
-						{TypeName: "Query", FieldNames: []string{"hero"}},
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"hero"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Character",
+							FieldNames: []string{"name"},
+						},
 					},
 					Factory: &graphql_datasource.Factory{
 						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -587,7 +596,16 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			dataSources: []plan.DataSourceConfiguration{
 				{
 					RootNodes: []plan.TypeField{
-						{TypeName: "Query", FieldNames: []string{"hero"}},
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"hero"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Character",
+							FieldNames: []string{"name"},
+						},
 					},
 					Factory: &graphql_datasource.Factory{
 						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -618,7 +636,16 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			dataSources: []plan.DataSourceConfiguration{
 				{
 					RootNodes: []plan.TypeField{
-						{TypeName: "Query", FieldNames: []string{"droid"}},
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"droid"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Droid",
+							FieldNames: []string{"name"},
+						},
 					},
 					Factory: &graphql_datasource.Factory{
 						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -637,7 +664,20 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					}),
 				},
 			},
-			fields:           []plan.FieldConfiguration{},
+			fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "droid",
+					Path:      []string{"droid"},
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:         "id",
+							SourceType:   plan.FieldArgumentSource,
+							RenderConfig: plan.RenderArgumentAsGraphQLValue,
+						},
+					},
+				},
+			},
 			expectedResponse: `{"data":{"droid":{"name":"R2D2"}}}`,
 		},
 	))
@@ -709,13 +749,22 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		dataSources: []plan.DataSourceConfiguration{
 			{
 				RootNodes: []plan.TypeField{
-					{TypeName: "Query", FieldNames: []string{"charactersByIds"}},
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"charactersByIds"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Character",
+						FieldNames: []string{"name"},
+					},
 				},
 				Factory: &graphql_datasource.Factory{
 					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
-						expectedBody:     `{"query":"query($a: [Int]){charactersByIds(ids: $a)}","variables":{"a":[1]}}`,
+						expectedBody:     `{"query":"query($a: [Int]){charactersByIds(ids: $a){name}}","variables":{"a":[1]}}`,
 						sendResponseBody: `{"data":{"charactersByIds":[{"name": "Luke"}]}}`,
 						sendStatusCode:   200,
 					}),
@@ -735,8 +784,9 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				Path:      []string{"charactersByIds"},
 				Arguments: []plan.ArgumentConfiguration{
 					{
-						Name:       "ids",
-						SourceType: plan.FieldArgumentSource,
+						Name:         "ids",
+						SourceType:   plan.FieldArgumentSource,
+						RenderConfig: plan.RenderArgumentAsGraphQLValue,
 					},
 				},
 			},
@@ -758,13 +808,22 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		dataSources: []plan.DataSourceConfiguration{
 			{
 				RootNodes: []plan.TypeField{
-					{TypeName: "Query", FieldNames: []string{"charactersByIds"}},
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"charactersByIds"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Character",
+						FieldNames: []string{"name"},
+					},
 				},
 				Factory: &graphql_datasource.Factory{
 					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
-						expectedBody:     `{"query":"query($ids: [Int]){charactersByIds(ids: $ids)}","variables":{"ids":[1]}}`,
+						expectedBody:     `{"query":"query($ids: [Int]){charactersByIds(ids: $ids){name}}","variables":{"ids":[1]}}`,
 						sendResponseBody: `{"data":{"charactersByIds":[{"name": "Luke"}]}}`,
 						sendStatusCode:   200,
 					}),
@@ -784,8 +843,9 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				Path:      []string{"charactersByIds"},
 				Arguments: []plan.ArgumentConfiguration{
 					{
-						Name:       "ids",
-						SourceType: plan.FieldArgumentSource,
+						Name:         "ids",
+						SourceType:   plan.FieldArgumentSource,
+						RenderConfig: plan.RenderArgumentAsGraphQLValue,
 					},
 				},
 			},
@@ -800,7 +860,16 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			dataSources: []plan.DataSourceConfiguration{
 				{
 					RootNodes: []plan.TypeField{
-						{TypeName: "Query", FieldNames: []string{"droid"}},
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"droid"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Droid",
+							FieldNames: []string{"name"},
+						},
 					},
 					Factory: &graphql_datasource.Factory{
 						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -819,7 +888,19 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					}),
 				},
 			},
-			fields:           []plan.FieldConfiguration{},
+			fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "droid",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:         "id",
+							SourceType:   plan.FieldArgumentSource,
+							RenderConfig: plan.RenderArgumentAsGraphQLValue,
+						},
+					},
+				},
+			},
 			expectedResponse: `{"data":{"droid":{"name":"R2D2"}}}`,
 		},
 	))
@@ -1465,7 +1546,16 @@ func TestExecutionWithOptions(t *testing.T) {
 		dataSources: []plan.DataSourceConfiguration{
 			{
 				RootNodes: []plan.TypeField{
-					{TypeName: "Query", FieldNames: []string{"hero"}},
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"hero"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Character",
+						FieldNames: []string{"name"},
+					},
 				},
 				Factory: &graphql_datasource.Factory{
 					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -1505,7 +1595,7 @@ func TestExecutionWithOptions(t *testing.T) {
 	resultWriter := NewEngineResultWriter()
 	err = engine.Execute(context.Background(), &operation, &resultWriter, WithBeforeFetchHook(before), WithAfterFetchHook(after))
 
-	assert.Equal(t, `{"method":"GET","url":"https://example.com/","body":{"query":"{hero}"}}`, before.input)
+	assert.Equal(t, `{"method":"GET","url":"https://example.com/","body":{"query":"{hero {name}}"}}`, before.input)
 	assert.Equal(t, `{"hero":{"name":"Luke Skywalker"}}`, after.data)
 	assert.Equal(t, "", after.err)
 	assert.NoError(t, err)
