@@ -1037,7 +1037,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							HTTPClient: testNetHttpClient(t, roundTripperTestCase{
 								expectedHost:     "example.com",
 								expectedPath:     "/",
-								expectedBody:     `{"query":"query($name: String!, $nameOptional: String){hero: heroDefault(name: $name) hero2: heroDefault(name: $nameOptional) hero3: heroDefaultRequired(name: $name) hero4: heroDefaultRequired(name: $nameOptional)}","variables":{"nameOptional":"R2D2","name":"R2D2"}}`,
+								expectedBody:     `{"query":"query($name: String!, $nameOptional: String!){hero: heroDefault(name: $name) hero2: heroDefault(name: $nameOptional) hero3: heroDefaultRequired(name: $name) hero4: heroDefaultRequired(name: $nameOptional)}","variables":{"nameOptional":"R2D2","name":"R2D2"}}`,
 								sendResponseBody: `{"data":{"hero":"R2D2","hero2":"R2D2","hero3":"R2D2","hero4":"R2D2"}}`,
 								sendStatusCode:   200,
 							}),
