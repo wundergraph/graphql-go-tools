@@ -19,7 +19,7 @@ func (r Report) Error() string {
 		}
 		out += fmt.Sprintf("internal: %s", r.InternalErrors[i].Error())
 	}
-	if len(out) > 0 {
+	if len(out) > 0 && len(r.ExternalErrors) > 0 {
 		out += "\n"
 	}
 	for i := range r.ExternalErrors {
