@@ -6,6 +6,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
+
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
@@ -39,7 +40,8 @@ func (i *inputCoercionForListVisitor) EnterOperationDefinition(ref int) {
 
 func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 	variableNameString := i.operation.VariableDefinitionNameString(ref)
-	variableDefinition, exists := i.operation.VariableDefinitionByNameAndOperation(i.operationDefinitionRef, i.operation.VariableValueNameBytes(ref))
+	variableValueNameBytes := i.operation.VariableValueNameBytes(i.operation.VariableDefinitions[ref].VariableValue.Ref)
+	variableDefinition, exists := i.operation.VariableDefinitionByNameAndOperation(i.operationDefinitionRef, variableValueNameBytes)
 	if !exists {
 		return
 	}
