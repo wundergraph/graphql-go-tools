@@ -6151,6 +6151,13 @@ func TestUnNullVariables(t *testing.T) {
 		assert.Equal(t, expected, string(out))
 	})
 
+	t.Run("ignore null in variable name", func(t *testing.T) {
+		s := &Source{}
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"not_null":1,"null":2,"not_null2":3}}}`))
+		expected := `{"body":{"variables":{"not_null":1,"null":2,"not_null2":3}}}`
+		assert.Equal(t, expected, string(out))
+	})
+
 	t.Run("variables missing", func(t *testing.T) {
 		s := &Source{}
 		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}"}}`))
