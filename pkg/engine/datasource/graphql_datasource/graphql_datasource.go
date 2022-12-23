@@ -70,15 +70,9 @@ func (p *Planner) LeaveVariableDefinition(_ int) {
 
 func (p *Planner) EnterDirective(ref int) {
 	parent := p.nodes[len(p.nodes)-1]
-	if parent.Kind == ast.NodeKindOperationDefinition {
-		if p.visitor.Operation.DirectiveNameString(ref) == "removeNullVariables" {
-			// p.visitor.Operation.RemoveNullVariables = true
-		}
-
-		if p.currentVariableDefinition != -1 {
-			p.addDirectivesToVariableDefinitions[p.currentVariableDefinition] = append(p.addDirectivesToVariableDefinitions[p.currentVariableDefinition], ref)
-			return
-		}
+	if parent.Kind == ast.NodeKindOperationDefinition && p.currentVariableDefinition != -1 {
+		p.addDirectivesToVariableDefinitions[p.currentVariableDefinition] = append(p.addDirectivesToVariableDefinitions[p.currentVariableDefinition], ref)
+		return
 	}
 	p.addDirectiveToNode(ref, parent)
 }
