@@ -235,6 +235,16 @@
         }
       ],
       "isRepeatable": false
+    },
+    {
+      "name": "removeNullVariables",
+      "description": "Enables removing variables with null values from the operation.",
+      "locations": [
+        "QUERY",
+        "MUTATION"
+      ],
+      "args": [],
+      "isRepeatable": false
     }
   ]
 }
