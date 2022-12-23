@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/httpclient"
 	. "github.com/wundergraph/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
@@ -23,6 +25,77 @@ import (
 )
 
 func TestGraphQLDataSource(t *testing.T) {
+	t.Run("@removeNullVariables directive", RunTest(`
+		schema {
+			query: Query
+		}
+		
+		type Query {
+			hero(a: String): String
+		}`, `
+		query MyQuery($a: String) @removeNullVariables {
+			hero(a: $a)
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","unnull_variables":true,"body":{"query":"query($a: String){hero(a: $a)}","variables":{"a":$$0$$}}}`,
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path:     []string{"a"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+						},
+					),
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("hero"),
+						Value: &resolve.String{
+							Path:     []string{"hero"},
+							Nullable: true,
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"hero"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "hero",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "a",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		DisableResolveFieldPositions: true,
+	}))
 	t.Run("simple named Query", RunTest(starWarsSchema, `
 		query MyQuery($id: ID!) {
 			droid(id: $id){
@@ -6105,6 +6178,44 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 	}
 
 	return RunTest(testDefinition, operation, operationName, expectedPlan, config, extraChecks...)
+}
+
+func TestSource_Load(t *testing.T) {
+	t.Run("unnull_variables", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, _ := ioutil.ReadAll(r.Body)
+			_, _ = fmt.Fprint(w, string(body))
+		}))
+		defer ts.Close()
+
+		var (
+			src       = &Source{httpClient: &http.Client{}}
+			serverUrl = ts.URL
+			variables = []byte(`{"a": null, "b": "b", "c": {}}`)
+		)
+
+		t.Run("should remove null variables when flag is set", func(t *testing.T) {
+			var input []byte
+			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
+			input = httpclient.SetInputURL(input, []byte(serverUrl))
+			input = httpclient.SetInputFlag(input, httpclient.UNNULLVARIABLES)
+			buf := bytes.NewBuffer(nil)
+
+			require.NoError(t, src.Load(context.Background(), input, buf))
+			assert.Equal(t, `{"variables":{"b":"b"}}`, buf.String())
+		})
+
+		t.Run("should only compact variables and remove empty objects when no flag set", func(t *testing.T) {
+			var input []byte
+			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
+			input = httpclient.SetInputURL(input, []byte(serverUrl))
+
+			buf := bytes.NewBuffer(nil)
+
+			require.NoError(t, src.Load(context.Background(), input, buf))
+			assert.Equal(t, `{"variables":{"a":null,"b":"b"}}`, buf.String())
+		})
+	})
 }
 
 func TestUnNullVariables(t *testing.T) {
