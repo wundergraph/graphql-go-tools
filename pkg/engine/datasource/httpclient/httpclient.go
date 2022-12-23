@@ -6,7 +6,7 @@ import (
 	"io"
 
 	"github.com/buger/jsonparser"
-	byte_template "github.com/jensneuse/byte-template"
+	bytetemplate "github.com/jensneuse/byte-template"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
@@ -15,18 +15,19 @@ import (
 )
 
 const (
-	PATH          = "path"
-	URL           = "url"
-	URLENCODEBODY = "url_encode_body"
-	BASEURL       = "base_url"
-	METHOD        = "method"
-	BODY          = "body"
-	HEADER        = "header"
-	QUERYPARAMS   = "query_params"
-	USESSE        = "use_sse"
-	SSEMETHODPOST = "sse_method_post"
-	SCHEME        = "scheme"
-	HOST          = "host"
+	PATH            = "path"
+	URL             = "url"
+	URLENCODEBODY   = "url_encode_body"
+	BASEURL         = "base_url"
+	METHOD          = "method"
+	BODY            = "body"
+	HEADER          = "header"
+	QUERYPARAMS     = "query_params"
+	USESSE          = "use_sse"
+	SSEMETHODPOST   = "sse_method_post"
+	SCHEME          = "scheme"
+	HOST            = "host"
+	UNNULLVARIABLES = "unnull_variables"
 )
 
 var (
@@ -63,7 +64,7 @@ func wrapQuotesIfString(b []byte) []byte {
 		withoutTemplate := bytes.ReplaceAll(b, []byte("$$"), nil)
 
 		buf := &bytes.Buffer{}
-		tmpl := byte_template.New()
+		tmpl := bytetemplate.New()
 		_, _ = tmpl.Execute(buf, withoutTemplate, func(w io.Writer, path []byte) (n int, err error) {
 			return w.Write([]byte("0"))
 		})
@@ -109,6 +110,17 @@ func SetInputURLEncodeBody(input []byte, urlEncodeBody bool) []byte {
 func SetInputFlag(input []byte, flagName string) []byte {
 	out, _ := sjson.SetRawBytes(input, flagName, []byte("true"))
 	return out
+}
+
+func IsInputFlagSet(input []byte, flagName string) bool {
+	value, dataType, _, err := jsonparser.Get(input, flagName)
+	if err != nil {
+		return false
+	}
+	if dataType != jsonparser.Boolean {
+		return false
+	}
+	return bytes.Equal(value, literal.TRUE)
 }
 
 func SetInputMethod(input, method []byte) []byte {
