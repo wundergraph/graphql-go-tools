@@ -10,13 +10,13 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
-	"github.com/wundergraph/graphql-go-tools/pkg/astvalidation"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
+	"github.com/wundergraph/graphql-go-tools/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
@@ -24,6 +24,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
+
+const removeNullVariablesDirectiveName = "removeNullVariables"
 
 type Planner struct {
 	visitor                    *plan.Visitor
@@ -55,6 +57,7 @@ type Planner struct {
 
 	insideCustomScalarField bool
 	customScalarFieldRef    int
+	unnulVariables          bool
 }
 
 func (p *Planner) EnterVariableDefinition(ref int) {
@@ -270,6 +273,10 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	input = httpclient.SetInputBodyWithPath(input, p.upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
 
+	if p.unnulVariables {
+		input = httpclient.SetInputFlag(input, httpclient.UNNULLVARIABLES)
+	}
+
 	header, err := json.Marshal(p.config.Fetch.Header)
 	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
 		input = httpclient.SetInputHeader(input, header)
@@ -329,6 +336,12 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 }
 
 func (p *Planner) EnterOperationDefinition(ref int) {
+	if p.visitor.Operation.OperationDefinitions[ref].HasDirectives &&
+		p.visitor.Operation.OperationDefinitions[ref].Directives.HasDirectiveByName(p.visitor.Operation, removeNullVariablesDirectiveName) {
+		p.unnulVariables = true
+		p.visitor.Operation.OperationDefinitions[ref].Directives.RemoveDirectiveByName(p.visitor.Operation, removeNullVariablesDirectiveName)
+	}
+
 	operationType := p.visitor.Operation.OperationDefinitions[ref].OperationType
 	if p.isNested {
 		operationType = ast.OperationTypeQuery
@@ -1279,48 +1292,60 @@ func (s *Source) compactAndUnNullVariables(input []byte) []byte {
 		_ = json.Compact(buf, variables)
 		variables = buf.Bytes()
 	}
-	cp := make([]byte, len(variables))
-	copy(cp, variables)
-	variables = cp
-	var changed bool
-	for {
-		variables, changed = s.unNullVariables(variables)
-		if !changed {
-			break
-		}
-	}
+
+	removeNullVariables := httpclient.IsInputFlagSet(input, httpclient.UNNULLVARIABLES)
+	variables = s.cleanupVariables(variables, removeNullVariables)
+
 	input, _ = jsonparser.Set(input, variables, "body", "variables")
 	return input
 }
 
-func (s *Source) unNullVariables(input []byte) ([]byte, bool) {
-	if i := bytes.Index(input, []byte(":{}")); i != -1 {
+func (s *Source) cleanupVariables(variables []byte, removeNullVariables bool) []byte {
+	cp := make([]byte, len(variables))
+	copy(cp, variables)
+
+	if removeNullVariables {
+		err := jsonparser.ObjectEach(variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+			if dataType == jsonparser.Null {
+				cp = jsonparser.Delete(cp, string(key))
+			}
+			return nil
+		})
+		if err != nil {
+			return variables
+		}
+	}
+
+	return s.removeEmptyObjects(cp)
+}
+
+func (s *Source) removeEmptyObjects(variables []byte) []byte {
+	var changed bool
+	for {
+		variables, changed = s.replaceEmptyObject(variables)
+		if !changed {
+			break
+		}
+	}
+	return variables
+}
+
+func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
+	if i := bytes.Index(variables, []byte(":{}")); i != -1 {
 		end := i + 3
 		hasTrainlingComma := false
-		if input[end] == ',' {
+		if variables[end] == ',' {
 			end++
 			hasTrainlingComma = true
 		}
-		startQuote := bytes.LastIndex(input[:i-2], []byte("\""))
-		if !hasTrainlingComma && input[startQuote-1] == ',' {
+		startQuote := bytes.LastIndex(variables[:i-2], []byte("\""))
+		if !hasTrainlingComma && variables[startQuote-1] == ',' {
 			startQuote--
 		}
-		return append(input[:startQuote], input[end:]...), true
+		return append(variables[:startQuote], variables[end:]...), true
 	}
-	if i := bytes.Index(input, []byte("null")); i != -1 {
-		end := i + 4
-		hasTrailingComma := false
-		if input[end] == ',' {
-			end++
-			hasTrailingComma = true
-		}
-		startQuote := bytes.LastIndex(input[:i-2], []byte("\""))
-		if !hasTrailingComma && input[startQuote-1] == ',' {
-			startQuote--
-		}
-		return append(input[:startQuote], input[end:]...), true
-	}
-	return input, false
+
+	return variables, false
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err error) {
