@@ -300,3 +300,73 @@ func TestWebSocketSubscriptionClientInitIncludePing_GQLTWS(t *testing.T) {
 		return len(client.handlers) == 0
 	}, time.Second, time.Millisecond, "client handlers not 0")
 }
+
+func TestWebsocketSubscriptionClient_GQLTWS_Upstream_Dies(t *testing.T) {
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+	defer serverCancel()
+
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		assert.NoError(t, err)
+
+		ctx := context.Background()
+		msgType, data, err := conn.Read(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, websocket.MessageText, msgType)
+		assert.Equal(t, `{"type":"connection_init"}`, string(data))
+
+		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+		assert.NoError(t, err)
+
+		msgType, data, err = conn.Read(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, websocket.MessageText, msgType)
+		assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+		assert.NoError(t, err)
+
+		<-serverCtx.Done()
+	}))
+
+	// Wrap the listener to hijack the underlying TCP connection.
+	// Hijacking via http.ResponseWriter doesn't work because the WebSocket
+	// client already hijacks the connection before us.
+	wrappedListener := &listenerWrapper{
+		listener: server.Listener,
+	}
+	server.Listener = wrappedListener
+	server.Start()
+
+	defer server.Close()
+	ctx, clientCancel := context.WithCancel(context.Background())
+
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+		WithReadTimeout(time.Second),
+		WithLogger(logger()),
+		WithWSSubProtocol(ProtocolGraphQLTWS),
+	)
+
+	next := make(chan []byte)
+	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+		URL: server.URL,
+		Body: GraphQLBody{
+			Query: `subscription {messageAdded(roomName: "room"){text}}`,
+		},
+	}, next)
+	assert.NoError(t, err)
+
+	first := <-next
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, string(first))
+
+	// Kill the upstream here. We should get an End-of-File error.
+	assert.NoError(t, wrappedListener.underlyingConnection.Close())
+	errorMessage := <-next
+	assert.Equal(t, `{"errors":[{"message":"failed to get reader: failed to read frame header: EOF"}]}`, string(errorMessage))
+
+	clientCancel()
+	serverCancel()
+	assert.Eventuallyf(t, func() bool {
+		return len(client.handlers) == 0
+	}, time.Second, time.Millisecond, "client handlers not 0")
+}

@@ -407,3 +407,66 @@ func TestBuildGETRequestSSE(t *testing.T) {
 	assert.Equal(t, string(subscriptionOptions.Body.Extensions), urlQuery.Get("extensions"))
 
 }
+
+func TestGraphQLSubscriptionClientSubscribe_SSE_Upstream_Dies(t *testing.T) {
+	serverDone := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		urlQuery := r.URL.Query()
+		assert.Equal(t, "subscription {messageAdded(roomName: \"room\"){text}}", urlQuery.Get("query"))
+
+		// Make sure that the writer supports flushing.
+		flusher, ok := w.(http.Flusher)
+		require.True(t, ok)
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+
+		_, _ = fmt.Fprintf(w, "data: %s\n\n", `{"data":{"messageAdded":{"text":"first"}}}`)
+		flusher.Flush()
+
+		// Kill the upstream server. We should catch this event as an "unexpected EOF"
+		// error and return an error message to the subscriber.
+		h, ok := w.(http.Hijacker)
+		require.True(t, ok)
+		rawConn, _, err := h.Hijack()
+		require.NoError(t, err)
+		_ = rawConn.Close()
+
+		close(serverDone)
+	}))
+	defer server.Close()
+
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+
+	ctx, clientCancel := context.WithCancel(context.Background())
+
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+		WithReadTimeout(time.Millisecond),
+		WithLogger(logger()),
+	)
+
+	next := make(chan []byte)
+	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+		URL: server.URL,
+		Body: GraphQLBody{
+			Query: `subscription {messageAdded(roomName: "room"){text}}`,
+		},
+		UseSSE: true,
+	}, next)
+	assert.NoError(t, err)
+
+	first := <-next
+	second := <-next
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, string(first))
+	// Upstream died
+	assert.Equal(t, `{"errors":[{"message":"internal error"}]}`, string(second))
+
+	clientCancel()
+	assert.Eventuallyf(t, func() bool {
+		<-serverDone
+		return true
+	}, time.Second, time.Millisecond*10, "server did not close")
+	serverCancel()
+}
