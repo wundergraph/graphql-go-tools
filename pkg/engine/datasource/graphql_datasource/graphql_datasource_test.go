@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/httpclient"
 	. "github.com/wundergraph/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
@@ -23,8 +25,79 @@ import (
 )
 
 func TestGraphQLDataSource(t *testing.T) {
+	t.Run("@removeNullVariables directive", RunTest(`
+		schema {
+			query: Query
+		}
+		
+		type Query {
+			hero(a: String): String
+		}`, `
+		query MyQuery($a: String) @removeNullVariables {
+			hero(a: $a)
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","unnull_variables":true,"body":{"query":"query($a: String){hero(a: $a)}","variables":{"a":$$0$$}}}`,
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path:     []string{"a"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+						},
+					),
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("hero"),
+						Value: &resolve.String{
+							Path:     []string{"hero"},
+							Nullable: true,
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"hero"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "hero",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "a",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		DisableResolveFieldPositions: true,
+	}))
 	t.Run("simple named Query", RunTest(starWarsSchema, `
-		query MyQuery($id: ID!){
+		query MyQuery($id: ID!) {
 			droid(id: $id){
 				name
 				aliased: name
@@ -1445,11 +1518,15 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
 					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$3$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $input: SearchInput! @onVariable, $options: JSON)@onOperation {api_droid: droid(id: $id){name @format aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search {__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}} withOptions: searchWithInput(input: {options: $options}){__typename ... on Droid {primaryFunction}}}","variables":{"options":$$2$$,"input":$$1$$,"id":$$0$$}}}`,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$4$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $a: String! @onVariable, $input: SearchInput!, $options: JSON)@onOperation {api_droid: droid(id: $id){name @format aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search(name: $a){__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}} withOptions: searchWithInput(input: {options: $options}){__typename ... on Droid {primaryFunction}}}","variables":{"options":$$3$$,"input":$$2$$,"a":$$1$$,"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"id"},
 							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+						},
+						&resolve.ContextVariable{
+							Path:     []string{"a"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 						},
 						&resolve.ContextVariable{
 							Path:     []string{"input"},
@@ -1704,6 +1781,14 @@ func TestGraphQLDataSource(t *testing.T) {
 				TypeName:  "Query",
 				FieldName: "api_search",
 				Path:      []string{"search"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:         "name",
+						SourceType:   plan.FieldArgumentSource,
+						SourcePath:   []string{"name"},
+						RenderConfig: plan.RenderArgumentAsGraphQLValue,
+					},
+				},
 			},
 			{
 				TypeName:  "Query",
@@ -4745,7 +4830,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
 										BufferId: 1,
-										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: XBoolean!, $publicOnly: XBoolean!){_entities(representations: $representations){... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"publicOnly":$$2$$,"someSkipCondition":$$1$$,"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: XBoolean!){_entities(representations: $representations){... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"publicOnly":$$2$$,"someSkipCondition":$$1$$,"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
 												Path:     []string{"id"},
@@ -4838,6 +4923,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							Enabled:    true,
 							ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
 						},
+						UpstreamSchema: federationTestSchemaWithRename,
 					}),
 					Factory: federationFactory,
 				},
@@ -4865,8 +4951,9 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "type Review { body: String! notes: String likes(filterToPublicOnly: Boolean): Int! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
+							ServiceSDL: "scalar XBoolean type Review { body: String! notes: String likes(filterToPublicOnly: XBoolean!): Int! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
 						},
+						UpstreamSchema: federationTestSchemaWithRename,
 					}),
 				},
 			},
@@ -4881,19 +4968,14 @@ func TestGraphQLDataSource(t *testing.T) {
 					FieldName: "likes",
 					Arguments: []plan.ArgumentConfiguration{
 						{
-							Name:       "filterToPublicOnly",
-							SourceType: plan.FieldArgumentSource,
+							Name:         "filterToPublicOnly",
+							SourceType:   plan.FieldArgumentSource,
+							RenameTypeTo: "XBoolean",
 						},
 					},
 				},
 			},
 			DisableResolveFieldPositions: true,
-			Types: []plan.TypeConfiguration{
-				{
-					TypeName: "Boolean",
-					RenameTo: "XBoolean",
-				},
-			},
 		}))
 
 	t.Run("federated entity with requires", RunTest(requiredFieldTestSchema,
@@ -5295,7 +5377,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "extend type Query {me: User} type User_api @key(fields: \"id\"){ id: ID! username: String!}",
+							ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! username: String!}",
 						},
 						UpstreamSchema: federationTestSchema,
 					}),
@@ -5331,7 +5413,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product_api]} type Product_api @key(fields: \"upc\") {upc: String! price: Int!}",
+							ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") {upc: String! price: Int!}",
 						},
 						UpstreamSchema: federationTestSchema,
 					}),
@@ -5369,7 +5451,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "type Review_api { body: String! author: User_api! @provides(fields: \"username\") product: Product_api! } extend type User_api @key(fields: \"id\") { id: ID! @external reviews: [Review_api] } extend type Product_api @key(fields: \"upc\") { upc: String! @external reviews: [Review_api] }",
+							ServiceSDL: "type Review { body: String! author: User! @provides(fields: \"username\") product: Product! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] } extend type Product @key(fields: \"upc\") { upc: String! @external reviews: [Review] }",
 						},
 						UpstreamSchema: federationTestSchema,
 					}),
@@ -5429,6 +5511,300 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		}))
+	t.Run("custom scalar replacement query", RunTest(starWarsSchema, `
+		query MyQuery($droidId: ID!, $reviewId: ID!){
+			droid(id: $droidId){
+				name
+				aliased: name
+				friends {
+					name
+				}
+				primaryFunction
+			}
+			review(id: $reviewId){
+				stars
+			}
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($droidId: ID!, $reviewId: ReviewID!){droid(id: $droidId){name aliased: name friends {name} primaryFunction} review(id: $reviewId){stars}}","variables":{"reviewId":$$1$$,"droidId":$$0$$}}}`,
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path:     []string{"droidId"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+						},
+						&resolve.ContextVariable{
+							Path:     []string{"reviewId"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+						},
+						&resolve.HeaderVariable{
+							Path: []string{"Authorization"},
+						},
+					),
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("droid"),
+						Value: &resolve.Object{
+							Path:     []string{"droid"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("name"),
+									Value: &resolve.String{
+										Path: []string{"name"},
+									},
+								},
+								{
+									Name: []byte("aliased"),
+									Value: &resolve.String{
+										Path: []string{"aliased"},
+									},
+								},
+								{
+									Name: []byte("friends"),
+									Value: &resolve.Array{
+										Nullable: true,
+										Path:     []string{"friends"},
+										Item: &resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Path: []string{"name"},
+													},
+												},
+											},
+										},
+									},
+								},
+								{
+									Name: []byte("primaryFunction"),
+									Value: &resolve.String{
+										Path: []string{"primaryFunction"},
+									},
+								},
+							},
+						},
+					},
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("review"),
+						Value: &resolve.Object{
+							Path:     []string{"review"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("stars"),
+									Value: &resolve.Integer{
+										Path: []string{"stars"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"droid", "review", "hero", "stringList", "nestedStringList"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Character",
+						FieldNames: []string{"name", "friends"},
+					},
+					{
+						TypeName:   "Human",
+						FieldNames: []string{"name", "height", "friends"},
+					},
+					{
+						TypeName:   "Droid",
+						FieldNames: []string{"name", "primaryFunction", "friends"},
+					},
+					{
+						TypeName:   "Review",
+						FieldNames: []string{"id", "stars", "commentary"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+						Header: http.Header{
+							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
+							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
+						},
+					},
+					UpstreamSchema: starWarsSchemaWithRenamedArgument,
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "droid",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "review",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:         "id",
+						SourceType:   plan.FieldArgumentSource,
+						RenameTypeTo: "ReviewID",
+					},
+				},
+			},
+		},
+		DisableResolveFieldPositions: true,
+	}))
+	t.Run("custom scalar type fields", RunTest(customUserSchema, `
+		query Custom($id: ID!) {
+          custom_user(id: $id) {
+			id
+			name
+			tier
+			meta {
+              foo
+			}
+          }
+		}
+	`, "Custom", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"http://localhost:8084/query","body":{"query":"query($id: ID!){custom_user: user(id: $id){id name tier meta}}","variables":{"id":$$0$$}}}`,
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path:     []string{"id"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+						},
+					),
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("custom_user"),
+						Value: &resolve.Object{
+							Path:     []string{"custom_user"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("id"),
+									Value: &resolve.String{
+										Path: []string{"id"},
+									},
+								},
+								{
+									Name: []byte("name"),
+									Value: &resolve.String{
+										Path: []string{"name"},
+									},
+								},
+								{
+									Name: []byte("tier"),
+									Value: &resolve.String{
+										Nullable: true,
+										Path:     []string{"tier"},
+									},
+								},
+								{
+									Name: []byte("meta"),
+									Value: &resolve.Object{
+										Path: []string{"meta"},
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("foo"),
+												Value: &resolve.String{
+													Path: []string{"foo"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"custom_user"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "custom_User",
+						FieldNames: []string{"id", "name", "tier", "meta"},
+					},
+					{
+						TypeName:   "custom_Meta",
+						FieldNames: []string{"foo"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://localhost:8084/query",
+					},
+					UpstreamSchema: userSchema,
+					CustomScalarTypeFields: []SingleTypeField{
+						{
+							TypeName:  "custom_User",
+							FieldName: "meta",
+						},
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "custom_user",
+				Path:      []string{"user"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		DisableResolveFieldPositions: true,
+	}))
 }
 
 var errSubscriptionClientFail = errors.New("subscription client fail error")
@@ -5804,61 +6180,128 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 	return RunTest(testDefinition, operation, operationName, expectedPlan, config, extraChecks...)
 }
 
-func TestUnNullVariables(t *testing.T) {
+func TestSource_Load(t *testing.T) {
+	t.Run("unnull_variables", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, _ := ioutil.ReadAll(r.Body)
+			_, _ = fmt.Fprint(w, string(body))
+		}))
+		defer ts.Close()
 
-	t.Run("variables with whitespace", func(t *testing.T) {
+		var (
+			src       = &Source{httpClient: &http.Client{}}
+			serverUrl = ts.URL
+			variables = []byte(`{"a": null, "b": "b", "c": {}}`)
+		)
+
+		t.Run("should remove null variables when flag is set", func(t *testing.T) {
+			var input []byte
+			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
+			input = httpclient.SetInputURL(input, []byte(serverUrl))
+			input = httpclient.SetInputFlag(input, httpclient.UNNULLVARIABLES)
+			buf := bytes.NewBuffer(nil)
+
+			require.NoError(t, src.Load(context.Background(), input, buf))
+			assert.Equal(t, `{"variables":{"b":"b"}}`, buf.String())
+		})
+
+		t.Run("should only compact variables and remove empty objects when no flag set", func(t *testing.T) {
+			var input []byte
+			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
+			input = httpclient.SetInputURL(input, []byte(serverUrl))
+
+			buf := bytes.NewBuffer(nil)
+
+			require.NoError(t, src.Load(context.Background(), input, buf))
+			assert.Equal(t, `{"variables":{"a":null,"b":"b"}}`, buf.String())
+		})
+	})
+}
+
+func TestUnNullVariables(t *testing.T) {
+	t.Run("should not unnull variables if not enabled", func(t *testing.T) {
+		t.Run("two variables, one null", func(t *testing.T) {
+			s := &Source{}
+			out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}}}`))
+			expected := `{"body":{"variables":{"a":null,"b":true}}}`
+			assert.Equal(t, expected, string(out))
+		})
+	})
+
+	t.Run("variables with whitespace and empty objects", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"email":null,"firstName": "FirstTest",		"lastName":"LastTest","phone":123456,"preferences":{ "notifications":{}},"password":"password"}}}`))
-		expected := `{"body":{"variables":{"firstName":"FirstTest","lastName":"LastTest","phone":123456,"password":"password"}}}`
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"email":null,"firstName": "FirstTest",		"lastName":"LastTest","phone":123456,"preferences":{ "notifications":{}},"password":"password"}},"unnull_variables":true}`))
+		expected := `{"body":{"variables":{"firstName":"FirstTest","lastName":"LastTest","phone":123456,"password":"password"}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("empty variables", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{}}}`))
-		expected := `{"body":{"variables":{}}}`
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{}},"unnull_variables":true}`))
+		expected := `{"body":{"variables":{}},"unnull_variables":true}`
+		assert.Equal(t, expected, string(out))
+	})
+
+	t.Run("null inside an array", func(t *testing.T) {
+		s := &Source{}
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"list":["a",null,"b"]}},"unnull_variables":true}`))
+		expected := `{"body":{"variables":{"list":["a",null,"b"]}},"unnull_variables":true}`
+		assert.Equal(t, expected, string(out))
+	})
+
+	t.Run("complex null inside nested objects and arrays", func(t *testing.T) {
+		s := &Source{}
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null, "b": {"key":null, "nested": {"nestedkey": null}}, "arr": ["1", null, "3"], "d": {"nested_arr":["4",null,"6"]}}},"unnull_variables":true}`))
+		expected := `{"body":{"variables":{"b":{"key":null,"nested":{"nestedkey":null}},"arr":["1",null,"3"],"d":{"nested_arr":["4",null,"6"]}}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("two variables, one null", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}}}`))
-		expected := `{"body":{"variables":{"b":true}}}`
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}},"unnull_variables":true}`))
+		expected := `{"body":{"variables":{"b":true}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("two variables, one null reverse", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":true,"b":null}}}`))
-		expected := `{"body":{"variables":{"a":true}}}`
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":true,"b":null}},"unnull_variables":true}`))
+		expected := `{"body":{"variables":{"a":true}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("null variables", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":null}}`))
-		expected := `{"body":{"variables":null}}`
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":null},"unnull_variables":true}`))
+		expected := `{"body":{"variables":null},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("ignore null inside non variables", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"foo":null},"body":"query {foo(bar: null){baz}}"}}`))
-		expected := `{"body":{"variables":{},"body":"query {foo(bar: null){baz}}"}}`
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"foo":null},"body":"query {foo(bar: null){baz}}"},"unnull_variables":true}`))
+		expected := `{"body":{"variables":{},"body":"query {foo(bar: null){baz}}"},"unnull_variables":true}`
+		assert.Equal(t, expected, string(out))
+	})
+
+	t.Run("ignore null in variable name", func(t *testing.T) {
+		s := &Source{}
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"not_null":1,"null":2,"not_null2":3}},"unnull_variables":true}`))
+		expected := `{"body":{"variables":{"not_null":1,"null":2,"not_null2":3}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("variables missing", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}"}}`))
-		expected := `{"body":{"query":"{foo}"}}`
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}"},"unnull_variables":true}`))
+		expected := `{"body":{"query":"{foo}"},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("variables null", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}","variables":null}}`))
-		expected := `{"body":{"query":"{foo}","variables":null}}`
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}","variables":null},"unnull_variables":true}`))
+		expected := `{"body":{"query":"{foo}","variables":null},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 }
@@ -6118,6 +6561,8 @@ directive @format on FIELD
 directive @onOperation on QUERY
 directive @onVariable on VARIABLE_DEFINITION
 
+scalar JSON
+
 schema {
     query: Query
     mutation: Mutation
@@ -6127,6 +6572,84 @@ schema {
 type Query {
     hero: Character
     droid(id: ID!): Droid
+    review(id: ID!): Review
+    search(name: String!): SearchResult
+    searchWithInput(input: SearchInput!): SearchResult
+	stringList: [String]
+	nestedStringList: [String]
+}
+
+input SearchInput {
+	name: String
+	options: JSON
+}
+
+type Mutation {
+	createReview(episode: Episode!, review: ReviewInput!): Review
+}
+
+type Subscription {
+    remainingJedis: Int!
+}
+
+input ReviewInput {
+    stars: Int!
+    commentary: String
+}
+
+type Review {
+    id: ID!
+    stars: Int!
+    commentary: String
+}
+
+enum Episode {
+    NEWHOPE
+    EMPIRE
+    JEDI
+}
+
+interface Character {
+    name: String!
+    friends: [Character]
+}
+
+type Human implements Character {
+    name: String!
+    height: String!
+    friends: [Character]
+}
+
+type Droid implements Character {
+    name: String!
+    primaryFunction: String!
+    friends: [Character]
+}
+
+type Startship {
+    name: String!
+    length: Float!
+}`
+
+const starWarsSchemaWithRenamedArgument = `
+union SearchResult = Human | Droid | Starship
+
+directive @format on FIELD
+directive @onOperation on QUERY
+directive @onVariable on VARIABLE_DEFINITION
+
+schema {
+    query: Query
+    mutation: Mutation
+    subscription: Subscription
+}
+
+scalar ReviewID
+
+type Query {
+    hero: Character
+    droid(id: ID!): Droid
+    review(id: ReviewID!): Review
     search(name: String!): SearchResult
     searchWithInput(input: SearchInput!): SearchResult
 	stringList: [String]
@@ -6913,6 +7436,43 @@ type User {
 }
 `
 
+const federationTestSchemaWithRename = `
+scalar String
+scalar Int
+scalar ID
+scalar XBoolean
+
+schema {
+	query: Query
+}
+
+type Product {
+  upc: String!
+  name: String!
+  price: Int!
+  reviews: [Review]
+}
+
+type Query {
+  me: User
+  topProducts(first: Int = 5): [Product]
+}
+
+type Review {
+  body: String!
+  author: User!
+  product: Product!
+  notes: String
+  likes(filterToPublicOnly: XBoolean!): Int!
+}
+
+type User {
+  id: ID!
+  username: String!
+  reviews: [Review]
+}
+`
+
 const complexFederationSchema = `
 scalar String
 scalar Int
@@ -7462,4 +8022,50 @@ type Api {
 }
 
 union DeleteDeploymentResponse = Success | Error
+`
+
+const userSchema = `
+type Query {
+  user(id: ID!): User
+}
+
+type User {
+  id: ID!
+  name: String!
+  tier: Tier
+  meta: Map!
+}
+
+enum Tier {
+  A
+  B
+  C
+}
+
+scalar Map
+`
+
+const customUserSchema = `
+type Query {
+  custom_user(id: ID!): custom_User
+}
+
+type custom_User {
+  id: ID!
+  name: String!
+  tier: custom_Tier
+  meta: custom_Meta!
+}
+
+enum custom_Tier {
+  A
+  B
+  C
+}
+
+type custom_Meta {
+  foo: String!
+}
+
+scalar custom_Map
 `

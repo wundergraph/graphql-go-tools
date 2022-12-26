@@ -16,6 +16,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
+	"github.com/wundergraph/graphql-go-tools/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
@@ -23,6 +24,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
+
+const removeNullVariablesDirectiveName = "removeNullVariables"
 
 type Planner struct {
 	visitor                    *plan.Visitor
@@ -51,6 +54,10 @@ type Planner struct {
 	upstreamDefinition                 *ast.Document
 	currentVariableDefinition          int
 	addDirectivesToVariableDefinitions map[int][]int
+
+	insideCustomScalarField bool
+	customScalarFieldRef    int
+	unnulVariables          bool
 }
 
 func (p *Planner) EnterVariableDefinition(ref int) {
@@ -198,10 +205,16 @@ func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 }
 
 type Configuration struct {
-	Fetch          FetchConfiguration
-	Subscription   SubscriptionConfiguration
-	Federation     FederationConfiguration
-	UpstreamSchema string
+	Fetch                  FetchConfiguration
+	Subscription           SubscriptionConfiguration
+	Federation             FederationConfiguration
+	UpstreamSchema         string
+	CustomScalarTypeFields []SingleTypeField
+}
+
+type SingleTypeField struct {
+	TypeName  string
+	FieldName string
 }
 
 func ConfigJson(config Configuration) json.RawMessage {
@@ -215,8 +228,9 @@ type FederationConfiguration struct {
 }
 
 type SubscriptionConfiguration struct {
-	URL    string
-	UseSSE bool
+	URL           string
+	UseSSE        bool
+	SSEMethodPost bool
 }
 
 type FetchConfiguration struct {
@@ -259,6 +273,10 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	input = httpclient.SetInputBodyWithPath(input, p.upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
 
+	if p.unnulVariables {
+		input = httpclient.SetInputFlag(input, httpclient.UNNULLVARIABLES)
+	}
+
 	header, err := json.Marshal(p.config.Fetch.Header)
 	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
 		input = httpclient.SetInputHeader(input, header)
@@ -298,6 +316,9 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 	input = httpclient.SetInputURL(input, []byte(p.config.Subscription.URL))
 	if p.config.Subscription.UseSSE {
 		input = httpclient.SetInputFlag(input, httpclient.USESSE)
+		if p.config.Subscription.SSEMethodPost {
+			input = httpclient.SetInputFlag(input, httpclient.SSEMETHODPOST)
+		}
 	}
 
 	header, err := json.Marshal(p.config.Fetch.Header)
@@ -315,6 +336,12 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 }
 
 func (p *Planner) EnterOperationDefinition(ref int) {
+	if p.visitor.Operation.OperationDefinitions[ref].HasDirectives &&
+		p.visitor.Operation.OperationDefinitions[ref].Directives.HasDirectiveByName(p.visitor.Operation, removeNullVariablesDirectiveName) {
+		p.unnulVariables = true
+		p.visitor.Operation.OperationDefinitions[ref].Directives.RemoveDirectiveByName(p.visitor.Operation, removeNullVariablesDirectiveName)
+	}
+
 	operationType := p.visitor.Operation.OperationDefinitions[ref].OperationType
 	if p.isNested {
 		operationType = ast.OperationTypeQuery
@@ -331,6 +358,10 @@ func (p *Planner) LeaveOperationDefinition(ref int) {
 }
 
 func (p *Planner) EnterSelectionSet(ref int) {
+	if p.insideCustomScalarField {
+		return
+	}
+
 	parent := p.nodes[len(p.nodes)-1]
 	set := p.upstreamOperation.AddSelectionSet()
 	switch parent.Kind {
@@ -360,11 +391,19 @@ func (p *Planner) EnterSelectionSet(ref int) {
 	}
 }
 
-func (p *Planner) LeaveSelectionSet(ref int) {
+func (p *Planner) LeaveSelectionSet(_ int) {
+	if p.insideCustomScalarField {
+		return
+	}
+
 	p.nodes = p.nodes[:len(p.nodes)-1]
 }
 
 func (p *Planner) EnterInlineFragment(ref int) {
+	if p.insideCustomScalarField {
+		return
+	}
+
 	typeCondition := p.visitor.Operation.InlineFragmentTypeConditionName(ref)
 	if typeCondition == nil && !p.visitor.Operation.InlineFragments[ref].HasDirectives {
 		return
@@ -403,6 +442,10 @@ func (p *Planner) EnterInlineFragment(ref int) {
 }
 
 func (p *Planner) LeaveInlineFragment(_ int) {
+	if p.insideCustomScalarField {
+		return
+	}
+
 	if p.nodes[len(p.nodes)-1].Kind != ast.NodeKindInlineFragment {
 		return
 	}
@@ -410,8 +453,21 @@ func (p *Planner) LeaveInlineFragment(_ int) {
 }
 
 func (p *Planner) EnterField(ref int) {
+	if p.insideCustomScalarField {
+		return
+	}
 
 	fieldName := p.visitor.Operation.FieldNameString(ref)
+	enclosingTypeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+
+	for i := range p.config.CustomScalarTypeFields {
+		if p.config.CustomScalarTypeFields[i].TypeName == enclosingTypeName && p.config.CustomScalarTypeFields[i].FieldName == fieldName {
+			p.insideCustomScalarField = true
+			p.customScalarFieldRef = ref
+			p.addCustomField(ref)
+			return
+		}
+	}
 
 	// store root field name and ref
 	if p.rootFieldName == "" {
@@ -451,12 +507,35 @@ func (p *Planner) EnterField(ref int) {
 	}
 }
 
+func (p *Planner) addCustomField(ref int) {
+	fieldName := p.visitor.Operation.FieldNameString(ref)
+	field := p.upstreamOperation.AddField(ast.Field{
+		Name: p.upstreamOperation.Input.AppendInputString(fieldName),
+	})
+	selection := ast.Selection{
+		Kind: ast.SelectionKindField,
+		Ref:  field.Ref,
+	}
+	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, selection)
+}
+
 func (p *Planner) LeaveField(ref int) {
+	if p.insideCustomScalarField {
+		if p.customScalarFieldRef == ref {
+			p.insideCustomScalarField = false
+			p.customScalarFieldRef = 0
+		}
+		return
+	}
+
 	// fmt.Printf("Planner::%s::%s::LeaveField::%s::%d\n", p.id, p.visitor.Walker.Path.DotDelimitedString(), p.visitor.Operation.FieldNameUnsafeString(ref), ref)
 	p.nodes = p.nodes[:len(p.nodes)-1]
 }
 
-func (p *Planner) EnterArgument(ref int) {
+func (p *Planner) EnterArgument(_ int) {
+	if p.insideCustomScalarField {
+		return
+	}
 }
 
 func (p *Planner) EnterDocument(operation, definition *ast.Document) {
@@ -705,7 +784,7 @@ func (p *Planner) configureArgument(upstreamFieldRef, downstreamFieldRef int, fi
 
 	switch argumentConfiguration.SourceType {
 	case plan.FieldArgumentSource:
-		p.configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef, argumentConfiguration.Name, argumentConfiguration.SourcePath)
+		p.configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef, argumentConfiguration)
 	case plan.ObjectFieldSource:
 		p.configureObjectFieldSource(upstreamFieldRef, downstreamFieldRef, fieldConfig, argumentConfiguration)
 	}
@@ -714,21 +793,21 @@ func (p *Planner) configureArgument(upstreamFieldRef, downstreamFieldRef int, fi
 }
 
 // configureFieldArgumentSource - creates variables for a plain argument types, in case object or list types goes deep and calls applyInlineFieldArgument
-func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef int, argumentName string, sourcePath []string) {
-	fieldArgument, ok := p.visitor.Operation.FieldArgument(downstreamFieldRef, []byte(argumentName))
+func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamFieldRef int, argumentConfiguration plan.ArgumentConfiguration) {
+	fieldArgument, ok := p.visitor.Operation.FieldArgument(downstreamFieldRef, []byte(argumentConfiguration.Name))
 	if !ok {
 		return
 	}
 	value := p.visitor.Operation.ArgumentValue(fieldArgument)
 	if value.Kind != ast.ValueKindVariable {
-		p.applyInlineFieldArgument(upstreamFieldRef, downstreamFieldRef, argumentName, sourcePath)
+		p.applyInlineFieldArgument(upstreamFieldRef, downstreamFieldRef, argumentConfiguration.Name, argumentConfiguration.SourcePath)
 		return
 	}
 	variableName := p.visitor.Operation.VariableValueNameBytes(value.Ref)
 	variableNameStr := p.visitor.Operation.VariableValueNameString(value.Ref)
 
 	fieldName := p.visitor.Operation.FieldNameBytes(downstreamFieldRef)
-	argumentDefinition := p.visitor.Definition.NodeFieldDefinitionArgumentDefinitionByName(p.visitor.Walker.EnclosingTypeDefinition, fieldName, []byte(argumentName))
+	argumentDefinition := p.visitor.Definition.NodeFieldDefinitionArgumentDefinitionByName(p.visitor.Walker.EnclosingTypeDefinition, fieldName, []byte(argumentConfiguration.Name))
 
 	if argumentDefinition == -1 {
 		return
@@ -746,7 +825,7 @@ func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamField
 	}
 
 	contextVariableName, exists := p.variables.AddVariable(contextVariable)
-	variableValueRef, argRef := p.upstreamOperation.AddVariableValueArgument([]byte(argumentName), variableName) // add the argument to the field, but don't redefine it
+	variableValueRef, argRef := p.upstreamOperation.AddVariableValueArgument([]byte(argumentConfiguration.Name), variableName) // add the argument to the field, but don't redefine it
 	p.upstreamOperation.AddArgumentToField(upstreamFieldRef, argRef)
 
 	if exists { // if the variable exists we don't have to put it onto the variables declaration again, skip
@@ -760,6 +839,9 @@ func (p *Planner) configureFieldArgumentSource(upstreamFieldRef, downstreamField
 		}
 		typeName := p.visitor.Operation.ResolveTypeNameString(p.visitor.Operation.VariableDefinitions[i].Type)
 		typeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(typeName)
+		if argumentConfiguration.RenameTypeTo != "" {
+			typeName = argumentConfiguration.RenameTypeTo
+		}
 		importedType := p.visitor.Importer.ImportTypeWithRename(p.visitor.Operation.VariableDefinitions[i].Type, p.visitor.Operation, p.upstreamOperation, typeName)
 		p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValueRef, importedType)
 
@@ -889,6 +971,9 @@ func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRe
 
 	typeName := p.visitor.Operation.ResolveTypeNameString(argumentType)
 	typeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(typeName)
+	if argumentConfiguration.RenameTypeTo != "" {
+		typeName = argumentConfiguration.RenameTypeTo
+	}
 
 	importedType := p.visitor.Importer.ImportTypeWithRename(argumentType, p.visitor.Definition, p.upstreamOperation, typeName)
 	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
@@ -925,21 +1010,6 @@ func (p *Planner) printOperation() []byte {
 
 	rawQuery := buf.Bytes()
 
-	baseSchema, err := astprinter.PrintString(p.visitor.Definition, nil)
-	if err != nil {
-		return nil
-	}
-
-	if p.config.UpstreamSchema != "" {
-		baseSchema = p.config.UpstreamSchema
-	}
-
-	federationSchema, err := federation.BuildFederationSchema(baseSchema, p.config.Federation.ServiceSDL)
-	if err != nil {
-		p.visitor.Walker.StopWithInternalErr(err)
-		return nil
-	}
-
 	// create empty operation and definition documents
 	operation := ast.NewDocument()
 	definition := ast.NewDocument()
@@ -954,31 +1024,38 @@ func (p *Planner) printOperation() []byte {
 		return nil
 	}
 
-	// creates a copy of operation and schema to be able to safely modify them
-	// if an upstream schema was supplied, we use it to validate and normalize against
-	// otherwise, normalization would fail because the downstream schema doesn't contain the upstream fields
-	if !p.config.Federation.Enabled && p.config.UpstreamSchema != "" {
-		definition.Input.ResetInputString(p.config.UpstreamSchema)
-		definitionParser.Parse(definition, report)
-		if report.HasErrors() {
-			p.stopWithError("unable to parse upstream schema")
+	if p.config.UpstreamSchema == "" {
+		p.config.UpstreamSchema, err = astprinter.PrintString(p.visitor.Definition, nil)
+		if err != nil {
+			p.visitor.Walker.StopWithInternalErr(err)
 			return nil
 		}
-		if err := asttransform.MergeDefinitionWithBaseSchema(definition); err != nil {
-			p.stopWithError("unable to merge upstream schema with base schema")
+	}
+
+	if p.config.Federation.Enabled {
+		federationSchema, err := federation.BuildFederationSchema(p.config.UpstreamSchema, p.config.Federation.ServiceSDL)
+		if err != nil {
+			p.visitor.Walker.StopWithInternalErr(err)
 			return nil
 		}
-	} else {
 		definition.Input.ResetInputString(federationSchema)
 		definitionParser.Parse(definition, report)
 		if report.HasErrors() {
 			p.stopWithError(parseDocumentFailedErrMsg, "definition")
 			return nil
 		}
-		if err := asttransform.MergeDefinitionWithBaseSchema(definition); err != nil {
-			p.stopWithError("unable to merge upstream schema with base schema")
+	} else {
+		definition.Input.ResetInputString(p.config.UpstreamSchema)
+		definitionParser.Parse(definition, report)
+		if report.HasErrors() {
+			p.stopWithError("unable to parse upstream schema")
 			return nil
 		}
+	}
+
+	if err := asttransform.MergeDefinitionWithBaseSchema(definition); err != nil {
+		p.stopWithError("unable to merge upstream schema with base schema")
+		return nil
 	}
 
 	// When datasource is nested and definition query type do not contain operation field
@@ -988,6 +1065,13 @@ func (p *Planner) printOperation() []byte {
 	// normalize upstream operation
 	if !p.normalizeOperation(operation, definition, report) {
 		p.stopWithError(normalizationFailedErrMsg)
+		return nil
+	}
+
+	validator := astvalidation.DefaultOperationValidator()
+	validator.Validate(operation, definition, report)
+	if report.HasErrors() {
+		p.stopWithError("validation failed: %s", report.Error())
 		return nil
 	}
 
@@ -1208,48 +1292,60 @@ func (s *Source) compactAndUnNullVariables(input []byte) []byte {
 		_ = json.Compact(buf, variables)
 		variables = buf.Bytes()
 	}
-	cp := make([]byte, len(variables))
-	copy(cp, variables)
-	variables = cp
-	var changed bool
-	for {
-		variables, changed = s.unNullVariables(variables)
-		if !changed {
-			break
-		}
-	}
+
+	removeNullVariables := httpclient.IsInputFlagSet(input, httpclient.UNNULLVARIABLES)
+	variables = s.cleanupVariables(variables, removeNullVariables)
+
 	input, _ = jsonparser.Set(input, variables, "body", "variables")
 	return input
 }
 
-func (s *Source) unNullVariables(input []byte) ([]byte, bool) {
-	if i := bytes.Index(input, []byte(":{}")); i != -1 {
+func (s *Source) cleanupVariables(variables []byte, removeNullVariables bool) []byte {
+	cp := make([]byte, len(variables))
+	copy(cp, variables)
+
+	if removeNullVariables {
+		err := jsonparser.ObjectEach(variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+			if dataType == jsonparser.Null {
+				cp = jsonparser.Delete(cp, string(key))
+			}
+			return nil
+		})
+		if err != nil {
+			return variables
+		}
+	}
+
+	return s.removeEmptyObjects(cp)
+}
+
+func (s *Source) removeEmptyObjects(variables []byte) []byte {
+	var changed bool
+	for {
+		variables, changed = s.replaceEmptyObject(variables)
+		if !changed {
+			break
+		}
+	}
+	return variables
+}
+
+func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
+	if i := bytes.Index(variables, []byte(":{}")); i != -1 {
 		end := i + 3
 		hasTrainlingComma := false
-		if input[end] == ',' {
+		if variables[end] == ',' {
 			end++
 			hasTrainlingComma = true
 		}
-		startQuote := bytes.LastIndex(input[:i-2], []byte("\""))
-		if !hasTrainlingComma && input[startQuote-1] == ',' {
+		startQuote := bytes.LastIndex(variables[:i-2], []byte("\""))
+		if !hasTrainlingComma && variables[startQuote-1] == ',' {
 			startQuote--
 		}
-		return append(input[:startQuote], input[end:]...), true
+		return append(variables[:startQuote], variables[end:]...), true
 	}
-	if i := bytes.Index(input, []byte("null")); i != -1 {
-		end := i + 4
-		hasTrailingComma := false
-		if input[end] == ',' {
-			end++
-			hasTrailingComma = true
-		}
-		startQuote := bytes.LastIndex(input[:i-2], []byte("\""))
-		if !hasTrailingComma && input[startQuote-1] == ',' {
-			startQuote--
-		}
-		return append(input[:startQuote], input[end:]...), true
-	}
-	return input, false
+
+	return variables, false
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err error) {
@@ -1262,10 +1358,11 @@ type GraphQLSubscriptionClient interface {
 }
 
 type GraphQLSubscriptionOptions struct {
-	URL    string      `json:"url"`
-	Body   GraphQLBody `json:"body"`
-	Header http.Header `json:"header"`
-	UseSSE bool        `json:"use_sse"`
+	URL           string      `json:"url"`
+	Body          GraphQLBody `json:"body"`
+	Header        http.Header `json:"header"`
+	UseSSE        bool        `json:"use_sse"`
+	SSEMethodPost bool        `json:"sse_method_post"`
 }
 
 type GraphQLBody struct {

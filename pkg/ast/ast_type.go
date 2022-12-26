@@ -21,9 +21,10 @@ const (
 type Type struct {
 	TypeKind TypeKind           // one of Named,List,NonNull
 	Name     ByteSliceReference // e.g. String (only on NamedType)
-	Open     position.Position  // [ (only on ListType)
-	Close    position.Position  // ] (only on ListType)
-	Bang     position.Position  // ! (only on NonNullType)
+	Position position.Position
+	Open     position.Position // [ (only on ListType)
+	Close    position.Position // ] (only on ListType)
+	Bang     position.Position // ! (only on NonNullType)
 	OfType   int
 }
 
@@ -76,17 +77,18 @@ func (d *Document) AddType(t Type) (ref int) {
 	return len(d.Types) - 1
 }
 
-func (d *Document) AddNamedTypeByNameRef(nameRef ByteSliceReference) (ref int) {
+func (d *Document) AddNamedTypeWithPosition(nameRef ByteSliceReference, position position.Position) (ref int) {
 	return d.AddType(Type{
 		TypeKind: TypeKindNamed,
 		Name:     nameRef,
 		OfType:   -1,
+		Position: position,
 	})
 }
 
 func (d *Document) AddNamedType(name []byte) (ref int) {
 	nameRef := d.Input.AppendInputBytes(name)
-	return d.AddNamedTypeByNameRef(nameRef)
+	return d.AddNamedTypeWithPosition(nameRef, position.Position{})
 }
 
 func (d *Document) AddListType(ofType int) (ref int) {
@@ -99,18 +101,20 @@ func (d *Document) AddListTypeWithPosition(ofType int, open position.Position, c
 		Open:     open,
 		Close:    close,
 		OfType:   ofType,
+		Position: open,
 	})
 }
 
 func (d *Document) AddNonNullType(ofType int) (ref int) {
-	return d.AddNonNullTypeWithPosition(ofType, position.Position{})
+	return d.AddNonNullTypeWithBangPosition(ofType, position.Position{})
 }
 
-func (d *Document) AddNonNullTypeWithPosition(ofType int, bang position.Position) (ref int) {
+func (d *Document) AddNonNullTypeWithBangPosition(ofType int, bang position.Position) (ref int) {
 	return d.AddType(Type{
 		TypeKind: TypeKindNonNull,
 		Bang:     bang,
 		OfType:   ofType,
+		Position: d.Types[ofType].Position,
 	})
 }
 
@@ -216,8 +220,7 @@ func (d *Document) TypesAreCompatibleDeep(left int, right int) bool {
 
 func (d *Document) ResolveTypeNameBytes(ref int) ByteSlice {
 	resolvedTypeRef := d.ResolveUnderlyingType(ref)
-	graphqlType := d.Types[resolvedTypeRef]
-	return d.Input.ByteSlice(graphqlType.Name)
+	return d.TypeNameBytes(resolvedTypeRef)
 }
 
 func (d *Document) ResolveTypeNameString(ref int) string {

@@ -10,6 +10,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/quotes"
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
+	"github.com/wundergraph/graphql-go-tools/pkg/lexer/position"
 )
 
 type ValueKind int
@@ -28,8 +29,9 @@ const (
 )
 
 type Value struct {
-	Kind ValueKind // e.g. 100 or "Bar"
-	Ref  int
+	Kind     ValueKind // e.g. 100 or "Bar"
+	Ref      int
+	Position position.Position
 }
 
 func (d *Document) CopyValue(ref int) int {

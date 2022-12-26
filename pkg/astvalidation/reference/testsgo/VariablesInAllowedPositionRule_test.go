@@ -5,7 +5,6 @@ import (
 )
 
 func TestVariablesInAllowedPositionRule(t *testing.T) {
-	t.Skip()
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
 		return ExpectValidationErrors(t, VariablesInAllowedPositionRule, queryStr)
@@ -139,7 +138,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
       query Query($boolVar: Boolean = false)
       {
         complicatedArgs {
-          complexArgField(complexArg: {requiredArg: $boolVar})
+          complexArgField(complexArg: {requiredField: $boolVar}) # requiredArg is not exists in complex input
         }
       }
     `)
@@ -195,8 +194,6 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
 		})
 
 		t.Run("Int => Int! within nested fragment", func(t *testing.T) {
-			t.Skip("Panic: possibly unsupported case")
-
 			ExpectErrors(t, `
       fragment outerFrag on ComplicatedArgs {
         ...nonNullIntArgFieldFrag

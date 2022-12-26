@@ -5,7 +5,6 @@ import (
 )
 
 func TestVariablesAreInputTypesRule(t *testing.T) {
-	t.Skip()
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
 		return ExpectValidationErrors(t, VariablesAreInputTypesRule, queryStr)
