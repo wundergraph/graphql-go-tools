@@ -1248,7 +1248,121 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 		DisableResolveFieldPositions: true,
 	}))
-	t.Run("exported field", RunTest(starWarsSchemaWithExportDirective, `
+	t.Run("exported field", func(t *testing.T) {
+		t.Run("ID scalar field", RunTest(starWarsSchemaWithExportDirective, `
+			query MyQuery($heroId: ID!){
+				droid(id: $heroId){
+					name
+				}
+				hero {
+					id @export(as: "heroId")
+				}
+			}
+			`, "MyQuery",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.SingleFetch{
+							DataSource: &Source{},
+							BufferId:   0,
+							Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($heroId: ID!){droid(id: $heroId){name} hero {id}}","variables":{"heroId":$$0$$}}}`,
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"heroId"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+								},
+							),
+							DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+							ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+							DisableDataLoader:     true,
+						},
+						Fields: []*resolve.Field{
+							{
+								HasBuffer: true,
+								BufferID:  0,
+								Name:      []byte("droid"),
+								Value: &resolve.Object{
+									Path:     []string{"droid"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path: []string{"name"},
+											},
+										},
+									},
+								},
+							},
+							{
+								HasBuffer: true,
+								BufferID:  0,
+								Name:      []byte("hero"),
+								Value: &resolve.Object{
+									Path:     []string{"hero"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("id"),
+											Value: &resolve.String{
+												Path: []string{"id"},
+												Export: &resolve.FieldExport{
+													Path:     []string{"heroId"},
+													AsString: true,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			plan.Configuration{
+				DataSources: []plan.DataSourceConfiguration{
+					{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"droid", "hero"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"id"},
+							},
+							{
+								TypeName:   "Droid",
+								FieldNames: []string{"name"},
+							},
+						},
+						Factory: &Factory{},
+						Custom: ConfigJson(Configuration{
+							Fetch: FetchConfiguration{
+								URL: "https://swapi.com/graphql",
+							},
+							UpstreamSchema: starWarsSchema,
+						}),
+					},
+				},
+				Fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Query",
+						FieldName: "droid",
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:       "id",
+								SourceType: plan.FieldArgumentSource,
+							},
+						},
+					},
+				},
+				DisableResolveFieldPositions: true,
+			}))
+
+		t.Run("string field", RunTest(starWarsSchemaWithExportDirective, `
 		query MyQuery($id: ID! $heroName: String!){
 			droid(id: $id){
 				name
@@ -1270,212 +1384,213 @@ func TestGraphQLDataSource(t *testing.T) {
 			nestedStringList
 		}
 	`, "MyQuery", &plan.SynchronousResponsePlan{
-		Response: &resolve.GraphQLResponse{
-			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $heroName: String!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} search(name: $heroName){__typename ... on Droid {primaryFunction}} stringList nestedStringList}","variables":{"heroName":$$1$$,"id":$$0$$}}}`,
-					Variables: resolve.NewVariables(
-						&resolve.ContextVariable{
-							Path:     []string{"id"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-						},
-						&resolve.ContextVariable{
-							Path:     []string{"heroName"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-						},
-						&resolve.HeaderVariable{
-							Path: []string{"Authorization"},
-						},
-					),
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
-				},
-				Fields: []*resolve.Field{
-					{
-						HasBuffer: true,
-						BufferID:  0,
-						Name:      []byte("droid"),
-						Value: &resolve.Object{
-							Path:     []string{"droid"},
-							Nullable: true,
-							Fields: []*resolve.Field{
-								{
-									Name: []byte("name"),
-									Value: &resolve.String{
-										Path: []string{"name"},
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						DataSource: &Source{},
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $heroName: String!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} search(name: $heroName){__typename ... on Droid {primaryFunction}} stringList nestedStringList}","variables":{"heroName":$$1$$,"id":$$0$$}}}`,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"id"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+							},
+							&resolve.ContextVariable{
+								Path:     []string{"heroName"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+							},
+							&resolve.HeaderVariable{
+								Path: []string{"Authorization"},
+							},
+						),
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("droid"),
+							Value: &resolve.Object{
+								Path:     []string{"droid"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path: []string{"name"},
+										},
 									},
-								},
-								{
-									Name: []byte("aliased"),
-									Value: &resolve.String{
-										Path: []string{"aliased"},
+									{
+										Name: []byte("aliased"),
+										Value: &resolve.String{
+											Path: []string{"aliased"},
+										},
 									},
-								},
-								{
-									Name: []byte("friends"),
-									Value: &resolve.Array{
-										Nullable: true,
-										Path:     []string{"friends"},
-										Item: &resolve.Object{
+									{
+										Name: []byte("friends"),
+										Value: &resolve.Array{
 											Nullable: true,
-											Fields: []*resolve.Field{
-												{
-													Name: []byte("name"),
-													Value: &resolve.String{
-														Path: []string{"name"},
+											Path:     []string{"friends"},
+											Item: &resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("name"),
+														Value: &resolve.String{
+															Path: []string{"name"},
+														},
 													},
 												},
 											},
 										},
 									},
-								},
-								{
-									Name: []byte("primaryFunction"),
-									Value: &resolve.String{
-										Path: []string{"primaryFunction"},
-									},
-								},
-							},
-						},
-					},
-					{
-						HasBuffer: true,
-						BufferID:  0,
-						Name:      []byte("hero"),
-						Value: &resolve.Object{
-							Path:     []string{"hero"},
-							Nullable: true,
-							Fields: []*resolve.Field{
-								{
-									Name: []byte("name"),
-									Value: &resolve.String{
-										Path: []string{"name"},
-										Export: &resolve.FieldExport{
-											Path:     []string{"heroName"},
-											AsString: true,
+									{
+										Name: []byte("primaryFunction"),
+										Value: &resolve.String{
+											Path: []string{"primaryFunction"},
 										},
 									},
 								},
 							},
 						},
-					},
-					{
-						HasBuffer: true,
-						BufferID:  0,
-						Name:      []byte("search"),
-						Value: &resolve.Object{
-							Nullable: true,
-							Path:     []string{"search"},
-							Fields: []*resolve.Field{
-								{
-									Name: []byte("primaryFunction"),
-									Value: &resolve.String{
-										Path: []string{"primaryFunction"},
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("hero"),
+							Value: &resolve.Object{
+								Path:     []string{"hero"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path: []string{"name"},
+											Export: &resolve.FieldExport{
+												Path:     []string{"heroName"},
+												AsString: true,
+											},
+										},
 									},
-									OnTypeName: []byte("Droid"),
+								},
+							},
+						},
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("search"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Path:     []string{"search"},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("primaryFunction"),
+										Value: &resolve.String{
+											Path: []string{"primaryFunction"},
+										},
+										OnTypeName: []byte("Droid"),
+									},
+								},
+							},
+						},
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("stringList"),
+							Value: &resolve.Array{
+								Nullable: true,
+								Item: &resolve.String{
+									Nullable: true,
+								},
+							},
+						},
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("nestedStringList"),
+							Value: &resolve.Array{
+								Nullable: true,
+								Path:     []string{"nestedStringList"},
+								Item: &resolve.String{
+									Nullable: true,
 								},
 							},
 						},
 					},
-					{
-						HasBuffer: true,
-						BufferID:  0,
-						Name:      []byte("stringList"),
-						Value: &resolve.Array{
-							Nullable: true,
-							Item: &resolve.String{
-								Nullable: true,
+				},
+			},
+		}, plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"droid", "hero", "stringList", "nestedStringList", "search"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Character",
+							FieldNames: []string{"name", "friends"},
+						},
+						{
+							TypeName:   "Human",
+							FieldNames: []string{"name", "height", "friends"},
+						},
+						{
+							TypeName:   "Droid",
+							FieldNames: []string{"name", "primaryFunction", "friends"},
+						},
+					},
+					Factory: &Factory{},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+							Header: http.Header{
+								"Authorization":    []string{"{{ .request.headers.Authorization }}"},
+								"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
 							},
 						},
+						UpstreamSchema: starWarsSchema,
+					}),
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "droid",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "id",
+							SourceType: plan.FieldArgumentSource,
+						},
 					},
-					{
-						HasBuffer: true,
-						BufferID:  0,
-						Name:      []byte("nestedStringList"),
-						Value: &resolve.Array{
-							Nullable: true,
-							Path:     []string{"nestedStringList"},
-							Item: &resolve.String{
-								Nullable: true,
-							},
+				},
+				{
+					TypeName:              "Query",
+					FieldName:             "stringList",
+					DisableDefaultMapping: true,
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "nestedStringList",
+					Path:      []string{"nestedStringList"},
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "search",
+					Path:      []string{"search"},
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "name",
+							SourceType: plan.FieldArgumentSource,
 						},
 					},
 				},
 			},
-		},
-	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"droid", "hero", "stringList", "nestedStringList", "search"},
-					},
-				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Character",
-						FieldNames: []string{"name", "friends"},
-					},
-					{
-						TypeName:   "Human",
-						FieldNames: []string{"name", "height", "friends"},
-					},
-					{
-						TypeName:   "Droid",
-						FieldNames: []string{"name", "primaryFunction", "friends"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://swapi.com/graphql",
-						Header: http.Header{
-							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
-							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
-						},
-					},
-					UpstreamSchema: starWarsSchema,
-				}),
-			},
-		},
-		Fields: []plan.FieldConfiguration{
-			{
-				TypeName:  "Query",
-				FieldName: "droid",
-				Arguments: []plan.ArgumentConfiguration{
-					{
-						Name:       "id",
-						SourceType: plan.FieldArgumentSource,
-					},
-				},
-			},
-			{
-				TypeName:              "Query",
-				FieldName:             "stringList",
-				DisableDefaultMapping: true,
-			},
-			{
-				TypeName:  "Query",
-				FieldName: "nestedStringList",
-				Path:      []string{"nestedStringList"},
-			},
-			{
-				TypeName:  "Query",
-				FieldName: "search",
-				Path:      []string{"search"},
-				Arguments: []plan.ArgumentConfiguration{
-					{
-						Name:       "name",
-						SourceType: plan.FieldArgumentSource,
-					},
-				},
-			},
-		},
-		DisableResolveFieldPositions: true,
-	}))
+			DisableResolveFieldPositions: true,
+		}))
+	})
 	t.Run("Query with renamed root fields", RunTest(renamedStarWarsSchema, `
 		query MyQuery($id: ID! $input: SearchInput_api! @api_onVariable $options: JSON_api) @otherapi_undefined @api_onOperation {
 			api_droid(id: $id){
@@ -6610,17 +6725,20 @@ enum Episode {
 }
 
 interface Character {
+    id: ID!
     name: String!
     friends: [Character]
 }
 
 type Human implements Character {
+    id: ID!
     name: String!
     height: String!
     friends: [Character]
 }
 
 type Droid implements Character {
+    id: ID!
     name: String!
     primaryFunction: String!
     friends: [Character]
@@ -6763,17 +6881,20 @@ enum Episode {
 }
 
 interface Character {
+ 	id: ID!
     name: String!
     friends: [Character]
 }
 
 type Human implements Character {
+ 	id: ID!
     name: String!
     height: String!
     friends: [Character]
 }
 
 type Droid implements Character {
+ 	id: ID!
     name: String!
     primaryFunction: String!
     friends: [Character]
