@@ -803,14 +803,14 @@ func (v *Visitor) resolveFieldExport(fieldRef int) *resolve.FieldExport {
 
 	typeName := v.Operation.ResolveTypeNameString(v.Operation.VariableDefinitions[variableDefinition].Type)
 	switch typeName {
-	case "String", "ID":
+	case "Int", "Float", "Boolean":
 		return &resolve.FieldExport{
-			Path:     []string{exportAs},
-			AsString: true,
+			Path: []string{exportAs},
 		}
 	default:
 		return &resolve.FieldExport{
-			Path: []string{exportAs},
+			Path:     []string{exportAs},
+			AsString: true,
 		}
 	}
 }
