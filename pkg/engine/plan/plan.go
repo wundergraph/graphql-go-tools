@@ -800,15 +800,18 @@ func (v *Visitor) resolveFieldExport(fieldRef int) *resolve.FieldExport {
 		return nil
 	}
 	v.exportedVariables[exportAs] = struct{}{}
+
 	typeName := v.Operation.ResolveTypeNameString(v.Operation.VariableDefinitions[variableDefinition].Type)
-	if typeName == "String" {
+	switch typeName {
+	case "Int", "Float", "Boolean":
+		return &resolve.FieldExport{
+			Path: []string{exportAs},
+		}
+	default:
 		return &resolve.FieldExport{
 			Path:     []string{exportAs},
 			AsString: true,
 		}
-	}
-	return &resolve.FieldExport{
-		Path: []string{exportAs},
 	}
 }
 
@@ -1049,9 +1052,9 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 
 			var variablePath []string
 			if len(parts) > 2 && node.Kind == ast.NodeKindInputObjectTypeDefinition {
-					variablePath = append(variablePath, path...)
+				variablePath = append(variablePath, path...)
 			} else {
-					variablePath = append(variablePath, variableValue)
+				variablePath = append(variablePath, variableValue)
 			}
 
 			variable := &resolve.ContextVariable{
