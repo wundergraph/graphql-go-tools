@@ -353,7 +353,7 @@ func (p *Planner) EnterOperationDefinition(ref int) {
 	p.nodes = append(p.nodes, definition)
 }
 
-func (p *Planner) LeaveOperationDefinition(ref int) {
+func (p *Planner) LeaveOperationDefinition(_ int) {
 	p.nodes = p.nodes[:len(p.nodes)-1]
 }
 
@@ -376,19 +376,34 @@ func (p *Planner) EnterSelectionSet(ref int) {
 		p.upstreamOperation.InlineFragments[parent.Ref].SelectionSet = set.Ref
 	}
 	p.nodes = append(p.nodes, set)
+	// Abstract meaning interface or union
+	if p.visitor.Walker.EnclosingTypeDefinition.Kind.IsAbstractType() {
+		// Always include __typename in abstract type selection sets. This is
+		// done because child fields may be federated and __typename will be
+		// needed for representations. While it would be possible to determine
+		// exactly when __typename is needed, there's no harm in just always
+		// including it.
+		p.addTypenameToSelectionSet(set.Ref)
+		return
+	}
+
 	for _, selectionRef := range p.visitor.Operation.SelectionSets[ref].SelectionRefs {
 		if p.visitor.Operation.Selections[selectionRef].Kind == ast.SelectionKindField {
 			if p.visitor.Operation.FieldNameUnsafeString(p.visitor.Operation.Selections[selectionRef].Ref) == "__typename" {
-				field := p.upstreamOperation.AddField(ast.Field{
-					Name: p.upstreamOperation.Input.AppendInputString("__typename"),
-				})
-				p.upstreamOperation.AddSelection(set.Ref, ast.Selection{
-					Ref:  field.Ref,
-					Kind: ast.SelectionKindField,
-				})
+				p.addTypenameToSelectionSet(set.Ref)
 			}
 		}
 	}
+}
+
+func (p *Planner) addTypenameToSelectionSet(selectionSet int) {
+	field := p.upstreamOperation.AddField(ast.Field{
+		Name: p.upstreamOperation.Input.AppendInputString("__typename"),
+	})
+	p.upstreamOperation.AddSelection(selectionSet, ast.Selection{
+		Ref:  field.Ref,
+		Kind: ast.SelectionKindField,
+	})
 }
 
 func (p *Planner) LeaveSelectionSet(_ int) {
@@ -428,13 +443,7 @@ func (p *Planner) EnterInlineFragment(ref int) {
 	if typeCondition != nil {
 		// add __typename field to selection set which contains typeCondition
 		// so that the resolver can distinguish between the response types
-		typeNameField := p.upstreamOperation.AddField(ast.Field{
-			Name: p.upstreamOperation.Input.AppendInputBytes([]byte("__typename")),
-		})
-		p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, ast.Selection{
-			Kind: ast.SelectionKindField,
-			Ref:  typeNameField.Ref,
-		})
+		p.addTypenameToSelectionSet(p.nodes[len(p.nodes)-1].Ref)
 	}
 
 	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, selection)
@@ -528,7 +537,6 @@ func (p *Planner) LeaveField(ref int) {
 		return
 	}
 
-	// fmt.Printf("Planner::%s::%s::LeaveField::%s::%d\n", p.id, p.visitor.Walker.Path.DotDelimitedString(), p.visitor.Operation.FieldNameUnsafeString(ref), ref)
 	p.nodes = p.nodes[:len(p.nodes)-1]
 }
 
@@ -538,7 +546,7 @@ func (p *Planner) EnterArgument(_ int) {
 	}
 }
 
-func (p *Planner) EnterDocument(operation, definition *ast.Document) {
+func (p *Planner) EnterDocument(_, _ *ast.Document) {
 	if p.upstreamOperation == nil {
 		p.upstreamOperation = ast.NewDocument()
 	} else {
@@ -581,7 +589,7 @@ func (p *Planner) EnterDocument(operation, definition *ast.Document) {
 	}
 }
 
-func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
+func (p *Planner) LeaveDocument(_, _ *ast.Document) {
 }
 
 func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
@@ -611,12 +619,11 @@ func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
 	// query($representations: [_Any!]!){_entities(representations: $representations){... on Product
 	p.addRepresentationsVariableDefinition()     // $representations: [_Any!]!
 	p.addEntitiesSelectionSet()                  // {_entities(representations: $representations)
-	p.addOneTypeInlineFragment()                 // ... on Product
+	p.addOnTypeInlineFragment()                  // ... on Product
 	p.updateRepresentationsVariable(fieldConfig) // "variables\":{\"representations\":[{\"upc\":\"$$0$$\",\"__typename\":\"Product\"}]}}
 }
 
 func (p *Planner) updateRepresentationsVariable(fieldConfig *plan.FieldConfiguration) {
-
 	if p.visitor.Walker.Depth != p.federationDepth {
 		// given that this field has a different depth than the federation root, we skip this field
 		// this is because we only have to handle federated fields that are part of the "current" federated request
@@ -644,9 +651,8 @@ func (p *Planner) updateRepresentationsVariable(fieldConfig *plan.FieldConfigura
 		return
 	}
 
-	onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchStr(p.lastFieldEnclosingTypeName)
-
 	if len(p.representationsJson) == 0 {
+		onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchStr(p.lastFieldEnclosingTypeName)
 		p.representationsJson, _ = sjson.SetRawBytes(nil, "__typename", []byte("\""+onTypeName+"\""))
 	}
 
@@ -686,8 +692,9 @@ func (p *Planner) fieldDefinition(fieldName, typeName string) *ast.FieldDefiniti
 	return &p.visitor.Definition.FieldDefinitions[definition]
 }
 
-func (p *Planner) addOneTypeInlineFragment() {
+func (p *Planner) addOnTypeInlineFragment() {
 	selectionSet := p.upstreamOperation.AddSelectionSet()
+	p.addTypenameToSelectionSet(p.nodes[len(p.nodes)-1].Ref)
 	onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchBytes([]byte(p.lastFieldEnclosingTypeName))
 	typeRef := p.upstreamOperation.AddNamedType(onTypeName)
 	inlineFragment := p.upstreamOperation.AddInlineFragment(ast.InlineFragment{
