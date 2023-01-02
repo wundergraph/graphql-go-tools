@@ -551,6 +551,52 @@ func TestHandler_Handle(t *testing.T) {
 				assert.Equal(t, 1, subscriptionHandler.ActiveSubscriptions())
 			})
 
+			t.Run("id collisions should not be allowed", func(t *testing.T) {
+				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
+				payload, err := subscriptiontesting.GraphQLRequestForOperation(subscriptiontesting.SubscriptionLiveMessages)
+				require.NoError(t, err)
+				client.prepareStartMessage("1", payload).withoutError().and().send()
+
+				ctx, cancelFunc := context.WithCancel(context.Background())
+				handlerRoutineFunc := handlerRoutine(ctx)
+				go handlerRoutineFunc()
+
+				time.Sleep(10 * time.Millisecond)
+				cancelFunc()
+
+				go sendChatMutation(t, chatServer.URL)
+
+				require.Eventually(t, func() bool {
+					return client.hasMoreMessagesThan(0)
+				}, 5*time.Second, 10*time.Millisecond)
+
+				assert.Equal(t, 1, subscriptionHandler.ActiveSubscriptions())
+
+				client.prepareStartMessage("1", payload).withoutError().and().send()
+				require.Eventually(t, func() bool {
+					return client.hasMoreMessagesThan(1)
+				}, 5*time.Second, 10*time.Millisecond)
+
+				messagesFromServer := client.readFromServer()
+				// There are two messages in this slice. The first one is a data message for the first start message
+				// The second one is an error message because we tried to create a new subscription with an already existed
+				// id.
+
+				expectedDataMessage := Message{
+					Id:      "1",
+					Type:    MessageTypeData,
+					Payload: []byte(`{"data":{"messageAdded":{"text":"Hello World!","createdBy":"myuser"}}}`),
+				}
+				assert.Contains(t, messagesFromServer, expectedDataMessage)
+
+				expectedErrorMessage := Message{
+					Id:      "1",
+					Type:    MessageTypeError,
+					Payload: []byte(`[{"message":"subscriber for 1 already exists"}]`),
+				}
+				assert.Contains(t, messagesFromServer, expectedErrorMessage)
+			})
+
 			t.Run("should fail with validation error for invalid Subscription", func(t *testing.T) {
 				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 				payload, err := subscriptiontesting.GraphQLRequestForOperation(subscriptiontesting.InvalidSubscriptionLiveMessages)

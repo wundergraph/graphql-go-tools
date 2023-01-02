@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 )
 
@@ -19,10 +20,15 @@ func NewInitialHttpRequestContext(r *http.Request) *InitialHttpRequestContext {
 
 type subscriptionCancellations map[string]context.CancelFunc
 
-func (sc subscriptionCancellations) Add(id string) context.Context {
+func (sc subscriptionCancellations) Add(id string) (context.Context, error) {
+	_, ok := sc[id]
+	if ok {
+		return nil, fmt.Errorf("subscriber for %s already exists", id)
+	}
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	sc[id] = cancelFunc
-	return ctx
+	return ctx, nil
 }
 
 func (sc subscriptionCancellations) Cancel(id string) (ok bool) {
