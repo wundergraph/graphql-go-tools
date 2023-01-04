@@ -5854,8 +5854,12 @@ func TestGraphQLDataSource(t *testing.T) {
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
 										BufferId: 1,
-										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body id}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body id}}}}","variables":{"representations":[{"id":$$1$$,"__typename":$$0$$}]}}}`,
 										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"__typename"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+											},
 											&resolve.ObjectVariable{
 												Path:     []string{"id"},
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
@@ -6092,7 +6096,7 @@ func TestGraphQLDataSource(t *testing.T) {
 														Variables: resolve.NewVariables(
 															&resolve.ObjectVariable{
 																Path:     []string{"__typename"},
-																Renderer: resolve.NewJSONVariableRenderer(),
+																Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
 															},
 															&resolve.ObjectVariable{
 																Path:     []string{"id"},

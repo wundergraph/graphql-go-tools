@@ -675,7 +675,7 @@ func (p *Planner) updateRepresentationsVariable(fieldConfig *plan.FieldConfigura
 			objectVariable := &resolve.ObjectVariable{
 				Path: []string{"__typename"},
 			}
-			renderer := resolve.NewJSONVariableRenderer()
+			renderer := resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`)
 			objectVariable.Renderer = renderer
 			variable, exists := p.variables.AddVariable(objectVariable)
 			if !exists {
