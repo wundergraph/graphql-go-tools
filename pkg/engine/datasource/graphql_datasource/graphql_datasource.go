@@ -368,11 +368,6 @@ func (p *Planner) LeaveOperationDefinition(_ int) {
 }
 
 func (p *Planner) EnterSelectionSet(ref int) {
-	path := p.visitor.Walker.Path.String()
-	nodes := p.nodes
-	anc := p.visitor.Walker.Ancestors
-	_, _ = anc, nodes
-	fmt.Printf("EnterSelectionSet(%p) Path: %s Nodes: %d\n", &p, path, len(p.nodes))
 	p.parentTypeNodes = append(p.parentTypeNodes, p.visitor.Walker.EnclosingTypeDefinition)
 	if p.insideCustomScalarField {
 		return
@@ -382,6 +377,11 @@ func (p *Planner) EnterSelectionSet(ref int) {
 	set := p.upstreamOperation.AddSelectionSet()
 	switch parent.Kind {
 	case ast.NodeKindSelectionSet:
+		// this happens when we're inside the root of a nested abstract federated query
+		// we want to walk into and out of the selection set because the root field is abstract
+		// this allows us to walk out of the inline fragment in the root
+		// however, as a nested operation always starts with an Operation Definition and a Selection Set
+		// we don't want to add the selection set to the root nodes
 		return
 	case ast.NodeKindOperationDefinition:
 		p.upstreamOperation.OperationDefinitions[parent.Ref].HasSelections = true
@@ -425,7 +425,6 @@ func (p *Planner) addTypenameToSelectionSet(selectionSet int) {
 }
 
 func (p *Planner) LeaveSelectionSet(_ int) {
-	fmt.Printf("LeaveSelectionSet(%p) Path: %s Nodes: %d\n", &p, p.visitor.Walker.Path.String(), len(p.nodes))
 	p.parentTypeNodes = p.parentTypeNodes[:len(p.parentTypeNodes)-1]
 	if p.insideCustomScalarField {
 		return
@@ -437,12 +436,15 @@ func (p *Planner) LeaveSelectionSet(_ int) {
 }
 
 func (p *Planner) EnterInlineFragment(ref int) {
-	fmt.Printf("EnterInlineFragment(%p) Path: %s Nodes: %d\n", &p, p.visitor.Walker.Path.String(), len(p.nodes))
 	if p.insideCustomScalarField {
 		return
 	}
 
 	if p.config.Federation.Enabled && !p.hasFederationRoot && p.isNestedRequest() {
+		// if we're inside the nested root of a federated abstract query,
+		// we're walking into the inline fragment as the root
+		// however, as we're already handling the inline fragment when we walk into the root field,
+		// we can skip this one
 		return
 	}
 
@@ -478,7 +480,6 @@ func (p *Planner) EnterInlineFragment(ref int) {
 }
 
 func (p *Planner) LeaveInlineFragment(_ int) {
-	fmt.Printf("LeaveInlineFragment(%p) Path: %s Nodes: %d\n", &p, p.visitor.Walker.Path.String(), len(p.nodes))
 	if p.insideCustomScalarField {
 		return
 	}
@@ -489,7 +490,6 @@ func (p *Planner) LeaveInlineFragment(_ int) {
 }
 
 func (p *Planner) EnterField(ref int) {
-	fmt.Printf("EnterField(%p): %s Path: %s Nodes: %d\n", &p, p.visitor.Operation.FieldNameString(ref), p.visitor.Walker.Path.String(), len(p.nodes))
 	if p.insideCustomScalarField {
 		return
 	}
@@ -555,7 +555,6 @@ func (p *Planner) addCustomField(ref int) {
 }
 
 func (p *Planner) LeaveField(ref int) {
-	fmt.Printf("LeaveField(%p): %s Path: %s Nodes: %d\n", &p, p.visitor.Operation.FieldNameString(ref), p.visitor.Walker.Path.String(), len(p.nodes))
 	if p.insideCustomScalarField {
 		if p.customScalarFieldRef == ref {
 			p.insideCustomScalarField = false
