@@ -236,6 +236,7 @@ func NewPlanner(ctx context.Context, config Configuration) *Planner {
 	configurationWalker.RegisterEnterDocumentVisitor(configVisitor)
 	configurationWalker.RegisterFieldVisitor(configVisitor)
 	configurationWalker.RegisterEnterOperationVisitor(configVisitor)
+	configurationWalker.RegisterSelectionSetVisitor(configVisitor)
 
 	// planning
 
@@ -420,6 +421,8 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 	for _, config := range v.planners {
 		if config.planner == visitor && config.hasPath(path) {
 			switch kind {
+			case astvisitor.EnterField, astvisitor.LeaveField:
+				return config.fieldsAllowed(path)
 			case astvisitor.EnterSelectionSet, astvisitor.LeaveSelectionSet:
 				return !config.isExitPath(path)
 			default:
@@ -1390,7 +1393,17 @@ type configurationVisitor struct {
 	currentBufferId       int
 	fieldBuffers          map[int]int
 
+	parentTypeNodes []ast.Node
+
 	ctx context.Context
+}
+
+func (c *configurationVisitor) EnterSelectionSet(ref int) {
+	c.parentTypeNodes = append(c.parentTypeNodes, c.walker.EnclosingTypeDefinition)
+}
+
+func (c *configurationVisitor) LeaveSelectionSet(ref int) {
+	c.parentTypeNodes = c.parentTypeNodes[:len(c.parentTypeNodes)-1]
 }
 
 type plannerConfiguration struct {
@@ -1431,6 +1444,15 @@ func (p *plannerConfiguration) isExitPath(path string) bool {
 	for i := range p.paths {
 		if p.paths[i].path == path {
 			return p.paths[i].exitPlannerOnNode
+		}
+	}
+	return false
+}
+
+func (p *plannerConfiguration) fieldsAllowed(path string) bool {
+	for i := range p.paths {
+		if p.paths[i].path == path {
+			return p.paths[i].fieldsAllowed
 		}
 	}
 	return false
@@ -1492,6 +1514,7 @@ func (p *plannerConfiguration) hasRootNode(typeName, fieldName string) bool {
 type pathConfiguration struct {
 	path              string
 	exitPlannerOnNode bool
+	fieldsAllowed     bool
 }
 
 func (c *configurationVisitor) EnterOperationDefinition(ref int) {
@@ -1517,17 +1540,17 @@ func (c *configurationVisitor) EnterField(ref int) {
 		planningBehaviour := plannerConfig.planner.DataSourcePlanningBehavior()
 		if plannerConfig.hasParent(parent) && plannerConfig.hasRootNode(typeName, fieldName) && planningBehaviour.MergeAliasedRootNodes {
 			// same parent + root node = root sibling
-			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current})
+			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current, fieldsAllowed: true})
 			c.fieldBuffers[ref] = plannerConfig.bufferID
 			return
 		}
 		if plannerConfig.hasPath(parent) && plannerConfig.hasChildNode(typeName, fieldName) {
 			// has parent path + has child node = child
-			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current})
+			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current, fieldsAllowed: true})
 			return
 		}
 		if fieldAliasOrName == "__typename" && planningBehaviour.IncludeTypeNameFields {
-			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current})
+			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current, fieldsAllowed: true})
 			return
 		}
 	}
@@ -1541,15 +1564,26 @@ func (c *configurationVisitor) EnterField(ref int) {
 				c.fieldBuffers[ref] = bufferID
 			}
 			planner := c.config.DataSources[i].Factory.Planner(c.ctx)
-			c.planners = append(c.planners, plannerConfiguration{
-				bufferID:   bufferID,
-				parentPath: parent,
-				planner:    planner,
-				paths: []pathConfiguration{
-					{
-						path: current,
-					},
+			parentIsAbstract := c.parentIsAbstract()
+			paths := []pathConfiguration{
+				{
+					path:          current,
+					fieldsAllowed: true,
 				},
+			}
+			if parentIsAbstract {
+				paths = append([]pathConfiguration{
+					{
+						path:          parent,
+						fieldsAllowed: false,
+					},
+				}, paths...)
+			}
+			c.planners = append(c.planners, plannerConfiguration{
+				bufferID:                bufferID,
+				parentPath:              parent,
+				planner:                 planner,
+				paths:                   paths,
 				dataSourceConfiguration: config,
 			})
 			fieldDefinition, ok := c.walker.FieldDefinition(ref)
@@ -1568,6 +1602,14 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 }
 
+func (c *configurationVisitor) parentIsAbstract() bool {
+	if len(c.parentTypeNodes) < 2 {
+		return false
+	}
+	parentTypeNode := c.parentTypeNodes[len(c.parentTypeNodes)-2]
+	return parentTypeNode.Kind.IsAbstractType()
+}
+
 func (c *configurationVisitor) LeaveField(ref int) {
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	parent := c.walker.Path.DotDelimitedString()
@@ -1583,6 +1625,7 @@ func (c *configurationVisitor) LeaveField(ref int) {
 func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document) {
 	c.operation, c.definition = operation, definition
 	c.currentBufferId = -1
+	c.parentTypeNodes = c.parentTypeNodes[:0]
 	if c.planners == nil {
 		c.planners = make([]plannerConfiguration, 0, 8)
 	} else {

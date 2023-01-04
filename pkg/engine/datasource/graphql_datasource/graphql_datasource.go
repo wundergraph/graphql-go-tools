@@ -58,6 +58,16 @@ type Planner struct {
 	insideCustomScalarField bool
 	customScalarFieldRef    int
 	unnulVariables          bool
+
+	parentTypeNodes []ast.Node
+}
+
+func (p *Planner) parentNodeIsAbstract() bool {
+	if len(p.parentTypeNodes) < 2 {
+		return false
+	}
+	parentTypeNode := p.parentTypeNodes[len(p.parentTypeNodes)-2]
+	return parentTypeNode.Kind.IsAbstractType()
 }
 
 func (p *Planner) EnterVariableDefinition(ref int) {
@@ -358,11 +368,12 @@ func (p *Planner) LeaveOperationDefinition(_ int) {
 }
 
 func (p *Planner) EnterSelectionSet(ref int) {
-	parentNode := p.visitor.Walker.EnclosingTypeDefinition
-	lastIndex := len(p.visitor.Walker.ParentNodes) - 1
-	if lastIndex < 0 || p.visitor.Walker.ParentNodes[lastIndex] != parentNode {
-		p.visitor.Walker.ParentNodes = append(p.visitor.Walker.ParentNodes, ast.Node{Kind: parentNode.Kind, Ref: parentNode.Ref})
-	}
+	path := p.visitor.Walker.Path.String()
+	nodes := p.nodes
+	anc := p.visitor.Walker.Ancestors
+	_, _ = anc, nodes
+	fmt.Printf("EnterSelectionSet(%p) Path: %s Nodes: %d\n", &p, path, len(p.nodes))
+	p.parentTypeNodes = append(p.parentTypeNodes, p.visitor.Walker.EnclosingTypeDefinition)
 	if p.insideCustomScalarField {
 		return
 	}
@@ -370,6 +381,8 @@ func (p *Planner) EnterSelectionSet(ref int) {
 	parent := p.nodes[len(p.nodes)-1]
 	set := p.upstreamOperation.AddSelectionSet()
 	switch parent.Kind {
+	case ast.NodeKindSelectionSet:
+		return
 	case ast.NodeKindOperationDefinition:
 		p.upstreamOperation.OperationDefinitions[parent.Ref].HasSelections = true
 		p.upstreamOperation.OperationDefinitions[parent.Ref].SelectionSet = set.Ref
@@ -412,19 +425,24 @@ func (p *Planner) addTypenameToSelectionSet(selectionSet int) {
 }
 
 func (p *Planner) LeaveSelectionSet(_ int) {
-	lastIndex := len(p.visitor.Walker.ParentNodes) - 1
-	if lastIndex > 0 && p.visitor.Walker.ParentNodes[lastIndex] == p.visitor.Walker.EnclosingTypeDefinition {
-		p.visitor.Walker.ParentNodes = p.visitor.Walker.ParentNodes[:lastIndex]
-	}
+	fmt.Printf("LeaveSelectionSet(%p) Path: %s Nodes: %d\n", &p, p.visitor.Walker.Path.String(), len(p.nodes))
+	p.parentTypeNodes = p.parentTypeNodes[:len(p.parentTypeNodes)-1]
 	if p.insideCustomScalarField {
 		return
 	}
 
-	p.nodes = p.nodes[:len(p.nodes)-1]
+	if p.nodes[len(p.nodes)-1].Kind == ast.NodeKindSelectionSet {
+		p.nodes = p.nodes[:len(p.nodes)-1]
+	}
 }
 
 func (p *Planner) EnterInlineFragment(ref int) {
+	fmt.Printf("EnterInlineFragment(%p) Path: %s Nodes: %d\n", &p, p.visitor.Walker.Path.String(), len(p.nodes))
 	if p.insideCustomScalarField {
+		return
+	}
+
+	if p.config.Federation.Enabled && !p.hasFederationRoot && p.isNestedRequest() {
 		return
 	}
 
@@ -460,17 +478,18 @@ func (p *Planner) EnterInlineFragment(ref int) {
 }
 
 func (p *Planner) LeaveInlineFragment(_ int) {
+	fmt.Printf("LeaveInlineFragment(%p) Path: %s Nodes: %d\n", &p, p.visitor.Walker.Path.String(), len(p.nodes))
 	if p.insideCustomScalarField {
 		return
 	}
 
-	if p.nodes[len(p.nodes)-1].Kind != ast.NodeKindInlineFragment {
-		return
+	if p.nodes[len(p.nodes)-1].Kind == ast.NodeKindInlineFragment {
+		p.nodes = p.nodes[:len(p.nodes)-1]
 	}
-	p.nodes = p.nodes[:len(p.nodes)-1]
 }
 
 func (p *Planner) EnterField(ref int) {
+	fmt.Printf("EnterField(%p): %s Path: %s Nodes: %d\n", &p, p.visitor.Operation.FieldNameString(ref), p.visitor.Walker.Path.String(), len(p.nodes))
 	if p.insideCustomScalarField {
 		return
 	}
@@ -536,6 +555,7 @@ func (p *Planner) addCustomField(ref int) {
 }
 
 func (p *Planner) LeaveField(ref int) {
+	fmt.Printf("LeaveField(%p): %s Path: %s Nodes: %d\n", &p, p.visitor.Operation.FieldNameString(ref), p.visitor.Walker.Path.String(), len(p.nodes))
 	if p.insideCustomScalarField {
 		if p.customScalarFieldRef == ref {
 			p.insideCustomScalarField = false
@@ -560,6 +580,7 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 		p.upstreamOperation.Reset()
 	}
 	p.nodes = p.nodes[:0]
+	p.parentTypeNodes = p.parentTypeNodes[:0]
 	p.upstreamVariables = nil
 	p.variables = p.variables[:0]
 	p.representationsJson = p.representationsJson[:0]
@@ -614,14 +635,6 @@ func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
 	// true. Subsequent fields use hasFederationRoot to determine federation
 	// status.
 	if p.hasFederationRoot {
-		lastIndex := len(p.visitor.Walker.ParentNodes) - 1
-		// if the parent of the current node is abstract, handle multiple fragments within the same selector
-		if lastIndex > 0 && p.visitor.Walker.ParentNodes[lastIndex] == p.visitor.Walker.EnclosingTypeDefinition &&
-			p.visitor.Walker.ParentNodes[lastIndex-1].Kind.IsAbstractType() {
-			// the last entry in p.nodes is the last fragment, which we have left
-			p.nodes = p.nodes[:len(p.nodes)-1]
-			p.addOnTypeInlineFragment()
-		}
 		// Ideally the "representations" variable could be set once in
 		// LeaveDocument, but ConfigureFetch is called before this visitor's
 		// LeaveDocument is called. (Updating the visitor logic to call
@@ -668,7 +681,7 @@ func (p *Planner) updateRepresentationsVariable(fieldConfig *plan.FieldConfigura
 
 	if len(p.representationsJson) == 0 {
 		// the last parent node is the current node, so we want the parent of that
-		if p.visitor.Walker.ParentNodes[len(p.visitor.Walker.ParentNodes)-2].Kind.IsAbstractType() {
+		if p.parentNodeIsAbstract() {
 			// The field is an abstract type, i.e. an interface or union. In this
 			// case the representation typename needs to come from a parent fetch
 			// response.

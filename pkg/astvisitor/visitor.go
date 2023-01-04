@@ -46,7 +46,6 @@ type Walker struct {
 	revisit         bool
 	filter          VisitorFilter
 	deferred        []func()
-	ParentNodes     []ast.Node
 }
 
 // NewWalker returns a fully initialized Walker
