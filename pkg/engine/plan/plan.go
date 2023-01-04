@@ -1514,7 +1514,12 @@ func (p *plannerConfiguration) hasRootNode(typeName, fieldName string) bool {
 type pathConfiguration struct {
 	path              string
 	exitPlannerOnNode bool
-	fieldsAllowed     bool
+	// fieldsAllowed indicates if the planner is allowed to walk into fields
+	// this is needed in case we're dealing with a nested federated abstract query
+	// we need to be able to walk into the inline fragments and selection sets in the root
+	// however, we want to skip the fields at this level
+	// so, by setting fieldsAllowed to false, we can walk into non fields only
+	fieldsAllowed bool
 }
 
 func (c *configurationVisitor) EnterOperationDefinition(ref int) {
@@ -1572,6 +1577,10 @@ func (c *configurationVisitor) EnterField(ref int) {
 				},
 			}
 			if parentIsAbstract {
+				// if the parent is abstract, we add the parent path as well
+				// this will ensure that we're walking into and out of the root inline fragments
+				// otherwise, we'd only walk into the fields inside the inline fragments in the root,
+				// so we'd miss the selection sets and inline fragments in the root
 				paths = append([]pathConfiguration{
 					{
 						path:          parent,
