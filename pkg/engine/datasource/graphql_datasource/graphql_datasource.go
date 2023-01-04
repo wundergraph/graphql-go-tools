@@ -358,6 +358,11 @@ func (p *Planner) LeaveOperationDefinition(_ int) {
 }
 
 func (p *Planner) EnterSelectionSet(ref int) {
+	parentNode := p.visitor.Walker.EnclosingTypeDefinition
+	lastIndex := len(p.visitor.Walker.ParentNodes) - 1
+	if lastIndex < 0 || p.visitor.Walker.ParentNodes[lastIndex] != parentNode {
+		p.visitor.Walker.ParentNodes = append(p.visitor.Walker.ParentNodes, ast.Node{Kind: parentNode.Kind, Ref: parentNode.Ref})
+	}
 	if p.insideCustomScalarField {
 		return
 	}
@@ -407,6 +412,10 @@ func (p *Planner) addTypenameToSelectionSet(selectionSet int) {
 }
 
 func (p *Planner) LeaveSelectionSet(_ int) {
+	lastIndex := len(p.visitor.Walker.ParentNodes) - 1
+	if lastIndex > 0 && p.visitor.Walker.ParentNodes[lastIndex] == p.visitor.Walker.EnclosingTypeDefinition {
+		p.visitor.Walker.ParentNodes = p.visitor.Walker.ParentNodes[:lastIndex]
+	}
 	if p.insideCustomScalarField {
 		return
 	}
@@ -478,6 +487,8 @@ func (p *Planner) EnterField(ref int) {
 		}
 	}
 
+	p.lastFieldEnclosingTypeName = enclosingTypeName
+
 	// store root field name and ref
 	if p.rootFieldName == "" {
 		p.rootFieldName = fieldName
@@ -485,14 +496,10 @@ func (p *Planner) EnterField(ref int) {
 	}
 	// store root type name
 	if p.rootTypeName == "" {
-		p.rootTypeName = p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+		p.rootTypeName = enclosingTypeName
 	}
 
-	p.lastFieldEnclosingTypeName = p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
-
-	typeName := p.lastFieldEnclosingTypeName
-
-	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(typeName, fieldName)
+	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(enclosingTypeName, fieldName)
 	if fieldConfiguration == nil && fieldName != "__typename" {
 		p.addField(ref)
 		return
@@ -607,6 +614,14 @@ func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
 	// true. Subsequent fields use hasFederationRoot to determine federation
 	// status.
 	if p.hasFederationRoot {
+		lastIndex := len(p.visitor.Walker.ParentNodes) - 1
+		// if the parent of the current node is abstract, handle multiple fragments within the same selector
+		if lastIndex > 0 && p.visitor.Walker.ParentNodes[lastIndex] == p.visitor.Walker.EnclosingTypeDefinition &&
+			p.visitor.Walker.ParentNodes[lastIndex-1].Kind.IsAbstractType() {
+			// the last entry in p.nodes is the last fragment, which we have left
+			p.nodes = p.nodes[:len(p.nodes)-1]
+			p.addOnTypeInlineFragment()
+		}
 		// Ideally the "representations" variable could be set once in
 		// LeaveDocument, but ConfigureFetch is called before this visitor's
 		// LeaveDocument is called. (Updating the visitor logic to call
@@ -652,8 +667,24 @@ func (p *Planner) updateRepresentationsVariable(fieldConfig *plan.FieldConfigura
 	}
 
 	if len(p.representationsJson) == 0 {
-		onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchStr(p.lastFieldEnclosingTypeName)
-		p.representationsJson, _ = sjson.SetRawBytes(nil, "__typename", []byte("\""+onTypeName+"\""))
+		// the last parent node is the current node, so we want the parent of that
+		if p.visitor.Walker.ParentNodes[len(p.visitor.Walker.ParentNodes)-2].Kind.IsAbstractType() {
+			// The field is an abstract type, i.e. an interface or union. In this
+			// case the representation typename needs to come from a parent fetch
+			// response.
+			objectVariable := &resolve.ObjectVariable{
+				Path: []string{"__typename"},
+			}
+			renderer := resolve.NewJSONVariableRenderer()
+			objectVariable.Renderer = renderer
+			variable, exists := p.variables.AddVariable(objectVariable)
+			if !exists {
+				p.representationsJson, _ = sjson.SetRawBytes(p.representationsJson, "__typename", []byte(variable))
+			}
+		} else {
+			onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchStr(p.lastFieldEnclosingTypeName)
+			p.representationsJson, _ = sjson.SetRawBytes(nil, "__typename", []byte("\""+onTypeName+"\""))
+		}
 	}
 
 	for i := range fields {
