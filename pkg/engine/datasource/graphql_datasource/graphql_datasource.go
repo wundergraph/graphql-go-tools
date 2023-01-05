@@ -430,8 +430,9 @@ func (p *Planner) LeaveSelectionSet(_ int) {
 		return
 	}
 
-	if p.nodes[len(p.nodes)-1].Kind == ast.NodeKindSelectionSet {
-		p.nodes = p.nodes[:len(p.nodes)-1]
+	lastIndex := len(p.nodes) - 1
+	if p.nodes[lastIndex].Kind == ast.NodeKindSelectionSet {
+		p.nodes = p.nodes[:lastIndex]
 	}
 }
 
@@ -484,8 +485,9 @@ func (p *Planner) LeaveInlineFragment(_ int) {
 		return
 	}
 
-	if p.nodes[len(p.nodes)-1].Kind == ast.NodeKindInlineFragment {
-		p.nodes = p.nodes[:len(p.nodes)-1]
+	lastIndex := len(p.nodes) - 1
+	if p.nodes[lastIndex].Kind == ast.NodeKindInlineFragment {
+		p.nodes = p.nodes[:lastIndex]
 	}
 }
 
@@ -679,21 +681,17 @@ func (p *Planner) updateRepresentationsVariable(fieldConfig *plan.FieldConfigura
 	}
 
 	if len(p.representationsJson) == 0 {
-		// the last parent node is the current node, so we want the parent of that
+		// If the parent is an abstract type, i.e., an interface or union,
+		// the representation typename must come from a parent fetch response.
 		if p.parentNodeIsAbstract() {
-			// The field is an abstract type, i.e. an interface or union. In this
-			// case the representation typename needs to come from a parent fetch
-			// response.
 			objectVariable := &resolve.ObjectVariable{
 				Path: []string{"__typename"},
 			}
-			renderer := resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`)
-			objectVariable.Renderer = renderer
-			variable, exists := p.variables.AddVariable(objectVariable)
-			if !exists {
+			objectVariable.Renderer = resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`)
+			if variable, exists := p.variables.AddVariable(objectVariable); !exists {
 				p.representationsJson, _ = sjson.SetRawBytes(p.representationsJson, "__typename", []byte(variable))
 			}
-		} else {
+		} else { // otherwise use the concrete typename
 			onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchStr(p.lastFieldEnclosingTypeName)
 			p.representationsJson, _ = sjson.SetRawBytes(nil, "__typename", []byte("\""+onTypeName+"\""))
 		}

@@ -422,7 +422,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 		if config.planner == visitor && config.hasPath(path) {
 			switch kind {
 			case astvisitor.EnterField, astvisitor.LeaveField:
-				return config.fieldsAllowed(path)
+				return config.shouldWalkFieldsOnPath(path)
 			case astvisitor.EnterSelectionSet, astvisitor.LeaveSelectionSet:
 				return !config.isExitPath(path)
 			default:
@@ -497,15 +497,15 @@ func (v *Visitor) EnterInlineFragment(ref int) {
 	}
 }
 
-func (v *Visitor) LeaveInlineFragment(ref int) {
+func (v *Visitor) LeaveInlineFragment(_ int) {
 
 }
 
-func (v *Visitor) EnterSelectionSet(ref int) {
+func (v *Visitor) EnterSelectionSet(_ int) {
 
 }
 
-func (v *Visitor) LeaveSelectionSet(ref int) {
+func (v *Visitor) LeaveSelectionSet(_ int) {
 
 }
 
@@ -946,7 +946,7 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.skipIncludeFields = map[int]skipIncludeField{}
 }
 
-func (v *Visitor) LeaveDocument(operation, definition *ast.Document) {
+func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
 	for _, config := range v.fetchConfigurations {
 		if config.isSubscription {
 			v.configureSubscription(config)
@@ -1398,11 +1398,11 @@ type configurationVisitor struct {
 	ctx context.Context
 }
 
-func (c *configurationVisitor) EnterSelectionSet(ref int) {
+func (c *configurationVisitor) EnterSelectionSet(_ int) {
 	c.parentTypeNodes = append(c.parentTypeNodes, c.walker.EnclosingTypeDefinition)
 }
 
-func (c *configurationVisitor) LeaveSelectionSet(ref int) {
+func (c *configurationVisitor) LeaveSelectionSet(_ int) {
 	c.parentTypeNodes = c.parentTypeNodes[:len(c.parentTypeNodes)-1]
 }
 
@@ -1449,10 +1449,10 @@ func (p *plannerConfiguration) isExitPath(path string) bool {
 	return false
 }
 
-func (p *plannerConfiguration) fieldsAllowed(path string) bool {
+func (p *plannerConfiguration) shouldWalkFieldsOnPath(path string) bool {
 	for i := range p.paths {
 		if p.paths[i].path == path {
-			return p.paths[i].fieldsAllowed
+			return p.paths[i].shouldWalkFields
 		}
 	}
 	return false
@@ -1514,12 +1514,12 @@ func (p *plannerConfiguration) hasRootNode(typeName, fieldName string) bool {
 type pathConfiguration struct {
 	path              string
 	exitPlannerOnNode bool
-	// fieldsAllowed indicates if the planner is allowed to walk into fields
+	// shouldWalkFields indicates whether the planner is allowed to walk into fields
 	// this is needed in case we're dealing with a nested federated abstract query
 	// we need to be able to walk into the inline fragments and selection sets in the root
 	// however, we want to skip the fields at this level
-	// so, by setting fieldsAllowed to false, we can walk into non fields only
-	fieldsAllowed bool
+	// so, by setting shouldWalkFields to false, we can walk into non fields only
+	shouldWalkFields bool
 }
 
 func (c *configurationVisitor) EnterOperationDefinition(ref int) {
@@ -1545,17 +1545,17 @@ func (c *configurationVisitor) EnterField(ref int) {
 		planningBehaviour := plannerConfig.planner.DataSourcePlanningBehavior()
 		if plannerConfig.hasParent(parent) && plannerConfig.hasRootNode(typeName, fieldName) && planningBehaviour.MergeAliasedRootNodes {
 			// same parent + root node = root sibling
-			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current, fieldsAllowed: true})
+			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current, shouldWalkFields: true})
 			c.fieldBuffers[ref] = plannerConfig.bufferID
 			return
 		}
 		if plannerConfig.hasPath(parent) && plannerConfig.hasChildNode(typeName, fieldName) {
 			// has parent path + has child node = child
-			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current, fieldsAllowed: true})
+			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current, shouldWalkFields: true})
 			return
 		}
 		if fieldAliasOrName == "__typename" && planningBehaviour.IncludeTypeNameFields {
-			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current, fieldsAllowed: true})
+			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current, shouldWalkFields: true})
 			return
 		}
 	}
@@ -1569,22 +1569,22 @@ func (c *configurationVisitor) EnterField(ref int) {
 				c.fieldBuffers[ref] = bufferID
 			}
 			planner := c.config.DataSources[i].Factory.Planner(c.ctx)
-			parentIsAbstract := c.parentIsAbstract()
+			isParentAbstract := c.isParentTypeNodeAbstractType()
 			paths := []pathConfiguration{
 				{
-					path:          current,
-					fieldsAllowed: true,
+					path:             current,
+					shouldWalkFields: true,
 				},
 			}
-			if parentIsAbstract {
+			if isParentAbstract {
 				// if the parent is abstract, we add the parent path as well
 				// this will ensure that we're walking into and out of the root inline fragments
 				// otherwise, we'd only walk into the fields inside the inline fragments in the root,
 				// so we'd miss the selection sets and inline fragments in the root
 				paths = append([]pathConfiguration{
 					{
-						path:          parent,
-						fieldsAllowed: false,
+						path:             parent,
+						shouldWalkFields: false,
 					},
 				}, paths...)
 			}
@@ -1611,7 +1611,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 }
 
-func (c *configurationVisitor) parentIsAbstract() bool {
+func (c *configurationVisitor) isParentTypeNodeAbstractType() bool {
 	if len(c.parentTypeNodes) < 2 {
 		return false
 	}
@@ -1670,7 +1670,7 @@ type requiredFieldsVisitor struct {
 	skipFieldPaths        []string
 }
 
-func (r *requiredFieldsVisitor) EnterDocument(operation, definition *ast.Document) {
+func (r *requiredFieldsVisitor) EnterDocument(_, _ *ast.Document) {
 	r.skipFieldPaths = r.skipFieldPaths[:0]
 }
 
