@@ -154,7 +154,11 @@ type ExecutionEngineV2TestCase struct {
 
 func TestExecutionEngineV2_Execute(t *testing.T) {
 	run := func(testCase ExecutionEngineV2TestCase, withError bool) func(t *testing.T) {
+		t.Helper()
+
 		return func(t *testing.T) {
+			t.Helper()
+
 			engineConf := NewEngineV2Configuration(testCase.schema)
 			if testCase.generateChildrenForFirstRootField {
 				for i := 0; i < len(testCase.dataSources); i++ {
@@ -224,6 +228,156 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			expectedResponse: "",
 		},
 	))
+
+	t.Run("unescape json", func(t *testing.T) {
+		schemaSDL := `
+			scalar JSON
+			
+			schema {
+				query: Query
+			}
+			
+			type Query {
+				hero: Character!
+			}
+			
+			type Character {
+				info: JSON!
+				infos: [JSON!]!
+			}
+		`
+
+		operation := func(t *testing.T) Request {
+			return Request{
+				OperationName: "",
+				Query:         `query { hero {info infos} }`,
+			}
+		}
+
+		datasourceCustomConfig := rest_datasource.ConfigJSON(rest_datasource.Configuration{
+			Fetch: rest_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+		})
+
+		fieldConfigurations := []plan.FieldConfiguration{
+			{
+				TypeName:             "Character",
+				FieldName:            "info",
+				UnescapeResponseJson: true,
+			},
+			{
+				TypeName:             "Character",
+				FieldName:            "infos",
+				UnescapeResponseJson: true,
+			},
+		}
+
+		roundTripperRegularJson := roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     "",
+			sendResponseBody: `{"hero":{"info":{"name":"Luke Skywalker"},"infos":[{"name":"Luke Skywalker"}]}}`,
+			sendStatusCode:   200,
+		}
+
+		roundTripperEncodedJson := roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     "",
+			sendResponseBody: `{"hero":{"info":"{\"name\":\"Luke Skywalker\"}","infos":["{\"name\":\"Luke Skywalker\"}"]}}`,
+			sendStatusCode:   200,
+		}
+
+		schema, _ := NewSchemaFromString(schemaSDL)
+
+		t.Run("with field configurations", func(t *testing.T) {
+			t.Run("regular json in response", runWithoutError(
+				ExecutionEngineV2TestCase{
+					schema:    schema,
+					operation: operation,
+					dataSources: []plan.DataSourceConfiguration{
+						{
+							RootNodes: []plan.TypeField{
+								{TypeName: "Query", FieldNames: []string{"hero"}},
+							},
+							Factory: &rest_datasource.Factory{
+								Client: testNetHttpClient(t, roundTripperRegularJson),
+							},
+							Custom: datasourceCustomConfig,
+						},
+					},
+					fields:           fieldConfigurations,
+					expectedResponse: `{"data":{"hero":{"info":{"name":"Luke Skywalker"},"infos":[{"name":"Luke Skywalker"}]}}}`,
+				},
+			))
+			t.Run("encoded json in response", runWithoutError(
+				ExecutionEngineV2TestCase{
+					schema:    schema,
+					operation: operation,
+					dataSources: []plan.DataSourceConfiguration{
+						{
+							RootNodes: []plan.TypeField{
+								{TypeName: "Query", FieldNames: []string{"hero"}},
+							},
+							Factory: &rest_datasource.Factory{
+								Client: testNetHttpClient(t, roundTripperEncodedJson),
+							},
+							Custom: datasourceCustomConfig,
+						},
+					},
+					fields:           fieldConfigurations,
+					expectedResponse: `{"data":{"hero":{"info":{"name":"Luke Skywalker"},"infos":[{"name":"Luke Skywalker"}]}}}`,
+				},
+			))
+		})
+
+		t.Run("without field configurations", func(t *testing.T) {
+			t.Run("regular json in response", runWithError(
+				ExecutionEngineV2TestCase{
+					schema:    schema,
+					operation: operation,
+					dataSources: []plan.DataSourceConfiguration{
+						{
+							RootNodes: []plan.TypeField{
+								{TypeName: "Query", FieldNames: []string{"hero"}},
+							},
+							Factory: &rest_datasource.Factory{
+								Client: testNetHttpClient(t, roundTripperRegularJson),
+							},
+							Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+								Fetch: rest_datasource.FetchConfiguration{
+									URL:    "https://example.com/",
+									Method: "GET",
+								},
+							}),
+						},
+					},
+					expectedResponse: ``,
+				},
+			))
+
+			t.Run("encoded json in response", runWithoutError(
+				ExecutionEngineV2TestCase{
+					schema:    schema,
+					operation: operation,
+					dataSources: []plan.DataSourceConfiguration{
+						{
+							RootNodes: []plan.TypeField{
+								{TypeName: "Query", FieldNames: []string{"hero"}},
+							},
+							Factory: &rest_datasource.Factory{
+								Client: testNetHttpClient(t, roundTripperEncodedJson),
+							},
+							Custom: datasourceCustomConfig,
+						},
+					},
+					expectedResponse: `{"data":{"hero":{"info":"{\"name\":\"Luke Skywalker\"}","infos":["{\"name\":\"Luke Skywalker\"}"]}}}`,
+				},
+			))
+		})
+	})
 
 	t.Run("introspection", func(t *testing.T) {
 		schema := starwarsSchema(t)
