@@ -529,8 +529,25 @@ func (p *Planner) EnterField(ref int) {
 	// Note: federated fields always have a field configuration because at
 	// least the federation key for the type the field lives on is required
 	// (and required fields are specified in the configuration).
+	p.logUpstreamOperation("before add federation:")
+
+	fmt.Println("FIELD_NAME", fieldName)
+	fmt.Println("ENCLOSING_TYPE_NAME", enclosingTypeName)
+	fmt.Println("IS_PARENT_TYPE_ABSTRACT", p.visitor.Walker.EnclosingTypeDefinition.Kind.IsAbstractType())
+
+	isParentTypeAbstract := p.visitor.Walker.EnclosingTypeDefinition.Kind.IsAbstractType()
+
+	needFragment := isParentTypeAbstract && p.hasFederationRoot
+
 	p.handleFederation(fieldConfiguration)
+	p.logUpstreamOperation("after  add federation:")
+
+	if needFragment {
+		p.addOnTypeInlineFragment()
+	}
+
 	p.addField(ref)
+	p.logUpstreamOperation("after     field added:")
 
 	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
 
@@ -542,6 +559,20 @@ func (p *Planner) EnterField(ref int) {
 		argumentConfiguration := fieldConfiguration.Arguments[i]
 		p.configureArgument(upstreamFieldRef, ref, *fieldConfiguration, argumentConfiguration)
 	}
+
+	if isParentTypeAbstract && p.hasFederationRoot {
+		p.nodes = p.nodes[:len(p.nodes)-1]
+	}
+}
+
+func (p *Planner) logUpstreamOperation(msg string) {
+	buf := &bytes.Buffer{}
+
+	_ = astprinter.Print(p.upstreamOperation, nil, buf)
+
+	rawQuery := buf.Bytes()
+
+	fmt.Println(msg, "rawQuery", string(rawQuery))
 }
 
 func (p *Planner) addCustomField(ref int) {
