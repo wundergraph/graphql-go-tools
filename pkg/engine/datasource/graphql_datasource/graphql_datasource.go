@@ -58,6 +58,7 @@ type Planner struct {
 	insideCustomScalarField bool
 	customScalarFieldRef    int
 	unnulVariables          bool
+	insideInlineFragment    bool
 
 	parentTypeNodes []ast.Node
 }
@@ -437,6 +438,10 @@ func (p *Planner) LeaveSelectionSet(_ int) {
 }
 
 func (p *Planner) EnterInlineFragment(ref int) {
+	p.log("EnterInlineFragment")
+
+	p.insideInlineFragment = true
+
 	if p.insideCustomScalarField {
 		return
 	}
@@ -481,6 +486,10 @@ func (p *Planner) EnterInlineFragment(ref int) {
 }
 
 func (p *Planner) LeaveInlineFragment(_ int) {
+	p.log("LeaveInlineFragment")
+
+	p.insideInlineFragment = false
+
 	if p.insideCustomScalarField {
 		return
 	}
@@ -531,9 +540,10 @@ func (p *Planner) EnterField(ref int) {
 	// (and required fields are specified in the configuration).
 	p.logUpstreamOperation("before add federation:")
 
-	fmt.Println("FIELD_NAME", fieldName)
-	fmt.Println("ENCLOSING_TYPE_NAME", enclosingTypeName)
-	fmt.Println("IS_PARENT_TYPE_ABSTRACT", p.visitor.Walker.EnclosingTypeDefinition.Kind.IsAbstractType())
+	p.log("FIELD_NAME", fieldName)
+	p.log("INSIDE_INLINE_FRAGMENT", p.insideInlineFragment)
+	p.log("ENCLOSING_TYPE_NAME", enclosingTypeName)
+	p.log("IS_PARENT_TYPE_ABSTRACT", p.visitor.Walker.EnclosingTypeDefinition.Kind.IsAbstractType())
 
 	isParentTypeAbstract := p.visitor.Walker.EnclosingTypeDefinition.Kind.IsAbstractType()
 
@@ -566,6 +576,10 @@ func (p *Planner) EnterField(ref int) {
 }
 
 func (p *Planner) logUpstreamOperation(msg string) {
+	if !p.isNested {
+		return
+	}
+
 	buf := &bytes.Buffer{}
 
 	_ = astprinter.Print(p.upstreamOperation, nil, buf)
@@ -573,6 +587,14 @@ func (p *Planner) logUpstreamOperation(msg string) {
 	rawQuery := buf.Bytes()
 
 	fmt.Println(msg, "rawQuery", string(rawQuery))
+}
+
+func (p *Planner) log(a ...any) {
+	if !p.isNested {
+		return
+	}
+
+	fmt.Println(a...)
 }
 
 func (p *Planner) addCustomField(ref int) {
