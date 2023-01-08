@@ -6970,7 +6970,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							// the inline fragments) and "catField" and "dogField" also require "id"
 							// (inside the inline fragments). Double "id" selection could be
 							// normalized away, though it doesn't harm anything as-is.
-							Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {username pets {__typename ... on Cat {id} ... on Dog {id}}}}"}}`,
+							Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {username pets {__typename ... on Cat {id} ... on Dog {id} id}}}"}}`,
 							DataSource:            &Source{},
 							DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 							ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
@@ -7003,7 +7003,7 @@ func TestGraphQLDataSource(t *testing.T) {
 															// because the field were originally themselves in inline fragments
 															// that were inlined. The additional __typename selections are
 															// harmless.
-															Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Cat {catField name} ... on Dog {dogField name}}}","variables":{"representations":[{"id":$$1$$,"__typename":$$0$$}]}}}`,
+															Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Pet {name __typename ... on Cat {catField} ... on Dog {dogField}}}}","variables":{"representations":[{"id":$$1$$,"__typename":$$0$$}]}}}`,
 															Variables: resolve.NewVariables(
 																&resolve.ObjectVariable{
 																	Path:     []string{"__typename"},
