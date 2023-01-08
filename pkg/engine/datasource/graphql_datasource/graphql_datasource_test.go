@@ -7500,15 +7500,25 @@ func TestGraphQLDataSource(t *testing.T) {
         interface Pet {
             id: ID!
             name: String!
+			owner: Owner!
         }
+		type Owner {
+			name: String!	
+		}
+		type CatOwner {
+			catOwner: String!
+		}
         type Cat implements Pet {
             id: ID!
             name: String!
+			owner: Owner!
+			catOwner: CatOwner!
             catField: String!
         }
         type Dog implements Pet {
             id: ID!
             name: String!
+			owner: Owner!
             dogField: String!
         }
         `,
@@ -7519,11 +7529,17 @@ func TestGraphQLDataSource(t *testing.T) {
                 pets {
                     ... on Cat {
                         catField
+						catOwner {
+							catOwner
+						}
                     }
                     ... on Dog {
                         dogField
                     }
 					name
+					owner {
+						name
+					}
                 }
             }
         }
@@ -7690,11 +7706,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						RootNodes: []plan.TypeField{
 							{
 								TypeName:   "Cat",
-								FieldNames: []string{"id", "name", "catField"},
+								FieldNames: []string{"id", "name", "catField", "catOwner", "owner"},
 							},
 							{
 								TypeName:   "Dog",
-								FieldNames: []string{"id", "name", "dogField"},
+								FieldNames: []string{"id", "name", "dogField", "owner"},
 							},
 							{
 								TypeName:   "Pet",
@@ -7704,15 +7720,23 @@ func TestGraphQLDataSource(t *testing.T) {
 						ChildNodes: []plan.TypeField{
 							{
 								TypeName:   "Cat",
-								FieldNames: []string{"id", "name", "catField"},
+								FieldNames: []string{"id", "name", "catField", "catOwner", "owner"},
 							},
 							{
 								TypeName:   "Dog",
-								FieldNames: []string{"id", "name", "dogField"},
+								FieldNames: []string{"id", "name", "dogField", "owner"},
 							},
 							{
 								TypeName:   "Pet",
 								FieldNames: []string{"id", "name"},
+							},
+							{
+								TypeName:   "Owner",
+								FieldNames: []string{"name"},
+							},
+							{
+								TypeName:   "CatOwner",
+								FieldNames: []string{"catOwner"},
 							},
 						},
 						Custom: ConfigJson(Configuration{
@@ -7725,15 +7749,22 @@ func TestGraphQLDataSource(t *testing.T) {
                                 interface Pet {
                                     id: ID!
                                     name: String!,
+									owner: Owner!
                                 }
+								type CatOwner {
+									catOwner: String!
+								}
                                 type Cat implements Pet @key(fields: "id") {
                                     id: ID!
                                     name: String!
+									owner: Owner!
+									catOwner: CatOwner!
                                     catField: String!
                                 }
                                 type Dog implements Pet @key(fields: "id") {
                                     id: ID!
                                     name: String!
+									owner: Owner!
                                     dogField: String!
                                 }
                             `,
