@@ -6231,123 +6231,178 @@ func TestGraphQLDataSource(t *testing.T) {
 
 	// When user is an entity, the "pets" field can be both declared and resolved only in the pet subgraph
 	// This separation of concerns is recommended: https://www.apollographql.com/docs/federation/v1/#separation-of-concerns
-	t.Run("Federation with interface field query (defined on pet subgraph) featuring consecutive inline fragments (shared selection at top)", RunTest(
-		`
-        type Query {
-            user: User
-        }
-        type User {
-            id: ID!
-            username: String!
-            pets: [Pet!]!
-        }
-        interface Pet {
-            name: String!
-        }
-        type Cat implements Pet {
-            name: String!
-            catField: String!
-        }
-        type Dog implements Pet {
-            name: String!
-            dogField: String!
-        }
-        `,
-		`
-        query TestQuery {
-            user {
-                username
-                pets {
+	t.Run("Federation with interface field query (defined on pet subgraph)", func(t *testing.T) {
+		t.Run("featuring consecutive inline fragments (shared selection at top)", RunTest(
+			`
+		type Query {
+			user: User
+		}
+		type User {
+			id: ID!
+			username: String!
+			pets: [Pet!]!
+		}
+		type Details {
+			hasOwner: Boolean!
+			age: Int!
+		}
+		interface Pet {
+			name: String!
+			species: String!
+			details: Details!
+		}
+		type Cat implements Pet {
+			name: String!
+			species: String!
+			catField: String!
+			details: Details!
+		}
+		type Dog implements Pet {
+			name: String!
+			species: String!
+			dogField: String!
+			details: Details!
+		}
+		`,
+			`
+		query TestQuery {
+			user {
+				username
+				pets {
 					name
-                    ... on Cat {
-                        catField
-                    }
-                    ... on Dog {
-                        dogField
-                    }
-                }
-            }
-        }
-        `,
-		"TestQuery",
-		&plan.SynchronousResponsePlan{
-			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						BufferId:              0,
-						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
-						DataSource:            &Source{},
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
-					},
-					Fields: []*resolve.Field{
-						{
-							HasBuffer: true,
-							BufferID:  0,
-							Name:      []byte("user"),
-							Value: &resolve.Object{
-								Fetch: &resolve.BatchFetch{
-									Fetch: &resolve.SingleFetch{
-										BufferId: 1,
-										// Note: __typename is included in the Cat and Dog inline fragments
-										// because the field were originally themselves in inline fragments
-										// that were inlined. The additional __typename selections are
-										// harmless.
-										Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename name ... on Cat {catField} ... on Dog {dogField}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
-										Variables: resolve.NewVariables(
-											&resolve.ObjectVariable{
-												Path:     []string{"id"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+					... on Cat {
+						catField
+						details {
+							age
+						}
+					}
+					... on Dog {
+						dogField
+						species
+					}
+					details {
+						hasOwner
+					}
+				}
+			}
+		}
+		`,
+			"TestQuery",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.SingleFetch{
+							BufferId:              0,
+							Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
+							DataSource:            &Source{},
+							DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+							ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						},
+						Fields: []*resolve.Field{
+							{
+								HasBuffer: true,
+								BufferID:  0,
+								Name:      []byte("user"),
+								Value: &resolve.Object{
+									Fetch: &resolve.BatchFetch{
+										Fetch: &resolve.SingleFetch{
+											BufferId: 1,
+											// Note: __typename is included in the Cat and Dog inline fragments
+											// because the field were originally themselves in inline fragments
+											// that were inlined. The additional __typename selections are
+											// harmless.
+											Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename name ... on Cat {catField details {age}} ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+											Variables: resolve.NewVariables(
+												&resolve.ObjectVariable{
+													Path:     []string{"id"},
+													Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+												},
+											),
+											DataSource:           &Source{},
+											DataSourceIdentifier: []byte("graphql_datasource.Source"),
+											ProcessResponseConfig: resolve.ProcessResponseConfig{
+												ExtractGraphqlResponse:    true,
+												ExtractFederationEntities: true,
 											},
-										),
-										DataSource:           &Source{},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										ProcessResponseConfig: resolve.ProcessResponseConfig{
-											ExtractGraphqlResponse:    true,
-											ExtractFederationEntities: true,
+											SetTemplateOutputToNullOnVariableNull: true,
 										},
-										SetTemplateOutputToNullOnVariableNull: true,
+										BatchFactory: batchFactory,
 									},
-									BatchFactory: batchFactory,
-								},
-								Path:     []string{"user"},
-								Nullable: true,
-								Fields: []*resolve.Field{
-									{
-										Name: []byte("username"),
-										Value: &resolve.String{
-											Path: []string{"username"},
+									Path:     []string{"user"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("username"),
+											Value: &resolve.String{
+												Path: []string{"username"},
+											},
 										},
-									},
-									{
-										Name:      []byte("pets"),
-										HasBuffer: true,
-										BufferID:  1,
-										Value: &resolve.Array{
-											Path:     []string{"pets"},
-											Nullable: false,
-											Item: &resolve.Object{
+										{
+											Name:      []byte("pets"),
+											HasBuffer: true,
+											BufferID:  1,
+											Value: &resolve.Array{
+												Path:     []string{"pets"},
 												Nullable: false,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("name"),
-														Value: &resolve.String{
-															Path: []string{"name"},
+												Item: &resolve.Object{
+													Nullable: false,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("name"),
+															Value: &resolve.String{
+																Path: []string{"name"},
+															},
 														},
-													},
-													{
-														Name: []byte("catField"),
-														Value: &resolve.String{
-															Path: []string{"catField"},
+														{
+															Name: []byte("catField"),
+															Value: &resolve.String{
+																Path: []string{"catField"},
+															},
+															OnTypeName: []byte("Cat"),
 														},
-														OnTypeName: []byte("Cat"),
-													},
-													{
-														Name: []byte("dogField"),
-														Value: &resolve.String{
-															Path: []string{"dogField"},
+														{
+															Name: []byte("details"),
+															Value: &resolve.Object{
+																Path: []string{"details"},
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("age"),
+																		Value: &resolve.Integer{
+																			Path: []string{"age"},
+																		},
+																	},
+																},
+															},
+															OnTypeName: []byte("Cat"),
 														},
-														OnTypeName: []byte("Dog"),
+														{
+															Name: []byte("dogField"),
+															Value: &resolve.String{
+																Path: []string{"dogField"},
+															},
+															OnTypeName: []byte("Dog"),
+														},
+														{
+															Name: []byte("species"),
+															Value: &resolve.String{
+																Path: []string{"species"},
+															},
+															OnTypeName: []byte("Dog"),
+														},
+														{
+															Name: []byte("details"),
+															Value: &resolve.Object{
+																Path: []string{"details"},
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("hasOwner"),
+																		Value: &resolve.Boolean{
+																			Path: []string{"hasOwner"},
+																		},
+																	},
+																},
+															},
+														},
 													},
 												},
 											},
@@ -6359,29 +6414,28 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
-		},
-		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"user"},
+			plan.Configuration{
+				DataSources: []plan.DataSourceConfiguration{
+					{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"user"},
+							},
 						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"username"},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"username"},
+							},
 						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://user.service",
-						},
-						Federation: FederationConfiguration{
-							Enabled: true,
-							ServiceSDL: `
+						Custom: ConfigJson(Configuration{
+							Fetch: FetchConfiguration{
+								URL: "http://user.service",
+							},
+							Federation: FederationConfiguration{
+								Enabled: true,
+								ServiceSDL: `
                                 extend type Query {
                                     user: User
                                 }
@@ -6390,88 +6444,110 @@ func TestGraphQLDataSource(t *testing.T) {
                                     username: String!
                                 }
                             `,
-						},
-					}),
-					Factory: federationFactory,
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"pets"},
-						},
+							},
+						}),
+						Factory: federationFactory,
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Pet",
-							FieldNames: []string{"name"},
+					{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"pets"},
+							},
 						},
-						{
-							TypeName:   "Cat",
-							FieldNames: []string{"catField"},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Details",
+								FieldNames: []string{"age", "hasOwner"},
+							},
+							{
+								TypeName:   "Pet",
+								FieldNames: []string{"name", "species", "details"},
+							},
+							{
+								TypeName:   "Cat",
+								FieldNames: []string{"catField", "details"},
+							},
+							{
+								TypeName:   "Dog",
+								FieldNames: []string{"dogField", "species"},
+							},
 						},
-						{
-							TypeName:   "Dog",
-							FieldNames: []string{"dogField"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://pet.service",
-						},
-						Federation: FederationConfiguration{
-							Enabled: true,
-							ServiceSDL: `
-                                interface Pet {
-                                    name: String!,
+						Custom: ConfigJson(Configuration{
+							Fetch: FetchConfiguration{
+								URL: "http://pet.service",
+							},
+							Federation: FederationConfiguration{
+								Enabled: true,
+								ServiceSDL: `
+                                type Details {
+                                    age: Int!
+                                    hasOwner : Boolean!
                                 }
-                                type Cat implements Pet{
+								interface Pet {
                                     name: String!
+                                    species: String!
+									details: Details!
+                                }
+                                type Cat implements Pet {
+                                    name: String!
+                                    species: String!
                                     catField: String!
+                                    details: Details!
                                 }
                                 type Dog implements Pet {
                                     name: String!
+                                    species: String!
                                     dogField: String!
+                                    details: Details!
                                 }
 								extend type User @key(fields: "id") {
 									id: ID! @external
 									pets: [Pet!]!
 								}
                             `,
-						},
-					}),
-					Factory: federationFactory,
+							},
+						}),
+						Factory: federationFactory,
+					},
 				},
-			},
-			Fields: []plan.FieldConfiguration{
-				{
-					TypeName:       "User",
-					FieldName:      "pets",
-					Path:           []string{"pets"},
-					RequiresFields: []string{"id"},
+				Fields: []plan.FieldConfiguration{
+					{
+						TypeName:       "User",
+						FieldName:      "pets",
+						Path:           []string{"pets"},
+						RequiresFields: []string{"id"},
+					},
+					{
+						TypeName:  "Cat",
+						FieldName: "name",
+					},
+					{
+						TypeName:  "Cat",
+						FieldName: "catField",
+					},
+					{
+						TypeName:  "Cat",
+						FieldName: "details",
+					},
+					{
+						TypeName:  "Dog",
+						FieldName: "name",
+					},
+					{
+						TypeName:  "Dog",
+						FieldName: "dogField",
+					},
+					{
+						TypeName:  "Dog",
+						FieldName: "species",
+					},
 				},
-				{
-					TypeName:  "Cat",
-					FieldName: "name",
-				},
-				{
-					TypeName:  "Cat",
-					FieldName: "catField",
-				},
-				{
-					TypeName:  "Dog",
-					FieldName: "name",
-				},
-				{
-					TypeName:  "Dog",
-					FieldName: "dogField",
-				},
-			},
-			DisableResolveFieldPositions: true,
-		}))
+				DisableResolveFieldPositions: true,
+			}))
 
-	t.Run("Federation with interface field query (defined on pet subgraph) featuring consecutive inline fragments (shared selection in middle)", RunTest(
-		`
+		t.Run("featuring consecutive inline fragments (shared selection in middle)", RunTest(
+			`
         type Query {
             user: User
         }
@@ -6492,7 +6568,7 @@ func TestGraphQLDataSource(t *testing.T) {
             dogField: String!
         }
         `,
-		`
+			`
         query TestQuery {
             user {
                 username
@@ -6508,85 +6584,86 @@ func TestGraphQLDataSource(t *testing.T) {
             }
         }
         `,
-		"TestQuery",
-		&plan.SynchronousResponsePlan{
-			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						BufferId:              0,
-						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
-						DataSource:            &Source{},
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
-					},
-					Fields: []*resolve.Field{
-						{
-							HasBuffer: true,
-							BufferID:  0,
-							Name:      []byte("user"),
-							Value: &resolve.Object{
-								Fetch: &resolve.BatchFetch{
-									Fetch: &resolve.SingleFetch{
-										BufferId: 1,
-										// Note: __typename is included in the Cat and Dog inline fragments
-										// because the field were originally themselves in inline fragments
-										// that were inlined. The additional __typename selections are
-										// harmless.
-										Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {catField} name ... on Dog {dogField}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
-										Variables: resolve.NewVariables(
-											&resolve.ObjectVariable{
-												Path:     []string{"id"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+			"TestQuery",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.SingleFetch{
+							BufferId:              0,
+							Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
+							DataSource:            &Source{},
+							DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+							ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						},
+						Fields: []*resolve.Field{
+							{
+								HasBuffer: true,
+								BufferID:  0,
+								Name:      []byte("user"),
+								Value: &resolve.Object{
+									Fetch: &resolve.BatchFetch{
+										Fetch: &resolve.SingleFetch{
+											BufferId: 1,
+											// Note: __typename is included in the Cat and Dog inline fragments
+											// because the field were originally themselves in inline fragments
+											// that were inlined. The additional __typename selections are
+											// harmless.
+											Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {catField} name ... on Dog {dogField}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+											Variables: resolve.NewVariables(
+												&resolve.ObjectVariable{
+													Path:     []string{"id"},
+													Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+												},
+											),
+											DataSource:           &Source{},
+											DataSourceIdentifier: []byte("graphql_datasource.Source"),
+											ProcessResponseConfig: resolve.ProcessResponseConfig{
+												ExtractGraphqlResponse:    true,
+												ExtractFederationEntities: true,
 											},
-										),
-										DataSource:           &Source{},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										ProcessResponseConfig: resolve.ProcessResponseConfig{
-											ExtractGraphqlResponse:    true,
-											ExtractFederationEntities: true,
+											SetTemplateOutputToNullOnVariableNull: true,
 										},
-										SetTemplateOutputToNullOnVariableNull: true,
+										BatchFactory: batchFactory,
 									},
-									BatchFactory: batchFactory,
-								},
-								Path:     []string{"user"},
-								Nullable: true,
-								Fields: []*resolve.Field{
-									{
-										Name: []byte("username"),
-										Value: &resolve.String{
-											Path: []string{"username"},
+									Path:     []string{"user"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("username"),
+											Value: &resolve.String{
+												Path: []string{"username"},
+											},
 										},
-									},
-									{
-										Name:      []byte("pets"),
-										HasBuffer: true,
-										BufferID:  1,
-										Value: &resolve.Array{
-											Path:     []string{"pets"},
-											Nullable: false,
-											Item: &resolve.Object{
+										{
+											Name:      []byte("pets"),
+											HasBuffer: true,
+											BufferID:  1,
+											Value: &resolve.Array{
+												Path:     []string{"pets"},
 												Nullable: false,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("catField"),
-														Value: &resolve.String{
-															Path: []string{"catField"},
+												Item: &resolve.Object{
+													Nullable: false,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("catField"),
+															Value: &resolve.String{
+																Path: []string{"catField"},
+															},
+															OnTypeName: []byte("Cat"),
 														},
-														OnTypeName: []byte("Cat"),
-													},
-													{
-														Name: []byte("name"),
-														Value: &resolve.String{
-															Path: []string{"name"},
+														{
+															Name: []byte("name"),
+															Value: &resolve.String{
+																Path: []string{"name"},
+															},
 														},
-													},
-													{
-														Name: []byte("dogField"),
-														Value: &resolve.String{
-															Path: []string{"dogField"},
+														{
+															Name: []byte("dogField"),
+															Value: &resolve.String{
+																Path: []string{"dogField"},
+															},
+															OnTypeName: []byte("Dog"),
 														},
-														OnTypeName: []byte("Dog"),
 													},
 												},
 											},
@@ -6598,29 +6675,28 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
-		},
-		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"user"},
+			plan.Configuration{
+				DataSources: []plan.DataSourceConfiguration{
+					{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"user"},
+							},
 						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"username"},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"username"},
+							},
 						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://user.service",
-						},
-						Federation: FederationConfiguration{
-							Enabled: true,
-							ServiceSDL: `
+						Custom: ConfigJson(Configuration{
+							Fetch: FetchConfiguration{
+								URL: "http://user.service",
+							},
+							Federation: FederationConfiguration{
+								Enabled: true,
+								ServiceSDL: `
                                 extend type Query {
                                     user: User
                                 }
@@ -6629,38 +6705,38 @@ func TestGraphQLDataSource(t *testing.T) {
                                     username: String!
                                 }
                             `,
-						},
-					}),
-					Factory: federationFactory,
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"pets"},
-						},
+							},
+						}),
+						Factory: federationFactory,
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Pet",
-							FieldNames: []string{"name"},
+					{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"pets"},
+							},
 						},
-						{
-							TypeName:   "Cat",
-							FieldNames: []string{"catField"},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Pet",
+								FieldNames: []string{"name"},
+							},
+							{
+								TypeName:   "Cat",
+								FieldNames: []string{"catField"},
+							},
+							{
+								TypeName:   "Dog",
+								FieldNames: []string{"dogField"},
+							},
 						},
-						{
-							TypeName:   "Dog",
-							FieldNames: []string{"dogField"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://pet.service",
-						},
-						Federation: FederationConfiguration{
-							Enabled: true,
-							ServiceSDL: `
+						Custom: ConfigJson(Configuration{
+							Fetch: FetchConfiguration{
+								URL: "http://pet.service",
+							},
+							Federation: FederationConfiguration{
+								Enabled: true,
+								ServiceSDL: `
                                 interface Pet {
                                     name: String!,
                                 }
@@ -6677,32 +6753,32 @@ func TestGraphQLDataSource(t *testing.T) {
 									pets: [Pet!]!
 								}
                             `,
-						},
-					}),
-					Factory: federationFactory,
+							},
+						}),
+						Factory: federationFactory,
+					},
 				},
-			},
-			Fields: []plan.FieldConfiguration{
-				{
-					TypeName:       "User",
-					FieldName:      "pets",
-					Path:           []string{"pets"},
-					RequiresFields: []string{"id"},
+				Fields: []plan.FieldConfiguration{
+					{
+						TypeName:       "User",
+						FieldName:      "pets",
+						Path:           []string{"pets"},
+						RequiresFields: []string{"id"},
+					},
+					{
+						TypeName:  "Cat",
+						FieldName: "catField",
+					},
+					{
+						TypeName:  "Dog",
+						FieldName: "dogField",
+					},
 				},
-				{
-					TypeName:  "Cat",
-					FieldName: "catField",
-				},
-				{
-					TypeName:  "Dog",
-					FieldName: "dogField",
-				},
-			},
-			DisableResolveFieldPositions: true,
-		}))
+				DisableResolveFieldPositions: true,
+			}))
 
-	t.Run("Federation with interface field query (defined on pet subgraph) featuring consecutive inline fragments (shared selection at bottom)", RunTest(
-		`
+		t.Run("featuring consecutive inline fragments (shared selection at bottom)", RunTest(
+			`
         type Query {
             user: User
         }
@@ -6723,7 +6799,7 @@ func TestGraphQLDataSource(t *testing.T) {
             dogField: String!
         }
         `,
-		`
+			`
         query TestQuery {
             user {
                 username
@@ -6739,84 +6815,85 @@ func TestGraphQLDataSource(t *testing.T) {
             }
         }
         `,
-		"TestQuery",
-		&plan.SynchronousResponsePlan{
-			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						BufferId:              0,
-						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
-						DataSource:            &Source{},
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
-					},
-					Fields: []*resolve.Field{
-						{
-							HasBuffer: true,
-							BufferID:  0,
-							Name:      []byte("user"),
-							Value: &resolve.Object{
-								Fetch: &resolve.BatchFetch{
-									Fetch: &resolve.SingleFetch{
-										BufferId: 1,
-										// Note: __typename is included in the Cat and Dog inline fragments
-										// because the field were originally themselves in inline fragments
-										// that were inlined. The additional __typename selections are
-										// harmless.
-										Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {catField} ... on Dog {dogField} name}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
-										Variables: resolve.NewVariables(
-											&resolve.ObjectVariable{
-												Path:     []string{"id"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+			"TestQuery",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.SingleFetch{
+							BufferId:              0,
+							Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
+							DataSource:            &Source{},
+							DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+							ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						},
+						Fields: []*resolve.Field{
+							{
+								HasBuffer: true,
+								BufferID:  0,
+								Name:      []byte("user"),
+								Value: &resolve.Object{
+									Fetch: &resolve.BatchFetch{
+										Fetch: &resolve.SingleFetch{
+											BufferId: 1,
+											// Note: __typename is included in the Cat and Dog inline fragments
+											// because the field were originally themselves in inline fragments
+											// that were inlined. The additional __typename selections are
+											// harmless.
+											Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {catField} ... on Dog {dogField} name}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+											Variables: resolve.NewVariables(
+												&resolve.ObjectVariable{
+													Path:     []string{"id"},
+													Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+												},
+											),
+											DataSource:           &Source{},
+											DataSourceIdentifier: []byte("graphql_datasource.Source"),
+											ProcessResponseConfig: resolve.ProcessResponseConfig{
+												ExtractGraphqlResponse:    true,
+												ExtractFederationEntities: true,
 											},
-										),
-										DataSource:           &Source{},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										ProcessResponseConfig: resolve.ProcessResponseConfig{
-											ExtractGraphqlResponse:    true,
-											ExtractFederationEntities: true,
+											SetTemplateOutputToNullOnVariableNull: true,
 										},
-										SetTemplateOutputToNullOnVariableNull: true,
+										BatchFactory: batchFactory,
 									},
-									BatchFactory: batchFactory,
-								},
-								Path:     []string{"user"},
-								Nullable: true,
-								Fields: []*resolve.Field{
-									{
-										Name: []byte("username"),
-										Value: &resolve.String{
-											Path: []string{"username"},
+									Path:     []string{"user"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("username"),
+											Value: &resolve.String{
+												Path: []string{"username"},
+											},
 										},
-									},
-									{
-										Name:      []byte("pets"),
-										HasBuffer: true,
-										BufferID:  1,
-										Value: &resolve.Array{
-											Path:     []string{"pets"},
-											Nullable: false,
-											Item: &resolve.Object{
+										{
+											Name:      []byte("pets"),
+											HasBuffer: true,
+											BufferID:  1,
+											Value: &resolve.Array{
+												Path:     []string{"pets"},
 												Nullable: false,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("catField"),
-														Value: &resolve.String{
-															Path: []string{"catField"},
+												Item: &resolve.Object{
+													Nullable: false,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("catField"),
+															Value: &resolve.String{
+																Path: []string{"catField"},
+															},
+															OnTypeName: []byte("Cat"),
 														},
-														OnTypeName: []byte("Cat"),
-													},
-													{
-														Name: []byte("dogField"),
-														Value: &resolve.String{
-															Path: []string{"dogField"},
+														{
+															Name: []byte("dogField"),
+															Value: &resolve.String{
+																Path: []string{"dogField"},
+															},
+															OnTypeName: []byte("Dog"),
 														},
-														OnTypeName: []byte("Dog"),
-													},
-													{
-														Name: []byte("name"),
-														Value: &resolve.String{
-															Path: []string{"name"},
+														{
+															Name: []byte("name"),
+															Value: &resolve.String{
+																Path: []string{"name"},
+															},
 														},
 													},
 												},
@@ -6829,29 +6906,28 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
-		},
-		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"user"},
+			plan.Configuration{
+				DataSources: []plan.DataSourceConfiguration{
+					{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"user"},
+							},
 						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"username"},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"username"},
+							},
 						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://user.service",
-						},
-						Federation: FederationConfiguration{
-							Enabled: true,
-							ServiceSDL: `
+						Custom: ConfigJson(Configuration{
+							Fetch: FetchConfiguration{
+								URL: "http://user.service",
+							},
+							Federation: FederationConfiguration{
+								Enabled: true,
+								ServiceSDL: `
                                 extend type Query {
                                     user: User
                                 }
@@ -6860,38 +6936,38 @@ func TestGraphQLDataSource(t *testing.T) {
                                     username: String!
                                 }
                             `,
-						},
-					}),
-					Factory: federationFactory,
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"pets"},
-						},
+							},
+						}),
+						Factory: federationFactory,
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Pet",
-							FieldNames: []string{"name"},
+					{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"pets"},
+							},
 						},
-						{
-							TypeName:   "Cat",
-							FieldNames: []string{"catField"},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Pet",
+								FieldNames: []string{"name"},
+							},
+							{
+								TypeName:   "Cat",
+								FieldNames: []string{"catField"},
+							},
+							{
+								TypeName:   "Dog",
+								FieldNames: []string{"dogField"},
+							},
 						},
-						{
-							TypeName:   "Dog",
-							FieldNames: []string{"dogField"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "http://pet.service",
-						},
-						Federation: FederationConfiguration{
-							Enabled: true,
-							ServiceSDL: `
+						Custom: ConfigJson(Configuration{
+							Fetch: FetchConfiguration{
+								URL: "http://pet.service",
+							},
+							Federation: FederationConfiguration{
+								Enabled: true,
+								ServiceSDL: `
                                 interface Pet {
                                     name: String!,
                                 }
@@ -6908,29 +6984,30 @@ func TestGraphQLDataSource(t *testing.T) {
 									pets: [Pet!]!
 								}
                             `,
-						},
-					}),
-					Factory: federationFactory,
+							},
+						}),
+						Factory: federationFactory,
+					},
 				},
-			},
-			Fields: []plan.FieldConfiguration{
-				{
-					TypeName:       "User",
-					FieldName:      "pets",
-					Path:           []string{"pets"},
-					RequiresFields: []string{"id"},
+				Fields: []plan.FieldConfiguration{
+					{
+						TypeName:       "User",
+						FieldName:      "pets",
+						Path:           []string{"pets"},
+						RequiresFields: []string{"id"},
+					},
+					{
+						TypeName:  "Cat",
+						FieldName: "catField",
+					},
+					{
+						TypeName:  "Dog",
+						FieldName: "dogField",
+					},
 				},
-				{
-					TypeName:  "Cat",
-					FieldName: "catField",
-				},
-				{
-					TypeName:  "Dog",
-					FieldName: "dogField",
-				},
-			},
-			DisableResolveFieldPositions: true,
-		}))
+				DisableResolveFieldPositions: true,
+			}))
+	})
 
 	// The following test is not the recommended way to separate concerns but is included for example's sake
 	t.Run("Federation with interface field query (defined on user subgraph) featuring consecutive inline fragments (shared selection at top)", RunTest(
