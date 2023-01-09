@@ -127,12 +127,16 @@ func TestResolver_ResolveNode(t *testing.T) {
 	}
 
 	testErrFn := func(fn func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string)) func(t *testing.T) {
+		t.Helper()
+
 		ctrl := gomock.NewController(t)
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		r := newResolver(c, false, false)
 		node, ctx, expectedErr := fn(t, r, ctrl)
 		return func(t *testing.T) {
+			t.Helper()
+
 			buf := &BufPair{
 				Data:   fastbuffer.New(),
 				Errors: fastbuffer.New(),
@@ -967,8 +971,103 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `invalid value type 'number' for path /data/strings/2, expecting string, got: 123. You can fix this by configuring this field as Int/Float Scalar`
+		}, Context{Context: context.Background()}, `invalid value type 'number' for path /data/strings/2, expecting string, got: 123. You can fix this by configuring this field as Int/Float/JSON Scalar`
 	}))
+	t.Run("resolve array items", func(t *testing.T) {
+		t.Run("with unescape json enabled", func(t *testing.T) {
+			t.Run("json encoded input", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId:   0,
+						DataSource: FakeDataSource(`{"jsonList":["{\"field\":\"value\"}"]}`),
+					},
+					Fields: []*Field{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Name:      []byte("jsonList"),
+							Value: &Array{
+								Path: []string{"jsonList"},
+								Item: &String{
+									Nullable:             false,
+									UnescapeResponseJson: true,
+								},
+							},
+						},
+					},
+				}, Context{Context: context.Background()}, `{"jsonList":[{"field":"value"}]}`
+			}))
+			t.Run("json input", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId:   0,
+						DataSource: FakeDataSource(`{"jsonList":[{"field":"value"}]}`),
+					},
+					Fields: []*Field{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Name:      []byte("jsonList"),
+							Value: &Array{
+								Path: []string{"jsonList"},
+								Item: &String{
+									Nullable:             false,
+									UnescapeResponseJson: true,
+								},
+							},
+						},
+					},
+				}, Context{Context: context.Background()}, `{"jsonList":[{"field":"value"}]}`
+			}))
+		})
+		t.Run("with unescape json disabled", func(t *testing.T) {
+			t.Run("json encoded input", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId:   0,
+						DataSource: FakeDataSource(`{"jsonList":["{\"field\":\"value\"}"]}`),
+					},
+					Fields: []*Field{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Name:      []byte("jsonList"),
+							Value: &Array{
+								Path: []string{"jsonList"},
+								Item: &String{
+									Nullable:             false,
+									UnescapeResponseJson: false,
+								},
+							},
+						},
+					},
+				}, Context{Context: context.Background()}, `{"jsonList":["{\"field\":\"value\"}"]}`
+			}))
+			t.Run("json input", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
+				return &Object{
+						Fetch: &SingleFetch{
+							BufferId:   0,
+							DataSource: FakeDataSource(`{"jsonList":[{"field":"value"}]}`),
+						},
+						Fields: []*Field{
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("jsonList"),
+								Value: &Array{
+									Path: []string{"jsonList"},
+									Item: &String{
+										Nullable:             false,
+										UnescapeResponseJson: false,
+									},
+								},
+							},
+						},
+					}, Context{Context: context.Background()},
+					`invalid value type 'object' for path /data/jsonList/0, expecting string, got: {"field":"value"}. You can fix this by configuring this field as Int/Float/JSON Scalar`
+			}))
+		})
+	})
 	t.Run("resolve arrays", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fetch: &SingleFetch{

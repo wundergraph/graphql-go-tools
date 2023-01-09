@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasource/httpclient"
 	. "github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/plan"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
@@ -23,8 +25,79 @@ import (
 )
 
 func TestGraphQLDataSource(t *testing.T) {
+	t.Run("@removeNullVariables directive", RunTest(`
+		schema {
+			query: Query
+		}
+		
+		type Query {
+			hero(a: String): String
+		}`, `
+		query MyQuery($a: String) @removeNullVariables {
+			hero(a: $a)
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","unnull_variables":true,"body":{"query":"query($a: String){hero(a: $a)}","variables":{"a":$$0$$}}}`,
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path:     []string{"a"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+						},
+					),
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("hero"),
+						Value: &resolve.String{
+							Path:     []string{"hero"},
+							Nullable: true,
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"hero"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "hero",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "a",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		DisableResolveFieldPositions: true,
+	}))
 	t.Run("simple named Query", RunTest(starWarsSchema, `
-		query MyQuery($id: ID!){
+		query MyQuery($id: ID!) {
 			droid(id: $id){
 				name
 				aliased: name
@@ -1177,7 +1250,120 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 		DisableResolveFieldPositions: true,
 	}))
-	t.Run("exported field", RunTest(starWarsSchemaWithExportDirective, `
+	t.Run("exported ID scalar field", RunTest(starWarsSchemaWithExportDirective, `
+			query MyQuery($heroId: ID!){
+				droid(id: $heroId){
+					name
+				}
+				hero {
+					id @export(as: "heroId")
+				}
+			}
+			`, "MyQuery",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						DataSource: &Source{},
+						BufferId:   0,
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($heroId: ID!){droid(id: $heroId){name} hero {id}}","variables":{"heroId":$$0$$}}}`,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"heroId"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+							},
+						),
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						DisableDataLoader:     true,
+					},
+					Fields: []*resolve.Field{
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("droid"),
+							Value: &resolve.Object{
+								Path:     []string{"droid"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path: []string{"name"},
+										},
+									},
+								},
+							},
+						},
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("hero"),
+							Value: &resolve.Object{
+								Path:     []string{"hero"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("id"),
+										Value: &resolve.String{
+											Path: []string{"id"},
+											Export: &resolve.FieldExport{
+												Path:     []string{"heroId"},
+												AsString: true,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"droid", "hero"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Character",
+							FieldNames: []string{"id"},
+						},
+						{
+							TypeName:   "Droid",
+							FieldNames: []string{"name"},
+						},
+					},
+					Factory: &Factory{},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+						},
+						UpstreamSchema: starWarsSchema,
+					}),
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "droid",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "id",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+			},
+			DisableResolveFieldPositions: true,
+		}))
+
+	t.Run("exported string field", RunTest(starWarsSchemaWithExportDirective, `
 		query MyQuery($id: ID! $heroName: String!){
 			droid(id: $id){
 				name
@@ -1405,6 +1591,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 		DisableResolveFieldPositions: true,
 	}))
+
 	t.Run("Query with renamed root fields", RunTest(renamedStarWarsSchema, `
 		query MyQuery($id: ID! $input: SearchInput_api! @api_onVariable $options: JSON_api) @otherapi_undefined @api_onOperation {
 			api_droid(id: $id){
@@ -6114,61 +6301,128 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 	return RunTest(testDefinition, operation, operationName, expectedPlan, config, extraChecks...)
 }
 
-func TestUnNullVariables(t *testing.T) {
+func TestSource_Load(t *testing.T) {
+	t.Run("unnull_variables", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, _ := ioutil.ReadAll(r.Body)
+			_, _ = fmt.Fprint(w, string(body))
+		}))
+		defer ts.Close()
 
-	t.Run("variables with whitespace", func(t *testing.T) {
+		var (
+			src       = &Source{httpClient: &http.Client{}}
+			serverUrl = ts.URL
+			variables = []byte(`{"a": null, "b": "b", "c": {}}`)
+		)
+
+		t.Run("should remove null variables when flag is set", func(t *testing.T) {
+			var input []byte
+			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
+			input = httpclient.SetInputURL(input, []byte(serverUrl))
+			input = httpclient.SetInputFlag(input, httpclient.UNNULLVARIABLES)
+			buf := bytes.NewBuffer(nil)
+
+			require.NoError(t, src.Load(context.Background(), input, buf))
+			assert.Equal(t, `{"variables":{"b":"b"}}`, buf.String())
+		})
+
+		t.Run("should only compact variables and remove empty objects when no flag set", func(t *testing.T) {
+			var input []byte
+			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
+			input = httpclient.SetInputURL(input, []byte(serverUrl))
+
+			buf := bytes.NewBuffer(nil)
+
+			require.NoError(t, src.Load(context.Background(), input, buf))
+			assert.Equal(t, `{"variables":{"a":null,"b":"b"}}`, buf.String())
+		})
+	})
+}
+
+func TestUnNullVariables(t *testing.T) {
+	t.Run("should not unnull variables if not enabled", func(t *testing.T) {
+		t.Run("two variables, one null", func(t *testing.T) {
+			s := &Source{}
+			out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}}}`))
+			expected := `{"body":{"variables":{"a":null,"b":true}}}`
+			assert.Equal(t, expected, string(out))
+		})
+	})
+
+	t.Run("variables with whitespace and empty objects", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"email":null,"firstName": "FirstTest",		"lastName":"LastTest","phone":123456,"preferences":{ "notifications":{}},"password":"password"}}}`))
-		expected := `{"body":{"variables":{"firstName":"FirstTest","lastName":"LastTest","phone":123456,"password":"password"}}}`
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"email":null,"firstName": "FirstTest",		"lastName":"LastTest","phone":123456,"preferences":{ "notifications":{}},"password":"password"}},"unnull_variables":true}`))
+		expected := `{"body":{"variables":{"firstName":"FirstTest","lastName":"LastTest","phone":123456,"password":"password"}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("empty variables", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{}}}`))
-		expected := `{"body":{"variables":{}}}`
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{}},"unnull_variables":true}`))
+		expected := `{"body":{"variables":{}},"unnull_variables":true}`
+		assert.Equal(t, expected, string(out))
+	})
+
+	t.Run("null inside an array", func(t *testing.T) {
+		s := &Source{}
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"list":["a",null,"b"]}},"unnull_variables":true}`))
+		expected := `{"body":{"variables":{"list":["a",null,"b"]}},"unnull_variables":true}`
+		assert.Equal(t, expected, string(out))
+	})
+
+	t.Run("complex null inside nested objects and arrays", func(t *testing.T) {
+		s := &Source{}
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null, "b": {"key":null, "nested": {"nestedkey": null}}, "arr": ["1", null, "3"], "d": {"nested_arr":["4",null,"6"]}}},"unnull_variables":true}`))
+		expected := `{"body":{"variables":{"b":{"key":null,"nested":{"nestedkey":null}},"arr":["1",null,"3"],"d":{"nested_arr":["4",null,"6"]}}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("two variables, one null", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}}}`))
-		expected := `{"body":{"variables":{"b":true}}}`
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}},"unnull_variables":true}`))
+		expected := `{"body":{"variables":{"b":true}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("two variables, one null reverse", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":true,"b":null}}}`))
-		expected := `{"body":{"variables":{"a":true}}}`
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":true,"b":null}},"unnull_variables":true}`))
+		expected := `{"body":{"variables":{"a":true}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("null variables", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":null}}`))
-		expected := `{"body":{"variables":null}}`
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":null},"unnull_variables":true}`))
+		expected := `{"body":{"variables":null},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("ignore null inside non variables", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"foo":null},"body":"query {foo(bar: null){baz}}"}}`))
-		expected := `{"body":{"variables":{},"body":"query {foo(bar: null){baz}}"}}`
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"foo":null},"body":"query {foo(bar: null){baz}}"},"unnull_variables":true}`))
+		expected := `{"body":{"variables":{},"body":"query {foo(bar: null){baz}}"},"unnull_variables":true}`
+		assert.Equal(t, expected, string(out))
+	})
+
+	t.Run("ignore null in variable name", func(t *testing.T) {
+		s := &Source{}
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"not_null":1,"null":2,"not_null2":3}},"unnull_variables":true}`))
+		expected := `{"body":{"variables":{"not_null":1,"null":2,"not_null2":3}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("variables missing", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}"}}`))
-		expected := `{"body":{"query":"{foo}"}}`
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}"},"unnull_variables":true}`))
+		expected := `{"body":{"query":"{foo}"},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("variables null", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}","variables":null}}`))
-		expected := `{"body":{"query":"{foo}","variables":null}}`
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}","variables":null},"unnull_variables":true}`))
+		expected := `{"body":{"query":"{foo}","variables":null},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 }
@@ -6477,17 +6731,20 @@ enum Episode {
 }
 
 interface Character {
+    id: ID!
     name: String!
     friends: [Character]
 }
 
 type Human implements Character {
+    id: ID!
     name: String!
     height: String!
     friends: [Character]
 }
 
 type Droid implements Character {
+    id: ID!
     name: String!
     primaryFunction: String!
     friends: [Character]
@@ -6630,17 +6887,20 @@ enum Episode {
 }
 
 interface Character {
+    id: ID!
     name: String!
     friends: [Character]
 }
 
 type Human implements Character {
+    id: ID!
     name: String!
     height: String!
     friends: [Character]
 }
 
 type Droid implements Character {
+    id: ID!
     name: String!
     primaryFunction: String!
     friends: [Character]

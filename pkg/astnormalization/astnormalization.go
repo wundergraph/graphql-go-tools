@@ -158,33 +158,41 @@ func WithNormalizeDefinition() Option {
 }
 
 func (o *OperationNormalizer) setupOperationWalkers() {
+	o.operationWalkers = make([]*astvisitor.Walker, 0, 4)
+
 	fragmentInline := astvisitor.NewWalker(48)
 	fragmentSpreadInline(&fragmentInline)
 	directiveIncludeSkip(&fragmentInline)
+	o.operationWalkers = append(o.operationWalkers, &fragmentInline)
 
-	extractVariablesWalker := astvisitor.NewWalker(48)
 	if o.options.extractVariables {
+		extractVariablesWalker := astvisitor.NewWalker(48)
 		o.variablesExtraction = extractVariables(&extractVariablesWalker)
+		o.operationWalkers = append(o.operationWalkers, &extractVariablesWalker)
 	}
 
 	other := astvisitor.NewWalker(48)
-	inputCoercionForList(&other)
 	removeSelfAliasing(&other)
 	mergeInlineFragments(&other)
 	mergeFieldSelections(&other)
 	deduplicateFields(&other)
-	extractVariablesDefaultValue(&other)
+
 	if o.options.removeFragmentDefinitions {
 		removeFragmentDefinitions(&other)
 	}
 	if o.options.removeUnusedVariables {
 		deleteUnusedVariables(&other)
 	}
+	o.operationWalkers = append(o.operationWalkers, &other)
 
-	injectInputDefaultWalker := astvisitor.NewWalker(48)
-	injectInputFieldDefaults(&injectInputDefaultWalker)
+	if o.options.extractVariables {
+		variablesProcessing := astvisitor.NewWalker(48)
+		inputCoercionForList(&variablesProcessing)
+		extractVariablesDefaultValue(&variablesProcessing)
+		injectInputFieldDefaults(&variablesProcessing)
 
-	o.operationWalkers = append(o.operationWalkers, &fragmentInline, &extractVariablesWalker, &other, &injectInputDefaultWalker)
+		o.operationWalkers = append(o.operationWalkers, &variablesProcessing)
+	}
 }
 
 func (o *OperationNormalizer) prepareDefinition(definition *ast.Document, report *operationreport.Report) {

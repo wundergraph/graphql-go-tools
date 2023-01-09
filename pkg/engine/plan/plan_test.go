@@ -288,6 +288,154 @@ func TestPlanner_Plan(t *testing.T) {
 		))
 	})
 
+	t.Run("unescape response json", func(t *testing.T) {
+		schema := `
+			scalar JSON
+			
+			schema {
+				query: Query
+			}
+			
+			type Query {
+				hero: Character!
+			}
+			
+			type Character {
+				info: JSON!
+				infos: [JSON!]!
+			}
+		`
+
+		t.Run("with field configuration", func(t *testing.T) {
+			t.Run("field with json type", test(
+				schema, `
+				{
+					hero {
+						info
+					}
+				}
+			`, "",
+				&SynchronousResponsePlan{
+					FlushInterval: 0,
+					Response: &resolve.GraphQLResponse{
+						Data: &resolve.Object{
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("hero"),
+									Value: &resolve.Object{
+										Path: []string{"hero"},
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("info"),
+												Value: &resolve.String{
+													Path:                 []string{"info"},
+													UnescapeResponseJson: true,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Configuration{
+					DisableResolveFieldPositions: true,
+					Fields: FieldConfigurations{
+						FieldConfiguration{
+							TypeName:             "Character",
+							FieldName:            "info",
+							UnescapeResponseJson: true,
+						},
+					},
+				},
+			))
+			t.Run("list with json type", test(
+				schema, `
+				{
+					hero {
+						infos
+					}
+				}
+			`, "",
+				&SynchronousResponsePlan{
+					FlushInterval: 0,
+					Response: &resolve.GraphQLResponse{
+						Data: &resolve.Object{
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("hero"),
+									Value: &resolve.Object{
+										Path: []string{"hero"},
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("infos"),
+												Value: &resolve.Array{
+													Path: []string{"infos"},
+													Item: &resolve.String{
+														UnescapeResponseJson: true,
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Configuration{
+					DisableResolveFieldPositions: true,
+					Fields: FieldConfigurations{
+						FieldConfiguration{
+							TypeName:             "Character",
+							FieldName:            "infos",
+							UnescapeResponseJson: true,
+						},
+					},
+				},
+			))
+		})
+
+		t.Run("without field configuration", func(t *testing.T) {
+			t.Run("field with json type", test(
+				schema, `
+				{
+					hero {
+						info
+					}
+				}
+			`, "",
+				&SynchronousResponsePlan{
+					FlushInterval: 0,
+					Response: &resolve.GraphQLResponse{
+						Data: &resolve.Object{
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("hero"),
+									Value: &resolve.Object{
+										Path: []string{"hero"},
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("info"),
+												Value: &resolve.String{
+													Path:                 []string{"info"},
+													UnescapeResponseJson: false,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Configuration{
+					DisableResolveFieldPositions: true,
+				},
+			))
+		})
+	})
 }
 
 var expectedMyHeroPlan = &SynchronousResponsePlan{

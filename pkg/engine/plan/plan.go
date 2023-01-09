@@ -569,7 +569,7 @@ func (v *Visitor) EnterField(ref int) {
 
 	v.currentField = &resolve.Field{
 		Name:                    fieldAliasOrName,
-		Value:                   v.resolveFieldValue(ref, fieldDefinitionType, true, path, false),
+		Value:                   v.resolveFieldValue(ref, fieldDefinitionType, true, path),
 		HasBuffer:               hasBuffer,
 		BufferID:                bufferID,
 		OnTypeName:              v.resolveOnTypeName(),
@@ -682,27 +682,26 @@ func (v *Visitor) skipField(ref int) bool {
 	return false
 }
 
-func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path []string, isList bool) resolve.Node {
+func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path []string) resolve.Node {
 	ofType := v.Definition.Types[typeRef].OfType
 
 	fieldName := v.Operation.FieldNameString(fieldRef)
 	enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 	fieldConfig := v.Config.Fields.ForTypeField(enclosingTypeName, fieldName)
 	unescapeResponseJson := false
-	if !isList && fieldConfig != nil {
+	if fieldConfig != nil {
 		unescapeResponseJson = fieldConfig.UnescapeResponseJson
 	}
 
 	switch v.Definition.Types[typeRef].TypeKind {
 	case ast.TypeKindNonNull:
-		return v.resolveFieldValue(fieldRef, ofType, false, path, false)
+		return v.resolveFieldValue(fieldRef, ofType, false, path)
 	case ast.TypeKindList:
-		listItem := v.resolveFieldValue(fieldRef, ofType, true, nil, true)
+		listItem := v.resolveFieldValue(fieldRef, ofType, true, nil)
 		return &resolve.Array{
-			Nullable:             nullable,
-			Path:                 path,
-			Item:                 listItem,
-			UnescapeResponseJson: unescapeResponseJson,
+			Nullable: nullable,
+			Path:     path,
+			Item:     listItem,
 		}
 	case ast.TypeKindNamed:
 		typeName := v.Definition.ResolveTypeNameString(typeRef)
@@ -801,15 +800,18 @@ func (v *Visitor) resolveFieldExport(fieldRef int) *resolve.FieldExport {
 		return nil
 	}
 	v.exportedVariables[exportAs] = struct{}{}
+
 	typeName := v.Operation.ResolveTypeNameString(v.Operation.VariableDefinitions[variableDefinition].Type)
-	if typeName == "String" {
+	switch typeName {
+	case "Int", "Float", "Boolean":
+		return &resolve.FieldExport{
+			Path: []string{exportAs},
+		}
+	default:
 		return &resolve.FieldExport{
 			Path:     []string{exportAs},
 			AsString: true,
 		}
-	}
-	return &resolve.FieldExport{
-		Path: []string{exportAs},
 	}
 }
 
@@ -1050,9 +1052,9 @@ func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *
 
 			var variablePath []string
 			if len(parts) > 2 && node.Kind == ast.NodeKindInputObjectTypeDefinition {
-					variablePath = append(variablePath, path...)
+				variablePath = append(variablePath, path...)
 			} else {
-					variablePath = append(variablePath, variableValue)
+				variablePath = append(variablePath, variableValue)
 			}
 
 			variable := &resolve.ContextVariable{
