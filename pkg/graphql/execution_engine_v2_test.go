@@ -1317,7 +1317,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{codeType {code __typename ... on Country {name}}}"}`,
+							expectedBody:     `{"query":"{codeType {__typename code ... on Country {name}}}"}`,
 							sendResponseBody: `{"data":{"codeType":{"__typename":"Country","code":"de","name":"Germany"}}}`,
 							sendStatusCode:   200,
 						}),
@@ -1672,7 +1672,7 @@ type beforeFetchHook struct {
 	input string
 }
 
-func (b *beforeFetchHook) OnBeforeFetch(ctx resolve.HookContext, input []byte) {
+func (b *beforeFetchHook) OnBeforeFetch(_ resolve.HookContext, input []byte) {
 	b.input += string(input)
 }
 
@@ -1681,11 +1681,11 @@ type afterFetchHook struct {
 	err  string
 }
 
-func (a *afterFetchHook) OnData(ctx resolve.HookContext, output []byte, singleFlight bool) {
+func (a *afterFetchHook) OnData(_ resolve.HookContext, output []byte, _ bool) {
 	a.data += string(output)
 }
 
-func (a *afterFetchHook) OnError(ctx resolve.HookContext, output []byte, singleFlight bool) {
+func (a *afterFetchHook) OnError(_ resolve.HookContext, output []byte, _ bool) {
 	a.err += string(output)
 }
 
@@ -1749,7 +1749,7 @@ func TestExecutionWithOptions(t *testing.T) {
 	resultWriter := NewEngineResultWriter()
 	err = engine.Execute(context.Background(), &operation, &resultWriter, WithBeforeFetchHook(before), WithAfterFetchHook(after))
 
-	assert.Equal(t, `{"method":"GET","url":"https://example.com/","body":{"query":"{hero {name}}"}}`, before.input)
+	assert.Equal(t, `{"method":"GET","url":"https://example.com/","body":{"query":"{hero {__typename name}}"}}`, before.input)
 	assert.Equal(t, `{"hero":{"name":"Luke Skywalker"}}`, after.data)
 	assert.Equal(t, "", after.err)
 	assert.NoError(t, err)
