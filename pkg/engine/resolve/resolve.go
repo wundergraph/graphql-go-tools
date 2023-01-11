@@ -719,10 +719,6 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 		data, _, _, _ = jsonparser.Get(data, array.Path...)
 	}
 
-	if array.UnescapeResponseJson {
-		data = bytes.ReplaceAll(data, []byte(`\"`), []byte(`"`))
-	}
-
 	if bytes.Equal(data, emptyArray) {
 		r.resolveEmptyArray(arrayBuf.Data)
 		return
@@ -941,7 +937,7 @@ func (r *Resolver) resolveString(ctx *Context, str *String, data []byte, stringB
 			}
 		}
 		if value != nil && valueType != jsonparser.Null {
-			return fmt.Errorf("invalid value type '%s' for path %s, expecting string, got: %v. You can fix this by configuring this field as Int/Float Scalar", valueType, string(ctx.path()), string(value))
+			return fmt.Errorf("invalid value type '%s' for path %s, expecting string, got: %v. You can fix this by configuring this field as Int/Float/JSON Scalar", valueType, string(ctx.path()), string(value))
 		}
 		if !str.Nullable {
 			return errNonNullableFieldValueIsNull
@@ -1478,12 +1474,11 @@ func (_ *Integer) NodeKind() NodeKind {
 }
 
 type Array struct {
-	Path                 []string
-	Nullable             bool
-	ResolveAsynchronous  bool
-	Item                 Node
-	Stream               Stream
-	UnescapeResponseJson bool `json:"unescape_response_json,omitempty"`
+	Path                []string
+	Nullable            bool
+	ResolveAsynchronous bool
+	Item                Node
+	Stream              Stream
 }
 
 type Stream struct {
