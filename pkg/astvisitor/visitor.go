@@ -1318,7 +1318,6 @@ func (w *Walker) runDeferred() {
 }
 
 func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
-
 	w.Ancestors = append(w.Ancestors, ast.Node{
 		Kind: kind,
 		Ref:  ref,
