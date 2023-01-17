@@ -68,6 +68,12 @@ func (h *gqlSSEConnectionHandler) subscribe(ctx context.Context, sub Subscriptio
 	resp, err := h.performSubscriptionRequest(ctx)
 	if err != nil {
 		h.log.Error("failed to perform subscription request", log.Error(err))
+
+		if ctx.Err() != nil {
+			// request context was canceled do not send an error as channel will be closed
+			return
+		}
+
 		sub.next <- []byte(internalError)
 
 		return
