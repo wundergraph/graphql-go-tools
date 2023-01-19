@@ -3,6 +3,7 @@ package graphql_datasource
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"sync"
 	"time"
@@ -215,6 +216,9 @@ func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 	if err != nil {
 		return nil, err
 	}
+	// Disable the maximum message size limit. Don't use MaxInt64 since
+	// the nhooyr.io/websocket doesn't handle it correctly on 32 bit systems.
+	conn.SetReadLimit(math.MaxInt32)
 	if upgradeResponse.StatusCode != http.StatusSwitchingProtocols {
 		return nil, fmt.Errorf("upgrade unsuccessful")
 	}
