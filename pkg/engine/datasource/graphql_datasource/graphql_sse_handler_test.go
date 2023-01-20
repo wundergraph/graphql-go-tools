@@ -71,6 +71,35 @@ func TestGraphQLSubscriptionClientSubscribe_SSE(t *testing.T) {
 	serverCancel()
 }
 
+func TestGraphQLSubscriptionClientSubscribe_SSE_RequestAbort(t *testing.T) {
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+	defer serverCancel()
+
+	ctx, clientCancel := context.WithCancel(context.Background())
+	// cancel after start the request
+	clientCancel()
+
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+		WithReadTimeout(time.Millisecond),
+		WithLogger(logger()),
+	)
+
+	next := make(chan []byte)
+	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+		URL: "http://dummy",
+		Body: GraphQLBody{
+			Query: `subscription {messageAdded(roomName: "room"){text}}`,
+		},
+		UseSSE: true,
+	}, next)
+	assert.NoError(t, err)
+
+	assert.Eventuallyf(t, func() bool {
+		<-next
+		return true
+	}, time.Millisecond*100, time.Millisecond*10, "subscription did not close")
+}
+
 func TestGraphQLSubscriptionClientSubscribe_SSE_POST(t *testing.T) {
 	postReqBody := GraphQLBody{
 		Query: `subscription {messageAdded(roomName: "room"){text}}`,
@@ -303,7 +332,7 @@ func TestGraphQLSubscriptionClientSubscribe_QueryParams(t *testing.T) {
 		assert.Equal(t, `{"a":5}`, urlQuery.Get("variables"))
 		assert.Equal(t, `{"persistedQuery":{"version":1,"sha256Hash":"d41d8cd98f00b204e9800998ecf8427e"}}`, urlQuery.Get("extensions"))
 
-		//Make sure that the writer supports flushing.
+		// Make sure that the writer supports flushing.
 		flusher, ok := w.(http.Flusher)
 		require.True(t, ok)
 
