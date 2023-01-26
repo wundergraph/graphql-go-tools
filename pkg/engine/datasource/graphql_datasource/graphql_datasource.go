@@ -1362,9 +1362,11 @@ func (s *Source) cleanupVariables(variables []byte, removeNullVariables bool) []
 		if err != nil {
 			return variables
 		}
+
+		cp = s.removeEmptyObjects(cp)
 	}
 
-	return s.removeEmptyObjects(cp)
+	return cp
 }
 
 func (s *Source) removeEmptyObjects(variables []byte) []byte {
@@ -1381,13 +1383,13 @@ func (s *Source) removeEmptyObjects(variables []byte) []byte {
 func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
 	if i := bytes.Index(variables, []byte(":{}")); i != -1 {
 		end := i + 3
-		hasTrainlingComma := false
+		hasTrailingComma := false
 		if variables[end] == ',' {
 			end++
-			hasTrainlingComma = true
+			hasTrailingComma = true
 		}
 		startQuote := bytes.LastIndex(variables[:i-2], []byte("\""))
-		if !hasTrainlingComma && variables[startQuote-1] == ',' {
+		if !hasTrailingComma && variables[startQuote-1] == ',' {
 			startQuote--
 		}
 		return append(variables[:startQuote], variables[end:]...), true

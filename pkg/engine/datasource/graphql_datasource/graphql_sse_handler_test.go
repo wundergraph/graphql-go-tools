@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -111,7 +111,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_POST(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
 
-		actualReqBody, err := ioutil.ReadAll(r.Body)
+		actualReqBody, err := io.ReadAll(r.Body)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedReqBody, actualReqBody)
 
@@ -403,7 +403,7 @@ func TestBuildPOSTRequestSSE(t *testing.T) {
 
 	assert.Equal(t, http.MethodPost, req.Method)
 
-	actualReqBody, err := ioutil.ReadAll(req.Body)
+	actualReqBody, err := io.ReadAll(req.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedReqBody, actualReqBody)
 }
