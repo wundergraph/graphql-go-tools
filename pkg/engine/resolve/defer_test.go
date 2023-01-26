@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	jsonpatch "github.com/evanphx/json-patch/v5"
@@ -112,7 +112,7 @@ func TestWithoutDefer(t *testing.T) {
 	err := resolver.ResolveGraphQLResponse(ctx, res, nil, buf)
 	assert.NoError(t, err)
 
-	expectedBytes, err := ioutil.ReadFile("./testdata/response_without_defer.json")
+	expectedBytes, err := os.ReadFile("./testdata/response_without_defer.json")
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expectedBytes), buf.String())
 	if t.Failed() {
@@ -121,11 +121,11 @@ func TestWithoutDefer(t *testing.T) {
 }
 
 func TestJsonPatch(t *testing.T) {
-	initialResponse, err := ioutil.ReadFile("./testdata/defer_1.json")
+	initialResponse, err := os.ReadFile("./testdata/defer_1.json")
 	assert.NoError(t, err)
-	patch1, err := ioutil.ReadFile("./testdata/defer_2.json")
+	patch1, err := os.ReadFile("./testdata/defer_2.json")
 	assert.NoError(t, err)
-	patch2, err := ioutil.ReadFile("./testdata/defer_3.json")
+	patch2, err := os.ReadFile("./testdata/defer_3.json")
 	assert.NoError(t, err)
 
 	p1, err := jsonpatch.DecodePatch(patch1)
@@ -140,7 +140,7 @@ func TestJsonPatch(t *testing.T) {
 	patched, err = p2.Apply(patched)
 	assert.NoError(t, err)
 
-	expectedBytes, err := ioutil.ReadFile("./testdata/response_without_defer.json")
+	expectedBytes, err := os.ReadFile("./testdata/response_without_defer.json")
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expectedBytes), string(patched))
 	if t.Failed() {
@@ -266,21 +266,21 @@ func TestDefer(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(writer.flushed))
 
-	expectedBytes, err := ioutil.ReadFile("./testdata/defer_1.json")
+	expectedBytes, err := os.ReadFile("./testdata/defer_1.json")
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expectedBytes), writer.flushed[0])
 	if t.Failed() {
 		fmt.Println(writer.flushed[0])
 	}
 
-	expectedBytes, err = ioutil.ReadFile("./testdata/defer_2.json")
+	expectedBytes, err = os.ReadFile("./testdata/defer_2.json")
 	require.NoError(t, err)
 	assert.JSONEq(t, string(expectedBytes), writer.flushed[1])
 	if t.Failed() {
 		fmt.Println(writer.flushed[1])
 	}
 
-	expectedBytes, err = ioutil.ReadFile("./testdata/defer_3.json")
+	expectedBytes, err = os.ReadFile("./testdata/defer_3.json")
 	require.NoError(t, err)
 	assert.JSONEq(t, string(expectedBytes), writer.flushed[2])
 	if t.Failed() {
@@ -301,9 +301,9 @@ func (d *DiscardFlushWriter) Flush() {
 
 func BenchmarkDefer(b *testing.B) {
 
-	userData, err := ioutil.ReadFile("./testdata/users.json")
+	userData, err := os.ReadFile("./testdata/users.json")
 	assert.NoError(b, err)
-	postsData, err := ioutil.ReadFile("./testdata/posts.json")
+	postsData, err := os.ReadFile("./testdata/posts.json")
 	assert.NoError(b, err)
 
 	userService := FakeDataSource(string(userData))
@@ -401,11 +401,11 @@ func BenchmarkDefer(b *testing.B) {
 	writer := &DiscardFlushWriter{}
 	// writer := &TestFlushWriter{}
 
-	expect1, err := ioutil.ReadFile("./testdata/defer_1.json")
+	expect1, err := os.ReadFile("./testdata/defer_1.json")
 	assert.NoError(b, err)
-	expect2, err := ioutil.ReadFile("./testdata/defer_2.json")
+	expect2, err := os.ReadFile("./testdata/defer_2.json")
 	assert.NoError(b, err)
-	expect3, err := ioutil.ReadFile("./testdata/defer_3.json")
+	expect3, err := os.ReadFile("./testdata/defer_3.json")
 	assert.NoError(b, err)
 
 	_, _, _ = expect1, expect2, expect3
@@ -430,7 +430,7 @@ func BenchmarkDefer(b *testing.B) {
 }
 
 func fakeService(t *testing.T, controller *gomock.Controller, serviceName, responseFilePath string, expectedInput ...string) DataSource {
-	data, err := ioutil.ReadFile(responseFilePath)
+	data, err := os.ReadFile(responseFilePath)
 	assert.NoError(t, err)
 	service := NewMockDataSource(controller)
 	for i := 0; i < len(expectedInput); i++ {

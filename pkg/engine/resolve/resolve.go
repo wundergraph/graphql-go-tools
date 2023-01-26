@@ -14,6 +14,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
+	"github.com/tidwall/gjson"
 	errors "golang.org/x/xerrors"
 
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafebytes"
@@ -952,6 +953,13 @@ func (r *Resolver) resolveString(ctx *Context, str *String, data []byte, stringB
 
 	if str.UnescapeResponseJson {
 		value = bytes.ReplaceAll(value, []byte(`\"`), []byte(`"`))
+
+		// if value is a string
+		if !gjson.ValidBytes(value) {
+			// wrap value in quotes to make it valid json
+			value = append(literal.QUOTE, append(value, literal.QUOTE...)...)
+		}
+
 		stringBuf.Data.WriteBytes(value)
 		r.exportField(ctx, str.Export, value)
 		return nil

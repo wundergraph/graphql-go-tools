@@ -1514,6 +1514,106 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 		}, Context{Context: context.Background()}, `{"id":1,"name":"Jens","pet":{"name":"Woofie"}}`
 	}))
+	t.Run("json object within a string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"data":"{ \"hello\": \"world\" }"}`),
+			},
+			Nullable: false,
+			Fields: []*Field{
+				{
+					Name: []byte("data"),
+					Value: &String{
+						Path:                 []string{"data"},
+						Nullable:             true,
+						UnescapeResponseJson: true,
+						IsTypeName:           false,
+					},
+					Position: Position{
+						Line:   2,
+						Column: 3,
+					},
+					HasBuffer: true,
+				},
+			},
+		}, Context{Context: context.Background()}, `{"data":{ "hello": "world" }}`
+	}))
+	t.Run("json array within a string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"data": "[1, 2, 3]"}`),
+			},
+			Nullable: false,
+			Fields: []*Field{
+				{
+					Name: []byte("data"),
+					Value: &String{
+						Path:                 []string{"data"},
+						Nullable:             true,
+						UnescapeResponseJson: true,
+						IsTypeName:           false,
+					},
+					Position: Position{
+						Line:   2,
+						Column: 3,
+					},
+					HasBuffer: true,
+				},
+			},
+		}, Context{Context: context.Background()}, `{"data":[1, 2, 3]}`
+	}))
+	t.Run("json boolean within a string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"data": "true"}`),
+			},
+			Nullable: false,
+			Fields: []*Field{
+				{
+					Name: []byte("data"),
+					Value: &String{
+						Path:                 []string{"data"},
+						Nullable:             true,
+						UnescapeResponseJson: true,
+						IsTypeName:           false,
+					},
+					Position: Position{
+						Line:   2,
+						Column: 3,
+					},
+					HasBuffer: true,
+				},
+			},
+		}, Context{Context: context.Background()}, `{"data":true}`
+	}))
+	t.Run("handle plain strings", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"data": "hello world"}`),
+			},
+			Nullable: false,
+			Fields: []*Field{
+				{
+					Name: []byte("data"),
+					Value: &String{
+						Path:                 []string{"data"},
+						Nullable:             true,
+						UnescapeResponseJson: true,
+						IsTypeName:           false,
+					},
+					Position: Position{
+						Line:   2,
+						Column: 3,
+					},
+					HasBuffer: true,
+				},
+			},
+		}, Context{Context: context.Background()}, `{"data":"hello world"}`
+	}))
 }
 
 func TestResolver_WithHooks(t *testing.T) {
