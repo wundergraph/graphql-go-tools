@@ -1348,11 +1348,14 @@ func (s *Source) compactAndUnNullVariables(input []byte) []byte {
 	return input
 }
 
+// cleanupVariables removes null variables and empty objects from the input if removeNullVariables is true
+// otherwise returns the input as is
 func (s *Source) cleanupVariables(variables []byte, removeNullVariables bool) []byte {
 	cp := make([]byte, len(variables))
 	copy(cp, variables)
 
 	if removeNullVariables {
+		// remove null variables from JSON: {"a":null,"b":1} -> {"b":1}
 		err := jsonparser.ObjectEach(variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 			if dataType == jsonparser.Null {
 				cp = jsonparser.Delete(cp, string(key))
@@ -1362,11 +1365,15 @@ func (s *Source) cleanupVariables(variables []byte, removeNullVariables bool) []
 		if err != nil {
 			return variables
 		}
+
+		// remove empty objects
+		cp = s.removeEmptyObjects(cp)
 	}
 
-	return s.removeEmptyObjects(cp)
+	return cp
 }
 
+// removeEmptyObjects removes empty objects from JSON: {"b": "b", "c": {}} -> {"b": "b"}
 func (s *Source) removeEmptyObjects(variables []byte) []byte {
 	var changed bool
 	for {
@@ -1381,13 +1388,13 @@ func (s *Source) removeEmptyObjects(variables []byte) []byte {
 func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
 	if i := bytes.Index(variables, []byte(":{}")); i != -1 {
 		end := i + 3
-		hasTrainlingComma := false
+		hasTrailingComma := false
 		if variables[end] == ',' {
 			end++
-			hasTrainlingComma = true
+			hasTrailingComma = true
 		}
 		startQuote := bytes.LastIndex(variables[:i-2], []byte("\""))
-		if !hasTrainlingComma && variables[startQuote-1] == ',' {
+		if !hasTrailingComma && variables[startQuote-1] == ',' {
 			startQuote--
 		}
 		return append(variables[:startQuote], variables[end:]...), true

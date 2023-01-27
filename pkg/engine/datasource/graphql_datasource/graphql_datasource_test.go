@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -8114,7 +8113,7 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 func TestSource_Load(t *testing.T) {
 	t.Run("unnull_variables", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			body, _ := ioutil.ReadAll(r.Body)
+			body, _ := io.ReadAll(r.Body)
 			_, _ = fmt.Fprint(w, string(body))
 		}))
 		defer ts.Close()
@@ -8125,7 +8124,7 @@ func TestSource_Load(t *testing.T) {
 			variables = []byte(`{"a": null, "b": "b", "c": {}}`)
 		)
 
-		t.Run("should remove null variables when flag is set", func(t *testing.T) {
+		t.Run("should remove null variables and empty objects when flag is set", func(t *testing.T) {
 			var input []byte
 			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
 			input = httpclient.SetInputURL(input, []byte(serverUrl))
@@ -8136,7 +8135,7 @@ func TestSource_Load(t *testing.T) {
 			assert.Equal(t, `{"variables":{"b":"b"}}`, buf.String())
 		})
 
-		t.Run("should only compact variables and remove empty objects when no flag set", func(t *testing.T) {
+		t.Run("should only compact variables when no flag set", func(t *testing.T) {
 			var input []byte
 			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
 			input = httpclient.SetInputURL(input, []byte(serverUrl))
@@ -8144,7 +8143,7 @@ func TestSource_Load(t *testing.T) {
 			buf := bytes.NewBuffer(nil)
 
 			require.NoError(t, src.Load(context.Background(), input, buf))
-			assert.Equal(t, `{"variables":{"a":null,"b":"b"}}`, buf.String())
+			assert.Equal(t, `{"variables":{"a":null,"b":"b","c":{}}}`, buf.String())
 		})
 	})
 }
