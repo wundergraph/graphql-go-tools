@@ -1,0 +1,20 @@
+schema {
+    subscription: Subscription
+}
+
+type Subscription {
+    paymentApproved: Paymentapproved
+    paymentFailed: Paymentfailed
+}
+
+type Paymentapproved {
+    "Payment ID"
+    paymentId: String
+}
+
+type Paymentfailed {
+    "Payment ID"
+    paymentId: String
+    "Payment failure reason"
+    reason: String
+}

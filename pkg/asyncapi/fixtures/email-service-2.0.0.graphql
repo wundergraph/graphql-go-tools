@@ -1,0 +1,21 @@
+schema {
+    subscription: Subscription
+}
+
+type Subscription {
+    emitUserSignUpEvent: UserSignedUp
+}
+
+"""
+User signed up event
+Inform about a new user registration in the system
+"""
+type UserSignedUp {
+    createdAt: String
+    "baz"
+    email: String
+    "foo"
+    firstName: String
+    "bar"
+    lastName: String
+}

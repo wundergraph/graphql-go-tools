@@ -13,6 +13,9 @@ var expectedAsyncAPI220andBelow = &AsyncAPI{
 	Channels: map[string]*ChannelItem{
 		"smartylighting.streetlights.1.0.action.{streetlightId}.dim": {
 			OperationID: "dimLight",
+			Parameters: map[string]string{
+				"streetlightId": "string",
+			},
 			Traits: []*OperationTrait{
 				{
 					Bindings: map[string]map[string]*Binding{
@@ -53,6 +56,9 @@ var expectedAsyncAPI220andBelow = &AsyncAPI{
 		},
 		"smartylighting.streetlights.1.0.action.{streetlightId}.turn.off": {
 			OperationID: "turnOff",
+			Parameters: map[string]string{
+				"streetlightId": "string",
+			},
 			Traits: []*OperationTrait{
 				{
 					Bindings: map[string]map[string]*Binding{
@@ -101,6 +107,9 @@ var expectedAsyncAPI220andBelow = &AsyncAPI{
 		},
 		"smartylighting.streetlights.1.0.action.{streetlightId}.turn.on": {
 			OperationID: "turnOn",
+			Parameters: map[string]string{
+				"streetlightId": "string",
+			},
 			Traits: []*OperationTrait{
 				{
 					Bindings: map[string]map[string]*Binding{
@@ -163,6 +172,9 @@ var expectedAsyncAPI240AndBelow = &AsyncAPI{
 		"smartylighting.streetlights.1.0.action.{streetlightId}.dim": {
 			OperationID: "dimLight",
 			Traits:      []*OperationTrait{{Bindings: map[string]map[string]*Binding{}}},
+			Parameters: map[string]string{
+				"streetlightId": "string",
+			},
 			Message: &Message{
 				Name:    "dimLight",
 				Summary: "Command a particular streetlight to dim the lights.",
@@ -188,6 +200,9 @@ var expectedAsyncAPI240AndBelow = &AsyncAPI{
 		"smartylighting.streetlights.1.0.action.{streetlightId}.turn.off": {
 			OperationID: "turnOff",
 			Traits:      []*OperationTrait{{Bindings: map[string]map[string]*Binding{}}},
+			Parameters: map[string]string{
+				"streetlightId": "string",
+			},
 			Message: &Message{
 				Name:    "turnOnOff",
 				Summary: "Command a particular streetlight to turn the lights on or off.",
@@ -221,6 +236,9 @@ var expectedAsyncAPI240AndBelow = &AsyncAPI{
 		"smartylighting.streetlights.1.0.action.{streetlightId}.turn.on": {
 			OperationID: "turnOn",
 			Traits:      []*OperationTrait{{Bindings: map[string]map[string]*Binding{}}},
+			Parameters: map[string]string{
+				"streetlightId": "string",
+			},
 			Message: &Message{
 				Name:    "turnOnOff",
 				Summary: "Command a particular streetlight to turn the lights on or off.",
@@ -291,6 +309,9 @@ func TestAsyncAPIStreetLightsKafkaSecurity(t *testing.T) {
 				OperationID: "dimLight",
 				Servers:     []string{"test_oauth"},
 				Traits:      []*OperationTrait{{Bindings: map[string]map[string]*Binding{}}},
+				Parameters: map[string]string{
+					"streetlightId": "string",
+				},
 				Message: &Message{
 					Name:    "dimLight",
 					Summary: "Command a particular streetlight to dim the lights.",
@@ -317,6 +338,9 @@ func TestAsyncAPIStreetLightsKafkaSecurity(t *testing.T) {
 				OperationID: "turnOff",
 				Servers:     []string{"test_oauth"},
 				Traits:      []*OperationTrait{{Bindings: map[string]map[string]*Binding{}}},
+				Parameters: map[string]string{
+					"streetlightId": "string",
+				},
 				Message: &Message{
 					Name:    "turnOnOff",
 					Summary: "Command a particular streetlight to turn the lights on or off.",
@@ -351,6 +375,9 @@ func TestAsyncAPIStreetLightsKafkaSecurity(t *testing.T) {
 				OperationID: "turnOn",
 				Servers:     []string{"test_oauth"},
 				Traits:      []*OperationTrait{{Bindings: map[string]map[string]*Binding{}}},
+				Parameters: map[string]string{
+					"streetlightId": "string",
+				},
 				Message: &Message{
 					Name:    "turnOnOff",
 					Summary: "Command a particular streetlight to turn the lights on or off.",

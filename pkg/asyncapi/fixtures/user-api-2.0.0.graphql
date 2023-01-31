@@ -1,0 +1,17 @@
+schema {
+    subscription: Subscription
+}
+
+type Subscription {
+    receiveUserUpdate: UserUpdate
+}
+
+"""
+User Update
+Inform about users updates
+"""
+type UserUpdate {
+    age: Int
+    id: String
+    name: String
+}

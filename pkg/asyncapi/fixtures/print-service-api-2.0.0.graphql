@@ -1,0 +1,13 @@
+schema {
+    subscription: Subscription
+}
+
+type Subscription {
+    printJobEvent(jobId: String): PrintJobEvent
+}
+
+"Print job event."
+type PrintJobEvent {
+    jobId: String
+    status: String
+}

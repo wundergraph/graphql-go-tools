@@ -8,6 +8,7 @@ import (
 
 	"github.com/asyncapi/parser-go/pkg/parser"
 	"github.com/buger/jsonparser"
+	"github.com/iancoleman/strcase"
 )
 
 const (
@@ -34,6 +35,8 @@ const (
 	BindingsKey        = "bindings"
 	KafkaKey           = "kafka"
 	TraitsKey          = "traits"
+	ParametersKey      = "parameters"
+	SchemaKey          = "schema"
 )
 
 type AsyncAPI struct {
@@ -71,6 +74,7 @@ type OperationTrait struct {
 // https://www.asyncapi.com/docs/reference/specification/v2.4.0#channelItemObject
 type ChannelItem struct {
 	Message     *Message
+	Parameters  map[string]string
 	OperationID string
 	Traits      []*OperationTrait
 	Servers     []string
@@ -164,6 +168,9 @@ func (w *walker) enterPropertyObject(channel, key, data []byte) error {
 
 	// Mandatory
 	tpe, err := extractString(TypeKey, data)
+	if err == jsonparser.KeyPathNotFoundError {
+		return fmt.Errorf("property: %s is required in %s, channel: %s", TypeKey, key, channel)
+	}
 	if err != nil {
 		return err
 	}
@@ -199,7 +206,9 @@ func (w *walker) enterPropertyObject(channel, key, data []byte) error {
 	if !ok {
 		return fmt.Errorf("channel: %s is missing", channel)
 	}
-	channelItem.Message.Payload.Properties[string(key)] = property
+	// Field names should use camelCase. Many GraphQL clients are written in JavaScript, Java, Kotlin, or Swift,
+	// all of which recommend camelCase for variable names.
+	channelItem.Message.Payload.Properties[strcase.ToLowerCamel(string(key))] = property
 	return nil
 }
 
@@ -237,13 +246,16 @@ func (w *walker) enterPayloadObject(key, data []byte) error {
 		return fmt.Errorf("channel: %s is missing", key)
 	}
 	channel.Message.Payload = p
-
 	return w.enterPropertiesObject(key, payload)
 }
 
 func (w *walker) enterMessageObject(channelName, data []byte) error {
 	msg := &Message{}
 	name, err := extractString(NameKey, data)
+	if err == jsonparser.KeyPathNotFoundError {
+		name = string(channelName)
+		err = nil
+	}
 	if err != nil {
 		return err
 	}
@@ -272,6 +284,7 @@ func (w *walker) enterMessageObject(channelName, data []byte) error {
 }
 
 func (w *walker) enterOperationTraitsObject(channelName []byte, data []byte) error {
+	// Not Mandatory
 	traitsValue, dataType, _, err := jsonparser.Get(data, TraitsKey)
 	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 		return nil
@@ -326,6 +339,25 @@ func (w *walker) enterOperationTraitsObject(channelName []byte, data []byte) err
 	return nil
 }
 
+func (w *walker) enterParametersObject(channelItem *ChannelItem, data []byte) error {
+	// Not mandatory
+	parametersValue, _, _, err := jsonparser.Get(data, ParametersKey)
+	if err == jsonparser.KeyPathNotFoundError {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return jsonparser.ObjectEach(parametersValue, func(parameterName []byte, parameterValue []byte, _ jsonparser.ValueType, _ int) error {
+		parameterType, _, _, perr := jsonparser.Get(parameterValue, SchemaKey, TypeKey)
+		if perr != nil {
+			return perr
+		}
+		channelItem.Parameters[string(parameterName)] = string(parameterType)
+		return nil
+	})
+}
+
 func (w *walker) enterChannelItemObject(channelName []byte, data []byte) error {
 	subscribeValue, dataType, _, err := jsonparser.Get(data, SubscribeKey)
 	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
@@ -351,10 +383,9 @@ func (w *walker) enterChannelItemObject(channelName []byte, data []byte) error {
 		return fmt.Errorf("%s has to be a JSON object", MessageKey)
 	}
 
-	// Not mandatory
 	operationID, err := extractString(OperationIDKey, subscribeValue)
 	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
-		err = nil
+		return fmt.Errorf("key: %s is required in channel: %s", OperationIDKey, channelName)
 	}
 	if err != nil {
 		return err
@@ -372,7 +403,14 @@ func (w *walker) enterChannelItemObject(channelName []byte, data []byte) error {
 	channelItem := &ChannelItem{
 		OperationID: operationID,
 		Servers:     servers,
+		Parameters:  make(map[string]string),
 	}
+
+	err = w.enterParametersObject(channelItem, data)
+	if err != nil {
+		return err
+	}
+
 	w.asyncapi.Channels[string(channelName)] = channelItem
 
 	err = w.enterOperationTraitsObject(channelName, subscribeValue)
@@ -385,6 +423,9 @@ func (w *walker) enterChannelItemObject(channelName []byte, data []byte) error {
 
 func (w *walker) enterChannelObject() error {
 	value, dataType, _, err := jsonparser.Get(w.document.Bytes(), ChannelsKey)
+	if err == jsonparser.KeyPathNotFoundError {
+		return fmt.Errorf("key: %s is missing", ChannelsKey)
+	}
 	if err != nil {
 		return err
 	}
@@ -422,10 +463,14 @@ func (w *walker) enterSecurityRequirementObject(key, data []byte, s *Server) err
 }
 
 func (w *walker) enterSecurityObject(s *Server, data []byte) error {
+	// Not mandatory
 	var securityObjectItems [][]byte
 	_, err := jsonparser.ArrayEach(data, func(securityObjectItem []byte, dataType jsonparser.ValueType, _ int, err error) {
 		securityObjectItems = append(securityObjectItems, securityObjectItem)
 	}, SecurityKey)
+	if err == jsonparser.KeyPathNotFoundError {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -511,7 +556,11 @@ func (w *walker) enterServerObject(key, data []byte) error {
 }
 
 func (w *walker) enterServersObject() error {
+	// Not Mandatory
 	serverValue, dataType, _, err := jsonparser.Get(w.document.Bytes(), ServersKey)
+	if err == jsonparser.KeyPathNotFoundError {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
