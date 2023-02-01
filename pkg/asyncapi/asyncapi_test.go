@@ -10,6 +10,10 @@ import (
 )
 
 var expectedAsyncAPI220andBelow = &AsyncAPI{
+	Info: &Info{
+		Title:   "Streetlights Kafka API",
+		Version: "1.0.0",
+	},
 	Channels: map[string]*ChannelItem{
 		"smartylighting.streetlights.1.0.action.{streetlightId}.dim": {
 			OperationID: "dimLight",
@@ -168,6 +172,10 @@ var expectedAsyncAPI220andBelow = &AsyncAPI{
 }
 
 var expectedAsyncAPI240AndBelow = &AsyncAPI{
+	Info: &Info{
+		Title:   "Streetlights Kafka API",
+		Version: "1.0.0",
+	},
 	Channels: map[string]*ChannelItem{
 		"smartylighting.streetlights.1.0.action.{streetlightId}.dim": {
 			OperationID: "dimLight",
@@ -304,6 +312,10 @@ func TestAsyncAPIStreetLightsKafka_2_4_0_AndBelow(t *testing.T) {
 
 func TestAsyncAPIStreetLightsKafkaSecurity(t *testing.T) {
 	expectedAsyncAPI := &AsyncAPI{
+		Info: &Info{
+			Title:   "Streetlights Kafka API",
+			Version: "1.0.0",
+		},
 		Channels: map[string]*ChannelItem{
 			"smartylighting.streetlights.1.0.action.{streetlightId}.dim": {
 				OperationID: "dimLight",

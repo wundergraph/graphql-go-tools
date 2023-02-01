@@ -37,11 +37,19 @@ const (
 	TraitsKey          = "traits"
 	ParametersKey      = "parameters"
 	SchemaKey          = "schema"
+	InfoKey            = "info"
+	VersionKey         = "version"
 )
 
 type AsyncAPI struct {
+	Info     *Info
 	Channels map[string]*ChannelItem
 	Servers  map[string]*Server
+}
+
+type Info struct {
+	Title   string
+	Version string
 }
 
 type SecurityRequirement struct {
@@ -572,6 +580,31 @@ func (w *walker) enterServersObject() error {
 	})
 }
 
+func (w *walker) enterInfoObject() error {
+	infoValue, dataType, _, err := jsonparser.Get(w.document.Bytes(), InfoKey)
+	if err == jsonparser.KeyPathNotFoundError {
+		return fmt.Errorf("key: %s is missing", InfoKey)
+	}
+	if err != nil {
+		return err
+	}
+	if dataType != jsonparser.Object {
+		return fmt.Errorf("%s has to be a JSON object", InfoKey)
+	}
+	title, err := extractString(TitleKey, infoValue)
+	if err == jsonparser.KeyPathNotFoundError {
+		return fmt.Errorf("field: %s is missing in %s", TitleKey, InfoKey)
+	}
+	w.asyncapi.Info.Title = title
+
+	version, err := extractString(VersionKey, infoValue)
+	if err == jsonparser.KeyPathNotFoundError {
+		return fmt.Errorf("field: %s is missing in %s", VersionKey, InfoKey)
+	}
+	w.asyncapi.Info.Version = version
+	return nil
+}
+
 func ParseAsyncAPIDocument(input []byte) (*AsyncAPI, error) {
 	r := bytes.NewBuffer(input)
 	asyncAPIParser, err := parser.New()
@@ -588,9 +621,15 @@ func ParseAsyncAPIDocument(input []byte) (*AsyncAPI, error) {
 	w := &walker{
 		document: buf,
 		asyncapi: &AsyncAPI{
+			Info:     &Info{},
 			Channels: make(map[string]*ChannelItem),
 			Servers:  make(map[string]*Server),
 		},
+	}
+
+	err = w.enterInfoObject()
+	if err != nil {
+		return nil, err
 	}
 
 	err = w.enterChannelObject()
