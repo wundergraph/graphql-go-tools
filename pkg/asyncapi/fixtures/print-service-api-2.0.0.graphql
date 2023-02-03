@@ -1,5 +1,10 @@
 schema {
+    query: Query
     subscription: Subscription
+}
+
+type Query {
+    _: Boolean
 }
 
 type Subscription {

@@ -193,6 +193,77 @@ func (c *converter) importSubscriptionType() (*introspection.FullType, error) {
 	return subscriptionType, nil
 }
 
+func (c *converter) importQueryType() (*introspection.FullType, error) {
+	// Query root type must be provided. We add an empty Query type with a dummy field.
+	//
+	// type Query {
+	//    _: Boolean
+	// }
+	queryType := &introspection.FullType{
+		Kind: introspection.OBJECT,
+		Name: "Query",
+	}
+	typeName := string(literal.BOOLEAN)
+	queryType.Fields = append(queryType.Fields, introspection.Field{
+		Name: "_",
+		Type: introspection.TypeRef{Kind: 0, Name: &typeName},
+	})
+	return queryType, nil
+}
+
+func ImportParsedAsyncAPIDocument(parsed *AsyncAPI, report *operationreport.Report) *ast.Document {
+	// A parsed AsyncAPI document may include the same enum type name more than once.
+	// In order to prevent from duplicated types in the resulting schema, we save the names.
+	c := &converter{
+		asyncapi:   parsed,
+		knownEnums: make(map[string]struct{}),
+		knownTypes: make(map[string]struct{}),
+	}
+	data := introspection.Data{}
+
+	data.Schema.QueryType = &introspection.TypeName{
+		Name: "Query",
+	}
+	queryType, err := c.importQueryType()
+	if err != nil {
+		report.AddInternalError(err)
+		return nil
+	}
+	data.Schema.Types = append(data.Schema.Types, *queryType)
+
+	data.Schema.SubscriptionType = &introspection.TypeName{
+		Name: "Subscription",
+	}
+	subscriptionType, err := c.importSubscriptionType()
+	if err != nil {
+		report.AddInternalError(err)
+		return nil
+	}
+	data.Schema.Types = append(data.Schema.Types, *subscriptionType)
+
+	fullTypes, err := c.importFullTypes()
+	if err != nil {
+		report.AddInternalError(err)
+		return nil
+	}
+	data.Schema.Types = append(data.Schema.Types, fullTypes...)
+
+	outputPretty, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		report.AddInternalError(err)
+		return nil
+	}
+
+	jc := introspection.JsonConverter{}
+	buf := bytes.NewBuffer(outputPretty)
+	doc, err := jc.GraphQLDocument(buf)
+	if err != nil {
+		report.AddInternalError(err)
+		return nil
+	}
+	return doc
+}
+
 func ImportAsyncAPIDocumentByte(input []byte) (*ast.Document, operationreport.Report) {
 	report := operationreport.Report{}
 	asyncapi, err := ParseAsyncAPIDocument(input)
@@ -200,47 +271,7 @@ func ImportAsyncAPIDocumentByte(input []byte) (*ast.Document, operationreport.Re
 		report.AddInternalError(err)
 		return nil, report
 	}
-
-	// A parsed AsyncAPI document may include the same enum type name more than once.
-	// In order to prevent from duplicated types in the resulting schema, we save the names.
-	c := &converter{
-		asyncapi:   asyncapi,
-		knownEnums: make(map[string]struct{}),
-		knownTypes: make(map[string]struct{}),
-	}
-
-	data := introspection.Data{}
-	data.Schema.SubscriptionType = &introspection.TypeName{
-		Name: "Subscription",
-	}
-	subscriptionType, err := c.importSubscriptionType()
-	if err != nil {
-		report.AddInternalError(err)
-		return nil, report
-	}
-	data.Schema.Types = append(data.Schema.Types, *subscriptionType)
-
-	fullTypes, err := c.importFullTypes()
-	if err != nil {
-		report.AddInternalError(err)
-		return nil, report
-	}
-	data.Schema.Types = append(data.Schema.Types, fullTypes...)
-
-	outputPretty, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		report.AddInternalError(err)
-		return nil, report
-	}
-
-	converter := introspection.JsonConverter{}
-	buf := bytes.NewBuffer(outputPretty)
-	doc, err := converter.GraphQLDocument(buf)
-	if err != nil {
-		report.AddInternalError(err)
-		return nil, report
-	}
-	return doc, report
+	return ImportParsedAsyncAPIDocument(asyncapi, &report), report
 }
 
 func ImportAsyncAPIDocumentString(input string) (*ast.Document, operationreport.Report) {
