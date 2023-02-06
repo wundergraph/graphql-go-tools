@@ -8111,13 +8111,13 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 }
 
 func TestSource_Load(t *testing.T) {
-	t.Run("unnull_variables", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			body, _ := io.ReadAll(r.Body)
-			_, _ = fmt.Fprint(w, string(body))
-		}))
-		defer ts.Close()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		_, _ = fmt.Fprint(w, string(body))
+	}))
+	defer ts.Close()
 
+	t.Run("unnull_variables", func(t *testing.T) {
 		var (
 			src       = &Source{httpClient: &http.Client{}}
 			serverUrl = ts.URL
@@ -8144,6 +8144,26 @@ func TestSource_Load(t *testing.T) {
 
 			require.NoError(t, src.Load(context.Background(), input, buf))
 			assert.Equal(t, `{"variables":{"a":null,"b":"b","c":{}}}`, buf.String())
+		})
+	})
+	t.Run("remove undefined variables", func(t *testing.T) {
+		var (
+			src       = &Source{httpClient: &http.Client{}}
+			serverUrl = ts.URL
+			variables = []byte(`{"a":null,"b":"null"}`)
+		)
+		t.Run("should remove undefined variables and leave null variables", func(t *testing.T) {
+			var input []byte
+			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
+			input = httpclient.SetInputURL(input, []byte(serverUrl))
+			input = httpclient.SetInputFlag(input, httpclient.UNNULLVARIABLES)
+			buf := bytes.NewBuffer(nil)
+
+			// consider variable a undefined
+			ctx := httpclient.CtxSetUndefinedVariables(context.Background(), []string{"a"})
+
+			require.NoError(t, src.Load(ctx, input, buf))
+			assert.Equal(t, `{"variables":{"b":"null"}}`, buf.String())
 		})
 	})
 }

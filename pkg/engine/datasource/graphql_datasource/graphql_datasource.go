@@ -10,6 +10,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
+	"golang.org/x/exp/slices"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astnormalization"
@@ -1327,7 +1328,7 @@ type Source struct {
 	httpClient *http.Client
 }
 
-func (s *Source) compactAndUnNullVariables(input []byte) []byte {
+func (s *Source) compactAndUnNullVariables(input []byte, undefinedVariables ...string) []byte {
 	variables, _, _, err := jsonparser.Get(input, "body", "variables")
 	if err != nil {
 		return input
@@ -1342,7 +1343,7 @@ func (s *Source) compactAndUnNullVariables(input []byte) []byte {
 	}
 
 	removeNullVariables := httpclient.IsInputFlagSet(input, httpclient.UNNULLVARIABLES)
-	variables = s.cleanupVariables(variables, removeNullVariables)
+	variables = s.cleanupVariables(variables, removeNullVariables, undefinedVariables)
 
 	input, _ = jsonparser.Set(input, variables, "body", "variables")
 	return input
@@ -1350,23 +1351,25 @@ func (s *Source) compactAndUnNullVariables(input []byte) []byte {
 
 // cleanupVariables removes null variables and empty objects from the input if removeNullVariables is true
 // otherwise returns the input as is
-func (s *Source) cleanupVariables(variables []byte, removeNullVariables bool) []byte {
+func (s *Source) cleanupVariables(variables []byte, removeNullVariables bool, undefinedVariables []string) []byte {
 	cp := make([]byte, len(variables))
 	copy(cp, variables)
 
-	if removeNullVariables {
-		// remove null variables from JSON: {"a":null,"b":1} -> {"b":1}
-		err := jsonparser.ObjectEach(variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-			if dataType == jsonparser.Null {
+	// remove null variables from JSON: {"a":null,"b":1} -> {"b":1}
+	err := jsonparser.ObjectEach(variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+		if dataType == jsonparser.Null {
+			if removeNullVariables || slices.Contains(undefinedVariables, string(key)) {
 				cp = jsonparser.Delete(cp, string(key))
 			}
-			return nil
-		})
-		if err != nil {
-			return variables
 		}
+		return nil
+	})
+	if err != nil {
+		return variables
+	}
 
-		// remove empty objects
+	// remove empty objects
+	if removeNullVariables {
 		cp = s.removeEmptyObjects(cp)
 	}
 
@@ -1404,7 +1407,9 @@ func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err error) {
-	input = s.compactAndUnNullVariables(input)
+	undefinedVariables := httpclient.CtxGetUndefinedVariables(ctx)
+
+	input = s.compactAndUnNullVariables(input, undefinedVariables...)
 	return httpclient.Do(s.httpClient, ctx, input, writer)
 }
 
