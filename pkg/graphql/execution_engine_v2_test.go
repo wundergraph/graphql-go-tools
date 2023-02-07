@@ -891,9 +891,9 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		schema: func(t *testing.T) *Schema {
 			t.Helper()
 			schema := `
-             type Query {
-			   heroes(names: [String!], height: String): [String!]
-		     }`
+			type Query {
+				heroes(names: [String!], height: String): [String!]
+			}`
 			parseSchema, err := NewSchemaFromString(schema)
 			require.NoError(t, err)
 			return parseSchema
@@ -902,7 +902,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			return Request{
 				OperationName: "MyHeroes",
 				Variables:     []byte(`{"height": null}`),
-				Query: `query MyHeroes($heroNames: [String!]!, $height: String){
+				Query: `query MyHeroes($heroNames: [String!], $height: String){
 						heroes(names: $heroNames, height: $height)
 					}`,
 			}
@@ -916,7 +916,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
-						expectedBody:     `{"query":"query($heroNames: [String!]!, $height: String){heroes(names: $heroNames, height: $height)}","variables":{"height":null}}`,
+						expectedBody:     `{"query":"query($heroNames: [String!], $height: String){heroes(names: $heroNames, height: $height)}","variables":{"height":null}}`,
 						sendResponseBody: `{"data":{"heroes":[]}}`,
 						sendStatusCode:   200,
 					}),
