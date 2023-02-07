@@ -10,7 +10,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
-	"golang.org/x/exp/slices"
+	"golang.org/x/exp/slices" //nolint:typecheck // uses generic code
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astnormalization"
