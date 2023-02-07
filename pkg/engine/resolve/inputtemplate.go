@@ -33,13 +33,12 @@ type InputTemplate struct {
 	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
 	// Returning null in this case tells the batch implementation to skip this item
 	SetTemplateOutputToNullOnVariableNull bool
-	UndefinedVariables                    []string
 }
 
 var setTemplateOutputNull = errors.New("set to null")
 
 func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuffer.FastBuffer) (err error) {
-	i.UndefinedVariables = make([]string, 0)
+	undefinedVariables := make([]string, 0)
 
 	for j := range i.Segments {
 		switch i.Segments[j].SegmentType {
@@ -50,7 +49,7 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuf
 			case ObjectVariableKind:
 				err = i.renderObjectVariable(ctx, data, i.Segments[j], preparedInput)
 			case ContextVariableKind:
-				err = i.renderContextVariable(ctx, i.Segments[j], preparedInput)
+				err = i.renderContextVariable(ctx, i.Segments[j], preparedInput, &undefinedVariables)
 			case HeaderVariableKind:
 				err = i.renderHeaderVariable(ctx, i.Segments[j].VariableSourcePath, preparedInput)
 			default:
@@ -67,8 +66,8 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuf
 		}
 	}
 
-	if len(i.UndefinedVariables) > 0 {
-		ctx.Context = httpclient.CtxSetUndefinedVariables(ctx.Context, i.UndefinedVariables)
+	if len(undefinedVariables) > 0 {
+		ctx.Context = httpclient.CtxSetUndefinedVariables(ctx.Context, undefinedVariables)
 	}
 
 	return
@@ -95,11 +94,11 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []by
 	return segment.Renderer.RenderVariable(ctx, value, preparedInput)
 }
 
-func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {
+func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer, undefinedVariables *[]string) error {
 	value, valueType, offset, err := jsonparser.Get(ctx.Variables, segment.VariableSourcePath...)
 	if err != nil || valueType == jsonparser.Null {
 		if err == jsonparser.KeyPathNotFoundError {
-			i.UndefinedVariables = append(i.UndefinedVariables, segment.VariableSourcePath[0])
+			*undefinedVariables = append(*undefinedVariables, segment.VariableSourcePath[0])
 		}
 
 		preparedInput.WriteBytes(literal.NULL)

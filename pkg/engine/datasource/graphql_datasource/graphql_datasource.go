@@ -12,6 +12,7 @@ import (
 	"github.com/tidwall/sjson"
 	"golang.org/x/exp/slices"
 
+	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/pkg/astparser"
@@ -1328,7 +1329,7 @@ type Source struct {
 	httpClient *http.Client
 }
 
-func (s *Source) compactAndUnNullVariables(input []byte, undefinedVariables ...string) []byte {
+func (s *Source) compactAndUnNullVariables(input []byte, undefinedVariables []string) []byte {
 	variables, _, _, err := jsonparser.Get(input, "body", "variables")
 	if err != nil {
 		return input
@@ -1358,8 +1359,9 @@ func (s *Source) cleanupVariables(variables []byte, removeNullVariables bool, un
 	// remove null variables from JSON: {"a":null,"b":1} -> {"b":1}
 	err := jsonparser.ObjectEach(variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		if dataType == jsonparser.Null {
-			if removeNullVariables || slices.Contains(undefinedVariables, string(key)) {
-				cp = jsonparser.Delete(cp, string(key))
+			stringKey := unsafebytes.BytesToString(key)
+			if removeNullVariables || slices.Contains(undefinedVariables, stringKey) {
+				cp = jsonparser.Delete(cp, stringKey)
 			}
 		}
 		return nil
@@ -1409,7 +1411,7 @@ func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
 func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err error) {
 	undefinedVariables := httpclient.CtxGetUndefinedVariables(ctx)
 
-	input = s.compactAndUnNullVariables(input, undefinedVariables...)
+	input = s.compactAndUnNullVariables(input, undefinedVariables)
 	return httpclient.Do(s.httpClient, ctx, input, writer)
 }
 
