@@ -32,8 +32,8 @@ require (
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.3.2
 	github.com/stretchr/testify v1.7.1
-	github.com/tidwall/gjson v1.11.0
-	github.com/tidwall/sjson v1.0.4
+	github.com/tidwall/gjson v1.14.2
+	github.com/tidwall/sjson v1.2.5
 	github.com/vektah/gqlparser/v2 v2.4.6
 	go.uber.org/atomic v1.9.0
 	go.uber.org/zap v1.18.1
