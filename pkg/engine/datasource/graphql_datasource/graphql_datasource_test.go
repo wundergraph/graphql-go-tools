@@ -8111,13 +8111,13 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 }
 
 func TestSource_Load(t *testing.T) {
-	t.Run("unnull_variables", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			body, _ := io.ReadAll(r.Body)
-			_, _ = fmt.Fprint(w, string(body))
-		}))
-		defer ts.Close()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		_, _ = fmt.Fprint(w, string(body))
+	}))
+	defer ts.Close()
 
+	t.Run("unnull_variables", func(t *testing.T) {
 		var (
 			src       = &Source{httpClient: &http.Client{}}
 			serverUrl = ts.URL
@@ -8146,13 +8146,32 @@ func TestSource_Load(t *testing.T) {
 			assert.Equal(t, `{"variables":{"a":null,"b":"b","c":{}}}`, buf.String())
 		})
 	})
+	t.Run("remove undefined variables", func(t *testing.T) {
+		var (
+			src       = &Source{httpClient: &http.Client{}}
+			serverUrl = ts.URL
+			variables = []byte(`{"a":null,"b":null, "c": null}`)
+		)
+		t.Run("should remove undefined variables and leave null variables", func(t *testing.T) {
+			var input []byte
+			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
+			input = httpclient.SetInputURL(input, []byte(serverUrl))
+			buf := bytes.NewBuffer(nil)
+
+			undefinedVariables := []string{"a", "c"}
+			ctx := httpclient.CtxSetUndefinedVariables(context.Background(), undefinedVariables)
+
+			require.NoError(t, src.Load(ctx, input, buf))
+			assert.Equal(t, `{"variables":{"b":null}}`, buf.String())
+		})
+	})
 }
 
 func TestUnNullVariables(t *testing.T) {
 	t.Run("should not unnull variables if not enabled", func(t *testing.T) {
 		t.Run("two variables, one null", func(t *testing.T) {
 			s := &Source{}
-			out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}}}`))
+			out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}}}`), []string{})
 			expected := `{"body":{"variables":{"a":null,"b":true}}}`
 			assert.Equal(t, expected, string(out))
 		})
@@ -8160,77 +8179,77 @@ func TestUnNullVariables(t *testing.T) {
 
 	t.Run("variables with whitespace and empty objects", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"email":null,"firstName": "FirstTest",		"lastName":"LastTest","phone":123456,"preferences":{ "notifications":{}},"password":"password"}},"unnull_variables":true}`))
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"email":null,"firstName": "FirstTest",		"lastName":"LastTest","phone":123456,"preferences":{ "notifications":{}},"password":"password"}},"unnull_variables":true}`), []string{})
 		expected := `{"body":{"variables":{"firstName":"FirstTest","lastName":"LastTest","phone":123456,"password":"password"}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("empty variables", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{}},"unnull_variables":true}`))
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{}},"unnull_variables":true}`), []string{})
 		expected := `{"body":{"variables":{}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("null inside an array", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"list":["a",null,"b"]}},"unnull_variables":true}`))
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"list":["a",null,"b"]}},"unnull_variables":true}`), []string{})
 		expected := `{"body":{"variables":{"list":["a",null,"b"]}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("complex null inside nested objects and arrays", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null, "b": {"key":null, "nested": {"nestedkey": null}}, "arr": ["1", null, "3"], "d": {"nested_arr":["4",null,"6"]}}},"unnull_variables":true}`))
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null, "b": {"key":null, "nested": {"nestedkey": null}}, "arr": ["1", null, "3"], "d": {"nested_arr":["4",null,"6"]}}},"unnull_variables":true}`), []string{})
 		expected := `{"body":{"variables":{"b":{"key":null,"nested":{"nestedkey":null}},"arr":["1",null,"3"],"d":{"nested_arr":["4",null,"6"]}}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("two variables, one null", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}},"unnull_variables":true}`))
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}},"unnull_variables":true}`), []string{})
 		expected := `{"body":{"variables":{"b":true}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("two variables, one null reverse", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":true,"b":null}},"unnull_variables":true}`))
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":true,"b":null}},"unnull_variables":true}`), []string{})
 		expected := `{"body":{"variables":{"a":true}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("null variables", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":null},"unnull_variables":true}`))
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":null},"unnull_variables":true}`), []string{})
 		expected := `{"body":{"variables":null},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("ignore null inside non variables", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"foo":null},"body":"query {foo(bar: null){baz}}"},"unnull_variables":true}`))
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"foo":null},"body":"query {foo(bar: null){baz}}"},"unnull_variables":true}`), []string{})
 		expected := `{"body":{"variables":{},"body":"query {foo(bar: null){baz}}"},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("ignore null in variable name", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"not_null":1,"null":2,"not_null2":3}},"unnull_variables":true}`))
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"not_null":1,"null":2,"not_null2":3}},"unnull_variables":true}`), []string{})
 		expected := `{"body":{"variables":{"not_null":1,"null":2,"not_null2":3}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("variables missing", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}"},"unnull_variables":true}`))
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}"},"unnull_variables":true}`), []string{})
 		expected := `{"body":{"query":"{foo}"},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("variables null", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}","variables":null},"unnull_variables":true}`))
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}","variables":null},"unnull_variables":true}`), []string{})
 		expected := `{"body":{"query":"{foo}","variables":null},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})

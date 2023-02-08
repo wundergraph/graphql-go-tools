@@ -7,6 +7,7 @@ import (
 
 	"github.com/buger/jsonparser"
 
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/pkg/fastbuffer"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 )
@@ -37,6 +38,8 @@ type InputTemplate struct {
 var setTemplateOutputNull = errors.New("set to null")
 
 func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuffer.FastBuffer) (err error) {
+	undefinedVariables := make([]string, 0)
+
 	for j := range i.Segments {
 		switch i.Segments[j].SegmentType {
 		case StaticSegmentType:
@@ -46,7 +49,7 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuf
 			case ObjectVariableKind:
 				err = i.renderObjectVariable(ctx, data, i.Segments[j], preparedInput)
 			case ContextVariableKind:
-				err = i.renderContextVariable(ctx, i.Segments[j], preparedInput)
+				err = i.renderContextVariable(ctx, i.Segments[j], preparedInput, &undefinedVariables)
 			case HeaderVariableKind:
 				err = i.renderHeaderVariable(ctx, i.Segments[j].VariableSourcePath, preparedInput)
 			default:
@@ -62,6 +65,11 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuf
 			}
 		}
 	}
+
+	if len(undefinedVariables) > 0 {
+		ctx.Context = httpclient.CtxSetUndefinedVariables(ctx.Context, undefinedVariables)
+	}
+
 	return
 }
 
@@ -86,9 +94,13 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []by
 	return segment.Renderer.RenderVariable(ctx, value, preparedInput)
 }
 
-func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {
+func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer, undefinedVariables *[]string) error {
 	value, valueType, offset, err := jsonparser.Get(ctx.Variables, segment.VariableSourcePath...)
 	if err != nil || valueType == jsonparser.Null {
+		if err == jsonparser.KeyPathNotFoundError {
+			*undefinedVariables = append(*undefinedVariables, segment.VariableSourcePath[0])
+		}
+
 		preparedInput.WriteBytes(literal.NULL)
 		return nil
 	}
