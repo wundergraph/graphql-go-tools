@@ -338,6 +338,7 @@ func stringPtr(str string) *string {
 }
 
 func moviesSchema(t *testing.T) *Schema {
+	t.Helper()
 	schemaString := `
 type Movie {
   id: Int!
@@ -352,6 +353,7 @@ type Mutation {
 
 type Query {
   default: String
+  todaysTopMovie: Movie!
 }
 
 input WatchlistInput {

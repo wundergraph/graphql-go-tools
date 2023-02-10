@@ -1393,60 +1393,115 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		},
 	))
 
-	t.Run("execute operation with rest data source and arguments", runWithoutError(
-		ExecutionEngineV2TestCase{
-			schema: heroWithArgumentSchema(t),
-			operation: func(t *testing.T) Request {
-				return Request{
-					OperationName: "MyHero",
-					Variables: stringify(map[string]interface{}{
-						"heroName": "Luke Skywalker",
-					}),
-					Query: `query MyHero($heroName: String){
+	t.Run("execute operation with rest data source", func(t *testing.T) {
+		t.Run("using arguments", runWithoutError(
+			ExecutionEngineV2TestCase{
+				schema: heroWithArgumentSchema(t),
+				operation: func(t *testing.T) Request {
+					return Request{
+						OperationName: "MyHero",
+						Variables: stringify(map[string]interface{}{
+							"heroName": "Luke Skywalker",
+						}),
+						Query: `query MyHero($heroName: String){
 						hero(name: $heroName)
 					}`,
-				}
-			},
-			dataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{TypeName: "Query", FieldNames: []string{"hero"}},
-					},
-					Factory: &rest_datasource.Factory{
-						Client: testNetHttpClient(t, roundTripperTestCase{
-							expectedHost:     "example.com",
-							expectedPath:     "/",
-							expectedBody:     `{ "name": "Luke Skywalker" }`,
-							sendResponseBody: `{"race": "Human"}`,
-							sendStatusCode:   200,
+					}
+				},
+				dataSources: []plan.DataSourceConfiguration{
+					{
+						RootNodes: []plan.TypeField{
+							{TypeName: "Query", FieldNames: []string{"hero"}},
+						},
+						Factory: &rest_datasource.Factory{
+							Client: testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     `{ "name": "Luke Skywalker" }`,
+								sendResponseBody: `{"race": "Human"}`,
+								sendStatusCode:   200,
+							}),
+						},
+						Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+							Fetch: rest_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "POST",
+								Body:   `{ "name": {{ .arguments.name }} }`,
+							},
 						}),
 					},
-					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
-						Fetch: rest_datasource.FetchConfiguration{
-							URL:    "https://example.com/",
-							Method: "POST",
-							Body:   `{ "name": {{ .arguments.name }} }`,
-						},
-					}),
 				},
-			},
-			fields: []plan.FieldConfiguration{
-				{
-					TypeName:              "Query",
-					FieldName:             "hero",
-					DisableDefaultMapping: false,
-					Path:                  []string{"race"},
-					Arguments: []plan.ArgumentConfiguration{
-						{
-							Name:         "name",
-							RenderConfig: plan.RenderArgumentAsJSONValue,
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:              "Query",
+						FieldName:             "hero",
+						DisableDefaultMapping: false,
+						Path:                  []string{"race"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "name",
+								RenderConfig: plan.RenderArgumentAsJSONValue,
+							},
 						},
 					},
 				},
+				expectedResponse: `{"data":{"hero":"Human"}}`,
 			},
-			expectedResponse: `{"data":{"hero":"Human"}}`,
-		},
-	))
+		))
+
+		t.Run("with nested field mappings", runWithoutError(
+			ExecutionEngineV2TestCase{
+				schema: moviesSchema(t),
+				operation: func(t *testing.T) Request {
+					return Request{
+						OperationName: "",
+						Variables:     nil,
+						Query: `{
+						todaysTopMovie {
+							name
+							year
+						}
+					}`,
+					}
+				},
+				dataSources: []plan.DataSourceConfiguration{
+					{
+						RootNodes: []plan.TypeField{
+							{TypeName: "Query", FieldNames: []string{"todaysTopMovie"}},
+						},
+						ChildNodes: []plan.TypeField{
+							{TypeName: "Movie", FieldNames: []string{"name", "year"}},
+						},
+						Factory: &rest_datasource.Factory{
+							Client: testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"topLists":{"movies":{"todaysTopMovie":{"name":"Indiana Jones and the Last Crusade","year":1989}}}`,
+								sendStatusCode:   200,
+							}),
+						},
+						Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+							Fetch: rest_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+								Body:   "",
+							},
+						}),
+					},
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:              "Query",
+						FieldName:             "todaysTopMovie",
+						DisableDefaultMapping: false,
+						Path:                  []string{"topLists", "movies", "todaysTopMovie"},
+					},
+				},
+				expectedResponse: `{"data":{"todaysTopMovie":{"name":"Indiana Jones and the Last Crusade","year":1989}}}`,
+			},
+		))
+	})
 
 	t.Run("execute operation with rest data source and arguments in url", runWithoutError(
 		ExecutionEngineV2TestCase{
