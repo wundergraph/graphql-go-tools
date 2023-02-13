@@ -84,9 +84,11 @@ func (d *Document) ImportDescription(desc string) (description Description) {
 		return
 	}
 
+	isBlockString := strings.Contains(desc, "\n") || strings.Contains(desc, `"`)
+
 	return Description{
 		IsDefined:     true,
-		IsBlockString: strings.Contains(desc, "\n"),
+		IsBlockString: isBlockString,
 		Content:       d.Input.AppendInputString(desc),
 	}
 }
