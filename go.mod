@@ -15,7 +15,7 @@ require (
 	github.com/go-zookeeper/zk v1.0.2
 	github.com/gobwas/ws v1.0.4
 	github.com/golang/mock v1.4.1
-	github.com/google/go-cmp v0.5.6
+	github.com/google/go-cmp v0.5.8
 	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/iancoleman/strcase v0.0.0-20191112232945-16388991a334
@@ -37,6 +37,7 @@ require (
 	github.com/vektah/gqlparser/v2 v2.4.6
 	go.uber.org/atomic v1.9.0
 	go.uber.org/zap v1.18.1
+	golang.org/x/exp v0.0.0-20230203172020-98cc5a0785f9
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	gopkg.in/yaml.v2 v2.4.0
 	nhooyr.io/websocket v1.8.7
@@ -106,7 +107,7 @@ require (
 	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd // indirect
 	golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f // indirect
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
-	golang.org/x/sys v0.0.0-20220405210540-1e041c57c461 // indirect
+	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect

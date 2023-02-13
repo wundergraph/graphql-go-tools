@@ -4,7 +4,7 @@ package resolve
 
 import (
 	"context"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -80,15 +80,15 @@ func TestArrayStream(t *testing.T) {
 
 	assert.Equal(t, 3, len(writer.flushed))
 
-	expected, err := ioutil.ReadFile("./testdata/stream_1.json")
+	expected, err := os.ReadFile("./testdata/stream_1.json")
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expected), writer.flushed[0])
 
-	expected, err = ioutil.ReadFile("./testdata/stream_2.json")
+	expected, err = os.ReadFile("./testdata/stream_2.json")
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expected), writer.flushed[1])
 
-	expected, err = ioutil.ReadFile("./testdata/stream_3.json")
+	expected, err = os.ReadFile("./testdata/stream_3.json")
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expected), writer.flushed[2])
 }
@@ -176,11 +176,11 @@ func TestArrayStream_InitialBatch_1(t *testing.T) {
 
 	assert.Equal(t, 2, len(writer.flushed))
 
-	expected, err := ioutil.ReadFile("./testdata/stream_4.json")
+	expected, err := os.ReadFile("./testdata/stream_4.json")
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expected), writer.flushed[0])
 
-	expected, err = ioutil.ReadFile("./testdata/stream_3.json")
+	expected, err = os.ReadFile("./testdata/stream_3.json")
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expected), writer.flushed[1])
 }
@@ -268,7 +268,7 @@ func TestArrayStream_InitialBatch_2(t *testing.T) {
 
 	assert.Equal(t, 1, len(writer.flushed))
 
-	expected, err := ioutil.ReadFile("./testdata/stream_5.json")
+	expected, err := os.ReadFile("./testdata/stream_5.json")
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expected), writer.flushed[0])
 }
@@ -389,23 +389,23 @@ func TestStreamAndDefer(t *testing.T) {
 
 	assert.Equal(t, 5, len(writer.flushed))
 
-	expected, err := ioutil.ReadFile("./testdata/stream_1.json")
+	expected, err := os.ReadFile("./testdata/stream_1.json")
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expected), writer.flushed[0])
 
-	expected, err = ioutil.ReadFile("./testdata/stream_6.json")
+	expected, err = os.ReadFile("./testdata/stream_6.json")
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expected), writer.flushed[1])
 
-	expected, err = ioutil.ReadFile("./testdata/stream_7.json")
+	expected, err = os.ReadFile("./testdata/stream_7.json")
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expected), writer.flushed[2])
 
-	expected, err = ioutil.ReadFile("./testdata/stream_8.json")
+	expected, err = os.ReadFile("./testdata/stream_8.json")
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expected), writer.flushed[3])
 
-	expected, err = ioutil.ReadFile("./testdata/stream_9.json")
+	expected, err = os.ReadFile("./testdata/stream_9.json")
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expected), writer.flushed[4])
 }

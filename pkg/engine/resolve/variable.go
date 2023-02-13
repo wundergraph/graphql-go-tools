@@ -217,6 +217,14 @@ func NewGraphQLVariableRendererFromTypeRefWithoutValidation(operation, definitio
 	}, nil
 }
 
+// NewGraphQLVariableRendererFromJSONRootTypeWithoutValidation - to be used in tests only
+func NewGraphQLVariableRendererFromJSONRootTypeWithoutValidation(rootType JsonRootType) (*GraphQLVariableRenderer, error) {
+	return &GraphQLVariableRenderer{
+		Kind:          VariableRendererKindGraphqlWithValidation,
+		rootValueType: rootType,
+	}, nil
+}
+
 // NewGraphQLVariableRenderer - to be used in tests only
 func NewGraphQLVariableRenderer(jsonSchema string) *GraphQLVariableRenderer {
 	validator := graphqljsonschema.MustNewValidatorFromString(jsonSchema)

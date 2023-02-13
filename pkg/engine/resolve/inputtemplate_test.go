@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -277,6 +278,7 @@ func TestInputTemplate_Render(t *testing.T) {
 				},
 			}
 			ctx := &Context{
+				Context:   context.Background(),
 				Variables: []byte(""),
 			}
 			buf := fastbuffer.New()

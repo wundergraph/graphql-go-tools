@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/quotes"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 )
+
+type ctxKey string
 
 const (
 	PATH            = "path"
@@ -28,6 +31,8 @@ const (
 	SCHEME          = "scheme"
 	HOST            = "host"
 	UNNULLVARIABLES = "unnull_variables"
+
+	removeUndefinedVariables ctxKey = "remove_undefined_variables"
 )
 
 var (
@@ -44,6 +49,15 @@ var (
 		{BODY},
 	}
 )
+
+func CtxSetUndefinedVariables(ctx context.Context, undefinedVariables []string) context.Context {
+	return context.WithValue(ctx, removeUndefinedVariables, undefinedVariables)
+}
+
+func CtxGetUndefinedVariables(ctx context.Context) []string {
+	undefinedVariables, _ := ctx.Value(removeUndefinedVariables).([]string)
+	return undefinedVariables
+}
 
 func wrapQuotesIfString(b []byte) []byte {
 
