@@ -142,13 +142,10 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 		if f.pathCacheIndex != len(f.pathCache)-1 {
 			path = f.pathCache[f.pathCacheIndex][:len(f.Path)]
 			f.pathCacheIndex++
-			for i := 0; i < len(f.Path); i++ {
-				path[i] = f.Path[i]
-			}
 		} else {
 			path = make(ast.Path, len(f.Path))
-			copy(path, f.Path)
 		}
+		copy(path, f.Path)
 
 		f.nonScalarRequirements = append(f.nonScalarRequirements, nonScalarRequirement{
 			path:                    path,
@@ -197,13 +194,10 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	if f.pathCacheIndex != len(f.pathCache)-1 {
 		path = f.pathCache[f.pathCacheIndex][:len(f.Path)]
 		f.pathCacheIndex++
-		for i := 0; i < len(f.Path); i++ {
-			path[i] = f.Path[i]
-		}
 	} else {
 		path = make(ast.Path, len(f.Path))
-		copy(path, f.Path)
 	}
+	copy(path, f.Path)
 
 	f.scalarRequirements = append(f.scalarRequirements, scalarRequirement{
 		path:                    path,

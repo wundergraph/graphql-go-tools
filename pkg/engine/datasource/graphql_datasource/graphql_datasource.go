@@ -11,6 +11,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
 
+	"github.com/TykTechnologies/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/astnormalization"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/astparser"
@@ -1327,7 +1328,7 @@ type Source struct {
 	httpClient *http.Client
 }
 
-func (s *Source) compactAndUnNullVariables(input []byte) []byte {
+func (s *Source) compactAndUnNullVariables(input []byte, undefinedVariables []string) []byte {
 	variables, _, _, err := jsonparser.Get(input, "body", "variables")
 	if err != nil {
 		return input
@@ -1342,31 +1343,54 @@ func (s *Source) compactAndUnNullVariables(input []byte) []byte {
 	}
 
 	removeNullVariables := httpclient.IsInputFlagSet(input, httpclient.UNNULLVARIABLES)
-	variables = s.cleanupVariables(variables, removeNullVariables)
+	variables = s.cleanupVariables(variables, removeNullVariables, undefinedVariables)
 
 	input, _ = jsonparser.Set(input, variables, "body", "variables")
 	return input
 }
 
-func (s *Source) cleanupVariables(variables []byte, removeNullVariables bool) []byte {
+// cleanupVariables removes null variables and empty objects from the input if removeNullVariables is true
+// otherwise returns the input as is
+func (s *Source) cleanupVariables(variables []byte, removeNullVariables bool, undefinedVariables []string) []byte {
 	cp := make([]byte, len(variables))
 	copy(cp, variables)
 
-	if removeNullVariables {
-		err := jsonparser.ObjectEach(variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-			if dataType == jsonparser.Null {
-				cp = jsonparser.Delete(cp, string(key))
+	// remove null variables from JSON: {"a":null,"b":1} -> {"b":1}
+	err := jsonparser.ObjectEach(variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+		if dataType == jsonparser.Null {
+			stringKey := unsafebytes.BytesToString(key)
+			// original code uses: slices.Contains (not supported with go 1.16)
+			// if removeNullVariables || slices.Contains(undefinedVariables, stringKey) {
+			//     cp = jsonparser.Delete(cp, stringKey)
+			// }
+			containsStringKey := false
+			if !removeNullVariables {
+				for i := 0; i < len(undefinedVariables); i++ {
+					if undefinedVariables[i] == stringKey {
+						containsStringKey = true
+						break
+					}
+				}
 			}
-			return nil
-		})
-		if err != nil {
-			return variables
+			if removeNullVariables || containsStringKey {
+				cp = jsonparser.Delete(cp, stringKey)
+			}
 		}
+		return nil
+	})
+	if err != nil {
+		return variables
 	}
 
-	return s.removeEmptyObjects(cp)
+	// remove empty objects
+	if removeNullVariables {
+		cp = s.removeEmptyObjects(cp)
+	}
+
+	return cp
 }
 
+// removeEmptyObjects removes empty objects from JSON: {"b": "b", "c": {}} -> {"b": "b"}
 func (s *Source) removeEmptyObjects(variables []byte) []byte {
 	var changed bool
 	for {
@@ -1381,13 +1405,13 @@ func (s *Source) removeEmptyObjects(variables []byte) []byte {
 func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
 	if i := bytes.Index(variables, []byte(":{}")); i != -1 {
 		end := i + 3
-		hasTrainlingComma := false
+		hasTrailingComma := false
 		if variables[end] == ',' {
 			end++
-			hasTrainlingComma = true
+			hasTrailingComma = true
 		}
 		startQuote := bytes.LastIndex(variables[:i-2], []byte("\""))
-		if !hasTrainlingComma && variables[startQuote-1] == ',' {
+		if !hasTrailingComma && variables[startQuote-1] == ',' {
 			startQuote--
 		}
 		return append(variables[:startQuote], variables[end:]...), true
@@ -1397,7 +1421,9 @@ func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err error) {
-	input = s.compactAndUnNullVariables(input)
+	undefinedVariables := httpclient.CtxGetUndefinedVariables(ctx)
+
+	input = s.compactAndUnNullVariables(input, undefinedVariables)
 	return httpclient.Do(s.httpClient, ctx, input, writer)
 }
 

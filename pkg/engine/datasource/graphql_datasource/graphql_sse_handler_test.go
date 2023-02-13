@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -111,7 +111,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_POST(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
 
-		actualReqBody, err := ioutil.ReadAll(r.Body)
+		actualReqBody, err := io.ReadAll(r.Body)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedReqBody, actualReqBody)
 
@@ -380,6 +380,63 @@ func TestGraphQLSubscriptionClientSubscribe_QueryParams(t *testing.T) {
 	serverCancel()
 }
 
+func TestBuildPOSTRequestSSE(t *testing.T) {
+	subscriptionOptions := GraphQLSubscriptionOptions{
+		URL: "test",
+		Body: GraphQLBody{
+			Query:         `subscription($a: Int!){countdown(from: $a)}`,
+			OperationName: "CountDown",
+			Variables:     []byte(`{"a":5}`),
+			Extensions:    []byte(`{"persistedQuery":{"version":1,"sha256Hash":"d41d8cd98f00b204e9800998ecf8427e"}}`),
+		},
+	}
+
+	h := gqlSSEConnectionHandler{
+		options: subscriptionOptions,
+	}
+
+	req, err := h.buildPOSTRequest(context.Background())
+	assert.NoError(t, err)
+
+	expectedReqBody, err := json.Marshal(subscriptionOptions.Body)
+	assert.NoError(t, err)
+
+	assert.Equal(t, http.MethodPost, req.Method)
+
+	actualReqBody, err := io.ReadAll(req.Body)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedReqBody, actualReqBody)
+}
+
+func TestBuildGETRequestSSE(t *testing.T) {
+	subscriptionOptions := GraphQLSubscriptionOptions{
+		URL: "test",
+		Body: GraphQLBody{
+			Query:         `subscription($a: Int!){countdown(from: $a)}`,
+			OperationName: "CountDown",
+			Variables:     []byte(`{"a":5}`),
+			Extensions:    []byte(`{"persistedQuery":{"version":1,"sha256Hash":"d41d8cd98f00b204e9800998ecf8427e"}}`),
+		},
+	}
+
+	h := gqlSSEConnectionHandler{
+		options: subscriptionOptions,
+	}
+
+	req, err := h.buildGETRequest(context.Background())
+	assert.NoError(t, err)
+
+	assert.Equal(t, http.MethodGet, req.Method)
+
+	urlQuery := req.URL.Query()
+	assert.Equal(t, subscriptionOptions.Body.Query, urlQuery.Get("query"))
+	assert.Equal(t, subscriptionOptions.Body.OperationName, urlQuery.Get("operationName"))
+
+	assert.Equal(t, string(subscriptionOptions.Body.Variables), urlQuery.Get("variables"))
+	assert.Equal(t, string(subscriptionOptions.Body.Extensions), urlQuery.Get("extensions"))
+
+}
+
 func TestGraphQLSubscriptionClientSubscribe_SSE_Upstream_Dies(t *testing.T) {
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -441,61 +498,4 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Upstream_Dies(t *testing.T) {
 		return true
 	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
-}
-
-func TestBuildPOSTRequestSSE(t *testing.T) {
-	subscriptionOptions := GraphQLSubscriptionOptions{
-		URL: "test",
-		Body: GraphQLBody{
-			Query:         `subscription($a: Int!){countdown(from: $a)}`,
-			OperationName: "CountDown",
-			Variables:     []byte(`{"a":5}`),
-			Extensions:    []byte(`{"persistedQuery":{"version":1,"sha256Hash":"d41d8cd98f00b204e9800998ecf8427e"}}`),
-		},
-	}
-
-	h := gqlSSEConnectionHandler{
-		options: subscriptionOptions,
-	}
-
-	req, err := h.buildPOSTRequest(context.Background())
-	assert.NoError(t, err)
-
-	expectedReqBody, err := json.Marshal(subscriptionOptions.Body)
-	assert.NoError(t, err)
-
-	assert.Equal(t, http.MethodPost, req.Method)
-
-	actualReqBody, err := ioutil.ReadAll(req.Body)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedReqBody, actualReqBody)
-}
-
-func TestBuildGETRequestSSE(t *testing.T) {
-	subscriptionOptions := GraphQLSubscriptionOptions{
-		URL: "test",
-		Body: GraphQLBody{
-			Query:         `subscription($a: Int!){countdown(from: $a)}`,
-			OperationName: "CountDown",
-			Variables:     []byte(`{"a":5}`),
-			Extensions:    []byte(`{"persistedQuery":{"version":1,"sha256Hash":"d41d8cd98f00b204e9800998ecf8427e"}}`),
-		},
-	}
-
-	h := gqlSSEConnectionHandler{
-		options: subscriptionOptions,
-	}
-
-	req, err := h.buildGETRequest(context.Background())
-	assert.NoError(t, err)
-
-	assert.Equal(t, http.MethodGet, req.Method)
-
-	urlQuery := req.URL.Query()
-	assert.Equal(t, subscriptionOptions.Body.Query, urlQuery.Get("query"))
-	assert.Equal(t, subscriptionOptions.Body.OperationName, urlQuery.Get("operationName"))
-
-	assert.Equal(t, string(subscriptionOptions.Body.Variables), urlQuery.Get("variables"))
-	assert.Equal(t, string(subscriptionOptions.Body.Extensions), urlQuery.Get("extensions"))
-
 }

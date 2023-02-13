@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -162,7 +162,7 @@ func TestHttpClientDo(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_, err := w.Write([]byte("ok"))
 			assert.NoError(t, err)
-			actualBody, err := ioutil.ReadAll(r.Body)
+			actualBody, err := io.ReadAll(r.Body)
 			assert.NoError(t, err)
 			assert.Equal(t, string(body), string(actualBody))
 		}))
@@ -179,7 +179,7 @@ func TestHttpClientDo(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			acceptEncoding := r.Header.Get("Accept-Encoding")
 			assert.Equal(t, "gzip", acceptEncoding)
-			actualBody, err := ioutil.ReadAll(r.Body)
+			actualBody, err := io.ReadAll(r.Body)
 			assert.NoError(t, err)
 			assert.Equal(t, string(body), string(actualBody))
 			gzipWriter := gzip.NewWriter(w)
