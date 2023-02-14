@@ -16,6 +16,7 @@ var expectedAsyncAPI220andBelow = &AsyncAPI{
 	},
 	Channels: map[string]*ChannelItem{
 		"smartylighting.streetlights.1.0.action.{streetlightId}.dim": {
+			Kind:        ChannelItemKindSubscription,
 			OperationID: "dimLight",
 			Parameters: map[string]string{
 				"streetlightId": "string",
@@ -59,6 +60,7 @@ var expectedAsyncAPI220andBelow = &AsyncAPI{
 			},
 		},
 		"smartylighting.streetlights.1.0.action.{streetlightId}.turn.off": {
+			Kind:        ChannelItemKindSubscription,
 			OperationID: "turnOff",
 			Parameters: map[string]string{
 				"streetlightId": "string",
@@ -110,6 +112,7 @@ var expectedAsyncAPI220andBelow = &AsyncAPI{
 			},
 		},
 		"smartylighting.streetlights.1.0.action.{streetlightId}.turn.on": {
+			Kind:        ChannelItemKindSubscription,
 			OperationID: "turnOn",
 			Parameters: map[string]string{
 				"streetlightId": "string",
@@ -178,6 +181,7 @@ var expectedAsyncAPI240AndBelow = &AsyncAPI{
 	},
 	Channels: map[string]*ChannelItem{
 		"smartylighting.streetlights.1.0.action.{streetlightId}.dim": {
+			Kind:        ChannelItemKindSubscription,
 			OperationID: "dimLight",
 			Traits:      []*OperationTrait{{Bindings: map[string]map[string]*Binding{}}},
 			Parameters: map[string]string{
@@ -206,6 +210,7 @@ var expectedAsyncAPI240AndBelow = &AsyncAPI{
 			},
 		},
 		"smartylighting.streetlights.1.0.action.{streetlightId}.turn.off": {
+			Kind:        ChannelItemKindSubscription,
 			OperationID: "turnOff",
 			Traits:      []*OperationTrait{{Bindings: map[string]map[string]*Binding{}}},
 			Parameters: map[string]string{
@@ -242,6 +247,7 @@ var expectedAsyncAPI240AndBelow = &AsyncAPI{
 			},
 		},
 		"smartylighting.streetlights.1.0.action.{streetlightId}.turn.on": {
+			Kind:        ChannelItemKindSubscription,
 			OperationID: "turnOn",
 			Traits:      []*OperationTrait{{Bindings: map[string]map[string]*Binding{}}},
 			Parameters: map[string]string{
@@ -318,6 +324,7 @@ func TestAsyncAPIStreetLightsKafkaSecurity(t *testing.T) {
 		},
 		Channels: map[string]*ChannelItem{
 			"smartylighting.streetlights.1.0.action.{streetlightId}.dim": {
+				Kind:        ChannelItemKindSubscription,
 				OperationID: "dimLight",
 				Servers:     []string{"test_oauth"},
 				Traits:      []*OperationTrait{{Bindings: map[string]map[string]*Binding{}}},
@@ -347,6 +354,7 @@ func TestAsyncAPIStreetLightsKafkaSecurity(t *testing.T) {
 				},
 			},
 			"smartylighting.streetlights.1.0.action.{streetlightId}.turn.off": {
+				Kind:        ChannelItemKindSubscription,
 				OperationID: "turnOff",
 				Servers:     []string{"test_oauth"},
 				Traits:      []*OperationTrait{{Bindings: map[string]map[string]*Binding{}}},
@@ -384,6 +392,7 @@ func TestAsyncAPIStreetLightsKafkaSecurity(t *testing.T) {
 				},
 			},
 			"smartylighting.streetlights.1.0.action.{streetlightId}.turn.on": {
+				Kind:        ChannelItemKindSubscription,
 				OperationID: "turnOn",
 				Servers:     []string{"test_oauth"},
 				Traits:      []*OperationTrait{{Bindings: map[string]map[string]*Binding{}}},

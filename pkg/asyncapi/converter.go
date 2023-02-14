@@ -78,6 +78,9 @@ func (c *converter) importEnumType(name string, enums []*Enum) *introspection.Fu
 func (c *converter) importFullTypes() ([]introspection.FullType, error) {
 	fullTypes := make([]introspection.FullType, 0)
 	for _, channelItem := range c.asyncapi.Channels {
+		if channelItem.Kind != ChannelItemKindSubscription {
+			return nil, fmt.Errorf("channel item type: %s is not supported", channelItem.Kind)
+		}
 		msg := channelItem.Message
 
 		fullTypeName := strcase.ToCamel(msg.Name)

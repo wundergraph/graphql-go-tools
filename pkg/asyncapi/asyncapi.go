@@ -11,6 +11,13 @@ import (
 	"github.com/iancoleman/strcase"
 )
 
+type ChannelItemKind string
+
+const (
+	ChannelItemKindSubscription ChannelItemKind = "subscription"
+	// ChannelItemKindPublish      ChannelItemKind = "publish"
+)
+
 const (
 	ChannelsKey        = "channels"
 	SubscribeKey       = "subscribe"
@@ -81,6 +88,7 @@ type OperationTrait struct {
 // ChannelItem object is defined here:
 // https://www.asyncapi.com/docs/reference/specification/v2.4.0#channelItemObject
 type ChannelItem struct {
+	Kind        ChannelItemKind
 	Message     *Message
 	Parameters  map[string]string
 	OperationID string
@@ -160,7 +168,7 @@ func extractInteger(key string, data []byte) (int, error) {
 	return strconv.Atoi(string(value))
 }
 
-func (w *walker) enterPropertyObject(channel, key, data []byte) error {
+func (w *walker) enterPropertyObject(channelName, key string, data []byte) error {
 	property := &Property{}
 	// Not mandatory
 	description, err := extractString(DescriptionKey, data)
@@ -176,8 +184,8 @@ func (w *walker) enterPropertyObject(channel, key, data []byte) error {
 
 	// Mandatory
 	tpe, err := extractString(TypeKey, data)
-	if err == jsonparser.KeyPathNotFoundError {
-		return fmt.Errorf("property: %s is required in %s, channel: %s", TypeKey, key, channel)
+	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
+		return fmt.Errorf("property: %s is required in %s, channel: %s", TypeKey, key, channelName)
 	}
 	if err != nil {
 		return err
@@ -210,9 +218,9 @@ func (w *walker) enterPropertyObject(channel, key, data []byte) error {
 		return err
 	}
 
-	channelItem, ok := w.asyncapi.Channels[string(channel)]
+	channelItem, ok := w.asyncapi.Channels[channelName]
 	if !ok {
-		return fmt.Errorf("channel: %s is missing", channel)
+		return fmt.Errorf("channel: %s is missing", channelName)
 	}
 	// Field names should use camelCase. Many GraphQL clients are written in JavaScript, Java, Kotlin, or Swift,
 	// all of which recommend camelCase for variable names.
@@ -220,7 +228,7 @@ func (w *walker) enterPropertyObject(channel, key, data []byte) error {
 	return nil
 }
 
-func (w *walker) enterPropertiesObject(channel, data []byte) error {
+func (w *walker) enterPropertiesObject(channelName string, data []byte) error {
 	propertiesValue, dataType, _, err := jsonparser.Get(data, PropertiesKey)
 	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 		return fmt.Errorf("key: %s is missing", PropertiesKey)
@@ -230,11 +238,11 @@ func (w *walker) enterPropertiesObject(channel, data []byte) error {
 	}
 
 	return jsonparser.ObjectEach(propertiesValue, func(key []byte, value []byte, dataType jsonparser.ValueType, _ int) error {
-		return w.enterPropertyObject(channel, key, value)
+		return w.enterPropertyObject(channelName, string(key), value)
 	})
 }
 
-func (w *walker) enterPayloadObject(key, data []byte) error {
+func (w *walker) enterPayloadObject(channelName string, data []byte) error {
 	payload, dataType, _, err := jsonparser.Get(data, PayloadKey)
 	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 		return fmt.Errorf("key: %s is missing", PayloadKey)
@@ -249,19 +257,19 @@ func (w *walker) enterPayloadObject(key, data []byte) error {
 		p.Type = typeValue
 	}
 
-	channel, ok := w.asyncapi.Channels[string(key)]
+	channel, ok := w.asyncapi.Channels[channelName]
 	if !ok {
-		return fmt.Errorf("channel: %s is missing", key)
+		return fmt.Errorf("channel: %s is missing", channelName)
 	}
 	channel.Message.Payload = p
-	return w.enterPropertiesObject(key, payload)
+	return w.enterPropertiesObject(channelName, payload)
 }
 
-func (w *walker) enterMessageObject(channelName, data []byte) error {
+func (w *walker) enterMessageObject(channelName string, data []byte) error {
 	msg := &Message{}
 	name, err := extractString(NameKey, data)
-	if err == jsonparser.KeyPathNotFoundError {
-		name = string(channelName)
+	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
+		name = channelName
 		err = nil
 	}
 	if err != nil {
@@ -283,7 +291,7 @@ func (w *walker) enterMessageObject(channelName, data []byte) error {
 	if err == nil {
 		msg.Description = description
 	}
-	channel, ok := w.asyncapi.Channels[string(channelName)]
+	channel, ok := w.asyncapi.Channels[channelName]
 	if !ok {
 		return fmt.Errorf("channel: %s is missing", channelName)
 	}
@@ -291,7 +299,7 @@ func (w *walker) enterMessageObject(channelName, data []byte) error {
 	return w.enterPayloadObject(channelName, data)
 }
 
-func (w *walker) enterOperationTraitsObject(channelName []byte, data []byte) error {
+func (w *walker) enterOperationTraitsObject(channelName string, data []byte) error {
 	// Not Mandatory
 	traitsValue, dataType, _, err := jsonparser.Get(data, TraitsKey)
 	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
@@ -339,7 +347,7 @@ func (w *walker) enterOperationTraitsObject(channelName []byte, data []byte) err
 		}
 	}
 
-	channel, ok := w.asyncapi.Channels[string(channelName)]
+	channel, ok := w.asyncapi.Channels[channelName]
 	if !ok {
 		return fmt.Errorf("channel: %s is missing", channelName)
 	}
@@ -350,7 +358,7 @@ func (w *walker) enterOperationTraitsObject(channelName []byte, data []byte) err
 func (w *walker) enterParametersObject(channelItem *ChannelItem, data []byte) error {
 	// Not mandatory
 	parametersValue, _, _, err := jsonparser.Get(data, ParametersKey)
-	if err == jsonparser.KeyPathNotFoundError {
+	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 		return nil
 	}
 	if err != nil {
@@ -366,7 +374,7 @@ func (w *walker) enterParametersObject(channelItem *ChannelItem, data []byte) er
 	})
 }
 
-func (w *walker) enterChannelItemObject(channelName []byte, data []byte) error {
+func (w *walker) enterChannelItemObject(channelName string, data []byte) error {
 	subscribeValue, dataType, _, err := jsonparser.Get(data, SubscribeKey)
 	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 		return nil
@@ -409,6 +417,7 @@ func (w *walker) enterChannelItemObject(channelName []byte, data []byte) error {
 	}
 
 	channelItem := &ChannelItem{
+		Kind:        ChannelItemKindSubscription,
 		OperationID: operationID,
 		Servers:     servers,
 		Parameters:  make(map[string]string),
@@ -419,7 +428,7 @@ func (w *walker) enterChannelItemObject(channelName []byte, data []byte) error {
 		return err
 	}
 
-	w.asyncapi.Channels[string(channelName)] = channelItem
+	w.asyncapi.Channels[channelName] = channelItem
 
 	err = w.enterOperationTraitsObject(channelName, subscribeValue)
 	if err != nil {
@@ -431,7 +440,7 @@ func (w *walker) enterChannelItemObject(channelName []byte, data []byte) error {
 
 func (w *walker) enterChannelObject() error {
 	value, dataType, _, err := jsonparser.Get(w.document.Bytes(), ChannelsKey)
-	if err == jsonparser.KeyPathNotFoundError {
+	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 		return fmt.Errorf("key: %s is missing", ChannelsKey)
 	}
 	if err != nil {
@@ -446,7 +455,7 @@ func (w *walker) enterChannelObject() error {
 		if dataType != jsonparser.Object {
 			return fmt.Errorf("%s has to be a JSON object", key)
 		}
-		err = w.enterChannelItemObject(key, value)
+		err = w.enterChannelItemObject(string(key), value)
 		if err != nil {
 			return err
 		}
@@ -454,11 +463,11 @@ func (w *walker) enterChannelObject() error {
 	})
 }
 
-func (w *walker) enterSecurityRequirementObject(key, data []byte, s *Server) error {
+func (w *walker) enterSecurityRequirementObject(key string, data []byte, s *Server) error {
 	sr := &SecurityRequirement{Requirements: make(map[string][]string)}
 
-	_, err := jsonparser.ArrayEach(data, func(value3 []byte, dataType2 jsonparser.ValueType, _ int, _ error) {
-		sr.Requirements[string(key)] = append(sr.Requirements[string(key)], string(value3))
+	_, err := jsonparser.ArrayEach(data, func(securityRequirement []byte, _ jsonparser.ValueType, _ int, _ error) {
+		sr.Requirements[key] = append(sr.Requirements[key], string(securityRequirement))
 	})
 	if err != nil {
 		return err
@@ -476,7 +485,7 @@ func (w *walker) enterSecurityObject(s *Server, data []byte) error {
 	_, err := jsonparser.ArrayEach(data, func(securityObjectItem []byte, dataType jsonparser.ValueType, _ int, err error) {
 		securityObjectItems = append(securityObjectItems, securityObjectItem)
 	}, SecurityKey)
-	if err == jsonparser.KeyPathNotFoundError {
+	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 		return nil
 	}
 	if err != nil {
@@ -485,7 +494,7 @@ func (w *walker) enterSecurityObject(s *Server, data []byte) error {
 
 	for _, securityObjectItem := range securityObjectItems {
 		err = jsonparser.ObjectEach(securityObjectItem, func(key []byte, value []byte, _ jsonparser.ValueType, _ int) error {
-			return w.enterSecurityRequirementObject(key, value, s)
+			return w.enterSecurityRequirementObject(string(key), value, s)
 		})
 		if err != nil {
 			return err
@@ -521,7 +530,7 @@ func (w *walker) enterServerBindingsObject(s *Server, data []byte) error {
 	})
 }
 
-func (w *walker) enterServerObject(key, data []byte) error {
+func (w *walker) enterServerObject(key string, data []byte) error {
 	s := &Server{
 		Bindings: map[string]map[string]*Binding{},
 	}
@@ -559,14 +568,14 @@ func (w *walker) enterServerObject(key, data []byte) error {
 		return err
 	}
 
-	w.asyncapi.Servers[string(key)] = s
+	w.asyncapi.Servers[key] = s
 	return nil
 }
 
 func (w *walker) enterServersObject() error {
 	// Not Mandatory
 	serverValue, dataType, _, err := jsonparser.Get(w.document.Bytes(), ServersKey)
-	if err == jsonparser.KeyPathNotFoundError {
+	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 		return nil
 	}
 	if err != nil {
@@ -576,13 +585,13 @@ func (w *walker) enterServersObject() error {
 		return fmt.Errorf("%s has to be a JSON object", ServersKey)
 	}
 	return jsonparser.ObjectEach(serverValue, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-		return w.enterServerObject(key, value)
+		return w.enterServerObject(string(key), value)
 	})
 }
 
 func (w *walker) enterInfoObject() error {
 	infoValue, dataType, _, err := jsonparser.Get(w.document.Bytes(), InfoKey)
-	if err == jsonparser.KeyPathNotFoundError {
+	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 		return fmt.Errorf("key: %s is missing", InfoKey)
 	}
 	if err != nil {
@@ -592,13 +601,13 @@ func (w *walker) enterInfoObject() error {
 		return fmt.Errorf("%s has to be a JSON object", InfoKey)
 	}
 	title, err := extractString(TitleKey, infoValue)
-	if err == jsonparser.KeyPathNotFoundError {
+	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 		return fmt.Errorf("field: %s is missing in %s", TitleKey, InfoKey)
 	}
 	w.asyncapi.Info.Title = title
 
 	version, err := extractString(VersionKey, infoValue)
-	if err == jsonparser.KeyPathNotFoundError {
+	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 		return fmt.Errorf("field: %s is missing in %s", VersionKey, InfoKey)
 	}
 	w.asyncapi.Info.Version = version
