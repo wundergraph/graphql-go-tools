@@ -162,6 +162,24 @@ func TestKnownTypeNames(t *testing.T) {
 			)
 		})
 
+		t.Run("unknown type references: field", func(t *testing.T) {
+			runDefinitionValidation(t, `
+					type Review {
+						author: User
+					}
+				`, Invalid, KnownTypeNames(),
+			)
+		})
+
+		t.Run("unknown type references: non-null field", func(t *testing.T) {
+			runDefinitionValidation(t, `
+					type Review {
+						author: User!
+					}
+				`, Invalid, KnownTypeNames(),
+			)
+		})
+
 		t.Run("does not consider non-type definitions", func(t *testing.T) {
 			runDefinitionValidation(t, `
 					fragment Foo on Query { __typename }
