@@ -7,8 +7,25 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
+type defaultOperationValidatorOptions struct {
+	repeatableDirectivesNameBytes [][]byte
+}
+
+type DefaultOperationValidatorOptions func(opts *defaultOperationValidatorOptions)
+
+func RepeateableDirectiveName(directiveName string) DefaultOperationValidatorOptions {
+	return func(opts *defaultOperationValidatorOptions) {
+		opts.repeatableDirectivesNameBytes = append(opts.repeatableDirectivesNameBytes, []byte(directiveName))
+	}
+}
+
 // DefaultOperationValidator returns a fully initialized OperationValidator with all default rules registered
-func DefaultOperationValidator() *OperationValidator {
+func DefaultOperationValidator(opts ...DefaultOperationValidatorOptions) *OperationValidator {
+
+	var o defaultOperationValidatorOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
 
 	validator := OperationValidator{
 		walker: astvisitor.NewWalker(48),
@@ -29,7 +46,7 @@ func DefaultOperationValidator() *OperationValidator {
 	validator.RegisterRule(DirectivesAreDefined())
 	validator.RegisterRule(DirectivesAreInValidLocations())
 	validator.RegisterRule(VariableUniqueness())
-	validator.RegisterRule(DirectivesAreUniquePerLocation())
+	validator.RegisterRule(DirectivesAreUniquePerLocation(o.repeatableDirectivesNameBytes...))
 	validator.RegisterRule(VariablesAreInputTypes())
 	validator.RegisterRule(AllVariableUsesDefined())
 	validator.RegisterRule(AllVariablesUsed())

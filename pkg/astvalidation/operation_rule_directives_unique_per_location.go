@@ -9,10 +9,11 @@ import (
 )
 
 // DirectivesAreUniquePerLocation validates if directives are unique per location
-func DirectivesAreUniquePerLocation() Rule {
+func DirectivesAreUniquePerLocation(repeatableDirectiveNameBytes ...[]byte) Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := directivesAreUniquePerLocationVisitor{
-			Walker: walker,
+			Walker:                        walker,
+			repeatableDirectivesNameBytes: repeatableDirectiveNameBytes,
 		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterDirectiveVisitor(&visitor)
@@ -21,7 +22,8 @@ func DirectivesAreUniquePerLocation() Rule {
 
 type directivesAreUniquePerLocationVisitor struct {
 	*astvisitor.Walker
-	operation, definition *ast.Document
+	operation, definition         *ast.Document
+	repeatableDirectivesNameBytes [][]byte
 }
 
 func (d *directivesAreUniquePerLocationVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -30,8 +32,14 @@ func (d *directivesAreUniquePerLocationVisitor) EnterDocument(operation, definit
 }
 
 func (d *directivesAreUniquePerLocationVisitor) EnterDirective(ref int) {
-
 	directiveName := d.operation.DirectiveNameBytes(ref)
+
+	for _, repeatable := range d.repeatableDirectivesNameBytes {
+		if bytes.Equal(repeatable, directiveName) {
+			return
+		}
+	}
+
 	directives := d.operation.NodeDirectives(d.Ancestors[len(d.Ancestors)-1])
 
 	for _, j := range directives {
