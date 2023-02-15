@@ -2,7 +2,7 @@
 [![CI](https://github.com/wundergraph/graphql-go-tools/workflows/ci/badge.svg)](https://github.com/wundergraph/graphql-go-tools/workflows/ci/badge.svg)
 # graphql-go-tools
 
-[<img height="auto" src="./assets/logo.png">](https://wundergraph.com/)
+[<p align="center"><img height="auto" src="./assets/logo.png"></p>](https://wundergraph.com/)
 
 ## Apollo Federation Gateway Replacement
 
