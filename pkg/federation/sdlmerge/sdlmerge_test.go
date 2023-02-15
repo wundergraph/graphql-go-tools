@@ -2,9 +2,11 @@ package sdlmerge
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/astprinter"
@@ -659,4 +661,55 @@ func nonEntityExtensionErrorMessage(typeName string) string {
 
 func duplicateEntityErrorMessage(typeName string) string {
 	return fmt.Sprintf("the entity named '%s' is defined in the subgraph(s) more than once", typeName)
+}
+
+func Test_validateSubgraphs(t *testing.T) {
+	testcase := []struct {
+		name    string
+		path    string
+		wantErr bool
+	}{
+		{
+			name:    "well-defined subgraph schema",
+			path:    "./testdata/validate-subgraph/well-defined.graphqls",
+			wantErr: false,
+		},
+		{
+			name:    "well-defined subgraph schema (non-null field type)",
+			path:    "./testdata/validate-subgraph/well-defined-non-null.graphqls",
+			wantErr: false,
+		},
+		{
+			name:    "a subgraph lacking the definition of 'User' type",
+			path:    "./testdata/validate-subgraph/lack-definition.graphqls",
+			wantErr: true,
+		},
+		{
+			name:    "a subgraph lacking the extend definition of 'Product' type",
+			path:    "./testdata/validate-subgraph/lack-extend-definition.graphqls",
+			wantErr: true,
+		},
+		{
+			name:    "a subgraph lacking the definition of 'User' type (field type non-null)",
+			path:    "./testdata/validate-subgraph/lack-definition-non-null.graphqls",
+			wantErr: true,
+		},
+		{
+			name:    "a subgraph lacking the extend definition of 'Product' type (field type non-null)",
+			path:    "./testdata/validate-subgraph/lack-extend-definition-non-null.graphqls",
+			wantErr: true,
+		},
+	}
+	for _, tt := range testcase {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := os.ReadFile(tt.path)
+			subgraph := string(b)
+			require.NoError(t, err)
+			if tt.wantErr {
+				assert.Error(t, validateSubgraphs([]string{subgraph}), subgraph)
+			} else {
+				assert.NoError(t, validateSubgraphs([]string{subgraph}), subgraph)
+			}
+		})
+	}
 }
