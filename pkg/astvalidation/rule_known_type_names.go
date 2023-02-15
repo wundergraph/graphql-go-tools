@@ -20,6 +20,7 @@ func KnownTypeNames() Rule {
 		walker.RegisterEnterUnionMemberTypeVisitor(visitor)
 		walker.RegisterEnterInputValueDefinitionVisitor(visitor)
 		walker.RegisterEnterObjectTypeDefinitionVisitor(visitor)
+		walker.RegisterEnterObjectTypeExtensionVisitor(visitor)
 		walker.RegisterEnterInterfaceTypeDefinitionVisitor(visitor)
 		walker.RegisterEnterScalarTypeDefinitionVisitor(visitor)
 		walker.RegisterEnterUnionTypeDefinitionVisitor(visitor)
@@ -78,6 +79,11 @@ func (u *knownTypeNamesVisitor) EnterInputValueDefinition(ref int) {
 
 func (u *knownTypeNamesVisitor) EnterObjectTypeDefinition(ref int) {
 	typeName := u.definition.ObjectTypeDefinitionNameBytes(ref)
+	u.saveTypeName(typeName)
+}
+
+func (u *knownTypeNamesVisitor) EnterObjectTypeExtension(ref int) {
+	typeName := u.definition.ObjectTypeExtensionNameBytes(ref)
 	u.saveTypeName(typeName)
 }
 
