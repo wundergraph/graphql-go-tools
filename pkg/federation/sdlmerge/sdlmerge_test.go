@@ -281,6 +281,7 @@ const (
 	`
 	reviewSchema = `
 		scalar DateTime
+		union AlphaNumeric = Int | String | Float
 
 		input ReviewInput {
 			body: String!
@@ -389,6 +390,13 @@ const (
 		extend type User @key(fields: "id") {
 			id: ID! @external
 			reviews: [Review]
+		}
+
+		type Product implements ProductInfo @key(fields: "upc") {
+			upc: String!
+			name: String!
+			reviews: [Review] @requires(fields: "name")
+			sales: BigInt!
 		}
 
 		scalar BigInt
