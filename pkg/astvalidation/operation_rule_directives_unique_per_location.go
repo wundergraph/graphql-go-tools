@@ -45,8 +45,7 @@ func (d *directivesAreUniquePerLocationVisitor) EnterDirective(ref int) {
 		return
 	}
 
-	isRepeatable := d.definition.DirectiveDefinitionIsRepeatable(directiveDefRef)
-	if isRepeatable {
+	if d.definition.DirectiveDefinitionIsRepeatable(directiveDefRef) {
 		// ignore repeatable directives
 		return
 	}
@@ -66,6 +65,4 @@ func (d *directivesAreUniquePerLocationVisitor) EnterDirective(ref int) {
 			return
 		}
 	}
-
-	d.seenDuplicates[ref] = struct{}{}
 }
