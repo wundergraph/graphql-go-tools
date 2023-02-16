@@ -5,13 +5,17 @@ import (
 )
 
 func TestUniqueDirectivesPerLocationRule(t *testing.T) {
-	t.Skip()
 
 	extensionSDL := `
   directive @directive on FIELD | FRAGMENT_DEFINITION
   directive @directiveA on FIELD | FRAGMENT_DEFINITION
   directive @directiveB on FIELD | FRAGMENT_DEFINITION
   directive @repeatable repeatable on FIELD | FRAGMENT_DEFINITION
+
+  # adding type here to make test queries valid
+  type Type {
+    field: String!
+  }
 `
 	schemaWithDirectives := ExtendSchema(testSchema, extensionSDL)
 
@@ -187,6 +191,8 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("duplicate directives on SDL definitions", func(t *testing.T) {
+			t.Skip()
+
 			ExpectSDLErrors(t, `
       directive @nonRepeatable on
         SCHEMA | SCALAR | OBJECT | INTERFACE | UNION | INPUT_OBJECT
