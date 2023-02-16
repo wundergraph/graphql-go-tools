@@ -1223,6 +1223,41 @@ func TestResolver_ResolveNode(t *testing.T) {
 			}, Context{Context: context.Background()},
 			`{"pets":[{"name":"Woofie"}]}`
 	}))
+	t.Run("array response from data source with single value in it mapping on an object", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+				Fetch: &SingleFetch{
+					BufferId:   0,
+					DataSource: FakeDataSource(`[{"topLists":{"movies":{"todaysTopMovie":{"name":"Indiana Jones and the Last Crusade","year":1989}}}}]`),
+				},
+				Fields: []*Field{
+					{
+						BufferID:  0,
+						HasBuffer: true,
+						Name:      []byte("todaysTopMovie"),
+						Value: &Object{
+							Path: []string{"[0]", "topLists", "movies", "todaysTopMovie"},
+							Fields: []*Field{
+								{
+									BufferID: 0,
+									Name:     []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
+									},
+								},
+								{
+									BufferID: 0,
+									Name:     []byte("year"),
+									Value: &Integer{
+										Path: []string{"year"},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, Context{Context: context.Background()},
+			`{"todaysTopMovie":{"name":"Indiana Jones and the Last Crusade","year":1989}}`
+	}))
 	t.Run("non null object with field condition can be null", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{

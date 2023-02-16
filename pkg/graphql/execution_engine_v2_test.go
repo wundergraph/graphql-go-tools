@@ -1539,7 +1539,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 								expectedHost:     "example.com",
 								expectedPath:     "/",
 								expectedBody:     "",
-								sendResponseBody: `{"topLists":{"movies":{"todaysTopMovie":{"name":"Indiana Jones and the Last Crusade","year":1989}}}`,
+								sendResponseBody: `{"topLists":{"movies":{"todaysTopMovie":{"name":"Indiana Jones and the Last Crusade","year":1989}}}}`,
 								sendStatusCode:   200,
 							}),
 						},
@@ -1558,6 +1558,59 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						FieldName:             "todaysTopMovie",
 						DisableDefaultMapping: false,
 						Path:                  []string{"topLists", "movies", "todaysTopMovie"},
+					},
+				},
+				expectedResponse: `{"data":{"todaysTopMovie":{"name":"Indiana Jones and the Last Crusade","year":1989}}}`,
+			},
+		))
+
+		t.Run("with nested field mappings inside single value array", runWithoutError(
+			ExecutionEngineV2TestCase{
+				schema: moviesSchema(t),
+				operation: func(t *testing.T) Request {
+					return Request{
+						OperationName: "",
+						Variables:     nil,
+						Query: `{
+						todaysTopMovie {
+							name
+							year
+						}
+					}`,
+					}
+				},
+				dataSources: []plan.DataSourceConfiguration{
+					{
+						RootNodes: []plan.TypeField{
+							{TypeName: "Query", FieldNames: []string{"todaysTopMovie"}},
+						},
+						ChildNodes: []plan.TypeField{
+							{TypeName: "Movie", FieldNames: []string{"name", "year"}},
+						},
+						Factory: &rest_datasource.Factory{
+							Client: testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `[{"topLists":{"movies":{"todaysTopMovie":{"name":"Indiana Jones and the Last Crusade","year":1989}}}}]`,
+								sendStatusCode:   200,
+							}),
+						},
+						Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+							Fetch: rest_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+								Body:   "",
+							},
+						}),
+					},
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:              "Query",
+						FieldName:             "todaysTopMovie",
+						DisableDefaultMapping: false,
+						Path:                  []string{"[0]", "topLists", "movies", "todaysTopMovie"},
 					},
 				},
 				expectedResponse: `{"data":{"todaysTopMovie":{"name":"Indiana Jones and the Last Crusade","year":1989}}}`,
