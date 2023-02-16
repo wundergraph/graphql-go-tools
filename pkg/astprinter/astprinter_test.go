@@ -114,7 +114,8 @@ directive @cache(
   Examples: 'jwt.sub', 'jwt.team' to vary the cache key based on 'sub' or 'team' fields on the jwt. 
   """
   vary: [String]! = []
-) on QUERY`,
+) on QUERY directive @include(if: Boolean!) repeatable on FIELD
+`,
 			`"""
 directive @cache
 """
@@ -124,7 +125,14 @@ vary defines the headers to append to the cache key
 In addition to all possible headers you can also select a custom claim for authenticated requests
 Examples: 'jwt.sub', 'jwt.team' to vary the cache key based on 'sub' or 'team' fields on the jwt.
 """
-vary: [String]! = []) on QUERY`)
+vary: [String]! = []) on QUERY directive @include(if: Boolean!) repeatable on FIELD`)
+	})
+	t.Run("fragment definition with directives", func(t *testing.T) {
+		run(t, `
+			fragment foo on Dog @fragmentDefinition {
+				name
+			}
+		`, `fragment foo on Dog @fragmentDefinition {name}`)
 	})
 	t.Run("anonymous query", func(t *testing.T) {
 		run(t, `	{

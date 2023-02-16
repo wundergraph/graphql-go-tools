@@ -61,6 +61,7 @@ var (
 	UNION                         = []byte("union")
 	ENUM                          = []byte("enum")
 	DIRECTIVE                     = []byte("directive")
+	REPEATABLE                    = []byte("repeatable")
 	QUERY                         = []byte("query")
 	MUTATION                      = []byte("mutation")
 	SUBSCRIPTION                  = []byte("subscription")
