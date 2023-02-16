@@ -26,8 +26,9 @@ type FragmentDefinition struct {
 	FragmentLiteral position.Position  // fragment
 	Name            ByteSliceReference // Name but not on, e.g. friendFields
 	TypeCondition   TypeCondition      // e.g. on User
-	Directives      DirectiveList      // optional, e.g. @foo
-	SelectionSet    int                // e.g. { id }
+	HasDirectives   bool
+	Directives      DirectiveList // optional, e.g. @foo
+	SelectionSet    int           // e.g. { id }
 	HasSelections   bool
 }
 
