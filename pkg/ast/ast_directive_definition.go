@@ -133,3 +133,25 @@ func (d *Document) ImportDirectiveDefinition(name, description string, argsRefs 
 
 	return
 }
+
+func (d *Document) DirectiveDefinitionByName(name string) (int, bool) {
+	for i := range d.DirectiveDefinitions {
+		if name == d.Input.ByteSliceString(d.DirectiveDefinitions[i].Name) {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
+func (d *Document) DirectiveDefinitionByNameBytes(name []byte) (int, bool) {
+	for i := range d.DirectiveDefinitions {
+		if bytes.Equal(name, d.Input.ByteSlice(d.DirectiveDefinitions[i].Name)) {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
+func (d *Document) DirectiveDefinitionIsRepeatable(ref int) bool {
+	return d.DirectiveDefinitions[ref].Repeatable.IsRepeatable
+}
