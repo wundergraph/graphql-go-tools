@@ -238,9 +238,11 @@ func ExpectValidationErrorMessage(t *testing.T, schema string, queryStr string) 
 // ExtendSchema - helper to extend schema with provided sdl
 //nolint:unused
 func ExtendSchema(schema string, sdlStr string) string {
-	definition := prepareSchema(schema)
+	if sdlStr != "" {
+		schema = schema + "\n" + sdlStr
+	}
 
-	definition.Input.AppendInputBytes([]byte(sdlStr))
+	definition := prepareSchema(schema)
 	parser := astparser.NewParser()
 	report := operationreport.Report{}
 	parser.Parse(&definition, &report)

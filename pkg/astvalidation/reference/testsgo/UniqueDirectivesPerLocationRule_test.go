@@ -5,13 +5,17 @@ import (
 )
 
 func TestUniqueDirectivesPerLocationRule(t *testing.T) {
-	t.Skip()
 
 	extensionSDL := `
   directive @directive on FIELD | FRAGMENT_DEFINITION
   directive @directiveA on FIELD | FRAGMENT_DEFINITION
   directive @directiveB on FIELD | FRAGMENT_DEFINITION
   directive @repeatable repeatable on FIELD | FRAGMENT_DEFINITION
+
+  # adding type here to make test queries valid
+  type Type {
+    field: String!
+  }
 `
 	schemaWithDirectives := ExtendSchema(testSchema, extensionSDL)
 
@@ -245,7 +249,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("duplicate directives on SDL extensions", func(t *testing.T) {
-			t.Skip("Parser do not support repeatable directives")
+			t.Skip("Parser do not support directives on extensions")
 
 			ExpectSDLErrors(t, `
       directive @nonRepeatable on
@@ -305,7 +309,7 @@ func TestUniqueDirectivesPerLocationRule(t *testing.T) {
 		})
 
 		t.Run("duplicate directives between SDL definitions and extensions", func(t *testing.T) {
-			t.Skip("Parser do not support repeatable directives")
+			t.Skip("Parser do not support directives on extensions")
 
 			ExpectSDLErrors(t, `
       directive @nonRepeatable on SCHEMA
