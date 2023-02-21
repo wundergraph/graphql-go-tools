@@ -679,6 +679,7 @@ func Test_validateSubgraphs(t *testing.T) {
 		name           string
 		schemaFileName string
 		wantErr        bool
+		errMsg         string
 	}{
 		{
 			name:           "well-defined subgraph schema",
@@ -694,21 +695,25 @@ func Test_validateSubgraphs(t *testing.T) {
 			name:           "a subgraph lacking the definition of 'User' type",
 			schemaFileName: "lack-definition.graphqls",
 			wantErr:        true,
+			errMsg:         `external: Unknown type "User"`,
 		},
 		{
 			name:           "a subgraph lacking the extend definition of 'Product' type",
 			schemaFileName: "lack-extend-definition.graphqls",
 			wantErr:        true,
+			errMsg:         `external: Unknown type "Product"`,
 		},
 		{
 			name:           "a subgraph lacking the definition of 'User' type (field type non-null)",
 			schemaFileName: "lack-definition-non-null.graphqls",
 			wantErr:        true,
+			errMsg:         `external: Unknown type "User"`,
 		},
 		{
 			name:           "a subgraph lacking the extend definition of 'Product' type (field type non-null)",
 			schemaFileName: "lack-extend-definition-non-null.graphqls",
 			wantErr:        true,
+			errMsg:         `external: Unknown type "Product"`,
 		},
 	}
 	for _, tt := range testcase {
@@ -719,11 +724,15 @@ func Test_validateSubgraphs(t *testing.T) {
 			require.NoError(t, err)
 
 			subgraph := string(b)
+			err = validateSubgraphs([]string{subgraph})
+
 			if tt.wantErr {
-				assert.Error(t, validateSubgraphs([]string{subgraph}), subgraph)
-			} else {
-				assert.NoError(t, validateSubgraphs([]string{subgraph}), subgraph)
+				assert.Error(t, err, subgraph)
+				assert.Contains(t, err.Error(), tt.errMsg)
+				return
 			}
+
+			assert.NoError(t, err, subgraph)
 		})
 	}
 }
