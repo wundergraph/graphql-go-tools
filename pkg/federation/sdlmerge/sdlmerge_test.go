@@ -2,9 +2,12 @@ package sdlmerge
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/astprinter"
@@ -279,6 +282,7 @@ const (
 	`
 	reviewSchema = `
 		scalar DateTime
+		union AlphaNumeric = Int | String | Float
 
 		input ReviewInput {
 			body: String!
@@ -387,6 +391,13 @@ const (
 		extend type User @key(fields: "id") {
 			id: ID! @external
 			reviews: [Review]
+		}
+
+		type Product implements ProductInfo @key(fields: "upc") {
+			upc: String!
+			name: String!
+			reviews: [Review] @requires(fields: "name")
+			sales: BigInt!
 		}
 
 		scalar BigInt
@@ -659,4 +670,69 @@ func nonEntityExtensionErrorMessage(typeName string) string {
 
 func duplicateEntityErrorMessage(typeName string) string {
 	return fmt.Sprintf("the entity named '%s' is defined in the subgraph(s) more than once", typeName)
+}
+
+func Test_validateSubgraphs(t *testing.T) {
+	basePath := filepath.Join(".", "testdata", "validate-subgraph")
+
+	testcase := []struct {
+		name           string
+		schemaFileName string
+		wantErr        bool
+		errMsg         string
+	}{
+		{
+			name:           "well-defined subgraph schema",
+			schemaFileName: "well-defined.graphqls",
+			wantErr:        false,
+		},
+		{
+			name:           "well-defined subgraph schema (non-null field type)",
+			schemaFileName: "well-defined-non-null.graphqls",
+			wantErr:        false,
+		},
+		{
+			name:           "a subgraph lacking the definition of 'User' type",
+			schemaFileName: "lack-definition.graphqls",
+			wantErr:        true,
+			errMsg:         `external: Unknown type "User"`,
+		},
+		{
+			name:           "a subgraph lacking the extend definition of 'Product' type",
+			schemaFileName: "lack-extend-definition.graphqls",
+			wantErr:        true,
+			errMsg:         `external: Unknown type "Product"`,
+		},
+		{
+			name:           "a subgraph lacking the definition of 'User' type (field type non-null)",
+			schemaFileName: "lack-definition-non-null.graphqls",
+			wantErr:        true,
+			errMsg:         `external: Unknown type "User"`,
+		},
+		{
+			name:           "a subgraph lacking the extend definition of 'Product' type (field type non-null)",
+			schemaFileName: "lack-extend-definition-non-null.graphqls",
+			wantErr:        true,
+			errMsg:         `external: Unknown type "Product"`,
+		},
+	}
+	for _, tt := range testcase {
+		t.Run(tt.name, func(t *testing.T) {
+			caseSchemaPath := filepath.Join(basePath, tt.schemaFileName)
+
+			b, err := os.ReadFile(caseSchemaPath)
+			require.NoError(t, err)
+
+			subgraph := string(b)
+			err = validateSubgraphs([]string{subgraph})
+
+			if tt.wantErr {
+				assert.Error(t, err, subgraph)
+				assert.Contains(t, err.Error(), tt.errMsg)
+				return
+			}
+
+			assert.NoError(t, err, subgraph)
+		})
+	}
 }
