@@ -3,6 +3,7 @@ package sdlmerge
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -672,47 +673,52 @@ func duplicateEntityErrorMessage(typeName string) string {
 }
 
 func Test_validateSubgraphs(t *testing.T) {
+	basePath := filepath.Join(".", "testdata", "validate-subgraph")
+
 	testcase := []struct {
-		name    string
-		path    string
-		wantErr bool
+		name           string
+		schemaFileName string
+		wantErr        bool
 	}{
 		{
-			name:    "well-defined subgraph schema",
-			path:    "./testdata/validate-subgraph/well-defined.graphqls",
-			wantErr: false,
+			name:           "well-defined subgraph schema",
+			schemaFileName: "well-defined.graphqls",
+			wantErr:        false,
 		},
 		{
-			name:    "well-defined subgraph schema (non-null field type)",
-			path:    "./testdata/validate-subgraph/well-defined-non-null.graphqls",
-			wantErr: false,
+			name:           "well-defined subgraph schema (non-null field type)",
+			schemaFileName: "well-defined-non-null.graphqls",
+			wantErr:        false,
 		},
 		{
-			name:    "a subgraph lacking the definition of 'User' type",
-			path:    "./testdata/validate-subgraph/lack-definition.graphqls",
-			wantErr: true,
+			name:           "a subgraph lacking the definition of 'User' type",
+			schemaFileName: "lack-definition.graphqls",
+			wantErr:        true,
 		},
 		{
-			name:    "a subgraph lacking the extend definition of 'Product' type",
-			path:    "./testdata/validate-subgraph/lack-extend-definition.graphqls",
-			wantErr: true,
+			name:           "a subgraph lacking the extend definition of 'Product' type",
+			schemaFileName: "lack-extend-definition.graphqls",
+			wantErr:        true,
 		},
 		{
-			name:    "a subgraph lacking the definition of 'User' type (field type non-null)",
-			path:    "./testdata/validate-subgraph/lack-definition-non-null.graphqls",
-			wantErr: true,
+			name:           "a subgraph lacking the definition of 'User' type (field type non-null)",
+			schemaFileName: "lack-definition-non-null.graphqls",
+			wantErr:        true,
 		},
 		{
-			name:    "a subgraph lacking the extend definition of 'Product' type (field type non-null)",
-			path:    "./testdata/validate-subgraph/lack-extend-definition-non-null.graphqls",
-			wantErr: true,
+			name:           "a subgraph lacking the extend definition of 'Product' type (field type non-null)",
+			schemaFileName: "lack-extend-definition-non-null.graphqls",
+			wantErr:        true,
 		},
 	}
 	for _, tt := range testcase {
 		t.Run(tt.name, func(t *testing.T) {
-			b, err := os.ReadFile(tt.path)
-			subgraph := string(b)
+			caseSchemaPath := filepath.Join(basePath, tt.schemaFileName)
+
+			b, err := os.ReadFile(caseSchemaPath)
 			require.NoError(t, err)
+
+			subgraph := string(b)
 			if tt.wantErr {
 				assert.Error(t, validateSubgraphs([]string{subgraph}), subgraph)
 			} else {

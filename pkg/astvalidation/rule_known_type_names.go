@@ -58,10 +58,7 @@ func (u *knownTypeNamesVisitor) EnterRootOperationTypeDefinition(ref int) {
 }
 
 func (u *knownTypeNamesVisitor) EnterFieldDefinition(ref int) {
-	referencedTypeRef := u.definition.FieldDefinitions[ref].Type
-	if ofType := u.definition.Types[referencedTypeRef].OfType; ofType >= 0 {
-		referencedTypeRef = ofType
-	}
+	referencedTypeRef := u.definition.ResolveUnderlyingType(u.definition.FieldDefinitions[ref].Type)
 	referencedTypeName := u.definition.TypeNameBytes(referencedTypeRef)
 	u.saveReferencedTypeName(referencedTypeName)
 }
