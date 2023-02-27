@@ -15,7 +15,7 @@ require (
 	github.com/go-zookeeper/zk v1.0.2
 	github.com/gobwas/ws v1.0.4
 	github.com/golang/mock v1.4.1
-	github.com/google/go-cmp v0.5.8
+	github.com/google/go-cmp v0.5.9
 	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/iancoleman/strcase v0.0.0-20191112232945-16388991a334
