@@ -4131,7 +4131,7 @@ func (t *TestFlushWriter) Flush() {
 	t.buf.Reset()
 }
 
-func (t *TestFlushWriter) Complete() error {
+func (t *TestFlushWriter) Close() error {
 	t.closed = true
 	return nil
 }
