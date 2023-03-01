@@ -165,7 +165,7 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-	}, next)
+	}, next, nil)
 	assert.NoError(t, err)
 	assertReceiveMessages(next)
 
@@ -180,7 +180,7 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 			Body: GraphQLBody{
 				Query: `subscription {messageAdded(roomName: "room"){text}}`,
 			},
-		}, next)
+		}, next, nil)
 		assert.NoError(t, err)
 		go func(next chan []byte, cancel func()) {
 			assertReceiveMessages(next)
@@ -219,7 +219,7 @@ func TestWebsocketSubscriptionClientImmediateClientCancel(t *testing.T) {
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-	}, next)
+	}, next, nil)
 	assert.Error(t, err)
 	assert.Eventuallyf(t, func() bool {
 		return serverInvocations.Load() == 0
@@ -274,7 +274,7 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-	}, next)
+	}, next, nil)
 	assert.NoError(t, err)
 	first := <-next
 	second := <-next

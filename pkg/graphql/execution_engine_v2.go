@@ -26,8 +26,9 @@ import (
 )
 
 type EngineResultWriter struct {
-	buf           *bytes.Buffer
-	flushCallback func(data []byte)
+	buf              *bytes.Buffer
+	flushCallback    func(data []byte)
+	completeCallback func()
 }
 
 func NewEngineResultWriter() EngineResultWriter {
@@ -46,6 +47,10 @@ func (e *EngineResultWriter) SetFlushCallback(flushCb func(data []byte)) {
 	e.flushCallback = flushCb
 }
 
+func (e *EngineResultWriter) SetCompleteCallback(completeCb func()) {
+	e.completeCallback = completeCb
+}
+
 func (e *EngineResultWriter) Write(p []byte) (n int, err error) {
 	return e.buf.Write(p)
 }
@@ -60,6 +65,14 @@ func (e *EngineResultWriter) Flush() {
 	}
 
 	e.Reset()
+}
+
+func (e *EngineResultWriter) Close() error {
+	if e.completeCallback != nil {
+		e.completeCallback()
+	}
+	e.Reset()
+	return nil
 }
 
 func (e *EngineResultWriter) Len() int {

@@ -63,7 +63,7 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-	}, next)
+	}, next, nil)
 	assert.NoError(t, err)
 
 	first := <-next
@@ -140,7 +140,7 @@ func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-	}, next)
+	}, next, nil)
 	assert.NoError(t, err)
 
 	first := <-next
@@ -203,7 +203,7 @@ func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
 		Body: GraphQLBody{
 			Query: `wrongQuery {messageAdded(roomName: "room"){text}}`,
 		},
-	}, next)
+	}, next, nil)
 	assert.NoError(t, err)
 
 	message := <-next
@@ -286,7 +286,7 @@ func TestWebSocketSubscriptionClientInitIncludePing_GQLTWS(t *testing.T) {
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-	}, next)
+	}, next, nil)
 	assertion.NoError(err)
 
 	first := <-next
@@ -359,7 +359,7 @@ func TestWebsocketSubscriptionClient_GQLTWS_Upstream_Dies(t *testing.T) {
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-	}, next)
+	}, next, nil)
 	assert.NoError(t, err)
 
 	first := <-next

@@ -107,23 +107,28 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 // If an existing WS connection with the same ID (Hash) exists, it is being re-used
 // If connection protocol is SSE, a new connection is always created
 // If no connection exists, the client initiates a new one
-func (c *SubscriptionClient) Subscribe(reqCtx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+func (c *SubscriptionClient) Subscribe(reqCtx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte, complete chan<- bool) error {
+	return c.SubscribeWithComplete(reqCtx, options, next, complete)
+}
+
+func (c *SubscriptionClient) SubscribeWithComplete(reqCtx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte, complete chan<- bool) error {
 	if options.UseSSE {
-		return c.subscribeSSE(reqCtx, options, next)
+		return c.subscribeSSE(reqCtx, options, next, complete)
 	}
 
 	return c.subscribeWS(reqCtx, options, next)
 }
 
-func (c *SubscriptionClient) subscribeSSE(reqCtx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+func (c *SubscriptionClient) subscribeSSE(reqCtx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte, complete chan<- bool) error {
 	if c.streamingClient == nil {
 		return fmt.Errorf("streaming http client is nil")
 	}
 
 	sub := Subscription{
-		ctx:     reqCtx,
-		options: options,
-		next:    next,
+		ctx:      reqCtx,
+		options:  options,
+		next:     next,
+		complete: complete,
 	}
 
 	handler := newSSEConnectionHandler(reqCtx, c.streamingClient, options, c.log)
@@ -282,9 +287,10 @@ type ConnectionHandler interface {
 }
 
 type Subscription struct {
-	ctx     context.Context
-	options GraphQLSubscriptionOptions
-	next    chan<- []byte
+	ctx      context.Context
+	options  GraphQLSubscriptionOptions
+	next     chan<- []byte
+	complete chan<- bool
 }
 
 func waitForAck(ctx context.Context, conn *websocket.Conn) error {

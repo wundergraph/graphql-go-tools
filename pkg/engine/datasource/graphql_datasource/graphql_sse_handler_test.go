@@ -55,7 +55,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE(t *testing.T) {
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
 		UseSSE: true,
-	}, next)
+	}, next, nil)
 	assert.NoError(t, err)
 
 	first := <-next
@@ -91,7 +91,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_RequestAbort(t *testing.T) {
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
 		UseSSE: true,
-	}, next)
+	}, next, nil)
 	assert.NoError(t, err)
 
 	assert.Eventuallyf(t, func() bool {
@@ -149,7 +149,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_POST(t *testing.T) {
 		Body:          postReqBody,
 		UseSSE:        true,
 		SSEMethodPost: true,
-	}, next)
+	}, next, nil)
 	assert.NoError(t, err)
 
 	first := <-next
@@ -200,20 +200,23 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_WithEvents(t *testing.T) {
 	)
 
 	next := make(chan []byte)
+	complete := make(chan bool)
 	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
 		UseSSE: true,
-	}, next)
+	}, next, complete)
 	assert.NoError(t, err)
 
 	first := <-next
 	second := <-next
+	c := <-complete
 
 	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, string(first))
 	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, string(second))
+	assert.Equal(t, true, c)
 
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
@@ -258,7 +261,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Error(t *testing.T) {
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
 		UseSSE: true,
-	}, next)
+	}, next, nil)
 	assert.NoError(t, err)
 
 	first := <-next
@@ -308,7 +311,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Error_Without_Header(t *testing.
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
 		UseSSE: true,
-	}, next)
+	}, next, nil)
 	assert.NoError(t, err)
 
 	first := <-next
@@ -366,7 +369,7 @@ func TestGraphQLSubscriptionClientSubscribe_QueryParams(t *testing.T) {
 			Extensions:    []byte(`{"persistedQuery":{"version":1,"sha256Hash":"d41d8cd98f00b204e9800998ecf8427e"}}`),
 		},
 		UseSSE: true,
-	}, next)
+	}, next, nil)
 	assert.NoError(t, err)
 
 	first := <-next
@@ -483,7 +486,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Upstream_Dies(t *testing.T) {
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
 		UseSSE: true,
-	}, next)
+	}, next, nil)
 	assert.NoError(t, err)
 
 	first := <-next
