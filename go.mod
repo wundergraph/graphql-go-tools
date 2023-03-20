@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/99designs/gqlgen v0.17.20
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
+	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/Shopify/sarama v1.29.1
 	github.com/asyncapi/parser-go v0.4.2
