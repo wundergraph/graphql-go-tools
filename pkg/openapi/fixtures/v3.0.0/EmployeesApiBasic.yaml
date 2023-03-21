@@ -1,0 +1,83 @@
+openapi: 3.0.0
+info:
+  title: EmployeesApi
+  description: Employee management API for Db2.
+  version: "0.2"
+servers:
+  - url: /
+paths:
+  /employees/{id}:
+    put:
+      description: Uses the updateEmployee Db2 z/OS asset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "000150"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeBody'
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeBody'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /employees:
+    get:
+      description: Uses the getEmployees Db2 z/OS asset
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EmployeeBody'
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    EmployeeBody:
+      type: object
+      properties:
+        employeeNumber:
+          type: string
+          example: "000150"
+        firstName:
+          type: string
+          example: "BRUCE"
+        lastName:
+          type: string
+          example: "ADAMSON"
+        salary:
+          type: number
+          example: 25280
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      example: "A message describing the error"

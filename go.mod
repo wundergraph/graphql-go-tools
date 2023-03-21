@@ -18,7 +18,8 @@ require (
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/evanphx/json-patch/v5 v5.1.0
-	github.com/go-test/deep v1.0.4
+	github.com/getkin/kin-openapi v0.89.0
+	github.com/go-test/deep v1.0.8
 	github.com/go-zookeeper/zk v1.0.2
 	github.com/gobwas/ws v1.0.4
 	github.com/golang/mock v1.4.1
@@ -44,7 +45,7 @@ require (
 	github.com/sebdah/goldie v0.0.0-20180424091453-8784dd1ab561
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.3.2
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.1
 	github.com/tidwall/gjson v1.11.0
 	github.com/tidwall/sjson v1.0.4
 	github.com/vektah/gqlparser/v2 v2.5.1
