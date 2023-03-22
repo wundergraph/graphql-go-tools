@@ -27,9 +27,7 @@ func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.
 			case <-ctx.Done():
 				return
 			case <-time.After(updateInterval):
-				rand.Seed(time.Now().UnixNano())
 				product := hats[0]
-
 				if randomnessEnabled {
 					product = hats[rand.Intn(len(hats)-1)]
 					product.Price = rand.Intn(maxPrice-minPrice+1) + minPrice

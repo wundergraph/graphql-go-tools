@@ -487,6 +487,26 @@ vary: [String]! = []) on QUERY directive @include(if: Boolean!) repeatable on FI
 	})
 }
 
+func TestPrintArgumentWithBeforeAfterValue(t *testing.T) {
+	doc := unsafeparser.ParseGraphqlDocumentString(`
+	mutation ($email: String!) {
+	pge_queryRaw(query: "SELECT id, name, email from \"User\" where email = $1", parameters: [$email])
+}
+`)
+
+	doc.Arguments[1].PrintBeforeValue = []byte("\"")
+	doc.Arguments[1].PrintAfterValue = []byte("\"")
+
+	buff := bytes.Buffer{}
+	err := Print(&doc, nil, &buff)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out := buff.Bytes()
+	assert.Equal(t, "mutation($email: String!){pge_queryRaw(query: \"SELECT id, name, email from \\\"User\\\" where email = $1\", parameters: \"[$email]\")}", string(out))
+}
+
 func TestPrintSchemaDefinition(t *testing.T) {
 
 	doc := unsafeparser.ParseGraphqlDocumentFile("./testdata/starwars.schema.graphql")

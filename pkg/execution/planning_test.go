@@ -3,7 +3,6 @@ package execution
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"reflect"
 	"strings"
 	"testing"
@@ -24,10 +23,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
-
-func init() {
-	rand.Seed(time.Now().Unix())
-}
 
 func toJSON(any interface{}) []byte {
 	data, _ := json.Marshal(any)
