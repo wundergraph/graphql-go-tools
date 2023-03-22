@@ -1575,7 +1575,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			return &Object{
 				Fetch: &SingleFetch{
 					BufferId: 0,
-					// Datasource returns a JSON object within a string
+					// Datasource returns a string with array and object brackets
 					DataSource: FakeDataSource(`{"data":"hi[1beep{2}]"}`),
 				},
 				Nullable: false,
@@ -1596,7 +1596,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						HasBuffer: true,
 					},
 				},
-				// expected output is a JSON object
+				// expected output is a string
 			}, Context{Context: context.Background()}, `{"data":"hi[1beep{2}]"}`
 		}))
 		t.Run("plain scalar values within a string", func(t *testing.T) {
@@ -1621,7 +1621,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							HasBuffer: true,
 						},
 					},
-					// expected output is a JSON boolean
+					// expected output is a string
 				}, Context{Context: context.Background()}, `{"data":"true"}`
 			}))
 			t.Run("int", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
@@ -1649,7 +1649,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							HasBuffer: true,
 						},
 					},
-					// expected output is a JSON boolean
+					// expected output is a string
 				}, Context{Context: context.Background()}, `{"data":"1"}`
 			}))
 			t.Run("float", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
@@ -1677,7 +1677,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							HasBuffer: true,
 						},
 					},
-					// expected output is a JSON boolean
+					// expected output is a string
 				}, Context{Context: context.Background()}, `{"data":"2.0"}`
 			}))
 			t.Run("null", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
@@ -1705,7 +1705,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							HasBuffer: true,
 						},
 					},
-					// expected output is a JSON boolean
+					// expected output is a string
 				}, Context{Context: context.Background()}, `{"data":"null"}`
 			}))
 			t.Run("string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
