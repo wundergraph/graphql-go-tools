@@ -954,10 +954,11 @@ func (r *Resolver) resolveString(ctx *Context, str *String, data []byte, stringB
 	if str.UnescapeResponseJson {
 		value = bytes.ReplaceAll(value, []byte(`\"`), []byte(`"`))
 
-		// When the original value from upstream response was a string `"hello"`
-		// after getting it via jsonparser.Get we will return unquoted value `hello`,
-		// which is invalid json, so we need to quote it again
-		if !gjson.ValidBytes(value) {
+		// Do not modify values which was strings
+		// When the original value from upstream response was a plain string value `"hello"`, `"true"`, `"1"`, `"2.0"`,
+		// after getting it via jsonparser.Get we will get unquoted values `hello`, `true`, `1`, `2.0`
+		// which is not string anymore, so we need to quote it again
+		if !(bytes.ContainsAny(value, `{}[]`) && gjson.ValidBytes(value)) {
 			// wrap value in quotes to make it valid json
 			value = append(literal.QUOTE, append(value, literal.QUOTE...)...)
 		}
