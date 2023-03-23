@@ -1520,7 +1520,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				Fetch: &SingleFetch{
 					BufferId: 0,
 					// Datasource returns a JSON object within a string
-					DataSource: FakeDataSource(`{"data":"{ \"hello\": \"world\" }"}`),
+					DataSource: FakeDataSource(`{"data":"{ \"hello\": \"world\", \"numberAsString\": \"1\", \"number\": 1, \"bool\": true, \"null\": null, \"array\": [1,2,3], \"object\": {\"key\": \"value\"} }"}`),
 				},
 				Nullable: false,
 				Fields: []*Field{
@@ -1541,7 +1541,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				// expected output is a JSON object
-			}, Context{Context: context.Background()}, `{"data":{ "hello": "world" }}`
+			}, Context{Context: context.Background()}, `{"data":{ "hello": "world", "numberAsString": "1", "number": 1, "bool": true, "null": null, "array": [1,2,3], "object": {"key": "value"} }}`
 		}))
 		t.Run("json array within a string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 			return &Object{
@@ -1571,12 +1571,12 @@ func TestResolver_ResolveNode(t *testing.T) {
 				// expected output is a JSON array
 			}, Context{Context: context.Background()}, `{"data":[1, 2, 3]}`
 		}))
-		t.Run("json boolean within a string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		t.Run("string with array and objects brackets", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 			return &Object{
 				Fetch: &SingleFetch{
 					BufferId: 0,
-					// Datasource returns a JSON boolean within a string
-					DataSource: FakeDataSource(`{"data": "true"}`),
+					// Datasource returns a string with array and object brackets
+					DataSource: FakeDataSource(`{"data":"hi[1beep{2}]"}`),
 				},
 				Nullable: false,
 				Fields: []*Field{
@@ -1596,36 +1596,255 @@ func TestResolver_ResolveNode(t *testing.T) {
 						HasBuffer: true,
 					},
 				},
-				// expected output is a JSON boolean
-			}, Context{Context: context.Background()}, `{"data":true}`
+				// expected output is a string
+			}, Context{Context: context.Background()}, `{"data":"hi[1beep{2}]"}`
 		}))
-		t.Run("handle plain strings", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
-			return &Object{
-				Fetch: &SingleFetch{
-					BufferId:   0,
-					DataSource: FakeDataSource(`{"data": "hello world"}`),
-				},
-				Nullable: false,
-				Fields: []*Field{
-					{
-						Name: []byte("data"),
-						// Value is a string and unescape json is enabled
-						Value: &String{
-							Path:                 []string{"data"},
-							Nullable:             true,
-							UnescapeResponseJson: true,
-							IsTypeName:           false,
-						},
-						Position: Position{
-							Line:   2,
-							Column: 3,
-						},
-						HasBuffer: true,
+		t.Run("plain scalar values within a string", func(t *testing.T) {
+			t.Run("boolean", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId: 0,
+						// Datasource returns a JSON boolean within a string
+						DataSource: FakeDataSource(`{"data": "true"}`),
 					},
-				},
-				// expect data value to be valid JSON string
-			}, Context{Context: context.Background()}, `{"data":"hello world"}`
-		}))
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expected output is a string
+				}, Context{Context: context.Background()}, `{"data":"true"}`
+			}))
+			t.Run("int", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId: 0,
+						// Datasource returns a JSON number within a string
+						DataSource: FakeDataSource(`{"data": "1"}`),
+					},
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							Position: Position{
+								Line:   2,
+								Column: 3,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expected output is a string
+				}, Context{Context: context.Background()}, `{"data":"1"}`
+			}))
+			t.Run("float", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId: 0,
+						// Datasource returns a JSON number within a string
+						DataSource: FakeDataSource(`{"data": "2.0"}`),
+					},
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							Position: Position{
+								Line:   2,
+								Column: 3,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expected output is a string
+				}, Context{Context: context.Background()}, `{"data":"2.0"}`
+			}))
+			t.Run("null", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId: 0,
+						// Datasource returns a JSON number within a string
+						DataSource: FakeDataSource(`{"data": "null"}`),
+					},
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							Position: Position{
+								Line:   2,
+								Column: 3,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expected output is a string
+				}, Context{Context: context.Background()}, `{"data":"null"}`
+			}))
+			t.Run("string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId:   0,
+						DataSource: FakeDataSource(`{"data": "hello world"}`),
+					},
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							Position: Position{
+								Line:   2,
+								Column: 3,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expect data value to be valid JSON string
+				}, Context{Context: context.Background()}, `{"data":"hello world"}`
+			}))
+		})
+		t.Run("plain scalar values as is", func(t *testing.T) {
+			t.Run("boolean", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId: 0,
+						// Datasource returns a JSON boolean within a string
+						DataSource: FakeDataSource(`{"data": true}`),
+					},
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expected output is a JSON boolean
+				}, Context{Context: context.Background()}, `{"data":true}`
+			}))
+			t.Run("int", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId: 0,
+						// Datasource returns a JSON number within a string
+						DataSource: FakeDataSource(`{"data": 1}`),
+					},
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							Position: Position{
+								Line:   2,
+								Column: 3,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expected output is a JSON boolean
+				}, Context{Context: context.Background()}, `{"data":1}`
+			}))
+			t.Run("float", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId: 0,
+						// Datasource returns a JSON number within a string
+						DataSource: FakeDataSource(`{"data": 2.0}`),
+					},
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							Position: Position{
+								Line:   2,
+								Column: 3,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expected output is a JSON boolean
+				}, Context{Context: context.Background()}, `{"data":2.0}`
+			}))
+			t.Run("null", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId:   0,
+						DataSource: FakeDataSource(`{"data": null}`),
+					},
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							Position: Position{
+								Line:   2,
+								Column: 3,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expect data value to be valid JSON string
+				}, Context{Context: context.Background()}, `{"data":null}`
+			}))
+		})
 	})
 }
 
