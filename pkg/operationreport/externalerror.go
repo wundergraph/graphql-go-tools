@@ -35,13 +35,13 @@ type ExternalError struct {
 	Locations []graphqlerrors.Location `json:"locations"`
 }
 
-func LocationsFromPosition(position position.Position) []graphqlerrors.Location {
-	return []graphqlerrors.Location{
-		{
-			Line:   position.LineStart,
-			Column: position.CharStart,
-		},
+func LocationsFromPosition(position ...position.Position) []graphqlerrors.Location {
+	out := make([]graphqlerrors.Location, len(position))
+	for i, p := range position {
+		out[i].Line = p.LineStart
+		out[i].Column = p.CharStart
 	}
+	return out
 }
 
 func ErrDocumentDoesntContainExecutableOperation() (err ExternalError) {
@@ -286,16 +286,7 @@ func ErrValueDoesntSatisfyID(value, inputType ast.ByteSlice, position position.P
 
 func ErrVariableTypeDoesntSatisfyInputValueDefinition(value, inputType, expectedType ast.ByteSlice, valuePos, variableDefinitionPos position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(`Variable "%v" of type "%v" used in position expecting type "%v".`, value, inputType, expectedType)
-	err.Locations = []graphqlerrors.Location{
-		{
-			Line:   variableDefinitionPos.LineStart,
-			Column: variableDefinitionPos.CharStart,
-		},
-		{
-			Line:   valuePos.LineStart,
-			Column: valuePos.CharStart,
-		},
-	}
+	err.Locations = LocationsFromPosition(variableDefinitionPos, valuePos)
 	return err
 }
 
@@ -386,8 +377,14 @@ func ErrDirectiveNotAllowedOnNode(directiveName, nodeKindName ast.ByteSlice) (er
 	return err
 }
 
-func ErrDirectiveMustBeUniquePerLocation(directiveName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("directive: %s must be unique per location", directiveName)
+func ErrDirectiveMustBeUniquePerLocation(directiveName ast.ByteSlice, position, duplicatePosition position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`The directive "@%s" can only be used once at this location.`, directiveName)
+	if duplicatePosition.LineStart < position.LineStart || duplicatePosition.CharStart < position.CharStart {
+		err.Locations = LocationsFromPosition(duplicatePosition, position)
+	} else {
+		err.Locations = LocationsFromPosition(position, duplicatePosition)
+	}
+
 	return err
 }
 

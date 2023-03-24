@@ -16,10 +16,12 @@ type ArgumentList struct {
 }
 
 type Argument struct {
-	Name     ByteSliceReference // e.g. foo
-	Colon    position.Position  // :
-	Value    Value              // e.g. 100 or "Bar"
-	Position position.Position
+	Name             ByteSliceReference // e.g. foo
+	Colon            position.Position  // :
+	Value            Value              // e.g. 100 or "Bar"
+	Position         position.Position
+	PrintBeforeValue []byte
+	PrintAfterValue  []byte
 }
 
 func (d *Document) CopyArgument(ref int) int {
@@ -53,7 +55,23 @@ func (d *Document) PrintArgument(ref int, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return d.PrintValue(d.Arguments[ref].Value, w)
+	if d.Arguments[ref].PrintBeforeValue != nil {
+		_, err = w.Write(d.Arguments[ref].PrintBeforeValue)
+		if err != nil {
+			return err
+		}
+	}
+	err = d.PrintValue(d.Arguments[ref].Value, w)
+	if err != nil {
+		return err
+	}
+	if d.Arguments[ref].PrintAfterValue != nil {
+		_, err = w.Write(d.Arguments[ref].PrintAfterValue)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (d *Document) PrintArguments(refs []int, w io.Writer) (err error) {

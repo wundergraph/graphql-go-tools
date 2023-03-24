@@ -18,6 +18,7 @@ func DefaultDefinitionValidator() *DefinitionValidator {
 		RequireDefinedTypesForExtensions(),
 		ImplementTransitiveInterfaces(),
 		ImplementingTypesAreSupersets(),
+		DirectivesAreUniquePerLocation(),
 	)
 }
 
@@ -46,7 +47,7 @@ func (d *DefinitionValidator) Validate(definition *ast.Document, report *operati
 		report = &operationreport.Report{}
 	}
 
-	d.walker.Walk(definition, nil, report)
+	d.walker.Walk(definition, definition, report)
 
 	if report.HasErrors() {
 		return Invalid

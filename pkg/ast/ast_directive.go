@@ -175,6 +175,7 @@ func (d *Document) AddDirectiveToNode(directiveRef int, node Node) bool {
 		return true
 	case NodeKindFragmentDefinition:
 		d.FragmentDefinitions[node.Ref].Directives.Refs = append(d.FragmentDefinitions[node.Ref].Directives.Refs, directiveRef)
+		d.FragmentDefinitions[node.Ref].HasDirectives = true
 		return true
 	default:
 		return false
@@ -210,13 +211,4 @@ func (d *Document) DirectiveIsAllowedOnNodeKind(directiveName string, kind NodeK
 	}
 
 	return false
-}
-
-func (d *Document) DirectiveDefinitionByName(name string) (int, bool) {
-	for i := range d.DirectiveDefinitions {
-		if name == d.Input.ByteSliceString(d.DirectiveDefinitions[i].Name) {
-			return i, true
-		}
-	}
-	return -1, false
 }

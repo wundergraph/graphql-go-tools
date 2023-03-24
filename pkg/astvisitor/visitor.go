@@ -2093,6 +2093,12 @@ func (w *Walker) walkFragmentDefinition(ref int) {
 		return
 	}
 
+	if w.document.FragmentDefinitions[ref].HasDirectives {
+		for _, i := range w.document.FragmentDefinitions[ref].Directives.Refs {
+			w.walkDirective(i)
+		}
+	}
+
 	if w.document.FragmentDefinitions[ref].HasSelections {
 		w.walkSelectionSet(w.document.FragmentDefinitions[ref].SelectionSet)
 		if w.stop {

@@ -114,7 +114,8 @@ directive @cache(
   Examples: 'jwt.sub', 'jwt.team' to vary the cache key based on 'sub' or 'team' fields on the jwt. 
   """
   vary: [String]! = []
-) on QUERY`,
+) on QUERY directive @include(if: Boolean!) repeatable on FIELD
+`,
 			`"""
 directive @cache
 """
@@ -124,7 +125,14 @@ vary defines the headers to append to the cache key
 In addition to all possible headers you can also select a custom claim for authenticated requests
 Examples: 'jwt.sub', 'jwt.team' to vary the cache key based on 'sub' or 'team' fields on the jwt.
 """
-vary: [String]! = []) on QUERY`)
+vary: [String]! = []) on QUERY directive @include(if: Boolean!) repeatable on FIELD`)
+	})
+	t.Run("fragment definition with directives", func(t *testing.T) {
+		run(t, `
+			fragment foo on Dog @fragmentDefinition {
+				name
+			}
+		`, `fragment foo on Dog @fragmentDefinition {name}`)
 	})
 	t.Run("anonymous query", func(t *testing.T) {
 		run(t, `	{
@@ -477,6 +485,26 @@ vary: [String]! = []) on QUERY`)
 				`scalar Date schema {query: Query} type Query {me: User! user(id: ID!): User allUsers: [User] search(term: String!): [SearchResult!]! myChats: [Chat!]!} enum Role {USER ADMIN} interface Node {id: ID!} union SearchResult = User | Chat | ChatMessage type User implements Node {id: ID! username: String! email: String! role: Role!} type Chat implements Node {id: ID! users: [User!]! messages: [ChatMessage!]!} type ChatMessage implements Node {id: ID! content: String! time: Date! user: User!}`)
 		})
 	})
+}
+
+func TestPrintArgumentWithBeforeAfterValue(t *testing.T) {
+	doc := unsafeparser.ParseGraphqlDocumentString(`
+	mutation ($email: String!) {
+	pge_queryRaw(query: "SELECT id, name, email from \"User\" where email = $1", parameters: [$email])
+}
+`)
+
+	doc.Arguments[1].PrintBeforeValue = []byte("\"")
+	doc.Arguments[1].PrintAfterValue = []byte("\"")
+
+	buff := bytes.Buffer{}
+	err := Print(&doc, nil, &buff)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out := buff.Bytes()
+	assert.Equal(t, "mutation($email: String!){pge_queryRaw(query: \"SELECT id, name, email from \\\"User\\\" where email = $1\", parameters: \"[$email]\")}", string(out))
 }
 
 func TestPrintSchemaDefinition(t *testing.T) {

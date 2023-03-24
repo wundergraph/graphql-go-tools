@@ -1558,6 +1558,7 @@ func (p *Parser) parseFragmentDefinition() {
 	fragmentDefinition.TypeCondition = p.parseTypeCondition()
 	if p.peekEquals(keyword.AT) {
 		fragmentDefinition.Directives = p.parseDirectiveList()
+		fragmentDefinition.HasDirectives = len(fragmentDefinition.Directives.Refs) > 0
 	}
 	fragmentDefinition.SelectionSet, fragmentDefinition.HasSelections = p.parseSelectionSet()
 	p.document.FragmentDefinitions = append(p.document.FragmentDefinitions, fragmentDefinition)
