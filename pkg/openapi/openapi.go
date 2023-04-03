@@ -31,6 +31,27 @@ func isValidResponse(status int) bool {
 	return false
 }
 
+func MakeInputTypeName(name string) string {
+	parsed := strings.Split(name, "/")
+	return fmt.Sprintf("%sInput", strcase.ToCamel(parsed[len(parsed)-1]))
+}
+
+func MakeFieldNameFromOperationID(operationID string) string {
+	return strcase.ToLowerCamel(operationID)
+}
+
+func MakeFieldNameFromEndpoint(method, endpoint string) string {
+	endpoint = strings.Replace(endpoint, "/", " ", -1)
+	endpoint = strings.Replace(endpoint, "{", " ", -1)
+	endpoint = strings.Replace(endpoint, "}", " ", -1)
+	endpoint = strings.TrimSpace(endpoint)
+	return strcase.ToLowerCamel(fmt.Sprintf("%s %s", strings.ToLower(method), endpoint))
+}
+
+func MakeParameterName(name string) string {
+	return strcase.ToLowerCamel(name)
+}
+
 func getOperationDescription(operation *openapi3.Operation) string {
 	var sb = strings.Builder{}
 	sb.WriteString(operation.Summary)
@@ -207,7 +228,7 @@ func (c *converter) processObject(schema *openapi3.SchemaRef) error {
 }
 
 func (c *converter) processInputObject(schema *openapi3.SchemaRef) error {
-	fullTypeName := fmt.Sprintf("%sInput", extractFullTypeNameFromRef(schema.Ref))
+	fullTypeName := MakeInputTypeName(schema.Ref)
 	_, ok := c.knownFullTypes[fullTypeName]
 	if ok {
 		return nil
@@ -472,7 +493,7 @@ func (c *converter) addParameters(name string, schema *openapi3.SchemaRef) (*int
 			return nil, err
 		}
 	} else {
-		name = fmt.Sprintf("%sInput", name)
+		name = MakeInputTypeName(name)
 		gqlType = name
 		err = c.processInputObject(schema)
 		if err != nil {
@@ -492,7 +513,7 @@ func (c *converter) addParameters(name string, schema *openapi3.SchemaRef) (*int
 
 	typeRef.Name = &gqlType
 	return &introspection.InputValue{
-		Name: strcase.ToLowerCamel(name),
+		Name: MakeParameterName(name),
 		Type: typeRef,
 	}, nil
 }
@@ -535,16 +556,12 @@ func (c *converter) importMutationType() (*introspection.FullType, error) {
 				typeRef.Name = &typeName
 
 				f := introspection.Field{
-					Name:        strcase.ToLowerCamel(operation.OperationID),
+					Name:        MakeFieldNameFromOperationID(operation.OperationID),
 					Type:        typeRef,
 					Description: getOperationDescription(operation),
 				}
 				if f.Name == "" {
-					key = strings.Replace(key, "/", " ", -1)
-					key = strings.Replace(key, "{", " ", -1)
-					key = strings.Replace(key, "}", " ", -1)
-					key = strings.TrimSpace(key)
-					f.Name = strcase.ToLowerCamel(fmt.Sprintf("%s %s", strings.ToLower(method), key))
+					f.Name = MakeFieldNameFromEndpoint(method, key)
 				}
 
 				var inputValue *introspection.InputValue
@@ -630,16 +647,27 @@ func ImportParsedOpenAPIv3Document(document *openapi3.T, report *operationreport
 	return doc
 }
 
-func ImportOpenAPIDocumentByte(input []byte) (*ast.Document, operationreport.Report) {
-	report := operationreport.Report{}
+func ParseOpenAPIDocument(input []byte) (*openapi3.T, error) {
 	loader := openapi3.NewLoader()
 	loader.IsExternalRefsAllowed = true
-	parsed, err := loader.LoadFromData(input)
+	document, err := loader.LoadFromData(input)
+	if err != nil {
+		return nil, err
+	}
+	if err = document.Validate(loader.Context); err != nil {
+		return nil, err
+	}
+	return document, nil
+}
+
+func ImportOpenAPIDocumentByte(input []byte) (*ast.Document, operationreport.Report) {
+	report := operationreport.Report{}
+	document, err := ParseOpenAPIDocument(input)
 	if err != nil {
 		report.AddInternalError(err)
 		return nil, report
 	}
-	return ImportParsedOpenAPIv3Document(parsed, &report), report
+	return ImportParsedOpenAPIv3Document(document, &report), report
 }
 
 func ImportOpenAPIDocumentString(input string) (*ast.Document, operationreport.Report) {
