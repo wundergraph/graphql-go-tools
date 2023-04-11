@@ -1223,6 +1223,10 @@ func (r *Resolver) freeResultSet(set *resultSet) {
 }
 
 func (r *Resolver) resolveFetch(ctx *Context, fetch Fetch, data []byte, set *resultSet) (err error) {
+	// if context is cancelled, we should not resolve the fetch
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return nil
+	}
 
 	switch f := fetch.(type) {
 	case *SingleFetch:
