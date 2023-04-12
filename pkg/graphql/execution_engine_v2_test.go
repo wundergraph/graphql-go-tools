@@ -947,6 +947,56 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		expectedResponse: `{"data":{"heroes":[]}}`,
 	}))
 
+	t.Run("execute operation with null variable on required type", runWithError(ExecutionEngineV2TestCase{
+		schema: func(t *testing.T) *Schema {
+			t.Helper()
+			schema := `
+			type Query {
+				hero(name: String!): String!
+			}`
+			parseSchema, err := NewSchemaFromString(schema)
+			require.NoError(t, err)
+			return parseSchema
+		}(t),
+		operation: func(t *testing.T) Request {
+			return Request{
+				OperationName: "MyHero",
+				Variables:     []byte(`{"heroName": null}`),
+				Query: `query MyHero($heroName: String!){
+						hero(name: $heroName)
+					}`,
+			}
+		},
+		dataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Query", FieldNames: []string{"hero"}},
+				},
+				Factory: &graphql_datasource.Factory{},
+				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+					Fetch: graphql_datasource.FetchConfiguration{
+						URL:    "https://example.com/",
+						Method: "POST",
+					},
+				}),
+			},
+		},
+		fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "hero",
+				Path:      []string{"hero"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "name",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		expectedResponse: ``,
+	}))
+
 	t.Run("execute operation and apply input coercion for lists without variables", runWithoutError(ExecutionEngineV2TestCase{
 		schema: inputCoercionForListSchema(t),
 		operation: func(t *testing.T) Request {
