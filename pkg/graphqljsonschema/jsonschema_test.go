@@ -63,6 +63,20 @@ func TestJsonSchema(t *testing.T) {
 			`nope`,
 		},
 	))
+	t.Run("string (required)", runTest(
+		`scalar String type Query { rootField(str: String!): String! }`,
+		`query ($input: String!){ rootField(str: $input) }`,
+		`{"type":["string"]}`,
+		[]string{
+			`"validString"`,
+		},
+		[]string{
+			`false`,
+			`true`,
+			`nope`,
+			`null`,
+		},
+	))
 	t.Run("id", runTest(
 		`scalar ID input Test { str: String }`,
 		`query ($input: ID){}`,

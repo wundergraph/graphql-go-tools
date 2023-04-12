@@ -99,10 +99,11 @@ func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegm
 	if err != nil || valueType == jsonparser.Null {
 		if err == jsonparser.KeyPathNotFoundError {
 			*undefinedVariables = append(*undefinedVariables, segment.VariableSourcePath[0])
+			preparedInput.WriteBytes(literal.NULL)
+			return nil
 		}
 
-		preparedInput.WriteBytes(literal.NULL)
-		return nil
+		return segment.Renderer.RenderVariable(ctx, value, preparedInput)
 	}
 	if valueType == jsonparser.String {
 		value = ctx.Variables[offset-len(value)-2 : offset]
