@@ -55,8 +55,11 @@ func CtxSetUndefinedVariables(ctx context.Context, undefinedVariables []string) 
 }
 
 func CtxGetUndefinedVariables(ctx context.Context) []string {
-	undefinedVariables, _ := ctx.Value(removeUndefinedVariables).([]string)
-	return undefinedVariables
+	undefinedVariables := ctx.Value(removeUndefinedVariables)
+	if undefinedVariables, ok := undefinedVariables.([]string); ok {
+		return undefinedVariables
+	}
+	return nil
 }
 
 func wrapQuotesIfString(b []byte) []byte {
