@@ -6,14 +6,15 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"sync"
 
-	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasource/introspection_datasource"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jensneuse/abstractlogger"
+
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasource/introspection_datasource"
 
 	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/astprinter"
@@ -96,7 +97,7 @@ func (e *EngineResultWriter) AsHTTPResponse(status int, headers http.Header) *ht
 	}
 
 	res := &http.Response{}
-	res.Body = ioutil.NopCloser(b)
+	res.Body = io.NopCloser(b)
 	res.Header = headers
 	res.StatusCode = status
 	res.ContentLength = int64(b.Len())

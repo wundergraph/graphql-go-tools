@@ -2,7 +2,7 @@ package playground
 
 import (
 	"bytes"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
@@ -55,7 +55,7 @@ func TestConfigureHandlers(t *testing.T) {
 
 		goldie.Assert(t, "handlers", out.Bytes())
 		if t.Failed() {
-			fixture, err := ioutil.ReadFile("./fixtures/handlers.golden")
+			fixture, err := os.ReadFile("./fixtures/handlers.golden")
 			if err != nil {
 				t.Fatal(err)
 			}

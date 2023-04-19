@@ -10,6 +10,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
+	"golang.org/x/exp/slices"
 
 	"github.com/TykTechnologies/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
@@ -1359,20 +1360,7 @@ func (s *Source) cleanupVariables(variables []byte, removeNullVariables bool, un
 	err := jsonparser.ObjectEach(variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		if dataType == jsonparser.Null {
 			stringKey := unsafebytes.BytesToString(key)
-			// original code uses: slices.Contains (not supported with go 1.16)
-			// if removeNullVariables || slices.Contains(undefinedVariables, stringKey) {
-			//     cp = jsonparser.Delete(cp, stringKey)
-			// }
-			containsStringKey := false
-			if !removeNullVariables {
-				for i := 0; i < len(undefinedVariables); i++ {
-					if undefinedVariables[i] == stringKey {
-						containsStringKey = true
-						break
-					}
-				}
-			}
-			if removeNullVariables || containsStringKey {
+			if removeNullVariables || slices.Contains(undefinedVariables, stringKey) {
 				cp = jsonparser.Delete(cp, stringKey)
 			}
 		}

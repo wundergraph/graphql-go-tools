@@ -3,7 +3,7 @@ package rest_datasource
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1223,7 +1223,7 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, http.MethodPost, r.Method)
-				actualBody, err := ioutil.ReadAll(r.Body)
+				actualBody, err := io.ReadAll(r.Body)
 				assert.NoError(t, err)
 				assert.Equal(t, string(actualBody), body)
 				_, _ = w.Write([]byte(`ok`))

@@ -3,7 +3,7 @@ package imports
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/jensneuse/diffview"
@@ -24,7 +24,7 @@ func TestScanner(t *testing.T) {
 
 	goldie.Assert(t, "scanner_result", dump)
 	if t.Failed() {
-		fixture, err := ioutil.ReadFile("./fixtures/scanner_result.golden")
+		fixture, err := os.ReadFile("./fixtures/scanner_result.golden")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -47,7 +47,7 @@ func TestScanner_ScanRegex(t *testing.T) {
 
 	goldie.Assert(t, "scanner_regex", dump)
 	if t.Failed() {
-		fixture, err := ioutil.ReadFile("./fixtures/scanner_regex.golden")
+		fixture, err := os.ReadFile("./fixtures/scanner_regex.golden")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -63,7 +63,7 @@ func TestScanner_ScanRegex(t *testing.T) {
 
 	goldie.Assert(t, "scanner_regex_render", buf.Bytes())
 	if t.Failed() {
-		fixture, err := ioutil.ReadFile("./fixtures/scanner_regex_render.golden")
+		fixture, err := os.ReadFile("./fixtures/scanner_regex_render.golden")
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -2,7 +2,7 @@ package astparser
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
@@ -2268,7 +2268,7 @@ func TestErrorReport(t *testing.T) {
 
 func TestParseStarwars(t *testing.T) {
 
-	starWarsSchema, err := ioutil.ReadFile("./testdata/starwars.schema.graphql")
+	starWarsSchema, err := os.ReadFile("./testdata/starwars.schema.graphql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2282,7 +2282,7 @@ func TestParseStarwars(t *testing.T) {
 func TestParseTodo(t *testing.T) {
 
 	inputFileName := "./testdata/todo.graphql"
-	schema, err := ioutil.ReadFile(inputFileName)
+	schema, err := os.ReadFile(inputFileName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2298,7 +2298,7 @@ func TestParseTodo(t *testing.T) {
 func BenchmarkParseStarwars(b *testing.B) {
 
 	inputFileName := "./testdata/starwars.schema.graphql"
-	starwarsSchema, err := ioutil.ReadFile(inputFileName)
+	starwarsSchema, err := os.ReadFile(inputFileName)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -2325,7 +2325,7 @@ func BenchmarkParseStarwars(b *testing.B) {
 func BenchmarkParseGithub(b *testing.B) {
 
 	inputFileName := "./testdata/github.schema.graphql"
-	schemaFile, err := ioutil.ReadFile(inputFileName)
+	schemaFile, err := os.ReadFile(inputFileName)
 	if err != nil {
 		b.Fatal(err)
 	}
