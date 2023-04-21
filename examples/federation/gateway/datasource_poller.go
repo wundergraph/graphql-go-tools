@@ -19,6 +19,7 @@ type ServiceConfig struct {
 	Name string
 	URL  string
 	WS   string
+	Fallback func(*ServiceConfig) (string, error)
 }
 
 type DatasourcePollerConfig struct {
@@ -27,7 +28,7 @@ type DatasourcePollerConfig struct {
 }
 
 const ServiceDefinitionQuery = `
-	{ 
+	{
 		"query": "query __ApolloGetServiceDefinition__ { _service { sdl } }",
 		"operationName": "__ApolloGetServiceDefinition__",
 		"variables": {}
@@ -109,8 +110,17 @@ func (d *DatasourcePollerPoller) updateSDLs(ctx context.Context) {
 
 			sdl, err := d.fetchServiceSDL(ctx, serviceConf.URL)
 			if err != nil {
-				log.Println("Failed to get sdl", err)
-				return
+				log.Println("Failed to get sdl.", err)
+
+				if serviceConf.Fallback == nil {
+					return
+				} else {
+					sdl, err = serviceConf.Fallback(&serviceConf)
+					if err != nil {
+						log.Println("Failed to get sdl with fallback.", err)
+						return
+					}
+				}
 			}
 
 			select {
