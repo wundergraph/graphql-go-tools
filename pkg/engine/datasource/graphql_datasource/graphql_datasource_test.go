@@ -7801,23 +7801,23 @@ func TestSubscriptionSource_Start(t *testing.T) {
 
 	t.Run("invalid json: should stop before sending to upstream", func(t *testing.T) {
 		next := make(chan []byte)
-		ctx := context.Background()
-		defer ctx.Done()
+		ctx := resolve.NewContext(context.Background())
+		defer ctx.Context().Done()
 
-		source := newSubscriptionSource(ctx)
+		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: "#test") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
+		err := source.Start(ctx.Context(), chatSubscriptionOptions, next)
 		require.ErrorIs(t, err, resolve.ErrUnableToResolve)
 	})
 
 	t.Run("invalid syntax (roomNam)", func(t *testing.T) {
 		next := make(chan []byte)
-		ctx := context.Background()
-		defer ctx.Done()
+		ctx := resolve.NewContext(context.Background())
+		defer ctx.Context().Done()
 
-		source := newSubscriptionSource(ctx)
+		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
+		err := source.Start(ctx.Context(), chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
 		msg, ok := <-next
@@ -7851,12 +7851,12 @@ func TestSubscriptionSource_Start(t *testing.T) {
 
 	t.Run("should successfully subscribe with chat example", func(t *testing.T) {
 		next := make(chan []byte)
-		ctx := context.Background()
-		defer ctx.Done()
+		ctx := resolve.NewContext(context.Background())
+		defer ctx.Context().Done()
 
-		source := newSubscriptionSource(ctx)
+		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
+		err := source.Start(ctx.Context(), chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
 		username := "myuser"
@@ -7913,12 +7913,12 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 
 	t.Run("invalid syntax (roomNam)", func(t *testing.T) {
 		next := make(chan []byte)
-		ctx := context.Background()
-		defer ctx.Done()
+		ctx := resolve.NewContext(context.Background())
+		defer ctx.Context().Done()
 
-		source := newSubscriptionSource(ctx)
+		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
+		err := source.Start(ctx.Context(), chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
 		msg, ok := <-next
@@ -7952,12 +7952,12 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 
 	t.Run("should successfully subscribe with chat example", func(t *testing.T) {
 		next := make(chan []byte)
-		ctx := context.Background()
-		defer ctx.Done()
+		ctx := resolve.NewContext(context.Background())
+		defer ctx.Context().Done()
 
-		source := newSubscriptionSource(ctx)
+		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
+		err := source.Start(ctx.Context(), chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
 		username := "myuser"
@@ -7974,7 +7974,7 @@ type _fakeDataSource struct {
 	artificialLatency time.Duration
 }
 
-func (f *_fakeDataSource) Load(_ context.Context, _ []byte, w io.Writer) (err error) {
+func (f *_fakeDataSource) Load(_ *resolve.Context, _ []byte, w io.Writer) (err error) {
 	if f.artificialLatency != 0 {
 		time.Sleep(f.artificialLatency)
 	}
@@ -8131,7 +8131,7 @@ func TestSource_Load(t *testing.T) {
 			input = httpclient.SetInputFlag(input, httpclient.UNNULLVARIABLES)
 			buf := bytes.NewBuffer(nil)
 
-			require.NoError(t, src.Load(context.Background(), input, buf))
+			require.NoError(t, src.Load(resolve.NewContext(context.Background()), input, buf))
 			assert.Equal(t, `{"variables":{"b":"b"}}`, buf.String())
 		})
 
@@ -8142,7 +8142,7 @@ func TestSource_Load(t *testing.T) {
 
 			buf := bytes.NewBuffer(nil)
 
-			require.NoError(t, src.Load(context.Background(), input, buf))
+			require.NoError(t, src.Load(resolve.NewContext(context.Background()), input, buf))
 			assert.Equal(t, `{"variables":{"a":null,"b":"b","c":{}}}`, buf.String())
 		})
 	})
@@ -8159,7 +8159,7 @@ func TestSource_Load(t *testing.T) {
 			buf := bytes.NewBuffer(nil)
 
 			undefinedVariables := []string{"a", "c"}
-			ctx := httpclient.CtxSetUndefinedVariables(context.Background(), undefinedVariables)
+			ctx := httpclient.CtxSetUndefinedVariables(resolve.NewContext(context.Background()), undefinedVariables)
 
 			require.NoError(t, src.Load(ctx, input, buf))
 			assert.Equal(t, `{"variables":{"b":null}}`, buf.String())

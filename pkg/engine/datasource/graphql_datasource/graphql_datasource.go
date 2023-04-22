@@ -1408,11 +1408,11 @@ func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
 	return variables, false
 }
 
-func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err error) {
-	undefinedVariables := httpclient.CtxGetUndefinedVariables(ctx)
+func (s *Source) Load(ctx *resolve.Context, input []byte, writer io.Writer) (err error) {
+	undefinedVariables := ctx.UndefinedVariables()
 
 	input = s.compactAndUnNullVariables(input, undefinedVariables)
-	return httpclient.Do(s.httpClient, ctx, input, writer)
+	return httpclient.Do(s.httpClient, ctx.Context(), input, writer)
 }
 
 type GraphQLSubscriptionClient interface {

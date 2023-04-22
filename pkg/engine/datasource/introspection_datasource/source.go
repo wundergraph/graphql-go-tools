@@ -1,10 +1,10 @@
 package introspection_datasource
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/pkg/introspection"
 )
 
@@ -16,7 +16,7 @@ type Source struct {
 	introspectionData *introspection.Data
 }
 
-func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
+func (s *Source) Load(ctx *resolve.Context, input []byte, w io.Writer) (err error) {
 	var req introspectionInput
 	if err := json.Unmarshal(input, &req); err != nil {
 		return err

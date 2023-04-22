@@ -12,6 +12,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvalidation"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
@@ -130,6 +131,6 @@ type FakeDataSource struct {
 	source *StatefulSource
 }
 
-func (f *FakeDataSource) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
+func (f *FakeDataSource) Load(ctx *resolve.Context, input []byte, w io.Writer) (err error) {
 	return
 }

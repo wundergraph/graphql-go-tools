@@ -115,22 +115,23 @@ type AfterFetchHook interface {
 }
 
 type Context struct {
-	context.Context
-	Variables        []byte
-	Request          Request
-	pathElements     [][]byte
-	responseElements []string
-	lastFetchID      int
-	patches          []patch
-	usedBuffers      []*bytes.Buffer
-	currentPatch     int
-	maxPatch         int
-	pathPrefix       []byte
-	dataLoader       *dataLoader
-	beforeFetchHook  BeforeFetchHook
-	afterFetchHook   AfterFetchHook
-	position         Position
-	RenameTypeNames  []RenameTypeName
+	ctx                context.Context
+	Variables          []byte
+	Request            Request
+	pathElements       [][]byte
+	responseElements   []string
+	lastFetchID        int
+	patches            []patch
+	usedBuffers        []*bytes.Buffer
+	currentPatch       int
+	maxPatch           int
+	pathPrefix         []byte
+	dataLoader         *dataLoader
+	beforeFetchHook    BeforeFetchHook
+	afterFetchHook     AfterFetchHook
+	position           Position
+	RenameTypeNames    []RenameTypeName
+	undefinedVariables []string
 }
 
 type Request struct {
@@ -138,8 +139,11 @@ type Request struct {
 }
 
 func NewContext(ctx context.Context) *Context {
+	if ctx == nil {
+		panic("nil context.Context")
+	}
 	return &Context{
-		Context:      ctx,
+		ctx:          ctx,
 		Variables:    make([]byte, 0, 4096),
 		pathPrefix:   make([]byte, 0, 4096),
 		pathElements: make([][]byte, 0, 16),
@@ -150,6 +154,19 @@ func NewContext(ctx context.Context) *Context {
 		position:     Position{},
 		dataLoader:   nil,
 	}
+}
+
+func (c *Context) Context() context.Context {
+	return c.ctx
+}
+
+func (c *Context) WithContext(ctx context.Context) *Context {
+	if ctx == nil {
+		panic("nil context.Context")
+	}
+	cpy := *c
+	cpy.ctx = ctx
+	return &cpy
 }
 
 func (c *Context) Clone() Context {
@@ -174,24 +191,27 @@ func (c *Context) Clone() Context {
 		copy(patches[i].extraPath, c.patches[i].extraPath)
 		copy(patches[i].data, c.patches[i].data)
 	}
+	undefinedVariables := make([]string, len(c.undefinedVariables))
+	copy(undefinedVariables, c.undefinedVariables)
 	return Context{
-		Context:         c.Context,
-		Variables:       variables,
-		Request:         c.Request,
-		pathElements:    pathElements,
-		patches:         patches,
-		usedBuffers:     make([]*bytes.Buffer, 0, 48),
-		currentPatch:    c.currentPatch,
-		maxPatch:        c.maxPatch,
-		pathPrefix:      pathPrefix,
-		beforeFetchHook: c.beforeFetchHook,
-		afterFetchHook:  c.afterFetchHook,
-		position:        c.position,
+		ctx:                c.ctx,
+		Variables:          variables,
+		Request:            c.Request,
+		pathElements:       pathElements,
+		patches:            patches,
+		usedBuffers:        make([]*bytes.Buffer, 0, 48),
+		currentPatch:       c.currentPatch,
+		maxPatch:           c.maxPatch,
+		pathPrefix:         pathPrefix,
+		beforeFetchHook:    c.beforeFetchHook,
+		afterFetchHook:     c.afterFetchHook,
+		position:           c.position,
+		undefinedVariables: undefinedVariables,
 	}
 }
 
 func (c *Context) Free() {
-	c.Context = nil
+	c.ctx = nil
 	c.Variables = c.Variables[:0]
 	c.pathPrefix = c.pathPrefix[:0]
 	c.pathElements = c.pathElements[:0]
@@ -288,6 +308,15 @@ func (c *Context) popNextPatch() (patch patch, ok bool) {
 	return c.patches[c.currentPatch], true
 }
 
+func (c *Context) SetUndefinedVariables(undefinedVariables []string) {
+	c.undefinedVariables = c.undefinedVariables[:0]
+	c.undefinedVariables = append(c.undefinedVariables, undefinedVariables...)
+}
+
+func (c *Context) UndefinedVariables() []string {
+	return c.undefinedVariables[0:len(c.undefinedVariables):len(c.undefinedVariables)]
+}
+
 type patch struct {
 	path, extraPath, data []byte
 	index                 int
@@ -309,7 +338,7 @@ type DataSourceBatch interface {
 }
 
 type DataSource interface {
-	Load(ctx context.Context, input []byte, w io.Writer) (err error)
+	Load(ctx *Context, input []byte, w io.Writer) (err error)
 }
 
 type SubscriptionDataSource interface {
@@ -530,7 +559,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	copy(subscriptionInput, rendered)
 	r.freeBufPair(buf)
 
-	c, cancel := context.WithCancel(ctx)
+	c, cancel := context.WithCancel(ctx.Context())
 	defer cancel()
 	resolverDone := r.ctx.Done()
 
@@ -586,7 +615,7 @@ func (r *Resolver) ResolveGraphQLStreamingResponse(ctx *Context, response *Graph
 
 	buf.Write(literal.LBRACK)
 
-	done := ctx.Context.Done()
+	done := ctx.Context().Done()
 
 Loop:
 	for {
@@ -1224,7 +1253,7 @@ func (r *Resolver) freeResultSet(set *resultSet) {
 
 func (r *Resolver) resolveFetch(ctx *Context, fetch Fetch, data []byte, set *resultSet) (err error) {
 	// if context is cancelled, we should not resolve the fetch
-	if errors.Is(ctx.Err(), context.Canceled) {
+	if errors.Is(ctx.Context().Err(), context.Canceled) {
 		return nil
 	}
 

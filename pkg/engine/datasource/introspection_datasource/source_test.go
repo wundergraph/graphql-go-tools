@@ -10,6 +10,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/pkg/introspection"
 	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 )
@@ -29,7 +30,7 @@ func TestSource_Load(t *testing.T) {
 		return func(t *testing.T) {
 			buf := &bytes.Buffer{}
 			source := &Source{introspectionData: &data}
-			require.NoError(t, source.Load(context.Background(), []byte(input), buf))
+			require.NoError(t, source.Load(resolve.NewContext(context.Background()), []byte(input), buf))
 
 			actualResponse := &bytes.Buffer{}
 			require.NoError(t, json.Indent(actualResponse, buf.Bytes(), "", "  "))

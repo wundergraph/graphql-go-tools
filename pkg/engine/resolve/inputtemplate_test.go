@@ -278,7 +278,7 @@ func TestInputTemplate_Render(t *testing.T) {
 				},
 			}
 			ctx := &Context{
-				Context:   context.Background(),
+				ctx:       context.Background(),
 				Variables: []byte(""),
 			}
 			buf := fastbuffer.New()

@@ -2,7 +2,6 @@ package httpclient
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 
@@ -49,18 +48,6 @@ var (
 		{BODY},
 	}
 )
-
-func CtxSetUndefinedVariables(ctx context.Context, undefinedVariables []string) context.Context {
-	return context.WithValue(ctx, removeUndefinedVariables, undefinedVariables)
-}
-
-func CtxGetUndefinedVariables(ctx context.Context) []string {
-	undefinedVariables := ctx.Value(removeUndefinedVariables)
-	if undefinedVariables, ok := undefinedVariables.([]string); ok {
-		return undefinedVariables
-	}
-	return nil
-}
 
 func wrapQuotesIfString(b []byte) []byte {
 
