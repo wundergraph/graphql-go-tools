@@ -8159,7 +8159,8 @@ func TestSource_Load(t *testing.T) {
 			buf := bytes.NewBuffer(nil)
 
 			undefinedVariables := []string{"a", "c"}
-			ctx := httpclient.CtxSetUndefinedVariables(resolve.NewContext(context.Background()), undefinedVariables)
+			ctx := resolve.NewContext(context.Background())
+			ctx.SetUndefinedVariables(undefinedVariables)
 
 			require.NoError(t, src.Load(ctx, input, buf))
 			assert.Equal(t, `{"variables":{"b":null}}`, buf.String())
