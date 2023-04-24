@@ -14,8 +14,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 )
 
-type ctxKey string
-
 const (
 	PATH            = "path"
 	URL             = "url"
@@ -30,8 +28,6 @@ const (
 	SCHEME          = "scheme"
 	HOST            = "host"
 	UNNULLVARIABLES = "unnull_variables"
-
-	removeUndefinedVariables ctxKey = "remove_undefined_variables"
 )
 
 var (
