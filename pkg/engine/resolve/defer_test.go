@@ -437,7 +437,7 @@ func fakeService(t *testing.T, controller *gomock.Controller, serviceName, respo
 		i := i
 		service.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+			DoAndReturn(func(ctx *Context, input []byte, w io.Writer) (err error) {
 				assert.Equal(t, expectedInput[i], string(input))
 				_, err = w.Write(data)
 				return
