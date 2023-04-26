@@ -1,10 +1,12 @@
 package graphql
 
 import (
+	"bytes"
 	"compress/flate"
 	"compress/gzip"
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -109,7 +111,7 @@ func TestWithAdditionalHttpHeaders(t *testing.T) {
 		}
 
 		optionsFn := WithAdditionalHttpHeaders(reqHeader)
-		optionsFn(internalExecutionCtx)
+		optionsFn(internalExecutionCtx.postProcessor, internalExecutionCtx.resolveContext)
 
 		assert.Equal(t, reqHeader, internalExecutionCtx.resolveContext.Request.Header)
 	})
@@ -132,7 +134,7 @@ func TestWithAdditionalHttpHeaders(t *testing.T) {
 		}
 
 		optionsFn := WithAdditionalHttpHeaders(reqHeader, excludableRuntimeHeaders...)
-		optionsFn(internalExecutionCtx)
+		optionsFn(internalExecutionCtx.postProcessor, internalExecutionCtx.resolveContext)
 
 		expectedHeaders := http.Header{
 			http.CanonicalHeaderKey("X-Other-Key"): []string{"x-other-value"},
@@ -2040,7 +2042,7 @@ func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 		}
 
 		report := operationreport.Report{}
-		cachedPlan := engine.getCachedPlan(firstInternalExecCtx, &gqlRequest.document, &schema.document, gqlRequest.OperationName, &report)
+		cachedPlan := engine.getCachedPlan(firstInternalExecCtx.postProcessor, &gqlRequest.document, &schema.document, gqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ := engine.executionPlanCache.GetOldest()
 		assert.False(t, report.HasErrors())
 		assert.Equal(t, 1, engine.executionPlanCache.Len())
@@ -2051,7 +2053,7 @@ func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
 		}
 
-		cachedPlan = engine.getCachedPlan(secondInternalExecCtx, &gqlRequest.document, &schema.document, gqlRequest.OperationName, &report)
+		cachedPlan = engine.getCachedPlan(secondInternalExecCtx.postProcessor, &gqlRequest.document, &schema.document, gqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ = engine.executionPlanCache.GetOldest()
 		assert.False(t, report.HasErrors())
 		assert.Equal(t, 1, engine.executionPlanCache.Len())
@@ -2068,7 +2070,7 @@ func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 		}
 
 		report := operationreport.Report{}
-		cachedPlan := engine.getCachedPlan(firstInternalExecCtx, &gqlRequest.document, &schema.document, gqlRequest.OperationName, &report)
+		cachedPlan := engine.getCachedPlan(firstInternalExecCtx.postProcessor, &gqlRequest.document, &schema.document, gqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ := engine.executionPlanCache.GetOldest()
 		assert.False(t, report.HasErrors())
 		assert.Equal(t, 1, engine.executionPlanCache.Len())
@@ -2079,7 +2081,7 @@ func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 			http.CanonicalHeaderKey("Authorization"): []string{"xyz098"},
 		}
 
-		cachedPlan = engine.getCachedPlan(secondInternalExecCtx, &differentGqlRequest.document, &schema.document, differentGqlRequest.OperationName, &report)
+		cachedPlan = engine.getCachedPlan(secondInternalExecCtx.postProcessor, &differentGqlRequest.document, &schema.document, differentGqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ = engine.executionPlanCache.GetOldest()
 		assert.False(t, report.HasErrors())
 		assert.Equal(t, 2, engine.executionPlanCache.Len())
@@ -2483,4 +2485,68 @@ func createCountriesSchema(t *testing.T) *Schema {
 	schema, err := NewSchemaFromString(countriesSchema)
 	require.NoError(t, err)
 	return schema
+}
+
+type benchmarkRoundTripper struct{}
+
+func (b benchmarkRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	body := bytes.NewBuffer([]byte(`{"hello":"world"}`))
+	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(body)}, nil
+}
+
+func BenchmarkExecutionEngineV2_Execute(b *testing.B) {
+	schemaString := `type Query {
+	hello: String!
+}`
+	schema, _ := NewSchemaFromString(schemaString)
+
+	operation := Request{
+		OperationName: "",
+		Variables:     nil,
+		Query:         "{ hello }",
+	}
+
+	dataSources := []plan.DataSourceConfiguration{
+		{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"hello"},
+				},
+			},
+			ChildNodes: []plan.TypeField{},
+			Factory: &rest_datasource.Factory{
+				Client: &http.Client{
+					Transport: benchmarkRoundTripper{},
+				},
+			},
+			Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+				Fetch: rest_datasource.FetchConfiguration{
+					URL:    "https://example.com/",
+					Method: "GET",
+				},
+			}),
+		},
+	}
+	fields := []plan.FieldConfiguration{
+		{
+			TypeName:  "Query",
+			FieldName: "hello",
+			Arguments: []plan.ArgumentConfiguration{},
+		},
+	}
+
+	engineConf := NewEngineV2Configuration(schema)
+	engineConf.SetDataSources(dataSources)
+	engineConf.SetFieldConfigurations(fields)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	engine, _ := NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConf)
+	for n := 0; n < b.N; n++ {
+		resultWriter := NewEngineResultWriter()
+		execCtx, execCtxCancel := context.WithCancel(context.Background())
+		_ = engine.Execute(execCtx, &operation, &resultWriter)
+		execCtxCancel()
+	}
 }
