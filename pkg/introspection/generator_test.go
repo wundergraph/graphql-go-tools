@@ -2,17 +2,16 @@ package introspection
 
 import (
 	"encoding/json"
-	"os"
+	"io/ioutil"
 	"testing"
 
 	"github.com/jensneuse/diffview"
-	"github.com/sebdah/goldie"
-
 	"github.com/TykTechnologies/graphql-go-tools/pkg/astparser"
+	"github.com/sebdah/goldie"
 )
 
 func TestGenerator_Generate(t *testing.T) {
-	starwarsSchemaBytes, err := os.ReadFile("./testdata/starwars.schema.graphql")
+	starwarsSchemaBytes, err := ioutil.ReadFile("./testdata/starwars.schema.graphql")
 	if err != nil {
 		panic(err)
 	}
@@ -36,7 +35,7 @@ func TestGenerator_Generate(t *testing.T) {
 
 	goldie.Assert(t, "starwars_introspected", outputPretty)
 	if t.Failed() {
-		fixture, err := os.ReadFile("./fixtures/starwars_introspected.golden")
+		fixture, err := ioutil.ReadFile("./fixtures/starwars_introspected.golden")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -46,7 +45,7 @@ func TestGenerator_Generate(t *testing.T) {
 }
 
 func TestGenerator_Generate_Interfaces_Implementing_Interfaces(t *testing.T) {
-	interfacesSchemaBytes, err := os.ReadFile("./testdata/interfaces_implementing_interfaces.graphql")
+	interfacesSchemaBytes, err := ioutil.ReadFile("./testdata/interfaces_implementing_interfaces.graphql")
 	if err != nil {
 		panic(err)
 	}
@@ -70,7 +69,7 @@ func TestGenerator_Generate_Interfaces_Implementing_Interfaces(t *testing.T) {
 
 	goldie.Assert(t, "interfaces_implementing_interfaces", outputPretty)
 	if t.Failed() {
-		fixture, err := os.ReadFile("./fixtures/interfaces_implementing_interfaces.golden")
+		fixture, err := ioutil.ReadFile("./fixtures/interfaces_implementing_interfaces.golden")
 		if err != nil {
 			t.Fatal(err)
 		}

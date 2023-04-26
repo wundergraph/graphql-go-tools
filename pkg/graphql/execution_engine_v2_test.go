@@ -5,7 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -39,7 +39,7 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 		headers := make(http.Header)
 		headers.Set("Content-Type", "application/json")
 		response := rw.AsHTTPResponse(http.StatusOK, headers)
-		body, err := io.ReadAll(response.Body)
+		body, err := ioutil.ReadAll(response.Body)
 		require.NoError(t, err)
 
 		assert.Equal(t, http.StatusOK, response.StatusCode)
@@ -66,7 +66,7 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 			reader, err := gzip.NewReader(response.Body)
 			require.NoError(t, err)
 
-			body, err := io.ReadAll(reader)
+			body, err := ioutil.ReadAll(reader)
 			require.NoError(t, err)
 
 			assert.Equal(t, `{"key": "value"}`, string(body))
@@ -81,7 +81,7 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 			assert.Equal(t, "deflate", response.Header.Get(httpclient.ContentEncodingHeader))
 
 			reader := flate.NewReader(response.Body)
-			body, err := io.ReadAll(reader)
+			body, err := ioutil.ReadAll(reader)
 			require.NoError(t, err)
 
 			assert.Equal(t, `{"key": "value"}`, string(body))

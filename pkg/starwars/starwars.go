@@ -2,7 +2,7 @@ package starwars
 
 import (
 	"encoding/json"
-	"os"
+	"io/ioutil"
 	"path"
 	"testing"
 
@@ -55,13 +55,13 @@ func NewExecutionHandler(t *testing.T) *execution.Handler {
 }
 
 func Schema(t *testing.T) []byte {
-	schema, err := os.ReadFile(path.Join(testdataPath, "testdata/star_wars.graphql"))
+	schema, err := ioutil.ReadFile(path.Join(testdataPath, "testdata/star_wars.graphql"))
 	require.NoError(t, err)
 	return schema
 }
 
 func LoadQuery(t *testing.T, fileName string, variables QueryVariables) []byte {
-	query, err := os.ReadFile(path.Join(testdataPath, fileName))
+	query, err := ioutil.ReadFile(path.Join(testdataPath, fileName))
 	require.NoError(t, err)
 
 	return RequestBody(t, string(query), variables)

@@ -3,6 +3,7 @@ package imports
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -57,7 +58,7 @@ func (s *Scanner) scanFile(inputFilePath string) (*GraphQLFile, error) {
 
 	fileDir := filepath.Dir(relativeFilePath)
 
-	content, err := os.ReadFile(inputFilePath)
+	content, err := ioutil.ReadFile(inputFilePath)
 	if err != nil {
 		return nil, err
 	}

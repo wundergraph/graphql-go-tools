@@ -2,7 +2,7 @@ package asttransform
 
 import (
 	"bytes"
-	"os"
+	"io/ioutil"
 	"testing"
 
 	"github.com/jensneuse/diffview"
@@ -27,7 +27,7 @@ func runTestMerge(definition, fixtureName string) func(t *testing.T) {
 		got := buf.Bytes()
 		goldie.Assert(t, fixtureName, got)
 		if t.Failed() {
-			want, err := os.ReadFile("./fixtures/" + fixtureName + ".golden")
+			want, err := ioutil.ReadFile("./fixtures/" + fixtureName + ".golden")
 			if err != nil {
 				panic(err)
 			}

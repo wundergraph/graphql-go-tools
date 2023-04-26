@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"io/ioutil"
 	"strings"
 
 	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
@@ -54,7 +55,7 @@ func (s *Schema) Hash() (uint64, error) {
 }
 
 func NewSchemaFromReader(reader io.Reader) (*Schema, error) {
-	schemaContent, err := io.ReadAll(reader)
+	schemaContent, err := ioutil.ReadAll(reader)
 	if err != nil {
 		return nil, err
 	}

@@ -2,7 +2,7 @@ package codegen
 
 import (
 	"bytes"
-	"os"
+	"io/ioutil"
 	"testing"
 
 	"github.com/sebdah/goldie"
@@ -94,7 +94,7 @@ func TestCodeGen_GenerateDirectiveDefinitionStruct(t *testing.T) {
 	goldie.Assert(t, "DataSource", data)
 	if t.Failed() {
 
-		fixture, err := os.ReadFile("./fixtures/DataSource.golden")
+		fixture, err := ioutil.ReadFile("./fixtures/DataSource.golden")
 		if err != nil {
 			t.Fatal(err)
 		}

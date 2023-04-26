@@ -4,10 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
-	"os"
 	"testing"
 
 	"github.com/gobwas/ws"
@@ -42,7 +41,7 @@ func requestBody(t *testing.T, query string, variables queryVariables) []byte {
 }
 
 func loadQuery(t *testing.T, filePath string, variables queryVariables) []byte {
-	query, err := os.ReadFile(filePath)
+	query, err := ioutil.ReadFile(filePath)
 	require.NoError(t, err)
 
 	return requestBody(t, string(query), variables)
@@ -65,7 +64,7 @@ func (g *GraphqlClient) Query(ctx context.Context, addr, queryFilePath string, v
 	req = req.WithContext(ctx)
 	resp, err := g.httpClient.Do(req)
 	require.NoError(t, err)
-	responseBodyBytes, err := io.ReadAll(resp.Body)
+	responseBodyBytes, err := ioutil.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Contains(t, resp.Header.Get("Content-Type"), "application/json")

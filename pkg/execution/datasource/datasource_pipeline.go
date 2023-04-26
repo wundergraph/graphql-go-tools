@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"os"
+	"io/ioutil"
 
 	log "github.com/jensneuse/abstractlogger"
 	"github.com/jensneuse/pipeline/pkg/pipe"
@@ -112,7 +112,7 @@ func (h *PipelineDataSourcePlanner) LeaveField(ref int) {
 	}
 	if h.dataSourceConfig.ConfigFilePath != nil {
 		var err error
-		h.rawPipelineConfig, err = os.ReadFile(*h.dataSourceConfig.ConfigFilePath)
+		h.rawPipelineConfig, err = ioutil.ReadFile(*h.dataSourceConfig.ConfigFilePath)
 		if err != nil {
 			h.Log.Error("PipelineDataSourcePlanner.readConfigFile", log.Error(err))
 		}

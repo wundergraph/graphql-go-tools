@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -22,13 +23,13 @@ func main() {
 		workingDir = filepath.Join(currDir, "pkg/astvalidation/reference/__tests__")
 	}
 
-	dir, err := os.ReadDir(workingDir)
+	dir, err := ioutil.ReadDir(workingDir)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	replacementsPath := workingDir + "/../replacements.yml"
-	replacementContent, _ := os.ReadFile(replacementsPath)
+	replacementContent, _ := ioutil.ReadFile(replacementsPath)
 
 	var replacements []Replacement
 	if err := yaml.Unmarshal(replacementContent, &replacements); err != nil {
@@ -111,7 +112,7 @@ func skipRule(name string) bool {
 // processFile - convert and save reference test file
 func processFile(workingDir string, filename string, replacements Replacements) {
 	fPath := filepath.Join(workingDir, filename)
-	fileContent, _ := os.ReadFile(fPath)
+	fileContent, _ := ioutil.ReadFile(fPath)
 
 	testName := strings.TrimSuffix(strings.Split(filepath.Base(filename), ".")[0], "-test")
 
@@ -128,7 +129,7 @@ func processFile(workingDir string, filename string, replacements Replacements) 
 	result := converter.iterateLines(testName, content)
 
 	outFileName := testName + "_test.go"
-	err := os.WriteFile(filepath.Join(outDir, outFileName), []byte(result), os.ModePerm)
+	err := ioutil.WriteFile(filepath.Join(outDir, outFileName), []byte(result), os.ModePerm)
 	if err != nil {
 		log.Fatal(err)
 	}

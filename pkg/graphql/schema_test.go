@@ -2,7 +2,7 @@ package graphql
 
 import (
 	"bytes"
-	"io"
+	"io/ioutil"
 	"testing"
 
 	"github.com/sebdah/goldie"
@@ -414,7 +414,7 @@ func TestSchemaIntrospection(t *testing.T) {
 	assert.NotNil(t, resp)
 	assert.NotNil(t, resp.Body)
 
-	bodyBytes, err := io.ReadAll(resp.Body)
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 
 	goldie.Assert(t, "introspection_response", bodyBytes)

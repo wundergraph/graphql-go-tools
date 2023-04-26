@@ -3,7 +3,7 @@ package http
 
 import (
 	"bytes"
-	"io"
+	"io/ioutil"
 	"net/http"
 
 	log "github.com/jensneuse/abstractlogger"
@@ -16,7 +16,7 @@ const (
 )
 
 func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Request) {
-	data, err := io.ReadAll(r.Body)
+	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		g.log.Error("GraphQLHTTPRequestHandler.handleHTTP",
 			log.Error(err),

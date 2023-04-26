@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"os"
@@ -102,7 +102,7 @@ func main() {
 
 	// Parse command line parameters
 	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-	f.SetOutput(io.Discard)
+	f.SetOutput(ioutil.Discard)
 	f.BoolVar(&args.help, "h", false, "")
 	f.BoolVar(&args.help, "help", false, "")
 	f.StringVar(&args.products, "p", "", "")

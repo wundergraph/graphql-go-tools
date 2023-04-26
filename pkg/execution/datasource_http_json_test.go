@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -844,7 +844,7 @@ func upstreamHttpJsonServer(t *testing.T, assertRequestBody bool, expectedReques
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.NotNil(t, r.Body)
 
-		bodyBytes, err := io.ReadAll(r.Body)
+		bodyBytes, err := ioutil.ReadAll(r.Body)
 		require.NoError(t, err)
 
 		if assertRequestBody {

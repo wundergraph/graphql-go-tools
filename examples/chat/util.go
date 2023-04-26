@@ -2,6 +2,7 @@ package chat
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,7 +63,7 @@ func LoadSchemaFromExamplesDirectoryWithinPkg() ([]byte, error) {
 	}
 
 	absolutePath := filepath.Join(strings.Split(wd, "pkg")[0], chatExampleDirectoryRelativePath, "schema.graphql")
-	return os.ReadFile(absolutePath)
+	return ioutil.ReadFile(absolutePath)
 }
 
 func GraphQLRequestForOperation(operation string) ([]byte, error) {

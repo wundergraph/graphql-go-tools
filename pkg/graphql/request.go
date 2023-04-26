@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
@@ -46,7 +47,7 @@ type Request struct {
 }
 
 func UnmarshalRequest(reader io.Reader, request *Request) error {
-	requestBytes, err := io.ReadAll(reader)
+	requestBytes, err := ioutil.ReadAll(reader)
 	if err != nil {
 		return err
 	}

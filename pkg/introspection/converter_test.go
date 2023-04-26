@@ -3,7 +3,7 @@ package introspection
 import (
 	"bytes"
 	"encoding/json"
-	"os"
+	"io/ioutil"
 	"testing"
 
 	"github.com/jensneuse/diffview"
@@ -16,7 +16,7 @@ import (
 )
 
 func TestJSONConverter_GraphQLDocument(t *testing.T) {
-	starwarsSchemaBytes, err := os.ReadFile("./fixtures/starwars.golden")
+	starwarsSchemaBytes, err := ioutil.ReadFile("./fixtures/starwars.golden")
 	require.NoError(t, err)
 
 	definition, report := astparser.ParseGraphqlDocumentBytes(starwarsSchemaBytes)
@@ -45,7 +45,7 @@ func TestJSONConverter_GraphQLDocument(t *testing.T) {
 
 	schemaOutputPretty := outWriter.Bytes()
 	// fmt.Println(string(schemaOutputPretty))
-	// os.WriteFile("./fixtures/starwars_generated.graphql", schemaOutputPretty, os.ModePerm)
+	// ioutil.WriteFile("./fixtures/starwars_generated.graphql", schemaOutputPretty, os.ModePerm)
 
 	// Ensure that recreated sdl is valid
 	definition, report = astparser.ParseGraphqlDocumentBytes(schemaOutputPretty)
@@ -56,7 +56,7 @@ func TestJSONConverter_GraphQLDocument(t *testing.T) {
 	// Check that recreated sdl is the same as original
 	goldie.Assert(t, "starwars", schemaOutputPretty)
 	if t.Failed() {
-		fixture, err := os.ReadFile("./fixtures/starwars.golden")
+		fixture, err := ioutil.ReadFile("./fixtures/starwars.golden")
 		require.NoError(t, err)
 
 		diffview.NewGoland().DiffViewBytes("startwars", fixture, schemaOutputPretty)
@@ -64,7 +64,7 @@ func TestJSONConverter_GraphQLDocument(t *testing.T) {
 }
 
 func BenchmarkJsonConverter_GraphQLDocument(b *testing.B) {
-	introspectedBytes, err := os.ReadFile("./testdata/swapi_introspection_response.json")
+	introspectedBytes, err := ioutil.ReadFile("./testdata/swapi_introspection_response.json")
 	require.NoError(b, err)
 	b.ResetTimer()
 

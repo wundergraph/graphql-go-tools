@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -101,7 +101,7 @@ func TestGraphQLHTTPRequestHandler_ServeHTTP(t *testing.T) {
 					resp, err := client.Do(req)
 					require.NoError(t, err)
 
-					responseBodyBytes, err := io.ReadAll(resp.Body)
+					responseBodyBytes, err := ioutil.ReadAll(resp.Body)
 					require.NoError(t, err)
 
 					assert.Equal(t, http.StatusOK, resp.StatusCode)
