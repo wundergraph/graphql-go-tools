@@ -80,6 +80,8 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
 	assert.Eventuallyf(t, func() bool {
+		client.handlersMu.Lock()
+		defer client.handlersMu.Unlock()
 		return len(client.handlers) == 0
 	}, time.Second, time.Millisecond, "client handlers not 0")
 }
@@ -151,6 +153,8 @@ func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
 	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
 	assert.Eventuallyf(t, func() bool {
+		client.handlersMu.Lock()
+		defer client.handlersMu.Unlock()
 		return len(client.handlers) == 0
 	}, time.Second, time.Millisecond, "client handlers not 0")
 }
@@ -297,6 +301,8 @@ func TestWebSocketSubscriptionClientInitIncludePing_GQLTWS(t *testing.T) {
 	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
 	assertion.Eventuallyf(func() bool {
+		client.handlersMu.Lock()
+		defer client.handlersMu.Unlock()
 		return len(client.handlers) == 0
 	}, time.Second, time.Millisecond, "client handlers not 0")
 }
@@ -367,6 +373,8 @@ func TestWebsocketSubscriptionClient_GQLTWS_Upstream_Dies(t *testing.T) {
 	clientCancel()
 	serverCancel()
 	assert.Eventuallyf(t, func() bool {
+		client.handlersMu.Lock()
+		defer client.handlersMu.Unlock()
 		return len(client.handlers) == 0
 	}, time.Second, time.Millisecond, "client handlers not 0")
 }
