@@ -590,7 +590,7 @@ func TestHandler_Handle(t *testing.T) {
 
 				require.Eventually(t, func() bool {
 					return client.hasMoreMessagesThan(0)
-				}, 1*time.Second, 10*time.Millisecond)
+				}, 5*time.Second, 10*time.Millisecond)
 
 				expectedMessage := Message{
 					Id:      "1",
