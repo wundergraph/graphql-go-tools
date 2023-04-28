@@ -48,15 +48,11 @@ func (sc *subscriptionCancellations) Cancel(id string) (ok bool) {
 }
 
 func (sc *subscriptionCancellations) CancelAll() {
-	// Copy the values to temporary storage to avoid calling arbitrary functions
-	// with the lock held
+	// We have full control over the cancellation functions (see AddWithParent()), so
+	// it's fine to invoke them with the lock held
 	sc.mu.RLock()
-	funcs := make([]context.CancelFunc, 0, len(sc.cancellations))
-	for _, fn := range sc.cancellations {
-		funcs = append(funcs, fn)
-	}
-	sc.mu.RUnlock()
-	for _, cancelFunc := range funcs {
+	defer sc.mu.RUnlock()
+	for _, cancelFunc := range sc.cancellations {
 		cancelFunc()
 	}
 }
