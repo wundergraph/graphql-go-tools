@@ -5,6 +5,7 @@
 package resolve
 
 import (
+	context "context"
 	io "io"
 	reflect "reflect"
 
@@ -36,7 +37,7 @@ func (m *MockDataSource) EXPECT() *MockDataSourceMockRecorder {
 }
 
 // Load mocks base method.
-func (m *MockDataSource) Load(arg0 *Context, arg1 []byte, arg2 io.Writer) error {
+func (m *MockDataSource) Load(arg0 context.Context, arg1 []byte, arg2 io.Writer) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Load", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)

@@ -1,6 +1,7 @@
 package postprocess
 
 import (
+	"context"
 	"io"
 	"testing"
 
@@ -935,6 +936,6 @@ func TestProcessDefer_Process_ShouldSkipWithoutDefer(t *testing.T) {
 type fakeService struct {
 }
 
-func (f *fakeService) Load(ctx *resolve.Context, input []byte, w io.Writer) (err error) {
+func (f *fakeService) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
 	panic("implement me")
 }

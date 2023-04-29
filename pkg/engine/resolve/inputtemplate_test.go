@@ -285,7 +285,7 @@ func TestInputTemplate_Render(t *testing.T) {
 			err := template.Render(ctx, nil, buf)
 			assert.NoError(t, err)
 			out := buf.String()
-			assert.Equal(t, `{"key":null}`, out)
+			assert.Equal(t, `{"undefined":["a"],"key":null}`, out)
 		})
 
 		t.Run("when SetTemplateOutputToNullOnVariableNull: true", func(t *testing.T) {

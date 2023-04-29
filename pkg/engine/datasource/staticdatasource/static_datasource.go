@@ -6,7 +6,6 @@ import (
 	"io"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
 )
 
 type Configuration struct {
@@ -61,7 +60,7 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 
 type Source struct{}
 
-func (Source) Load(_ *resolve.Context, input []byte, w io.Writer) (err error) {
+func (Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
 	_, err = w.Write(input)
 	return
 }

@@ -1173,7 +1173,7 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 
 			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s"}`, server.URL))
 			b := &strings.Builder{}
-			require.NoError(t, source.Load(resolve.NewContext(context.Background()), input, b))
+			require.NoError(t, source.Load(context.Background(), input, b))
 			assert.Equal(t, `ok`, b.String())
 		})
 		t.Run("get with query parameters", func(t *testing.T) {
@@ -1192,7 +1192,7 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 
 			input := []byte(fmt.Sprintf(`{"query_params":[{"name":"foo","value":"bar"},{"name":"double","value":"first"},{"name":"double","value":"second"}],"method":"GET","url":"%s"}`, server.URL))
 			b := &strings.Builder{}
-			require.NoError(t, source.Load(resolve.NewContext(context.Background()), input, b))
+			require.NoError(t, source.Load(context.Background(), input, b))
 			assert.Equal(t, `ok`, b.String())
 		})
 		t.Run("get with headers", func(t *testing.T) {
@@ -1215,7 +1215,7 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 
 			input := []byte(fmt.Sprintf(`{"method":"GET","url":"%s","header":{"Multi":["one", "two"],"MultiComma":["x,y"],"Authorization":["Bearer 123"],"Token":["%s"],"X-API-Key":["%s"],"NotExists":[""]}}`, server.URL, authorization, xApiKey))
 			b := &strings.Builder{}
-			require.NoError(t, source.Load(resolve.NewContext(context.Background()), input, b))
+			require.NoError(t, source.Load(context.Background(), input, b))
 			assert.Equal(t, `ok`, b.String())
 		})
 		t.Run("post with body", func(t *testing.T) {
@@ -1233,7 +1233,7 @@ func TestHttpJsonDataSource_Load(t *testing.T) {
 
 			input := []byte(fmt.Sprintf(`{"method":"POST","url":"%s","body":%s}`, server.URL, body))
 			b := &strings.Builder{}
-			require.NoError(t, source.Load(resolve.NewContext(context.Background()), input, b))
+			require.NoError(t, source.Load(context.Background(), input, b))
 			assert.Equal(t, `ok`, b.String())
 		})
 	}

@@ -3,6 +3,7 @@ package httpclient
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 
 	"github.com/buger/jsonparser"
@@ -15,19 +16,20 @@ import (
 )
 
 const (
-	PATH            = "path"
-	URL             = "url"
-	URLENCODEBODY   = "url_encode_body"
-	BASEURL         = "base_url"
-	METHOD          = "method"
-	BODY            = "body"
-	HEADER          = "header"
-	QUERYPARAMS     = "query_params"
-	USESSE          = "use_sse"
-	SSEMETHODPOST   = "sse_method_post"
-	SCHEME          = "scheme"
-	HOST            = "host"
-	UNNULLVARIABLES = "unnull_variables"
+	PATH                = "path"
+	URL                 = "url"
+	URLENCODEBODY       = "url_encode_body"
+	BASEURL             = "base_url"
+	METHOD              = "method"
+	BODY                = "body"
+	HEADER              = "header"
+	QUERYPARAMS         = "query_params"
+	USESSE              = "use_sse"
+	SSEMETHODPOST       = "sse_method_post"
+	SCHEME              = "scheme"
+	HOST                = "host"
+	UNNULLVARIABLES     = "unnull_variables"
+	UNDEFINED_VARIABLES = "undefined"
 )
 
 var (
@@ -218,4 +220,32 @@ func GetSubscriptionInput(input []byte) (url, header, body []byte) {
 		}
 	}, subscriptionInputPaths...)
 	return
+}
+
+func setUndefinedVariables(data []byte, undefinedVariables []string) ([]byte, error) {
+	if len(undefinedVariables) > 0 {
+		encoded, err := json.Marshal(undefinedVariables)
+		if err != nil {
+			return nil, err
+		}
+		return sjson.SetRawBytes(data, UNDEFINED_VARIABLES, encoded)
+	}
+	return data, nil
+}
+
+func SetUndefinedVariables(data []byte, undefinedVariables []string) []byte {
+	result, err := setUndefinedVariables(data, undefinedVariables)
+	if err != nil {
+		panic(fmt.Errorf("couldn't set undefined variables: %w", err))
+	}
+	return result
+}
+
+func UndefinedVariables(data []byte) []string {
+	var undefinedVariables []string
+	gjson.GetBytes(data, UNDEFINED_VARIABLES).ForEach(func(key, value gjson.Result) bool {
+		undefinedVariables = append(undefinedVariables, value.Str)
+		return true
+	})
+	return undefinedVariables
 }

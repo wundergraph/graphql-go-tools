@@ -72,7 +72,7 @@ func TestDataLoader_Load(t *testing.T) {
 		userService := NewMockDataSource(ctrl)
 		userService.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			Do(func(ctx *Context, input []byte, w io.Writer) (err error) {
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 				assert.Equal(t, expected, actual)
@@ -107,7 +107,7 @@ func TestDataLoader_Load(t *testing.T) {
 		userService.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 			Times(2).
-			Do(func(ctx *Context, input []byte, w io.Writer) (err error) {
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				switch {
 				case strings.Contains(actual, "11"):
@@ -168,7 +168,7 @@ func TestDataLoader_Load(t *testing.T) {
 		userService.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 			Times(2).
-			Do(func(ctx *Context, input []byte, w io.Writer) (err error) {
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				switch {
 				case strings.Contains(actual, "11"):
@@ -331,7 +331,7 @@ func TestDataLoader_Load(t *testing.T) {
 		userService.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 			Times(4).
-			Do(func(ctx *Context, input []byte, w io.Writer) (err error) {
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				switch {
 				case strings.Contains(actual, "11"):
@@ -387,7 +387,7 @@ func TestDataLoader_Load(t *testing.T) {
 		userService.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 			Times(2).
-			Do(func(ctx *Context, input []byte, w io.Writer) (err error) {
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				switch {
 				case strings.Contains(actual, "11"):
@@ -477,7 +477,7 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 		userService := NewMockDataSource(ctrl)
 		userService.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			Do(func(ctx *Context, input []byte, w io.Writer) (err error) {
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}}}`
 				assert.Equal(t, expected, actual)
@@ -543,7 +543,7 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 		carService := NewMockDataSource(ctrl)
 		carService.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			Do(func(ctx *Context, input []byte, w io.Writer) (err error) {
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Engine {horsepower}}}","variables":{"representations":[{"model":"x","__typename":"Engine"},{"model":"y","__typename":"Engine"}]}}}`
 				assert.Equal(t, expected, actual)
@@ -639,7 +639,7 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 		userService := NewMockDataSource(ctrl)
 		userService.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			Do(func(ctx *Context, input []byte, w io.Writer) (err error) {
+			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}}}`
 				assert.Equal(t, expected, actual)

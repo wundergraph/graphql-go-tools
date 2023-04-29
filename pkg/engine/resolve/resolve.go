@@ -115,23 +115,22 @@ type AfterFetchHook interface {
 }
 
 type Context struct {
-	ctx                context.Context
-	Variables          []byte
-	Request            Request
-	pathElements       [][]byte
-	responseElements   []string
-	lastFetchID        int
-	patches            []patch
-	usedBuffers        []*bytes.Buffer
-	currentPatch       int
-	maxPatch           int
-	pathPrefix         []byte
-	dataLoader         *dataLoader
-	beforeFetchHook    BeforeFetchHook
-	afterFetchHook     AfterFetchHook
-	position           Position
-	RenameTypeNames    []RenameTypeName
-	undefinedVariables []string
+	ctx              context.Context
+	Variables        []byte
+	Request          Request
+	pathElements     [][]byte
+	responseElements []string
+	lastFetchID      int
+	patches          []patch
+	usedBuffers      []*bytes.Buffer
+	currentPatch     int
+	maxPatch         int
+	pathPrefix       []byte
+	dataLoader       *dataLoader
+	beforeFetchHook  BeforeFetchHook
+	afterFetchHook   AfterFetchHook
+	position         Position
+	RenameTypeNames  []RenameTypeName
 }
 
 type Request struct {
@@ -169,7 +168,7 @@ func (c *Context) WithContext(ctx context.Context) *Context {
 	return &cpy
 }
 
-func (c *Context) Clone() Context {
+func (c *Context) clone() Context {
 	variables := make([]byte, len(c.Variables))
 	copy(variables, c.Variables)
 	pathPrefix := make([]byte, len(c.pathPrefix))
@@ -191,22 +190,19 @@ func (c *Context) Clone() Context {
 		copy(patches[i].extraPath, c.patches[i].extraPath)
 		copy(patches[i].data, c.patches[i].data)
 	}
-	undefinedVariables := make([]string, len(c.undefinedVariables))
-	copy(undefinedVariables, c.undefinedVariables)
 	return Context{
-		ctx:                c.ctx,
-		Variables:          variables,
-		Request:            c.Request,
-		pathElements:       pathElements,
-		patches:            patches,
-		usedBuffers:        make([]*bytes.Buffer, 0, 48),
-		currentPatch:       c.currentPatch,
-		maxPatch:           c.maxPatch,
-		pathPrefix:         pathPrefix,
-		beforeFetchHook:    c.beforeFetchHook,
-		afterFetchHook:     c.afterFetchHook,
-		position:           c.position,
-		undefinedVariables: undefinedVariables,
+		ctx:             c.ctx,
+		Variables:       variables,
+		Request:         c.Request,
+		pathElements:    pathElements,
+		patches:         patches,
+		usedBuffers:     make([]*bytes.Buffer, 0, 48),
+		currentPatch:    c.currentPatch,
+		maxPatch:        c.maxPatch,
+		pathPrefix:      pathPrefix,
+		beforeFetchHook: c.beforeFetchHook,
+		afterFetchHook:  c.afterFetchHook,
+		position:        c.position,
 	}
 }
 
@@ -308,15 +304,6 @@ func (c *Context) popNextPatch() (patch patch, ok bool) {
 	return c.patches[c.currentPatch], true
 }
 
-func (c *Context) SetUndefinedVariables(undefinedVariables []string) {
-	c.undefinedVariables = c.undefinedVariables[:0]
-	c.undefinedVariables = append(c.undefinedVariables, undefinedVariables...)
-}
-
-func (c *Context) UndefinedVariables() []string {
-	return c.undefinedVariables[0:len(c.undefinedVariables):len(c.undefinedVariables)]
-}
-
 type patch struct {
 	path, extraPath, data []byte
 	index                 int
@@ -338,7 +325,7 @@ type DataSourceBatch interface {
 }
 
 type DataSource interface {
-	Load(ctx *Context, input []byte, w io.Writer) (err error)
+	Load(ctx context.Context, input []byte, w io.Writer) (err error)
 }
 
 type SubscriptionDataSource interface {
@@ -852,7 +839,7 @@ func (r *Resolver) resolveArrayAsynchronous(ctx *Context, array *Array, arrayIte
 		itemBuf := r.getBufPair()
 		*bufSlice = append(*bufSlice, itemBuf)
 		itemData := (*arrayItems)[i]
-		cloned := ctx.Clone()
+		cloned := ctx.clone()
 		go func(ctx Context, i int) {
 			ctx.addPathElement([]byte(strconv.Itoa(i)))
 			if e := r.resolveNode(&ctx, array.Item, itemData, itemBuf); e != nil && !errors.Is(e, errTypeNameSkipped) {

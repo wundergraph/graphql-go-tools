@@ -12,7 +12,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 )
 
@@ -168,6 +167,6 @@ type Source struct {
 	client *http.Client
 }
 
-func (s *Source) Load(ctx *resolve.Context, input []byte, w io.Writer) (err error) {
-	return httpclient.Do(s.client, ctx.Context(), input, w)
+func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
+	return httpclient.Do(s.client, ctx, input, w)
 }

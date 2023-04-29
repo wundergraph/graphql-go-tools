@@ -14,7 +14,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/testing/flags"
 )
 
-// This tests is produces data races in the generated gql code. Disable it when the race
+// This tests produces data races in the generated gql code. Disable it when the race
 // detector is enabled.
 func TestExecutionEngineV2_FederationAndSubscription_IntegrationTest(t *testing.T) {
 	if flags.IsWindows {

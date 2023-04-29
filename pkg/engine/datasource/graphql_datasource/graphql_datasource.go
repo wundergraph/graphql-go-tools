@@ -1329,7 +1329,8 @@ type Source struct {
 	httpClient *http.Client
 }
 
-func (s *Source) compactAndUnNullVariables(input []byte, undefinedVariables []string) []byte {
+func (s *Source) compactAndUnNullVariables(input []byte) []byte {
+	undefinedVariables := httpclient.UndefinedVariables(input)
 	variables, _, _, err := jsonparser.Get(input, "body", "variables")
 	if err != nil {
 		return input
@@ -1339,7 +1340,9 @@ func (s *Source) compactAndUnNullVariables(input []byte, undefinedVariables []st
 	}
 	if bytes.ContainsAny(variables, " \t\n\r") {
 		buf := bytes.NewBuffer(make([]byte, 0, len(variables)))
-		_ = json.Compact(buf, variables)
+		if err := json.Compact(buf, variables); err != nil {
+			panic(fmt.Errorf("compacting variables: %w", err))
+		}
 		variables = buf.Bytes()
 	}
 
@@ -1408,11 +1411,9 @@ func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
 	return variables, false
 }
 
-func (s *Source) Load(ctx *resolve.Context, input []byte, writer io.Writer) (err error) {
-	undefinedVariables := ctx.UndefinedVariables()
-
-	input = s.compactAndUnNullVariables(input, undefinedVariables)
-	return httpclient.Do(s.httpClient, ctx.Context(), input, writer)
+func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err error) {
+	input = s.compactAndUnNullVariables(input)
+	return httpclient.Do(s.httpClient, ctx, input, writer)
 }
 
 type GraphQLSubscriptionClient interface {

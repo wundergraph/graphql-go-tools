@@ -7,6 +7,7 @@ import (
 
 	"github.com/buger/jsonparser"
 
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/pkg/fastbuffer"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 )
@@ -71,9 +72,11 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuf
 	}
 
 	if len(undefinedVariables) > 0 {
-		ctx.SetUndefinedVariables(undefinedVariables)
+		output := httpclient.SetUndefinedVariables(preparedInput.Bytes(), undefinedVariables)
+		// The returned slice might be different, we need to copy back the data
+		preparedInput.Reset()
+		preparedInput.WriteBytes(output)
 	}
-
 	return nil
 }
 
