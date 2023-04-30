@@ -589,12 +589,8 @@ func TestHandler_Handle(t *testing.T) {
 				go sendChatMutation(t, chatServer.URL)
 
 				require.Eventually(t, func() bool {
-					ok := client.hasMoreMessagesThan(0)
-					if ok {
-						fmt.Println("SATISFIED")
-					}
-					return ok
-				}, 5*time.Second, 10*time.Millisecond)
+					return client.hasMoreMessagesThan(0)
+				}, 1*time.Second, 10*time.Millisecond)
 
 				expectedMessage := Message{
 					Id:      "1",
@@ -846,7 +842,6 @@ func setupSubscriptionHandlerWithInitFuncTest(
 	routine = func(ctx context.Context) func() bool {
 		return func() bool {
 			subscriptionHandler.Handle(ctx)
-			fmt.Println("setupSubscriptionHandlerWithInitFuncTest routine exiting")
 			return true
 		}
 	}
