@@ -10,13 +10,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        go: [ '^1.19', '^1.20' ]
+        go: [ '1.19', '1.20' ]
         os: [ubuntu-latest, windows-latest]
     steps:
       - name: Set up Go ${{ matrix.go }}
         uses: actions/setup-go@v4
         with:
-          go-version: ${{ matrix.go }}
+          go-version: ^${{ matrix.go }}
         id: go
       - name: Set git to use LF
         run: |
