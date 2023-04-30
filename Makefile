@@ -8,12 +8,15 @@ HAS_CORRECT_VERSION := $(shell command -v if [[ $(INSTALLED_VERSION) == *$(GOLAN
 
 .PHONY: test
 test:
-	go test -race ./...
 	go test ./...
 
 .PHONY: test-quick
 test-quick:
 	go test -count=1 ./...
+
+.PHONY: test-race
+test-race:
+	go test -race ./...
 
 # updateTestFixtures will update all! golden fixtures
 .PHONY: updateTestFixtures
