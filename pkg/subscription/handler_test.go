@@ -583,13 +583,17 @@ func TestHandler_Handle(t *testing.T) {
 				handlerRoutineFunc := handlerRoutine(ctx)
 				go handlerRoutineFunc()
 
-				time.Sleep(10 * time.Millisecond)
+				time.Sleep(50 * time.Millisecond)
 				defer cancelFunc()
 
 				go sendChatMutation(t, chatServer.URL)
 
 				require.Eventually(t, func() bool {
-					return client.hasMoreMessagesThan(0)
+					ok := client.hasMoreMessagesThan(0)
+					if ok {
+						fmt.Println("SATISFIED")
+					}
+					return ok
 				}, 5*time.Second, 10*time.Millisecond)
 
 				expectedMessage := Message{
@@ -842,6 +846,7 @@ func setupSubscriptionHandlerWithInitFuncTest(
 	routine = func(ctx context.Context) func() bool {
 		return func() bool {
 			subscriptionHandler.Handle(ctx)
+			fmt.Println("setupSubscriptionHandlerWithInitFuncTest routine exiting")
 			return true
 		}
 	}
