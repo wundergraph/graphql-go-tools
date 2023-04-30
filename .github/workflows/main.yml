@@ -10,11 +10,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        go: [ '1.18' ]
+        go: [ '^1.19', '^1.20' ]
         os: [ubuntu-latest, windows-latest]
     steps:
       - name: Set up Go ${{ matrix.go }}
-        uses: actions/setup-go@v1
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go }}
         id: go
@@ -23,6 +23,6 @@ jobs:
           git config --global core.autocrlf false
           git config --global core.eol lf
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v1
+        uses: actions/checkout@v3
       - name: CI
         run: make ci
