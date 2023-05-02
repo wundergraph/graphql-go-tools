@@ -35,6 +35,31 @@ func TestUnmarshalRequest(t *testing.T) {
 	})
 }
 
+func TestMarshalRequestString(t *testing.T) {
+	t.Run("should omit empties", func(t *testing.T) {
+		gqlRequest := Request{
+			OperationName: "",
+			Query:         "query { hello }",
+			Variables:     nil,
+		}
+		result, err := MarshalRequestString(gqlRequest)
+		expected := `{"query":"query { hello }"}`
+		assert.NoError(t, err)
+		assert.Equal(t, expected, result)
+	})
+	t.Run("should marshal all fields", func(t *testing.T) {
+		gqlRequest := Request{
+			OperationName: "MyQuery",
+			Query:         "query MyQuery { hello }",
+			Variables:     []byte(`{"variable":"value"}`),
+		}
+		result, err := MarshalRequestString(gqlRequest)
+		expected := `{"operationName":"MyQuery","variables":{"variable":"value"},"query":"query MyQuery { hello }"}`
+		assert.NoError(t, err)
+		assert.Equal(t, expected, result)
+	})
+}
+
 func TestRequest_Print(t *testing.T) {
 	query := "query Hello { hello }"
 	request := Request{

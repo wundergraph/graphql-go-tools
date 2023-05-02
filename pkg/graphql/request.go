@@ -34,8 +34,8 @@ var (
 )
 
 type Request struct {
-	OperationName string          `json:"operationName"`
-	Variables     json.RawMessage `json:"variables"`
+	OperationName string          `json:"operationName,omitempty"`
+	Variables     json.RawMessage `json:"variables,omitempty"`
 	Query         string          `json:"query"`
 
 	document     ast.Document
@@ -62,6 +62,18 @@ func UnmarshalRequest(reader io.Reader, request *Request) error {
 func UnmarshalHttpRequest(r *http.Request, request *Request) error {
 	request.request.Header = r.Header
 	return UnmarshalRequest(r.Body, request)
+}
+
+func MarshalRequest(graphqlRequest Request) ([]byte, error) {
+	return json.Marshal(graphqlRequest)
+}
+
+func MarshalRequestString(graphqlRequest Request) (string, error) {
+	result, err := MarshalRequest(graphqlRequest)
+	if err != nil {
+		return "", err
+	}
+	return string(result), nil
 }
 
 func (r *Request) SetHeader(header http.Header) {
