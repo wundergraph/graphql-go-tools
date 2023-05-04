@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -28,6 +29,15 @@ func logger() log.Logger {
 	return log.NewZapLogger(logger, log.DebugLevel)
 }
 
+func fallback(sc *ServiceConfig) (string, error) {
+	dat, err := os.ReadFile(sc.Name + "/graph/schema.graphqls")
+	if err != nil {
+		return "", err
+	}
+
+	return string(dat), nil
+}
+
 func startServer() {
 	logger := logger()
 	logger.Info("logger initialized")
@@ -49,7 +59,7 @@ func startServer() {
 
 	datasourceWatcher := NewDatasourcePoller(httpClient, DatasourcePollerConfig{
 		Services: []ServiceConfig{
-			{Name: "accounts", URL: "http://localhost:4001/query"},
+			{Name: "accounts", URL: "http://localhost:4008/query", Fallback: fallback},
 			{Name: "products", URL: "http://localhost:4002/query", WS: "ws://localhost:4002/query"},
 			{Name: "reviews", URL: "http://localhost:4003/query"},
 		},
