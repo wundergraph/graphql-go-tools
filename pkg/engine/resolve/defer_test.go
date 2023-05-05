@@ -424,7 +424,7 @@ func BenchmarkDefer(b *testing.B) {
 		_ = resolver.ResolveGraphQLStreamingResponse(ctx, res, nil, writer)
 
 		ctx.Free()
-		ctx.Context = bgCtx
+		ctx.ctx = bgCtx
 		// writer.flushed = writer.flushed[:0]
 	}
 }

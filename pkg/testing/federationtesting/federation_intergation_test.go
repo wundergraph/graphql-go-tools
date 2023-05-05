@@ -1,3 +1,5 @@
+//go:build !race
+
 package federationtesting
 
 import (
@@ -62,6 +64,8 @@ func (f *federationSetup) close() {
 	f.gatewayServer.Close()
 }
 
+// This tests produces data races in the generated gql code. Disable it when the race
+// detector is enabled.
 func TestFederationIntegrationTest(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

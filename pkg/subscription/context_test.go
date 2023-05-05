@@ -28,15 +28,15 @@ func TestSubscriptionCancellations(t *testing.T) {
 	var ctx context.Context
 
 	t.Run("should add a cancellation func to map", func(t *testing.T) {
-		require.Equal(t, 0, len(cancellations))
+		require.Equal(t, 0, cancellations.Len())
 
 		ctx = cancellations.AddWithParent("1", context.Background())
-		assert.Equal(t, 1, len(cancellations))
+		assert.Equal(t, 1, cancellations.Len())
 		assert.NotNil(t, ctx)
 	})
 
 	t.Run("should execute cancellation from map", func(t *testing.T) {
-		require.Equal(t, 1, len(cancellations))
+		require.Equal(t, 1, cancellations.Len())
 		ctxTestFunc := func() bool {
 			<-ctx.Done()
 			return true
@@ -45,6 +45,6 @@ func TestSubscriptionCancellations(t *testing.T) {
 		ok := cancellations.Cancel("1")
 		assert.Eventually(t, ctxTestFunc, time.Second, 5*time.Millisecond)
 		assert.True(t, ok)
-		assert.Equal(t, 0, len(cancellations))
+		assert.Equal(t, 0, cancellations.Len())
 	})
 }

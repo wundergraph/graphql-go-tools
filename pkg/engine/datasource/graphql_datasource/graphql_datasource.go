@@ -1329,7 +1329,8 @@ type Source struct {
 	httpClient *http.Client
 }
 
-func (s *Source) compactAndUnNullVariables(input []byte, undefinedVariables []string) []byte {
+func (s *Source) compactAndUnNullVariables(input []byte) []byte {
+	undefinedVariables := httpclient.UndefinedVariables(input)
 	variables, _, _, err := jsonparser.Get(input, "body", "variables")
 	if err != nil {
 		return input
@@ -1339,7 +1340,9 @@ func (s *Source) compactAndUnNullVariables(input []byte, undefinedVariables []st
 	}
 	if bytes.ContainsAny(variables, " \t\n\r") {
 		buf := bytes.NewBuffer(make([]byte, 0, len(variables)))
-		_ = json.Compact(buf, variables)
+		if err := json.Compact(buf, variables); err != nil {
+			panic(fmt.Errorf("compacting variables: %w", err))
+		}
 		variables = buf.Bytes()
 	}
 
@@ -1409,9 +1412,7 @@ func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err error) {
-	undefinedVariables := httpclient.CtxGetUndefinedVariables(ctx)
-
-	input = s.compactAndUnNullVariables(input, undefinedVariables)
+	input = s.compactAndUnNullVariables(input)
 	return httpclient.Do(s.httpClient, ctx, input, writer)
 }
 

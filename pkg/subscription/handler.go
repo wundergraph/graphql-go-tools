@@ -76,7 +76,7 @@ type Handler struct {
 	keepAliveInterval time.Duration
 	// subscriptionUpdateInterval is the actual interval on which the server sends subscription updates to the client.
 	subscriptionUpdateInterval time.Duration
-	// subCancellations is map containing the cancellation functions to every active subscription.
+	// subCancellations stores a map containing the cancellation functions to every active subscription.
 	subCancellations subscriptionCancellations
 	// executorPool is responsible to create and hold executors.
 	executorPool ExecutorPool
@@ -126,9 +126,7 @@ func NewHandler(logger abstractlogger.Logger, client Client, executorPool Execut
 
 // Handle will handle the subscription connection.
 func (h *Handler) Handle(ctx context.Context) {
-	defer func() {
-		h.subCancellations.CancelAll()
-	}()
+	defer h.subCancellations.CancelAll()
 
 	for {
 		if !h.client.IsConnected() {
@@ -508,5 +506,5 @@ func (h *Handler) handleError(id string, errors graphql.RequestErrors) {
 
 // ActiveSubscriptions will return the actual number of active subscriptions for that client.
 func (h *Handler) ActiveSubscriptions() int {
-	return len(h.subCancellations)
+	return h.subCancellations.Len()
 }

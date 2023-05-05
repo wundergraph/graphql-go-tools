@@ -115,7 +115,7 @@ type AfterFetchHook interface {
 }
 
 type Context struct {
-	context.Context
+	ctx              context.Context
 	Variables        []byte
 	Request          Request
 	pathElements     [][]byte
@@ -138,8 +138,11 @@ type Request struct {
 }
 
 func NewContext(ctx context.Context) *Context {
+	if ctx == nil {
+		panic("nil context.Context")
+	}
 	return &Context{
-		Context:      ctx,
+		ctx:          ctx,
 		Variables:    make([]byte, 0, 4096),
 		pathPrefix:   make([]byte, 0, 4096),
 		pathElements: make([][]byte, 0, 16),
@@ -152,7 +155,20 @@ func NewContext(ctx context.Context) *Context {
 	}
 }
 
-func (c *Context) Clone() Context {
+func (c *Context) Context() context.Context {
+	return c.ctx
+}
+
+func (c *Context) WithContext(ctx context.Context) *Context {
+	if ctx == nil {
+		panic("nil context.Context")
+	}
+	cpy := *c
+	cpy.ctx = ctx
+	return &cpy
+}
+
+func (c *Context) clone() Context {
 	variables := make([]byte, len(c.Variables))
 	copy(variables, c.Variables)
 	pathPrefix := make([]byte, len(c.pathPrefix))
@@ -175,7 +191,7 @@ func (c *Context) Clone() Context {
 		copy(patches[i].data, c.patches[i].data)
 	}
 	return Context{
-		Context:         c.Context,
+		ctx:             c.ctx,
 		Variables:       variables,
 		Request:         c.Request,
 		pathElements:    pathElements,
@@ -191,7 +207,7 @@ func (c *Context) Clone() Context {
 }
 
 func (c *Context) Free() {
-	c.Context = nil
+	c.ctx = nil
 	c.Variables = c.Variables[:0]
 	c.pathPrefix = c.pathPrefix[:0]
 	c.pathElements = c.pathElements[:0]
@@ -530,7 +546,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	copy(subscriptionInput, rendered)
 	r.freeBufPair(buf)
 
-	c, cancel := context.WithCancel(ctx)
+	c, cancel := context.WithCancel(ctx.Context())
 	defer cancel()
 	resolverDone := r.ctx.Done()
 
@@ -586,7 +602,7 @@ func (r *Resolver) ResolveGraphQLStreamingResponse(ctx *Context, response *Graph
 
 	buf.Write(literal.LBRACK)
 
-	done := ctx.Context.Done()
+	done := ctx.Context().Done()
 
 Loop:
 	for {
@@ -823,7 +839,7 @@ func (r *Resolver) resolveArrayAsynchronous(ctx *Context, array *Array, arrayIte
 		itemBuf := r.getBufPair()
 		*bufSlice = append(*bufSlice, itemBuf)
 		itemData := (*arrayItems)[i]
-		cloned := ctx.Clone()
+		cloned := ctx.clone()
 		go func(ctx Context, i int) {
 			ctx.addPathElement([]byte(strconv.Itoa(i)))
 			if e := r.resolveNode(&ctx, array.Item, itemData, itemBuf); e != nil && !errors.Is(e, errTypeNameSkipped) {
@@ -1224,7 +1240,7 @@ func (r *Resolver) freeResultSet(set *resultSet) {
 
 func (r *Resolver) resolveFetch(ctx *Context, fetch Fetch, data []byte, set *resultSet) (err error) {
 	// if context is cancelled, we should not resolve the fetch
-	if errors.Is(ctx.Err(), context.Canceled) {
+	if errors.Is(ctx.Context().Err(), context.Canceled) {
 		return nil
 	}
 
