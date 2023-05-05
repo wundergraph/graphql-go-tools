@@ -6,7 +6,7 @@ on:
       - master
 jobs:
   test:
-    name: Build (go ${{ matrix.go }} / ${{ matrix.os }})
+    name: Build and test (go ${{ matrix.go }} / ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -31,7 +31,9 @@ jobs:
         run: make test-race
 
   lint:
-      runs-on: ubuntu-latest
+    name: Linters
+    runs-on: ubuntu-latest
+    steps:
       - name: Set up Go 1.20
         uses: actions/setup-go@v4
         with:
