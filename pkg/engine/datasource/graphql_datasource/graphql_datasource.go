@@ -523,6 +523,7 @@ func (p *Planner) EnterField(ref int) {
 	}
 
 	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(enclosingTypeName, fieldName)
+	// if subgraph does not have type then ignore `__typename` field
 	if fieldConfiguration == nil && fieldName != "__typename" {
 		p.addField(ref)
 		return
@@ -531,7 +532,9 @@ func (p *Planner) EnterField(ref int) {
 	// Note: federated fields always have a field configuration because at
 	// least the federation key for the type the field lives on is required
 	// (and required fields are specified in the configuration).
-	p.handleFederation(fieldConfiguration)
+	if fieldConfiguration != nil {
+		p.handleFederation(fieldConfiguration)
+	}
 	p.addField(ref)
 
 	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
