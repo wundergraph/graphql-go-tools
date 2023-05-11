@@ -4,11 +4,11 @@ schema {
 
 type Query {
     "Return an author."
-    author(authorId: String): Author
+    author(authorId: String!): Author
     "Return a book."
-    book(bookId: String): Book
+    book(bookId: String!): Book
     "Return the author's next work."
-    nextWork(authorId: String): NextWork
+    nextWork(authorId: String!): NextWork
 }
 
 "An author"

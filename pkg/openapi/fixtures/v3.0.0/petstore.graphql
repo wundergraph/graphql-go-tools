@@ -7,7 +7,7 @@ type Query {
     "List all pets"
     listPets(limit: Int): [Pet]
     "Info for a specific pet"
-    showPetById(petId: String): Pet
+    showPetById(petId: String!): Pet
 }
 
 type Mutation {
@@ -16,7 +16,7 @@ type Mutation {
 }
 
 type Pet {
-    id: Int
-    name: String
+    id: Int!
+    name: String!
     tag: String
 }

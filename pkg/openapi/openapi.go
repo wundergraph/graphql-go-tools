@@ -75,6 +75,23 @@ func getTypeRef(kind string) (introspection.TypeRef, error) {
 	return introspection.TypeRef{}, fmt.Errorf("unknown type: %s", kind)
 }
 
+func isNonNullable(name string, required []string) bool {
+	for _, item := range required {
+		if item == name {
+			return true
+		}
+	}
+	return false
+}
+
+func convertToNonNull(ofType *introspection.TypeRef) introspection.TypeRef {
+	copiedOfType := *ofType
+	nonNullType := introspection.TypeRef{Kind: 2}
+	nonNullType.OfType = &copiedOfType
+	nonNullType.Name = copiedOfType.Name
+	return nonNullType
+}
+
 func getParamTypeRef(kind string) (introspection.TypeRef, error) {
 	// See introspection_enum.go
 	switch kind {
@@ -124,8 +141,8 @@ func extractFullTypeNameFromRef(ref string) string {
 	return strcase.ToCamel(parsed[len(parsed)-1])
 }
 
-func (c *converter) processSchemaProperties(fullType *introspection.FullType, schemas openapi3.Schemas) error {
-	for name, schemaRef := range schemas {
+func (c *converter) processSchemaProperties(fullType *introspection.FullType, schema openapi3.Schema) error {
+	for name, schemaRef := range schema.Properties {
 		gqlType, err := c.getGraphQLTypeName(schemaRef)
 		if err != nil {
 			return err
@@ -136,6 +153,10 @@ func (c *converter) processSchemaProperties(fullType *introspection.FullType, sc
 			return err
 		}
 		typeRef.Name = &gqlType
+		if isNonNullable(name, schema.Required) {
+			typeRef = convertToNonNull(&typeRef)
+		}
+
 		field := introspection.Field{
 			Name:        name,
 			Type:        typeRef,
@@ -160,8 +181,10 @@ func (c *converter) processInputFields(ft *introspection.FullType, schemaRef *op
 		if err != nil {
 			return err
 		}
-
 		typeRef.Name = &gqlType
+		if isNonNullable(propertyName, schemaRef.Value.Required) {
+			typeRef = convertToNonNull(&typeRef)
+		}
 		f := introspection.InputValue{
 			Name: propertyName,
 			Type: typeRef,
@@ -188,14 +211,14 @@ func (c *converter) processArray(schema *openapi3.SchemaRef) error {
 	}
 	typeOfElements := schema.Value.Items.Value.Type
 	if typeOfElements == "object" {
-		err := c.processSchemaProperties(&ft, schema.Value.Items.Value.Properties)
+		err := c.processSchemaProperties(&ft, *schema.Value.Items.Value)
 		if err != nil {
 			return err
 		}
 	} else {
 		for _, item := range schema.Value.Items.Value.AllOf {
 			if item.Value.Type == "object" {
-				err := c.processSchemaProperties(&ft, item.Value.Properties)
+				err := c.processSchemaProperties(&ft, *item.Value)
 				if err != nil {
 					return err
 				}
@@ -219,7 +242,7 @@ func (c *converter) processObject(schema *openapi3.SchemaRef) error {
 		Name:        fullTypeName,
 		Description: schema.Value.Description,
 	}
-	err := c.processSchemaProperties(&ft, schema.Value.Properties)
+	err := c.processSchemaProperties(&ft, *schema.Value)
 	if err != nil {
 		return err
 	}
@@ -346,7 +369,7 @@ func getJSONSchemaFromRequestBody(operation *openapi3.Operation) *openapi3.Schem
 	return nil
 }
 
-func (c *converter) importQueryTypeFieldParameter(field *introspection.Field, name string, schema *openapi3.SchemaRef) error {
+func (c *converter) importQueryTypeFieldParameter(field *introspection.Field, parameter *openapi3.Parameter, schema *openapi3.SchemaRef) error {
 	paramType := schema.Value.Type
 	if paramType == "array" {
 		paramType = schema.Value.Items.Value.Type
@@ -356,7 +379,6 @@ func (c *converter) importQueryTypeFieldParameter(field *introspection.Field, na
 	if err != nil {
 		return err
 	}
-
 	gqlType, err := getPrimitiveGraphQLTypeName(paramType)
 	if err != nil {
 		return err
@@ -373,8 +395,11 @@ func (c *converter) importQueryTypeFieldParameter(field *introspection.Field, na
 	}
 
 	typeRef.Name = &gqlType
+	if parameter.Required {
+		typeRef = convertToNonNull(&typeRef)
+	}
 	iv := introspection.InputValue{
-		Name: name,
+		Name: parameter.Name,
 		Type: typeRef,
 	}
 
@@ -403,7 +428,7 @@ func (c *converter) importQueryTypeFields(typeRef *introspection.TypeRef, operat
 		if schema == nil {
 			continue
 		}
-		err := c.importQueryTypeFieldParameter(&f, parameter.Value.Name, schema)
+		err := c.importQueryTypeFieldParameter(&f, parameter.Value, schema)
 		if err != nil {
 			return nil, err
 		}
@@ -440,8 +465,7 @@ func (c *converter) importQueryType() (*introspection.FullType, error) {
 				if schema == nil {
 					continue
 				}
-				getJSONSchema(status, operation)
-				kind := getJSONSchema(status, operation).Value.Type
+				kind := schema.Value.Type
 				if kind == "" {
 					// We assume that it is an object type.
 					kind = "object"
@@ -456,7 +480,6 @@ func (c *converter) importQueryType() (*introspection.FullType, error) {
 					// Array of some type
 					typeRef.OfType = &introspection.TypeRef{Kind: 3, Name: &typeName}
 				}
-
 				typeRef.Name = &typeName
 				queryField, err := c.importQueryTypeFields(&typeRef, operation)
 				if err != nil {
@@ -571,16 +594,23 @@ func (c *converter) importMutationType() (*introspection.FullType, error) {
 					if err != nil {
 						return nil, err
 					}
-					f.Args = append(f.Args, *inputValue)
-				} else {
-					for _, parameter := range operation.Parameters {
-						inputValue, err = c.addParameters(parameter.Value.Name, parameter.Value.Schema)
-						if err != nil {
-							return nil, err
-						}
-						f.Args = append(f.Args, *inputValue)
+					if operation.RequestBody.Value.Required {
+						inputValue.Type = convertToNonNull(&inputValue.Type)
 					}
+					f.Args = append(f.Args, *inputValue)
 				}
+
+				for _, parameter := range operation.Parameters {
+					inputValue, err = c.addParameters(parameter.Value.Name, parameter.Value.Schema)
+					if err != nil {
+						return nil, err
+					}
+					if parameter.Value.Required {
+						inputValue.Type = convertToNonNull(&inputValue.Type)
+					}
+					f.Args = append(f.Args, *inputValue)
+				}
+
 				sort.Slice(f.Args, func(i, j int) bool {
 					return f.Args[i].Name < f.Args[j].Name
 				})

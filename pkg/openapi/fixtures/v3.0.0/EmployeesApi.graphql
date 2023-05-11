@@ -13,7 +13,7 @@ type Query {
     Get an employee
     Uses the getEmployee Db2 z/OS asset
     """
-    employeesIdGet(id: String): EmployeeBody
+    employeesIdGet(id: String!): EmployeeBody
 }
 
 type Mutation {
@@ -21,12 +21,12 @@ type Mutation {
     Delete an employee
     Uses the deleteEmployee Db2 z/OS asset
     """
-    employeesIdDelete(id: String): EmployeeNumber
+    employeesIdDelete(id: String!): EmployeeNumber
     """
     Update an employee
     Uses the updateEmployee Db2 z/OS asset
     """
-    employeesIdPut(employeeBodyInput: EmployeeBodyInput): EmployeeBody
+    employeesIdPut(employeeBodyInput: EmployeeBodyInput, id: String!): EmployeeBody
     """
     Add an employee
     Uses the addEmployee Db2 z/OS asset

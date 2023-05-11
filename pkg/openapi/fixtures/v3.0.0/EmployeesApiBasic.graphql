@@ -10,7 +10,7 @@ type Query {
 
 type Mutation {
     "Uses the updateEmployee Db2 z/OS asset"
-    putEmployeesId(employeeBodyInput: EmployeeBodyInput): EmployeeBody
+    putEmployeesId(employeeBodyInput: EmployeeBodyInput, id: String!): EmployeeBody
 }
 
 type EmployeeBody {

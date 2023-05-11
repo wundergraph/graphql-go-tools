@@ -5,7 +5,7 @@ schema {
 
 type Query {
     "Find a device by name."
-    findDeviceByName(deviceName: String): Device
+    findDeviceByName(deviceName: String!): Device
     "Return a device collection."
     findDevices: [Device]
     "Return a user."
@@ -14,23 +14,23 @@ type Query {
 
 type Mutation {
     "Create and return a device."
-    createDevice(deviceInput: DeviceInput): Device
+    createDevice(deviceInput: DeviceInput!): Device
     "Replace a device by name."
-    replaceDeviceByName(deviceInput: DeviceInput): Device
+    replaceDeviceByName(deviceInput: DeviceInput!, deviceName: String!): Device
 }
 
 type Device {
     "The device name in the network"
-    name: String
+    name: String!
     status: Boolean
     "The device owner Name"
-    userName: String
+    userName: String!
 }
 
 input DeviceInput {
-    name: String
+    name: String!
     status: Boolean
-    userName: String
+    userName: String!
 }
 
 "A user represents a natural person"
