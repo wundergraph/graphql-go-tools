@@ -201,16 +201,18 @@ func NewValidatorFromString(schema string) (*Validator, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Run validator once to make it set up its internal state, otherwise we
+	// run into a data race in https://github.com/qri-io/jsonschema/blob/master/schema.go#L60
+	validator.schema.Validate(context.Background(), []byte{})
 	return &validator, nil
 }
 
 func MustNewValidatorFromString(schema string) *Validator {
-	var validator Validator
-	err := json.Unmarshal([]byte(schema), &validator.schema)
+	validator, err := NewValidatorFromString(schema)
 	if err != nil {
 		panic(err)
 	}
-	return &validator
+	return validator
 }
 
 func TopLevelType(schema string) (jsonparser.ValueType, error) {
