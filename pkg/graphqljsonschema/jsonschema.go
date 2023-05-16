@@ -105,7 +105,7 @@ func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, t
 		}
 		typeDefinitionNode, ok := definition.Index.FirstNodeByNameStr(name)
 		if !ok {
-			return nil
+			return NewAny()
 		}
 		if typeDefinitionNode.Kind == ast.NodeKindEnumTypeDefinition {
 			return NewString(nonNull)

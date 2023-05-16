@@ -269,6 +269,13 @@ func TestJsonSchema(t *testing.T) {
 		},
 		WithPath([]string{"pet", "name"}),
 	))
+	t.Run("not defined scalar", runTest(
+		`input Container { name: MyScalar }`,
+		`query ($input: Container){}`,
+		`{"type":["object", "null"], "properties": {"name": {}}, "additionalProperties": false}`,
+		[]string{},
+		[]string{},
+	))
 }
 
 const complexRecursiveSchema = `
