@@ -287,7 +287,7 @@ type String struct {
 	Type []string `json:"type"`
 }
 
-func (_ String) Kind() Kind {
+func (String) Kind() Kind {
 	return StringKind
 }
 
@@ -301,7 +301,7 @@ type ID struct {
 	Type []string `json:"type"`
 }
 
-func (_ ID) Kind() Kind {
+func (ID) Kind() Kind {
 	return IDKind
 }
 
@@ -315,7 +315,7 @@ type Boolean struct {
 	Type []string `json:"type"`
 }
 
-func (_ Boolean) Kind() Kind {
+func (Boolean) Kind() Kind {
 	return BooleanKind
 }
 
@@ -335,7 +335,7 @@ func NewNumber(nonNull bool) Number {
 	}
 }
 
-func (_ Number) Kind() Kind {
+func (Number) Kind() Kind {
 	return NumberKind
 }
 
@@ -343,7 +343,7 @@ type Integer struct {
 	Type []string `json:"type"`
 }
 
-func (_ Integer) Kind() Kind {
+func (Integer) Kind() Kind {
 	return IntegerKind
 }
 
@@ -357,7 +357,7 @@ type Ref struct {
 	Ref string `json:"$ref"`
 }
 
-func (_ Ref) Kind() Kind {
+func (Ref) Kind() Kind {
 	return RefKind
 }
 
@@ -375,7 +375,7 @@ type Object struct {
 	Defs                 map[string]JsonSchema `json:"$defs,omitempty"`
 }
 
-func (_ Object) Kind() Kind {
+func (Object) Kind() Kind {
 	return ObjectKind
 }
 
@@ -402,7 +402,7 @@ type Array struct {
 	Defs     map[string]JsonSchema `json:"$defs,omitempty"`
 }
 
-func (_ Array) Kind() Kind {
+func (Array) Kind() Kind {
 	return ArrayKind
 }
 
