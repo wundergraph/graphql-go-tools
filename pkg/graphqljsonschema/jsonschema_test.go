@@ -1,6 +1,7 @@
 package graphqljsonschema
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"testing"
@@ -11,15 +12,11 @@ import (
 )
 
 func prettyPrint(s string) string {
-	var v interface{}
-	if err := json.Unmarshal([]byte(s), &v); err != nil {
+	var out bytes.Buffer
+	if err := json.Indent(&out, []byte(s), "", "  "); err != nil {
 		panic(err)
 	}
-	pretty, err := json.MarshalIndent(v, "  ", "     ")
-	if err != nil {
-		panic(err)
-	}
-	return string(pretty)
+	return out.String()
 }
 
 func runTest(schema, operation, expectedJsonSchema string, valid []string, invalid []string, opts ...Option) func(t *testing.T) {
