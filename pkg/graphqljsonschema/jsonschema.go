@@ -4,10 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/buger/jsonparser"
-	"github.com/qri-io/jsonschema"
+	"github.com/santhosh-tekuri/jsonschema/v5"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 )
@@ -176,7 +175,7 @@ func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, t
 }
 
 type Validator struct {
-	schema jsonschema.Schema
+	schema *jsonschema.Schema
 }
 
 func NewValidatorFromSchema(schema JsonSchema) (*Validator, error) {
@@ -196,15 +195,13 @@ func MustNewValidatorFromSchema(schema JsonSchema) *Validator {
 }
 
 func NewValidatorFromString(schema string) (*Validator, error) {
-	var validator Validator
-	err := json.Unmarshal([]byte(schema), &validator.schema)
+	sch, err := jsonschema.CompileString("schema.json", schema)
 	if err != nil {
 		return nil, err
 	}
-	// Run validator once to make it set up its internal state, otherwise we
-	// run into a data race in https://github.com/qri-io/jsonschema/blob/master/schema.go#L60
-	validator.schema.Validate(context.Background(), []byte{})
-	return &validator, nil
+	return &Validator{
+		schema: sch,
+	}, nil
 }
 
 func MustNewValidatorFromString(schema string) *Validator {
@@ -215,13 +212,23 @@ func MustNewValidatorFromString(schema string) *Validator {
 	return validator
 }
 
+func (v *Validator) Validate(ctx context.Context, inputJSON []byte) error {
+	var value interface{}
+	if err := json.Unmarshal(inputJSON, &value); err != nil {
+		return err
+	}
+	if err := v.schema.Validate(value); err != nil {
+		return err
+	}
+	return nil
+}
+
 func TopLevelType(schema string) (jsonparser.ValueType, error) {
-	var jsonSchema jsonschema.Schema
-	err := json.Unmarshal([]byte(schema), &jsonSchema)
+	sch, err := jsonschema.CompileString("schema.json", schema)
 	if err != nil {
 		return jsonparser.Unknown, err
 	}
-	switch jsonSchema.TopLevelType() {
+	switch sch.Types[0] {
 	case "boolean":
 		return jsonparser.Boolean, nil
 	case "string":
@@ -239,23 +246,6 @@ func TopLevelType(schema string) (jsonparser.ValueType, error) {
 	default:
 		return jsonparser.NotExist, nil
 	}
-}
-
-func (v *Validator) Validate(ctx context.Context, inputJSON []byte) error {
-	errs, err := v.schema.ValidateBytes(ctx, inputJSON)
-	if err != nil {
-		// There was an issue performing the validation itself. Return a
-		// generic error so the input isn't exposed.
-		return fmt.Errorf("could not perform validation")
-	}
-	if len(errs) > 0 {
-		messages := make([]string, len(errs))
-		for i := range errs {
-			messages[i] = errs[i].Error()
-		}
-		return fmt.Errorf("validation failed: %v", strings.Join(messages, "; "))
-	}
-	return nil
 }
 
 type Kind int
