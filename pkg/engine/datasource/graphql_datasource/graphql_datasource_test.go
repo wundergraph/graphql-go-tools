@@ -7735,6 +7735,257 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 		DisableResolveFieldPositions: true,
 	}))
+	t.Run("test case for federation bug https://github.com/wundergraph/graphql-go-tools/issues/536", RunTest(federatedAuthorsBooksMoviesSchema, `query Authors {
+	  authors {
+		name
+		media {
+		  id
+		  ... on MovieMedia {
+			media {
+			  id
+			  title
+			}
+		  }
+		  ... on BookMedia {
+			media {
+			  id
+			  isbn
+			}
+		  }
+		}
+	  }
+	}`, "Authors", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					// dataloader needs __typenames for federated entities
+					Input:                 `{"method":"POST","url":"http://author.service","body":{"query":"{authors {name media {__typename id ... on MovieMedia {media {__typename id}} ... on BookMedia {media {__typename id}}}}}"}}`,
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("authors"),
+						Value: &resolve.Array{
+							Path:     []string{"authors"},
+							Nullable: true,
+							Item: &resolve.Object{
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path: []string{"name"},
+										},
+									},
+									{
+										Name: []byte("media"),
+										Value: &resolve.Array{
+											Path:     []string{"media"},
+											Nullable: true,
+											Item: &resolve.Object{
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("id"),
+														Value: &resolve.String{
+															Path: []string{"id"},
+														},
+													},
+													{
+														Name: []byte("media"),
+														Value: &resolve.Object{
+															Path: []string{"media"},
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.String{
+																		Path: []string{"id"},
+																	},
+																},
+																{
+																	Name:      []byte("title"),
+																	BufferID:  1,
+																	HasBuffer: true,
+																	Value: &resolve.String{
+																		Path: []string{"title"},
+																	},
+																},
+															},
+															Fetch: &resolve.BatchFetch{
+																Fetch: &resolve.SingleFetch{
+																	DataSource: &Source{},
+																	Input:      `{"method":"POST","url":"http://movie.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Movie {title}}}","variables":{"representations":[{"id":$$0$$,"__typename":"Movie"}]}}}`,
+																	Variables: resolve.NewVariables(
+																		&resolve.ContextVariable{
+																			Path:     []string{"id"},
+																			Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+																		},
+																	),
+																	DataSourceIdentifier: []byte("graphql_datasource.Source"),
+																	ProcessResponseConfig: resolve.ProcessResponseConfig{
+																		ExtractGraphqlResponse:    true,
+																		ExtractFederationEntities: true,
+																	},
+																	SetTemplateOutputToNullOnVariableNull: true,
+																},
+																BatchFactory: batchFactory,
+															},
+														},
+														OnTypeName: []byte("MovieMedia"),
+													},
+													{
+														Name: []byte("media"),
+														Value: &resolve.Object{
+															Path: []string{"media"},
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.String{
+																		Path: []string{"id"},
+																	},
+																},
+																{
+																	Name:      []byte("isbn"),
+																	BufferID:  2,
+																	HasBuffer: true,
+																	Value: &resolve.String{
+																		Path: []string{"isbn"},
+																	},
+																},
+															},
+															Fetch: &resolve.BatchFetch{
+																Fetch: &resolve.SingleFetch{
+																	DataSource: &Source{},
+																	Input:      `{"method":"POST","url":"http://book.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Book {isbn}}}","variables":{"representations":[{"id":$$0$$,"__typename":"Book"}]}}}`,
+																	Variables: resolve.NewVariables(
+																		&resolve.ContextVariable{
+																			Path:     []string{"id"},
+																			Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+																		},
+																	),
+																	DataSourceIdentifier: []byte("graphql_datasource.Source"),
+																	ProcessResponseConfig: resolve.ProcessResponseConfig{
+																		ExtractGraphqlResponse:    true,
+																		ExtractFederationEntities: true,
+																	},
+																	SetTemplateOutputToNullOnVariableNull: true,
+																},
+																BatchFactory: batchFactory,
+															},
+														},
+														OnTypeName: []byte("BookMedia"),
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Book",
+						FieldNames: []string{"id", "isbn"},
+					},
+				},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://book.service",
+					},
+					Federation: FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: bookSubgraphSchema,
+					},
+				}),
+				Factory: federationFactory,
+			},
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Movie",
+						FieldNames: []string{"id", "title"},
+					},
+				},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://movie.service",
+					},
+					Federation: FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: movieSubgraphSchema,
+					},
+				}),
+				Factory: federationFactory,
+			},
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"authors"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Author",
+						FieldNames: []string{"name", "media"},
+					},
+					{
+						TypeName:   "BookMedia",
+						FieldNames: []string{"id", "media"},
+					},
+					{
+						TypeName:   "Book",
+						FieldNames: []string{"id"},
+					},
+					{
+						TypeName:   "MovieMedia",
+						FieldNames: []string{"id", "media"},
+					},
+					{
+						TypeName:   "Movie",
+						FieldNames: []string{"id"},
+					},
+					{
+						TypeName:   "Media",
+						FieldNames: []string{"id"},
+					},
+				},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://author.service",
+					},
+					Federation: FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: authorSubgraphSchema,
+					},
+				}),
+				Factory: federationFactory,
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:       "Book",
+				FieldName:      "isbn",
+				RequiresFields: []string{"id"},
+			},
+			{
+				TypeName:       "Movie",
+				FieldName:      "title",
+				RequiresFields: []string{"id"},
+			},
+		},
+		DisableResolveFieldPositions: true,
+	}))
 }
 
 var errSubscriptionClientFail = errors.New("subscription client fail error")
@@ -10184,4 +10435,77 @@ const petSchema = `
 		id: ID! @external
 		pets: [Pet!]!
 	}
+`
+
+const authorSubgraphSchema = `
+interface Media {
+	id: ID!
+}
+extend type Movie @key(fields: "id") {
+	id: ID! @external
+}
+extend type Book @key(fields: "id") {
+	id: ID! @external
+}
+type MovieMedia implements Media {
+	id: ID!
+	media: Movie! @provides(fields: "id")
+}
+type BookMedia implements Media {
+	id: ID!
+	media: Book! @provides(fields: "id")
+}
+
+type Author {
+	name: String!
+	media: [Media!]
+}
+
+type Query {
+	authors: [Author!]
+}
+
+`
+const movieSubgraphSchema = `
+type Movie @key(fields: "id") {
+	id: ID!
+	title: String!
+}
+`
+const bookSubgraphSchema = `
+type Book @key(fields: "id") {
+	id: ID!
+	isbn: String!
+}
+`
+
+const federatedAuthorsBooksMoviesSchema = `
+interface Media {
+	id: ID!
+}
+type Movie {
+	id: ID!
+	title: String!
+}
+type Book {
+	id: ID!
+	isbn: String!
+}
+type MovieMedia implements Media {
+	id: ID!
+	media: Movie!
+}
+type BookMedia implements Media {
+	id: ID!
+	media: Book!
+}
+
+type Author {
+	name: String!
+	media: [Media!]
+}
+
+type Query {
+	authors: [Author!]
+}
 `
