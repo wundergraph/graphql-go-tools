@@ -151,7 +151,7 @@ type ExecutionEngineV2TestCase struct {
 }
 
 func TestExecutionEngineV2_Execute(t *testing.T) {
-	run := func(testCase ExecutionEngineV2TestCase, withError bool) func(t *testing.T) {
+	run := func(testCase ExecutionEngineV2TestCase, withError bool, expectedErrorMessage string) func(t *testing.T) {
 		t.Helper()
 
 		return func(t *testing.T) {
@@ -188,6 +188,9 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 
 			if withError {
 				assert.Error(t, err)
+				if expectedErrorMessage != "" {
+					assert.Contains(t, err.Error(), expectedErrorMessage)
+				}
 			} else {
 				assert.NoError(t, err)
 			}
@@ -195,11 +198,15 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 	}
 
 	runWithError := func(testCase ExecutionEngineV2TestCase) func(t *testing.T) {
-		return run(testCase, true)
+		return run(testCase, true, "")
+	}
+
+	runWithAndCompareError := func(testCase ExecutionEngineV2TestCase, expectedErrorMessage string) func(t *testing.T) {
+		return run(testCase, true, expectedErrorMessage)
 	}
 
 	runWithoutError := func(testCase ExecutionEngineV2TestCase) func(t *testing.T) {
-		return run(testCase, false)
+		return run(testCase, false, "")
 	}
 
 	t.Run("execute with empty request object should not panic", runWithError(
@@ -1612,6 +1619,59 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			},
 			expectedResponse: `{"data":{"hero":"Human"}}`,
 		},
+	))
+
+	t.Run("Spreading a fragment on an invalid type returns ErrInvalidFragmentSpread", runWithAndCompareError(
+		ExecutionEngineV2TestCase{
+			schema:    starwarsSchema(t),
+			operation: loadStarWarsQuery(starwars.FileInvalidFragmentsQuery, nil),
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"droid"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Droid",
+							FieldNames: []string{"name"},
+						},
+					},
+					Factory: &graphql_datasource.Factory{
+						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"data":{"droid":{"name":"R2D2"}}}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+						Fetch: graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+					}),
+				},
+			},
+			fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "droid",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:         "id",
+							SourceType:   plan.FieldArgumentSource,
+							RenderConfig: plan.RenderArgumentAsGraphQLValue,
+						},
+					},
+				},
+			},
+			expectedResponse: ``,
+		},
+		"fragment spread: fragment reviewFields must be spread on type Review and not type Droid",
 	))
 }
 

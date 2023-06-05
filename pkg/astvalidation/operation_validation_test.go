@@ -2126,6 +2126,18 @@ func TestExecutionValidation(t *testing.T) {
 							}`,
 					ValidArguments(), Invalid, withValidationErrors(`Variable "$booleanArg" of type "Boolean" used in position expecting type "Boolean!".`))
 			})
+			t.Run("117 variant: fr", func(t *testing.T) {
+				run(t, `	
+							query argOnRequiredArg($booleanArg: Boolean) {
+								dog {
+									...argOnOptional
+								}
+							}
+							fragment argOnOptional on Dog {
+								isHousetrained(atOtherHomes: $booleanArg) @include(if: $booleanArg)
+							}`,
+					ValidArguments(), Invalid, withValidationErrors(`Variable "$booleanArg" of type "Boolean" used in position expecting type "Boolean!".`))
+			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	query argOnRequiredArg($booleanArg: Boolean!) {
 										dog {
@@ -2566,7 +2578,7 @@ func TestExecutionValidation(t *testing.T) {
 						barkVolume
 						...nameFragment
 					}`,
-						Fragments(), Invalid)
+						Fragments(), Invalid, withValidationErrors("external: fragment spread: barkVolumeFragment forms fragment cycle"))
 				})
 				t.Run("136", func(t *testing.T) {
 					run(t, `
@@ -2668,6 +2680,18 @@ func TestExecutionValidation(t *testing.T) {
 										}
 									}`,
 							Fragments(), Valid)
+					})
+					t.Run("Spreading a fragment on an invalid type returns ErrInvalidFragmentSpread", func(t *testing.T) {
+						run(t, `
+									{
+										dog {
+											...invalidCatFragment
+										}
+									}
+									fragment invalidCatFragment on Cat {
+										meowVolume
+									}`,
+							Fragments(), Invalid, withValidationErrors("external: fragment spread: fragment invalidCatFragment must be spread on type Cat and not type Dog"))
 					})
 				})
 				t.Run("5.5.2.3.2 Abstract Spreads in Object Scope", func(t *testing.T) {

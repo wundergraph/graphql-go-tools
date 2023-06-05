@@ -2,7 +2,6 @@ package astvalidation
 
 import (
 	"bytes"
-
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
@@ -30,13 +29,17 @@ type fragmentsVisitor struct {
 }
 
 func (f *fragmentsVisitor) EnterFragmentSpread(ref int) {
-	if f.Ancestors[0].Kind == ast.NodeKindOperationDefinition {
-		spreadName := f.operation.FragmentSpreadNameBytes(ref)
+	spreadName := f.operation.FragmentSpreadNameBytes(ref)
+	fragmentTypeName := f.operation.FragmentDefinitionTypeName(ref)
+	enclosingTypeName := f.EnclosingTypeDefinition.NameBytes(f.definition)
+	if !bytes.Equal(fragmentTypeName, enclosingTypeName) {
+		f.StopWithExternalErr(operationreport.ErrInvalidFragmentSpread(spreadName, fragmentTypeName, enclosingTypeName))
+	} else if f.Ancestors[0].Kind == ast.NodeKindOperationDefinition {
 		f.StopWithExternalErr(operationreport.ErrFragmentSpreadFormsCycle(spreadName))
 	}
 }
 
-func (f *fragmentsVisitor) LeaveDocument(operation, definition *ast.Document) {
+func (f *fragmentsVisitor) LeaveDocument(_, _ *ast.Document) {
 	for i := range f.fragmentDefinitionsVisited {
 		if !f.operation.FragmentDefinitionIsUsed(f.fragmentDefinitionsVisited[i]) {
 			fragmentName := f.fragmentDefinitionsVisited[i]
