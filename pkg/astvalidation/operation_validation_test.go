@@ -2126,18 +2126,6 @@ func TestExecutionValidation(t *testing.T) {
 							}`,
 					ValidArguments(), Invalid, withValidationErrors(`Variable "$booleanArg" of type "Boolean" used in position expecting type "Boolean!".`))
 			})
-			t.Run("117 variant: fr", func(t *testing.T) {
-				run(t, `	
-							query argOnRequiredArg($booleanArg: Boolean) {
-								dog {
-									...argOnOptional
-								}
-							}
-							fragment argOnOptional on Dog {
-								isHousetrained(atOtherHomes: $booleanArg) @include(if: $booleanArg)
-							}`,
-					ValidArguments(), Invalid, withValidationErrors(`Variable "$booleanArg" of type "Boolean" used in position expecting type "Boolean!".`))
-			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	query argOnRequiredArg($booleanArg: Boolean!) {
 										dog {
