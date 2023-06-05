@@ -4,10 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/buger/jsonparser"
-	"github.com/qri-io/jsonschema"
+	"github.com/santhosh-tekuri/jsonschema/v5"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 )
@@ -106,7 +105,7 @@ func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, t
 		}
 		typeDefinitionNode, ok := definition.Index.FirstNodeByNameStr(name)
 		if !ok {
-			return nil
+			return NewAny()
 		}
 		if typeDefinitionNode.Kind == ast.NodeKindEnumTypeDefinition {
 			return NewString(nonNull)
@@ -176,7 +175,7 @@ func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, t
 }
 
 type Validator struct {
-	schema jsonschema.Schema
+	schema *jsonschema.Schema
 }
 
 func NewValidatorFromSchema(schema JsonSchema) (*Validator, error) {
@@ -196,30 +195,40 @@ func MustNewValidatorFromSchema(schema JsonSchema) *Validator {
 }
 
 func NewValidatorFromString(schema string) (*Validator, error) {
-	var validator Validator
-	err := json.Unmarshal([]byte(schema), &validator.schema)
+	sch, err := jsonschema.CompileString("schema.json", schema)
 	if err != nil {
 		return nil, err
 	}
-	return &validator, nil
+	return &Validator{
+		schema: sch,
+	}, nil
 }
 
 func MustNewValidatorFromString(schema string) *Validator {
-	var validator Validator
-	err := json.Unmarshal([]byte(schema), &validator.schema)
+	validator, err := NewValidatorFromString(schema)
 	if err != nil {
 		panic(err)
 	}
-	return &validator
+	return validator
+}
+
+func (v *Validator) Validate(ctx context.Context, inputJSON []byte) error {
+	var value interface{}
+	if err := json.Unmarshal(inputJSON, &value); err != nil {
+		return err
+	}
+	if err := v.schema.Validate(value); err != nil {
+		return err
+	}
+	return nil
 }
 
 func TopLevelType(schema string) (jsonparser.ValueType, error) {
-	var jsonSchema jsonschema.Schema
-	err := json.Unmarshal([]byte(schema), &jsonSchema)
+	sch, err := jsonschema.CompileString("schema.json", schema)
 	if err != nil {
 		return jsonparser.Unknown, err
 	}
-	switch jsonSchema.TopLevelType() {
+	switch sch.Types[0] {
 	case "boolean":
 		return jsonparser.Boolean, nil
 	case "string":
@@ -237,23 +246,6 @@ func TopLevelType(schema string) (jsonparser.ValueType, error) {
 	default:
 		return jsonparser.NotExist, nil
 	}
-}
-
-func (v *Validator) Validate(ctx context.Context, inputJSON []byte) error {
-	errs, err := v.schema.ValidateBytes(ctx, inputJSON)
-	if err != nil {
-		// There was an issue performing the validation itself. Return a
-		// generic error so the input isn't exposed.
-		return fmt.Errorf("could not perform validation")
-	}
-	if len(errs) > 0 {
-		messages := make([]string, len(errs))
-		for i := range errs {
-			messages[i] = errs[i].Error()
-		}
-		return fmt.Errorf("validation failed: %v", strings.Join(messages, "; "))
-	}
-	return nil
 }
 
 type Kind int
@@ -295,7 +287,7 @@ type String struct {
 	Type []string `json:"type"`
 }
 
-func (_ String) Kind() Kind {
+func (String) Kind() Kind {
 	return StringKind
 }
 
@@ -309,7 +301,7 @@ type ID struct {
 	Type []string `json:"type"`
 }
 
-func (_ ID) Kind() Kind {
+func (ID) Kind() Kind {
 	return IDKind
 }
 
@@ -323,7 +315,7 @@ type Boolean struct {
 	Type []string `json:"type"`
 }
 
-func (_ Boolean) Kind() Kind {
+func (Boolean) Kind() Kind {
 	return BooleanKind
 }
 
@@ -343,7 +335,7 @@ func NewNumber(nonNull bool) Number {
 	}
 }
 
-func (_ Number) Kind() Kind {
+func (Number) Kind() Kind {
 	return NumberKind
 }
 
@@ -351,7 +343,7 @@ type Integer struct {
 	Type []string `json:"type"`
 }
 
-func (_ Integer) Kind() Kind {
+func (Integer) Kind() Kind {
 	return IntegerKind
 }
 
@@ -365,7 +357,7 @@ type Ref struct {
 	Ref string `json:"$ref"`
 }
 
-func (_ Ref) Kind() Kind {
+func (Ref) Kind() Kind {
 	return RefKind
 }
 
@@ -383,7 +375,7 @@ type Object struct {
 	Defs                 map[string]JsonSchema `json:"$defs,omitempty"`
 }
 
-func (_ Object) Kind() Kind {
+func (Object) Kind() Kind {
 	return ObjectKind
 }
 
@@ -410,7 +402,7 @@ type Array struct {
 	Defs     map[string]JsonSchema `json:"$defs,omitempty"`
 }
 
-func (_ Array) Kind() Kind {
+func (Array) Kind() Kind {
 	return ArrayKind
 }
 
