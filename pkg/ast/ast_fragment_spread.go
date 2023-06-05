@@ -5,6 +5,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/position"
 )
 
+type FragmentSpreadRef int
+
 // FragmentSpread
 // example:
 // ...MyFragment
@@ -15,7 +17,7 @@ type FragmentSpread struct {
 	Directives    DirectiveList // optional, e.g. @foo
 }
 
-func (d *Document) CopyFragmentSpread(ref int) int {
+func (d *Document) CopyFragmentSpread(ref FragmentSpreadRef) FragmentSpreadRef {
 	var directives DirectiveList
 	if d.FragmentSpreads[ref].HasDirectives {
 		directives = d.CopyDirectiveList(d.FragmentSpreads[ref].Directives)
@@ -27,16 +29,16 @@ func (d *Document) CopyFragmentSpread(ref int) int {
 	})
 }
 
-func (d *Document) AddFragmentSpread(spread FragmentSpread) int {
+func (d *Document) AddFragmentSpread(spread FragmentSpread) FragmentSpreadRef {
 	d.FragmentSpreads = append(d.FragmentSpreads, spread)
-	return len(d.FragmentSpreads) - 1
+	return FragmentSpreadRef(len(d.FragmentSpreads) - 1)
 }
 
-func (d *Document) FragmentSpreadNameBytes(ref int) ByteSlice {
+func (d *Document) FragmentSpreadNameBytes(ref FragmentSpreadRef) ByteSlice {
 	return d.Input.ByteSlice(d.FragmentSpreads[ref].FragmentName)
 }
 
-func (d *Document) FragmentSpreadNameString(ref int) string {
+func (d *Document) FragmentSpreadNameString(ref FragmentSpreadRef) string {
 	return unsafebytes.BytesToString(d.FragmentSpreadNameBytes(ref))
 }
 
@@ -45,20 +47,20 @@ func (d *Document) FragmentSpreadNameString(ref int) string {
 // possible problems: changing directives or sub selections will affect both fields with the same id
 // simple solution: run normalization deduplicate fields
 // as part of the normalization flow this problem will be handled automatically
-// just be careful in case you use this function outside of the normalization package
-func (d *Document) ReplaceFragmentSpread(selectionSet int, spreadRef int, replaceWithSelectionSet int) {
+// just be careful in case you use this function outside the normalization package
+func (d *Document) ReplaceFragmentSpread(selectionSet int, spreadRef FragmentSpreadRef, replaceWithSelectionSet int) {
 	for i, j := range d.SelectionSets[selectionSet].SelectionRefs {
-		if d.Selections[j].Kind == SelectionKindFragmentSpread && d.Selections[j].Ref == spreadRef {
+		if d.Selections[j].Kind == SelectionKindFragmentSpread && d.Selections[j].Ref == int(spreadRef) {
 			d.SelectionSets[selectionSet].SelectionRefs = append(d.SelectionSets[selectionSet].SelectionRefs[:i], append(d.SelectionSets[replaceWithSelectionSet].SelectionRefs, d.SelectionSets[selectionSet].SelectionRefs[i+1:]...)...)
-			d.Index.ReplacedFragmentSpreads = append(d.Index.ReplacedFragmentSpreads, spreadRef)
+			d.Index.ReplacedFragmentSpreads = append(d.Index.ReplacedFragmentSpreads, int(spreadRef))
 			return
 		}
 	}
 }
 
-// ReplaceFragmentSpreadWithInlineFragment replaces a given fragment spread with a inline fragment
+// ReplaceFragmentSpreadWithInlineFragment replaces a given fragment spread with an inline fragment
 // attention! the same rules apply as for 'ReplaceFragmentSpread', look above!
-func (d *Document) ReplaceFragmentSpreadWithInlineFragment(selectionSet int, spreadRef int, replaceWithSelectionSet int, typeCondition TypeCondition) {
+func (d *Document) ReplaceFragmentSpreadWithInlineFragment(selectionSet int, spreadRef FragmentSpreadRef, replaceWithSelectionSet int, typeCondition TypeCondition) {
 	d.InlineFragments = append(d.InlineFragments, InlineFragment{
 		TypeCondition: typeCondition,
 		SelectionSet:  replaceWithSelectionSet,
@@ -71,9 +73,9 @@ func (d *Document) ReplaceFragmentSpreadWithInlineFragment(selectionSet int, spr
 	})
 	selectionRef := len(d.Selections) - 1
 	for i, j := range d.SelectionSets[selectionSet].SelectionRefs {
-		if d.Selections[j].Kind == SelectionKindFragmentSpread && d.Selections[j].Ref == spreadRef {
+		if d.Selections[j].Kind == SelectionKindFragmentSpread && d.Selections[j].Ref == int(spreadRef) {
 			d.SelectionSets[selectionSet].SelectionRefs = append(d.SelectionSets[selectionSet].SelectionRefs[:i], append([]int{selectionRef}, d.SelectionSets[selectionSet].SelectionRefs[i+1:]...)...)
-			d.Index.ReplacedFragmentSpreads = append(d.Index.ReplacedFragmentSpreads, spreadRef)
+			d.Index.ReplacedFragmentSpreads = append(d.Index.ReplacedFragmentSpreads, int(spreadRef))
 			return
 		}
 	}

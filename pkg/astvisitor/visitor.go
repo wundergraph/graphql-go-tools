@@ -131,13 +131,13 @@ type (
 	EnterFragmentSpreadVisitor interface {
 		// EnterFragmentSpread gets called when the walker enters a fragment spread
 		// ref is the reference to the selection set on the AST
-		EnterFragmentSpread(ref int)
+		EnterFragmentSpread(ref ast.FragmentSpreadRef)
 	}
 	// LeaveFragmentSpreadVisitor is the callback when the walker leaves a fragment spread
 	LeaveFragmentSpreadVisitor interface {
 		// LeaveFragmentSpread gets called when the walker leaves a fragment spread
 		// ref is the reference to the selection set on the AST
-		LeaveFragmentSpread(ref int)
+		LeaveFragmentSpread(ref ast.FragmentSpreadRef)
 	}
 	// FragmentSpreadVisitor is the callback when the walker enters or leaves a fragment spread
 	FragmentSpreadVisitor interface {
@@ -165,13 +165,13 @@ type (
 	EnterFragmentDefinitionVisitor interface {
 		// EnterFragmentDefinition gets called when the walker enters a fragment definition
 		// ref is the reference to the selection set on the AST
-		EnterFragmentDefinition(ref int)
+		EnterFragmentDefinition(ref ast.FragmentDefinitionRef)
 	}
 	// LeaveFragmentDefinitionVisitor is the callback when the walker leaves a fragment definition
 	LeaveFragmentDefinitionVisitor interface {
 		// LeaveFragmentDefinition gets called when the walker leaves a fragment definition
 		// ref is the reference to the selection set on the AST
-		LeaveFragmentDefinition(ref int)
+		LeaveFragmentDefinition(ref ast.FragmentDefinitionRef)
 	}
 	// FragmentDefinitionVisitor is the callback when the walker enters or leaves a fragment definition
 	FragmentDefinitionVisitor interface {
@@ -1355,7 +1355,7 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 		}
 		typeName = w.document.InlineFragmentTypeConditionName(ref)
 	case ast.NodeKindFragmentDefinition:
-		typeName = w.document.FragmentDefinitionTypeName(ref)
+		typeName = w.document.FragmentDefinitionTypeName(ast.FragmentDefinitionRef(ref))
 		w.Path = append(w.Path, ast.PathItem{
 			Kind:       ast.FieldName,
 			ArrayIndex: 0,
@@ -1951,7 +1951,7 @@ func (w *Walker) walkFragmentSpread(ref int) {
 
 	for i := 0; i < len(w.visitors.enterFragmentSpread); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterFragmentSpread, ref, w.visitors.enterFragmentSpread[i]) {
-			w.visitors.enterFragmentSpread[i].EnterFragmentSpread(ref)
+			w.visitors.enterFragmentSpread[i].EnterFragmentSpread(ast.FragmentSpreadRef(ref))
 		}
 		if w.revisit {
 			w.revisit = false
@@ -1970,7 +1970,7 @@ func (w *Walker) walkFragmentSpread(ref int) {
 
 	for i := 0; i < len(w.visitors.leaveFragmentSpread); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveFragmentSpread, ref, w.visitors.leaveFragmentSpread[i]) {
-			w.visitors.leaveFragmentSpread[i].LeaveFragmentSpread(ref)
+			w.visitors.leaveFragmentSpread[i].LeaveFragmentSpread(ast.FragmentSpreadRef(ref))
 		}
 		if w.revisit {
 			w.revisit = false
@@ -2071,7 +2071,7 @@ func (w *Walker) walkFragmentDefinition(ref int) {
 
 	for i := 0; i < len(w.visitors.enterFragmentDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(EnterFragmentDefinition, ref, w.visitors.enterFragmentDefinition[i]) {
-			w.visitors.enterFragmentDefinition[i].EnterFragmentDefinition(ref)
+			w.visitors.enterFragmentDefinition[i].EnterFragmentDefinition(ast.FragmentDefinitionRef(ref))
 		}
 		if w.revisit {
 			w.revisit = false
@@ -2112,7 +2112,7 @@ func (w *Walker) walkFragmentDefinition(ref int) {
 
 	for i := 0; i < len(w.visitors.leaveFragmentDefinition); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveFragmentDefinition, ref, w.visitors.leaveFragmentDefinition[i]) {
-			w.visitors.leaveFragmentDefinition[i].LeaveFragmentDefinition(ref)
+			w.visitors.leaveFragmentDefinition[i].LeaveFragmentDefinition(ast.FragmentDefinitionRef(ref))
 		}
 		if w.revisit {
 			w.revisit = false
