@@ -337,10 +337,10 @@ func ErrFragmentSpreadFormsCycle(spreadName ast.ByteSlice) (err ExternalError) {
 	return err
 }
 
-func ErrInvalidFragmentSpread(spreadName, fragmentName, enclosingName ast.ByteSlice) (err ExternalError) {
+func ErrInvalidFragmentSpread(fragmentName, fragmentTypeName, enclosingName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf(
 		"fragment spread: fragment %s must be spread on type %s and not type %s",
-		spreadName, fragmentName, enclosingName,
+		fragmentName, fragmentTypeName, enclosingName,
 	)
 	return err
 }

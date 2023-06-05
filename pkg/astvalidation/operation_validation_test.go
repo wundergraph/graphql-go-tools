@@ -2547,7 +2547,7 @@ func TestExecutionValidation(t *testing.T) {
 										...undefinedFragment
 									}
 								}`,
-						Fragments(), Invalid, withExpectNormalizationError())
+						Fragments(), Invalid, withExpectNormalizationError(), withValidationErrors("undefinedFragment undefined"))
 				})
 			})
 			t.Run("5.5.2.2 Fragment spreads must not form cycles", func(t *testing.T) {
