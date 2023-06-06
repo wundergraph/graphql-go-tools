@@ -2,6 +2,7 @@ package astvalidation
 
 import (
 	"bytes"
+
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
@@ -28,7 +29,7 @@ type fragmentsVisitor struct {
 	fragmentDefinitionsVisited []ast.ByteSlice
 }
 
-func (f *fragmentsVisitor) EnterFragmentSpread(ref int) {
+func (f *fragmentsVisitor) EnterFragmentSpread(ref ast.FragmentSpreadRef) {
 	fragmentName := f.operation.FragmentSpreadNameBytes(ref)
 	fragmentDefinitionRef, exists := f.operation.FragmentDefinitionRef(fragmentName)
 	if !exists {
@@ -99,7 +100,7 @@ func (f *fragmentsVisitor) EnterDocument(operation, definition *ast.Document) {
 	f.fragmentDefinitionsVisited = f.fragmentDefinitionsVisited[:0]
 }
 
-func (f *fragmentsVisitor) EnterFragmentDefinition(ref int) {
+func (f *fragmentsVisitor) EnterFragmentDefinition(ref ast.FragmentDefinitionRef) {
 
 	fragmentDefinitionName := f.operation.FragmentDefinitionNameBytes(ref)
 	typeName := f.operation.FragmentDefinitionTypeName(ref)

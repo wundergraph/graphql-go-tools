@@ -7,6 +7,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/position"
 )
 
+type FragmentDefinitionRef int
+
 // TypeCondition
 // example:
 // on User
@@ -17,11 +19,12 @@ type TypeCondition struct {
 
 // FragmentDefinition
 // example:
-// fragment friendFields on User {
-//  id
-//  name
-//  profilePic(size: 50)
-// }
+//
+//	fragment friendFields on User {
+//	 id
+//	 name
+//	 profilePic(size: 50)
+//	}
 type FragmentDefinition struct {
 	FragmentLiteral position.Position  // fragment
 	Name            ByteSliceReference // Name but not on, e.g. friendFields
@@ -32,30 +35,30 @@ type FragmentDefinition struct {
 	HasSelections   bool
 }
 
-func (d *Document) FragmentDefinitionRef(byName ByteSlice) (ref int, exists bool) {
+func (d *Document) FragmentDefinitionRef(byName ByteSlice) (ref FragmentDefinitionRef, exists bool) {
 	for i := range d.FragmentDefinitions {
 		if bytes.Equal(byName, d.Input.ByteSlice(d.FragmentDefinitions[i].Name)) {
-			return i, true
+			return FragmentDefinitionRef(i), true
 		}
 	}
 	return -1, false
 }
 
-func (d *Document) FragmentDefinitionTypeName(ref int) ByteSlice {
+func (d *Document) FragmentDefinitionTypeName(ref FragmentDefinitionRef) ByteSlice {
 	return d.ResolveTypeNameBytes(d.FragmentDefinitions[ref].TypeCondition.Type)
 }
 
-func (d *Document) FragmentDefinitionNameBytes(ref int) ByteSlice {
+func (d *Document) FragmentDefinitionNameBytes(ref FragmentDefinitionRef) ByteSlice {
 	return d.Input.ByteSlice(d.FragmentDefinitions[ref].Name)
 }
 
-func (d *Document) FragmentDefinitionNameString(ref int) string {
+func (d *Document) FragmentDefinitionNameString(ref FragmentDefinitionRef) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.FragmentDefinitions[ref].Name))
 }
 
-func (d *Document) FragmentDefinitionIsLastRootNode(ref int) bool {
+func (d *Document) FragmentDefinitionIsLastRootNode(ref FragmentDefinitionRef) bool {
 	for i := range d.RootNodes {
-		if d.RootNodes[i].Kind == NodeKindFragmentDefinition && d.RootNodes[i].Ref == ref {
+		if d.RootNodes[i].Kind == NodeKindFragmentDefinition && d.RootNodes[i].Ref == int(ref) {
 			return len(d.RootNodes)-1 == i
 		}
 	}
