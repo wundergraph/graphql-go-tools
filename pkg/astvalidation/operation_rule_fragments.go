@@ -30,16 +30,18 @@ type fragmentsVisitor struct {
 
 func (f *fragmentsVisitor) EnterFragmentSpread(ref int) {
 	fragmentName := f.operation.FragmentSpreadNameBytes(ref)
-	defer func() {
-		if r := recover(); r != nil {
-			f.StopWithExternalErr(operationreport.ErrFragmentUndefined(fragmentName))
-		}
-	}()
-	fragmentTypeName := f.operation.FragmentDefinitionTypeName(ref)
+	fragmentDefinitionRef, exists := f.operation.FragmentDefinitionRef(fragmentName)
+	if !exists {
+		f.StopWithExternalErr(operationreport.ErrFragmentUndefined(fragmentName))
+		return
+	}
+	fragmentTypeName := f.operation.FragmentDefinitionTypeName(fragmentDefinitionRef)
 	enclosingTypeName := f.EnclosingTypeDefinition.NameBytes(f.definition)
 	if !bytes.Equal(fragmentTypeName, enclosingTypeName) {
 		f.StopWithExternalErr(operationreport.ErrInvalidFragmentSpread(fragmentName, fragmentTypeName, enclosingTypeName))
-	} else if f.Ancestors[0].Kind == ast.NodeKindOperationDefinition {
+		return
+	}
+	if f.Ancestors[0].Kind == ast.NodeKindOperationDefinition {
 		f.StopWithExternalErr(operationreport.ErrFragmentSpreadFormsCycle(fragmentName))
 	}
 }

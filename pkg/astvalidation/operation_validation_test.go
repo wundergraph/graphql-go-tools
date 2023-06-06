@@ -2540,12 +2540,28 @@ func TestExecutionValidation(t *testing.T) {
 		})
 		t.Run("5.5.2 Fragment Spreads", func(t *testing.T) {
 			t.Run("5.5.2.1 Fragment spread target defined", func(t *testing.T) {
-				t.Run("133", func(t *testing.T) {
+				t.Run("Undefined fragment returns ErrFragmentUndefined", func(t *testing.T) {
 					run(t, `
 								{
 									dog {
 										...undefinedFragment
 									}
+								}`,
+						Fragments(), Invalid, withExpectNormalizationError(), withValidationErrors("undefinedFragment undefined"))
+				})
+				t.Run("Undefined fragment after valid fragment returns ErrFragmentUndefined", func(t *testing.T) {
+					run(t, `
+								{
+									cat {
+										...validCatFragment
+									}
+									dog {
+										...undefinedFragment
+									}
+								}
+								fragment validCatFragment on Cat {
+									name
+									meowVolume
 								}`,
 						Fragments(), Invalid, withExpectNormalizationError(), withValidationErrors("undefinedFragment undefined"))
 				})
