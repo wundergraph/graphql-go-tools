@@ -27,6 +27,8 @@ const (
 	UnknownFieldOfInputObjectErrMsg         = `Field "%s" is not defined by type "%s".`
 	DuplicatedFieldInputObjectErrMsg        = `There can be only one input field named "%s".`
 	ValueIsNotAnInputObjectTypeErrMsg       = `Expected value of type "%s", found %s.`
+	VariableNotProvidedErrMsg               = `Required variable "$%s" was not provided`
+	VariableValidationFailedErrMsg          = `Validation for variable "%s" failed: %s`
 )
 
 type ExternalError struct {
@@ -239,6 +241,19 @@ func ErrValueIsNotAnInputObjectType(value, inputType ast.ByteSlice, position pos
 	err.Message = fmt.Sprintf(ValueIsNotAnInputObjectTypeErrMsg, inputType, value)
 	err.Locations = LocationsFromPosition(position)
 
+	return err
+}
+
+func ErrVariableNotProvided(name ast.ByteSlice, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(VariableNotProvidedErrMsg, name)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrVariableValidationFailed(name ast.ByteSlice, message string, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(VariableValidationFailedErrMsg, name, message)
+	err.Locations = LocationsFromPosition(position)
 	return err
 }
 

@@ -23,6 +23,10 @@ type CustomExecutionEngineV2ValidatorStage interface {
 	ValidateForSchema(operation *Request) error
 }
 
+type CustomExecutionEngineV2InputValidationStage interface {
+	InputValidation(operation *Request) error
+}
+
 type CustomExecutionEngineV2ResolverStage interface {
 	Setup(ctx context.Context, postProcessor *postprocess.Processor, resolveContext *resolve.Context, operation *Request, options ...ExecutionOptionsV2)
 	Plan(postProcessor *postprocess.Processor, operation *Request, report *operationreport.Report) (plan.Plan, error)
@@ -34,6 +38,7 @@ type CustomExecutionEngineV2 interface {
 	CustomExecutionEngineV2NormalizerStage
 	CustomExecutionEngineV2ValidatorStage
 	CustomExecutionEngineV2ResolverStage
+	CustomExecutionEngineV2InputValidationStage
 }
 
 type ExecutionEngineV2Executor interface {
@@ -54,8 +59,9 @@ type CustomExecutionEngineV2RequiredStages struct {
 }
 
 type CustomExecutionEngineV2OptionalStages struct {
-	NormalizerStage CustomExecutionEngineV2NormalizerStage
-	ValidatorStage  CustomExecutionEngineV2ValidatorStage
+	NormalizerStage      CustomExecutionEngineV2NormalizerStage
+	ValidatorStage       CustomExecutionEngineV2ValidatorStage
+	InputValidationStage CustomExecutionEngineV2InputValidationStage
 }
 
 type CustomExecutionEngineV2Executor struct {
@@ -113,6 +119,12 @@ func (c *CustomExecutionEngineV2Executor) Execute(ctx context.Context, operation
 	if c.ExecutionStages.OptionalStages != nil && c.ExecutionStages.OptionalStages.ValidatorStage != nil {
 		err = c.ExecutionStages.OptionalStages.ValidatorStage.ValidateForSchema(operation)
 		if err != nil {
+			return err
+		}
+	}
+
+	if c.ExecutionStages.OptionalStages != nil && c.ExecutionStages.OptionalStages.InputValidationStage != nil {
+		if err := c.ExecutionStages.OptionalStages.InputValidationStage.InputValidation(operation); err != nil {
 			return err
 		}
 	}

@@ -257,6 +257,17 @@ func (e *ExecutionEngineV2) ValidateForSchema(operation *Request) error {
 	return nil
 }
 
+func (e *ExecutionEngineV2) InputValidation(operation *Request) error {
+	result, err := operation.ValidateInput(e.config.schema)
+	if err != nil {
+		return err
+	}
+	if !result.Valid {
+		return result.Errors
+	}
+	return nil
+}
+
 func (e *ExecutionEngineV2) Setup(ctx context.Context, postProcessor *postprocess.Processor, resolveContext *resolve.Context, operation *Request, options ...ExecutionOptionsV2) {
 	for i := range options {
 		options[i](postProcessor, resolveContext)
