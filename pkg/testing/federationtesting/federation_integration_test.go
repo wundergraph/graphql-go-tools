@@ -105,6 +105,22 @@ func TestFederationIntegrationTest(t *testing.T) {
 		assert.Equal(t, `{"data":{"me":{"username":"Me","history":[{"wallet":{"amount":123,"specialField1":"some special value 1"}},{"rating":5},{"wallet":{"amount":123,"specialField2":"some special value 2"}}]}}}`, string(resp))
 	})
 
+	t.Run("subscription query through WebSocket transport", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		// Reset the products slice to the original state
+		defer products.Reset()
+
+		wsAddr := strings.ReplaceAll(setup.gatewayServer.URL, "http://", "ws://")
+		fmt.Println("setup.gatewayServer.URL", wsAddr)
+		messages := gqlClient.Subscription(ctx, wsAddr, path.Join("testdata", "subscriptions/subscription.query"), queryVariables{
+			"upc": "top-1",
+		}, t)
+
+		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":1}}}}`, string(<-messages))
+		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":2}}}}`, string(<-messages))
+	})
+
 	t.Run("Multiple queries and nested fragments", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -265,20 +281,6 @@ func TestFederationIntegrationTest(t *testing.T) {
 	}
 }`
 		assert.Equal(t, compact(expected), string(resp))
-	})
-
-	t.Run("subscription query through WebSocket transport", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		wsAddr := strings.ReplaceAll(setup.gatewayServer.URL, "http://", "ws://")
-		fmt.Println("setup.gatewayServer.URL", wsAddr)
-		messages := gqlClient.Subscription(ctx, wsAddr, path.Join("testdata", "subscriptions/subscription.query"), queryVariables{
-			"upc": "top-1",
-		}, t)
-
-		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":1}}}}`, string(<-messages))
-		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":2}}}}`, string(<-messages))
 	})
 }
 
