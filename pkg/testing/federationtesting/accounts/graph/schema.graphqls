@@ -1,5 +1,6 @@
 extend type Query {
     me: User
+    histories: [History]
 }
 
 type User @key(fields: "id") {

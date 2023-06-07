@@ -523,7 +523,7 @@ func (p *Planner) EnterField(ref int) {
 	}
 
 	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(enclosingTypeName, fieldName)
-	if fieldConfiguration == nil && fieldName != "__typename" {
+	if fieldConfiguration == nil {
 		p.addField(ref)
 		return
 	}
@@ -535,10 +535,6 @@ func (p *Planner) EnterField(ref int) {
 	p.addField(ref)
 
 	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
-
-	if fieldConfiguration == nil {
-		return
-	}
 
 	for i := range fieldConfiguration.Arguments {
 		argumentConfiguration := fieldConfiguration.Arguments[i]
