@@ -6,7 +6,7 @@ require (
 	github.com/99designs/gqlgen v0.17.13
 	github.com/buger/jsonparser v1.1.1
 	github.com/cespare/xxhash/v2 v2.1.2
-	github.com/dave/jennifer v1.4.0
+	github.com/dave/jennifer v1.6.1
 	github.com/davecgh/go-spew v1.1.1
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/evanphx/json-patch/v5 v5.1.0
