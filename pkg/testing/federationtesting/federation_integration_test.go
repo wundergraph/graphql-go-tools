@@ -3,17 +3,18 @@
 package federationtesting
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/jensneuse/abstractlogger"
+	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"path"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/jensneuse/abstractlogger"
-	"github.com/stretchr/testify/assert"
 
 	accounts "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/accounts/graph"
 	"github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/gateway"
@@ -107,6 +108,8 @@ func TestFederationIntegrationTest(t *testing.T) {
 	t.Run("subscription query through WebSocket transport", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
+		// Reset the products slice to the original state
+		defer products.Reset()
 
 		wsAddr := strings.ReplaceAll(setup.gatewayServer.URL, "http://", "ws://")
 		fmt.Println("setup.gatewayServer.URL", wsAddr)
@@ -117,4 +120,175 @@ func TestFederationIntegrationTest(t *testing.T) {
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":1}}}}`, string(<-messages))
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":2}}}}`, string(<-messages))
 	})
+
+	t.Run("Multiple queries and nested fragments", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "queries/multiple_queries_with_nested_fragments.query"), nil, t)
+		expected := `
+{
+	"data": {
+		"topProducts": [
+			{
+				"__typename": "Product",
+				"price": 11,
+				"upc": "top-1"
+			},
+			{
+				"__typename": "Product",
+				"price": 22,
+				"upc": "top-2"
+			},
+			{
+				"__typename": "Product",
+				"price": 33,
+				"upc": "top-3"
+			}
+		],
+		"me": {
+			"__typename": "User",
+			"id": "1234",
+			"username": "Me",
+			"reviews": [
+				{
+					"__typename": "Review",
+					"product": {
+						"__typename": "Product",
+						"price": 11,
+						"upc": "top-1"
+					}
+				},
+				{
+					"__typename": "Review",
+					"product": {
+						"__typename": "Product",
+						"price": 22,
+						"upc": "top-2"
+					}
+				}
+			]
+		}
+	}
+}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+
+	t.Run("Multiple queries with __typename", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "queries/multiple_queries.query"), nil, t)
+		expected := `
+{
+	"data": {
+		"topProducts": [
+			{
+				"__typename": "Product",
+				"price": 11,
+				"upc": "top-1"
+			},
+			{
+				"__typename": "Product",
+				"price": 22,
+				"upc": "top-2"
+			},
+			{
+				"__typename": "Product",
+				"price": 33,
+				"upc": "top-3"
+			}
+		],
+		"me": {
+			"__typename": "User",
+			"id": "1234",
+			"username": "Me"
+		}
+	}
+}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+
+	t.Run("Query that returns union", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "queries/multiple_queries_with_union_return.query"), nil, t)
+		expected := `
+{
+	"data": {
+		"me": {
+			"__typename": "User",
+			"id": "1234",
+			"username": "Me"
+		},
+		"histories": [
+			{
+				"__typename": "Purchase",
+				"product": {
+					"__typename": "Product",
+					"upc": "top-1"
+				},
+				"wallet": {
+					"__typename": "WalletType1",
+					"currency": "USD"
+				}
+			},
+			{
+				"__typename": "Sale",
+				"product": {
+					"__typename": "Product",
+					"upc": "top-1"
+				},
+				"rating": 1
+			},
+			{
+				"__typename": "Purchase",
+				"product": {
+					"__typename": "Product",
+					"upc": "top-2"
+				},
+				"wallet": {
+					"__typename": "WalletType2",
+					"currency": "USD"
+				}
+			},
+			{
+				"__typename": "Sale",
+				"product": {
+					"__typename": "Product",
+					"upc": "top-2"
+				},
+				"rating": 2
+			},
+			{
+				"__typename": "Purchase",
+				"product": {
+					"__typename": "Product",
+					"upc": "top-3"
+				},
+				"wallet": {
+					"__typename": "WalletType2",
+					"currency": "USD"
+				}
+			},
+			{
+				"__typename": "Sale",
+				"product": {
+					"__typename": "Product",
+					"upc": "top-3"
+				},
+				"rating": 3
+			}
+		]
+	}
+}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+}
+
+func compact(input string) string {
+	var out bytes.Buffer
+	err := json.Compact(&out, []byte(input))
+	if err != nil {
+		return ""
+	}
+	return out.String()
 }

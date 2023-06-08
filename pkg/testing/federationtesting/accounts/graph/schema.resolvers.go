@@ -19,6 +19,11 @@ func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 	}, nil
 }
 
+// Histories is the resolver for the histories field.
+func (r *queryResolver) Histories(ctx context.Context) ([]model.History, error) {
+	return allHistories, nil
+}
+
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
