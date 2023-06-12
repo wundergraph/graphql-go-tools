@@ -6,6 +6,18 @@ type History interface {
 	IsHistory()
 }
 
+type Identifiable interface {
+	IsIdentifiable()
+}
+
+type Info interface {
+	IsInfo()
+}
+
+type Store interface {
+	IsStore()
+}
+
 type Wallet interface {
 	IsWallet()
 }
@@ -17,18 +29,22 @@ type Product struct {
 func (Product) IsEntity() {}
 
 type Purchase struct {
-	Product *Product `json:"product"`
-	Wallet  Wallet   `json:"wallet"`
+	Product  *Product `json:"product"`
+	Wallet   Wallet   `json:"wallet"`
+	Quantity int      `json:"quantity"`
 }
 
 func (Purchase) IsHistory() {}
+func (Purchase) IsInfo()    {}
 
 type Sale struct {
-	Product *Product `json:"product"`
-	Rating  int      `json:"rating"`
+	Product  *Product `json:"product"`
+	Rating   int      `json:"rating"`
+	Location string   `json:"location"`
 }
 
 func (Sale) IsHistory() {}
+func (Sale) IsStore()   {}
 
 type User struct {
 	ID       string    `json:"id"`
@@ -36,7 +52,8 @@ type User struct {
 	History  []History `json:"history"`
 }
 
-func (User) IsEntity() {}
+func (User) IsIdentifiable() {}
+func (User) IsEntity()       {}
 
 type WalletType1 struct {
 	Currency      string  `json:"currency"`

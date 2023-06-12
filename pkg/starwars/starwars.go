@@ -33,6 +33,7 @@ const (
 	FileMultiQueriesWithArguments  = "testdata/queries/multi_queries_with_arguments.query"
 	FileInvalidQuery               = "testdata/queries/invalid.query"
 	FileInvalidFragmentsQuery      = "testdata/queries/invalid_fragments.query"
+	FileInterfaceFragmentsOnUnion  = "testdata/queries/interface_fragments_on_union.graphql"
 )
 
 var (

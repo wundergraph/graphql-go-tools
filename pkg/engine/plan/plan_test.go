@@ -208,6 +208,58 @@ func TestPlanner_Plan(t *testing.T) {
 		DefaultFlushIntervalMillis: 0,
 	}))
 
+	t.Run("Union response type with interface fragments", test(testDefinition, `
+		query SearchResults {
+			searchResults {
+				... on Character {
+					name
+				}
+				... on Vehicle {
+					length
+				}
+			}
+		}
+	`, "SearchResults", &SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Nullable: false,
+				Fields: []*resolve.Field{
+					{
+						Name: []byte("searchResults"),
+						Value: &resolve.Array{
+							Path:                []string{"searchResults"},
+							Nullable:            true,
+							ResolveAsynchronous: false,
+							Item: &resolve.Object{
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
+										OnTypeNames: [][]byte{[]byte("Human"), []byte("Droid")},
+									},
+									{
+										Name: []byte("length"),
+										Value: &resolve.Float{
+											Path:     []string{"length"},
+											Nullable: false,
+										},
+										OnTypeNames: [][]byte{[]byte("Starship")},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, Configuration{
+		DisableResolveFieldPositions: true,
+	}))
+
 	t.Run("operation selection", func(t *testing.T) {
 		t.Run("should successfully plan a single named query by providing an operation name", test(testDefinition, `
 				query MyHero {
@@ -524,6 +576,7 @@ type Query {
     hero: Character
     droid(id: ID!): Droid
     search(name: String!): SearchResult
+	searchResults: [SearchResult]
 }
 
 type Mutation {
@@ -570,7 +623,12 @@ type Droid implements Character {
 	favoriteEpisode: Episode
 }
 
-type Startship {
+interface Vehicle {
+	length: Float!
+}
+
+type Starship implements Vehicle {
     name: String!
     length: Float!
-}`
+}
+`

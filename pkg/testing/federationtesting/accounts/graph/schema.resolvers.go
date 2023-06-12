@@ -19,6 +19,15 @@ func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 	}, nil
 }
 
+// Identifiable is the resolver for the identifiable field.
+func (r *queryResolver) Identifiable(ctx context.Context) (model.Identifiable, error) {
+	return &model.User{
+		ID:       "1234",
+		Username: "Me",
+		History:  histories,
+	}, nil
+}
+
 // Histories is the resolver for the histories field.
 func (r *queryResolver) Histories(ctx context.Context) ([]model.History, error) {
 	return allHistories, nil

@@ -1,0 +1,10 @@
+query InterfaceFragment {
+    me {
+        ... on Identifiable {
+            id
+        }
+        ... on User {
+            username
+        }
+    }
+}
