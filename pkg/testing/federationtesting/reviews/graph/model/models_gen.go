@@ -8,6 +8,8 @@ type Attachment interface {
 
 type Comment interface {
 	IsComment()
+	GetUpc() string
+	GetBody() string
 }
 
 type Question struct {
@@ -15,7 +17,10 @@ type Question struct {
 	Body string `json:"body"`
 }
 
-func (Question) IsComment()    {}
+func (Question) IsComment()           {}
+func (this Question) GetUpc() string  { return this.Upc }
+func (this Question) GetBody() string { return this.Body }
+
 func (Question) IsAttachment() {}
 
 type Rating struct {
@@ -24,7 +29,10 @@ type Rating struct {
 	Score int    `json:"score"`
 }
 
-func (Rating) IsComment()    {}
+func (Rating) IsComment()           {}
+func (this Rating) GetUpc() string  { return this.Upc }
+func (this Rating) GetBody() string { return this.Body }
+
 func (Rating) IsAttachment() {}
 
 type Video struct {

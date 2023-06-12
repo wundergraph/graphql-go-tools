@@ -8,18 +8,23 @@ type History interface {
 
 type Identifiable interface {
 	IsIdentifiable()
+	GetID() string
 }
 
 type Info interface {
 	IsInfo()
+	GetQuantity() int
 }
 
 type Store interface {
 	IsStore()
+	GetLocation() string
 }
 
 type Wallet interface {
 	IsWallet()
+	GetCurrency() string
+	GetAmount() float64
 }
 
 type Product struct {
@@ -35,7 +40,9 @@ type Purchase struct {
 }
 
 func (Purchase) IsHistory() {}
-func (Purchase) IsInfo()    {}
+
+func (Purchase) IsInfo()               {}
+func (this Purchase) GetQuantity() int { return this.Quantity }
 
 type Sale struct {
 	Product  *Product `json:"product"`
@@ -44,7 +51,9 @@ type Sale struct {
 }
 
 func (Sale) IsHistory() {}
-func (Sale) IsStore()   {}
+
+func (Sale) IsStore()                 {}
+func (this Sale) GetLocation() string { return this.Location }
 
 type User struct {
 	ID       string    `json:"id"`
@@ -52,8 +61,10 @@ type User struct {
 	History  []History `json:"history"`
 }
 
-func (User) IsIdentifiable() {}
-func (User) IsEntity()       {}
+func (User) IsIdentifiable()    {}
+func (this User) GetID() string { return this.ID }
+
+func (User) IsEntity() {}
 
 type WalletType1 struct {
 	Currency      string  `json:"currency"`
@@ -61,7 +72,9 @@ type WalletType1 struct {
 	SpecialField1 string  `json:"specialField1"`
 }
 
-func (WalletType1) IsWallet() {}
+func (WalletType1) IsWallet()                {}
+func (this WalletType1) GetCurrency() string { return this.Currency }
+func (this WalletType1) GetAmount() float64  { return this.Amount }
 
 type WalletType2 struct {
 	Currency      string  `json:"currency"`
@@ -69,4 +82,6 @@ type WalletType2 struct {
 	SpecialField2 string  `json:"specialField2"`
 }
 
-func (WalletType2) IsWallet() {}
+func (WalletType2) IsWallet()                {}
+func (this WalletType2) GetCurrency() string { return this.Currency }
+func (this WalletType2) GetAmount() float64  { return this.Amount }
