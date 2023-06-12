@@ -660,16 +660,19 @@ func (v *Visitor) resolveOnTypeNames() [][]byte {
 		typeName = v.Walker.EnclosingTypeDefinition.NameBytes(v.Definition)
 	}
 	node, exists := v.Definition.NodeByName(typeName)
+	// If not an interface, return the concrete type
 	if !exists || !node.Kind.IsAbstractType() {
 		return [][]byte{v.Config.Types.RenameTypeNameOnMatchBytes(typeName)}
 	}
+	if node.Kind == ast.NodeKindUnionTypeDefinition {
+		// This should never be true. If it is, it's an error
+		return nil
+	}
+	// We're dealing with an interface, so add all objects that implement this interface to the slice
 	onTypeNames := make([][]byte, 0, 2)
-	switch node.Kind {
-	case ast.NodeKindInterfaceTypeDefinition:
-		for objectTypeDefinitionRef := range v.Definition.ObjectTypeDefinitions {
-			if v.Definition.ObjectTypeDefinitionImplementsInterface(objectTypeDefinitionRef, typeName) {
-				onTypeNames = append(onTypeNames, v.Definition.ObjectTypeDefinitionNameBytes(objectTypeDefinitionRef))
-			}
+	for objectTypeDefinitionRef := range v.Definition.ObjectTypeDefinitions {
+		if v.Definition.ObjectTypeDefinitionImplementsInterface(objectTypeDefinitionRef, typeName) {
+			onTypeNames = append(onTypeNames, v.Definition.ObjectTypeDefinitionNameBytes(objectTypeDefinitionRef))
 		}
 	}
 	if len(onTypeNames) < 1 {
@@ -1552,37 +1555,37 @@ func (c *configurationVisitor) EnterField(ref int) {
 	fieldName := c.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
-	parent := c.walker.Path.DotDelimitedString()
-	current := parent + "." + fieldAliasOrName
+	parentPath := c.walker.Path.DotDelimitedString()
+	currentPath := parentPath + "." + fieldAliasOrName
 	root := c.walker.Ancestors[0]
 	if root.Kind != ast.NodeKindOperationDefinition {
 		return
 	}
-	isSubscription := c.isSubscription(root.Ref, current)
+	isSubscription := c.isSubscription(root.Ref, currentPath)
 	for i, plannerConfig := range c.planners {
 		planningBehaviour := plannerConfig.planner.DataSourcePlanningBehavior()
 		if fieldAliasOrName == "__typename" && planningBehaviour.IncludeTypeNameFields {
-			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current, shouldWalkFields: true})
+			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: currentPath, shouldWalkFields: true})
 			return
 		}
-		if plannerConfig.hasParent(parent) && plannerConfig.hasRootNode(typeName, fieldName) && planningBehaviour.MergeAliasedRootNodes {
+		if plannerConfig.hasParent(parentPath) && plannerConfig.hasRootNode(typeName, fieldName) && planningBehaviour.MergeAliasedRootNodes {
 			// same parent + root node = root sibling
-			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current, shouldWalkFields: true})
+			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: currentPath, shouldWalkFields: true})
 			c.fieldBuffers[ref] = plannerConfig.bufferID
 			return
 		}
-		if plannerConfig.hasPath(parent) {
+		if plannerConfig.hasPath(parentPath) {
 			if plannerConfig.hasChildNode(typeName, fieldName) {
 				// has parent path + has child node = child
-				c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current, shouldWalkFields: true})
+				c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: currentPath, shouldWalkFields: true})
 				return
 			}
 
-			if c.wasPathAddedForUnion(ref, i, current) {
+			if c.addPlannerPathForUnionChildOfObjectParent(ref, i, currentPath) {
 				return
 			}
 		}
-		if c.wasPathAddedForChildOfAbstractParent(i, typeName, fieldName, parent, current) {
+		if c.addPlannerPathForChildOfAbstractParent(i, typeName, fieldName, parentPath, currentPath) {
 			return
 		}
 	}
@@ -1601,7 +1604,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 		isParentAbstract := c.isParentTypeNodeAbstractType()
 		paths := []pathConfiguration{
 			{
-				path:             current,
+				path:             currentPath,
 				shouldWalkFields: true,
 			},
 		}
@@ -1612,14 +1615,14 @@ func (c *configurationVisitor) EnterField(ref int) {
 			// so we'd miss the selection sets and inline fragments in the root
 			paths = append([]pathConfiguration{
 				{
-					path:             parent,
+					path:             parentPath,
 					shouldWalkFields: false,
 				},
 			}, paths...)
 		}
 		c.planners = append(c.planners, plannerConfiguration{
 			bufferID:                bufferID,
-			parentPath:              parent,
+			parentPath:              parentPath,
 			planner:                 planner,
 			paths:                   paths,
 			dataSourceConfiguration: config,
@@ -1639,7 +1642,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 }
 
-func (c *configurationVisitor) wasPathAddedForUnion(fieldRef, plannerIndex int, currentPath string) (pathAdded bool) {
+func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(fieldRef, plannerIndex int, currentPath string) (pathAdded bool) {
 	if c.walker.EnclosingTypeDefinition.Kind != ast.NodeKindObjectTypeDefinition {
 		return false
 	}
@@ -1662,17 +1665,19 @@ func (c *configurationVisitor) wasPathAddedForUnion(fieldRef, plannerIndex int, 
 	return false
 }
 
-func (c *configurationVisitor) wasPathAddedForChildOfAbstractParent(
+func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
 	plannerRef int, typeName, fieldName, parentPath, currentPath string,
 ) bool {
 	if !c.isParentTypeNodeAbstractType() {
 		return false
 	}
+	// If the field is a root node in any of the data sources, the path shouldn't be handled here
 	for _, d := range c.config.DataSources {
 		if d.HasRootNode(typeName, fieldName) {
 			return false
 		}
 	}
+	// The path for this field should only be added if the parent path also exists on this planner
 	for _, path := range c.planners[plannerRef].paths {
 		if path.path == parentPath {
 			c.planners[plannerRef].paths = append(c.planners[plannerRef].paths, pathConfiguration{path: currentPath, shouldWalkFields: true})
@@ -1746,8 +1751,8 @@ type requiredFieldsVisitor struct {
 	config                *Configuration
 	operationName         string
 	skipFieldPaths        []string
-	// queriedFieldPaths is a set of all explicitly queried field paths
-	queriedFieldPaths map[string]struct{}
+	// selectedFieldPaths is a set of all explicitly selected field paths
+	selectedFieldPaths map[string]struct{}
 	// skipFieldDataPaths is to prevent appending duplicate skipFieldData to potentialSkipFieldDatas
 	skipFieldDataPaths map[string]struct{}
 	// potentialSkipFieldDatas is used in LeaveDocument to determine whether a required field should be skipped
@@ -1757,7 +1762,7 @@ type requiredFieldsVisitor struct {
 
 func (r *requiredFieldsVisitor) EnterDocument(_, _ *ast.Document) {
 	r.skipFieldPaths = r.skipFieldPaths[:0]
-	r.queriedFieldPaths = make(map[string]struct{})
+	r.selectedFieldPaths = make(map[string]struct{})
 	r.potentialSkipFieldDatas = make([]*skipFieldData, 0)
 }
 
@@ -1767,10 +1772,10 @@ func (r *requiredFieldsVisitor) EnterField(ref int) {
 	fieldConfig := r.config.Fields.ForTypeField(typeName, fieldName)
 	path := r.walker.Path.DotDelimitedString()
 	if fieldConfig == nil {
-		// Record explicitly queried fields (must be a map or subscription performance is affected)
-		// A field queried on an interface will have the same field path as a fragment on an object
-		// LeaveDocument uses this record to ensure only required fields that were not explicitly queried are skipped
-		r.queriedFieldPaths[fmt.Sprintf("%s.%s", path, fieldName)] = struct{}{}
+		// Record all explicitly selected fields
+		// A field selected on an interface will have the same field path as a fragment on an object
+		// LeaveDocument uses this record to ensure only required fields that were not explicitly selected are skipped
+		r.selectedFieldPaths[fmt.Sprintf("%s.%s", path, fieldName)] = struct{}{}
 		return
 	}
 	if len(fieldConfig.RequiresFields) == 0 {
@@ -1836,8 +1841,8 @@ func (r *requiredFieldsVisitor) EnterOperationDefinition(ref int) {
 func (r *requiredFieldsVisitor) LeaveDocument(_, _ *ast.Document) {
 	for _, data := range r.potentialSkipFieldDatas {
 		path := data.fieldPath
-		// If a field was not explicitly queried, skip it
-		if _, ok := r.queriedFieldPaths[path]; !ok {
+		// If a field was not explicitly selected, skip it
+		if _, ok := r.selectedFieldPaths[path]; !ok {
 			r.handleRequiredField(data.selectionSetRef, data.requiredField, path)
 		}
 	}

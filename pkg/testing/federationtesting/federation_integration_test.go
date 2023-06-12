@@ -354,6 +354,9 @@ func TestFederationIntegrationTest(t *testing.T) {
 		assert.Equal(t, compact(expected), string(resp))
 	})
 
+	// This response data of this test returns location twice: from the interface selection and from the type fragment
+	// Duplicated properties (and therefore invalid JSON) are usually removed during normalization processes.
+	// It is not yet decided whether this should be addressed before these normalization processes.
 	t.Run("Complex nesting", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
