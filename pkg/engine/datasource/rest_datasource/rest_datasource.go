@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"regexp"
@@ -21,6 +22,15 @@ type Planner struct {
 	config              Configuration
 	rootField           int
 	operationDefinition int
+	argumentTypeMap     map[string]int
+	Operation           *ast.Document
+}
+
+func (p *Planner) EnterDocument(operation, definition *ast.Document) {
+	p.Operation = operation
+}
+
+func (p *Planner) LeaveDocument(operation, definition *ast.Document) {
 }
 
 func (p *Planner) DownstreamResponseFieldAlias(_ int) (alias string, exists bool) {
@@ -45,7 +55,8 @@ type Factory struct {
 
 func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 	return &Planner{
-		client: f.Client,
+		client:          f.Client,
+		argumentTypeMap: map[string]int{},
 	}
 }
 
@@ -65,11 +76,11 @@ type SubscriptionConfiguration struct {
 }
 
 type FetchConfiguration struct {
-	URL           string
-	Method        string
-	Header        http.Header
-	Query         []QueryConfiguration
-	Body          string
+	URL    string
+	Method string
+	Header http.Header
+	Query  []QueryConfiguration
+	Body   string
 }
 
 type QueryConfiguration struct {
@@ -79,13 +90,34 @@ type QueryConfiguration struct {
 
 func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration, isNested bool) error {
 	p.v = visitor
+	visitor.Walker.RegisterDocumentVisitor(p)
 	visitor.Walker.RegisterEnterFieldVisitor(p)
 	visitor.Walker.RegisterEnterOperationVisitor(p)
+	visitor.Walker.RegisterEnterArgumentVisitor(p)
 	return json.Unmarshal(configuration.Custom, &p.config)
 }
 
 func (p *Planner) EnterField(ref int) {
 	p.rootField = ref
+}
+
+func (p *Planner) EnterArgument(ref int) {
+	fieldName := p.Operation.FieldNameString(p.rootField)
+	argumentName := p.Operation.ArgumentNameString(ref)
+	key := fmt.Sprintf("%s_%s", fieldName, argumentName)
+	fmt.Println(key)
+	val := p.Operation.Arguments[ref].Value
+	if val.Kind == ast.ValueKindVariable {
+		if !p.Operation.OperationDefinitionHasVariableDefinition(p.operationDefinition, p.Operation.VariableValueNameString(val.Ref)) {
+			return
+		}
+		variableDefinition, exists := p.Operation.VariableDefinitionByNameAndOperation(p.operationDefinition, p.Operation.VariableValueNameBytes(val.Ref))
+		if !exists {
+			return
+		}
+		p.argumentTypeMap[key] = p.Operation.VariableDefinitions[variableDefinition].Type
+		return
+	}
 }
 
 func (p *Planner) configureInput() []byte {
