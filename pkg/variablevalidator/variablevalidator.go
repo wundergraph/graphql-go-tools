@@ -55,7 +55,16 @@ func (v *validatorVisitor) EnterVariableDefinition(ref int) {
 
 	variableName := v.operation.VariableDefinitionNameBytes(ref)
 	variable, t, _, err := jsonparser.Get(v.variables, string(variableName))
-	if t == jsonparser.NotExist && v.operation.TypeIsNonNull(typeRef) {
+	typeIsNonNull := v.operation.TypeIsNonNull(typeRef)
+	if err != nil && typeIsNonNull {
+		v.StopWithExternalErr(operationreport.ErrVariableNotProvided(variableName, v.operation.VariableDefinitions[ref].VariableValue.Position))
+		return
+	}
+	// if the type is nullable and an error is encountered parsing the JSON, keep processing the request and skip this variable validation
+	if err != nil && !typeIsNonNull {
+		return
+	}
+	if err == jsonparser.KeyPathNotFoundError || err == jsonparser.MalformedJsonError {
 		v.StopWithExternalErr(operationreport.ErrVariableNotProvided(variableName, v.operation.VariableDefinitions[ref].VariableValue.Position))
 		return
 	}
