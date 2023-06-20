@@ -308,7 +308,8 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		isNested := p.planningVisitor.planners[key].isNestedPlanner()
 		err := p.planningVisitor.planners[key].planner.Register(p.planningVisitor, config, isNested)
 		if err != nil {
-			p.planningWalker.StopWithInternalErr(err)
+			report.AddInternalError(err)
+			return
 		}
 	}
 
