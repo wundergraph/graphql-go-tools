@@ -1,9 +1,14 @@
 extend type Query {
     me: User
+    identifiable: Identifiable
     histories: [History]
 }
 
-type User @key(fields: "id") {
+interface Identifiable {
+    id: ID!
+}
+
+type User implements Identifiable @key(fields: "id")  {
     id: ID!
     username: String!
     history: [History!]!
@@ -15,14 +20,24 @@ extend type Product @key(fields: "upc") {
 
 union History = Purchase | Sale
 
-type Purchase {
-    product: Product!
-    wallet: Wallet
+interface Info {
+    quantity: Int!
 }
 
-type Sale {
+type Purchase implements Info {
+    product: Product!
+    wallet: Wallet
+    quantity: Int!
+}
+
+interface Store {
+    location: String!
+}
+
+type Sale implements Store {
     product: Product!
     rating: Int!
+    location: String!
 }
 
 interface Wallet {

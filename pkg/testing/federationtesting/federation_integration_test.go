@@ -282,6 +282,141 @@ func TestFederationIntegrationTest(t *testing.T) {
 }`
 		assert.Equal(t, compact(expected), string(resp))
 	})
+
+	t.Run("Object response type with interface and object fragment", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "queries/interface_fragment_on_object.graphql"), nil, t)
+		expected := `
+{
+	"data": {
+		"me": {
+			"id": "1234",
+			"username": "Me"
+		}
+	}
+}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+
+	t.Run("Interface response type with object fragment", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "queries/object_fragment_on_interface.graphql"), nil, t)
+		expected := `
+{
+	"data": {
+		"identifiable": {
+			"__typename": "User",
+			"id": "1234",
+			"username": "Me"
+		}
+	}
+}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+
+	t.Run("Union response type with interface fragments", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "queries/interface_fragments_on_union.graphql"), nil, t)
+		expected := `
+{
+	"data": {
+		"histories": [
+			{
+				"__typename": "Purchase",
+				"quantity": 1
+			},
+			{
+				"__typename": "Sale",
+				"location": "Germany"
+			},
+			{
+				"__typename": "Purchase",
+				"quantity": 2
+			},
+			{
+				"__typename": "Sale",
+				"location": "UK"
+			},
+			{
+				"__typename": "Purchase",
+				"quantity": 3
+			},
+			{
+				"__typename": "Sale",
+				"location": "Ukraine"
+			}
+		]
+	}
+}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+
+	// This response data of this test returns location twice: from the interface selection and from the type fragment
+	// Duplicated properties (and therefore invalid JSON) are usually removed during normalization processes.
+	// It is not yet decided whether this should be addressed before these normalization processes.
+	t.Run("Complex nesting", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "queries/complex_nesting.graphql"), nil, t)
+		expected := `
+{
+  "data": {
+    "me": {
+      "id": "1234",
+      "username": "Me",
+      "history": [
+        {
+          "wallet": {
+            "currency": "USD"
+          }
+        },
+        {
+          "location": "Germany",
+          "location": "Germany",
+          "product": {
+            "upc": "top-2",
+            "name": "Fedora"
+          }
+        },
+        {
+          "wallet": {
+            "currency": "USD"
+          }
+        }
+      ],
+      "reviews": [
+        {
+          "__typename": "Review",
+          "attachments": [
+            {
+              "upc": "top-1",
+              "body": "How do I turn it on?"
+            }
+          ]
+        },
+        {
+          "__typename": "Review",
+          "attachments": [
+            {
+              "upc": "top-2",
+              "body": "The best hat I have ever bought in my life."
+            },
+            {
+              "upc": "top-2",
+              "size": 13.37
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+`
+		assert.Equal(t, compact(expected), string(resp))
+	})
 }
 
 func compact(input string) string {

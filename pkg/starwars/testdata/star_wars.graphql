@@ -10,6 +10,7 @@ type Query {
     hero: Character @deprecated
     droid(id: ID!): Droid
     search(name: String!): SearchResult
+    searchResults: [SearchResult]
 }
 
 type Mutation {
@@ -54,7 +55,11 @@ type Droid implements Character {
     friends: [Character]
 }
 
-type Starship {
+interface Vehicle {
+    length: Float!
+}
+
+type Starship implements Vehicle {
     name: String!
     length: Float!
 }
