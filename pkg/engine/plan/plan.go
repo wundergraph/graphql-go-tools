@@ -666,7 +666,7 @@ func (v *Visitor) resolveOnTypeNames() [][]byte {
 	}
 	if node.Kind == ast.NodeKindUnionTypeDefinition {
 		// This should never be true. If it is, it's an error
-		return nil
+		panic("resolveOnTypeNames called with a union type")
 	}
 	// We're dealing with an interface, so add all objects that implement this interface to the slice
 	onTypeNames := make([][]byte, 0, 2)
@@ -1581,12 +1581,13 @@ func (c *configurationVisitor) EnterField(ref int) {
 				return
 			}
 
-			if c.addPlannerPathForUnionChildOfObjectParent(ref, i, currentPath) {
+			if pathAdded := c.addPlannerPathForUnionChildOfObjectParent(ref, i, currentPath); pathAdded {
 				return
 			}
-		}
-		if c.addPlannerPathForChildOfAbstractParent(i, typeName, fieldName, parentPath, currentPath) {
-			return
+
+			if pathAdded := c.addPlannerPathForChildOfAbstractParent(i, typeName, fieldName, currentPath); pathAdded {
+				return
+			}
 		}
 	}
 	for i, config := range c.config.DataSources {
@@ -1642,7 +1643,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 }
 
-func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(fieldRef, plannerIndex int, currentPath string) (pathAdded bool) {
+func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(fieldRef int, plannerIndex int, currentPath string) (pathAdded bool) {
 	if c.walker.EnclosingTypeDefinition.Kind != ast.NodeKindObjectTypeDefinition {
 		return false
 	}
@@ -1666,8 +1667,8 @@ func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(fieldRe
 }
 
 func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
-	plannerRef int, typeName, fieldName, parentPath, currentPath string,
-) bool {
+	plannerIndex int, typeName, fieldName, currentPath string,
+) (pathAdded bool) {
 	if !c.isParentTypeNodeAbstractType() {
 		return false
 	}
@@ -1677,14 +1678,9 @@ func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
 			return false
 		}
 	}
-	// The path for this field should only be added if the parent path also exists on this planner
-	for _, path := range c.planners[plannerRef].paths {
-		if path.path == parentPath {
-			c.planners[plannerRef].paths = append(c.planners[plannerRef].paths, pathConfiguration{path: currentPath, shouldWalkFields: true})
-			return true
-		}
-	}
-	return false
+    // The path for this field should only be added if the parent path also exists on this planner
+	c.planners[plannerIndex].paths = append(c.planners[plannerIndex].paths, pathConfiguration{path: currentPath, shouldWalkFields: true})
+	return true
 }
 
 func (c *configurationVisitor) isParentTypeNodeAbstractType() bool {
