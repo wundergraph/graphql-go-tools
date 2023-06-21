@@ -25,6 +25,8 @@ const (
 			friend: Friend
 			withArgument(id: String!, name: String, optional: String): Friend
 			withArrayArguments(names: [String]): Friend
+			withIntArgument(limit: Int): Friend
+			withStringArgument(name: String!): Friend
 		}
 
 		type Subscription {
@@ -45,6 +47,7 @@ const (
 			name: String
 			pet: Pet
 			phone(name: String!): String
+			hasArg(limit: Int!): String
 		}
 
 		type Pet {
@@ -118,6 +121,30 @@ const (
 			}
 		}
 	`
+
+	intArgumentOperation = `
+		query ArgumentQuery {
+			withIntArgument(limit: 10) {
+				name
+			}
+		}
+	`
+
+	intArgumentOperationNonNullableInt = `
+query ArgumentQuery($in: Int!) {
+  			withIntArgument(limit: $in) {
+    			name
+  			}
+		}
+`
+
+	stringArgumentOperationNonNullableString = `
+query ArgumentQuery($in: String!) {
+  			withStringArgument(name: $in) {
+    			name
+  			}
+		}
+`
 
 	createFriendOperation = `
 		mutation CreateFriend($friendVariable: InputFriend!) {
@@ -1019,7 +1046,7 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      `{"query_params":[{"name":"names","value":"$$0$$"}],"method":"GET","url":"https://example.com/friend"}`,
+						Input:      `{"query_params":[{"name":"names","value":$$0$$}],"method":"GET","url":"https://example.com/friend"}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
@@ -1080,6 +1107,225 @@ func TestFastHttpJsonDataSourcePlanning(t *testing.T) {
 				{
 					TypeName:              "Query",
 					FieldName:             "withArrayArguments",
+					DisableDefaultMapping: true,
+				},
+			},
+			DisableResolveFieldPositions: true,
+		},
+	))
+	t.Run("get request with int argument query param", datasourcetesting.RunTest(schema, intArgumentOperation, "ArgumentQuery",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"query_params":[{"name":"limit","value":$$0$$}],"method":"GET","url":"https://example.com/friend"}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"a"},
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer","null"]}`),
+							},
+						),
+						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader:    true,
+					},
+					Fields: []*resolve.Field{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Name:      []byte("withIntArgument"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"withIntArgument"},
+						},
+					},
+					Custom: ConfigJSON(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "https://example.com/friend",
+							Method: "GET",
+							Query: []QueryConfiguration{
+								{
+									Name:  "limit",
+									Value: "{{ .arguments.limit }}",
+								},
+							},
+						},
+					}),
+					Factory: &Factory{},
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:              "Query",
+					FieldName:             "withIntArgument",
+					DisableDefaultMapping: true,
+				},
+			},
+			DisableResolveFieldPositions: true,
+		},
+	))
+	t.Run("get request with non null int as query param", datasourcetesting.RunTest(schema, intArgumentOperationNonNullableInt, "ArgumentQuery",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"query_params":[{"name":"limit","value":$$0$$}],"method":"GET","url":"https://example.com/friend"}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"in"},
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+							},
+						),
+						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader:    true,
+					},
+					Fields: []*resolve.Field{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Name:      []byte("withIntArgument"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"withIntArgument"},
+						},
+					},
+					Custom: ConfigJSON(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "https://example.com/friend",
+							Method: "GET",
+							Query: []QueryConfiguration{
+								{
+									Name:  "limit",
+									Value: "{{ .arguments.limit }}",
+								},
+							},
+						},
+					}),
+					Factory: &Factory{},
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:              "Query",
+					FieldName:             "withIntArgument",
+					DisableDefaultMapping: true,
+				},
+			},
+			DisableResolveFieldPositions: true,
+		},
+	))
+	t.Run("get request with non null string as query param", datasourcetesting.RunTest(schema, stringArgumentOperationNonNullableString, "ArgumentQuery",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						BufferId:   0,
+						Input:      `{"query_params":[{"name":"name","value":"$$0$$"}],"method":"GET","url":"https://example.com/friend"}`,
+						DataSource: &Source{},
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"in"},
+								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
+							},
+						),
+						DataSourceIdentifier: []byte("rest_datasource.Source"),
+						DisableDataLoader:    true,
+					},
+					Fields: []*resolve.Field{
+						{
+							BufferID:  0,
+							HasBuffer: true,
+							Name:      []byte("withStringArgument"),
+							Value: &resolve.Object{
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"withStringArgument"},
+						},
+					},
+					Custom: ConfigJSON(Configuration{
+						Fetch: FetchConfiguration{
+							URL:    "https://example.com/friend",
+							Method: "GET",
+							Query: []QueryConfiguration{
+								{
+									Name:  "name",
+									Value: "{{ .arguments.name }}",
+								},
+							},
+						},
+					}),
+					Factory: &Factory{},
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:              "Query",
+					FieldName:             "withStringArgument",
 					DisableDefaultMapping: true,
 				},
 			},

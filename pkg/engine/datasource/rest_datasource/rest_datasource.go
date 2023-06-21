@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/buger/jsonparser"
 	"io"
 	"net/http"
 	"regexp"
@@ -22,6 +24,10 @@ type Planner struct {
 	rootField           int
 	operationDefinition int
 }
+
+const (
+	typeString = "String"
+)
 
 func (p *Planner) DownstreamResponseFieldAlias(_ int) (alias string, exists bool) {
 	// the REST DataSourcePlanner doesn't rewrite upstream fields: skip
@@ -65,16 +71,17 @@ type SubscriptionConfiguration struct {
 }
 
 type FetchConfiguration struct {
-	URL           string
-	Method        string
-	Header        http.Header
-	Query         []QueryConfiguration
-	Body          string
+	URL    string
+	Method string
+	Header http.Header
+	Query  []QueryConfiguration
+	Body   string
 }
 
 type QueryConfiguration struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
+	Name       string `json:"name"`
+	Value      string `json:"value"`
+	rawMessage json.RawMessage
 }
 
 func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration, isNested bool) error {
@@ -100,7 +107,7 @@ func (p *Planner) configureInput() []byte {
 	}
 
 	preparedQuery := p.prepareQueryParams(p.rootField, p.config.Fetch.Query)
-	query, err := json.Marshal(preparedQuery)
+	query, err := p.marshalQueryParams(preparedQuery)
 	if err == nil && len(preparedQuery) != 0 {
 		input = httpclient.SetInputQueryParams(input, query)
 	}
@@ -124,7 +131,7 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 }
 
 var (
-	selectorRegex = regexp.MustCompile(`{{\s(.*?)\s}}`)
+	selectorRegex = regexp.MustCompile(`{{\s?(.*?)\s?}}`)
 )
 
 func (p *Planner) prepareQueryParams(field int, query []QueryConfiguration) []QueryConfiguration {
@@ -152,6 +159,21 @@ Next:
 				if value.Kind != ast.ValueKindVariable {
 					continue Next
 				}
+
+				variableDefRef, exists := p.v.Operation.VariableDefinitionByNameAndOperation(p.operationDefinition, p.v.Operation.VariableValueNameBytes(value.Ref))
+				if !exists {
+					continue
+				}
+				typeRef := p.v.Operation.VariableDefinitions[variableDefRef].Type
+				typeName := p.v.Operation.TypeNameString(typeRef)
+				typeKind := p.v.Operation.Types[typeRef].TypeKind
+				// if type is a nullable or non-nullable string, add quotes to the raw message
+				if typeName == typeString || (typeKind == ast.TypeKindNonNull && p.v.Operation.TypeNameString(p.v.Operation.Types[typeRef].OfType) == typeString) {
+					query[i].rawMessage = []byte(`"` + query[i].Value + `"`)
+				} else {
+					query[i].rawMessage = []byte(query[i].Value)
+				}
+
 				variableName := p.v.Operation.VariableValueNameString(value.Ref)
 				if !p.v.Operation.OperationDefinitionHasVariableDefinition(p.operationDefinition, variableName) {
 					continue Next
@@ -161,6 +183,24 @@ Next:
 		out = append(out, query[i])
 	}
 	return out
+}
+
+func (p *Planner) marshalQueryParams(params []QueryConfiguration) ([]byte, error) {
+	marshalled, err := json.Marshal(params)
+	if err != nil {
+		return nil, err
+	}
+	for i := range params {
+		if params[i].rawMessage != nil {
+			marshalled, err = jsonparser.Set(marshalled, params[i].rawMessage, fmt.Sprintf("[%d]", i), "value")
+		} else {
+			marshalled, err = jsonparser.Set(marshalled, []byte(`"`+params[i].Value+`"`), fmt.Sprintf("[%d]", i), "value")
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	return marshalled, nil
 }
 
 type Source struct {
