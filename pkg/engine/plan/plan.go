@@ -1678,7 +1678,7 @@ func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
 			return false
 		}
 	}
-    // The path for this field should only be added if the parent path also exists on this planner
+	// The path for this field should only be added if the parent path also exists on this planner
 	c.planners[plannerIndex].paths = append(c.planners[plannerIndex].paths, pathConfiguration{path: currentPath, shouldWalkFields: true})
 	return true
 }
