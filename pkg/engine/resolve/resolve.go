@@ -1086,7 +1086,6 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 	first := true
 	skipCount := 0
 	for i := range object.Fields {
-
 		if object.Fields[i].SkipDirectiveDefined {
 			skip, err := jsonparser.GetBoolean(ctx.Variables, object.Fields[i].SkipVariableName)
 			if err == nil && skip {
@@ -1130,9 +1129,16 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			}
 		}
 
-		if object.Fields[i].OnTypeName != nil {
+		if object.Fields[i].OnTypeNames != nil {
 			typeName, _, _, _ := jsonparser.Get(fieldData, "__typename")
-			if !bytes.Equal(typeName, object.Fields[i].OnTypeName) {
+			hasMatch := false
+			for _, onTypeName := range object.Fields[i].OnTypeNames {
+				if bytes.Equal(typeName, onTypeName) {
+					hasMatch = true
+					break
+				}
+			}
+			if !hasMatch {
 				typeNameSkip = true
 				// Restore the response elements that may have been reset above.
 				ctx.responseElements = responseElements
@@ -1374,7 +1380,7 @@ type Field struct {
 	Stream                  *StreamField
 	HasBuffer               bool
 	BufferID                int
-	OnTypeName              []byte
+	OnTypeNames             [][]byte
 	TypeName                string
 	SkipDirectiveDefined    bool
 	SkipVariableName        string

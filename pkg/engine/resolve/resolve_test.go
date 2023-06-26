@@ -1207,10 +1207,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 							Item: &Object{
 								Fields: []*Field{
 									{
-										BufferID:   0,
-										HasBuffer:  true,
-										OnTypeName: []byte("Dog"),
-										Name:       []byte("name"),
+										BufferID:    0,
+										HasBuffer:   true,
+										OnTypeNames: [][]byte{[]byte("Dog")},
+										Name:        []byte("name"),
 										Value: &String{
 											Path: []string{"name"},
 										},
@@ -1273,8 +1273,8 @@ func TestResolver_ResolveNode(t *testing.T) {
 							Nullable: false,
 							Fields: []*Field{
 								{
-									OnTypeName: []byte("Cat"),
-									Name:       []byte("name"),
+									OnTypeNames: [][]byte{[]byte("Cat")},
+									Name:        []byte("name"),
 									Value: &String{
 										Path: []string{"name"},
 									},
@@ -1307,8 +1307,8 @@ func TestResolver_ResolveNode(t *testing.T) {
 										Path: []string{"namespaceCreate"},
 										Fields: []*Field{
 											{
-												Name:       []byte("namespace"),
-												OnTypeName: []byte("NamespaceCreated"),
+												Name:        []byte("namespace"),
+												OnTypeNames: [][]byte{[]byte("NamespaceCreated")},
 												Value: &Object{
 													Path:     []string{"namespace"},
 													Nullable: false,
@@ -1331,16 +1331,16 @@ func TestResolver_ResolveNode(t *testing.T) {
 												},
 											},
 											{
-												Name:       []byte("code"),
-												OnTypeName: []byte("Error"),
+												Name:        []byte("code"),
+												OnTypeNames: [][]byte{[]byte("Error")},
 												Value: &String{
 													Nullable: false,
 													Path:     []string{"code"},
 												},
 											},
 											{
-												Name:       []byte("message"),
-												OnTypeName: []byte("Error"),
+												Name:        []byte("message"),
+												OnTypeNames: [][]byte{[]byte("Error")},
 												Value: &String{
 													Nullable: false,
 													Path:     []string{"message"},
@@ -1372,10 +1372,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 							Item: &Object{
 								Fields: []*Field{
 									{
-										BufferID:   0,
-										HasBuffer:  true,
-										OnTypeName: []byte("Dog"),
-										Name:       []byte("name"),
+										BufferID:    0,
+										HasBuffer:   true,
+										OnTypeNames: [][]byte{[]byte("Dog")},
+										Name:        []byte("name"),
 										Value: &String{
 											Path: []string{"name"},
 										},
@@ -1420,10 +1420,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 										Nullable: true,
 										Fields: []*Field{
 											{
-												BufferID:   0,
-												HasBuffer:  false,
-												OnTypeName: []byte("Dog"),
-												Name:       []byte("name"),
+												BufferID:    0,
+												HasBuffer:   false,
+												OnTypeNames: [][]byte{[]byte("Dog")},
+												Name:        []byte("name"),
 												Value: &String{
 													Path: []string{"name"},
 												},
@@ -1456,10 +1456,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 							Item: &Object{
 								Fields: []*Field{
 									{
-										BufferID:   0,
-										HasBuffer:  true,
-										OnTypeName: []byte("Dog"),
-										Name:       []byte("name"),
+										BufferID:    0,
+										HasBuffer:   true,
+										OnTypeNames: [][]byte{[]byte("Dog")},
+										Name:        []byte("name"),
 										Value: &String{
 											Path: []string{"name"},
 										},

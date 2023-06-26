@@ -1,8 +1,32 @@
+interface Comment {
+    upc: String!
+    body: String!
+}
+
 type Review {
     body: String!
     author: User! @provides(fields: "username")
     product: Product!
+    attachments: [Attachment]
 }
+
+type Question implements Comment {
+    upc: String!
+    body: String!
+}
+
+type Rating implements Comment {
+    upc: String!
+    body: String!
+    score: Int!
+}
+
+type Video {
+    upc: String!
+    size: Float!
+}
+
+union Attachment = Question | Rating | Video
 
 extend type User @key(fields: "id") {
     id: ID! @external

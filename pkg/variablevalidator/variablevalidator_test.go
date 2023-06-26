@@ -1,12 +1,14 @@
 package variablevalidator
 
 import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/TykTechnologies/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/asttransform"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 const testDefinition = `
@@ -93,7 +95,7 @@ func TestVariableValidator(t *testing.T) {
 			name:          "nested input variable",
 			operation:     customInputMutation,
 			variables:     `{"in":{"optionalField":"test"}}`,
-			expectedError: `Validation for variable "in" failed: validation failed: /: {"optionalField":"te... "requiredField" value is required`,
+			expectedError: `Validation for variable "in" failed: missing properties: 'requiredField'`,
 		},
 		{
 			name:      "multiple operation should validate first operation",

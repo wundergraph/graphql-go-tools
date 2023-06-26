@@ -395,14 +395,8 @@ func (p *Planner) EnterSelectionSet(ref int) {
 		p.upstreamOperation.InlineFragments[parent.Ref].SelectionSet = set.Ref
 	}
 	p.nodes = append(p.nodes, set)
-	// Abstract meaning interface or union
 	if p.visitor.Walker.EnclosingTypeDefinition.Kind.IsAbstractType() {
-		// Always include __typename in abstract type selection sets. This is
-		// done because child fields may be federated and __typename will be
-		// needed for representations. While it would be possible to determine
-		// exactly when __typename is needed, there's no harm in just always
-		// including it.
-		p.addTypenameToSelectionSet(set.Ref)
+		// Adding the typename to abstract (unions and interfaces) types is handled elsewhere
 		return
 	}
 
@@ -522,7 +516,7 @@ func (p *Planner) EnterField(ref int) {
 	}
 
 	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(enclosingTypeName, fieldName)
-	if fieldConfiguration == nil && fieldName != "__typename" {
+	if fieldConfiguration == nil {
 		p.addField(ref)
 		return
 	}
@@ -534,10 +528,6 @@ func (p *Planner) EnterField(ref int) {
 	p.addField(ref)
 
 	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
-
-	if fieldConfiguration == nil {
-		return
-	}
 
 	for i := range fieldConfiguration.Arguments {
 		argumentConfiguration := fieldConfiguration.Arguments[i]

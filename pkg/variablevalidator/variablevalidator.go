@@ -5,11 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/buger/jsonparser"
+	"github.com/santhosh-tekuri/jsonschema/v5"
+
 	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/astvisitor"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/graphqljsonschema"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
-	"github.com/buger/jsonparser"
 )
 
 type VariableValidator struct {
@@ -84,7 +87,13 @@ func (v *validatorVisitor) EnterVariableDefinition(ref int) {
 		return
 	}
 	if err := schemaValidator.Validate(context.Background(), variable); err != nil {
-		v.StopWithExternalErr(operationreport.ErrVariableValidationFailed(variableName, err.Error(), v.operation.VariableDefinitions[ref].VariableValue.Position))
+		message := err.Error()
+		var validationErr *jsonschema.ValidationError
+		if errors.As(err, &validationErr) && len(validationErr.Causes) > 0 {
+			message = validationErr.Causes[0].Message
+		}
+
+		v.StopWithExternalErr(operationreport.ErrVariableValidationFailed(variableName, message, v.operation.VariableDefinitions[ref].VariableValue.Position))
 		return
 	}
 }
