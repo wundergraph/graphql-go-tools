@@ -288,6 +288,74 @@ schema {
 	})
 }
 
+func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
+	t.Run("should properly remove fragments", func(t *testing.T) {
+		schema := `
+			type Query {
+				items: Attributes
+			}
+		
+			type Attribute {
+				name: String
+				childAttributes: [Attribute]
+			}
+			
+			type Attributes {
+				name: String
+				childAttributes: [Attribute]
+			}`
+
+		query := `
+			query Items {
+				items {
+					...AttributesFragment
+				}
+			}
+			fragment AttributesFragment on Attributes {
+				name
+				childAttributes {
+					...AttributeFragment
+					childAttributes {
+						...AttributeFragment
+					}
+				}
+			}
+			fragment AttributeFragment on Attribute {
+				name
+				childAttributes {
+					name
+				}
+			}`
+
+		expectedQuery := `query Items {
+  items {
+    name
+    childAttributes {
+      name
+      childAttributes {
+        name
+        childAttributes {
+          name
+        }
+      }
+    }
+  }
+}`
+
+		definition := unsafeparser.ParseGraphqlDocumentString(schema)
+		require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&definition))
+		operation := unsafeparser.ParseGraphqlDocumentString(query)
+
+		report := operationreport.Report{}
+		normalizer := NewNormalizer(true, true)
+		normalizer.NormalizeNamedOperation(&operation, &definition, []byte("Items"), &report)
+		assert.False(t, report.HasErrors())
+
+		actual, _ := astprinter.PrintStringIndent(&operation, &definition, " ")
+		assert.Equal(t, expectedQuery, actual)
+	})
+}
+
 func TestNewNormalizer(t *testing.T) {
 	schema := `
 scalar String

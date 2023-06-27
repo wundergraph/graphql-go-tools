@@ -45,11 +45,21 @@ func (d *Document) FragmentSpreadNameString(ref int) string {
 // possible problems: changing directives or sub selections will affect both fields with the same id
 // simple solution: run normalization deduplicate fields
 // as part of the normalization flow this problem will be handled automatically
-// just be careful in case you use this function outside of the normalization package
+// just be careful in case you use this function outside the normalization package
 func (d *Document) ReplaceFragmentSpread(selectionSet int, spreadRef int, replaceWithSelectionSet int) {
-	for i, j := range d.SelectionSets[selectionSet].SelectionRefs {
-		if d.Selections[j].Kind == SelectionKindFragmentSpread && d.Selections[j].Ref == spreadRef {
-			d.SelectionSets[selectionSet].SelectionRefs = append(d.SelectionSets[selectionSet].SelectionRefs[:i], append(d.SelectionSets[replaceWithSelectionSet].SelectionRefs, d.SelectionSets[selectionSet].SelectionRefs[i+1:]...)...)
+	for i, selectionRef := range d.SelectionSets[selectionSet].SelectionRefs {
+		if d.Selections[selectionRef].Kind == SelectionKindFragmentSpread && d.Selections[selectionRef].Ref == spreadRef {
+
+			selectionSetCopyRef := d.CopySelectionSet(replaceWithSelectionSet)
+
+			d.SelectionSets[selectionSet].SelectionRefs = append(
+				// selections before
+				d.SelectionSets[selectionSet].SelectionRefs[:i],
+				// replaced selection
+				append(d.SelectionSets[selectionSetCopyRef].SelectionRefs,
+					// selections after
+					d.SelectionSets[selectionSet].SelectionRefs[i+1:]...)...,
+			)
 			d.Index.ReplacedFragmentSpreads = append(d.Index.ReplacedFragmentSpreads, spreadRef)
 			return
 		}
