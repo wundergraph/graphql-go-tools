@@ -4,7 +4,7 @@ import "testing"
 
 func TestExtendUnionType(t *testing.T) {
 	t.Run("extend union type by directive", func(t *testing.T) {
-		run(extendUnionTypeDefinition, testDefinition, `
+		run(t, extendUnionTypeDefinition, testDefinition, `
 					union Mammal
 					extend union Mammal @deprecated(reason: "some reason")
 					 `, `
@@ -13,7 +13,7 @@ func TestExtendUnionType(t *testing.T) {
 					`)
 	})
 	t.Run("extend union type by UnionMemberType", func(t *testing.T) {
-		run(extendUnionTypeDefinition, testDefinition, `
+		run(t, extendUnionTypeDefinition, testDefinition, `
 					union Mammal
 					extend union Mammal = Cat
 					 `, `
@@ -22,7 +22,7 @@ func TestExtendUnionType(t *testing.T) {
 					`)
 	})
 	t.Run("extend union type by multiple UnionMemberTypes", func(t *testing.T) {
-		run(extendUnionTypeDefinition, testDefinition, `
+		run(t, extendUnionTypeDefinition, testDefinition, `
 					union Mammal
 					extend union Mammal = Cat | Dog
 					 `, `
@@ -31,7 +31,7 @@ func TestExtendUnionType(t *testing.T) {
 					`)
 	})
 	t.Run("extend union by multiple directives and union members", func(t *testing.T) {
-		run(extendUnionTypeDefinition, testDefinition, `
+		run(t, extendUnionTypeDefinition, testDefinition, `
 					union Mammal
 					extend union Mammal @deprecated(reason: "some reason") @skip(if: false) = Cat | Dog
 					 `, `
@@ -40,7 +40,7 @@ func TestExtendUnionType(t *testing.T) {
 					`)
 	})
 	t.Run("extend union type which already has union member", func(t *testing.T) {
-		run(extendUnionTypeDefinition, testDefinition, `
+		run(t, extendUnionTypeDefinition, testDefinition, `
 					union Mammal = Cat
 					extend union Mammal @deprecated(reason: "some reason") = Dog
 					 `, `
@@ -49,7 +49,7 @@ func TestExtendUnionType(t *testing.T) {
 					`)
 	})
 	t.Run("extend non-existent union", func(t *testing.T) {
-		run(extendUnionTypeDefinition, testDefinition, `
+		run(t, extendUnionTypeDefinition, testDefinition, `
 					extend union Response = SuccessResponse | ErrorResponse
 					extend union Mammal @deprecated(reason: "some reason") = Dog
 					 `, `

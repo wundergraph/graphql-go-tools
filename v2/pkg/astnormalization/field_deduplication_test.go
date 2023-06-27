@@ -4,7 +4,7 @@ import "testing"
 
 func TestDeDuplicateFields(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
-		run(deduplicateFields, testDefinition, `
+		run(t, deduplicateFields, testDefinition, `
 					query conflictingBecauseAlias {
 						dog {
 							extra { 
@@ -25,7 +25,7 @@ func TestDeDuplicateFields(t *testing.T) {
 					}`)
 	})
 	t.Run("with different args", func(t *testing.T) {
-		run(deduplicateFields, testDefinition, `
+		run(t, deduplicateFields, testDefinition, `
 					fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
 						doesKnowCommand(dogCommand: 1)
 						doesKnowCommand(dogCommand: 0)

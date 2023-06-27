@@ -431,7 +431,7 @@ var runWithDeleteUnusedVariables = func(t *testing.T, normalizeFunc registerNorm
 	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables)
 }
 
-var run = func(normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string) {
+var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string) {
 
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
 	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
@@ -452,26 +452,24 @@ var run = func(normalizeFunc registerNormalizeFunc, definition, operation, expec
 		panic(report.Error())
 	}
 
-	got := mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
-	want := mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
+	got := mustString(astprinter.PrintStringIndent(&operationDocument, &definitionDocument, "  "))
+	want := mustString(astprinter.PrintStringIndent(&expectedOutputDocument, &definitionDocument, ""))
 
-	if want != got {
-		panic(fmt.Errorf("\nwant:\n%s\ngot:\n%s", want, got))
-	}
+	assert.Equal(t, want, got)
 }
 
-func runMany(definition, operation, expectedOutput string, normalizeFuncs ...registerNormalizeFunc) {
+func runMany(t *testing.T, definition, operation, expectedOutput string, normalizeFuncs ...registerNormalizeFunc) {
 	var runManyNormalizers = func(walker *astvisitor.Walker) {
 		for _, normalizeFunc := range normalizeFuncs {
 			normalizeFunc(walker)
 		}
 	}
 
-	run(runManyNormalizers, definition, operation, expectedOutput)
+	run(t, runManyNormalizers, definition, operation, expectedOutput)
 }
 
-func runManyOnDefinition(definition, expectedOutput string, normalizeFuncs ...registerNormalizeFunc) {
-	runMany("", definition, expectedOutput, normalizeFuncs...)
+func runManyOnDefinition(t *testing.T, definition, expectedOutput string, normalizeFuncs ...registerNormalizeFunc) {
+	runMany(t, "", definition, expectedOutput, normalizeFuncs...)
 }
 
 const testOperation = `	

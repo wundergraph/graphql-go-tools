@@ -1,8 +1,9 @@
 package astnormalization
 
 import (
-	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
@@ -10,7 +11,7 @@ import (
 )
 
 func TestRealDepthCalculator_CalculateDepthForFragmentSpread(t *testing.T) {
-	run := func(operation, definition, spreadName string, wantDepth int) {
+	run := func(t *testing.T, operation, definition, spreadName string, wantDepth int) {
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
 		def := unsafeparser.ParseGraphqlDocumentString(definition)
 		err := asttransform.MergeDefinitionWithBaseSchema(&def)
@@ -34,13 +35,11 @@ func TestRealDepthCalculator_CalculateDepthForFragmentSpread(t *testing.T) {
 			}
 		}
 
-		if wantDepth != gotDepth {
-			panic(fmt.Errorf("want: %d, got: %d", wantDepth, gotDepth))
-		}
+		assert.Equal(t, wantDepth, gotDepth)
 	}
 
 	t.Run("simple", func(t *testing.T) {
-		run(`
+		run(t, `
 				subscription sub {
 					...frag1
 				}
@@ -57,7 +56,7 @@ func TestRealDepthCalculator_CalculateDepthForFragmentSpread(t *testing.T) {
 				}`, testDefinition, "frag1", 3)
 	})
 	t.Run("nested", func(t *testing.T) {
-		run(`
+		run(t, `
 				subscription sub {
 					...frag1
 				}
