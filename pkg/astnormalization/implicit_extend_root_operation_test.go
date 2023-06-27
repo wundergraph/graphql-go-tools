@@ -4,7 +4,7 @@ import "testing"
 
 func TestImplicitExtendRootOperation(t *testing.T) {
 	t.Run("implicit extend root operation from schema", func(_ *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 		schema {
 			query: QueryName
 			mutation: MutationName
@@ -23,7 +23,7 @@ func TestImplicitExtendRootOperation(t *testing.T) {
 	`, registerNormalizeFunc(implicitExtendRootOperation))
 	})
 	t.Run("don't implicitly extend empty schema root operation", func(_ *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 		schema {
 			query: QueryName
 		}
@@ -35,7 +35,7 @@ func TestImplicitExtendRootOperation(t *testing.T) {
 	`, registerNormalizeFunc(implicitExtendRootOperation))
 	})
 	t.Run("don't implicitly extend empty object root operation", func(_ *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 			type Query {}
 			type Mutation {
 				field: String!
@@ -49,7 +49,7 @@ func TestImplicitExtendRootOperation(t *testing.T) {
 		`, registerNormalizeFunc(implicitExtendRootOperation))
 	})
 	t.Run("implicitly extend object root operation with definitions and directives", func(_ *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 		type Query {}
 		type Mutation {
 			field: String!

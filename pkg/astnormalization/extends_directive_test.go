@@ -5,7 +5,7 @@ import "testing"
 func TestExtendsDirective(t *testing.T) {
 	t.Run("@extends on object type definition", func(t *testing.T) {
 		t.Run("support extends directive", func(_ *testing.T) {
-			runManyOnDefinition(`
+			runManyOnDefinition(t, `
 				type User @extends {
 					field: String!
 				}
@@ -16,7 +16,7 @@ func TestExtendsDirective(t *testing.T) {
 		})
 
 		t.Run("delete extends directive", func(_ *testing.T) {
-			runManyOnDefinition(`
+			runManyOnDefinition(t, `
 				type User @extends @otherDirective {
 					field: String!
 				}
@@ -29,7 +29,7 @@ func TestExtendsDirective(t *testing.T) {
 
 	t.Run("@extends on interface type definition", func(t *testing.T) {
 		t.Run("support extends directive", func(_ *testing.T) {
-			runManyOnDefinition(`
+			runManyOnDefinition(t, `
 				interface Vehicle @extends {
 					speed: Int!
 				}
@@ -40,7 +40,7 @@ func TestExtendsDirective(t *testing.T) {
 		})
 
 		t.Run("delete extends directive", func(_ *testing.T) {
-			runManyOnDefinition(`
+			runManyOnDefinition(t, `
 				interface Vehicle @extends @otherDirective {
 					speed: Int!
 				}

@@ -4,7 +4,7 @@ import "testing"
 
 func TestExtendInputObjectType(t *testing.T) {
 	t.Run("extend input object type by directive", func(t *testing.T) {
-		run(extendInputObjectTypeDefinition, testDefinition, `
+		run(t, extendInputObjectTypeDefinition, testDefinition, `
 					input DogSize {width: Float height: Float}
 					extend input DogSize @deprecated(reason: "some reason")
 					 `, `
@@ -13,7 +13,7 @@ func TestExtendInputObjectType(t *testing.T) {
 					`)
 	})
 	t.Run("extend input object type by input fields definition", func(t *testing.T) {
-		run(extendInputObjectTypeDefinition, testDefinition, `
+		run(t, extendInputObjectTypeDefinition, testDefinition, `
 					input DogSize {width: Float height: Float}
 					extend input DogSize {breadth: Float}
 					 `, `
@@ -22,7 +22,7 @@ func TestExtendInputObjectType(t *testing.T) {
 					`)
 	})
 	t.Run("extend input object type by multiple input fields definition and directives", func(t *testing.T) {
-		run(extendInputObjectTypeDefinition, testDefinition, `
+		run(t, extendInputObjectTypeDefinition, testDefinition, `
 					input DogSize {width: Float height: Float}
 					extend input DogSize @deprecated(reason: "some reason") @skip(if: false) {breadth: Float weight: Float}
 					 `, `
@@ -31,7 +31,7 @@ func TestExtendInputObjectType(t *testing.T) {
 					`)
 	})
 	t.Run("extend non existent input object type", func(t *testing.T) {
-		run(extendInputObjectTypeDefinition, "", `
+		run(t, extendInputObjectTypeDefinition, "", `
 					extend input Location { lat: Float lon: Float }
 					extend input DogSize @deprecated(reason: "some reason") @skip(if: false) {breadth: Float weight: Float}
 					 `, `

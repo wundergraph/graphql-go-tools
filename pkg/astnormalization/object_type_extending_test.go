@@ -4,7 +4,7 @@ import "testing"
 
 func TestExtendObjectType(t *testing.T) {
 	t.Run("extend object type by field", func(t *testing.T) {
-		run(extendObjectTypeDefinition, testDefinition, `
+		run(t, extendObjectTypeDefinition, testDefinition, `
 					type Dog {
 						name: String
 					}
@@ -22,7 +22,7 @@ func TestExtendObjectType(t *testing.T) {
 					`)
 	})
 	t.Run("extend object type by directive", func(t *testing.T) {
-		run(extendObjectTypeDefinition, testDefinition, `
+		run(t, extendObjectTypeDefinition, testDefinition, `
 					type Cat {
 						name: String
 					}
@@ -35,7 +35,7 @@ func TestExtendObjectType(t *testing.T) {
 					`)
 	})
 	t.Run("extend object type by multiple field", func(t *testing.T) {
-		run(extendObjectTypeDefinition, testDefinition, `
+		run(t, extendObjectTypeDefinition, testDefinition, `
 					type Dog {
 						name: String
 					}
@@ -56,7 +56,7 @@ func TestExtendObjectType(t *testing.T) {
 					`)
 	})
 	t.Run("extend object type by multiple directives", func(t *testing.T) {
-		run(extendObjectTypeDefinition, testDefinition, `
+		run(t, extendObjectTypeDefinition, testDefinition, `
 					type Cat {
 						name: String
 					}
@@ -69,7 +69,7 @@ func TestExtendObjectType(t *testing.T) {
 					`)
 	})
 	t.Run("extend object type by complex extends", func(t *testing.T) {
-		run(extendObjectTypeDefinition, testDefinition, `
+		run(t, extendObjectTypeDefinition, testDefinition, `
 					type Cat {
 						name: String
 					}
@@ -90,7 +90,7 @@ func TestExtendObjectType(t *testing.T) {
 					`)
 	})
 	t.Run("extend missing object type definition", func(t *testing.T) {
-		run(extendObjectTypeDefinition, `schema { query: Query }`, `
+		run(t, extendObjectTypeDefinition, `schema { query: Query }`, `
 			extend type Query {	me: String }
 			extend type Cat @deprecated(reason: "not as cool as dogs") @skip(if: false) { age: Int breed: String }
 			`, `
@@ -101,7 +101,7 @@ func TestExtendObjectType(t *testing.T) {
 			`)
 	})
 	t.Run("extend object type by interface", func(t *testing.T) {
-		run(extendObjectTypeDefinition, testDefinition, `
+		run(t, extendObjectTypeDefinition, testDefinition, `
 					type Dog {
 						name: String
 					}
@@ -125,7 +125,7 @@ func TestExtendObjectType(t *testing.T) {
 					`)
 	})
 	t.Run("extend object type which implements interface by interface", func(t *testing.T) {
-		run(extendObjectTypeDefinition, testDefinition, `
+		run(t, extendObjectTypeDefinition, testDefinition, `
 					type Dog implements ToyHater {
 						name: String
 						hatedToy: String

@@ -4,7 +4,7 @@ import "testing"
 
 func TestMergeFieldSelections(t *testing.T) {
 	t.Run("depth 1", func(t *testing.T) {
-		run(mergeFieldSelections, testDefinition, `
+		run(t, mergeFieldSelections, testDefinition, `
 					query conflictingBecauseAlias {
 						dog {
 							extra { string }
@@ -21,7 +21,7 @@ func TestMergeFieldSelections(t *testing.T) {
 					}`)
 	})
 	t.Run("depth 2", func(t *testing.T) {
-		run(mergeFieldSelections, testDefinition, `
+		run(t, mergeFieldSelections, testDefinition, `
 					query conflictingBecauseAlias {
 						dog {
 							extra { string }
@@ -45,7 +45,7 @@ func TestMergeFieldSelections(t *testing.T) {
 	})
 	t.Run("aliased", func(t *testing.T) {
 		t.Run("aliased", func(t *testing.T) {
-			run(mergeFieldSelections, testDefinition, `
+			run(t, mergeFieldSelections, testDefinition, `
 					query conflictingBecauseAlias {
 						dog {
 							x: extras { string }
@@ -61,7 +61,7 @@ func TestMergeFieldSelections(t *testing.T) {
 		})
 	})
 	t.Run("fields with directives", func(t *testing.T) {
-		run(mergeFieldSelections, testDefinition, `
+		run(t, mergeFieldSelections, testDefinition, `
 					{
 						field @skip(if: $foo) {
 							subfieldA

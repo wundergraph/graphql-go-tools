@@ -4,7 +4,7 @@ import "testing"
 
 func TestExtendScalarType(t *testing.T) {
 	t.Run("extend simple scalar type", func(t *testing.T) {
-		run(extendScalarTypeDefinition, testDefinition, `
+		run(t, extendScalarTypeDefinition, testDefinition, `
 					scalar Coordinates
 					extend scalar Coordinates @deprecated(reason: "some reason")
 					 `, `
@@ -13,7 +13,7 @@ func TestExtendScalarType(t *testing.T) {
 					`)
 	})
 	t.Run("extend scalar type by multiple directives", func(t *testing.T) {
-		run(extendScalarTypeDefinition, testDefinition, `
+		run(t, extendScalarTypeDefinition, testDefinition, `
 					scalar Coordinates
 					extend scalar Coordinates @deprecated(reason: "some reason") @skip(if: false)
 					 `, `
@@ -22,7 +22,7 @@ func TestExtendScalarType(t *testing.T) {
 					`)
 	})
 	t.Run("extend non-existent scalar", func(t *testing.T) {
-		run(extendScalarTypeDefinition, testDefinition, `
+		run(t, extendScalarTypeDefinition, testDefinition, `
 					extend scalar Mood
 					extend scalar Coordinates @deprecated(reason: "some reason") @skip(if: false)
 					 `, `

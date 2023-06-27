@@ -4,7 +4,7 @@ import "testing"
 
 func TestRemoveSelfAliasing(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
-		run(removeSelfAliasing, testDefinition, `
+		run(t, removeSelfAliasing, testDefinition, `
 				{dog: dog}`,
 			`
 				{dog}`)
