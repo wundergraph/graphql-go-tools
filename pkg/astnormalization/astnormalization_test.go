@@ -520,8 +520,8 @@ var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, op
 		panic(report.Error())
 	}
 
-	got := mustString(astprinter.PrintStringIndent(&operationDocument, &definitionDocument, "  "))
-	want := mustString(astprinter.PrintStringIndent(&expectedOutputDocument, &definitionDocument, ""))
+	got := mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
+	want := mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
 
 	assert.Equal(t, want, got)
 }
