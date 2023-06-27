@@ -64,6 +64,10 @@ func (v *inputFieldDefaultInjectionVisitor) EnterVariableDefinition(ref int) {
 	}
 }
 
+// recursiveInjectInputFields injects default values in input types starting from
+// inputObjectRef and walking to its descendants. If no replacements are done it
+// returns (varValue, false). If injecting a default value caused varValue to change
+// it returns (newValue, true).
 func (v *inputFieldDefaultInjectionVisitor) recursiveInjectInputFields(inputObjectRef int, varValue []byte) ([]byte, bool, error) {
 	objectDef := v.definition.InputObjectTypeDefinitions[inputObjectRef]
 	if !objectDef.HasInputFieldsDefinition {
@@ -147,6 +151,9 @@ func (v *inputFieldDefaultInjectionVisitor) isScalarTypeOrExtension(typeRef int,
 	return false
 }
 
+// processObjectOrListInput walks over an input object or list, assigning default values
+// from the schema if necessary. If there are no changes to be made it (defaultValue, false),
+// and if any value is replaced by its default in the schema it returns (newValue, true).
 func (v *inputFieldDefaultInjectionVisitor) processObjectOrListInput(fieldType int, defaultValue []byte, typeDoc *ast.Document) ([]byte, bool, error) {
 	fieldIsList := typeDoc.TypeIsList(fieldType)
 	varVal, valType, _, err := jsonparser.Get(defaultValue)
@@ -181,6 +188,9 @@ func (v *inputFieldDefaultInjectionVisitor) processObjectOrListInput(fieldType i
 	return finalVal, replaced, nil
 }
 
+// jsonWalker returns a function for visiting an array using jsonparser.ArrayEach that recursively applies
+// default values from the schema if necessary, using v.processObjectOrListInput() and v.recursiveInjectInputFields().
+// If any changes are made, it returns (newValue, true), otherwise it returns (defaultValue, false).
 func (v *inputFieldDefaultInjectionVisitor) jsonWalker(fieldType int, defaultValue []byte, node *ast.Node, typeDoc *ast.Document, finalVal *[]byte, finalValueReplaced *bool) func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 	i := 0
 	listOfList := typeDoc.TypeIsList(typeDoc.Types[fieldType].OfType)
