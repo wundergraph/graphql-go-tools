@@ -546,26 +546,7 @@ func (v *Visitor) EnterField(ref int) {
 		return
 	}
 
-	var (
-		hasFetchConfig bool
-		i              int
-	)
-	for i = range v.fetchConfigurations {
-		if ref == v.fetchConfigurations[i].fieldRef {
-			hasFetchConfig = true
-			break
-		}
-	}
-	if hasFetchConfig {
-		if v.fetchConfigurations[i].isSubscription {
-			plan, ok := v.plan.(*SubscriptionResponsePlan)
-			if ok {
-				v.fetchConfigurations[i].trigger = &plan.Response.Trigger
-			}
-		} else {
-			v.fetchConfigurations[i].object = v.objects[len(v.objects)-1]
-		}
-	}
+	v.linkFetchConfiguration(ref)
 
 	path := v.resolveFieldPath(ref)
 	fieldDefinitionType := v.Definition.FieldDefinitionType(fieldDefinition)
@@ -593,6 +574,33 @@ func (v *Visitor) EnterField(ref int) {
 		return
 	}
 	v.fieldConfigs[ref] = fieldConfig
+}
+
+func (v *Visitor) linkFetchConfiguration(fieldRef int) {
+	var (
+		hasFetchConfig bool
+		i              int
+	)
+	for i = range v.fetchConfigurations {
+		if fieldRef == v.fetchConfigurations[i].fieldRef {
+			hasFetchConfig = true
+			break
+		}
+	}
+	if hasFetchConfig {
+		if v.fetchConfigurations[i].isSubscription {
+			plan, ok := v.plan.(*SubscriptionResponsePlan)
+			if ok {
+				v.fetchConfigurations[i].trigger = &plan.Response.Trigger
+			}
+		} else {
+			if len(v.objects) == 0 {
+				fmt.Println("here")
+			}
+
+			v.fetchConfigurations[i].object = v.objects[len(v.objects)-1]
+		}
+	}
 }
 
 func (v *Visitor) resolveFieldPosition(ref int) resolve.Position {
@@ -1528,17 +1536,7 @@ func (p *plannerConfiguration) hasChildNode(typeName, fieldName string) bool {
 }
 
 func (p *plannerConfiguration) hasRootNode(typeName, fieldName string) bool {
-	for i := range p.dataSourceConfiguration.RootNodes {
-		if typeName != p.dataSourceConfiguration.RootNodes[i].TypeName {
-			continue
-		}
-		for j := range p.dataSourceConfiguration.RootNodes[i].FieldNames {
-			if fieldName == p.dataSourceConfiguration.RootNodes[i].FieldNames[j] {
-				return true
-			}
-		}
-	}
-	return false
+	return p.dataSourceConfiguration.HasRootNode(typeName, fieldName)
 }
 
 type pathConfiguration struct {
