@@ -106,10 +106,15 @@ func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 	replaceWith := f.operation.FragmentDefinitions[fragmentDefinitionRef].SelectionSet
 	typeCondition := f.operation.FragmentDefinitions[fragmentDefinitionRef].TypeCondition
 
+	fragmentSpreadHasDirectives := f.operation.FragmentSpreadHasDirectives(ref)
+	directiveList := f.operation.FragmentSpreads[ref].Directives
+
 	switch {
-	case fragmentTypeEqualsParentType || enclosingTypeImplementsFragmentType:
+	case !fragmentSpreadHasDirectives && (fragmentTypeEqualsParentType || enclosingTypeImplementsFragmentType):
 		f.transformer.ReplaceFragmentSpread(precedence, selectionSet, ref, replaceWith)
+	case fragmentSpreadHasDirectives && (fragmentTypeEqualsParentType || enclosingTypeImplementsFragmentType):
+		f.transformer.ReplaceFragmentSpreadWithInlineFragment(precedence, selectionSet, ref, replaceWith, typeCondition, directiveList)
 	case fragmentTypeImplementsEnclosingType || fragmentTypeIsMemberOfEnclosingUnionType || enclosingTypeIsMemberOfFragmentUnion || fragmentUnionIntersectsEnclosingInterface || fragmentInterfaceIntersectsEnclosingUnion:
-		f.transformer.ReplaceFragmentSpreadWithInlineFragment(precedence, selectionSet, ref, replaceWith, typeCondition)
+		f.transformer.ReplaceFragmentSpreadWithInlineFragment(precedence, selectionSet, ref, replaceWith, typeCondition, directiveList)
 	}
 }
