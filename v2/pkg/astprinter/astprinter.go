@@ -161,7 +161,12 @@ func (p *printVisitor) LeaveDirective(ref int) {
 		if !p.document.VariableDefinitionsAfter(ancestor.Ref) {
 			p.write(literal.SPACE)
 		}
-	case ast.NodeKindInlineFragment:
+	case ast.NodeKindInlineFragment,
+		ast.NodeKindFragmentSpread:
+		if len(p.SelectionsAfter) > 0 {
+			p.write(literal.SPACE)
+		}
+	case ast.NodeKindSelectionSet:
 		if len(p.SelectionsAfter) > 0 {
 			p.write(literal.SPACE)
 		}
@@ -308,6 +313,9 @@ func (p *printVisitor) LeaveField(ref int) {
 func (p *printVisitor) EnterFragmentSpread(ref int) {
 	p.writeIndented(literal.SPREAD)
 	p.write(p.document.Input.ByteSlice(p.document.FragmentSpreads[ref].FragmentName))
+	if p.document.FragmentSpreads[ref].HasDirectives {
+		p.write(literal.SPACE)
+	}
 }
 
 func (p *printVisitor) LeaveFragmentSpread(ref int) {

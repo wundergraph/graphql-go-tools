@@ -177,6 +177,18 @@ vary: [String]! = []) on QUERY directive @include(if: Boolean!) repeatable on FI
 					}
 				}`, `{dog {name: nickname ... @include(if: true){name}} cat {name @include(if: true) nickname}}`)
 		})
+		t.Run("on fragment spread", func(t *testing.T) {
+			run(t, `
+				{
+					dog {
+						...NameFragment @include(if: true)
+					}
+				}
+				fragment NameFragment on Dog {
+					name
+				}
+				`, `{dog {...NameFragment @include(if: true)}} fragment NameFragment on Dog {name}`)
+		})
 	})
 	t.Run("complex operation", func(t *testing.T) {
 		run(t, benchmarkTestOperation, benchmarkTestOperationFlat)

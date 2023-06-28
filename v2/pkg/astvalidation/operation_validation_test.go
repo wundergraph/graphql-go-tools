@@ -3267,7 +3267,7 @@ func TestExecutionValidation(t *testing.T) {
 								...frag @spread
 							}
 							fragment frag on Query {}`,
-					DirectivesAreInValidLocations(), Valid)
+					DirectivesAreInValidLocations(), Valid, withDisableNormalization())
 			})
 			t.Run("150 variant", func(t *testing.T) {
 				run(t, `	{
@@ -3561,6 +3561,30 @@ func TestExecutionValidation(t *testing.T) {
 									isHousetrained(atOtherHomes: $atOtherHomes)
 								}`,
 					AllVariablesUsed(), Valid)
+			})
+			t.Run("variable used in directive on fragment", func(t *testing.T) {
+				t.Run("without normalization", func(t *testing.T) {
+					run(t, `query variableUsedInFragment($atOtherHomes: Boolean) {
+									dog {
+										...isHousetrainedFragment @include(if: $atOtherHomes)
+									}
+								}
+								fragment isHousetrainedFragment on Dog {
+									isHousetrained
+								}`,
+						AllVariablesUsed(), Valid, withDisableNormalization())
+				})
+				t.Run("with normalization", func(t *testing.T) {
+					run(t, `query variableUsedInFragment($atOtherHomes: Boolean) {
+									dog {
+										...isHousetrainedFragment @include(if: $atOtherHomes)
+									}
+								}
+								fragment isHousetrainedFragment on Dog {
+									isHousetrained
+								}`,
+						AllVariablesUsed(), Valid)
+				})
 			})
 			t.Run("167", func(t *testing.T) {
 				run(t, `query variableNotUsedWithinFragment($atOtherHomes: Boolean) {
@@ -4593,7 +4617,7 @@ union HumanOrAlien = Human | Alien
 union Extra = CatExtra | DogExtra
 
 directive @inline on INLINE_FRAGMENT
-directive @spread on FRAGMENT_SPREAD
+directive @spread on FRAGMENT_SPREAD | INLINE_FRAGMENT
 directive @fragmentDefinition on FRAGMENT_DEFINITION
 directive @onQuery on QUERY
 directive @onMutation on MUTATION

@@ -1968,6 +1968,19 @@ func (w *Walker) walkFragmentSpread(ref int) {
 		i++
 	}
 
+	w.appendAncestor(ref, ast.NodeKindFragmentSpread)
+	if w.stop {
+		return
+	}
+
+	if w.document.FragmentSpreads[ref].HasDirectives {
+		for _, i := range w.document.FragmentSpreads[ref].Directives.Refs {
+			w.walkDirective(i)
+		}
+	}
+
+	w.removeLastAncestor()
+
 	for i := 0; i < len(w.visitors.leaveFragmentSpread); {
 		if w.filter == nil || w.filter.AllowVisitor(LeaveFragmentSpread, ref, w.visitors.leaveFragmentSpread[i]) {
 			w.visitors.leaveFragmentSpread[i].LeaveFragmentSpread(ref)
