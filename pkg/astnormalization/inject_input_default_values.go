@@ -3,6 +3,7 @@ package astnormalization
 import (
 	"errors"
 	"fmt"
+
 	"github.com/buger/jsonparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
@@ -48,25 +49,32 @@ func (v *inputFieldDefaultInjectionVisitor) EnterVariableDefinition(ref int) {
 	if v.isScalarTypeOrExtension(typeRef, v.operation) {
 		return
 	}
-	newVal, err := v.processObjectOrListInput(typeRef, variableVal, v.operation)
+	newVal, replaced, err := v.processObjectOrListInput(typeRef, variableVal, v.operation)
 	if err != nil {
 		v.StopWithInternalErr(err)
 		return
 	}
-	newVariables, err := jsonparser.Set(v.operation.Input.Variables, newVal, v.variableName)
-	if err != nil {
-		v.StopWithInternalErr(err)
-		return
+	if replaced {
+		newVariables, err := jsonparser.Set(v.operation.Input.Variables, newVal, v.variableName)
+		if err != nil {
+			v.StopWithInternalErr(err)
+			return
+		}
+		v.operation.Input.Variables = newVariables
 	}
-	v.operation.Input.Variables = newVariables
 }
 
-func (v *inputFieldDefaultInjectionVisitor) recursiveInjectInputFields(inputObjectRef int, varValue []byte) ([]byte, error) {
-	finalVal := varValue
+// recursiveInjectInputFields injects default values in input types starting from
+// inputObjectRef and walking to its descendants. If no replacements are done it
+// returns (varValue, false). If injecting a default value caused varValue to change
+// it returns (newValue, true).
+func (v *inputFieldDefaultInjectionVisitor) recursiveInjectInputFields(inputObjectRef int, varValue []byte) ([]byte, bool, error) {
 	objectDef := v.definition.InputObjectTypeDefinitions[inputObjectRef]
 	if !objectDef.HasInputFieldsDefinition {
-		return varValue, nil
+		return varValue, false, nil
 	}
+	finalVal := varValue
+	hasDoneAnyReplacements := false
 	for _, ref := range objectDef.InputFieldsDefinition.Refs {
 		valDef := v.definition.InputValueDefinitions[ref]
 		fieldName := v.definition.InputValueDefinitionNameString(ref)
@@ -76,7 +84,7 @@ func (v *inputFieldDefaultInjectionVisitor) recursiveInjectInputFields(inputObje
 		varVal, _, _, err := jsonparser.Get(varValue, fieldName)
 		if err != nil && err != jsonparser.KeyPathNotFoundError {
 			v.StopWithInternalErr(err)
-			return nil, err
+			return nil, false, err
 		}
 		existsInVal := err != jsonparser.KeyPathNotFoundError
 
@@ -87,19 +95,22 @@ func (v *inputFieldDefaultInjectionVisitor) recursiveInjectInputFields(inputObje
 			} else if hasDefault {
 				defVal, err := v.definition.ValueToJSON(valDef.DefaultValue.Value)
 				if err != nil {
-					return nil, err
+					return nil, false, err
 				}
 				valToUse = defVal
 			} else {
 				continue
 			}
-			fieldValue, err := v.processObjectOrListInput(valDef.Type, valToUse, v.definition)
+			fieldValue, replaced, err := v.processObjectOrListInput(valDef.Type, valToUse, v.definition)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
-			finalVal, err = jsonparser.Set(finalVal, fieldValue, fieldName)
-			if err != nil {
-				return nil, err
+			if (!existsInVal && hasDefault) || replaced {
+				finalVal, err = jsonparser.Set(finalVal, fieldValue, fieldName)
+				if err != nil {
+					return nil, false, err
+				}
+				hasDoneAnyReplacements = true
 			}
 			continue
 		}
@@ -112,15 +123,16 @@ func (v *inputFieldDefaultInjectionVisitor) recursiveInjectInputFields(inputObje
 		}
 		defVal, err := v.definition.ValueToJSON(valDef.DefaultValue.Value)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 
 		finalVal, err = jsonparser.Set(finalVal, defVal, fieldName)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
+		hasDoneAnyReplacements = true
 	}
-	return finalVal, nil
+	return finalVal, hasDoneAnyReplacements, nil
 }
 
 func (v *inputFieldDefaultInjectionVisitor) isScalarTypeOrExtension(typeRef int, typeDoc *ast.Document) bool {
@@ -139,40 +151,47 @@ func (v *inputFieldDefaultInjectionVisitor) isScalarTypeOrExtension(typeRef int,
 	return false
 }
 
-func (v *inputFieldDefaultInjectionVisitor) processObjectOrListInput(fieldType int, defaultValue []byte, typeDoc *ast.Document) ([]byte, error) {
-	finalVal := defaultValue
+// processObjectOrListInput walks over an input object or list, assigning default values
+// from the schema if necessary. If there are no changes to be made it (defaultValue, false),
+// and if any value is replaced by its default in the schema it returns (newValue, true).
+func (v *inputFieldDefaultInjectionVisitor) processObjectOrListInput(fieldType int, defaultValue []byte, typeDoc *ast.Document) ([]byte, bool, error) {
 	fieldIsList := typeDoc.TypeIsList(fieldType)
 	varVal, valType, _, err := jsonparser.Get(defaultValue)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 
 	}
 	node, found := v.definition.Index.FirstNodeByNameBytes(typeDoc.ResolveTypeNameBytes(fieldType))
 	if !found {
-		return finalVal, nil
+		return defaultValue, false, nil
 	}
 	if node.Kind == ast.NodeKindScalarTypeDefinition {
-		return finalVal, nil
+		return defaultValue, false, nil
 	}
+	finalVal := defaultValue
+	replaced := false
 	valIsList := valType == jsonparser.Array
 	if fieldIsList && valIsList {
-		_, err := jsonparser.ArrayEach(varVal, v.jsonWalker(typeDoc.ResolveListOrNameType(fieldType), defaultValue, &node, typeDoc, &finalVal))
+		_, err := jsonparser.ArrayEach(varVal, v.jsonWalker(typeDoc.ResolveListOrNameType(fieldType), defaultValue, &node, typeDoc, &finalVal, &replaced))
 		if err != nil {
-			return nil, err
+			return nil, false, err
 
 		}
 	} else if !fieldIsList && !valIsList {
-		finalVal, err = v.recursiveInjectInputFields(node.Ref, defaultValue)
+		finalVal, replaced, err = v.recursiveInjectInputFields(node.Ref, defaultValue)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	} else {
-		return nil, errors.New("mismatched input value")
+		return nil, false, errors.New("mismatched input value")
 	}
-	return finalVal, nil
+	return finalVal, replaced, nil
 }
 
-func (v *inputFieldDefaultInjectionVisitor) jsonWalker(fieldType int, defaultValue []byte, node *ast.Node, typeDoc *ast.Document, finalVal *[]byte) func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+// jsonWalker returns a function for visiting an array using jsonparser.ArrayEach that recursively applies
+// default values from the schema if necessary, using v.processObjectOrListInput() and v.recursiveInjectInputFields().
+// If any changes are made, it returns (newValue, true), otherwise it returns (defaultValue, false).
+func (v *inputFieldDefaultInjectionVisitor) jsonWalker(fieldType int, defaultValue []byte, node *ast.Node, typeDoc *ast.Document, finalVal *[]byte, finalValueReplaced *bool) func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 	i := 0
 	listOfList := typeDoc.TypeIsList(typeDoc.Types[fieldType].OfType)
 	return func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
@@ -180,22 +199,28 @@ func (v *inputFieldDefaultInjectionVisitor) jsonWalker(fieldType int, defaultVal
 			return
 		}
 		if listOfList && dataType == jsonparser.Array {
-			newVal, err := v.processObjectOrListInput(typeDoc.Types[fieldType].OfType, value, typeDoc)
+			newVal, replaced, err := v.processObjectOrListInput(typeDoc.Types[fieldType].OfType, value, typeDoc)
 			if err != nil {
 				return
 			}
-			*finalVal, err = jsonparser.Set(defaultValue, newVal, fmt.Sprintf("[%d]", i))
-			if err != nil {
-				return
+			if replaced {
+				*finalVal, err = jsonparser.Set(defaultValue, newVal, fmt.Sprintf("[%d]", i))
+				if err != nil {
+					return
+				}
+				*finalValueReplaced = true
 			}
 		} else if !listOfList && dataType == jsonparser.Object {
-			newVal, err := v.recursiveInjectInputFields(node.Ref, value)
+			newVal, replaced, err := v.recursiveInjectInputFields(node.Ref, value)
 			if err != nil {
 				return
 			}
-			*finalVal, err = jsonparser.Set(defaultValue, newVal, fmt.Sprintf("[%d]", i))
-			if err != nil {
-				return
+			if replaced {
+				*finalVal, err = jsonparser.Set(defaultValue, newVal, fmt.Sprintf("[%d]", i))
+				if err != nil {
+					return
+				}
+				*finalValueReplaced = true
 			}
 		} else {
 			return

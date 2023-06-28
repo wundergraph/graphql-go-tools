@@ -3,14 +3,24 @@ package literal
 
 import "bytes"
 
+const (
+	COLON_BYTE  = byte(':')
+	COMMA_BYTE  = byte(',')
+	LBRACK_BYTE = byte('[')
+	RBRACK_BYTE = byte(']')
+	LBRACE_BYTE = byte('{')
+	RBRACE_BYTE = byte('}')
+	SUB_BYTE    = byte('-')
+)
+
 var (
-	COLON          = []byte(":")
+	COLON          = []byte{COLON_BYTE}
 	BANG           = []byte("!")
 	LINETERMINATOR = []byte("\n")
 	TAB            = []byte("	")
 	SPACE          = []byte(" ")
 	QUOTE          = []byte("\"")
-	COMMA          = []byte(",")
+	COMMA          = []byte{COMMA_BYTE}
 	AT             = []byte("@")
 	DOLLAR         = []byte("$")
 	DOT            = []byte(".")
@@ -19,17 +29,17 @@ var (
 	SLASH          = []byte("/")
 	BACKSLASH      = []byte("\\")
 	EQUALS         = []byte("=")
-	SUB            = []byte("-")
+	SUB            = []byte{SUB_BYTE}
 	AND            = []byte("&")
 
 	LPAREN        = []byte("(")
 	RPAREN        = []byte(")")
-	LBRACK        = []byte("[")
-	RBRACK        = []byte("]")
-	LBRACE        = []byte("{")
+	LBRACK        = []byte{LBRACK_BYTE}
+	RBRACK        = []byte{RBRACK_BYTE}
+	LBRACE        = []byte{LBRACE_BYTE}
 	DOUBLE_LBRACE = []byte("{{")
 	DOUBLE_RBRACE = []byte("}}")
-	RBRACE        = []byte("}")
+	RBRACE        = []byte{RBRACE_BYTE}
 
 	GOBOOL    = []byte("bool")
 	GOINT32   = []byte("int32")
