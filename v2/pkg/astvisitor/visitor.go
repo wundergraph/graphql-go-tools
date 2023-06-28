@@ -1703,7 +1703,9 @@ func (w *Walker) walkSelectionSet(ref int) {
 
 RefsChanged:
 	for {
-		refs := w.document.SelectionSets[ref].SelectionRefs
+		refs := make([]int, 0, len(w.document.SelectionSets[ref].SelectionRefs))
+		refs = append(refs, w.document.SelectionSets[ref].SelectionRefs...)
+
 		for i, j := range refs {
 
 			w.SelectionsBefore = refs[:i]
