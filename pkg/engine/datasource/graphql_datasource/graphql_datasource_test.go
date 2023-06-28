@@ -4122,6 +4122,166 @@ func TestGraphQLDataSource(t *testing.T) {
 			DisableResolveFieldPositions: true,
 		}))
 
+	t.Run("simple parallel federation queries", RunTest(complexFederationSchema,
+		`	query Parallel {
+					  user(id: "1") {
+						username
+					  }
+					  vehicle(id: "2") {
+						description
+                      }
+					}`,
+		"Parallel",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.ParallelFetch{
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								BufferId:   0,
+								Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){username}}","variables":{"a":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"a"},
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+									},
+								),
+								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+								ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+							},
+							&resolve.SingleFetch{
+								BufferId:   1,
+								Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($b: String!){vehicle(id: $b){description}}","variables":{"b":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"b"},
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+									},
+								),
+								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+								ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+							},
+						},
+					},
+					Fields: []*resolve.Field{
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("user"),
+							Value: &resolve.Object{
+								Path:     []string{"user"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("username"),
+										Value: &resolve.String{
+											Path:     []string{"username"},
+											Nullable: true,
+										},
+									},
+								},
+							},
+						},
+						{
+							HasBuffer: true,
+							BufferID:  1,
+							Name:      []byte("vehicle"),
+							Value: &resolve.Object{
+								Path:     []string{"vehicle"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("description"),
+										Value: &resolve.String{
+											Nullable: true,
+											Path:     []string{"description"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "username"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://user.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "extend type Query { me: User user(id: ID!): User} extend type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccounttype UserMetadata { name: String address: String description: String }",
+						},
+					}),
+					Factory: federationFactory,
+				},
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"vehicle"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Vehicle",
+							FieldNames: []string{"id", "name", "description", "price"},
+						},
+					},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "http://product.service",
+						},
+						Federation: FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: "extend type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} extend type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea extend type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
+						},
+					}),
+					Factory: federationFactory,
+				},
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Query",
+					FieldName: "user",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "id",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "vehicle",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "id",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+			},
+			DisableResolveFieldPositions: true,
+		}))
+
 	t.Run("complex nested federation", RunTest(complexFederationSchema,
 		`	query User {
 					  user(id: "2") {
