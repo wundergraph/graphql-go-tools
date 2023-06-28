@@ -7,7 +7,6 @@
 // The right order to not mess things up is from the deepest level up to the root.
 // Therefore this package is used to register transformations while walking an AST in order to bring all transformations in the right order.
 // Only then, when all transformations are in the right order according to depth, it's possible to safely apply them.
-//
 package asttransform
 
 import (
@@ -29,7 +28,7 @@ type (
 		// ReplaceFragmentSpread marks to replace a fragment spread with a selectionset
 		ReplaceFragmentSpread(selectionSet int, spreadRef int, replaceWithSelectionSet int)
 		// ReplaceFragmentSpreadWithInlineFragment marks a fragment spread to be replaces with an inline fragment
-		ReplaceFragmentSpreadWithInlineFragment(selectionSet int, spreadRef int, replaceWithSelectionSet int, typeCondition ast.TypeCondition)
+		ReplaceFragmentSpreadWithInlineFragment(selectionSet int, spreadRef int, replaceWithSelectionSet int, typeCondition ast.TypeCondition, directiveList ast.DirectiveList)
 	}
 	transformation interface {
 		apply(transformable Transformable)
@@ -109,7 +108,7 @@ func (t *Transformer) ReplaceFragmentSpread(precedence Precedence, selectionSet 
 }
 
 // ReplaceFragmentSpreadWithInlineFragment registers an action to replace a fragment spread with an inline fragment
-func (t *Transformer) ReplaceFragmentSpreadWithInlineFragment(precedence Precedence, selectionSet int, spreadRef int, replaceWithSelectionSet int, typeCondition ast.TypeCondition) {
+func (t *Transformer) ReplaceFragmentSpreadWithInlineFragment(precedence Precedence, selectionSet int, spreadRef int, replaceWithSelectionSet int, typeCondition ast.TypeCondition, directiveList ast.DirectiveList) {
 	t.actions = append(t.actions, action{
 		precedence: precedence,
 		transformation: replaceFragmentSpreadWithInlineFragment{
@@ -117,6 +116,7 @@ func (t *Transformer) ReplaceFragmentSpreadWithInlineFragment(precedence Precede
 			spreadRef:               spreadRef,
 			replaceWithSelectionSet: replaceWithSelectionSet,
 			typeCondition:           typeCondition,
+			directiveList:           directiveList,
 		},
 	})
 }
@@ -136,10 +136,11 @@ type replaceFragmentSpreadWithInlineFragment struct {
 	spreadRef               int
 	replaceWithSelectionSet int
 	typeCondition           ast.TypeCondition
+	directiveList           ast.DirectiveList
 }
 
 func (r replaceFragmentSpreadWithInlineFragment) apply(transformable Transformable) {
-	transformable.ReplaceFragmentSpreadWithInlineFragment(r.selectionSet, r.spreadRef, r.replaceWithSelectionSet, r.typeCondition)
+	transformable.ReplaceFragmentSpreadWithInlineFragment(r.selectionSet, r.spreadRef, r.replaceWithSelectionSet, r.typeCondition, r.directiveList)
 }
 
 type deleteRootNode struct {

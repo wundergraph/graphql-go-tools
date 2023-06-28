@@ -30,6 +30,35 @@ func TestInlineFragments(t *testing.T) {
 					disallowedSecondRootField
 				}`)
 	})
+	t.Run("simple with directive", func(t *testing.T) {
+		run(t, fragmentSpreadInline, testDefinition, `	
+				subscription sub {
+					...multipleSubscriptions @include(if: true)
+				}
+				fragment multipleSubscriptions on Subscription {
+					newMessage {
+						body
+						sender
+					}
+					disallowedSecondRootField
+				}`, `
+				subscription sub {
+					... on Subscription @include(if: true) {
+						newMessage {
+							body
+							sender
+						}
+						disallowedSecondRootField
+					}
+				}
+				fragment multipleSubscriptions on Subscription {
+					newMessage {
+						body
+						sender
+					}
+					disallowedSecondRootField
+				}`)
+	})
 	t.Run("simple 2x", func(t *testing.T) {
 		run(t, fragmentSpreadInline, testDefinition, `	
 				subscription sub {
