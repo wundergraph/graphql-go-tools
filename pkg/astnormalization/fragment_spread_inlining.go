@@ -2,10 +2,8 @@ package astnormalization
 
 import (
 	"bytes"
-	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
@@ -14,32 +12,23 @@ func fragmentSpreadInline(walker *astvisitor.Walker) {
 	visitor := fragmentSpreadInlineVisitor{
 		Walker: walker,
 	}
-	walker.RegisterDocumentVisitor(&visitor)
+	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterFragmentSpreadVisitor(&visitor)
+	walker.RegisterEnterFragmentDefinitionVisitor(&visitor)
 }
 
 type fragmentSpreadInlineVisitor struct {
 	*astvisitor.Walker
 	operation, definition *ast.Document
-	transformer           asttransform.Transformer
-	fragmentSpreadDepth   FragmentSpreadDepth
-	depths                Depths
+}
+
+func (f *fragmentSpreadInlineVisitor) EnterFragmentDefinition(ref int) {
+	f.SkipNode()
 }
 
 func (f *fragmentSpreadInlineVisitor) EnterDocument(operation, definition *ast.Document) {
-	f.transformer.Reset()
-	f.depths = f.depths[:0]
 	f.operation = operation
 	f.definition = definition
-
-	f.fragmentSpreadDepth.Get(operation, definition, f.Report, &f.depths)
-	if f.Report.HasErrors() {
-		f.Stop()
-	}
-}
-
-func (f *fragmentSpreadInlineVisitor) LeaveDocument(operation, definition *ast.Document) {
-	f.transformer.ApplyTransformations(operation)
 }
 
 func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
@@ -91,17 +80,6 @@ func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 		fragmentTypeIsMemberOfEnclosingUnionType = f.definition.NodeIsUnionMember(fragmentNode, f.EnclosingTypeDefinition)
 	}
 
-	nestedDepth, ok := f.depths.ByRef(ref)
-	if !ok {
-		f.StopWithInternalErr(fmt.Errorf("nested depth missing on depths for FragmentSpread: %s", f.operation.FragmentSpreadNameString(ref)))
-		return
-	}
-
-	precedence := asttransform.Precedence{
-		Depth: nestedDepth,
-		Order: 0,
-	}
-
 	selectionSet := f.Ancestors[len(f.Ancestors)-1].Ref
 	replaceWith := f.operation.FragmentDefinitions[fragmentDefinitionRef].SelectionSet
 	typeCondition := f.operation.FragmentDefinitions[fragmentDefinitionRef].TypeCondition
@@ -111,10 +89,10 @@ func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 
 	switch {
 	case !fragmentSpreadHasDirectives && (fragmentTypeEqualsParentType || enclosingTypeImplementsFragmentType):
-		f.transformer.ReplaceFragmentSpread(precedence, selectionSet, ref, replaceWith)
+		f.operation.ReplaceFragmentSpread(selectionSet, ref, replaceWith)
 	case fragmentSpreadHasDirectives && (fragmentTypeEqualsParentType || enclosingTypeImplementsFragmentType):
-		f.transformer.ReplaceFragmentSpreadWithInlineFragment(precedence, selectionSet, ref, replaceWith, typeCondition, directiveList)
+		f.operation.ReplaceFragmentSpreadWithInlineFragment(selectionSet, ref, replaceWith, typeCondition, directiveList)
 	case fragmentTypeImplementsEnclosingType || fragmentTypeIsMemberOfEnclosingUnionType || enclosingTypeIsMemberOfFragmentUnion || fragmentUnionIntersectsEnclosingInterface || fragmentInterfaceIntersectsEnclosingUnion:
-		f.transformer.ReplaceFragmentSpreadWithInlineFragment(precedence, selectionSet, ref, replaceWith, typeCondition, directiveList)
+		f.operation.ReplaceFragmentSpreadWithInlineFragment(selectionSet, ref, replaceWith, typeCondition, directiveList)
 	}
 }

@@ -196,6 +196,125 @@ func TestInlineFragments(t *testing.T) {
 					frag2Field
 				}`)
 	})
+	t.Run("5x nested", func(t *testing.T) {
+		run(t, fragmentSpreadInline, `
+				schema {
+					query: Query
+				}
+
+				type Query {
+					foo: Foo
+				}
+
+				type Foo {
+					fooName: String
+					some: Some
+					bar: Bar
+				}
+
+				type Bar {
+					barName: String
+					baz: Baz
+				}
+
+				type Baz {
+					bazName: String
+					some: Some
+				}
+
+				type Some {
+					something: String
+				}
+				`, `	
+				query q {
+					...QueryFragment
+				}
+
+				fragment QueryFragment on Query {
+					foo {
+						...FooFragment
+					}
+				}
+
+				fragment SomeFragment on Some {
+					something
+				}
+
+				fragment FooFragment on Foo {
+					fooName
+					some {
+						...SomeFragment
+					}
+					bar {
+						...BarFragment
+					}
+				}
+				
+				fragment BarFragment on Bar {
+					barName
+					baz {
+						...BazFragment
+					}
+				}
+				
+				fragment BazFragment on Baz {
+					bazName
+					some {
+						...SomeFragment
+					}
+				}`, `	
+				query q {
+					foo {
+						fooName
+						some {
+							something
+						}
+						bar {
+							barName
+							baz {
+								bazName
+								some {
+									something
+								}
+							}
+						}
+					}
+				}
+
+				fragment QueryFragment on Query {
+					foo {
+						...FooFragment
+					}
+				}
+
+				fragment SomeFragment on Some {
+					something
+				}
+
+				fragment FooFragment on Foo {
+					fooName
+					some {
+						...SomeFragment
+					}
+					bar {
+						...BarFragment
+					}
+				}
+				
+				fragment BarFragment on Bar {
+					barName
+					baz {
+						...BazFragment
+					}
+				}
+				
+				fragment BazFragment on Baz {
+					bazName
+					some {
+						...SomeFragment
+					}
+				}`)
+	})
 	t.Run("mergeFields interface fields into selection if type implements inferface", func(t *testing.T) {
 		run(t, fragmentSpreadInline, testDefinition, `
 				{
