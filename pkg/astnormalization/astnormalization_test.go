@@ -32,6 +32,7 @@ func TestNormalizeOperation(t *testing.T) {
 		}
 
 		normalizer := NewWithOpts(
+			WithInlineFragmentSpreads(),
 			WithExtractVariables(),
 			WithRemoveFragmentDefinitions(),
 			WithRemoveUnusedVariables(),

@@ -26,6 +26,7 @@ func (r *Request) Normalize(schema *Schema) (result NormalizationResult, err err
 		astnormalization.WithExtractVariables(),
 		astnormalization.WithRemoveFragmentDefinitions(),
 		astnormalization.WithRemoveUnusedVariables(),
+		astnormalization.WithInlineFragmentSpreads(),
 	)
 
 	if r.OperationName != "" {
