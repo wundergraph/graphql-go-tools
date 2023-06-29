@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
@@ -15,11 +16,17 @@ func fragmentSpreadInline(walker *astvisitor.Walker) {
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterFragmentSpreadVisitor(&visitor)
 	walker.RegisterEnterFragmentDefinitionVisitor(&visitor)
+	walker.RegisterLeaveFragmentSpreadVisitor(&visitor)
 }
 
 type fragmentSpreadInlineVisitor struct {
 	*astvisitor.Walker
 	operation, definition *ast.Document
+}
+
+func (f *fragmentSpreadInlineVisitor) LeaveFragmentSpread(ref int) {
+	op, _ := astprinter.PrintStringIndent(f.operation, f.definition, " ")
+	println(op)
 }
 
 func (f *fragmentSpreadInlineVisitor) EnterFragmentDefinition(ref int) {
@@ -57,7 +64,9 @@ func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 	var fragmentInterfaceIntersectsEnclosingUnion bool
 
 	if fragmentNode.Kind == ast.NodeKindInterfaceTypeDefinition && f.EnclosingTypeDefinition.Kind == ast.NodeKindObjectTypeDefinition {
-		enclosingTypeImplementsFragmentType = f.definition.NodeImplementsInterface(f.EnclosingTypeDefinition, fragmentNode)
+		enclosingTypeImplementsFragmentType =
+			f.definition.NodeImplementsInterface(f.EnclosingTypeDefinition, fragmentTypeName) &&
+				f.definition.NodeImplementsInterfaceFields(f.EnclosingTypeDefinition, fragmentNode)
 	}
 
 	if fragmentNode.Kind == ast.NodeKindUnionTypeDefinition {
@@ -65,7 +74,9 @@ func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 	}
 
 	if f.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition {
-		fragmentTypeImplementsEnclosingType = f.definition.NodeImplementsInterface(fragmentNode, f.EnclosingTypeDefinition)
+		fragmentTypeImplementsEnclosingType =
+			f.definition.NodeImplementsInterface(fragmentNode, parentTypeName) &&
+				f.definition.NodeImplementsInterfaceFields(fragmentNode, f.EnclosingTypeDefinition)
 	}
 
 	if f.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition && fragmentNode.Kind == ast.NodeKindUnionTypeDefinition {
@@ -88,11 +99,24 @@ func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 	directiveList := f.operation.FragmentSpreads[ref].Directives
 
 	switch {
-	case !fragmentSpreadHasDirectives && (fragmentTypeEqualsParentType || enclosingTypeImplementsFragmentType):
-		f.operation.ReplaceFragmentSpread(selectionSet, ref, replaceWith)
-	case fragmentSpreadHasDirectives && (fragmentTypeEqualsParentType || enclosingTypeImplementsFragmentType):
+	case fragmentTypeEqualsParentType || enclosingTypeImplementsFragmentType:
+		if fragmentSpreadHasDirectives {
+			// when the fragment spread has directives we need to replace the fragment spread with an inline fragment with preserved directives
+			f.operation.ReplaceFragmentSpreadWithInlineFragment(selectionSet, ref, replaceWith, typeCondition, directiveList)
+		} else {
+			// in case the fragment spread has no directives we could just replace selection set with the fragment selection set fields
+			f.operation.ReplaceFragmentSpread(selectionSet, ref, replaceWith)
+		}
+
+	case fragmentTypeImplementsEnclosingType ||
+		fragmentTypeIsMemberOfEnclosingUnionType ||
+		enclosingTypeIsMemberOfFragmentUnion ||
+		fragmentUnionIntersectsEnclosingInterface ||
+		fragmentInterfaceIntersectsEnclosingUnion:
+
 		f.operation.ReplaceFragmentSpreadWithInlineFragment(selectionSet, ref, replaceWith, typeCondition, directiveList)
-	case fragmentTypeImplementsEnclosingType || fragmentTypeIsMemberOfEnclosingUnionType || enclosingTypeIsMemberOfFragmentUnion || fragmentUnionIntersectsEnclosingInterface || fragmentInterfaceIntersectsEnclosingUnion:
-		f.operation.ReplaceFragmentSpreadWithInlineFragment(selectionSet, ref, replaceWith, typeCondition, directiveList)
+
+	default:
+		// all other case are invalid and should be reported by validation
 	}
 }
