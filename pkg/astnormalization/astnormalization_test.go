@@ -499,7 +499,7 @@ var runWithDeleteUnusedVariables = func(t *testing.T, normalizeFunc registerNorm
 	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables)
 }
 
-var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string) {
+var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string, indent ...bool) {
 
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
 	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
@@ -520,8 +520,14 @@ var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, op
 		panic(report.Error())
 	}
 
-	got := mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
-	want := mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
+	var got, want string
+	if len(indent) > 0 && indent[0] {
+		got = mustString(astprinter.PrintStringIndent(&operationDocument, &definitionDocument, "  "))
+		want = mustString(astprinter.PrintStringIndent(&expectedOutputDocument, &definitionDocument, "  "))
+	} else {
+		got = mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
+		want = mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
+	}
 
 	assert.Equal(t, want, got)
 }
