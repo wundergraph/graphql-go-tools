@@ -1228,6 +1228,7 @@ func (p *Planner) normalizeOperation(operation, definition *ast.Document, report
 		astnormalization.WithExtractVariables(),
 		astnormalization.WithRemoveFragmentDefinitions(),
 		astnormalization.WithRemoveUnusedVariables(),
+		astnormalization.WithInlineFragmentSpreads(),
 	)
 	normalizer.NormalizeOperation(operation, definition, report)
 

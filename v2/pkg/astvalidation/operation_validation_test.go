@@ -82,7 +82,11 @@ func TestExecutionValidation(t *testing.T) {
 		report := operationreport.Report{}
 
 		if !options.disableNormalization {
-			astnormalization.NormalizeOperation(&operation, &definition, &report)
+			normalizer := astnormalization.NewWithOpts(
+			// astnormalization.WithInlineFragmentSpreads(),
+			)
+			normalizer.NormalizeOperation(&operation, &definition, &report)
+
 			if report.HasErrors() && !options.expectNormalizationError {
 				panic(report.Error())
 			}
@@ -2582,7 +2586,7 @@ func TestExecutionValidation(t *testing.T) {
 						barkVolume
 						...nameFragment
 					}`,
-						Fragments(), Invalid, withValidationErrors("external: fragment spread: barkVolumeFragment forms fragment cycle"))
+						Fragments(), Invalid, withValidationErrors("external: fragment spread: barkVolumeFragment forms fragment cycle"), withDisableNormalization())
 				})
 				t.Run("136", func(t *testing.T) {
 					run(t, `
