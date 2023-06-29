@@ -11,14 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/buger/jsonparser"
 	ll "github.com/jensneuse/abstractlogger"
+	nhooyrwebsocket "github.com/pvormste/websocket"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
-	"nhooyr.io/websocket"
 )
 
 func logger() ll.Logger {
@@ -68,28 +67,28 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 	serverDone := &sync.WaitGroup{}
 	connectedClients := atomic.NewInt64(0)
 
-	assertSubscription := func(ctx context.Context, conn *websocket.Conn, subscriptionID int) {
+	assertSubscription := func(ctx context.Context, conn *nhooyrwebsocket.Conn, subscriptionID int) {
 		msgType, data, err := conn.Read(ctx)
 		assert.NoError(t, err)
-		assert.Equal(t, websocket.MessageText, msgType)
+		assert.Equal(t, nhooyrwebsocket.MessageText, msgType)
 		assert.Equal(t, fmt.Sprintf(`{"type":"start","id":"%d","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, subscriptionID), string(data))
 	}
 
-	assertSendMessages := func(ctx context.Context, conn *websocket.Conn, subscriptionID int) {
-		err := conn.Write(ctx, websocket.MessageText, []byte(fmt.Sprintf(`{"type":"data","id":"%d","payload":{"data":{"messageAdded":{"text":"first"}}}}`, subscriptionID)))
+	assertSendMessages := func(ctx context.Context, conn *nhooyrwebsocket.Conn, subscriptionID int) {
+		err := conn.Write(ctx, nhooyrwebsocket.MessageText, []byte(fmt.Sprintf(`{"type":"data","id":"%d","payload":{"data":{"messageAdded":{"text":"first"}}}}`, subscriptionID)))
 		assert.NoError(t, err)
-		err = conn.Write(ctx, websocket.MessageText, []byte(fmt.Sprintf(`{"type":"data","id":"%d","payload":{"data":{"messageAdded":{"text":"second"}}}}`, subscriptionID)))
+		err = conn.Write(ctx, nhooyrwebsocket.MessageText, []byte(fmt.Sprintf(`{"type":"data","id":"%d","payload":{"data":{"messageAdded":{"text":"second"}}}}`, subscriptionID)))
 		assert.NoError(t, err)
-		err = conn.Write(ctx, websocket.MessageText, []byte(fmt.Sprintf(`{"type":"data","id":"%d","payload":{"data":{"messageAdded":{"text":"third"}}}}`, subscriptionID)))
+		err = conn.Write(ctx, nhooyrwebsocket.MessageText, []byte(fmt.Sprintf(`{"type":"data","id":"%d","payload":{"data":{"messageAdded":{"text":"third"}}}}`, subscriptionID)))
 		assert.NoError(t, err)
 	}
 
-	assertInitAck := func(ctx context.Context, conn *websocket.Conn) {
+	assertInitAck := func(ctx context.Context, conn *nhooyrwebsocket.Conn) {
 		msgType, data, err := conn.Read(ctx)
 		assert.NoError(t, err)
-		assert.Equal(t, websocket.MessageText, msgType)
+		assert.Equal(t, nhooyrwebsocket.MessageText, msgType)
 		assert.Equal(t, `{"type":"connection_init"}`, string(data))
-		err = conn.Write(ctx, websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+		err = conn.Write(ctx, nhooyrwebsocket.MessageText, []byte(`{"type":"connection_ack"}`))
 		assert.NoError(t, err)
 	}
 
@@ -102,7 +101,7 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, string(third))
 	}
 
-	assertStop := func(ctx context.Context, conn *websocket.Conn, subscriptionID ...int) {
+	assertStop := func(ctx context.Context, conn *nhooyrwebsocket.Conn, subscriptionID ...int) {
 		var receivedIDs []int
 		expectedSum := 0
 		actualSum := 0
@@ -110,7 +109,7 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 			expectedSum += expected
 			msgType, data, err := conn.Read(ctx)
 			assert.NoError(t, err)
-			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, nhooyrwebsocket.MessageText, msgType)
 			messageType, err := jsonparser.GetString(data, "type")
 			assert.NoError(t, err)
 			assert.Equal(t, "stop", messageType)
@@ -128,7 +127,7 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		serverDone.Add(1)
 		defer serverDone.Done()
-		conn, err := websocket.Accept(w, r, nil)
+		conn, err := nhooyrwebsocket.Accept(w, r, nil)
 		assert.NoError(t, err)
 		connectedClients.Inc()
 		defer connectedClients.Dec()
@@ -233,24 +232,24 @@ func TestWebsocketSubscriptionClientImmediateClientCancel(t *testing.T) {
 func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
+		conn, err := nhooyrwebsocket.Accept(w, r, nil)
 		assert.NoError(t, err)
 		ctx := context.Background()
 		msgType, data, err := conn.Read(ctx)
 		assert.NoError(t, err)
-		assert.Equal(t, websocket.MessageText, msgType)
+		assert.Equal(t, nhooyrwebsocket.MessageText, msgType)
 		assert.Equal(t, `{"type":"connection_init"}`, string(data))
-		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+		err = conn.Write(r.Context(), nhooyrwebsocket.MessageText, []byte(`{"type":"connection_ack"}`))
 		assert.NoError(t, err)
 		msgType, data, err = conn.Read(ctx)
 		assert.NoError(t, err)
-		assert.Equal(t, websocket.MessageText, msgType)
+		assert.Equal(t, nhooyrwebsocket.MessageText, msgType)
 		assert.Equal(t, `{"type":"start","id":"1","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
-		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+		err = conn.Write(r.Context(), nhooyrwebsocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
 		assert.NoError(t, err)
-		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
+		err = conn.Write(r.Context(), nhooyrwebsocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
 		assert.NoError(t, err)
-		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"third"}}}}`))
+		err = conn.Write(r.Context(), nhooyrwebsocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"third"}}}}`))
 		assert.NoError(t, err)
 
 		_, _, err = conn.Read(ctx)

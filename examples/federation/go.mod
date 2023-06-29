@@ -3,7 +3,7 @@ module github.com/TykTechnologies/graphql-go-tools/examples/federation
 go 1.16
 
 require (
-	github.com/99designs/gqlgen v0.17.20
+	github.com/99designs/gqlgen v0.17.22
 	github.com/TykTechnologies/graphql-go-tools v1.20.2
 	github.com/gobwas/ws v1.0.4
 	github.com/gorilla/websocket v1.5.0

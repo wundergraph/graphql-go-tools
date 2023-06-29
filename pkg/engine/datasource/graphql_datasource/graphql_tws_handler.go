@@ -9,14 +9,14 @@ import (
 
 	"github.com/buger/jsonparser"
 	log "github.com/jensneuse/abstractlogger"
-	"nhooyr.io/websocket"
+	nhooyrwebsocket "github.com/pvormste/websocket"
 )
 
 // gqlTWSConnectionHandler is responsible for handling a connection to an origin
 // it is responsible for managing all subscriptions using the underlying WebSocket connection
 // if all Subscriptions are complete or cancelled/unsubscribed the handler will terminate
 type gqlTWSConnectionHandler struct {
-	conn               *websocket.Conn
+	conn               *nhooyrwebsocket.Conn
 	ctx                context.Context
 	log                log.Logger
 	subscribeCh        chan Subscription
@@ -25,7 +25,7 @@ type gqlTWSConnectionHandler struct {
 	readTimeout        time.Duration
 }
 
-func newGQLTWSConnectionHandler(ctx context.Context, conn *websocket.Conn, rt time.Duration, l log.Logger) *gqlTWSConnectionHandler {
+func newGQLTWSConnectionHandler(ctx context.Context, conn *nhooyrwebsocket.Conn, rt time.Duration, l log.Logger) *gqlTWSConnectionHandler {
 	return &gqlTWSConnectionHandler{
 		conn:               conn,
 		ctx:                ctx,
@@ -95,7 +95,7 @@ func (h *gqlTWSConnectionHandler) unsubscribeAllAndCloseConn() {
 	for id := range h.subscriptions {
 		h.unsubscribe(id)
 	}
-	_ = h.conn.Close(websocket.StatusNormalClosure, "")
+	_ = h.conn.Close(nhooyrwebsocket.StatusNormalClosure, "")
 }
 
 func (h *gqlTWSConnectionHandler) unsubscribe(subscriptionID string) {
@@ -107,7 +107,7 @@ func (h *gqlTWSConnectionHandler) unsubscribe(subscriptionID string) {
 	delete(h.subscriptions, subscriptionID)
 
 	req := fmt.Sprintf(completeMessage, subscriptionID)
-	err := h.conn.Write(h.ctx, websocket.MessageText, []byte(req))
+	err := h.conn.Write(h.ctx, nhooyrwebsocket.MessageText, []byte(req))
 	if err != nil {
 		h.log.Error("failed to write complete message", log.Error(err))
 	}
@@ -126,7 +126,7 @@ func (h *gqlTWSConnectionHandler) subscribe(sub Subscription) {
 	subscriptionID := strconv.Itoa(h.nextSubscriptionID)
 
 	subscribeRequest := fmt.Sprintf(subscribeMessage, subscriptionID, string(graphQLBody))
-	err = h.conn.Write(h.ctx, websocket.MessageText, []byte(subscribeRequest))
+	err = h.conn.Write(h.ctx, nhooyrwebsocket.MessageText, []byte(subscribeRequest))
 	if err != nil {
 		h.log.Error("failed to write subscribe message", log.Error(err))
 		return
@@ -204,7 +204,7 @@ func (h *gqlTWSConnectionHandler) handleMessageTypeError(data []byte) {
 }
 
 func (h *gqlTWSConnectionHandler) handleMessageTypePing() {
-	err := h.conn.Write(h.ctx, websocket.MessageText, []byte(pongMessage))
+	err := h.conn.Write(h.ctx, nhooyrwebsocket.MessageText, []byte(pongMessage))
 	if err != nil {
 		h.log.Error("failed to write pong message", log.Error(err))
 	}
@@ -254,7 +254,7 @@ func (h *gqlTWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan 
 			errCh <- err
 			return
 		}
-		if msgType != websocket.MessageText {
+		if msgType != nhooyrwebsocket.MessageText {
 			continue
 		}
 		select {

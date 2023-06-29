@@ -11,7 +11,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
-	"nhooyr.io/websocket"
+	nhooyrwebsocket "github.com/pvormste/websocket"
 )
 
 const ackWaitTimeout = 30 * time.Second
@@ -207,10 +207,10 @@ func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 		subProtocols = []string{c.wsSubProtocol}
 	}
 
-	conn, upgradeResponse, err := websocket.Dial(reqCtx, options.URL, &websocket.DialOptions{
+	conn, upgradeResponse, err := nhooyrwebsocket.Dial(reqCtx, options.URL, &nhooyrwebsocket.DialOptions{
 		HTTPClient:      c.httpClient,
 		HTTPHeader:      options.Header,
-		CompressionMode: websocket.CompressionDisabled,
+		CompressionMode: nhooyrwebsocket.CompressionDisabled,
 		Subprotocols:    subProtocols,
 	})
 	if err != nil {
@@ -229,7 +229,7 @@ func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 	}
 
 	// init + ack
-	err = conn.Write(reqCtx, websocket.MessageText, connectionInitMessage)
+	err = conn.Write(reqCtx, nhooyrwebsocket.MessageText, connectionInitMessage)
 	if err != nil {
 		return nil, err
 	}
@@ -287,7 +287,7 @@ type Subscription struct {
 	next    chan<- []byte
 }
 
-func waitForAck(ctx context.Context, conn *websocket.Conn) error {
+func waitForAck(ctx context.Context, conn *nhooyrwebsocket.Conn) error {
 	timer := time.NewTimer(ackWaitTimeout)
 	for {
 		select {
@@ -300,7 +300,7 @@ func waitForAck(ctx context.Context, conn *websocket.Conn) error {
 		if err != nil {
 			return err
 		}
-		if msgType != websocket.MessageText {
+		if msgType != nhooyrwebsocket.MessageText {
 			return fmt.Errorf("unexpected message type")
 		}
 
@@ -313,7 +313,7 @@ func waitForAck(ctx context.Context, conn *websocket.Conn) error {
 		case messageTypeConnectionKeepAlive:
 			continue
 		case messageTypePing:
-			err := conn.Write(ctx, websocket.MessageText, []byte(pongMessage))
+			err := conn.Write(ctx, nhooyrwebsocket.MessageText, []byte(pongMessage))
 			if err != nil {
 				return fmt.Errorf("failed to send pong message: %w", err)
 			}

@@ -9,14 +9,14 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/jensneuse/abstractlogger"
-	"nhooyr.io/websocket"
+	nhooyrwebsocket "github.com/pvormste/websocket"
 )
 
 // gqlWSConnectionHandler is responsible for handling a connection to an origin
 // it is responsible for managing all subscriptions using the underlying WebSocket connection
 // if all Subscriptions are complete or cancelled/unsubscribed the handler will terminate
 type gqlWSConnectionHandler struct {
-	conn               *websocket.Conn
+	conn               *nhooyrwebsocket.Conn
 	ctx                context.Context
 	log                abstractlogger.Logger
 	subscribeCh        chan Subscription
@@ -25,7 +25,7 @@ type gqlWSConnectionHandler struct {
 	readTimeout        time.Duration
 }
 
-func newGQLWSConnectionHandler(ctx context.Context, conn *websocket.Conn, readTimeout time.Duration, log abstractlogger.Logger) *gqlWSConnectionHandler {
+func newGQLWSConnectionHandler(ctx context.Context, conn *nhooyrwebsocket.Conn, readTimeout time.Duration, log abstractlogger.Logger) *gqlWSConnectionHandler {
 	return &gqlWSConnectionHandler{
 		conn:               conn,
 		ctx:                ctx,
@@ -110,7 +110,7 @@ func (h *gqlWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan [
 			errCh <- err
 			return
 		}
-		if msgType != websocket.MessageText {
+		if msgType != nhooyrwebsocket.MessageText {
 			continue
 		}
 		select {
@@ -125,7 +125,7 @@ func (h *gqlWSConnectionHandler) unsubscribeAllAndCloseConn() {
 	for id := range h.subscriptions {
 		h.unsubscribe(id)
 	}
-	_ = h.conn.Close(websocket.StatusNormalClosure, "")
+	_ = h.conn.Close(nhooyrwebsocket.StatusNormalClosure, "")
 }
 
 // subscribe adds a new Subscription to the gqlWSConnectionHandler and sends the startMessage to the origin
@@ -140,7 +140,7 @@ func (h *gqlWSConnectionHandler) subscribe(sub Subscription) {
 	subscriptionID := strconv.Itoa(h.nextSubscriptionID)
 
 	startRequest := fmt.Sprintf(startMessage, subscriptionID, string(graphQLBody))
-	err = h.conn.Write(h.ctx, websocket.MessageText, []byte(startRequest))
+	err = h.conn.Write(h.ctx, nhooyrwebsocket.MessageText, []byte(startRequest))
 	if err != nil {
 		return
 	}
@@ -257,7 +257,7 @@ func (h *gqlWSConnectionHandler) unsubscribe(subscriptionID string) {
 	close(sub.next)
 	delete(h.subscriptions, subscriptionID)
 	stopRequest := fmt.Sprintf(stopMessage, subscriptionID)
-	_ = h.conn.Write(h.ctx, websocket.MessageText, []byte(stopRequest))
+	_ = h.conn.Write(h.ctx, nhooyrwebsocket.MessageText, []byte(stopRequest))
 }
 
 func (h *gqlWSConnectionHandler) checkActiveSubscriptions() (hasActiveSubscriptions bool) {
