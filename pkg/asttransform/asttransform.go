@@ -2,10 +2,10 @@
 //
 // This is especially useful for ast normalization for nested fragment inlining.
 //
-// This packages is necessary to make AST transformations possible while walking an AST recusively.
+// This package is necessary to make AST transformations possible while walking an AST recusively.
 // In order to resolve dependencies in a tree (inline fragments & fragment spreads) it's necessary to resolve them in a specific order.
 // The right order to not mess things up is from the deepest level up to the root.
-// Therefore this package is used to register transformations while walking an AST in order to bring all transformations in the right order.
+// Therefore, this package is used to register transformations while walking an AST in order to bring all transformations in the right order.
 // Only then, when all transformations are in the right order according to depth, it's possible to safely apply them.
 package asttransform
 
@@ -25,10 +25,6 @@ type (
 		EmptySelectionSet(ref int)
 		// AppendSelectionSet marks to append a reference to a selectionset
 		AppendSelectionSet(ref int, appendRef int)
-		// ReplaceFragmentSpread marks to replace a fragment spread with a selectionset
-		ReplaceFragmentSpread(selectionSet int, spreadRef int, replaceWithSelectionSet int)
-		// ReplaceFragmentSpreadWithInlineFragment marks a fragment spread to be replaces with an inline fragment
-		ReplaceFragmentSpreadWithInlineFragment(selectionSet int, spreadRef int, replaceWithSelectionSet int, typeCondition ast.TypeCondition, directiveList ast.DirectiveList)
 	}
 	transformation interface {
 		apply(transformable Transformable)
@@ -93,54 +89,6 @@ func (t *Transformer) AppendSelectionSet(precedence Precedence, ref int, appendR
 			appendRef: appendRef,
 		},
 	})
-}
-
-// ReplaceFragmentSpread registers an action to replace a fragment spread with a selectionset
-func (t *Transformer) ReplaceFragmentSpread(precedence Precedence, selectionSet int, spreadRef int, replaceWithSelectionSet int) {
-	t.actions = append(t.actions, action{
-		precedence: precedence,
-		transformation: replaceFragmentSpread{
-			selectionSet:            selectionSet,
-			spreadRef:               spreadRef,
-			replaceWithSelectionSet: replaceWithSelectionSet,
-		},
-	})
-}
-
-// ReplaceFragmentSpreadWithInlineFragment registers an action to replace a fragment spread with an inline fragment
-func (t *Transformer) ReplaceFragmentSpreadWithInlineFragment(precedence Precedence, selectionSet int, spreadRef int, replaceWithSelectionSet int, typeCondition ast.TypeCondition, directiveList ast.DirectiveList) {
-	t.actions = append(t.actions, action{
-		precedence: precedence,
-		transformation: replaceFragmentSpreadWithInlineFragment{
-			selectionSet:            selectionSet,
-			spreadRef:               spreadRef,
-			replaceWithSelectionSet: replaceWithSelectionSet,
-			typeCondition:           typeCondition,
-			directiveList:           directiveList,
-		},
-	})
-}
-
-type replaceFragmentSpread struct {
-	selectionSet            int
-	spreadRef               int
-	replaceWithSelectionSet int
-}
-
-func (r replaceFragmentSpread) apply(transformable Transformable) {
-	transformable.ReplaceFragmentSpread(r.selectionSet, r.spreadRef, r.replaceWithSelectionSet)
-}
-
-type replaceFragmentSpreadWithInlineFragment struct {
-	selectionSet            int
-	spreadRef               int
-	replaceWithSelectionSet int
-	typeCondition           ast.TypeCondition
-	directiveList           ast.DirectiveList
-}
-
-func (r replaceFragmentSpreadWithInlineFragment) apply(transformable Transformable) {
-	transformable.ReplaceFragmentSpreadWithInlineFragment(r.selectionSet, r.spreadRef, r.replaceWithSelectionSet, r.typeCondition, r.directiveList)
 }
 
 type deleteRootNode struct {
