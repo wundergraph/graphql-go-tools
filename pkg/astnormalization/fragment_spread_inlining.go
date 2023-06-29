@@ -4,7 +4,6 @@ import (
 	"bytes"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
@@ -16,17 +15,11 @@ func fragmentSpreadInline(walker *astvisitor.Walker) {
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterFragmentSpreadVisitor(&visitor)
 	walker.RegisterEnterFragmentDefinitionVisitor(&visitor)
-	walker.RegisterLeaveFragmentSpreadVisitor(&visitor)
 }
 
 type fragmentSpreadInlineVisitor struct {
 	*astvisitor.Walker
 	operation, definition *ast.Document
-}
-
-func (f *fragmentSpreadInlineVisitor) LeaveFragmentSpread(ref int) {
-	op, _ := astprinter.PrintStringIndent(f.operation, f.definition, " ")
-	println(op)
 }
 
 func (f *fragmentSpreadInlineVisitor) EnterFragmentDefinition(ref int) {
