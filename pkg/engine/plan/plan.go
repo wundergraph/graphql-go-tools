@@ -182,6 +182,20 @@ func (d *DataSourceConfiguration) HasRootNode(typeName, fieldName string) bool {
 	return false
 }
 
+func (d *DataSourceConfiguration) HasChildNode(typeName, fieldName string) bool {
+	for i := range d.ChildNodes {
+		if typeName != d.ChildNodes[i].TypeName {
+			continue
+		}
+		for j := range d.ChildNodes[i].FieldNames {
+			if fieldName == d.ChildNodes[i].FieldNames[j] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 type PlannerFactory interface {
 	// Planner should return the DataSourcePlanner
 	// closer is the closing channel for all stateful DataSources
@@ -424,7 +438,8 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 		if config.planner == visitor && config.hasPath(path) {
 			switch kind {
 			case astvisitor.EnterField, astvisitor.LeaveField:
-				return config.shouldWalkFieldsOnPath(path)
+				typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
+				return config.shouldWalkFieldsOnPath(path, typeName)
 			case astvisitor.EnterSelectionSet, astvisitor.LeaveSelectionSet:
 				return !config.isExitPath(path)
 			default:
@@ -1479,9 +1494,9 @@ func (p *plannerConfiguration) isExitPath(path string) bool {
 	return false
 }
 
-func (p *plannerConfiguration) shouldWalkFieldsOnPath(path string) bool {
+func (p *plannerConfiguration) shouldWalkFieldsOnPath(path string, typeName string) bool {
 	for i := range p.paths {
-		if p.paths[i].path == path {
+		if p.paths[i].path == path && p.paths[i].typeName == typeName {
 			return p.paths[i].shouldWalkFields
 		}
 	}
@@ -1514,17 +1529,7 @@ func (p *plannerConfiguration) hasParent(parent string) bool {
 }
 
 func (p *plannerConfiguration) hasChildNode(typeName, fieldName string) bool {
-	for i := range p.dataSourceConfiguration.ChildNodes {
-		if typeName != p.dataSourceConfiguration.ChildNodes[i].TypeName {
-			continue
-		}
-		for j := range p.dataSourceConfiguration.ChildNodes[i].FieldNames {
-			if fieldName == p.dataSourceConfiguration.ChildNodes[i].FieldNames[j] {
-				return true
-			}
-		}
-	}
-	return false
+	return p.dataSourceConfiguration.HasChildNode(typeName, fieldName)
 }
 
 func (p *plannerConfiguration) hasRootNode(typeName, fieldName string) bool {
@@ -1540,6 +1545,8 @@ type pathConfiguration struct {
 	// however, we want to skip the fields at this level
 	// so, by setting shouldWalkFields to false, we can walk into non fields only
 	shouldWalkFields bool
+	// typeName - the planner will only walk into fields of this type
+	typeName string
 }
 
 func (c *configurationVisitor) EnterOperationDefinition(ref int) {
@@ -1554,6 +1561,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 	fieldName := c.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
+
 	parentPath := c.walker.Path.DotDelimitedString()
 	currentPath := parentPath + "." + fieldAliasOrName
 	root := c.walker.Ancestors[0]
@@ -1564,27 +1572,43 @@ func (c *configurationVisitor) EnterField(ref int) {
 	for i, plannerConfig := range c.planners {
 		planningBehaviour := plannerConfig.planner.DataSourcePlanningBehavior()
 		if fieldAliasOrName == "__typename" && planningBehaviour.IncludeTypeNameFields {
-			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: currentPath, shouldWalkFields: true})
+			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{
+				path:             currentPath,
+				shouldWalkFields: true,
+				typeName:         typeName,
+			})
 			return
 		}
 		if plannerConfig.hasParent(parentPath) && plannerConfig.hasRootNode(typeName, fieldName) && planningBehaviour.MergeAliasedRootNodes {
 			// same parent + root node = root sibling
-			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: currentPath, shouldWalkFields: true})
+
+			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{
+				path:             currentPath,
+				shouldWalkFields: true,
+				typeName:         typeName,
+			})
 			c.fieldBuffers[ref] = plannerConfig.bufferID
+
 			return
 		}
 		if plannerConfig.hasPath(parentPath) {
 			if plannerConfig.hasChildNode(typeName, fieldName) {
+
 				// has parent path + has child node = child
-				c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: currentPath, shouldWalkFields: true})
+				c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{
+					path:             currentPath,
+					shouldWalkFields: true,
+					typeName:         typeName,
+				})
+
 				return
 			}
 
-			if pathAdded := c.addPlannerPathForUnionChildOfObjectParent(ref, i, currentPath); pathAdded {
+			if pathAdded := c.addPlannerPathForUnionChildOfObjectParent(i, currentPath, ref, typeName); pathAdded {
 				return
 			}
 
-			if pathAdded := c.addPlannerPathForChildOfAbstractParent(i, typeName, fieldName, currentPath); pathAdded {
+			if pathAdded := c.addPlannerPathForChildOfAbstractParent(i, currentPath, typeName, fieldName); pathAdded {
 				return
 			}
 		}
@@ -1606,6 +1630,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 			{
 				path:             currentPath,
 				shouldWalkFields: true,
+				typeName:         typeName,
 			},
 		}
 		if isParentAbstract {
@@ -1642,7 +1667,10 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 }
 
-func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(fieldRef int, plannerIndex int, currentPath string) (pathAdded bool) {
+func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(
+	plannerIndex int, currentPath string, fieldRef int, typeName string,
+) (pathAdded bool) {
+
 	if c.walker.EnclosingTypeDefinition.Kind != ast.NodeKindObjectTypeDefinition {
 		return false
 	}
@@ -1659,15 +1687,20 @@ func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(fieldRe
 	}
 
 	if node.Kind == ast.NodeKindUnionTypeDefinition {
-		c.planners[plannerIndex].paths = append(c.planners[plannerIndex].paths, pathConfiguration{path: currentPath, shouldWalkFields: true})
+		c.planners[plannerIndex].paths = append(c.planners[plannerIndex].paths, pathConfiguration{
+			path:             currentPath,
+			shouldWalkFields: true,
+			typeName:         typeName,
+		})
 		return true
 	}
 	return false
 }
 
 func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
-	plannerIndex int, typeName, fieldName, currentPath string,
+	plannerIndex int, currentPath string, typeName, fieldName string,
 ) (pathAdded bool) {
+
 	if !c.isParentTypeNodeAbstractType() {
 		return false
 	}
@@ -1678,7 +1711,12 @@ func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
 		}
 	}
 	// The path for this field should only be added if the parent path also exists on this planner
-	c.planners[plannerIndex].paths = append(c.planners[plannerIndex].paths, pathConfiguration{path: currentPath, shouldWalkFields: true})
+
+	c.planners[plannerIndex].paths = append(c.planners[plannerIndex].paths, pathConfiguration{
+		path:             currentPath,
+		shouldWalkFields: true,
+		typeName:         typeName,
+	})
 	return true
 }
 
