@@ -182,6 +182,16 @@ func (d *DataSourceConfiguration) HasRootNode(typeName, fieldName string) bool {
 	return false
 }
 
+func (d *DataSourceConfiguration) HasRootNodeWithTypename(typeName string) bool {
+	for i := range d.RootNodes {
+		if typeName != d.RootNodes[i].TypeName {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 func (d *DataSourceConfiguration) HasChildNode(typeName, fieldName string) bool {
 	for i := range d.ChildNodes {
 		if typeName != d.ChildNodes[i].TypeName {
@@ -192,6 +202,16 @@ func (d *DataSourceConfiguration) HasChildNode(typeName, fieldName string) bool 
 				return true
 			}
 		}
+	}
+	return false
+}
+
+func (d *DataSourceConfiguration) HasChildNodeWithTypename(typeName string) bool {
+	for i := range d.ChildNodes {
+		if typeName != d.ChildNodes[i].TypeName {
+			continue
+		}
+		return true
 	}
 	return false
 }
@@ -321,6 +341,10 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	for key := range p.planningVisitor.planners {
 		config := p.planningVisitor.planners[key].dataSourceConfiguration
 		isNested := p.planningVisitor.planners[key].isNestedPlanner()
+
+		if gqPlanner, ok := p.planningVisitor.planners[key].planner.(GqlPlanner); ok {
+			gqPlanner.SetIndex(key + 1)
+		}
 		err := p.planningVisitor.planners[key].planner.Register(p.planningVisitor, config, isNested)
 		if err != nil {
 			report.AddInternalError(err)
@@ -333,6 +357,11 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningWalker.Walk(operation, definition, report)
 
 	return p.planningVisitor.plan
+}
+
+type GqlPlanner interface {
+	SetIndex(i int)
+	DebugPrint(args ...interface{})
 }
 
 func (p *Planner) selectOperation(operation *ast.Document, operationName string, report *operationreport.Report) {
@@ -438,10 +467,35 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 		if config.planner == visitor && config.hasPath(path) {
 			switch kind {
 			case astvisitor.EnterField, astvisitor.LeaveField:
-				typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
-				return config.shouldWalkFieldsOnPath(path, typeName)
+				fieldName := v.Operation.FieldNameString(ref)
+				_ = fieldName
+
+				enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
+				shouldWalkFieldsOnPath := config.shouldWalkFieldsOnPath(path, enclosingTypeName)
+
+				if pp, ok := config.planner.(GqlPlanner); ok {
+					pp.DebugPrint("AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path, " allow:", shouldWalkFieldsOnPath)
+				}
+
+				return shouldWalkFieldsOnPath
+			case astvisitor.EnterInlineFragment, astvisitor.LeaveInlineFragment:
+				typeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
+				hasRootOrHasChildNode := config.dataSourceConfiguration.HasRootNodeWithTypename(typeCondition) ||
+					config.dataSourceConfiguration.HasChildNodeWithTypename(typeCondition)
+
+				if pp, ok := config.planner.(GqlPlanner); ok {
+					pp.DebugPrint("AllowVisitor: InlineFragment", " ref:", ref, " typeCondition:", typeCondition, " allow:", hasRootOrHasChildNode)
+				}
+
+				return hasRootOrHasChildNode
 			case astvisitor.EnterSelectionSet, astvisitor.LeaveSelectionSet:
-				return !config.isExitPath(path)
+				allow := !config.isExitPath(path)
+
+				if pp, ok := config.planner.(GqlPlanner); ok {
+					pp.DebugPrint("AllowVisitor: SelectionSet", " ref:", ref, " allow:", allow)
+				}
+
+				return allow
 			default:
 				return true
 			}
@@ -1528,14 +1582,6 @@ func (p *plannerConfiguration) hasParent(parent string) bool {
 	return p.parentPath == parent
 }
 
-func (p *plannerConfiguration) hasChildNode(typeName, fieldName string) bool {
-	return p.dataSourceConfiguration.HasChildNode(typeName, fieldName)
-}
-
-func (p *plannerConfiguration) hasRootNode(typeName, fieldName string) bool {
-	return p.dataSourceConfiguration.HasRootNode(typeName, fieldName)
-}
-
 type pathConfiguration struct {
 	path              string
 	exitPlannerOnNode bool
@@ -1579,7 +1625,9 @@ func (c *configurationVisitor) EnterField(ref int) {
 			})
 			return
 		}
-		if plannerConfig.hasParent(parentPath) && plannerConfig.hasRootNode(typeName, fieldName) && planningBehaviour.MergeAliasedRootNodes {
+		if plannerConfig.hasParent(parentPath) &&
+			plannerConfig.dataSourceConfiguration.HasRootNode(typeName, fieldName) &&
+			planningBehaviour.MergeAliasedRootNodes {
 			// same parent + root node = root sibling
 
 			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{
@@ -1591,8 +1639,8 @@ func (c *configurationVisitor) EnterField(ref int) {
 
 			return
 		}
-		if plannerConfig.hasPath(parentPath) {
-			if plannerConfig.hasChildNode(typeName, fieldName) {
+		if _, hasPath := plannerConfig.hasPath(parentPath); hasPath {
+			if plannerConfig.dataSourceConfiguration.HasChildNode(typeName, fieldName) {
 
 				// has parent path + has child node = child
 				c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{
