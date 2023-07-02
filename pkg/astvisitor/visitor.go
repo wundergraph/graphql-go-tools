@@ -14,6 +14,53 @@ var (
 	ErrDefinitionMustNotBeNil = fmt.Errorf("definition must not be nil when walking operations")
 )
 
+type SkipVisitors []int
+
+func (s SkipVisitors) Allow(planner interface{}) bool {
+	p, ok := planner.(VisitorIdentifier)
+	if !ok {
+		return true
+	}
+	j := p.ID()
+
+	for _, i := range s {
+		if i == j {
+			return false
+		}
+	}
+	return true
+}
+
+func newSkipVisitors(skips []int, planner interface{}, allowedToVisit bool) SkipVisitors {
+	p, ok := planner.(VisitorIdentifier)
+	if !ok {
+		return skips
+	}
+	j := p.ID()
+
+	for k, i := range skips {
+		if i == j {
+			if allowedToVisit {
+				// if visiting was allowed explicitly we have to remove the skip for the nested nodes
+				// newSkips := make([]int, 0, len(skips))
+				// newSkips = append(newSkips, skips[:k]...)
+				// newSkips = append(newSkips, skips[k+1:]...)
+				// return newSkips
+				return append(skips[:k], skips[k+1:]...)
+			} else {
+				return skips // nothing to do as we already skipped this visitor
+			}
+		}
+	}
+	if allowedToVisit {
+		return skips
+	}
+	// newSkips := make([]int, 0, len(skips)+1)
+	// newSkips = append(newSkips, skips...)
+	// return append(newSkips, j) // add new skipped planner index
+	return append(skips, j)
+}
+
 // Walker orchestrates the process of walking an AST and calling all registered callbacks
 // Always use NewWalker to instantiate a new Walker
 type Walker struct {
@@ -144,7 +191,7 @@ type (
 		EnterFragmentSpreadVisitor
 		LeaveFragmentSpreadVisitor
 	}
-	// EnterFragmentSpreadVisitor is the callback when the walker enters an inline framgnet
+	// EnterInlineFragmentVisitor is the callback when the walker enters an inline fragment
 	EnterInlineFragmentVisitor interface {
 		// EnterInlineFragment gets called when the walker enters an inline fragment
 		// ref is the reference to the selection set on the AST
@@ -178,7 +225,7 @@ type (
 		EnterFragmentDefinitionVisitor
 		LeaveFragmentDefinitionVisitor
 	}
-	// EnterFragmentDefinitionVisitor is the callback when the walker enters a variable definition
+	// EnterVariableDefinitionVisitor is the callback when the walker enters a variable definition
 	EnterVariableDefinitionVisitor interface {
 		// EnterVariableDefinition gets called when the walker enters a variable definition
 		// ref is the reference to the selection set on the AST
@@ -627,7 +674,12 @@ type (
 	}
 	// VisitorFilter can be defined to prevent specific visitors from getting invoked
 	VisitorFilter interface {
-		AllowVisitor(kind VisitorKind, ref int, visitor interface{}) bool
+		AllowVisitor(kind VisitorKind, ref int, visitor interface{}, ancestorSkip SkipVisitors) bool
+	}
+
+	VisitorIdentifier interface {
+		ID() int
+		SetID(id int)
 	}
 )
 
@@ -1446,8 +1498,13 @@ func (w *Walker) walk() {
 		return
 	}
 
+	skipFor := make(SkipVisitors, 0, 4)
+
 	for i := 0; i < len(w.visitors.enterDocument); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterDocument, 0, w.visitors.enterDocument[i]) {
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterDocument, 0, w.visitors.enterDocument[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterDocument[i], allowedToVisit)
+
+		if allowedToVisit {
 			w.visitors.enterDocument[i].EnterDocument(w.document, w.definition)
 		}
 		if w.revisit {
@@ -1471,43 +1528,43 @@ func (w *Walker) walk() {
 				w.Report.AddInternalError(ErrDefinitionMustNotBeNil)
 				return
 			}
-			w.walkOperationDefinition(w.document.RootNodes[i].Ref)
+			w.walkOperationDefinition(w.document.RootNodes[i].Ref, skipFor)
 		case ast.NodeKindFragmentDefinition:
 			if w.definition == nil {
 				w.Report.AddInternalError(ErrDefinitionMustNotBeNil)
 				return
 			}
-			w.walkFragmentDefinition(w.document.RootNodes[i].Ref)
+			w.walkFragmentDefinition(w.document.RootNodes[i].Ref, skipFor)
 		case ast.NodeKindSchemaDefinition:
-			w.walkSchemaDefinition(w.document.RootNodes[i].Ref)
+			w.walkSchemaDefinition(w.document.RootNodes[i].Ref, skipFor)
 		case ast.NodeKindSchemaExtension:
-			w.walkSchemaExtension(w.document.RootNodes[i].Ref)
+			w.walkSchemaExtension(w.document.RootNodes[i].Ref, skipFor)
 		case ast.NodeKindDirectiveDefinition:
-			w.walkDirectiveDefinition(w.document.RootNodes[i].Ref)
+			w.walkDirectiveDefinition(w.document.RootNodes[i].Ref, skipFor)
 		case ast.NodeKindObjectTypeDefinition:
-			w.walkObjectTypeDefinition(w.document.RootNodes[i].Ref)
+			w.walkObjectTypeDefinition(w.document.RootNodes[i].Ref, skipFor)
 		case ast.NodeKindObjectTypeExtension:
-			w.walkObjectTypeExtension(w.document.RootNodes[i].Ref)
+			w.walkObjectTypeExtension(w.document.RootNodes[i].Ref, skipFor)
 		case ast.NodeKindInterfaceTypeDefinition:
-			w.walkInterfaceTypeDefinition(w.document.RootNodes[i].Ref)
+			w.walkInterfaceTypeDefinition(w.document.RootNodes[i].Ref, skipFor)
 		case ast.NodeKindInterfaceTypeExtension:
-			w.walkInterfaceTypeExtension(w.document.RootNodes[i].Ref)
+			w.walkInterfaceTypeExtension(w.document.RootNodes[i].Ref, skipFor)
 		case ast.NodeKindScalarTypeDefinition:
-			w.walkScalarTypeDefinition(w.document.RootNodes[i].Ref)
+			w.walkScalarTypeDefinition(w.document.RootNodes[i].Ref, skipFor)
 		case ast.NodeKindScalarTypeExtension:
-			w.walkScalarTypeExtension(w.document.RootNodes[i].Ref)
+			w.walkScalarTypeExtension(w.document.RootNodes[i].Ref, skipFor)
 		case ast.NodeKindUnionTypeDefinition:
-			w.walkUnionTypeDefinition(w.document.RootNodes[i].Ref)
+			w.walkUnionTypeDefinition(w.document.RootNodes[i].Ref, skipFor)
 		case ast.NodeKindUnionTypeExtension:
-			w.walkUnionTypeExtension(w.document.RootNodes[i].Ref)
+			w.walkUnionTypeExtension(w.document.RootNodes[i].Ref, skipFor)
 		case ast.NodeKindEnumTypeDefinition:
-			w.walkEnumTypeDefinition(w.document.RootNodes[i].Ref)
+			w.walkEnumTypeDefinition(w.document.RootNodes[i].Ref, skipFor)
 		case ast.NodeKindEnumTypeExtension:
-			w.walkEnumTypeExtension(w.document.RootNodes[i].Ref)
+			w.walkEnumTypeExtension(w.document.RootNodes[i].Ref, skipFor)
 		case ast.NodeKindInputObjectTypeDefinition:
-			w.walkInputObjectTypeDefinition(w.document.RootNodes[i].Ref)
+			w.walkInputObjectTypeDefinition(w.document.RootNodes[i].Ref, skipFor)
 		case ast.NodeKindInputObjectTypeExtension:
-			w.walkInputObjectTypeExtension(w.document.RootNodes[i].Ref)
+			w.walkInputObjectTypeExtension(w.document.RootNodes[i].Ref, skipFor)
 		}
 
 		if w.stop {
@@ -1520,7 +1577,11 @@ func (w *Walker) walk() {
 	}
 
 	for i := 0; i < len(w.visitors.leaveDocument); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveDocument, 0, w.visitors.leaveDocument[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveDocument[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveDocument, 0, w.visitors.leaveDocument[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveDocument[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveDocument[i].LeaveDocument(w.document, w.definition)
 		}
 		if w.revisit {
@@ -1538,11 +1599,15 @@ func (w *Walker) walk() {
 	}
 }
 
-func (w *Walker) walkOperationDefinition(ref int) {
+func (w *Walker) walkOperationDefinition(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	for i := 0; i < len(w.visitors.enterOperation); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterOperation, ref, w.visitors.enterOperation[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterOperation[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterOperation, ref, w.visitors.enterOperation[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterOperation[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterOperation[i].EnterOperationDefinition(ref)
 		}
 		if w.revisit {
@@ -1567,7 +1632,7 @@ func (w *Walker) walkOperationDefinition(ref int) {
 
 	if w.document.OperationDefinitions[ref].HasVariableDefinitions {
 		for _, i := range w.document.OperationDefinitions[ref].VariableDefinitions.Refs {
-			w.walkVariableDefinition(i)
+			w.walkVariableDefinition(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -1576,7 +1641,7 @@ func (w *Walker) walkOperationDefinition(ref int) {
 
 	if w.document.OperationDefinitions[ref].HasDirectives {
 		for _, i := range w.document.OperationDefinitions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -1584,7 +1649,7 @@ func (w *Walker) walkOperationDefinition(ref int) {
 	}
 
 	if w.document.OperationDefinitions[ref].HasSelections {
-		w.walkSelectionSet(w.document.OperationDefinitions[ref].SelectionSet)
+		w.walkSelectionSet(w.document.OperationDefinitions[ref].SelectionSet, skipFor)
 		if w.stop {
 			return
 		}
@@ -1593,7 +1658,11 @@ func (w *Walker) walkOperationDefinition(ref int) {
 	w.removeLastAncestor()
 
 	for i := 0; i < len(w.visitors.leaveOperation); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveOperation, ref, w.visitors.leaveOperation[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveOperation[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveOperation, ref, w.visitors.leaveOperation[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveOperation[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveOperation[i].LeaveOperationDefinition(ref)
 		}
 		if w.revisit {
@@ -1614,11 +1683,15 @@ func (w *Walker) walkOperationDefinition(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkVariableDefinition(ref int) {
+func (w *Walker) walkVariableDefinition(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	for i := 0; i < len(w.visitors.enterVariableDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterVariableDefinition, ref, w.visitors.enterVariableDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterVariableDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterVariableDefinition, ref, w.visitors.enterVariableDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterVariableDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterVariableDefinition[i].EnterVariableDefinition(ref)
 		}
 		if w.revisit {
@@ -1643,7 +1716,7 @@ func (w *Walker) walkVariableDefinition(ref int) {
 
 	if w.document.VariableDefinitions[ref].HasDirectives {
 		for _, i := range w.document.VariableDefinitions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -1653,7 +1726,11 @@ func (w *Walker) walkVariableDefinition(ref int) {
 	w.removeLastAncestor()
 
 	for i := 0; i < len(w.visitors.leaveVariableDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveVariableDefinition, ref, w.visitors.leaveVariableDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveVariableDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveVariableDefinition, ref, w.visitors.leaveVariableDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveVariableDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveVariableDefinition[i].LeaveVariableDefinition(ref)
 		}
 		if w.revisit {
@@ -1674,11 +1751,15 @@ func (w *Walker) walkVariableDefinition(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkSelectionSet(ref int) {
+func (w *Walker) walkSelectionSet(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	for i := 0; i < len(w.visitors.enterSelectionSet); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterSelectionSet, ref, w.visitors.enterSelectionSet[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterSelectionSet[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterSelectionSet, ref, w.visitors.enterSelectionSet[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterSelectionSet[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterSelectionSet[i].EnterSelectionSet(ref)
 		}
 		if w.revisit {
@@ -1713,11 +1794,11 @@ RefsChanged:
 
 			switch w.document.Selections[j].Kind {
 			case ast.SelectionKindField:
-				w.walkField(w.document.Selections[j].Ref)
+				w.walkField(w.document.Selections[j].Ref, skipFor)
 			case ast.SelectionKindFragmentSpread:
-				w.walkFragmentSpread(w.document.Selections[j].Ref)
+				w.walkFragmentSpread(w.document.Selections[j].Ref, skipFor)
 			case ast.SelectionKindInlineFragment:
-				w.walkInlineFragment(w.document.Selections[j].Ref)
+				w.walkInlineFragment(w.document.Selections[j].Ref, skipFor)
 			}
 
 			if w.stop {
@@ -1733,7 +1814,10 @@ RefsChanged:
 	w.removeLastAncestor()
 
 	for i := 0; i < len(w.visitors.leaveSelectionSet); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveSelectionSet, ref, w.visitors.leaveSelectionSet[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveSelectionSet[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveSelectionSet, ref, w.visitors.leaveSelectionSet[i], skipFor)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveSelectionSet[i].LeaveSelectionSet(ref)
 		}
 		if w.revisit {
@@ -1754,7 +1838,7 @@ RefsChanged:
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkField(ref int) {
+func (w *Walker) walkField(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	selectionsBefore := w.SelectionsBefore
@@ -1763,7 +1847,11 @@ func (w *Walker) walkField(ref int) {
 	w.setCurrent(ast.NodeKindField, ref)
 
 	for i := 0; i < len(w.visitors.enterField); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterField, ref, w.visitors.enterField[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterField[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterField, ref, w.visitors.enterField[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterField[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterField[i].EnterField(ref)
 		}
 		if w.revisit {
@@ -1790,7 +1878,7 @@ func (w *Walker) walkField(ref int) {
 
 	if len(w.document.Fields[ref].Arguments.Refs) != 0 {
 		for _, i := range w.document.Fields[ref].Arguments.Refs {
-			w.walkArgument(i)
+			w.walkArgument(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -1799,7 +1887,7 @@ func (w *Walker) walkField(ref int) {
 
 	if w.document.Fields[ref].HasDirectives {
 		for _, i := range w.document.Fields[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -1807,7 +1895,7 @@ func (w *Walker) walkField(ref int) {
 	}
 
 	if w.document.Fields[ref].HasSelections {
-		w.walkSelectionSet(w.document.Fields[ref].SelectionSet)
+		w.walkSelectionSet(w.document.Fields[ref].SelectionSet, skipFor)
 	}
 
 	w.removeLastAncestor()
@@ -1818,7 +1906,10 @@ func (w *Walker) walkField(ref int) {
 	w.setCurrent(ast.NodeKindField, ref)
 
 	for i := 0; i < len(w.visitors.leaveField); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveField, ref, w.visitors.leaveField[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveField[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveField, ref, w.visitors.leaveField[i], skipFor)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveField[i].LeaveField(ref)
 		}
 		if w.revisit {
@@ -1839,13 +1930,16 @@ func (w *Walker) walkField(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkDirective(ref int) {
+func (w *Walker) walkDirective(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindDirective, ref)
 
 	for i := 0; i < len(w.visitors.enterDirective); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterDirective, ref, w.visitors.enterDirective[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterDirective[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterDirective, ref, w.visitors.enterDirective[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterDirective[i], allowedToVisit)
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterDirective[i].EnterDirective(ref)
 		}
 		if w.revisit {
@@ -1870,7 +1964,7 @@ func (w *Walker) walkDirective(ref int) {
 
 	if w.document.Directives[ref].HasArguments {
 		for _, i := range w.document.Directives[ref].Arguments.Refs {
-			w.walkArgument(i)
+			w.walkArgument(i, skipFor)
 		}
 	}
 
@@ -1879,7 +1973,10 @@ func (w *Walker) walkDirective(ref int) {
 	w.setCurrent(ast.NodeKindDirective, ref)
 
 	for i := 0; i < len(w.visitors.leaveDirective); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveDirective, ref, w.visitors.leaveDirective[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveDirective[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveDirective, ref, w.visitors.leaveDirective[i], skipFor)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveDirective[i].LeaveDirective(ref)
 		}
 		if w.revisit {
@@ -1900,13 +1997,17 @@ func (w *Walker) walkDirective(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkArgument(ref int) {
+func (w *Walker) walkArgument(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindArgument, ref)
 
 	for i := 0; i < len(w.visitors.enterArgument); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterArgument, ref, w.visitors.enterArgument[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterArgument[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterArgument, ref, w.visitors.enterArgument[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterArgument[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterArgument[i].EnterArgument(ref)
 		}
 		if w.revisit {
@@ -1925,7 +2026,10 @@ func (w *Walker) walkArgument(ref int) {
 	}
 
 	for i := 0; i < len(w.visitors.leaveArgument); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveArgument, ref, w.visitors.leaveArgument[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveArgument[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveArgument, ref, w.visitors.leaveArgument[i], skipFor)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveArgument[i].LeaveArgument(ref)
 		}
 		if w.revisit {
@@ -1946,13 +2050,17 @@ func (w *Walker) walkArgument(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkFragmentSpread(ref int) {
+func (w *Walker) walkFragmentSpread(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindFragmentSpread, ref)
 
 	for i := 0; i < len(w.visitors.enterFragmentSpread); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterFragmentSpread, ref, w.visitors.enterFragmentSpread[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterFragmentSpread[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterFragmentSpread, ref, w.visitors.enterFragmentSpread[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterFragmentSpread[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterFragmentSpread[i].EnterFragmentSpread(ref)
 		}
 		if w.revisit {
@@ -1977,14 +2085,17 @@ func (w *Walker) walkFragmentSpread(ref int) {
 
 	if w.document.FragmentSpreads[ref].HasDirectives {
 		for _, i := range w.document.FragmentSpreads[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 		}
 	}
 
 	w.removeLastAncestor()
 
 	for i := 0; i < len(w.visitors.leaveFragmentSpread); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveFragmentSpread, ref, w.visitors.leaveFragmentSpread[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveFragmentSpread[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveFragmentSpread, ref, w.visitors.leaveFragmentSpread[i], skipFor)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveFragmentSpread[i].LeaveFragmentSpread(ref)
 		}
 		if w.revisit {
@@ -2005,7 +2116,7 @@ func (w *Walker) walkFragmentSpread(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkInlineFragment(ref int) {
+func (w *Walker) walkInlineFragment(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	selectionsBefore := w.SelectionsBefore
@@ -2014,7 +2125,11 @@ func (w *Walker) walkInlineFragment(ref int) {
 	w.setCurrent(ast.NodeKindInlineFragment, ref)
 
 	for i := 0; i < len(w.visitors.enterInlineFragment); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterInlineFragment, ref, w.visitors.enterInlineFragment[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterInlineFragment[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterInlineFragment, ref, w.visitors.enterInlineFragment[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterInlineFragment[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterInlineFragment[i].EnterInlineFragment(ref)
 		}
 		if w.revisit {
@@ -2039,12 +2154,12 @@ func (w *Walker) walkInlineFragment(ref int) {
 
 	if w.document.InlineFragments[ref].HasDirectives {
 		for _, i := range w.document.InlineFragments[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 		}
 	}
 
 	if w.document.InlineFragments[ref].HasSelections {
-		w.walkSelectionSet(w.document.InlineFragments[ref].SelectionSet)
+		w.walkSelectionSet(w.document.InlineFragments[ref].SelectionSet, skipFor)
 		if w.stop {
 			return
 		}
@@ -2058,7 +2173,10 @@ func (w *Walker) walkInlineFragment(ref int) {
 	w.setCurrent(ast.NodeKindInlineFragment, ref)
 
 	for i := 0; i < len(w.visitors.leaveInlineFragment); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveInlineFragment, ref, w.visitors.leaveInlineFragment[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveInlineFragment[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveInlineFragment, ref, w.visitors.leaveInlineFragment[i], skipFor)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveInlineFragment[i].LeaveInlineFragment(ref)
 		}
 		if w.revisit {
@@ -2079,13 +2197,17 @@ func (w *Walker) walkInlineFragment(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkFragmentDefinition(ref int) {
+func (w *Walker) walkFragmentDefinition(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindFragmentDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterFragmentDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterFragmentDefinition, ref, w.visitors.enterFragmentDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterFragmentDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterFragmentDefinition, ref, w.visitors.enterFragmentDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterFragmentDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterFragmentDefinition[i].EnterFragmentDefinition(ref)
 		}
 		if w.revisit {
@@ -2110,12 +2232,12 @@ func (w *Walker) walkFragmentDefinition(ref int) {
 
 	if w.document.FragmentDefinitions[ref].HasDirectives {
 		for _, i := range w.document.FragmentDefinitions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 		}
 	}
 
 	if w.document.FragmentDefinitions[ref].HasSelections {
-		w.walkSelectionSet(w.document.FragmentDefinitions[ref].SelectionSet)
+		w.walkSelectionSet(w.document.FragmentDefinitions[ref].SelectionSet, skipFor)
 		if w.stop {
 			return
 		}
@@ -2126,7 +2248,11 @@ func (w *Walker) walkFragmentDefinition(ref int) {
 	w.setCurrent(ast.NodeKindFragmentDefinition, ref)
 
 	for i := 0; i < len(w.visitors.leaveFragmentDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveFragmentDefinition, ref, w.visitors.leaveFragmentDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveFragmentDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveFragmentDefinition, ref, w.visitors.leaveFragmentDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveFragmentDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveFragmentDefinition[i].LeaveFragmentDefinition(ref)
 		}
 		if w.revisit {
@@ -2147,13 +2273,17 @@ func (w *Walker) walkFragmentDefinition(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkObjectTypeDefinition(ref int) {
+func (w *Walker) walkObjectTypeDefinition(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindObjectTypeDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterObjectTypeDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterObjectTypeDefinition, ref, w.visitors.enterObjectTypeDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterObjectTypeDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterObjectTypeDefinition, ref, w.visitors.enterObjectTypeDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterObjectTypeDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterObjectTypeDefinition[i].EnterObjectTypeDefinition(ref)
 		}
 		if w.revisit {
@@ -2178,7 +2308,7 @@ func (w *Walker) walkObjectTypeDefinition(ref int) {
 
 	if w.document.ObjectTypeDefinitions[ref].HasDirectives {
 		for _, i := range w.document.ObjectTypeDefinitions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2187,7 +2317,7 @@ func (w *Walker) walkObjectTypeDefinition(ref int) {
 
 	if w.document.ObjectTypeDefinitions[ref].HasFieldDefinitions {
 		for _, i := range w.document.ObjectTypeDefinitions[ref].FieldsDefinition.Refs {
-			w.walkFieldDefinition(i)
+			w.walkFieldDefinition(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2199,7 +2329,11 @@ func (w *Walker) walkObjectTypeDefinition(ref int) {
 	w.setCurrent(ast.NodeKindObjectTypeDefinition, ref)
 
 	for i := 0; i < len(w.visitors.leaveObjectTypeDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveObjectTypeDefinition, ref, w.visitors.leaveObjectTypeDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveObjectTypeDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveObjectTypeDefinition, ref, w.visitors.leaveObjectTypeDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveObjectTypeDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveObjectTypeDefinition[i].LeaveObjectTypeDefinition(ref)
 		}
 		if w.revisit {
@@ -2220,13 +2354,17 @@ func (w *Walker) walkObjectTypeDefinition(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkObjectTypeExtension(ref int) {
+func (w *Walker) walkObjectTypeExtension(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindObjectTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.enterObjectTypeExtension); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterObjectTypeExtension, ref, w.visitors.enterObjectTypeExtension[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterObjectTypeExtension[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterObjectTypeExtension, ref, w.visitors.enterObjectTypeExtension[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterObjectTypeExtension[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterObjectTypeExtension[i].EnterObjectTypeExtension(ref)
 		}
 		if w.revisit {
@@ -2251,7 +2389,7 @@ func (w *Walker) walkObjectTypeExtension(ref int) {
 
 	if w.document.ObjectTypeExtensions[ref].HasDirectives {
 		for _, i := range w.document.ObjectTypeExtensions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2260,7 +2398,7 @@ func (w *Walker) walkObjectTypeExtension(ref int) {
 
 	if w.document.ObjectTypeExtensions[ref].HasFieldDefinitions {
 		for _, i := range w.document.ObjectTypeExtensions[ref].FieldsDefinition.Refs {
-			w.walkFieldDefinition(i)
+			w.walkFieldDefinition(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2272,7 +2410,11 @@ func (w *Walker) walkObjectTypeExtension(ref int) {
 	w.setCurrent(ast.NodeKindObjectTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.leaveObjectTypeExtension); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveObjectTypeExtension, ref, w.visitors.leaveObjectTypeExtension[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveObjectTypeExtension[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveObjectTypeExtension, ref, w.visitors.leaveObjectTypeExtension[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveObjectTypeExtension[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveObjectTypeExtension[i].LeaveObjectTypeExtension(ref)
 		}
 		if w.revisit {
@@ -2293,13 +2435,17 @@ func (w *Walker) walkObjectTypeExtension(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkFieldDefinition(ref int) {
+func (w *Walker) walkFieldDefinition(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindFieldDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterFieldDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterFieldDefinition, ref, w.visitors.enterFieldDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterFieldDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterFieldDefinition, ref, w.visitors.enterFieldDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterFieldDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterFieldDefinition[i].EnterFieldDefinition(ref)
 		}
 		if w.revisit {
@@ -2324,7 +2470,7 @@ func (w *Walker) walkFieldDefinition(ref int) {
 
 	if w.document.FieldDefinitions[ref].HasArgumentsDefinitions {
 		for _, i := range w.document.FieldDefinitions[ref].ArgumentsDefinition.Refs {
-			w.walkInputValueDefinition(i)
+			w.walkInputValueDefinition(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2333,7 +2479,7 @@ func (w *Walker) walkFieldDefinition(ref int) {
 
 	if w.document.FieldDefinitions[ref].HasDirectives {
 		for _, i := range w.document.FieldDefinitions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2345,7 +2491,11 @@ func (w *Walker) walkFieldDefinition(ref int) {
 	w.setCurrent(ast.NodeKindFieldDefinition, ref)
 
 	for i := 0; i < len(w.visitors.leaveFieldDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveFieldDefinition, ref, w.visitors.leaveFieldDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveFieldDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveFieldDefinition, ref, w.visitors.leaveFieldDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveFieldDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveFieldDefinition[i].LeaveFieldDefinition(ref)
 		}
 		if w.revisit {
@@ -2366,13 +2516,17 @@ func (w *Walker) walkFieldDefinition(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkInputValueDefinition(ref int) {
+func (w *Walker) walkInputValueDefinition(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindInputValueDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterInputValueDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterInputValueDefinition, ref, w.visitors.enterInputValueDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterInputValueDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterInputValueDefinition, ref, w.visitors.enterInputValueDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterInputValueDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterInputValueDefinition[i].EnterInputValueDefinition(ref)
 		}
 		if w.revisit {
@@ -2397,7 +2551,7 @@ func (w *Walker) walkInputValueDefinition(ref int) {
 
 	if w.document.InputValueDefinitions[ref].HasDirectives {
 		for _, i := range w.document.InputValueDefinitions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2409,7 +2563,11 @@ func (w *Walker) walkInputValueDefinition(ref int) {
 	w.setCurrent(ast.NodeKindInputValueDefinition, ref)
 
 	for i := 0; i < len(w.visitors.leaveInputValueDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveInputValueDefinition, ref, w.visitors.leaveInputValueDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveInputValueDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveInputValueDefinition, ref, w.visitors.leaveInputValueDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveInputValueDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveInputValueDefinition[i].LeaveInputValueDefinition(ref)
 		}
 		if w.revisit {
@@ -2430,13 +2588,17 @@ func (w *Walker) walkInputValueDefinition(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkInterfaceTypeDefinition(ref int) {
+func (w *Walker) walkInterfaceTypeDefinition(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindInterfaceTypeDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterInterfaceTypeDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterInterfaceTypeDefinition, ref, w.visitors.enterInterfaceTypeDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterInterfaceTypeDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterInterfaceTypeDefinition, ref, w.visitors.enterInterfaceTypeDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterInterfaceTypeDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterInterfaceTypeDefinition[i].EnterInterfaceTypeDefinition(ref)
 		}
 		if w.revisit {
@@ -2461,7 +2623,7 @@ func (w *Walker) walkInterfaceTypeDefinition(ref int) {
 
 	if w.document.InterfaceTypeDefinitions[ref].HasDirectives {
 		for _, i := range w.document.InterfaceTypeDefinitions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2470,7 +2632,7 @@ func (w *Walker) walkInterfaceTypeDefinition(ref int) {
 
 	if w.document.InterfaceTypeDefinitions[ref].HasFieldDefinitions {
 		for _, i := range w.document.InterfaceTypeDefinitions[ref].FieldsDefinition.Refs {
-			w.walkFieldDefinition(i)
+			w.walkFieldDefinition(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2482,7 +2644,11 @@ func (w *Walker) walkInterfaceTypeDefinition(ref int) {
 	w.setCurrent(ast.NodeKindInterfaceTypeDefinition, ref)
 
 	for i := 0; i < len(w.visitors.leaveInterfaceTypeDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveInterfaceTypeDefinition, ref, w.visitors.leaveInterfaceTypeDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveInterfaceTypeDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveInterfaceTypeDefinition, ref, w.visitors.leaveInterfaceTypeDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveInterfaceTypeDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveInterfaceTypeDefinition[i].LeaveInterfaceTypeDefinition(ref)
 		}
 		if w.revisit {
@@ -2503,13 +2669,17 @@ func (w *Walker) walkInterfaceTypeDefinition(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkInterfaceTypeExtension(ref int) {
+func (w *Walker) walkInterfaceTypeExtension(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindInterfaceTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.enterInterfaceTypeExtension); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterInterfaceTypeExtension, ref, w.visitors.enterInterfaceTypeExtension[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterInterfaceTypeExtension[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterInterfaceTypeExtension, ref, w.visitors.enterInterfaceTypeExtension[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterInterfaceTypeExtension[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterInterfaceTypeExtension[i].EnterInterfaceTypeExtension(ref)
 		}
 		if w.revisit {
@@ -2534,7 +2704,7 @@ func (w *Walker) walkInterfaceTypeExtension(ref int) {
 
 	if w.document.InterfaceTypeExtensions[ref].HasDirectives {
 		for _, i := range w.document.InterfaceTypeExtensions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2543,7 +2713,7 @@ func (w *Walker) walkInterfaceTypeExtension(ref int) {
 
 	if w.document.InterfaceTypeExtensions[ref].HasFieldDefinitions {
 		for _, i := range w.document.InterfaceTypeExtensions[ref].FieldsDefinition.Refs {
-			w.walkFieldDefinition(i)
+			w.walkFieldDefinition(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2555,7 +2725,11 @@ func (w *Walker) walkInterfaceTypeExtension(ref int) {
 	w.setCurrent(ast.NodeKindInterfaceTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.leaveInterfaceTypeExtension); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveInterfaceTypeExtension, ref, w.visitors.leaveInterfaceTypeExtension[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveInterfaceTypeExtension[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveInterfaceTypeExtension, ref, w.visitors.leaveInterfaceTypeExtension[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveInterfaceTypeExtension[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveInterfaceTypeExtension[i].LeaveInterfaceTypeExtension(ref)
 		}
 		if w.revisit {
@@ -2576,13 +2750,17 @@ func (w *Walker) walkInterfaceTypeExtension(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkScalarTypeDefinition(ref int) {
+func (w *Walker) walkScalarTypeDefinition(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindScalarTypeDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterScalarTypeDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterScalarTypeDefinition, ref, w.visitors.enterScalarTypeDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterScalarTypeDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterScalarTypeDefinition, ref, w.visitors.enterScalarTypeDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterScalarTypeDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterScalarTypeDefinition[i].EnterScalarTypeDefinition(ref)
 		}
 		if w.revisit {
@@ -2607,7 +2785,7 @@ func (w *Walker) walkScalarTypeDefinition(ref int) {
 
 	if w.document.ScalarTypeDefinitions[ref].HasDirectives {
 		for _, i := range w.document.ScalarTypeDefinitions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2619,7 +2797,11 @@ func (w *Walker) walkScalarTypeDefinition(ref int) {
 	w.setCurrent(ast.NodeKindScalarTypeDefinition, ref)
 
 	for i := 0; i < len(w.visitors.leaveScalarTypeDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveScalarTypeDefinition, ref, w.visitors.leaveScalarTypeDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveScalarTypeDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveScalarTypeDefinition, ref, w.visitors.leaveScalarTypeDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveScalarTypeDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveScalarTypeDefinition[i].LeaveScalarTypeDefinition(ref)
 		}
 		if w.revisit {
@@ -2640,13 +2822,17 @@ func (w *Walker) walkScalarTypeDefinition(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkScalarTypeExtension(ref int) {
+func (w *Walker) walkScalarTypeExtension(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindScalarTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.enterScalarTypeExtension); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterScalarTypeExtension, ref, w.visitors.enterScalarTypeExtension[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterScalarTypeExtension[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterScalarTypeExtension, ref, w.visitors.enterScalarTypeExtension[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterScalarTypeExtension[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterScalarTypeExtension[i].EnterScalarTypeExtension(ref)
 		}
 		if w.revisit {
@@ -2671,7 +2857,7 @@ func (w *Walker) walkScalarTypeExtension(ref int) {
 
 	if w.document.ScalarTypeExtensions[ref].HasDirectives {
 		for _, i := range w.document.ScalarTypeExtensions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2683,7 +2869,11 @@ func (w *Walker) walkScalarTypeExtension(ref int) {
 	w.setCurrent(ast.NodeKindScalarTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.leaveScalarTypeExtension); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveScalarTypeExtension, ref, w.visitors.leaveScalarTypeExtension[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveScalarTypeExtension[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveScalarTypeExtension, ref, w.visitors.leaveScalarTypeExtension[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveScalarTypeExtension[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveScalarTypeExtension[i].LeaveScalarTypeExtension(ref)
 		}
 		if w.revisit {
@@ -2704,13 +2894,17 @@ func (w *Walker) walkScalarTypeExtension(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkUnionTypeDefinition(ref int) {
+func (w *Walker) walkUnionTypeDefinition(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindUnionTypeDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterUnionTypeDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterUnionTypeDefinition, ref, w.visitors.enterUnionTypeDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterUnionTypeDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterUnionTypeDefinition, ref, w.visitors.enterUnionTypeDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterUnionTypeDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterUnionTypeDefinition[i].EnterUnionTypeDefinition(ref)
 		}
 		if w.revisit {
@@ -2735,7 +2929,7 @@ func (w *Walker) walkUnionTypeDefinition(ref int) {
 
 	if w.document.UnionTypeDefinitions[ref].HasDirectives {
 		for _, i := range w.document.UnionTypeDefinitions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2744,7 +2938,7 @@ func (w *Walker) walkUnionTypeDefinition(ref int) {
 
 	if w.document.UnionTypeDefinitions[ref].HasUnionMemberTypes {
 		for _, i := range w.document.UnionTypeDefinitions[ref].UnionMemberTypes.Refs {
-			w.walkUnionMemberType(i)
+			w.walkUnionMemberType(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2756,7 +2950,11 @@ func (w *Walker) walkUnionTypeDefinition(ref int) {
 	w.setCurrent(ast.NodeKindUnionTypeDefinition, ref)
 
 	for i := 0; i < len(w.visitors.leaveUnionTypeDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveUnionTypeDefinition, ref, w.visitors.leaveUnionTypeDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveUnionTypeDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveUnionTypeDefinition, ref, w.visitors.leaveUnionTypeDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveUnionTypeDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveUnionTypeDefinition[i].LeaveUnionTypeDefinition(ref)
 		}
 		if w.revisit {
@@ -2777,13 +2975,17 @@ func (w *Walker) walkUnionTypeDefinition(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkUnionTypeExtension(ref int) {
+func (w *Walker) walkUnionTypeExtension(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindUnionTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.enterUnionTypeExtension); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterUnionTypeExtension, ref, w.visitors.enterUnionTypeExtension[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterUnionTypeExtension[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterUnionTypeExtension, ref, w.visitors.enterUnionTypeExtension[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterUnionTypeExtension[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterUnionTypeExtension[i].EnterUnionTypeExtension(ref)
 		}
 		if w.revisit {
@@ -2808,7 +3010,7 @@ func (w *Walker) walkUnionTypeExtension(ref int) {
 
 	if w.document.UnionTypeExtensions[ref].HasDirectives {
 		for _, i := range w.document.UnionTypeExtensions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2817,7 +3019,7 @@ func (w *Walker) walkUnionTypeExtension(ref int) {
 
 	if w.document.UnionTypeExtensions[ref].HasUnionMemberTypes {
 		for _, i := range w.document.UnionTypeExtensions[ref].UnionMemberTypes.Refs {
-			w.walkUnionMemberType(i)
+			w.walkUnionMemberType(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2829,7 +3031,11 @@ func (w *Walker) walkUnionTypeExtension(ref int) {
 	w.setCurrent(ast.NodeKindUnionTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.leaveUnionTypeExtension); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveUnionTypeExtension, ref, w.visitors.leaveUnionTypeExtension[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveUnionTypeExtension[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveUnionTypeExtension, ref, w.visitors.leaveUnionTypeExtension[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveUnionTypeExtension[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveUnionTypeExtension[i].LeaveUnionTypeExtension(ref)
 		}
 		if w.revisit {
@@ -2850,13 +3056,17 @@ func (w *Walker) walkUnionTypeExtension(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkUnionMemberType(ref int) {
+func (w *Walker) walkUnionMemberType(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindUnionMemberType, ref)
 
 	for i := 0; i < len(w.visitors.enterUnionMemberType); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterUnionMemberType, ref, w.visitors.enterUnionMemberType[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterUnionMemberType[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterUnionMemberType, ref, w.visitors.enterUnionMemberType[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterUnionMemberType[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterUnionMemberType[i].EnterUnionMemberType(ref)
 		}
 		if w.revisit {
@@ -2875,7 +3085,11 @@ func (w *Walker) walkUnionMemberType(ref int) {
 	}
 
 	for i := 0; i < len(w.visitors.leaveUnionMemberType); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveUnionMemberType, ref, w.visitors.leaveUnionMemberType[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveUnionMemberType[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveUnionMemberType, ref, w.visitors.leaveUnionMemberType[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveUnionMemberType[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveUnionMemberType[i].LeaveUnionMemberType(ref)
 		}
 		if w.revisit {
@@ -2896,13 +3110,17 @@ func (w *Walker) walkUnionMemberType(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkEnumTypeDefinition(ref int) {
+func (w *Walker) walkEnumTypeDefinition(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindEnumTypeDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterEnumTypeDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterEnumTypeDefinition, ref, w.visitors.enterEnumTypeDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterEnumTypeDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterEnumTypeDefinition, ref, w.visitors.enterEnumTypeDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterEnumTypeDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterEnumTypeDefinition[i].EnterEnumTypeDefinition(ref)
 		}
 		if w.revisit {
@@ -2927,7 +3145,7 @@ func (w *Walker) walkEnumTypeDefinition(ref int) {
 
 	if w.document.EnumTypeDefinitions[ref].HasDirectives {
 		for _, i := range w.document.EnumTypeDefinitions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2936,7 +3154,7 @@ func (w *Walker) walkEnumTypeDefinition(ref int) {
 
 	if w.document.EnumTypeDefinitions[ref].HasEnumValuesDefinition {
 		for _, i := range w.document.EnumTypeDefinitions[ref].EnumValuesDefinition.Refs {
-			w.walkEnumValueDefinition(i)
+			w.walkEnumValueDefinition(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -2948,7 +3166,11 @@ func (w *Walker) walkEnumTypeDefinition(ref int) {
 	w.setCurrent(ast.NodeKindEnumTypeDefinition, ref)
 
 	for i := 0; i < len(w.visitors.leaveEnumTypeDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveEnumTypeDefinition, ref, w.visitors.leaveEnumTypeDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveEnumTypeDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveEnumTypeDefinition, ref, w.visitors.leaveEnumTypeDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveEnumTypeDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveEnumTypeDefinition[i].LeaveEnumTypeDefinition(ref)
 		}
 		if w.revisit {
@@ -2969,13 +3191,17 @@ func (w *Walker) walkEnumTypeDefinition(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkEnumTypeExtension(ref int) {
+func (w *Walker) walkEnumTypeExtension(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindEnumTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.enterEnumTypeExtension); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterEnumTypeExtension, ref, w.visitors.enterEnumTypeExtension[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterEnumTypeExtension[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterEnumTypeExtension, ref, w.visitors.enterEnumTypeExtension[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterEnumTypeExtension[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterEnumTypeExtension[i].EnterEnumTypeExtension(ref)
 		}
 		if w.revisit {
@@ -3000,7 +3226,7 @@ func (w *Walker) walkEnumTypeExtension(ref int) {
 
 	if w.document.EnumTypeExtensions[ref].HasDirectives {
 		for _, i := range w.document.EnumTypeExtensions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -3009,7 +3235,7 @@ func (w *Walker) walkEnumTypeExtension(ref int) {
 
 	if w.document.EnumTypeExtensions[ref].HasEnumValuesDefinition {
 		for _, i := range w.document.EnumTypeExtensions[ref].EnumValuesDefinition.Refs {
-			w.walkEnumValueDefinition(i)
+			w.walkEnumValueDefinition(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -3021,7 +3247,11 @@ func (w *Walker) walkEnumTypeExtension(ref int) {
 	w.setCurrent(ast.NodeKindEnumTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.leaveEnumTypeExtension); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveEnumTypeExtension, ref, w.visitors.leaveEnumTypeExtension[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveEnumTypeExtension[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveEnumTypeExtension, ref, w.visitors.leaveEnumTypeExtension[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveEnumTypeExtension[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveEnumTypeExtension[i].LeaveEnumTypeExtension(ref)
 		}
 		if w.revisit {
@@ -3042,13 +3272,17 @@ func (w *Walker) walkEnumTypeExtension(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkEnumValueDefinition(ref int) {
+func (w *Walker) walkEnumValueDefinition(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindEnumValueDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterEnumValueDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterEnumValueDefinition, ref, w.visitors.enterEnumValueDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterEnumValueDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterEnumValueDefinition, ref, w.visitors.enterEnumValueDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterEnumValueDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterEnumValueDefinition[i].EnterEnumValueDefinition(ref)
 		}
 		if w.revisit {
@@ -3073,7 +3307,7 @@ func (w *Walker) walkEnumValueDefinition(ref int) {
 
 	if w.document.EnumValueDefinitions[ref].HasDirectives {
 		for _, i := range w.document.EnumValueDefinitions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -3085,7 +3319,11 @@ func (w *Walker) walkEnumValueDefinition(ref int) {
 	w.setCurrent(ast.NodeKindEnumValueDefinition, ref)
 
 	for i := 0; i < len(w.visitors.leaveEnumValueDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveEnumValueDefinition, ref, w.visitors.leaveEnumValueDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveEnumValueDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveEnumValueDefinition, ref, w.visitors.leaveEnumValueDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveEnumValueDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveEnumValueDefinition[i].LeaveEnumValueDefinition(ref)
 		}
 		if w.revisit {
@@ -3106,13 +3344,17 @@ func (w *Walker) walkEnumValueDefinition(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkInputObjectTypeDefinition(ref int) {
+func (w *Walker) walkInputObjectTypeDefinition(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindInputObjectTypeDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterInputObjectTypeDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterInputObjectTypeDefinition, ref, w.visitors.enterInputObjectTypeDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterInputObjectTypeDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterInputObjectTypeDefinition, ref, w.visitors.enterInputObjectTypeDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterInputObjectTypeDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterInputObjectTypeDefinition[i].EnterInputObjectTypeDefinition(ref)
 		}
 		if w.revisit {
@@ -3137,7 +3379,7 @@ func (w *Walker) walkInputObjectTypeDefinition(ref int) {
 
 	if w.document.InputObjectTypeDefinitions[ref].HasDirectives {
 		for _, i := range w.document.InputObjectTypeDefinitions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -3146,7 +3388,7 @@ func (w *Walker) walkInputObjectTypeDefinition(ref int) {
 
 	if w.document.InputObjectTypeDefinitions[ref].HasInputFieldsDefinition {
 		for _, i := range w.document.InputObjectTypeDefinitions[ref].InputFieldsDefinition.Refs {
-			w.walkInputValueDefinition(i)
+			w.walkInputValueDefinition(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -3158,7 +3400,11 @@ func (w *Walker) walkInputObjectTypeDefinition(ref int) {
 	w.setCurrent(ast.NodeKindInputObjectTypeDefinition, ref)
 
 	for i := 0; i < len(w.visitors.leaveInputObjectTypeDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveInputObjectTypeDefinition, ref, w.visitors.leaveInputObjectTypeDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveInputObjectTypeDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveInputObjectTypeDefinition, ref, w.visitors.leaveInputObjectTypeDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveInputObjectTypeDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveInputObjectTypeDefinition[i].LeaveInputObjectTypeDefinition(ref)
 		}
 		if w.revisit {
@@ -3179,13 +3425,17 @@ func (w *Walker) walkInputObjectTypeDefinition(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkInputObjectTypeExtension(ref int) {
+func (w *Walker) walkInputObjectTypeExtension(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindInputObjectTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.enterInputObjectTypeExtension); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterInputObjectTypeExtension, ref, w.visitors.enterInputObjectTypeExtension[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterInputObjectTypeExtension[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterInputObjectTypeExtension, ref, w.visitors.enterInputObjectTypeExtension[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterInputObjectTypeExtension[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterInputObjectTypeExtension[i].EnterInputObjectTypeExtension(ref)
 		}
 		if w.revisit {
@@ -3210,7 +3460,7 @@ func (w *Walker) walkInputObjectTypeExtension(ref int) {
 
 	if w.document.InputObjectTypeExtensions[ref].HasDirectives {
 		for _, i := range w.document.InputObjectTypeExtensions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -3219,7 +3469,7 @@ func (w *Walker) walkInputObjectTypeExtension(ref int) {
 
 	if w.document.InputObjectTypeExtensions[ref].HasInputFieldsDefinition {
 		for _, i := range w.document.InputObjectTypeExtensions[ref].InputFieldsDefinition.Refs {
-			w.walkInputValueDefinition(i)
+			w.walkInputValueDefinition(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -3231,7 +3481,11 @@ func (w *Walker) walkInputObjectTypeExtension(ref int) {
 	w.setCurrent(ast.NodeKindInputObjectTypeExtension, ref)
 
 	for i := 0; i < len(w.visitors.leaveInputObjectTypeExtension); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveInputObjectTypeExtension, ref, w.visitors.leaveInputObjectTypeExtension[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveInputObjectTypeExtension[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveInputObjectTypeExtension, ref, w.visitors.leaveInputObjectTypeExtension[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveInputObjectTypeExtension[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveInputObjectTypeExtension[i].LeaveInputObjectTypeExtension(ref)
 		}
 		if w.revisit {
@@ -3252,13 +3506,17 @@ func (w *Walker) walkInputObjectTypeExtension(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkDirectiveDefinition(ref int) {
+func (w *Walker) walkDirectiveDefinition(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindDirectiveDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterDirectiveDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterDirectiveDefinition, ref, w.visitors.enterDirectiveDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterDirectiveDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterDirectiveDefinition, ref, w.visitors.enterDirectiveDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterDirectiveDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterDirectiveDefinition[i].EnterDirectiveDefinition(ref)
 		}
 		if w.revisit {
@@ -3283,7 +3541,7 @@ func (w *Walker) walkDirectiveDefinition(ref int) {
 
 	if w.document.DirectiveDefinitions[ref].HasArgumentsDefinitions {
 		for _, i := range w.document.DirectiveDefinitions[ref].ArgumentsDefinition.Refs {
-			w.walkInputValueDefinition(i)
+			w.walkInputValueDefinition(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -3292,7 +3550,7 @@ func (w *Walker) walkDirectiveDefinition(ref int) {
 
 	iter := w.document.DirectiveDefinitions[ref].DirectiveLocations.Iterable()
 	for iter.Next() {
-		w.walkDirectiveLocation(iter.Value())
+		w.walkDirectiveLocation(iter.Value(), skipFor)
 	}
 
 	w.removeLastAncestor()
@@ -3300,7 +3558,11 @@ func (w *Walker) walkDirectiveDefinition(ref int) {
 	w.setCurrent(ast.NodeKindDirectiveDefinition, ref)
 
 	for i := 0; i < len(w.visitors.leaveDirectiveDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveDirectiveDefinition, ref, w.visitors.leaveDirectiveDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveDirectiveDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveDirectiveDefinition, ref, w.visitors.leaveDirectiveDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveDirectiveDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveDirectiveDefinition[i].LeaveDirectiveDefinition(ref)
 		}
 		if w.revisit {
@@ -3321,11 +3583,15 @@ func (w *Walker) walkDirectiveDefinition(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkDirectiveLocation(location ast.DirectiveLocation) {
+func (w *Walker) walkDirectiveLocation(location ast.DirectiveLocation, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	for i := 0; i < len(w.visitors.enterDirectiveLocation); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterDirectiveLocation, 0, w.visitors.enterDirectiveLocation[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterDirectiveLocation[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterDirectiveLocation, 0, w.visitors.enterDirectiveLocation[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterDirectiveLocation[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterDirectiveLocation[i].EnterDirectiveLocation(location)
 		}
 		if w.revisit {
@@ -3344,7 +3610,11 @@ func (w *Walker) walkDirectiveLocation(location ast.DirectiveLocation) {
 	}
 
 	for i := 0; i < len(w.visitors.leaveDirectiveLocation); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveDirectiveLocation, 0, w.visitors.leaveDirectiveLocation[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveDirectiveLocation[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveDirectiveLocation, 0, w.visitors.leaveDirectiveLocation[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveDirectiveLocation[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveDirectiveLocation[i].LeaveDirectiveLocation(location)
 		}
 		if w.revisit {
@@ -3365,13 +3635,17 @@ func (w *Walker) walkDirectiveLocation(location ast.DirectiveLocation) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkSchemaDefinition(ref int) {
+func (w *Walker) walkSchemaDefinition(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindSchemaDefinition, ref)
 
 	for i := 0; i < len(w.visitors.enterSchemaDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterSchemaDefinition, ref, w.visitors.enterSchemaDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterSchemaDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterSchemaDefinition, ref, w.visitors.enterSchemaDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterSchemaDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterSchemaDefinition[i].EnterSchemaDefinition(ref)
 		}
 		if w.revisit {
@@ -3396,7 +3670,7 @@ func (w *Walker) walkSchemaDefinition(ref int) {
 
 	if w.document.SchemaDefinitions[ref].HasDirectives {
 		for _, i := range w.document.SchemaDefinitions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -3404,7 +3678,7 @@ func (w *Walker) walkSchemaDefinition(ref int) {
 	}
 
 	for _, i := range w.document.SchemaDefinitions[ref].RootOperationTypeDefinitions.Refs {
-		w.walkRootOperationTypeDefinition(i)
+		w.walkRootOperationTypeDefinition(i, skipFor)
 		if w.stop {
 			return
 		}
@@ -3415,7 +3689,11 @@ func (w *Walker) walkSchemaDefinition(ref int) {
 	w.setCurrent(ast.NodeKindSchemaDefinition, ref)
 
 	for i := 0; i < len(w.visitors.leaveSchemaDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveSchemaDefinition, ref, w.visitors.leaveSchemaDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveSchemaDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveSchemaDefinition, ref, w.visitors.leaveSchemaDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveSchemaDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveSchemaDefinition[i].LeaveSchemaDefinition(ref)
 		}
 		if w.revisit {
@@ -3436,13 +3714,17 @@ func (w *Walker) walkSchemaDefinition(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkSchemaExtension(ref int) {
+func (w *Walker) walkSchemaExtension(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	w.setCurrent(ast.NodeKindSchemaExtension, ref)
 
 	for i := 0; i < len(w.visitors.enterSchemaExtension); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterSchemaExtension, ref, w.visitors.enterSchemaExtension[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterSchemaExtension[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterSchemaExtension, ref, w.visitors.enterSchemaExtension[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterSchemaExtension[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterSchemaExtension[i].EnterSchemaExtension(ref)
 		}
 		if w.revisit {
@@ -3467,7 +3749,7 @@ func (w *Walker) walkSchemaExtension(ref int) {
 
 	if w.document.SchemaExtensions[ref].HasDirectives {
 		for _, i := range w.document.SchemaExtensions[ref].Directives.Refs {
-			w.walkDirective(i)
+			w.walkDirective(i, skipFor)
 			if w.stop {
 				return
 			}
@@ -3475,7 +3757,7 @@ func (w *Walker) walkSchemaExtension(ref int) {
 	}
 
 	for _, i := range w.document.SchemaExtensions[ref].RootOperationTypeDefinitions.Refs {
-		w.walkRootOperationTypeDefinition(i)
+		w.walkRootOperationTypeDefinition(i, skipFor)
 		if w.stop {
 			return
 		}
@@ -3486,7 +3768,11 @@ func (w *Walker) walkSchemaExtension(ref int) {
 	w.setCurrent(ast.NodeKindSchemaExtension, ref)
 
 	for i := 0; i < len(w.visitors.leaveSchemaExtension); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveSchemaExtension, ref, w.visitors.leaveSchemaExtension[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveSchemaExtension[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveSchemaExtension, ref, w.visitors.leaveSchemaExtension[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveSchemaExtension[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveSchemaExtension[i].LeaveSchemaExtension(ref)
 		}
 		if w.revisit {
@@ -3507,11 +3793,15 @@ func (w *Walker) walkSchemaExtension(ref int) {
 	w.decreaseDepth()
 }
 
-func (w *Walker) walkRootOperationTypeDefinition(ref int) {
+func (w *Walker) walkRootOperationTypeDefinition(ref int, skipFor SkipVisitors) {
 	w.increaseDepth()
 
 	for i := 0; i < len(w.visitors.enterRootOperationTypeDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(EnterRootOperationTypeDefinition, ref, w.visitors.enterRootOperationTypeDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.enterRootOperationTypeDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterRootOperationTypeDefinition, ref, w.visitors.enterRootOperationTypeDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.enterRootOperationTypeDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.enterRootOperationTypeDefinition[i].EnterRootOperationTypeDefinition(ref)
 		}
 		if w.revisit {
@@ -3530,7 +3820,11 @@ func (w *Walker) walkRootOperationTypeDefinition(ref int) {
 	}
 
 	for i := 0; i < len(w.visitors.leaveRootOperationTypeDefinition); {
-		if w.filter == nil || w.filter.AllowVisitor(LeaveRootOperationTypeDefinition, ref, w.visitors.leaveRootOperationTypeDefinition[i]) {
+		ancestorAllowed := skipFor.Allow(w.visitors.leaveRootOperationTypeDefinition[i])
+		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveRootOperationTypeDefinition, ref, w.visitors.leaveRootOperationTypeDefinition[i], skipFor)
+		skipFor = newSkipVisitors(skipFor, w.visitors.leaveRootOperationTypeDefinition[i], allowedToVisit)
+
+		if allowedToVisit && ancestorAllowed {
 			w.visitors.leaveRootOperationTypeDefinition[i].LeaveRootOperationTypeDefinition(ref)
 		}
 		if w.revisit {

@@ -30,7 +30,7 @@ import (
 const removeNullVariablesDirectiveName = "removeNullVariables"
 
 type Planner struct {
-	index                      int
+	id                         int
 	visitor                    *plan.Visitor
 	dataSourceConfig           plan.DataSourceConfiguration
 	config                     Configuration
@@ -65,8 +65,17 @@ type Planner struct {
 	parentTypeNodes []ast.Node
 }
 
+// TODO: remove this
 func (p *Planner) SetIndex(i int) {
-	p.index = i
+	p.id = i
+}
+
+func (p *Planner) SetID(id int) {
+	p.id = id
+}
+
+func (p *Planner) ID() (id int) {
+	return p.id
 }
 
 func (p *Planner) parentNodeIsAbstract() bool {
@@ -1090,7 +1099,7 @@ func (p *Planner) debugPrintOperation() {
 }
 
 func (p *Planner) DebugPrint(args ...interface{}) {
-	allArgs := []interface{}{p.config.Fetch.URL, ":", p.index, ":"}
+	allArgs := []interface{}{p.config.Fetch.URL, ":", p.id, ":"}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
 }

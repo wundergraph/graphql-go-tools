@@ -342,8 +342,8 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		config := p.planningVisitor.planners[key].dataSourceConfiguration
 		isNested := p.planningVisitor.planners[key].isNestedPlanner()
 
-		if gqPlanner, ok := p.planningVisitor.planners[key].planner.(GqlPlanner); ok {
-			gqPlanner.SetIndex(key + 1)
+		if plannerWithId, ok := p.planningVisitor.planners[key].planner.(astvisitor.VisitorIdentifier); ok {
+			plannerWithId.SetID(key + 1)
 		}
 		err := p.planningVisitor.planners[key].planner.Register(p.planningVisitor, config, isNested)
 		if err != nil {
@@ -450,7 +450,7 @@ type objectFetchConfiguration struct {
 	fieldDefinitionRef int
 }
 
-func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor interface{}) bool {
+func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor interface{}, skipFor astvisitor.SkipVisitors) bool {
 	if visitor == v {
 		return true
 	}
@@ -489,6 +489,13 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 
 				return hasRootOrHasChildNode
 			case astvisitor.EnterSelectionSet, astvisitor.LeaveSelectionSet:
+				allowedByParent := skipFor.Allow(config.planner)
+
+				if !allowedByParent {
+					// do not override a parent's decision
+					return false
+				}
+
 				allow := !config.isExitPath(path)
 
 				if pp, ok := config.planner.(GqlPlanner); ok {
@@ -497,7 +504,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 
 				return allow
 			default:
-				return true
+				return skipFor.Allow(config.planner)
 			}
 		}
 	}
@@ -1639,7 +1646,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 
 			return
 		}
-		if _, hasPath := plannerConfig.hasPath(parentPath); hasPath {
+		if plannerConfig.hasPath(parentPath) {
 			if plannerConfig.dataSourceConfiguration.HasChildNode(typeName, fieldName) {
 
 				// has parent path + has child node = child
