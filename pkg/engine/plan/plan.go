@@ -11,6 +11,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astimport"
+	"github.com/wundergraph/graphql-go-tools/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
@@ -321,6 +322,9 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.configurationVisitor.config = config
 	p.configurationWalker.Walk(operation, definition, report)
 
+	op, _ := astprinter.PrintStringIndentDebug(operation, nil, "  ")
+	println(op)
+
 	// configure planning visitor
 
 	p.planningVisitor.planners = p.configurationVisitor.planners
@@ -426,7 +430,12 @@ type Visitor struct {
 	exportedVariables            map[string]struct{}
 	skipIncludeFields            map[int]skipIncludeField
 	disableResolveFieldPositions bool
-	skipVisitors                 map[any]int
+	skipVisitors                 map[any][]skipDecision
+}
+
+type skipDecision struct {
+	ast.Node
+	allow bool
 }
 
 type skipIncludeField struct {
@@ -455,13 +464,39 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 	if visitor == v {
 		return true
 	}
-	if skipRef, ok := v.skipVisitors[visitor]; ok {
-		if kind == astvisitor.LeaveSelectionSet && skipRef == ref {
+	if skips, ok := v.skipVisitors[visitor]; ok {
+		skip := skips[len(skips)-1]
+
+		removeSkip := false
+
+		switch kind {
+		case astvisitor.LeaveInlineFragment:
+			removeSkip = skip.Kind == ast.NodeKindInlineFragment && skip.Ref == ref
+		case astvisitor.LeaveField:
+			removeSkip = skip.Kind == ast.NodeKindField && skip.Ref == ref
+		case astvisitor.LeaveSelectionSet:
+			removeSkip = skip.Kind == ast.NodeKindSelectionSet && skip.Ref == ref
+		}
+
+		allow := skip.allow
+
+		if removeSkip {
 			// delete the visitor from the skip list
 			// as skipRef is our exit point of the skip
-			delete(v.skipVisitors, visitor)
+			skips = skips[:len(skips)-1]
+
+			if len(skips) == 0 {
+				delete(v.skipVisitors, visitor)
+			} else {
+				v.skipVisitors[visitor] = skips
+			}
 		}
-		return true
+
+		switch kind {
+		case astvisitor.EnterField, astvisitor.EnterInlineFragment, astvisitor.EnterSelectionSet:
+		default:
+			return allow
+		}
 	}
 	path := v.Walker.Path.DotDelimitedString()
 	switch kind {
@@ -472,8 +507,13 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 	if !strings.Contains(path, ".") {
 		return true
 	}
+
 	for _, config := range v.planners {
 		if config.planner == visitor && config.hasPath(path) {
+			if pp, ok := config.planner.(GqlPlanner); ok {
+				pp.DebugPrint("current path:", path)
+			}
+
 			switch kind {
 			case astvisitor.EnterField, astvisitor.LeaveField:
 				fieldName := v.Operation.FieldNameString(ref)
@@ -486,6 +526,16 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 					pp.DebugPrint("AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path, " allow:", shouldWalkFieldsOnPath)
 				}
 
+				if kind == astvisitor.EnterField && !shouldWalkFieldsOnPath {
+					v.skipVisitors[visitor] = append(v.skipVisitors[visitor], skipDecision{
+						Node: ast.Node{
+							Kind: ast.NodeKindField,
+							Ref:  ref,
+						},
+						allow: shouldWalkFieldsOnPath,
+					})
+				}
+
 				return shouldWalkFieldsOnPath
 			case astvisitor.EnterInlineFragment, astvisitor.LeaveInlineFragment:
 				typeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
@@ -496,8 +546,22 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 					pp.DebugPrint("AllowVisitor: InlineFragment", " ref:", ref, " typeCondition:", typeCondition, " allow:", hasRootOrHasChildNode)
 				}
 
+				if kind == astvisitor.EnterInlineFragment && !hasRootOrHasChildNode {
+					v.skipVisitors[visitor] = append(v.skipVisitors[visitor], skipDecision{
+						Node: ast.Node{
+							Kind: ast.NodeKindInlineFragment,
+							Ref:  ref,
+						},
+						allow: hasRootOrHasChildNode,
+					})
+				}
+
 				return hasRootOrHasChildNode
 			case astvisitor.EnterSelectionSet, astvisitor.LeaveSelectionSet:
+				if ref == 3 {
+					println("here")
+				}
+
 				allow := !config.isExitPath(path)
 
 				if pp, ok := config.planner.(GqlPlanner); ok {
@@ -507,7 +571,13 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 				if kind == astvisitor.EnterSelectionSet && !allow {
 					// store the exit point of the skip
 					// all visitors will be skipped until we reach this point
-					v.skipVisitors[visitor] = ref
+					v.skipVisitors[visitor] = append(v.skipVisitors[visitor], skipDecision{
+						Node: ast.Node{
+							Kind: ast.NodeKindSelectionSet,
+							Ref:  ref,
+						},
+						allow: allow,
+					})
 				}
 
 				return allow
@@ -1058,7 +1128,7 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.fieldConfigs = map[int]*FieldConfiguration{}
 	v.exportedVariables = map[string]struct{}{}
 	v.skipIncludeFields = map[int]skipIncludeField{}
-	v.skipVisitors = map[any]int{}
+	v.skipVisitors = map[any][]skipDecision{}
 }
 
 func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
@@ -1655,7 +1725,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 
 			return
 		}
-		if _, hasPath := plannerConfig.hasPath(parentPath); hasPath {
+		if plannerConfig.hasPath(parentPath) {
 			if plannerConfig.dataSourceConfiguration.HasChildNode(typeName, fieldName) {
 
 				// has parent path + has child node = child
