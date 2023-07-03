@@ -456,7 +456,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 		return true
 	}
 	if skipRef, ok := v.skipVisitors[visitor]; ok {
-		if skipRef == ref {
+		if kind == astvisitor.LeaveSelectionSet && skipRef == ref {
 			// delete the visitor from the skip list
 			// as skipRef is our exit point of the skip
 			delete(v.skipVisitors, visitor)
