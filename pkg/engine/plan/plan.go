@@ -426,6 +426,7 @@ type Visitor struct {
 	exportedVariables            map[string]struct{}
 	skipIncludeFields            map[int]skipIncludeField
 	disableResolveFieldPositions bool
+	skipVisitors                 map[any]int
 }
 
 type skipIncludeField struct {
@@ -452,6 +453,14 @@ type objectFetchConfiguration struct {
 
 func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor interface{}, skipFor astvisitor.SkipVisitors) bool {
 	if visitor == v {
+		return true
+	}
+	if skipRef, ok := v.skipVisitors[visitor]; ok {
+		if skipRef == ref {
+			// delete the visitor from the skip list
+			// as skipRef is our exit point of the skip
+			delete(v.skipVisitors, visitor)
+		}
 		return true
 	}
 	path := v.Walker.Path.DotDelimitedString()
@@ -500,6 +509,12 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 
 				if pp, ok := config.planner.(GqlPlanner); ok {
 					pp.DebugPrint("AllowVisitor: SelectionSet", " ref:", ref, " allow:", allow)
+				}
+
+				if kind == astvisitor.EnterSelectionSet && !allow {
+					// store the exit point of the skip
+					// all visitors will be skipped until we reach this point
+					v.skipVisitors[visitor] = ref
 				}
 
 				return allow
@@ -1050,6 +1065,7 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.fieldConfigs = map[int]*FieldConfiguration{}
 	v.exportedVariables = map[string]struct{}{}
 	v.skipIncludeFields = map[int]skipIncludeField{}
+	v.skipVisitors = map[any]int{}
 }
 
 func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
