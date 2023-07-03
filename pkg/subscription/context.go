@@ -20,13 +20,13 @@ func NewInitialHttpRequestContext(r *http.Request) *InitialHttpRequestContext {
 
 type subscriptionCancellations map[string]context.CancelFunc
 
-func (sc subscriptionCancellations) Add(id string) (context.Context, error) {
+func (sc subscriptionCancellations) AddWithParent(id string, parent context.Context) (context.Context, error) {
 	_, ok := sc[id]
 	if ok {
 		return nil, fmt.Errorf("subscriber for %s already exists", id)
 	}
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(parent)
 	sc[id] = cancelFunc
 	return ctx, nil
 }

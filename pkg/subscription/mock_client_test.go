@@ -62,6 +62,15 @@ func (c *mockClient) prepareConnectionInitMessage() *mockClient {
 	return c
 }
 
+func (c *mockClient) prepareConnectionInitMessageWithPayload(payload []byte) *mockClient {
+	c.messageToServer = &Message{
+		Type:    MessageTypeConnectionInit,
+		Payload: payload,
+	}
+
+	return c
+}
+
 func (c *mockClient) prepareStartMessage(id string, payload []byte) *mockClient {
 	c.messageToServer = &Message{
 		Id:      id,
@@ -112,6 +121,7 @@ func (c *mockClient) and() *mockClient {
 
 func (c *mockClient) reset() *mockClient {
 	c.messagesFromServer = []Message{}
+	c.err = nil
 	return c
 }
 

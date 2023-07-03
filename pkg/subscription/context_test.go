@@ -31,7 +31,7 @@ func TestSubscriptionCancellations(t *testing.T) {
 	t.Run("should add a cancellation func to map", func(t *testing.T) {
 		require.Equal(t, 0, len(cancellations))
 
-		ctx, err = cancellations.Add("1")
+		ctx, err = cancellations.AddWithParent("1", context.Background())
 		assert.Nil(t, err)
 		assert.Equal(t, 1, len(cancellations))
 		assert.NotNil(t, ctx)
@@ -56,17 +56,17 @@ func TestSubscriptionIdsShouldBeUnique(t *testing.T) {
 	var ctx context.Context
 	var err error
 
-	ctx, err = cancellations.Add("1")
+	ctx, err = cancellations.AddWithParent("1", context.Background())
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(cancellations))
 	assert.NotNil(t, ctx)
 
-	ctx, err = cancellations.Add("2")
+	ctx, err = cancellations.AddWithParent("2", context.Background())
 	assert.Nil(t, err)
 	assert.Equal(t, 2, len(cancellations))
 	assert.NotNil(t, ctx)
 
-	ctx, err = cancellations.Add("2")
+	ctx, err = cancellations.AddWithParent("2", context.Background())
 	assert.NotNil(t, err)
 	assert.Equal(t, 2, len(cancellations))
 	assert.Nil(t, ctx)
