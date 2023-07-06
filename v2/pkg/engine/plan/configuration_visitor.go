@@ -2,6 +2,7 @@ package plan
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
@@ -32,6 +33,22 @@ type objectFetchConfiguration struct {
 	isSubscription     bool
 	fieldRef           int
 	fieldDefinitionRef int
+}
+
+func (c *configurationVisitor) addPath(i int, configuration pathConfiguration) {
+	if pp, ok := c.planners[i].planner.(GqlPlanner); ok {
+		pp.DebugPrint("[configurationVisitor.addPath] parentPath:", "path:", configuration.String())
+	}
+
+	configuration.depth = c.walker.Depth
+
+	c.planners[i].addPath(configuration)
+}
+
+func (c *configurationVisitor) debug(args ...any) {
+	printArgs := []any{"[configurationVisitor]: "}
+	printArgs = append(printArgs, args...)
+	fmt.Println(printArgs...)
 }
 
 func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -65,11 +82,13 @@ func (c *configurationVisitor) EnterOperationDefinition(ref int) {
 	}
 }
 
-func (c *configurationVisitor) EnterSelectionSet(_ int) {
+func (c *configurationVisitor) EnterSelectionSet(ref int) {
+	c.debug("EnterSelectionSet ref:", ref)
 	c.parentTypeNodes = append(c.parentTypeNodes, c.walker.EnclosingTypeDefinition)
 }
 
-func (c *configurationVisitor) LeaveSelectionSet(_ int) {
+func (c *configurationVisitor) LeaveSelectionSet(ref int) {
+	c.debug("LeaveSelectionSet ref:", ref)
 	c.parentTypeNodes = c.parentTypeNodes[:len(c.parentTypeNodes)-1]
 }
 
@@ -77,6 +96,8 @@ func (c *configurationVisitor) EnterField(ref int) {
 	fieldName := c.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
+
+	c.debug("EnterField ref:", ref, "fieldName:", fieldName, "typeName:", typeName)
 
 	parentPath := c.walker.Path.DotDelimitedString()
 	currentPath := parentPath + "." + fieldAliasOrName
@@ -88,10 +109,12 @@ func (c *configurationVisitor) EnterField(ref int) {
 	for i, plannerConfig := range c.planners {
 		planningBehaviour := plannerConfig.planner.DataSourcePlanningBehavior()
 		if fieldAliasOrName == "__typename" && planningBehaviour.IncludeTypeNameFields {
-			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{
+			c.addPath(i, pathConfiguration{
 				path:             currentPath,
 				shouldWalkFields: true,
 				typeName:         typeName,
+				fieldRef:         ref,
+				enclosingNode:    c.walker.EnclosingTypeDefinition,
 			})
 			return
 		}
@@ -100,10 +123,12 @@ func (c *configurationVisitor) EnterField(ref int) {
 			planningBehaviour.MergeAliasedRootNodes {
 			// same parent + root node = root sibling
 
-			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{
+			c.addPath(i, pathConfiguration{
 				path:             currentPath,
 				shouldWalkFields: true,
 				typeName:         typeName,
+				fieldRef:         ref,
+				enclosingNode:    c.walker.EnclosingTypeDefinition,
 			})
 			c.fieldBuffers[ref] = plannerConfig.bufferID
 
@@ -113,10 +138,12 @@ func (c *configurationVisitor) EnterField(ref int) {
 			if plannerConfig.dataSourceConfiguration.HasChildNode(typeName, fieldName) {
 
 				// has parent path + has child node = child
-				c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{
+				c.addPath(i, pathConfiguration{
 					path:             currentPath,
 					shouldWalkFields: true,
 					typeName:         typeName,
+					fieldRef:         ref,
+					enclosingNode:    c.walker.EnclosingTypeDefinition,
 				})
 
 				return
@@ -126,7 +153,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 				return
 			}
 
-			if pathAdded := c.addPlannerPathForChildOfAbstractParent(i, currentPath, typeName, fieldName); pathAdded {
+			if pathAdded := c.addPlannerPathForChildOfAbstractParent(i, currentPath, ref, typeName, fieldName); pathAdded {
 				return
 			}
 		}
@@ -149,6 +176,8 @@ func (c *configurationVisitor) EnterField(ref int) {
 				path:             currentPath,
 				shouldWalkFields: true,
 				typeName:         typeName,
+				fieldRef:         ref,
+				enclosingNode:    c.walker.EnclosingTypeDefinition,
 			},
 		}
 		if isParentAbstract {
@@ -186,7 +215,12 @@ func (c *configurationVisitor) EnterField(ref int) {
 }
 
 func (c *configurationVisitor) LeaveField(ref int) {
+	fieldName := c.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
+	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
+	c.debug("LeaveField ref:", ref, "fieldName:", fieldName, "typeName:", typeName)
+
+	// fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	parent := c.walker.Path.DotDelimitedString()
 	current := parent + "." + fieldAliasOrName
 	for i, planner := range c.planners {
@@ -217,10 +251,12 @@ func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(
 	}
 
 	if node.Kind == ast.NodeKindUnionTypeDefinition {
-		c.planners[plannerIndex].paths = append(c.planners[plannerIndex].paths, pathConfiguration{
+		c.planners[plannerIndex].addPath(pathConfiguration{
 			path:             currentPath,
 			shouldWalkFields: true,
 			typeName:         typeName,
+			fieldRef:         fieldRef,
+			enclosingNode:    c.walker.EnclosingTypeDefinition,
 		})
 		return true
 	}
@@ -228,7 +264,7 @@ func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(
 }
 
 func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
-	plannerIndex int, currentPath string, typeName, fieldName string,
+	plannerIndex int, currentPath string, fieldRef int, typeName, fieldName string,
 ) (pathAdded bool) {
 
 	if !c.isParentTypeNodeAbstractType() {
@@ -242,10 +278,12 @@ func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
 	}
 	// The path for this field should only be added if the parent path also exists on this planner
 
-	c.planners[plannerIndex].paths = append(c.planners[plannerIndex].paths, pathConfiguration{
+	c.planners[plannerIndex].addPath(pathConfiguration{
 		path:             currentPath,
 		shouldWalkFields: true,
 		typeName:         typeName,
+		fieldRef:         fieldRef,
+		enclosingNode:    c.walker.EnclosingTypeDefinition,
 	})
 	return true
 }

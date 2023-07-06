@@ -1,7 +1,10 @@
 package plan
 
 import (
+	"encoding/json"
 	"strings"
+
+	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 )
 
 type plannerConfiguration struct {
@@ -10,6 +13,11 @@ type plannerConfiguration struct {
 	paths                   []pathConfiguration
 	dataSourceConfiguration DataSourceConfiguration
 	bufferID                int
+}
+
+func (p *plannerConfiguration) addPath(configuration pathConfiguration) {
+	// fmt.Println("[plannerConfiguration.addPath] parentPath:", p.parentPath, "path:", configuration.String())
+	p.paths = append(p.paths, configuration)
 }
 
 // isNestedPlanner returns true in case the planner is not directly attached to the Operation root
@@ -87,4 +95,23 @@ type pathConfiguration struct {
 	shouldWalkFields bool
 	// typeName - the planner will only walk into fields of this type
 	typeName string
+
+	fieldRef      int
+	enclosingNode ast.Node
+
+	depth int
+}
+
+func (p *pathConfiguration) String() string {
+	j := make(map[string]any)
+
+	j["path"] = p.path
+	j["exitPlannerOnNode"] = p.exitPlannerOnNode
+	j["shouldWalkFields"] = p.shouldWalkFields
+	j["typeName"] = p.typeName
+	j["fieldRef"] = p.fieldRef
+
+	b, _ := json.Marshal(j)
+
+	return string(b)
 }

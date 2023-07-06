@@ -40,6 +40,38 @@ type Visitor struct {
 	disableResolveFieldPositions bool
 }
 
+func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
+	switch kind {
+	case ast.NodeKindField:
+		fieldName := v.Operation.FieldNameString(ref)
+		v.DebugPrint("EnterField : ", fieldName, " ref: ", ref)
+	case ast.NodeKindInlineFragment:
+		fragmentTypeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
+		v.DebugPrint("EnterInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
+	case ast.NodeKindSelectionSet:
+		v.DebugPrint("EnterSelectionSet", " ref: ", ref)
+	}
+}
+
+func (v *Visitor) debugOnLeaveNode(kind ast.NodeKind, ref int) {
+	switch kind {
+	case ast.NodeKindField:
+		fieldName := v.Operation.FieldNameString(ref)
+		v.DebugPrint("LeaveField : ", fieldName, " ref: ", ref)
+	case ast.NodeKindInlineFragment:
+		fragmentTypeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
+		v.DebugPrint("LeaveInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
+	case ast.NodeKindSelectionSet:
+		v.DebugPrint("LeaveSelectionSet", " ref: ", ref)
+	}
+}
+
+func (v *Visitor) DebugPrint(args ...interface{}) {
+	allArgs := []interface{}{"[Visitor]: "}
+	allArgs = append(allArgs, args...)
+	fmt.Println(allArgs...)
+}
+
 type skipIncludeField struct {
 	skip                bool
 	skipVariableName    string
@@ -57,10 +89,15 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 		return true
 	}
 	path := v.Walker.Path.DotDelimitedString()
+
+	v.DebugPrint("AllowVisitor base path", path)
+
 	switch kind {
 	case astvisitor.EnterField, astvisitor.LeaveField:
 		fieldAliasOrName := v.Operation.FieldAliasOrNameString(ref)
 		path = path + "." + fieldAliasOrName
+
+		v.DebugPrint("AllowVisitor field path", path)
 	}
 	if !strings.Contains(path, ".") {
 		return true
@@ -177,19 +214,22 @@ func (v *Visitor) EnterInlineFragment(ref int) {
 	}
 }
 
-func (v *Visitor) LeaveInlineFragment(_ int) {
-
+func (v *Visitor) LeaveInlineFragment(ref int) {
+	v.debugOnEnterNode(ast.NodeKindInlineFragment, ref)
 }
 
-func (v *Visitor) EnterSelectionSet(_ int) {
-
+func (v *Visitor) EnterSelectionSet(ref int) {
+	v.debugOnEnterNode(ast.NodeKindSelectionSet, ref)
 }
 
-func (v *Visitor) LeaveSelectionSet(_ int) {
+func (v *Visitor) LeaveSelectionSet(ref int) {
+	v.debugOnLeaveNode(ast.NodeKindSelectionSet, ref)
 
 }
 
 func (v *Visitor) EnterField(ref int) {
+	v.debugOnEnterNode(ast.NodeKindField, ref)
+
 	if v.skipField(ref) {
 		return
 	}
@@ -369,6 +409,7 @@ func (v *Visitor) resolveOnTypeNames() [][]byte {
 }
 
 func (v *Visitor) LeaveField(ref int) {
+	v.debugOnLeaveNode(ast.NodeKindField, ref)
 	if v.currentFields[len(v.currentFields)-1].popOnField == ref {
 		v.currentFields = v.currentFields[:len(v.currentFields)-1]
 	}

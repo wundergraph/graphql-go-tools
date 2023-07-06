@@ -2,6 +2,7 @@ package plan
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
@@ -101,6 +102,14 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 
 	p.configurationVisitor.config = config
 	p.configurationWalker.Walk(operation, definition, report)
+
+	fmt.Printf("planning paths")
+	for i, planner := range p.configurationVisitor.planners {
+		fmt.Println("Paths for planner", i)
+		for _, path := range planner.paths {
+			fmt.Println(path.String())
+		}
+	}
 
 	// configure planning visitor
 

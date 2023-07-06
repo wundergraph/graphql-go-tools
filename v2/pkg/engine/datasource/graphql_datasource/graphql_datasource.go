@@ -1099,7 +1099,7 @@ func (p *Planner) debugPrintOperation() {
 }
 
 func (p *Planner) DebugPrint(args ...interface{}) {
-	allArgs := []interface{}{p.config.Fetch.URL, ":", p.id, ":"}
+	allArgs := []interface{}{"[GraphqlDS]: ", p.config.Fetch.URL, ":", p.id, ":"}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
 }
