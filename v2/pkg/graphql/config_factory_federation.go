@@ -10,6 +10,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/pkg/federation"
+	"github.com/wundergraph/graphql-go-tools/pkg/federation/federationdata"
 )
 
 type federationEngineConfigFactoryOptions struct {
@@ -161,7 +162,7 @@ func (f *FederationEngineConfigFactory) engineConfigFieldConfigs(schema *Schema)
 		if report.HasErrors() {
 			return nil, fmt.Errorf("parse graphql document string: %s", report.Error())
 		}
-		extractor := plan.NewRequiredFieldExtractor(&doc)
+		extractor := federationdata.NewRequiredFieldExtractor(&doc)
 		planFieldConfigs = append(planFieldConfigs, extractor.GetAllRequiredFields()...)
 	}
 

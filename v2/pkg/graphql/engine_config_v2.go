@@ -8,6 +8,7 @@ import (
 	graphqlDataSource "github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/pkg/federation/federationdata"
 )
 
 const (
@@ -115,7 +116,7 @@ func newGraphQLDataSourceV2Generator(document *ast.Document) *graphqlDataSourceV
 
 func (d *graphqlDataSourceV2Generator) Generate(config graphqlDataSource.Configuration, batchFactory resolve.DataSourceBatchFactory, httpClient *http.Client, options ...DataSourceV2GeneratorOption) (plan.DataSourceConfiguration, error) {
 	var planDataSource plan.DataSourceConfiguration
-	extractor := plan.NewLocalTypeFieldExtractor(d.document)
+	extractor := federationdata.NewLocalTypeFieldExtractor(d.document)
 	planDataSource.RootNodes, planDataSource.ChildNodes = extractor.GetAllNodes()
 
 	definedOptions := &dataSourceV2GeneratorOptions{

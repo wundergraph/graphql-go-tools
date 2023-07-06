@@ -1,0 +1,272 @@
+package plan
+
+import (
+	"context"
+	"strings"
+
+	"github.com/wundergraph/graphql-go-tools/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
+)
+
+type configurationVisitor struct {
+	operationName         string
+	operation, definition *ast.Document
+	walker                *astvisitor.Walker
+	config                Configuration
+	planners              []plannerConfiguration
+	fetches               []objectFetchConfiguration
+	currentBufferId       int
+	fieldBuffers          map[int]int
+
+	parentTypeNodes []ast.Node
+
+	ctx context.Context
+}
+
+type objectFetchConfiguration struct {
+	object             *resolve.Object
+	trigger            *resolve.GraphQLSubscriptionTrigger
+	planner            DataSourcePlanner
+	bufferID           int
+	isSubscription     bool
+	fieldRef           int
+	fieldDefinitionRef int
+}
+
+func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document) {
+	c.operation, c.definition = operation, definition
+	c.currentBufferId = -1
+	c.parentTypeNodes = c.parentTypeNodes[:0]
+	if c.planners == nil {
+		c.planners = make([]plannerConfiguration, 0, 8)
+	} else {
+		c.planners = c.planners[:0]
+	}
+	if c.fetches == nil {
+		c.fetches = []objectFetchConfiguration{}
+	} else {
+		c.fetches = c.fetches[:0]
+	}
+	if c.fieldBuffers == nil {
+		c.fieldBuffers = map[int]int{}
+	} else {
+		for i := range c.fieldBuffers {
+			delete(c.fieldBuffers, i)
+		}
+	}
+}
+
+func (c *configurationVisitor) EnterOperationDefinition(ref int) {
+	operationName := c.operation.OperationDefinitionNameString(ref)
+	if c.operationName != operationName {
+		c.walker.SkipNode()
+		return
+	}
+}
+
+func (c *configurationVisitor) EnterSelectionSet(_ int) {
+	c.parentTypeNodes = append(c.parentTypeNodes, c.walker.EnclosingTypeDefinition)
+}
+
+func (c *configurationVisitor) LeaveSelectionSet(_ int) {
+	c.parentTypeNodes = c.parentTypeNodes[:len(c.parentTypeNodes)-1]
+}
+
+func (c *configurationVisitor) EnterField(ref int) {
+	fieldName := c.operation.FieldNameUnsafeString(ref)
+	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
+	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
+
+	parentPath := c.walker.Path.DotDelimitedString()
+	currentPath := parentPath + "." + fieldAliasOrName
+	root := c.walker.Ancestors[0]
+	if root.Kind != ast.NodeKindOperationDefinition {
+		return
+	}
+	isSubscription := c.isSubscription(root.Ref, currentPath)
+	for i, plannerConfig := range c.planners {
+		planningBehaviour := plannerConfig.planner.DataSourcePlanningBehavior()
+		if fieldAliasOrName == "__typename" && planningBehaviour.IncludeTypeNameFields {
+			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{
+				path:             currentPath,
+				shouldWalkFields: true,
+				typeName:         typeName,
+			})
+			return
+		}
+		if plannerConfig.hasParent(parentPath) &&
+			plannerConfig.dataSourceConfiguration.HasRootNode(typeName, fieldName) &&
+			planningBehaviour.MergeAliasedRootNodes {
+			// same parent + root node = root sibling
+
+			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{
+				path:             currentPath,
+				shouldWalkFields: true,
+				typeName:         typeName,
+			})
+			c.fieldBuffers[ref] = plannerConfig.bufferID
+
+			return
+		}
+		if plannerConfig.hasPath(parentPath) {
+			if plannerConfig.dataSourceConfiguration.HasChildNode(typeName, fieldName) {
+
+				// has parent path + has child node = child
+				c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{
+					path:             currentPath,
+					shouldWalkFields: true,
+					typeName:         typeName,
+				})
+
+				return
+			}
+
+			if pathAdded := c.addPlannerPathForUnionChildOfObjectParent(i, currentPath, ref, typeName); pathAdded {
+				return
+			}
+
+			if pathAdded := c.addPlannerPathForChildOfAbstractParent(i, currentPath, typeName, fieldName); pathAdded {
+				return
+			}
+		}
+	}
+	for i, config := range c.config.DataSources {
+		if !config.HasRootNode(typeName, fieldName) {
+			continue
+		}
+		var (
+			bufferID int
+		)
+		if !isSubscription {
+			bufferID = c.nextBufferID()
+			c.fieldBuffers[ref] = bufferID
+		}
+		planner := c.config.DataSources[i].Factory.Planner(c.ctx)
+		isParentAbstract := c.isParentTypeNodeAbstractType()
+		paths := []pathConfiguration{
+			{
+				path:             currentPath,
+				shouldWalkFields: true,
+				typeName:         typeName,
+			},
+		}
+		if isParentAbstract {
+			// if the parent is abstract, we add the parent path as well
+			// this will ensure that we're walking into and out of the root inline fragments
+			// otherwise, we'd only walk into the fields inside the inline fragments in the root,
+			// so we'd miss the selection sets and inline fragments in the root
+			paths = append([]pathConfiguration{
+				{
+					path:             parentPath,
+					shouldWalkFields: false,
+				},
+			}, paths...)
+		}
+		c.planners = append(c.planners, plannerConfiguration{
+			bufferID:                bufferID,
+			parentPath:              parentPath,
+			planner:                 planner,
+			paths:                   paths,
+			dataSourceConfiguration: config,
+		})
+		fieldDefinition, ok := c.walker.FieldDefinition(ref)
+		if !ok {
+			continue
+		}
+		c.fetches = append(c.fetches, objectFetchConfiguration{
+			bufferID:           bufferID,
+			planner:            planner,
+			isSubscription:     isSubscription,
+			fieldRef:           ref,
+			fieldDefinitionRef: fieldDefinition,
+		})
+		return
+	}
+}
+
+func (c *configurationVisitor) LeaveField(ref int) {
+	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
+	parent := c.walker.Path.DotDelimitedString()
+	current := parent + "." + fieldAliasOrName
+	for i, planner := range c.planners {
+		if planner.hasPath(current) && !planner.hasPathPrefix(current) {
+			c.planners[i].setPathExit(current)
+			return
+		}
+	}
+}
+
+func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(
+	plannerIndex int, currentPath string, fieldRef int, typeName string,
+) (pathAdded bool) {
+
+	if c.walker.EnclosingTypeDefinition.Kind != ast.NodeKindObjectTypeDefinition {
+		return false
+	}
+	fieldDefRef, exists := c.definition.NodeFieldDefinitionByName(c.walker.EnclosingTypeDefinition, c.operation.FieldNameBytes(fieldRef))
+	if !exists {
+		return false
+	}
+
+	fieldDefTypeRef := c.definition.FieldDefinitionType(fieldDefRef)
+	fieldDefTypeName := c.definition.TypeNameBytes(fieldDefTypeRef)
+	node, ok := c.definition.NodeByName(fieldDefTypeName)
+	if !ok {
+		return false
+	}
+
+	if node.Kind == ast.NodeKindUnionTypeDefinition {
+		c.planners[plannerIndex].paths = append(c.planners[plannerIndex].paths, pathConfiguration{
+			path:             currentPath,
+			shouldWalkFields: true,
+			typeName:         typeName,
+		})
+		return true
+	}
+	return false
+}
+
+func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
+	plannerIndex int, currentPath string, typeName, fieldName string,
+) (pathAdded bool) {
+
+	if !c.isParentTypeNodeAbstractType() {
+		return false
+	}
+	// If the field is a root node in any of the data sources, the path shouldn't be handled here
+	for _, d := range c.config.DataSources {
+		if d.HasRootNode(typeName, fieldName) {
+			return false
+		}
+	}
+	// The path for this field should only be added if the parent path also exists on this planner
+
+	c.planners[plannerIndex].paths = append(c.planners[plannerIndex].paths, pathConfiguration{
+		path:             currentPath,
+		shouldWalkFields: true,
+		typeName:         typeName,
+	})
+	return true
+}
+
+func (c *configurationVisitor) isParentTypeNodeAbstractType() bool {
+	if len(c.parentTypeNodes) < 2 {
+		return false
+	}
+	parentTypeNode := c.parentTypeNodes[len(c.parentTypeNodes)-2]
+	return parentTypeNode.Kind.IsAbstractType()
+}
+
+func (c *configurationVisitor) isSubscription(root int, path string) bool {
+	rootOperationType := c.operation.OperationDefinitions[root].OperationType
+	if rootOperationType != ast.OperationTypeSubscription {
+		return false
+	}
+	return strings.Count(path, ".") == 1
+}
+
+func (c *configurationVisitor) nextBufferID() int {
+	c.currentBufferId++
+	return c.currentBufferId
+}

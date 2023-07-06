@@ -1,4 +1,4 @@
-package plan
+package federationdata
 
 import (
 	"testing"
@@ -6,10 +6,11 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 )
 
 func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
-	run := func(t *testing.T, SDL string, expected FieldConfigurations) {
+	run := func(t *testing.T, SDL string, expected plan.FieldConfigurations) {
 		document := unsafeparser.ParseGraphqlDocumentString(SDL)
 		extractor := &RequiredFieldExtractor{document: &document}
 		got := extractor.GetAllRequiredFields()
@@ -43,7 +44,7 @@ func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
 			body: String!
 			title: String
 		}
-		`, FieldConfigurations{
+		`, plan.FieldConfigurations{
 			{TypeName: "Review", FieldName: "body", RequiresFields: []string{"id"}},
 			{TypeName: "Review", FieldName: "title", RequiresFields: []string{"id"}},
 		})
@@ -56,7 +57,7 @@ func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
 			title: String
 			author: String!
 		}
-		`, FieldConfigurations{
+		`, plan.FieldConfigurations{
 			{TypeName: "Review", FieldName: "body", RequiresFields: []string{"id", "author"}},
 			{TypeName: "Review", FieldName: "title", RequiresFields: []string{"id", "author"}},
 		})
@@ -67,7 +68,7 @@ func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
 			id: Int! @external
 			author: String!
 		}
-		`, FieldConfigurations{
+		`, plan.FieldConfigurations{
 			{TypeName: "Review", FieldName: "author", RequiresFields: []string{"id"}},
 		})
 	})
@@ -79,7 +80,7 @@ func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
 			author: String! @external
 			slug: String @requires(fields: "title author")
 		}
-		`, FieldConfigurations{
+		`, plan.FieldConfigurations{
 			{TypeName: "Review", FieldName: "slug", RequiresFields: []string{"id", "title", "author"}},
 		})
 	})

@@ -30,6 +30,7 @@ import (
 const removeNullVariablesDirectiveName = "removeNullVariables"
 
 type Planner struct {
+	id                         int
 	visitor                    *plan.Visitor
 	dataSourceConfig           plan.DataSourceConfiguration
 	config                     Configuration
@@ -62,6 +63,19 @@ type Planner struct {
 	unnulVariables          bool
 
 	parentTypeNodes []ast.Node
+}
+
+// TODO: remove this
+func (p *Planner) SetIndex(i int) {
+	p.id = i
+}
+
+func (p *Planner) SetID(id int) {
+	p.id = id
+}
+
+func (p *Planner) ID() (id int) {
+	return p.id
 }
 
 func (p *Planner) parentNodeIsAbstract() bool {
@@ -370,6 +384,8 @@ func (p *Planner) LeaveOperationDefinition(_ int) {
 }
 
 func (p *Planner) EnterSelectionSet(ref int) {
+	p.debugPrintOperationOnEnter(ast.NodeKindSelectionSet, ref)
+
 	p.parentTypeNodes = append(p.parentTypeNodes, p.visitor.Walker.EnclosingTypeDefinition)
 	if p.insideCustomScalarField {
 		return
@@ -420,7 +436,9 @@ func (p *Planner) addTypenameToSelectionSet(selectionSet int) {
 	})
 }
 
-func (p *Planner) LeaveSelectionSet(_ int) {
+func (p *Planner) LeaveSelectionSet(ref int) {
+	p.debugPrintOperationOnLeave(ast.NodeKindSelectionSet, ref)
+
 	p.parentTypeNodes = p.parentTypeNodes[:len(p.parentTypeNodes)-1]
 	if p.insideCustomScalarField {
 		return
@@ -433,6 +451,8 @@ func (p *Planner) LeaveSelectionSet(_ int) {
 }
 
 func (p *Planner) EnterInlineFragment(ref int) {
+	p.debugPrintOperationOnEnter(ast.NodeKindInlineFragment, ref)
+
 	if p.insideCustomScalarField {
 		return
 	}
@@ -476,7 +496,9 @@ func (p *Planner) EnterInlineFragment(ref int) {
 	p.nodes = append(p.nodes, ast.Node{Kind: ast.NodeKindInlineFragment, Ref: inlineFragment})
 }
 
-func (p *Planner) LeaveInlineFragment(_ int) {
+func (p *Planner) LeaveInlineFragment(ref int) {
+	p.debugPrintOperationOnLeave(ast.NodeKindInlineFragment, ref)
+
 	if p.insideCustomScalarField {
 		return
 	}
@@ -488,6 +510,8 @@ func (p *Planner) LeaveInlineFragment(_ int) {
 }
 
 func (p *Planner) EnterField(ref int) {
+	p.debugPrintOperationOnEnter(ast.NodeKindField, ref)
+
 	if p.insideCustomScalarField {
 		return
 	}
@@ -549,6 +573,8 @@ func (p *Planner) addCustomField(ref int) {
 }
 
 func (p *Planner) LeaveField(ref int) {
+	p.debugPrintOperationOnLeave(ast.NodeKindField, ref)
+
 	if p.insideCustomScalarField {
 		if p.customScalarFieldRef == ref {
 			p.insideCustomScalarField = false
@@ -1039,11 +1065,50 @@ const (
 	parseDocumentFailedErrMsg = "printOperation: parse %s failed"
 )
 
+func (p *Planner) debugPrintOperationOnEnter(kind ast.NodeKind, ref int) {
+	switch kind {
+	case ast.NodeKindField:
+		fieldName := p.visitor.Operation.FieldNameString(ref)
+		p.DebugPrint("EnterField : ", fieldName, " ref: ", ref)
+	case ast.NodeKindInlineFragment:
+		fragmentTypeCondition := p.visitor.Operation.InlineFragmentTypeConditionNameString(ref)
+		p.DebugPrint("EnterInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
+	case ast.NodeKindSelectionSet:
+		p.DebugPrint("EnterSelectionSet", " ref: ", ref)
+	}
+	p.debugPrintOperation()
+}
+
+func (p *Planner) debugPrintOperationOnLeave(kind ast.NodeKind, ref int) {
+	switch kind {
+	case ast.NodeKindField:
+		fieldName := p.visitor.Operation.FieldNameString(ref)
+		p.DebugPrint("LeaveField : ", fieldName, " ref: ", ref)
+	case ast.NodeKindInlineFragment:
+		fragmentTypeCondition := p.visitor.Operation.InlineFragmentTypeConditionNameString(ref)
+		p.DebugPrint("LeaveInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
+	case ast.NodeKindSelectionSet:
+		p.DebugPrint("LeaveSelectionSet", " ref: ", ref)
+	}
+	p.debugPrintOperation()
+}
+
+func (p *Planner) debugPrintOperation() {
+	op, _ := astprinter.PrintStringIndent(p.upstreamOperation, nil, "  ")
+	p.DebugPrint("printed op:\n", op)
+}
+
+func (p *Planner) DebugPrint(args ...interface{}) {
+	allArgs := []interface{}{p.config.Fetch.URL, ":", p.id, ":"}
+	allArgs = append(allArgs, args...)
+	fmt.Println(allArgs...)
+}
+
 // printOperation - prints normalized upstream operation
 func (p *Planner) printOperation() []byte {
 	buf := &bytes.Buffer{}
 
-	err := astprinter.Print(p.upstreamOperation, nil, buf)
+	err := astprinter.PrintIndent(p.upstreamOperation, nil, []byte("  "), buf)
 	if err != nil {
 		return nil
 	}

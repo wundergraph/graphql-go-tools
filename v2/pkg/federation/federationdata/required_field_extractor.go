@@ -1,9 +1,11 @@
-package plan
+package federationdata
 
 import (
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/pkg/federation/sdlmerge"
 )
 
 var fieldsArgumentNameBytes = []byte("fields")
@@ -11,7 +13,7 @@ var fieldsArgumentNameBytes = []byte("fields")
 // RequiredFieldExtractor extracts all required fields from an ast.Document
 // containing a parsed federation subgraph SDL
 // by visiting the directives specified in the federation specification
-// and extracting the required meta data
+// and extracting the required metadata
 type RequiredFieldExtractor struct {
 	document *ast.Document
 }
@@ -22,8 +24,8 @@ func NewRequiredFieldExtractor(document *ast.Document) *RequiredFieldExtractor {
 	}
 }
 
-func (f *RequiredFieldExtractor) GetAllRequiredFields() FieldConfigurations {
-	var fieldRequires FieldConfigurations
+func (f *RequiredFieldExtractor) GetAllRequiredFields() plan.FieldConfigurations {
+	var fieldRequires plan.FieldConfigurations
 
 	f.addFieldsForObjectExtensionDefinitions(&fieldRequires)
 	f.addFieldsForObjectDefinitions(&fieldRequires)
@@ -31,7 +33,7 @@ func (f *RequiredFieldExtractor) GetAllRequiredFields() FieldConfigurations {
 	return fieldRequires
 }
 
-func (f *RequiredFieldExtractor) addFieldsForObjectExtensionDefinitions(fieldRequires *FieldConfigurations) {
+func (f *RequiredFieldExtractor) addFieldsForObjectExtensionDefinitions(fieldRequires *plan.FieldConfigurations) {
 	for _, objectTypeExt := range f.document.ObjectTypeExtensions {
 		objectType := objectTypeExt.ObjectTypeDefinition
 		typeName := f.document.Input.ByteSliceString(objectType.Name)
@@ -42,7 +44,7 @@ func (f *RequiredFieldExtractor) addFieldsForObjectExtensionDefinitions(fieldReq
 		}
 
 		for _, fieldDefinitionRef := range objectType.FieldsDefinition.Refs {
-			if f.document.FieldDefinitionHasNamedDirective(fieldDefinitionRef, federationExternalDirectiveName) {
+			if f.document.FieldDefinitionHasNamedDirective(fieldDefinitionRef, sdlmerge.ExternalDirectiveName) {
 				continue
 			}
 
@@ -54,7 +56,7 @@ func (f *RequiredFieldExtractor) addFieldsForObjectExtensionDefinitions(fieldReq
 			requiredFieldsByRequiresDirective := requiredFieldsByRequiresDirective(f.document, fieldDefinitionRef)
 			requiredFields = append(requiredFields, requiredFieldsByRequiresDirective...)
 
-			*fieldRequires = append(*fieldRequires, FieldConfiguration{
+			*fieldRequires = append(*fieldRequires, plan.FieldConfiguration{
 				TypeName:       typeName,
 				FieldName:      fieldName,
 				RequiresFields: requiredFields,
@@ -63,7 +65,7 @@ func (f *RequiredFieldExtractor) addFieldsForObjectExtensionDefinitions(fieldReq
 	}
 }
 
-func (f *RequiredFieldExtractor) addFieldsForObjectDefinitions(fieldRequires *FieldConfigurations) {
+func (f *RequiredFieldExtractor) addFieldsForObjectDefinitions(fieldRequires *plan.FieldConfigurations) {
 	for _, objectType := range f.document.ObjectTypeDefinitions {
 		typeName := f.document.Input.ByteSliceString(objectType.Name)
 
@@ -86,7 +88,7 @@ func (f *RequiredFieldExtractor) addFieldsForObjectDefinitions(fieldRequires *Fi
 			requiredFields := make([]string, len(primaryKeys))
 			copy(requiredFields, primaryKeys)
 
-			*fieldRequires = append(*fieldRequires, FieldConfiguration{
+			*fieldRequires = append(*fieldRequires, plan.FieldConfiguration{
 				TypeName:       typeName,
 				FieldName:      fieldName,
 				RequiresFields: requiredFields,
@@ -97,7 +99,7 @@ func (f *RequiredFieldExtractor) addFieldsForObjectDefinitions(fieldRequires *Fi
 
 func requiredFieldsByRequiresDirective(document *ast.Document, fieldDefinitionRef int) []string {
 	for _, directiveRef := range document.FieldDefinitions[fieldDefinitionRef].Directives.Refs {
-		if directiveName := document.DirectiveNameString(directiveRef); directiveName != federationRequireDirectiveName {
+		if directiveName := document.DirectiveNameString(directiveRef); directiveName != sdlmerge.RequireDirectiveName {
 			continue
 		}
 
@@ -119,7 +121,7 @@ func requiredFieldsByRequiresDirective(document *ast.Document, fieldDefinitionRe
 
 func (f *RequiredFieldExtractor) primaryKeyFieldsIfObjectTypeIsEntity(objectType ast.ObjectTypeDefinition) (keyFields []string, ok bool) {
 	for _, directiveRef := range objectType.Directives.Refs {
-		if directiveName := f.document.DirectiveNameString(directiveRef); directiveName != FederationKeyDirectiveName {
+		if directiveName := f.document.DirectiveNameString(directiveRef); directiveName != sdlmerge.KeyDirectiveName {
 			continue
 		}
 
