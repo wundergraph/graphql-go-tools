@@ -659,6 +659,11 @@ func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
 		// LeaveDocument is called. (Updating the visitor logic to call
 		// LeaveDocument in reverse registration order would fix this issue.)
 		p.updateRepresentationsVariable(fieldConfig)
+		// add inline fragment again, because it could be another entity type
+		// e.g. parallel request for a few entities
+		// ... on Product { price }
+		// ,,, on StockItem { stock }
+		p.addOnTypeInlineFragment() // ... on Product
 		return
 	}
 	p.hasFederationRoot = true
