@@ -90,14 +90,10 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 	}
 	path := v.Walker.Path.DotDelimitedString()
 
-	v.DebugPrint("AllowVisitor base path", path)
-
 	switch kind {
 	case astvisitor.EnterField, astvisitor.LeaveField:
 		fieldAliasOrName := v.Operation.FieldAliasOrNameString(ref)
 		path = path + "." + fieldAliasOrName
-
-		v.DebugPrint("AllowVisitor field path", path)
 	}
 	if !strings.Contains(path, ".") {
 		return true
@@ -110,7 +106,13 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 				_ = fieldName
 
 				enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
-				shouldWalkFieldsOnPath := config.shouldWalkFieldsOnPath(path, enclosingTypeName)
+				shouldWalkFieldsOnPath :=
+					// check if the field path has type condition and matches the enclosing type
+					config.shouldWalkFieldsOnPath(path, enclosingTypeName) ||
+						// check if the planner has path without type condition
+						// this could happen in case of union type
+						// or if there was added missing parent path
+						config.shouldWalkFieldsOnPath(path, "")
 
 				if pp, ok := config.planner.(GqlPlanner); ok {
 					pp.DebugPrint("AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path, " allow:", shouldWalkFieldsOnPath)
@@ -133,7 +135,12 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 				if !allowedByParent {
 					// do not override a parent's decision
 					return false
+
+					if pp, ok := config.planner.(GqlPlanner); ok {
+						pp.DebugPrint("AllowVisitor: SelectionSet", " ref:", ref, " allow:", false)
+					}
 				}
+
 
 				allow := !config.isExitPath(path)
 

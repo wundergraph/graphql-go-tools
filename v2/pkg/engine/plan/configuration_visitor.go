@@ -191,6 +191,14 @@ func (c *configurationVisitor) EnterField(ref int) {
 					shouldWalkFields: false,
 				},
 			}, paths...)
+		} else {
+			// add potentially missing parent path
+			paths = append([]pathConfiguration{
+				{
+					path:             parentPath,
+					shouldWalkFields: true,
+				},
+			}, paths...)
 		}
 		c.planners = append(c.planners, plannerConfiguration{
 			bufferID:                bufferID,
