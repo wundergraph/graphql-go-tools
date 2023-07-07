@@ -144,7 +144,7 @@ func TestMergeSDLs(t *testing.T) {
 		accountSchema, negativeTestingProductSchema,
 	))
 
-	t.Run("test", runMergeTest(
+	t.Run("Fields should merge successfully", runMergeTest(
 		`
 			type Mammal {
 				name: String!
@@ -160,6 +160,35 @@ func TestMergeSDLs(t *testing.T) {
 			extend type Mammal @key(fields: "name") {
 				name: String! @external
 				age: Int!
+			}
+		`,
+	))
+
+	t.Run("Operation fields should merge successfully", runMergeTest(
+		`
+			type Query {
+			  _service: _Service!
+			}
+
+			type _Service {
+			  sdl: String
+			}
+		`,
+		`
+			type Query {
+			  _service: _Service!
+			}
+
+			type _Service {
+			  sdl: String
+			}
+		`, `
+			type Query {
+		  		_service: _Service!
+			}
+
+			type _Service {
+			  sdl: String
 			}
 		`,
 	))
@@ -194,7 +223,7 @@ func TestMergeSDLs(t *testing.T) {
 		`,
 	))
 
-	t.Run("Non-dentical fields should fail to merge #2", runMergeTestAndExpectError(
+	t.Run("Non-dentical fields should fail to merge #3", runMergeTestAndExpectError(
 		unmergableDuplicateFieldsErrorMessage("ages", "Mammal", "[Int!]!", "[String!]!"),
 		`
 			type Mammal @key(fields: "name") {
@@ -205,35 +234,6 @@ func TestMergeSDLs(t *testing.T) {
 			extend type Mammal @key(fields: "name") {
 				name: String! @external
 				ages: [String!]!
-			}
-		`,
-	))
-
-	t.Run("test", runMergeTest(
-		`
-			type Query {
-			  _service: _Service!
-			}
-
-			type _Service {
-			  sdl: String
-			}
-		`,
-		`
-			type Query {
-			  _service: _Service!
-			}
-
-			type _Service {
-			  sdl: String
-			}
-		`, `
-			type Query {
-		  		_service: _Service!
-			}
-
-			type _Service {
-			  sdl: String
 			}
 		`,
 	))
