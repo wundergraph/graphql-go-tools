@@ -95,6 +95,7 @@ const (
 	NodeKindBoolean
 	NodeKindInteger
 	NodeKindFloat
+	NodeKindCustom
 
 	FetchKindSingle FetchKind = iota + 1
 	FetchKindParallel
@@ -432,6 +433,8 @@ func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *Bu
 	case *EmptyArray:
 		r.resolveEmptyArray(bufPair.Data)
 		return
+	case *CustomNode:
+		return n.Resolve(ctx, data, n.Path, n.Nullable, bufPair)
 	default:
 		return
 	}
@@ -1478,6 +1481,20 @@ type String struct {
 
 func (_ *String) NodeKind() NodeKind {
 	return NodeKindString
+}
+
+type CustomResolve interface {
+	Resolve(ctx *Context, data []byte, path []string, nullable bool, customBuf *BufPair) error
+}
+
+type CustomNode struct {
+	CustomResolve
+	Nullable bool
+	Path     []string
+}
+
+func (_ *CustomNode) NodeKind() NodeKind {
+	return NodeKindCustom
 }
 
 type Boolean struct {
