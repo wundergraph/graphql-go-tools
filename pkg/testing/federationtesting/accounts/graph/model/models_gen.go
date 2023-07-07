@@ -27,6 +27,10 @@ type Wallet interface {
 	GetAmount() float64
 }
 
+type Cat struct {
+	Name string `json:"name"`
+}
+
 type Product struct {
 	Upc string `json:"upc"`
 }
@@ -59,6 +63,7 @@ type User struct {
 	ID       string    `json:"id"`
 	Username string    `json:"username"`
 	History  []History `json:"history"`
+	RealName string    `json:"realName"`
 }
 
 func (User) IsIdentifiable()    {}

@@ -38,6 +38,20 @@ func (r *productResolver) Reviews(ctx context.Context, obj *model.Product) ([]*m
 	return res, nil
 }
 
+// Me is the resolver for the me field.
+func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
+	return &model.User{
+		ID: "1234",
+	}, nil
+}
+
+// Cat is the resolver for the cat field.
+func (r *queryResolver) Cat(ctx context.Context) (*model.Cat, error) {
+	return &model.Cat{
+		Name: "Pepper",
+	}, nil
+}
+
 // Attachments is the resolver for the attachments field.
 func (r *reviewResolver) Attachments(ctx context.Context, obj *model.Review) ([]model.Attachment, error) {
 	var res []model.Attachment
@@ -84,11 +98,23 @@ func (r *userResolver) Reviews(ctx context.Context, obj *model.User) ([]*model.R
 	return res, nil
 }
 
+// RealName is the resolver for the realName field.
+func (r *userResolver) RealName(ctx context.Context, obj *model.User) (string, error) {
+	realName := fmt.Sprintf("User %s", obj.ID)
+	if obj.ID == "1234" {
+		realName = "User Usington"
+	}
+	return realName, nil
+}
+
 // Mutation returns generated.MutationResolver implementation.
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
 
 // Product returns generated.ProductResolver implementation.
 func (r *Resolver) Product() generated.ProductResolver { return &productResolver{r} }
+
+// Query returns generated.QueryResolver implementation.
+func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
 // Review returns generated.ReviewResolver implementation.
 func (r *Resolver) Review() generated.ReviewResolver { return &reviewResolver{r} }
@@ -98,5 +124,6 @@ func (r *Resolver) User() generated.UserResolver { return &userResolver{r} }
 
 type mutationResolver struct{ *Resolver }
 type productResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
 type reviewResolver struct{ *Resolver }
 type userResolver struct{ *Resolver }

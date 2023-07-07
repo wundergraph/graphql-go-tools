@@ -417,6 +417,39 @@ func TestFederationIntegrationTest(t *testing.T) {
 `
 		assert.Equal(t, compact(expected), string(resp))
 	})
+
+	t.Run("Merged fields are still resolved", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "queries/merged_field.graphql"), nil, t)
+		expected := `
+{
+	"data": {
+		"cat": {
+			"name": "Pepper"
+		},
+		"me": {
+			"id": "1234",
+			"username": "Me",
+			"realName": "User Usington",
+			"reviews": [
+				{
+					"body": "A highly effective form of birth control."
+				},
+				{
+					"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits."
+				}
+			],
+			"history": [
+				{
+					"rating": 5
+				}
+			]
+		}
+	}
+}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
 }
 
 func compact(input string) string {

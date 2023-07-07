@@ -12,6 +12,10 @@ type Comment interface {
 	GetBody() string
 }
 
+type Cat struct {
+	Name string `json:"name"`
+}
+
 type Question struct {
 	Upc  string `json:"upc"`
 	Body string `json:"body"`
