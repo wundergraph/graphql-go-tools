@@ -1,0 +1,18 @@
+query MergedField {
+    cat {
+        name
+    }
+    me {
+        id
+        username
+        realName
+        reviews {
+            body
+        }
+        history {
+            ... on Sale {
+                rating
+            }
+        }
+    }
+}

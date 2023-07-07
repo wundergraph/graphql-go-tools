@@ -143,6 +143,55 @@ func TestMergeSDLs(t *testing.T) {
 		emptyTypeBodyErrorMessage("object", "Message"),
 		accountSchema, negativeTestingProductSchema,
 	))
+
+	t.Run("test", runMergeTest(
+		`
+			type Mammal {
+				name: String!
+				age: Int!
+			}
+		`,
+		`
+			type Mammal @key(fields: "name") {
+				name: String!
+				age: Int!
+			}
+		`, `
+			extend type Mammal @key(fields: "name") {
+				name: String! @external
+				age: Int!
+			}
+		`,
+	))
+
+	t.Run("test", runMergeTest(
+		`
+			type Query {
+			  _service: _Service!
+			}
+
+			type _Service {
+			  sdl: String
+			}
+		`,
+		`
+			type Query {
+			  _service: _Service!
+			}
+
+			type _Service {
+			  sdl: String
+			}
+		`, `
+			type Query {
+		  		_service: _Service!
+			}
+
+			type _Service {
+			  sdl: String
+			}
+		`,
+	))
 }
 
 const (
