@@ -164,6 +164,51 @@ func TestMergeSDLs(t *testing.T) {
 		`,
 	))
 
+	t.Run("Non-identical fields should fail to merge #1", runMergeTestAndExpectError(
+		unmergableDuplicateFieldsErrorMessage("age", "Mammal", "Int", "String"),
+		`
+			type Mammal @key(fields: "name") {
+				name: String!
+				age: Int
+			}
+		`, `
+			extend type Mammal @key(fields: "name") {
+				name: String! @external
+				age: String
+			}
+		`,
+	))
+
+	t.Run("Non-identical fields should fail to merge #2", runMergeTestAndExpectError(
+		unmergableDuplicateFieldsErrorMessage("age", "Mammal", "Int!", "String!"),
+		`
+			type Mammal @key(fields: "name") {
+				name: String!
+				age: Int!
+			}
+		`, `
+			extend type Mammal @key(fields: "name") {
+				name: String! @external
+				age: String!
+			}
+		`,
+	))
+
+	t.Run("Non-dentical fields should fail to merge #2", runMergeTestAndExpectError(
+		unmergableDuplicateFieldsErrorMessage("ages", "Mammal", "[Int!]!", "[String!]!"),
+		`
+			type Mammal @key(fields: "name") {
+				name: String!
+				ages: [Int!]!
+			}
+		`, `
+			extend type Mammal @key(fields: "name") {
+				name: String! @external
+				ages: [String!]!
+			}
+		`,
+	))
+
 	t.Run("test", runMergeTest(
 		`
 			type Query {
@@ -719,6 +764,12 @@ func nonEntityExtensionErrorMessage(typeName string) string {
 
 func duplicateEntityErrorMessage(typeName string) string {
 	return fmt.Sprintf("the entity named '%s' is defined in the subgraph(s) more than once", typeName)
+}
+
+func unmergableDuplicateFieldsErrorMessage(fieldName, parentName, typeOne, typeTwo string) string {
+	return fmt.Sprintf("field '%s' on type '%s' is defined in multiple subgraphs "+
+		"but the fields cannot be merged because the types of the fields are non-identical:\n"+
+		"first subgraph: type '%s'\n second subgraph: type '%s'", fieldName, parentName, typeOne, typeTwo)
 }
 
 func Test_validateSubgraphs(t *testing.T) {
