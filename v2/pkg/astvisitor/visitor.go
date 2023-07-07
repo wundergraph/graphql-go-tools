@@ -42,11 +42,10 @@ func newSkipVisitors(skips []int, planner interface{}, allowedToVisit bool) Skip
 		if i == j {
 			if allowedToVisit {
 				// if visiting was allowed explicitly we have to remove the skip for the nested nodes
-				// newSkips := make([]int, 0, len(skips))
-				// newSkips = append(newSkips, skips[:k]...)
-				// newSkips = append(newSkips, skips[k+1:]...)
-				// return newSkips
-				return append(skips[:k], skips[k+1:]...)
+				newSkips := make([]int, 0, len(skips))
+				newSkips = append(newSkips, skips[:k]...)
+				newSkips = append(newSkips, skips[k+1:]...)
+				return newSkips
 			} else {
 				return skips // nothing to do as we already skipped this visitor
 			}
@@ -55,10 +54,9 @@ func newSkipVisitors(skips []int, planner interface{}, allowedToVisit bool) Skip
 	if allowedToVisit {
 		return skips
 	}
-	// newSkips := make([]int, 0, len(skips)+1)
-	// newSkips = append(newSkips, skips...)
-	// return append(newSkips, j) // add new skipped planner index
-	return append(skips, j)
+	newSkips := make([]int, 0, len(skips)+1)
+	newSkips = append(newSkips, skips...)
+	return append(newSkips, j) // add new skipped planner index
 }
 
 // Walker orchestrates the process of walking an AST and calling all registered callbacks
