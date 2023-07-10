@@ -36,6 +36,7 @@ type Configuration struct {
 	// This setting removes position information from all fields
 	// In production, this should be set to false so that error messages are easier to understand
 	DisableResolveFieldPositions bool
+	CustomResolveMap             map[string]resolve.CustomResolve
 }
 
 type DirectiveConfigurations []DirectiveConfiguration
@@ -730,6 +731,13 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 		}
 	case ast.TypeKindNamed:
 		typeName := v.Definition.ResolveTypeNameString(typeRef)
+		customResolve, ok := v.Config.CustomResolveMap[typeName]
+		if ok {
+			return &resolve.CustomNode{
+				CustomResolve: customResolve,
+				Path:          path,
+			}
+		}
 		typeDefinitionNode, ok := v.Definition.Index.FirstNodeByNameStr(typeName)
 		if !ok {
 			return &resolve.Null{}

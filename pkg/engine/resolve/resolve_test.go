@@ -5,6 +5,7 @@ package resolve
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -106,6 +107,18 @@ func (g gotBytesFormatter) Got(got interface{}) string {
 
 func newResolver(ctx context.Context, enableSingleFlight bool, enableDataLoader bool) *Resolver {
 	return New(ctx, NewFetcher(enableSingleFlight), enableDataLoader)
+}
+
+type customResolver struct{}
+
+func (customResolver) Resolve(value []byte) ([]byte, error) {
+	return value, nil
+}
+
+type customErrResolve struct{}
+
+func (customErrResolve) Resolve(value []byte) ([]byte, error) {
+	return nil, errors.New("custom error")
 }
 
 func TestResolver_ResolveNode(t *testing.T) {
@@ -1848,6 +1861,65 @@ func TestResolver_ResolveNode(t *testing.T) {
 			}))
 		})
 	})
+
+	t.Run("custom", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"id": "1"}`),
+			},
+			Fields: []*Field{
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("id"),
+					Value: &CustomNode{
+						CustomResolve: customResolver{},
+						Path:          []string{"id"},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"id":1}`
+	}))
+	t.Run("custom nullable", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"id": null}`),
+			},
+			Fields: []*Field{
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("id"),
+					Value: &CustomNode{
+						CustomResolve: customErrResolve{},
+						Path:          []string{"id"},
+						Nullable:      false,
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, errNonNullableFieldValueIsNull.Error()
+	}))
+	t.Run("custom error", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"id": "1"}`),
+			},
+			Fields: []*Field{
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("id"),
+					Value: &CustomNode{
+						CustomResolve: customErrResolve{},
+						Path:          []string{"id"},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `failed to resolve value type string for path /data/id via custom resolver`
+	}))
 }
 
 func TestResolver_WithHooks(t *testing.T) {
@@ -1956,6 +2028,7 @@ func TestResolver_WithHooks(t *testing.T) {
 			},
 		}, Context{ctx: context.Background(), beforeFetchHook: beforeFetch, afterFetchHook: afterFetch}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
 	}))
+
 }
 
 func TestResolver_ResolveGraphQLResponse(t *testing.T) {

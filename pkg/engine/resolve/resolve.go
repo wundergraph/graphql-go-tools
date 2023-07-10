@@ -95,6 +95,7 @@ const (
 	NodeKindBoolean
 	NodeKindInteger
 	NodeKindFloat
+	NodeKindCustom
 
 	FetchKindSingle FetchKind = iota + 1
 	FetchKindParallel
@@ -432,6 +433,8 @@ func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *Bu
 	case *EmptyArray:
 		r.resolveEmptyArray(bufPair.Data)
 		return
+	case *CustomNode:
+		return r.resolveCustom(ctx, n, data, bufPair)
 	default:
 		return
 	}
@@ -920,6 +923,19 @@ func (r *Resolver) resolveFloat(ctx *Context, floatValue *Float, data []byte, fl
 	}
 	floatBuf.Data.WriteBytes(value)
 	r.exportField(ctx, floatValue.Export, value)
+	return nil
+}
+
+func (r *Resolver) resolveCustom(ctx *Context, customValue *CustomNode, data []byte, customBuf *BufPair) error {
+	value, dataType, _, _ := jsonparser.Get(data, customValue.Path...)
+	if dataType == jsonparser.Null && !customValue.Nullable {
+		return errNonNullableFieldValueIsNull
+	}
+	resolvedValue, err := customValue.Resolve(value)
+	if err != nil {
+		return fmt.Errorf("failed to resolve value type %s for path %s via custom resolver", dataType, string(ctx.path()))
+	}
+	customBuf.Data.WriteBytes(resolvedValue)
 	return nil
 }
 
@@ -1478,6 +1494,20 @@ type String struct {
 
 func (_ *String) NodeKind() NodeKind {
 	return NodeKindString
+}
+
+type CustomResolve interface {
+	Resolve(value []byte) ([]byte, error)
+}
+
+type CustomNode struct {
+	CustomResolve
+	Nullable bool
+	Path     []string
+}
+
+func (_ *CustomNode) NodeKind() NodeKind {
+	return NodeKindCustom
 }
 
 type Boolean struct {
