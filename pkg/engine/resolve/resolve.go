@@ -434,7 +434,7 @@ func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *Bu
 		r.resolveEmptyArray(bufPair.Data)
 		return
 	case *CustomNode:
-		return n.Resolve(ctx, data, n.Path, n.Nullable, bufPair)
+		return r.resolveCustom(ctx, n, data, bufPair)
 	default:
 		return
 	}
@@ -923,6 +923,19 @@ func (r *Resolver) resolveFloat(ctx *Context, floatValue *Float, data []byte, fl
 	}
 	floatBuf.Data.WriteBytes(value)
 	r.exportField(ctx, floatValue.Export, value)
+	return nil
+}
+
+func (r *Resolver) resolveCustom(ctx *Context, customValue *CustomNode, data []byte, customBuf *BufPair) error {
+	value, dataType, _, _ := jsonparser.Get(data, customValue.Path...)
+	if dataType == jsonparser.Null && !customValue.Nullable {
+		return errNonNullableFieldValueIsNull
+	}
+	resolvedValue, err := customValue.Resolve(value)
+	if err != nil {
+		return fmt.Errorf("failed to resolve value type %s for path %s via custom resolver", dataType, string(ctx.path()))
+	}
+	customBuf.Data.WriteBytes(resolvedValue)
 	return nil
 }
 
@@ -1484,7 +1497,7 @@ func (_ *String) NodeKind() NodeKind {
 }
 
 type CustomResolve interface {
-	Resolve(ctx *Context, data []byte, path []string, nullable bool, customBuf *BufPair) error
+	Resolve(value []byte) ([]byte, error)
 }
 
 type CustomNode struct {
