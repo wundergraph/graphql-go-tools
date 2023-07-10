@@ -663,6 +663,9 @@ func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
 		// e.g. parallel request for a few entities
 		// ... on Product { price }
 		// ,,, on StockItem { stock }
+		if !p.isOnTypeInlineFragmentAllowed() {
+			return
+		}
 		p.addOnTypeInlineFragment() // ... on Product
 		return
 	}
@@ -703,6 +706,7 @@ func (p *Planner) updateRepresentationsVariable(fieldConfig *plan.FieldConfigura
 		return
 	}
 
+	// TODO: this code is broken in case we have multiple federated fields from different entities
 	if len(p.representationsJson) == 0 {
 		// If the parent is an abstract type, i.e., an interface or union,
 		// the representation typename must come from a parent fetch response.
@@ -754,6 +758,21 @@ func (p *Planner) fieldDefinition(fieldName, typeName string) *ast.FieldDefiniti
 		return nil
 	}
 	return &p.visitor.Definition.FieldDefinitions[definition]
+}
+
+// isOnTypeInlineFragmentAllowed returns false if we already have an entity fragment with the same type name
+func (p *Planner) isOnTypeInlineFragmentAllowed() bool {
+	ancestorIsFragment := len(p.nodes) > 1 &&
+		p.nodes[len(p.nodes)-2].Kind == ast.NodeKindInlineFragment
+
+	if !ancestorIsFragment {
+		return true
+	}
+
+	return bytes.Equal(
+		p.upstreamOperation.InlineFragmentTypeConditionName(p.nodes[len(p.nodes)-1].Ref),
+		[]byte(p.lastFieldEnclosingTypeName),
+	)
 }
 
 func (p *Planner) addOnTypeInlineFragment() {
