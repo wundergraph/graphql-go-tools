@@ -819,7 +819,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					Variables:     nil,
 				}
 				jsonBytes, _ := json.Marshal(body)
-				UnmarshalRequest(bytes.NewBuffer(jsonBytes), &request)
+				err := UnmarshalRequest(bytes.NewBuffer(jsonBytes), &request)
+				require.NoError(t, err)
 				return request
 			},
 			dataSources: []plan.DataSourceConfiguration{
