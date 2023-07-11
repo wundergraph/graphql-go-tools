@@ -62,7 +62,13 @@ type Planner struct {
 	customScalarFieldRef    int
 	unnulVariables          bool
 
-	parentTypeNodes []ast.Node
+	parentTypeNodes      []ast.Node
+	addedInlineFragments map[onTypeInlineFragment]struct{}
+}
+
+type onTypeInlineFragment struct {
+	TypeCondition string
+	SelectionSet  int
 }
 
 // TODO: remove this
@@ -616,6 +622,7 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 	p.argTypeRef = -1
 
 	p.addDirectivesToVariableDefinitions = map[int][]int{}
+	p.addedInlineFragments = map[onTypeInlineFragment]struct{}{}
 
 	p.upstreamDefinition = nil
 	if p.config.UpstreamSchema != "" {
@@ -762,17 +769,17 @@ func (p *Planner) fieldDefinition(fieldName, typeName string) *ast.FieldDefiniti
 
 // isOnTypeInlineFragmentAllowed returns false if we already have an entity fragment with the same type name
 func (p *Planner) isOnTypeInlineFragmentAllowed() bool {
-	ancestorIsFragment := len(p.nodes) > 1 &&
-		p.nodes[len(p.nodes)-2].Kind == ast.NodeKindInlineFragment
-
-	if !ancestorIsFragment {
+	if !(len(p.nodes) > 1 && p.nodes[len(p.nodes)-1].Kind == ast.NodeKindSelectionSet) {
 		return true
 	}
 
-	return bytes.Equal(
-		p.upstreamOperation.InlineFragmentTypeConditionName(p.nodes[len(p.nodes)-1].Ref),
-		[]byte(p.lastFieldEnclosingTypeName),
-	)
+	fragmentInfo := onTypeInlineFragment{
+		TypeCondition: string(p.lastFieldEnclosingTypeName),
+		SelectionSet:  p.nodes[len(p.nodes)-1].Ref,
+	}
+
+	_, exists := p.addedInlineFragments[fragmentInfo]
+	return !exists
 }
 
 func (p *Planner) addOnTypeInlineFragment() {
@@ -792,6 +799,12 @@ func (p *Planner) addOnTypeInlineFragment() {
 		Ref:  inlineFragment,
 	})
 	p.nodes = append(p.nodes, selectionSet)
+
+	fragmentInfo := onTypeInlineFragment{
+		SelectionSet:  selectionSet.Ref,
+		TypeCondition: string(onTypeName),
+	}
+	p.addedInlineFragments[fragmentInfo] = struct{}{}
 }
 
 func (p *Planner) addEntitiesSelectionSet() {
