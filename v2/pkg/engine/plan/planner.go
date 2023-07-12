@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
@@ -105,11 +106,15 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 
 	fmt.Printf("planning paths")
 	for i, planner := range p.configurationVisitor.planners {
-		fmt.Println("Paths for planner", i)
+		fmt.Println("Paths for planner", i+1)
+		fmt.Println("Planner parent path", planner.parentPath)
 		for _, path := range planner.paths {
 			fmt.Println(path.String())
 		}
 	}
+
+	pp, _ := astprinter.PrintStringIndentDebug(operation, nil, "  ")
+	fmt.Println(pp)
 
 	// configure planning visitor
 
