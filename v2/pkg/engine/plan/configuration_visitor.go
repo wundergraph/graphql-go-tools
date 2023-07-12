@@ -99,8 +99,9 @@ func (c *configurationVisitor) EnterSelectionSet(ref int) {
 				continue
 			}
 
-			if !(planner.dataSourceConfiguration.HasRootNodeWithTypename(typeName) ||
-				planner.dataSourceConfiguration.HasChildNodeWithTypename(typeName)) {
+			hasRootNode := planner.dataSourceConfiguration.HasRootNodeWithTypename(typeName)
+			hasChildNode := planner.dataSourceConfiguration.HasChildNodeWithTypename(typeName)
+			if !(hasRootNode || hasChildNode) {
 				continue
 			}
 
@@ -127,6 +128,15 @@ func (c *configurationVisitor) EnterField(ref int) {
 	c.debug("EnterField ref:", ref, "fieldName:", fieldName, "typeName:", typeName)
 
 	parentPath := c.walker.Path.DotDelimitedString()
+	// we need to also check preceding path for inline fragments
+	// as for the field within inline fragment the parent path will include type condition in a path
+	// but planner path still will not include it
+	// this required to not produce multiple planners for the inline fragments
+	precedingParentPath := parentPath
+	if c.walker.Path[len(c.walker.Path)-1].Kind == ast.InlineFragmentName {
+		precedingParentPath = c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString()
+	}
+
 	currentPath := parentPath + "." + fieldAliasOrName
 	root := c.walker.Ancestors[0]
 	if root.Kind != ast.NodeKindOperationDefinition {
@@ -145,7 +155,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 			})
 			return
 		}
-		if plannerConfig.hasParent(parentPath) &&
+		if (plannerConfig.hasParent(parentPath) || plannerConfig.hasParent(precedingParentPath)) &&
 			plannerConfig.dataSourceConfiguration.HasRootNode(typeName, fieldName) &&
 			planningBehaviour.MergeAliasedRootNodes {
 			// same parent + root node = root sibling
@@ -161,7 +171,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 
 			return
 		}
-		if plannerConfig.hasPath(parentPath) {
+		if plannerConfig.hasPath(parentPath) || plannerConfig.hasParent(precedingParentPath) {
 			if plannerConfig.dataSourceConfiguration.HasChildNode(typeName, fieldName) {
 
 				// has parent path + has child node = child
@@ -221,6 +231,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 			}, paths...)
 		} else {
 			// add potentially missing parent path
+			// this could happen when the parent is a fragment and we walking nested selection sets
 			paths = append([]pathConfiguration{
 				{
 					path:             parentPath,
@@ -229,20 +240,28 @@ func (c *configurationVisitor) EnterField(ref int) {
 			}, paths...)
 		}
 
+		plannerPath := parentPath
+
 		isParentFragment := c.walker.Path[len(c.walker.Path)-1].Kind == ast.InlineFragmentName
 		if isParentFragment {
+			precedingFragmentPath := c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString()
 			// if the parent is a fragment, we add the preceding parent path as well
+			// to be able to walk selection sets in the fragment
 			paths = append([]pathConfiguration{
 				{
-					path:             c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString(),
+					path:             precedingFragmentPath,
 					shouldWalkFields: false,
 				},
 			}, paths...)
+
+			// if the parent is a fragment, we use the preceding parent path as the planner path
+			// to avoid creating multiple planners for the same upstream
+			plannerPath = precedingFragmentPath
 		}
 
 		c.planners = append(c.planners, plannerConfiguration{
 			bufferID:                bufferID,
-			parentPath:              parentPath,
+			parentPath:              plannerPath,
 			planner:                 planner,
 			paths:                   paths,
 			dataSourceConfiguration: config,
