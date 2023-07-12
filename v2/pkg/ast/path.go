@@ -15,6 +15,7 @@ const (
 	UnknownPathKind PathKind = iota
 	ArrayIndex
 	FieldName
+	InlineFragmentName
 )
 
 type PathItem struct {
@@ -57,6 +58,8 @@ func (p Path) String() string {
 			} else {
 				out += unsafebytes.BytesToString(p[i].FieldName)
 			}
+		case InlineFragmentName:
+			out += unsafebytes.BytesToString(p[i].FieldName)
 		}
 	}
 	out += "]"
@@ -78,6 +81,8 @@ func (p Path) DotDelimitedString() string {
 			} else {
 				out += unsafebytes.BytesToString(p[i].FieldName)
 			}
+		case InlineFragmentName:
+			out += unsafebytes.BytesToString(p[i].FieldName)
 		}
 	}
 	return out

@@ -1404,6 +1404,10 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 			return
 		}
 		typeName = w.document.InlineFragmentTypeConditionName(ref)
+		w.Path = append(w.Path, ast.PathItem{
+			Kind:      ast.InlineFragmentName,
+			FieldName: typeName,
+		})
 	case ast.NodeKindFragmentDefinition:
 		typeName = w.document.FragmentDefinitionTypeName(ref)
 		w.Path = append(w.Path, ast.PathItem{
@@ -1466,6 +1470,7 @@ func (w *Walker) removeLastAncestor() {
 		w.EnclosingTypeDefinition.Ref = -1
 	case ast.NodeKindInlineFragment:
 		if w.document.InlineFragmentHasTypeCondition(ancestor.Ref) {
+			w.Path = w.Path[:len(w.Path)-1]
 			w.typeDefinitions = w.typeDefinitions[:len(w.typeDefinitions)-1]
 			w.EnclosingTypeDefinition = w.typeDefinitions[len(w.typeDefinitions)-1]
 		}

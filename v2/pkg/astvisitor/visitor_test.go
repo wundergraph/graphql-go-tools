@@ -316,7 +316,7 @@ func BenchmarkMinimalVisitor(b *testing.B) {
 type minimalVisitor struct {
 }
 
-func (m *minimalVisitor) AllowVisitor(kind VisitorKind, ref int, visitor interface{}) bool {
+func (m *minimalVisitor) AllowVisitor(kind VisitorKind, ref int, visitor interface{}, ancestorSkip SkipVisitors) bool {
 	return visitor == m
 }
 
