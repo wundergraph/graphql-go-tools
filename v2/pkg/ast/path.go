@@ -106,11 +106,11 @@ func (p *PathItem) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (p PathItem) MarshalJSON() ([]byte, error) {
+func (p *PathItem) MarshalJSON() ([]byte, error) {
 	switch p.Kind {
 	case ArrayIndex:
 		return strconv.AppendInt(nil, int64(p.ArrayIndex), 10), nil
-	case FieldName:
+	case FieldName, InlineFragmentName:
 		return append([]byte("\""), append(p.FieldName, []byte("\"")...)...), nil
 	default:
 		return nil, fmt.Errorf("cannot marshal unknown PathKind")
