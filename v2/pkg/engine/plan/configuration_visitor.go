@@ -85,6 +85,33 @@ func (c *configurationVisitor) EnterOperationDefinition(ref int) {
 func (c *configurationVisitor) EnterSelectionSet(ref int) {
 	c.debug("EnterSelectionSet ref:", ref)
 	c.parentTypeNodes = append(c.parentTypeNodes, c.walker.EnclosingTypeDefinition)
+
+	// When selection is the inline fragment
+	// We have to add a fragment path to the planner paths
+	ancestor := c.walker.Ancestor()
+	if ancestor.Kind == ast.NodeKindInlineFragment {
+		parentPath := c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString()
+		currentPath := c.walker.Path.DotDelimitedString()
+		typeName := c.operation.InlineFragmentTypeConditionNameString(ancestor.Ref)
+
+		for i, planner := range c.planners {
+			if !planner.hasPath(parentPath) {
+				continue
+			}
+
+			if !(planner.dataSourceConfiguration.HasRootNodeWithTypename(typeName) ||
+				planner.dataSourceConfiguration.HasChildNodeWithTypename(typeName)) {
+				continue
+			}
+
+			path := pathConfiguration{
+				path:             currentPath,
+				shouldWalkFields: true,
+			}
+
+			c.addPath(i, path)
+		}
+	}
 }
 
 func (c *configurationVisitor) LeaveSelectionSet(ref int) {
@@ -180,6 +207,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 				enclosingNode:    c.walker.EnclosingTypeDefinition,
 			},
 		}
+
 		if isParentAbstract {
 			// if the parent is abstract, we add the parent path as well
 			// this will ensure that we're walking into and out of the root inline fragments
@@ -200,6 +228,18 @@ func (c *configurationVisitor) EnterField(ref int) {
 				},
 			}, paths...)
 		}
+
+		isParentFragment := c.walker.Path[len(c.walker.Path)-1].Kind == ast.InlineFragmentName
+		if isParentFragment {
+			// if the parent is a fragment, we add the preceding parent path as well
+			paths = append([]pathConfiguration{
+				{
+					path:             c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString(),
+					shouldWalkFields: false,
+				},
+			}, paths...)
+		}
+
 		c.planners = append(c.planners, plannerConfiguration{
 			bufferID:                bufferID,
 			parentPath:              parentPath,
