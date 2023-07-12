@@ -145,16 +145,6 @@ func (c *configurationVisitor) EnterField(ref int) {
 	isSubscription := c.isSubscription(root.Ref, currentPath)
 	for i, plannerConfig := range c.planners {
 		planningBehaviour := plannerConfig.planner.DataSourcePlanningBehavior()
-		if fieldAliasOrName == "__typename" && planningBehaviour.IncludeTypeNameFields {
-			c.addPath(i, pathConfiguration{
-				path:             currentPath,
-				shouldWalkFields: true,
-				typeName:         typeName,
-				fieldRef:         ref,
-				enclosingNode:    c.walker.EnclosingTypeDefinition,
-			})
-			return
-		}
 		if (plannerConfig.hasParent(parentPath) || plannerConfig.hasParent(precedingParentPath)) &&
 			plannerConfig.dataSourceConfiguration.HasRootNode(typeName, fieldName) &&
 			planningBehaviour.MergeAliasedRootNodes {
