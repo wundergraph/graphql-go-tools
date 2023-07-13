@@ -668,6 +668,13 @@ func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
 	// true. Subsequent fields use hasFederationRoot to determine federation
 	// status.
 	if p.hasFederationRoot {
+		if !p.isInEntitiesSelectionSet() {
+			// if we quering field of entity type, but we are not in the root of the query
+			// we should not add representations variable and should not add inline fragment
+			// e.g. query { _entities { ... on Product { price info {name} } } }
+			// where Info is an entity type, but it is used as a field of Product
+			return
+		}
 		// Ideally the "representations" variable could be set once in
 		// LeaveDocument, but ConfigureFetch is called before this visitor's
 		// LeaveDocument is called. (Updating the visitor logic to call
@@ -791,6 +798,24 @@ func (p *Planner) isOnTypeInlineFragmentAllowed() bool {
 
 	_, exists := p.addedInlineFragments[fragmentInfo]
 	return !exists
+}
+
+func (p *Planner) isInEntitiesSelectionSet() bool {
+	if !(len(p.nodes) > 2) {
+		return false
+	}
+
+	if p.nodes[len(p.nodes)-1].Kind != ast.NodeKindSelectionSet {
+		return false
+	}
+
+	if p.nodes[len(p.nodes)-2].Kind != ast.NodeKindField {
+		return false
+	}
+
+	fieldName := p.upstreamOperation.FieldNameBytes(p.nodes[len(p.nodes)-2].Ref)
+
+	return bytes.Equal(fieldName, []byte("_entities"))
 }
 
 func (p *Planner) addOnTypeInlineFragment() {
@@ -1144,7 +1169,12 @@ func (p *Planner) debugPrintOperationOnLeave(kind ast.NodeKind, ref int) {
 }
 
 func (p *Planner) debugPrintOperation() {
-	op, _ := astprinter.PrintStringIndent(p.upstreamOperation, nil, "  ")
+	// p.DebugPrint("nodes len:", len(p.nodes), "nodes:")
+	// for _, node := range p.nodes {
+	// 	p.DebugPrint(node)
+	// }
+
+	op, _ := astprinter.PrintStringIndentDebug(p.upstreamOperation, nil, "  ")
 	p.DebugPrint("printed op:\n", op)
 }
 
@@ -1401,7 +1431,13 @@ func (p *Planner) addField(ref int) {
 		Ref:  field.Ref,
 	}
 
-	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, selection)
+	lastNode := p.nodes[len(p.nodes)-1]
+	if lastNode.Kind != ast.NodeKindSelectionSet {
+		p.stopWithError("expected last node to be a selection set, got %s", lastNode.Kind)
+		return
+	}
+
+	p.upstreamOperation.AddSelection(lastNode.Ref, selection)
 	p.nodes = append(p.nodes, field)
 }
 
