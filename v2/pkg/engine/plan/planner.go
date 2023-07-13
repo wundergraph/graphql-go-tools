@@ -104,7 +104,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.configurationVisitor.config = config
 	p.configurationWalker.Walk(operation, definition, report)
 
-	fmt.Printf("planning paths")
+	fmt.Printf("\n\n\n\n\nPlanning paths \n\n")
 	for i, planner := range p.configurationVisitor.planners {
 		fmt.Println("Paths for planner", i+1)
 		fmt.Println("Planner parent path", planner.parentPath)
@@ -113,8 +113,10 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		}
 	}
 
+	fmt.Printf("\n\n\n\n\nOperation after config visitor: \n\n")
 	pp, _ := astprinter.PrintStringIndentDebug(operation, nil, "  ")
 	fmt.Println(pp)
+	fmt.Printf("\n\n\n\n\nPlanning visitor: \n\n")
 
 	// configure planning visitor
 
