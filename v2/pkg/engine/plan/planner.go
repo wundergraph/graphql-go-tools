@@ -99,6 +99,10 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 
 	p.preProcessRequiredFields(&config, operation, definition, report)
 
+	fmt.Printf("\n\n\n\n\nOperation after preprocess required fields: \n\n")
+	pp, _ := astprinter.PrintStringIndentDebug(operation, nil, "  ")
+	fmt.Println(pp)
+
 	// find planning paths
 
 	p.configurationVisitor.config = config
@@ -113,9 +117,6 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		}
 	}
 
-	fmt.Printf("\n\n\n\n\nOperation after config visitor: \n\n")
-	pp, _ := astprinter.PrintStringIndentDebug(operation, nil, "  ")
-	fmt.Println(pp)
 	fmt.Printf("\n\n\n\n\nPlanning visitor: \n\n")
 
 	// configure planning visitor
