@@ -548,9 +548,16 @@ func (p *Planner) EnterField(ref int) {
 
 	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(enclosingTypeName, fieldName)
 	if fieldConfiguration == nil {
-		// prevent handling as federation field if there is no required fields present
-		// we could have a field configuration for the field with JSON type,
-		// but it is not federated field
+		// When field do not have field configuration, it could be a key field,
+		// and it should be federated.
+		isKeyField := p.visitor.Config.Fields.IsKey(enclosingTypeName, fieldName)
+
+		// When field is not a key and do not have a field configuration,
+		// prevent handling it as federated field
+		if isKeyField {
+			p.handleFederation(fieldConfiguration)
+		}
+
 		p.addField(ref)
 		return
 	}
@@ -558,6 +565,8 @@ func (p *Planner) EnterField(ref int) {
 	// Note: federated fields always have a field configuration because at
 	// least the federation key for the type the field lives on is required
 	// (and required fields are specified in the configuration).
+	// Note: We could have a field configuration for the field with JSON type,
+	// but it won't have any required fields, so it won't be federated.
 	if len(fieldConfiguration.RequiresFields) > 0 {
 		p.handleFederation(fieldConfiguration)
 	}
@@ -565,9 +574,11 @@ func (p *Planner) EnterField(ref int) {
 
 	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
 
-	for i := range fieldConfiguration.Arguments {
-		argumentConfiguration := fieldConfiguration.Arguments[i]
-		p.configureArgument(upstreamFieldRef, ref, *fieldConfiguration, argumentConfiguration)
+	if fieldConfiguration != nil {
+		for i := range fieldConfiguration.Arguments {
+			argumentConfiguration := fieldConfiguration.Arguments[i]
+			p.configureArgument(upstreamFieldRef, ref, *fieldConfiguration, argumentConfiguration)
+		}
 	}
 }
 
@@ -701,6 +712,11 @@ func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
 
 func (p *Planner) updateRepresentationsVariable(fieldConfig *plan.FieldConfiguration) {
 	p.DebugPrint("updateRepresentationsVariable", "fieldConfig", fieldConfig)
+
+	if fieldConfig == nil {
+		// field config is nil when we are handling key field without field configuration
+		return
+	}
 
 	if p.visitor.Walker.Depth != p.federationDepth {
 		// given that this field has a different depth than the federation root, we skip this field
@@ -1179,6 +1195,10 @@ func (p *Planner) debugPrintOperation() {
 }
 
 func (p *Planner) DebugPrint(args ...interface{}) {
+	// if p.id != 3 {
+	// 	return
+	// }
+
 	allArgs := []interface{}{"[GraphqlDS]: ", p.config.Fetch.URL, ":", p.id, ":"}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
