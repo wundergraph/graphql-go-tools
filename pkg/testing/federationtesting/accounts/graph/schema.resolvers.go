@@ -17,6 +17,7 @@ func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
 		ID:       "1234",
 		Username: "Me",
 		History:  histories,
+		RealName: "User Usington",
 	}, nil
 }
 
@@ -26,12 +27,20 @@ func (r *queryResolver) Identifiable(ctx context.Context) (model.Identifiable, e
 		ID:       "1234",
 		Username: "Me",
 		History:  histories,
+		RealName: "User Usington",
 	}, nil
 }
 
 // Histories is the resolver for the histories field.
 func (r *queryResolver) Histories(ctx context.Context) ([]model.History, error) {
 	return allHistories, nil
+}
+
+// Cat is the resolver for the cat field.
+func (r *queryResolver) Cat(ctx context.Context) (*model.Cat, error) {
+	return &model.Cat{
+		Name: "Pepper",
+	}, nil
 }
 
 // Query returns generated.QueryResolver implementation.

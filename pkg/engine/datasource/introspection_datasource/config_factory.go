@@ -56,7 +56,7 @@ func (f *IntrospectionConfigFactory) BuildDataSourceConfiguration() plan.DataSou
 	return plan.DataSourceConfiguration{
 		RootNodes: []plan.TypeField{
 			{
-				TypeName:   "Query",
+				TypeName:   f.dataSourceConfigQueryTypeName(),
 				FieldNames: []string{"__schema", "__type"},
 			},
 			{
@@ -67,4 +67,11 @@ func (f *IntrospectionConfigFactory) BuildDataSourceConfiguration() plan.DataSou
 		Factory: NewFactory(f.introspectionData),
 		Custom:  json.RawMessage{},
 	}
+}
+
+func (f *IntrospectionConfigFactory) dataSourceConfigQueryTypeName() string {
+	if f.introspectionData.Schema.QueryType == nil || len(f.introspectionData.Schema.QueryType.Name) == 0 {
+		return "Query"
+	}
+	return f.introspectionData.Schema.QueryType.Name
 }

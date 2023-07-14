@@ -209,4 +209,30 @@ func TestExtendObjectType(t *testing.T) {
 			}
 		`, nonEntityExtensionErrorMessage("Mammal"))
 	})
+
+	t.Run("", func(t *testing.T) {
+		run(t, newExtendObjectTypeDefinition(newTestNormalizer(true)), `
+			 type Mammal @key(fields: "name") {
+				name: String!
+				age: Int!
+			}
+			
+			extend type Mammal @key(fields: "name") {
+				name: String! @external
+				age: Int!
+			}
+		`, `
+			type Mammal @key(fields: "name") @key(fields: "name") {
+				name: String!
+				age: Int!
+				name: String! @external
+				age: Int!
+			}
+
+			extend type Mammal @key(fields: "name") {
+				name: String! @external
+				age: Int!
+			}
+		`)
+	})
 }

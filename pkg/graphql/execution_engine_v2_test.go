@@ -1,9 +1,11 @@
 package graphql
 
 import (
+	"bytes"
 	"compress/flate"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -21,6 +23,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/staticdatasource"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/pkg/execution"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/pkg/starwars"
 	"github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting"
@@ -28,6 +31,12 @@ import (
 	products "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/products/graph"
 	reviews "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/reviews/graph"
 )
+
+type customResolver struct{}
+
+func (customResolver) Resolve(value []byte) ([]byte, error) {
+	return value, nil
+}
 
 func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 	t.Run("no compression", func(t *testing.T) {
@@ -148,6 +157,7 @@ type ExecutionEngineV2TestCase struct {
 	fields                            plan.FieldConfigurations
 	engineOptions                     []ExecutionOptionsV2
 	expectedResponse                  string
+	customResolveMap                  map[string]resolve.CustomResolve
 }
 
 func TestExecutionEngineV2_Execute(t *testing.T) {
@@ -172,6 +182,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			}
 			engineConf.SetDataSources(testCase.dataSources)
 			engineConf.SetFieldConfigurations(testCase.fields)
+			engineConf.SetCustomResolveMap(testCase.customResolveMap)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			engine, err := NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConf)
@@ -785,6 +796,68 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			},
 			fields:           []plan.FieldConfiguration{},
 			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+		},
+	))
+
+	schemaWithCustomScalar, _ := NewSchemaFromString(string(`
+    scalar Long
+    type Asset {
+      id: Long!
+    }
+    type Query {
+      asset: Asset
+    }
+  `))
+	t.Run("query with custom scalar", runWithoutError(
+		ExecutionEngineV2TestCase{
+			schema: schemaWithCustomScalar,
+			operation: func(t *testing.T) Request {
+				request := Request{}
+				body := execution.GraphqlRequest{
+					Query:         `{asset{id}}`,
+					OperationName: "",
+					Variables:     nil,
+				}
+				jsonBytes, _ := json.Marshal(body)
+				err := UnmarshalRequest(bytes.NewBuffer(jsonBytes), &request)
+				require.NoError(t, err)
+				return request
+			},
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"asset"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Asset",
+							FieldNames: []string{"id"},
+						},
+					},
+					Factory: &graphql_datasource.Factory{
+						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"data":{"asset":{"id":1}}}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+						Fetch: graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+					}),
+				},
+			},
+			customResolveMap: map[string]resolve.CustomResolve{
+				"Long": &customResolver{},
+			},
+			expectedResponse: `{"data":{"asset":{"id":1}}}`,
 		},
 	))
 
