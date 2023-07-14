@@ -69,6 +69,28 @@ func (f FieldConfigurations) IsKey(typeName, fieldName string) bool {
 	return false
 }
 
+func (f FieldConfigurations) Keys(typeName, fieldName string) (out []string) {
+	keys := map[string]struct{}{}
+
+	for i := range f {
+		if f[i].TypeName != typeName {
+			continue
+		}
+
+		for j := range f[i].RequiresFields {
+			if f[i].RequiresFields[j] != fieldName {
+				keys[f[i].RequiresFields[j]] = struct{}{}
+			}
+		}
+	}
+
+	for k := range keys {
+		out = append(out, k)
+	}
+
+	return
+}
+
 type FieldConfiguration struct {
 	TypeName  string
 	FieldName string

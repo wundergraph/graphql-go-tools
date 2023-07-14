@@ -9,7 +9,6 @@ import (
 
 type skipFieldData struct {
 	selectionSetRef int
-	fieldConfig     *FieldConfiguration
 	requiredField   string
 	fieldPath       string
 }
@@ -41,20 +40,38 @@ func (r *requiredFieldsVisitor) EnterField(ref int) {
 	fieldConfig := r.config.Fields.ForTypeField(typeName, fieldName)
 	path := r.walker.Path.DotDelimitedString()
 	if fieldConfig == nil {
+		isKey := r.config.Fields.IsKey(typeName, fieldName)
+		if isKey {
+			// If the field is a key, we need to add all other keys from this type as required fields
+			// Note: at this moment we don't know which subgraph we will be quering, so we may request
+			// more keys than are actually required.
+			otherKeys := r.config.Fields.Keys(typeName, fieldName)
+			r.addFieldData(otherKeys)
+		}
+
 		// Record all explicitly selected fields
 		// A field selected on an interface will have the same field path as a fragment on an object
 		// LeaveDocument uses this record to ensure only required fields that were not explicitly selected are skipped
 		r.selectedFieldPaths[fmt.Sprintf("%s.%s", path, fieldName)] = struct{}{}
 		return
 	}
-	if len(fieldConfig.RequiresFields) == 0 {
+
+	r.addFieldData(fieldConfig.RequiresFields)
+}
+
+func (r *requiredFieldsVisitor) addFieldData(requiredFields []string) {
+	if len(requiredFields) == 0 {
 		return
 	}
+
 	selectionSet := r.walker.Ancestors[len(r.walker.Ancestors)-1]
 	if selectionSet.Kind != ast.NodeKindSelectionSet {
 		return
 	}
-	for _, requiredField := range fieldConfig.RequiresFields {
+
+	path := r.walker.Path.DotDelimitedString()
+
+	for _, requiredField := range requiredFields {
 		requiredFieldPath := fmt.Sprintf("%s.%s", path, requiredField)
 		// Prevent adding duplicates to the slice (order is necessary; hence, a separate map)
 		if _, ok := r.skipFieldDataPaths[requiredFieldPath]; ok {
@@ -63,7 +80,6 @@ func (r *requiredFieldsVisitor) EnterField(ref int) {
 		// For each required field, collect the data required to handle (in LeaveDocument) whether we should skip it
 		data := &skipFieldData{
 			selectionSetRef: selectionSet.Ref,
-			fieldConfig:     fieldConfig,
 			requiredField:   requiredField,
 			fieldPath:       requiredFieldPath,
 		}
