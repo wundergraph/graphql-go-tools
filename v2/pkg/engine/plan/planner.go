@@ -98,26 +98,31 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	// pre-process required fields
 
 	p.preProcessRequiredFields(&config, operation, definition, report)
-
-	fmt.Printf("\n\n\n\n\nOperation after preprocess required fields: \n\n")
-	pp, _ := astprinter.PrintStringIndentDebug(operation, nil, "  ")
-	fmt.Println(pp)
+	if config.Debug.PrintOperationWithRequiredFields {
+		fmt.Printf("\n\n\n\n\nOperation after preprocessing of required fields: \n\n")
+		pp, _ := astprinter.PrintStringIndentDebug(operation, nil, "  ")
+		fmt.Println(pp)
+	}
 
 	// find planning paths
 
 	p.configurationVisitor.config = config
 	p.configurationWalker.Walk(operation, definition, report)
 
-	fmt.Printf("\n\n\n\n\nPlanning paths \n\n")
-	for i, planner := range p.configurationVisitor.planners {
-		fmt.Println("Paths for planner", i+1)
-		fmt.Println("Planner parent path", planner.parentPath)
-		for _, path := range planner.paths {
-			fmt.Println(path.String())
+	if config.Debug.PrintPlanningPaths {
+		fmt.Printf("\n\n\n\n\nPlanning paths \n\n")
+		for i, planner := range p.configurationVisitor.planners {
+			fmt.Println("Paths for planner", i+1)
+			fmt.Println("Planner parent path", planner.parentPath)
+			for _, path := range planner.paths {
+				fmt.Println(path.String())
+			}
 		}
 	}
 
-	fmt.Printf("\n\n\n\n\nPlanning visitor: \n\n")
+	if config.Debug.PlanningVisitor {
+		fmt.Printf("\n\n\n\n\nPlanning visitor: \n\n")
+	}
 
 	// configure planning visitor
 
@@ -143,6 +148,16 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		if plannerWithId, ok := p.planningVisitor.planners[key].planner.(astvisitor.VisitorIdentifier); ok {
 			plannerWithId.SetID(key + 1)
 		}
+		if plannerWithDebug, ok := p.planningVisitor.planners[key].planner.(DataSourceDebugger); ok {
+			if p.config.Debug.DatasourceVisitor {
+				plannerWithDebug.EnableDebug()
+			}
+
+			if p.config.Debug.PrintQueryPlans {
+				plannerWithDebug.EnableQueryPlanLogging()
+			}
+		}
+
 		err := p.planningVisitor.planners[key].planner.Register(p.planningVisitor, config, isNested)
 		if err != nil {
 			report.AddInternalError(err)

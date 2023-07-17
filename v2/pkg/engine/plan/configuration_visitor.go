@@ -11,6 +11,8 @@ import (
 )
 
 type configurationVisitor struct {
+	debug bool
+
 	operationName         string
 	operation, definition *ast.Document
 	walker                *astvisitor.Walker
@@ -36,8 +38,10 @@ type objectFetchConfiguration struct {
 }
 
 func (c *configurationVisitor) addPath(i int, configuration pathConfiguration) {
-	if pp, ok := c.planners[i].planner.(GqlPlanner); ok {
-		pp.DebugPrint("[configurationVisitor.addPath] parentPath:", "path:", configuration.String())
+	if c.config.Debug.ConfigurationVisitor {
+		if pp, ok := c.planners[i].planner.(DataSourceDebugger); ok {
+			pp.DebugPrint("[configurationVisitor.addPath] parentPath:", "path:", configuration.String())
+		}
 	}
 
 	configuration.depth = c.walker.Depth
@@ -45,7 +49,11 @@ func (c *configurationVisitor) addPath(i int, configuration pathConfiguration) {
 	c.planners[i].addPath(configuration)
 }
 
-func (c *configurationVisitor) debug(args ...any) {
+func (c *configurationVisitor) debugPrint(args ...any) {
+	if !c.config.Debug.ConfigurationVisitor {
+		return
+	}
+
 	printArgs := []any{"[configurationVisitor]: "}
 	printArgs = append(printArgs, args...)
 	fmt.Println(printArgs...)
@@ -83,7 +91,7 @@ func (c *configurationVisitor) EnterOperationDefinition(ref int) {
 }
 
 func (c *configurationVisitor) EnterSelectionSet(ref int) {
-	c.debug("EnterSelectionSet ref:", ref)
+	c.debugPrint("EnterSelectionSet ref:", ref)
 	c.parentTypeNodes = append(c.parentTypeNodes, c.walker.EnclosingTypeDefinition)
 
 	// When selection is the inline fragment
@@ -116,7 +124,7 @@ func (c *configurationVisitor) EnterSelectionSet(ref int) {
 }
 
 func (c *configurationVisitor) LeaveSelectionSet(ref int) {
-	c.debug("LeaveSelectionSet ref:", ref)
+	c.debugPrint("LeaveSelectionSet ref:", ref)
 	c.parentTypeNodes = c.parentTypeNodes[:len(c.parentTypeNodes)-1]
 }
 
@@ -125,7 +133,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
 
-	c.debug("EnterField ref:", ref, "fieldName:", fieldName, "typeName:", typeName)
+	c.debugPrint("EnterField ref:", ref, "fieldName:", fieldName, "typeName:", typeName)
 
 	parentPath := c.walker.Path.DotDelimitedString()
 	// we need to also check preceding path for inline fragments
@@ -276,7 +284,7 @@ func (c *configurationVisitor) LeaveField(ref int) {
 	fieldName := c.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
-	c.debug("LeaveField ref:", ref, "fieldName:", fieldName, "typeName:", typeName)
+	c.debugPrint("LeaveField ref:", ref, "fieldName:", fieldName, "typeName:", typeName)
 
 	// fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	parent := c.walker.Path.DotDelimitedString()

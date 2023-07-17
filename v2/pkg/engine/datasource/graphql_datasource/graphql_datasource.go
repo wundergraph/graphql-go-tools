@@ -30,7 +30,10 @@ import (
 const removeNullVariablesDirectiveName = "removeNullVariables"
 
 type Planner struct {
-	id                         int
+	id              int
+	debug           bool
+	printQueryPlans bool
+
 	visitor                    *plan.Visitor
 	dataSourceConfig           plan.DataSourceConfiguration
 	config                     Configuration
@@ -71,17 +74,20 @@ type onTypeInlineFragment struct {
 	SelectionSet  int
 }
 
-// TODO: remove this
-func (p *Planner) SetIndex(i int) {
-	p.id = i
-}
-
 func (p *Planner) SetID(id int) {
 	p.id = id
 }
 
 func (p *Planner) ID() (id int) {
 	return p.id
+}
+
+func (p *Planner) EnableDebug() {
+	p.debug = true
+}
+
+func (p *Planner) EnableQueryPlanLogging() {
+	p.printQueryPlans = true
 }
 
 func (p *Planner) parentNodeIsAbstract() bool {
@@ -1175,6 +1181,10 @@ const (
 )
 
 func (p *Planner) debugPrintOperationOnEnter(kind ast.NodeKind, ref int) {
+	if !p.debug {
+		return
+	}
+
 	switch kind {
 	case ast.NodeKindField:
 		fieldName := p.visitor.Operation.FieldNameString(ref)
@@ -1189,6 +1199,10 @@ func (p *Planner) debugPrintOperationOnEnter(kind ast.NodeKind, ref int) {
 }
 
 func (p *Planner) debugPrintOperationOnLeave(kind ast.NodeKind, ref int) {
+	if !p.debug {
+		return
+	}
+
 	switch kind {
 	case ast.NodeKindField:
 		fieldName := p.visitor.Operation.FieldNameString(ref)
@@ -1203,23 +1217,39 @@ func (p *Planner) debugPrintOperationOnLeave(kind ast.NodeKind, ref int) {
 }
 
 func (p *Planner) debugPrintOperation() {
-	// p.DebugPrint("nodes len:", len(p.nodes), "nodes:")
-	// for _, node := range p.nodes {
-	// 	p.DebugPrint(node)
-	// }
+	if !p.debug {
+		return
+	}
 
 	op, _ := astprinter.PrintStringIndentDebug(p.upstreamOperation, nil, "  ")
-	p.DebugPrint("printed op:\n", op)
+	p.DebugPrint("printed operation:\n", op)
 }
 
 func (p *Planner) DebugPrint(args ...interface{}) {
-	// if p.id != 3 {
-	// 	return
-	// }
+	if !p.debug {
+		return
+	}
 
+	p.debugPrint(args...)
+}
+
+func (p *Planner) debugPrint(args ...interface{}) {
 	allArgs := []interface{}{"[GraphqlDS]: ", p.config.Fetch.URL, ":", p.id, ":"}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
+}
+
+func (p *Planner) printQueryPlan(msg string, operation *ast.Document) {
+	if !p.printQueryPlans {
+		return
+	}
+
+	printedOperation, err := astprinter.PrintStringIndent(operation, nil, "  ")
+	if err != nil {
+		return
+	}
+
+	p.debugPrint(msg, "\n", printedOperation)
 }
 
 // printOperation - prints normalized upstream operation
@@ -1232,8 +1262,6 @@ func (p *Planner) printOperation() []byte {
 	}
 
 	rawQuery := buf.Bytes()
-
-	p.DebugPrint("Final upstream operation:\n", string(rawQuery))
 
 	// create empty operation and definition documents
 	operation := ast.NewDocument()
@@ -1292,6 +1320,8 @@ func (p *Planner) printOperation() []byte {
 		p.stopWithError(normalizationFailedErrMsg)
 		return nil
 	}
+
+	p.printQueryPlan("upstream operation:", p.upstreamOperation)
 
 	validator := astvalidation.DefaultOperationValidator()
 	validator.Validate(operation, definition, report)

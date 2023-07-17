@@ -14,9 +14,11 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 )
 
-type GqlPlanner interface {
-	SetIndex(i int)
+type DataSourceDebugger interface {
+	astvisitor.VisitorIdentifier
 	DebugPrint(args ...interface{})
+	EnableDebug()
+	EnableQueryPlanLogging()
 }
 
 type Visitor struct {
@@ -41,32 +43,44 @@ type Visitor struct {
 }
 
 func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
+	if !v.Config.Debug.PlanningVisitor {
+		return
+	}
+
 	switch kind {
 	case ast.NodeKindField:
 		fieldName := v.Operation.FieldNameString(ref)
-		v.DebugPrint("EnterField : ", fieldName, " ref: ", ref)
+		v.debugPrint("EnterField : ", fieldName, " ref: ", ref)
 	case ast.NodeKindInlineFragment:
 		fragmentTypeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
-		v.DebugPrint("EnterInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
+		v.debugPrint("EnterInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
 	case ast.NodeKindSelectionSet:
-		v.DebugPrint("EnterSelectionSet", " ref: ", ref)
+		v.debugPrint("EnterSelectionSet", " ref: ", ref)
 	}
 }
 
 func (v *Visitor) debugOnLeaveNode(kind ast.NodeKind, ref int) {
+	if !v.Config.Debug.PlanningVisitor {
+		return
+	}
+
 	switch kind {
 	case ast.NodeKindField:
 		fieldName := v.Operation.FieldNameString(ref)
-		v.DebugPrint("LeaveField : ", fieldName, " ref: ", ref)
+		v.debugPrint("LeaveField : ", fieldName, " ref: ", ref)
 	case ast.NodeKindInlineFragment:
 		fragmentTypeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
-		v.DebugPrint("LeaveInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
+		v.debugPrint("LeaveInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
 	case ast.NodeKindSelectionSet:
-		v.DebugPrint("LeaveSelectionSet", " ref: ", ref)
+		v.debugPrint("LeaveSelectionSet", " ref: ", ref)
 	}
 }
 
-func (v *Visitor) DebugPrint(args ...interface{}) {
+func (v *Visitor) debugPrint(args ...interface{}) {
+	if !v.Config.Debug.PlanningVisitor {
+		return
+	}
+
 	allArgs := []interface{}{"[Visitor]: "}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
@@ -114,7 +128,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 						// or if there was added missing parent path
 						config.shouldWalkFieldsOnPath(path, "")
 
-				if pp, ok := config.planner.(GqlPlanner); ok {
+				if pp, ok := config.planner.(DataSourceDebugger); ok {
 					pp.DebugPrint("AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path, " allow:", shouldWalkFieldsOnPath)
 				}
 
@@ -124,7 +138,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 				hasRootOrHasChildNode := config.dataSourceConfiguration.HasRootNodeWithTypename(typeCondition) ||
 					config.dataSourceConfiguration.HasChildNodeWithTypename(typeCondition)
 
-				if pp, ok := config.planner.(GqlPlanner); ok {
+				if pp, ok := config.planner.(DataSourceDebugger); ok {
 					pp.DebugPrint("AllowVisitor: InlineFragment", " ref:", ref, " typeCondition:", typeCondition, " allow:", hasRootOrHasChildNode)
 				}
 
@@ -133,18 +147,17 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 				allowedByParent := skipFor.Allow(config.planner)
 
 				if !allowedByParent {
-					// do not override a parent's decision
-					return false
-
-					if pp, ok := config.planner.(GqlPlanner); ok {
+					if pp, ok := config.planner.(DataSourceDebugger); ok {
 						pp.DebugPrint("AllowVisitor: SelectionSet", " ref:", ref, " allow:", false)
 					}
-				}
 
+					// do not override a parent's decision
+					return false
+				}
 
 				allow := !config.isExitPath(path)
 
-				if pp, ok := config.planner.(GqlPlanner); ok {
+				if pp, ok := config.planner.(DataSourceDebugger); ok {
 					pp.DebugPrint("AllowVisitor: SelectionSet", " ref:", ref, " allow:", allow)
 				}
 

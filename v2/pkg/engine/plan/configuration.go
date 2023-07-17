@@ -9,6 +9,19 @@ type Configuration struct {
 	// This setting removes position information from all fields
 	// In production, this should be set to false so that error messages are easier to understand
 	DisableResolveFieldPositions bool
+
+	// Debug - configure debug options
+	Debug DebugConfiguration
+}
+
+type DebugConfiguration struct {
+	PrintOperationWithRequiredFields bool
+	PrintPlanningPaths               bool
+	PrintQueryPlans                  bool
+
+	ConfigurationVisitor bool
+	PlanningVisitor      bool
+	DatasourceVisitor    bool
 }
 
 type TypeConfigurations []TypeConfiguration
