@@ -162,7 +162,8 @@ func (c *configurationVisitor) EnterField(ref int) {
 			return
 		}
 		if plannerConfig.hasPath(parentPath) || plannerConfig.hasParent(precedingParentPath) {
-			if plannerConfig.dataSourceConfiguration.HasChildNode(typeName, fieldName) {
+			if plannerConfig.dataSourceConfiguration.HasChildNode(typeName, fieldName) ||
+				plannerConfig.dataSourceConfiguration.HasRootNode(typeName, fieldName) {
 
 				// has parent path + has child node = child
 				c.addPath(i, pathConfiguration{
