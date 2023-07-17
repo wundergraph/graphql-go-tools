@@ -106,7 +106,7 @@ func (p *PathItem) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (p *PathItem) MarshalJSON() ([]byte, error) {
+func (p PathItem) MarshalJSON() ([]byte, error) {
 	switch p.Kind {
 	case ArrayIndex:
 		return strconv.AppendInt(nil, int64(p.ArrayIndex), 10), nil
