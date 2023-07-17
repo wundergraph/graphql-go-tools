@@ -82,6 +82,10 @@ func (p *Planner) SetConfig(config Configuration) {
 	p.config = config
 }
 
+func (p *Planner) SetDebugConfig(config DebugConfiguration) {
+	p.config.Debug = config
+}
+
 func (p *Planner) Plan(operation, definition *ast.Document, operationName string, report *operationreport.Report) (plan Plan) {
 
 	// make a copy of the config as the pre-processor modifies it
