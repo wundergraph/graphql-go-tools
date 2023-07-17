@@ -837,6 +837,17 @@ func (p *Planner) isInEntitiesSelectionSet() bool {
 func (p *Planner) addOnTypeInlineFragment() {
 	p.DebugPrint("addOnTypeInlineFragment")
 
+	shouldCopyDirectives := false
+	copyFromRef := ast.InvalidRef
+	if len(p.visitor.Walker.Ancestors) > 2 &&
+		p.visitor.Walker.Ancestors[len(p.visitor.Walker.Ancestors)-2].Kind == ast.NodeKindInlineFragment &&
+		p.visitor.Operation.InlineFragmentHasDirectives(p.visitor.Walker.Ancestors[len(p.visitor.Walker.Ancestors)-2].Ref) {
+		shouldCopyDirectives = true
+		copyFromRef = p.visitor.Walker.Ancestors[len(p.visitor.Walker.Ancestors)-2].Ref
+
+		// TODO: check whole ancestor tree for the inline fragment with directives
+	}
+
 	selectionSet := p.upstreamOperation.AddSelectionSet()
 	p.addTypenameToSelectionSet(p.nodes[len(p.nodes)-1].Ref)
 	onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchBytes([]byte(p.lastFieldEnclosingTypeName))
@@ -848,6 +859,13 @@ func (p *Planner) addOnTypeInlineFragment() {
 			Type: typeRef,
 		},
 	})
+
+	if shouldCopyDirectives {
+		for _, ref := range p.visitor.Operation.InlineFragments[copyFromRef].Directives.Refs {
+			p.addDirectiveToNode(ref, ast.Node{Kind: ast.NodeKindInlineFragment, Ref: inlineFragment})
+		}
+	}
+
 	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, ast.Selection{
 		Kind: ast.SelectionKindInlineFragment,
 		Ref:  inlineFragment,
