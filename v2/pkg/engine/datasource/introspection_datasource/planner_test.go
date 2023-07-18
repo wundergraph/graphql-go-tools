@@ -109,11 +109,10 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 			require.False(t, report.HasErrors())
 
 			cfgFactory := IntrospectionConfigFactory{introspectionData: &introspectionData}
-			introspectionDataSource := cfgFactory.BuildDataSourceConfiguration()
-			introspectionDataSource.Factory = &Factory{}
+			introspectionDataSources := cfgFactory.BuildDataSourceConfigurations()
 
 			planConfiguration := plan.Configuration{
-				DataSources: []plan.DataSourceConfiguration{introspectionDataSource},
+				DataSources: introspectionDataSources,
 				Fields:      cfgFactory.BuildFieldConfigurations(),
 			}
 

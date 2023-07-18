@@ -13,11 +13,11 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jensneuse/abstractlogger"
-	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/introspection_datasource"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/httpclient"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/introspection_datasource"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
@@ -205,7 +205,10 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 		return nil, err
 	}
 
-	engineConfig.AddDataSource(introspectionCfg.BuildDataSourceConfiguration())
+	for _, dataSource := range introspectionCfg.BuildDataSourceConfigurations() {
+		engineConfig.AddDataSource(dataSource)
+	}
+
 	for _, fieldCfg := range introspectionCfg.BuildFieldConfigurations() {
 		engineConfig.AddFieldConfiguration(fieldCfg)
 	}

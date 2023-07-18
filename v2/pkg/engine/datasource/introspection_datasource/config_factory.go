@@ -30,38 +30,100 @@ func NewIntrospectionConfigFactory(schema *ast.Document) (*IntrospectionConfigFa
 func (f *IntrospectionConfigFactory) BuildFieldConfigurations() (planFields plan.FieldConfigurations) {
 	return plan.FieldConfigurations{
 		{
-			TypeName:              f.introspectionData.Schema.QueryType.Name,
+			TypeName:              f.dataSourceConfigQueryTypeName(),
 			FieldName:             "__schema",
 			DisableDefaultMapping: true,
 		},
 		{
-			TypeName:              f.introspectionData.Schema.QueryType.Name,
+			TypeName:              f.dataSourceConfigQueryTypeName(),
 			FieldName:             "__type",
 			DisableDefaultMapping: true,
+			Arguments: plan.ArgumentsConfigurations{
+				{
+					Name:       "name",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
 		},
 		{
 			TypeName:              "__Type",
 			FieldName:             "fields",
 			DisableDefaultMapping: true,
+			Arguments: plan.ArgumentsConfigurations{
+				{
+					Name:       "includeDeprecated",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
 		},
 		{
 			TypeName:              "__Type",
 			FieldName:             "enumValues",
 			DisableDefaultMapping: true,
+			Arguments: plan.ArgumentsConfigurations{
+				{
+					Name:       "includeDeprecated",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
 		},
 	}
 }
 
-func (f *IntrospectionConfigFactory) BuildDataSourceConfiguration() plan.DataSourceConfiguration {
+func (f *IntrospectionConfigFactory) BuildDataSourceConfigurations() []plan.DataSourceConfiguration {
+	return []plan.DataSourceConfiguration{
+		f.buildRootDataSourceConfiguration1(),
+		f.buildRootDataSourceConfiguration2(),
+		f.buildFieldsConfiguration(),
+		f.buildEnumsConfiguration(),
+	}
+}
+
+func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration1() plan.DataSourceConfiguration {
 	return plan.DataSourceConfiguration{
 		RootNodes: []plan.TypeField{
 			{
 				TypeName:   f.dataSourceConfigQueryTypeName(),
-				FieldNames: []string{"__schema", "__type"},
+				FieldNames: []string{"__schema"},
 			},
+		},
+		Factory: NewFactory(f.introspectionData),
+		Custom:  json.RawMessage{},
+	}
+}
+
+func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration2() plan.DataSourceConfiguration {
+	return plan.DataSourceConfiguration{
+		RootNodes: []plan.TypeField{
+			{
+				TypeName:   f.dataSourceConfigQueryTypeName(),
+				FieldNames: []string{"__type"},
+			},
+		},
+		Factory: NewFactory(f.introspectionData),
+		Custom:  json.RawMessage{},
+	}
+}
+
+func (f *IntrospectionConfigFactory) buildFieldsConfiguration() plan.DataSourceConfiguration {
+	return plan.DataSourceConfiguration{
+		RootNodes: []plan.TypeField{
 			{
 				TypeName:   "__Type",
-				FieldNames: []string{"fields", "enumValues"},
+				FieldNames: []string{"fields"},
+			},
+		},
+		Factory: NewFactory(f.introspectionData),
+		Custom:  json.RawMessage{},
+	}
+}
+
+func (f *IntrospectionConfigFactory) buildEnumsConfiguration() plan.DataSourceConfiguration {
+	return plan.DataSourceConfiguration{
+		RootNodes: []plan.TypeField{
+			{
+				TypeName:   "__Type",
+				FieldNames: []string{"enumValues"},
 			},
 		},
 		Factory: NewFactory(f.introspectionData),
