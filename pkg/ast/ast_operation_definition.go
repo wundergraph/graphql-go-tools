@@ -17,6 +17,8 @@ const (
 	OperationTypeSubscription
 )
 
+// Name returns a human-readable operation name for the given OperationType.
+// If the operation is not one of the OperationType constants, it panics.
 func (t OperationType) Name() string {
 	switch t {
 	case OperationTypeUnknown:
@@ -28,7 +30,7 @@ func (t OperationType) Name() string {
 	case OperationTypeSubscription:
 		return "subscription"
 	}
-	return fmt.Sprintf("unknown operation type %d", int(t))
+	panic(fmt.Errorf("unknown operation type %d", int(t)))
 }
 
 type OperationDefinition struct {
