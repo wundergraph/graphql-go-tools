@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafebytes"
@@ -15,6 +16,20 @@ const (
 	OperationTypeMutation
 	OperationTypeSubscription
 )
+
+func (t OperationType) Name() string {
+	switch t {
+	case OperationTypeUnknown:
+		return "unknown"
+	case OperationTypeQuery:
+		return "query"
+	case OperationTypeMutation:
+		return "mutation"
+	case OperationTypeSubscription:
+		return "subscription"
+	}
+	return fmt.Sprintf("unknown operation type %d", int(t))
+}
 
 type OperationDefinition struct {
 	OperationType          OperationType      // one of query, mutation, subscription
