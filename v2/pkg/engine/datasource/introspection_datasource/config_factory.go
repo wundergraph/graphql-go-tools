@@ -72,32 +72,18 @@ func (f *IntrospectionConfigFactory) BuildFieldConfigurations() (planFields plan
 
 func (f *IntrospectionConfigFactory) BuildDataSourceConfigurations() []plan.DataSourceConfiguration {
 	return []plan.DataSourceConfiguration{
-		f.buildRootDataSourceConfiguration1(),
-		f.buildRootDataSourceConfiguration2(),
+		f.buildRootDataSourceConfiguration(),
 		f.buildFieldsConfiguration(),
 		f.buildEnumsConfiguration(),
 	}
 }
 
-func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration1() plan.DataSourceConfiguration {
+func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() plan.DataSourceConfiguration {
 	return plan.DataSourceConfiguration{
 		RootNodes: []plan.TypeField{
 			{
 				TypeName:   f.dataSourceConfigQueryTypeName(),
-				FieldNames: []string{"__schema"},
-			},
-		},
-		Factory: NewFactory(f.introspectionData),
-		Custom:  json.RawMessage{},
-	}
-}
-
-func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration2() plan.DataSourceConfiguration {
-	return plan.DataSourceConfiguration{
-		RootNodes: []plan.TypeField{
-			{
-				TypeName:   f.dataSourceConfigQueryTypeName(),
-				FieldNames: []string{"__type"},
+				FieldNames: []string{"__schema", "__type"},
 			},
 		},
 		Factory: NewFactory(f.introspectionData),
