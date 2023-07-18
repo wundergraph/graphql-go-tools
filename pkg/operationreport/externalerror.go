@@ -65,7 +65,7 @@ func ErrTypeUndefined(typeName ast.ByteSlice) (err ExternalError) {
 }
 
 func ErrOperationTypeUndefined(operationType ast.OperationType) (err ExternalError) {
-	err.Message = fmt.Sprintf("operation type %s is not defined, did you forget to merge the base schema?", operationType.Name())
+	err.Message = fmt.Sprintf("operation type %s is not defined; did you forget to merge the base schema?", operationType.Name())
 	return err
 }
 
