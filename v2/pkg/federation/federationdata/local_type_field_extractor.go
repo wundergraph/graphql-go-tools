@@ -84,7 +84,7 @@ func (r *rootNodeNamesMap) asSlice() []string {
 // GetAllNodes returns all root and child nodes in the document associated with
 // the LocalTypeFieldExtractor. See LocalTypeFieldExtractor for a detailed
 // explanation of what root and child nodes are.
-func (e *LocalTypeFieldExtractor) GetAllNodes() ([]plan.TypeField, []plan.TypeField) {
+func (e *LocalTypeFieldExtractor) GetAllNodes() (rootNodes []plan.TypeField, childNodes []plan.TypeField) {
 	// The strategy for the extractor is as follows:
 	//
 	// 1. Loop over each node in the document and collect information into
@@ -125,7 +125,12 @@ func (e *LocalTypeFieldExtractor) GetAllNodes() ([]plan.TypeField, []plan.TypeFi
 	// child nodes to process.
 	e.createRootNodes()
 
-	// 3. Process the child node queue to create child nodes. When processing
+	// 3. Add interfaces to the child node queue. When processing child nodes,
+	// Interface types should be present as child nodes, as we couldn't know
+	// when they will appear in the query.
+	e.addInterfacesToChildrenToProcess()
+
+	// 4. Process the child node queue to create child nodes. When processing
 	// child nodes, loop over the fields of the child to find additional
 	// children to process.
 	e.createChildNodes()
@@ -244,6 +249,14 @@ func (e *LocalTypeFieldExtractor) assignConcreteTypesToInterfaces() {
 	}
 }
 
+func (e *LocalTypeFieldExtractor) addInterfacesToChildrenToProcess() {
+	for typeName, information := range e.nodeInfoMap {
+		if information.isInterface {
+			e.pushChildIfNotAlreadyProcessed(typeName)
+		}
+	}
+}
+
 // pushChildIfNotAlreadyProcessed pushes a child type onto the queue if it
 // hasn't already been processed. Only types with node info are pushed onto
 // the queue. Recall that node info is limited to object types, interfaces
@@ -303,6 +316,10 @@ func (e *LocalTypeFieldExtractor) createChildNodes() {
 		typeName := e.childrenToProcess[len(e.childrenToProcess)-1]
 		e.childrenToProcess = e.childrenToProcess[:len(e.childrenToProcess)-1]
 		nodeInfo, ok := e.nodeInfoMap[typeName]
+		if typeName == "Store" {
+			println("here")
+		}
+
 		if !ok {
 			continue
 		}

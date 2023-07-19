@@ -347,6 +347,40 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				{TypeName: "User", FieldNames: []string{"communications", "id"}},
 			})
 	})
+	t.Run("union + interface", func(t *testing.T) {
+		run(t, `
+			type Query {
+				histories: [History]
+			}
+			
+			union History = Purchase | Sale
+			
+			interface Info {
+				quantity: Int!
+			}
+			
+			type Purchase implements Info {
+				quantity: Int!
+			}
+			
+			interface Store {
+				location: String!
+			}
+			
+			type Sale implements Store {
+				location: String!
+			}
+		`,
+			[]plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"histories"}},
+			},
+			[]plan.TypeField{
+				{TypeName: "Info", FieldNames: []string{"quantity"}},
+				{TypeName: "Purchase", FieldNames: []string{"quantity"}},
+				{TypeName: "Sale", FieldNames: []string{"location"}},
+				{TypeName: "Store", FieldNames: []string{"location"}},
+			})
+	})
 	t.Run("extended union", func(t *testing.T) {
 		run(t, `
 			extend type Query {
