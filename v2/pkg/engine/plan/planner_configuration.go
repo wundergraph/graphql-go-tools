@@ -23,13 +23,7 @@ func (p *plannerConfiguration) addPath(configuration pathConfiguration) {
 // isNestedPlanner returns true in case the planner is not directly attached to the Operation root
 // a nested planner should always build a Query
 func (p *plannerConfiguration) isNestedPlanner() bool {
-	for i := range p.paths {
-		pathElements := strings.Count(p.paths[i].path, ".") + 1
-		if pathElements == 2 {
-			return false
-		}
-	}
-	return true
+	return strings.Contains(p.parentPath, ".")
 }
 
 func (p *plannerConfiguration) hasPath(path string) bool {
