@@ -170,15 +170,8 @@ func (c *configurationVisitor) EnterField(ref int) {
 
 			return
 		}
-		if plannerConfig.hasPath(parentPath) || plannerConfig.hasParent(precedingParentPath) {
-			if fieldAliasOrName == "__typename" && planningBehaviour.IncludeTypeNameFields {
-				// adding __typename should be done only in case particular planner has parent path
-				// otherwise it will be added to all planners and will cause visiting of incorrect selection sets
-				c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{
-					path:             currentPath,
-					shouldWalkFields: true,
-					typeName:         typeName,
-				})
+		if plannerConfig.hasPath(parentPath) || plannerConfig.hasPath(precedingParentPath) {
+			if pathAdded := c.addPlannerPathForTypename(i, currentPath, ref, fieldName, typeName, planningBehaviour); pathAdded {
 				return
 			}
 
@@ -197,11 +190,11 @@ func (c *configurationVisitor) EnterField(ref int) {
 				return
 			}
 
-			if pathAdded := c.addPlannerPathForUnionChildOfObjectParent(i, currentPath, ref, typeName); pathAdded {
+			if pathAdded := c.addPlannerPathForUnionChildOfObjectParent(i, currentPath, ref, fieldName, typeName, planningBehaviour); pathAdded {
 				return
 			}
 
-			if pathAdded := c.addPlannerPathForChildOfAbstractParent(i, currentPath, ref, typeName, fieldName); pathAdded {
+			if pathAdded := c.addPlannerPathForChildOfAbstractParent(i, currentPath, ref, fieldName, typeName, planningBehaviour); pathAdded {
 				return
 			}
 		}
@@ -310,7 +303,7 @@ func (c *configurationVisitor) LeaveField(ref int) {
 }
 
 func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(
-	plannerIndex int, currentPath string, fieldRef int, typeName string,
+	plannerIndex int, currentPath string, fieldRef int, typeName string, fieldName string, planningBehaviour DataSourcePlanningBehavior,
 ) (pathAdded bool) {
 
 	if c.walker.EnclosingTypeDefinition.Kind != ast.NodeKindObjectTypeDefinition {
@@ -342,12 +335,17 @@ func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(
 }
 
 func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
-	plannerIndex int, currentPath string, fieldRef int, typeName, fieldName string,
+	plannerIndex int, currentPath string, fieldRef int, fieldName string, typeName string, planningBehaviour DataSourcePlanningBehavior,
 ) (pathAdded bool) {
 
 	if !c.isParentTypeNodeAbstractType() {
 		return false
 	}
+
+	if c.addPlannerPathForTypename(plannerIndex, currentPath, fieldRef, fieldName, typeName, planningBehaviour) {
+		return true
+	}
+
 	// If the field is a root node in any of the data sources, the path shouldn't be handled here
 	for _, d := range c.config.DataSources {
 		if d.HasRootNode(typeName, fieldName) {
@@ -362,6 +360,25 @@ func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
 		typeName:         typeName,
 		fieldRef:         fieldRef,
 		enclosingNode:    c.walker.EnclosingTypeDefinition,
+	})
+	return true
+}
+
+// addPlannerPathForTypename adds a path for the __typename field
+// adding __typename should be done only in case particular planner has parent path
+// otherwise it will be added to all planners and will cause visiting of incorrect selection sets
+func (c *configurationVisitor) addPlannerPathForTypename(
+	plannerIndex int, currentPath string, fieldRef int, fieldName string, typeName string, planningBehaviour DataSourcePlanningBehavior,
+) (pathAdded bool) {
+	if !(fieldName == "__typename" && planningBehaviour.IncludeTypeNameFields) {
+		return false
+	}
+
+	c.planners[plannerIndex].paths = append(c.planners[plannerIndex].paths, pathConfiguration{
+		path:             currentPath,
+		shouldWalkFields: true,
+		typeName:         typeName,
+		fieldRef:         fieldRef,
 	})
 	return true
 }
