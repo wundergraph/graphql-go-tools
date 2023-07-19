@@ -524,16 +524,16 @@ func (p *Planner) LeaveInlineFragment(ref int) {
 func (p *Planner) EnterField(ref int) {
 	p.debugPrintOperationOnEnter(ast.NodeKindField, ref)
 
-	fieldName := p.visitor.Operation.FieldNameString(ref)
-	enclosingTypeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
-
-	if !(p.dataSourceConfig.HasRootNode(enclosingTypeName, fieldName) || p.dataSourceConfig.HasChildNode(enclosingTypeName, fieldName)) {
+	if !p.allowField(ref) {
 		return
 	}
 
 	if p.insideCustomScalarField {
 		return
 	}
+
+	fieldName := p.visitor.Operation.FieldNameString(ref)
+	enclosingTypeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
 
 	for i := range p.config.CustomScalarTypeFields {
 		if p.config.CustomScalarTypeFields[i].TypeName == enclosingTypeName && p.config.CustomScalarTypeFields[i].FieldName == fieldName {
@@ -607,10 +607,7 @@ func (p *Planner) addCustomField(ref int) {
 func (p *Planner) LeaveField(ref int) {
 	p.debugPrintOperationOnLeave(ast.NodeKindField, ref)
 
-	fieldName := p.visitor.Operation.FieldNameString(ref)
-	enclosingTypeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
-
-	if !(p.dataSourceConfig.HasRootNode(enclosingTypeName, fieldName) || p.dataSourceConfig.HasChildNode(enclosingTypeName, fieldName)) {
+	if !p.allowField(ref) {
 		return
 	}
 
@@ -623,6 +620,22 @@ func (p *Planner) LeaveField(ref int) {
 	}
 
 	p.nodes = p.nodes[:len(p.nodes)-1]
+}
+
+// allowField - allows processing a field if datasource has corresponding root or child node
+// This check is required cause planner will add parent path as well, but we not always need to add fields from path.
+// This is 3rd step of checks in addition to: planning path and skipFor functionality
+// if field is __typename, it is always allowed
+func (p *Planner) allowField(ref int) bool {
+	fieldName := p.visitor.Operation.FieldNameString(ref)
+
+	if fieldName == "__typename" {
+		return true
+	}
+
+	enclosingTypeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+	return p.dataSourceConfig.HasRootNode(enclosingTypeName, fieldName) ||
+		p.dataSourceConfig.HasChildNode(enclosingTypeName, fieldName)
 }
 
 func (p *Planner) EnterArgument(_ int) {
