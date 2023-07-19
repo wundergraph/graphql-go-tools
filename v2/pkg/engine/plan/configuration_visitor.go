@@ -153,6 +153,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 	isSubscription := c.isSubscription(root.Ref, currentPath)
 	for i, plannerConfig := range c.planners {
 		planningBehaviour := plannerConfig.planner.DataSourcePlanningBehavior()
+
 		if (plannerConfig.hasParent(parentPath) || plannerConfig.hasParent(precedingParentPath)) &&
 			plannerConfig.dataSourceConfiguration.HasRootNode(typeName, fieldName) &&
 			planningBehaviour.MergeAliasedRootNodes {
@@ -170,6 +171,17 @@ func (c *configurationVisitor) EnterField(ref int) {
 			return
 		}
 		if plannerConfig.hasPath(parentPath) || plannerConfig.hasParent(precedingParentPath) {
+			if fieldAliasOrName == "__typename" && planningBehaviour.IncludeTypeNameFields {
+				// adding __typename should be done only in case particular planner has parent path
+				// otherwise it will be added to all planners and will cause visiting of incorrect selection sets
+				c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{
+					path:             currentPath,
+					shouldWalkFields: true,
+					typeName:         typeName,
+				})
+				return
+			}
+
 			if plannerConfig.dataSourceConfiguration.HasChildNode(typeName, fieldName) ||
 				(plannerConfig.dataSourceConfiguration.HasRootNode(typeName, fieldName) && planningBehaviour.MergeAliasedRootNodes) {
 
