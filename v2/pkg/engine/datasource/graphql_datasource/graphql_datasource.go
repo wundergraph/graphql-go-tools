@@ -524,12 +524,16 @@ func (p *Planner) LeaveInlineFragment(ref int) {
 func (p *Planner) EnterField(ref int) {
 	p.debugPrintOperationOnEnter(ast.NodeKindField, ref)
 
-	if p.insideCustomScalarField {
+	fieldName := p.visitor.Operation.FieldNameString(ref)
+	enclosingTypeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+
+	if !(p.dataSourceConfig.HasRootNode(enclosingTypeName, fieldName) || p.dataSourceConfig.HasChildNode(enclosingTypeName, fieldName)) {
 		return
 	}
 
-	fieldName := p.visitor.Operation.FieldNameString(ref)
-	enclosingTypeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+	if p.insideCustomScalarField {
+		return
+	}
 
 	for i := range p.config.CustomScalarTypeFields {
 		if p.config.CustomScalarTypeFields[i].TypeName == enclosingTypeName && p.config.CustomScalarTypeFields[i].FieldName == fieldName {
@@ -602,6 +606,13 @@ func (p *Planner) addCustomField(ref int) {
 
 func (p *Planner) LeaveField(ref int) {
 	p.debugPrintOperationOnLeave(ast.NodeKindField, ref)
+
+	fieldName := p.visitor.Operation.FieldNameString(ref)
+	enclosingTypeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+
+	if !(p.dataSourceConfig.HasRootNode(enclosingTypeName, fieldName) || p.dataSourceConfig.HasChildNode(enclosingTypeName, fieldName)) {
+		return
+	}
 
 	if p.insideCustomScalarField {
 		if p.customScalarFieldRef == ref {
