@@ -1348,6 +1348,7 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 				FieldName: literal.SUBSCRIPTION,
 			})
 		default:
+			w.StopWithExternalErr(operationreport.ErrInvalidOperationType(operationType))
 			return
 		}
 		if len(typeName) == 0 {
