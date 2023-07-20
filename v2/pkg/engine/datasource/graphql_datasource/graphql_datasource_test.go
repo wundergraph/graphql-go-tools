@@ -4258,7 +4258,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			DisableResolveFieldPositions: true,
 		}))
 
-	t.Run("complex nested federation", RunTest(complexFederationSchema,
+	t.Run("FIXME: planner error. complex nested federation", RunTest(complexFederationSchema,
 		`	query User {
 					  user(id: "2") {
 						id
@@ -4575,7 +4575,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			DisableResolveFieldPositions: true,
 		}))
 
-	t.Run("complex nested federation different order", RunTest(complexFederationSchema,
+	t.Run("FIXME: planner error. complex nested federation different order", RunTest(complexFederationSchema,
 		`	query User {
 					  user(id: "2") {
 						id
@@ -5247,7 +5247,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			DisableResolveFieldPositions: true,
 		}))
 
-	t.Run("federated entity with requires", RunTest(requiredFieldTestSchema,
+	t.Run("FIXME: missing required field. federated entity with requires", RunTest(requiredFieldTestSchema,
 		`	query QueryWithRequiredFields {
 						serviceOne {
 							serviceTwoFieldOne  # @requires(fields: "serviceOneFieldOne")
@@ -5393,7 +5393,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			DisableResolveFieldPositions: true,
 		}))
 
-	t.Run("federation with renamed schema", RunTest(renamedFederationTestSchema,
+	t.Run("FIXME: it should be less queries. federation with renamed schema", RunTest(renamedFederationTestSchema,
 		`	query MyReviews {
 						api_me {
 							id
@@ -5999,12 +5999,8 @@ func TestGraphQLDataSource(t *testing.T) {
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
 										BufferId: 1,
-										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body id}}}}","variables":{"representations":[{"id":$$1$$,"__typename":$$0$$}]}}}`,
+										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body id}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
-											&resolve.ObjectVariable{
-												Path:     []string{"__typename"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
-											},
 											&resolve.ObjectVariable{
 												Path:     []string{"id"},
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
@@ -7321,7 +7317,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			DisableResolveFieldPositions: true,
 		}))
 
-	t.Run("Federation with field query (defined in user subgraph) featuring consecutive inline union fragments", RunTest(
+	t.Run("FIXME: broken representations. Federation with field query (defined in user subgraph) featuring consecutive inline union fragments", RunTest(
 		`
         type Query {
             user: User
