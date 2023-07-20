@@ -43,6 +43,22 @@ func (p Path) Equals(another Path) bool {
 	return true
 }
 
+func (p Path) WithoutInlineFragmentNames() Path {
+	count := 0
+	for i := range p {
+		if p[i].Kind != InlineFragmentName {
+			count++
+		}
+	}
+	out := make(Path, 0, count)
+	for i := range p {
+		if p[i].Kind != InlineFragmentName {
+			out = append(out, p[i])
+		}
+	}
+	return out
+}
+
 func (p Path) String() string {
 	out := "["
 	for i := range p {

@@ -83,7 +83,7 @@ func TestExecutionValidation(t *testing.T) {
 
 		if !options.disableNormalization {
 			normalizer := astnormalization.NewWithOpts(
-			// astnormalization.WithInlineFragmentSpreads(),
+				astnormalization.WithInlineFragmentSpreads(),
 			)
 			normalizer.NormalizeOperation(&operation, &definition, &report)
 
@@ -836,10 +836,8 @@ func TestExecutionValidation(t *testing.T) {
 								x: b
 						 	 }`, FieldSelectionMerging(), Invalid)
 				})
-				/*
-					Why ignore when this still will result in an error because T is undefined?
-					t.Run("ignores unknown fragments", func(t *testing.T) {
-						run(t,`
+				t.Run("ignores unknown fragments", func(t *testing.T) {
+					run(t, `
 								{
 									field
 									...Unknown
@@ -848,8 +846,8 @@ func TestExecutionValidation(t *testing.T) {
 							 	 fragment Known on T {
 									field
 									...OtherUnknown
-							 	 }`, FieldSelectionMerging(), Valid)
-					})*/
+							 	 }`, FieldSelectionMerging(), Invalid, withExpectNormalizationError())
+				})
 				t.Run("return types must be unambiguous", func(t *testing.T) {
 					t.Run("conflicting return types which potentially overlap", func(t *testing.T) {
 						/*This is invalid since an object could potentially be both the Object
@@ -1095,10 +1093,8 @@ func TestExecutionValidation(t *testing.T) {
 								}
 							}`, FieldSelectionMerging(), Invalid)
 					})
-					/*
-						Why ignore?
-						t.Run("ignores unknown types", func(t *testing.T) {
-							runWithDefinition(t,boxDefinition, `
+					t.Run("ignores unknown types", func(t *testing.T) {
+						runWithDefinition(t, boxDefinition, `
 								{
 								someBox {
 								  ...on UnknownType {
@@ -1108,8 +1104,8 @@ func TestExecutionValidation(t *testing.T) {
 									scalar
 								  }
 								}
-								}`, FieldSelectionMerging(), Valid)
-						})*/
+								}`, FieldSelectionMerging(), Invalid, withExpectNormalizationError())
+					})
 				})
 			})
 			t.Run("107", func(t *testing.T) {
@@ -1747,16 +1743,18 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
-				run(t, `	fragment conflictingDifferingResponses on Pet {
-								... on Dog {
-									extra {
-										string
+				run(t, `query conflictingDifferingResponses {
+								pet {
+									... on Dog {
+										extra {
+											string
+										}
 									}
-								}
-								... on Cat {
-									extra {
-										... on CatExtra {
-											...spreadNotExists
+									... on Cat {
+										extra {
+											... on CatExtra {
+												...spreadNotExists
+											}
 										}
 									}
 								}
@@ -1782,18 +1780,20 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
-				run(t, `	
-							fragment conflictingDifferingResponses on Pet {
-								...dogFrag
-								...catFrag
-							}
-							fragment dogFrag on Dog {
-								someValue: nickname
-							}
-							fragment catFrag on Cat {
-								someValue: meowVolume
-							}`,
-					FieldSelectionMerging(), Invalid)
+				run(t, `
+								query conflictingDifferingResponses {
+									pet {
+										...dogFrag
+										...catFrag
+									}
+								}
+								fragment dogFrag on Dog {
+									someValue: nickname
+								}
+								fragment catFrag on Cat {
+									someValue: meowVolume
+								}`,
+					FieldSelectionMerging(), Invalid, withExpectNormalizationError())
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	query conflictingDifferingResponses {
@@ -1891,9 +1891,11 @@ func TestExecutionValidation(t *testing.T) {
 					FieldSelectionMerging(), Valid)
 			})
 			t.Run("112 variant", func(t *testing.T) {
-				run(t, `	fragment conflictingDifferingResponses on Pet {
-								...dogFrag
-								...catFrag
+				run(t, `query conflictingDifferingResponses {
+								pet {
+									...dogFrag
+									...catFrag
+								}
 							}
 							fragment dogFrag on Dog {
 								someValue: barkVolume
@@ -1901,7 +1903,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment catFrag on Cat {
 								someValue: name
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid, withExpectNormalizationError())
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `
@@ -2586,7 +2588,7 @@ func TestExecutionValidation(t *testing.T) {
 						barkVolume
 						...nameFragment
 					}`,
-						Fragments(), Invalid, withValidationErrors("external: fragment spread: barkVolumeFragment forms fragment cycle"), withDisableNormalization())
+						Fragments(), Invalid, withValidationErrors("external: fragment spread: nameFragment forms fragment cycle"), withDisableNormalization())
 				})
 				t.Run("136", func(t *testing.T) {
 					run(t, `
@@ -2706,14 +2708,12 @@ func TestExecutionValidation(t *testing.T) {
 					t.Run("139", func(t *testing.T) {
 						run(t, ` 	{
 										dog {
-											...interfaceWithinObjectFragment
+											...on Dog {
+												...on Pet {
+													name
+												}
+											}
 										}
-									}
-									fragment petNameFragment on Pet {
-										name
-									}
-									fragment interfaceWithinObjectFragment on Dog {
-										...petNameFragment
 									}`,
 							Fragments(), Valid)
 					})
@@ -2721,16 +2721,8 @@ func TestExecutionValidation(t *testing.T) {
 						run(t, `
 									{
 										dog {
-											...unionWithObjectFragment
+											...on Dog { ...on CatOrDog { ...on Cat { meowVolume } } }
 										}
-									}
-									fragment catOrDogNameFragment on CatOrDog {
-										... on Cat {
-											meowVolume
-										}
-									}
-									fragment unionWithObjectFragment on Dog {
-  										...catOrDogNameFragment
 									}`,
 							Fragments(), Valid)
 					})
@@ -2778,15 +2770,7 @@ func TestExecutionValidation(t *testing.T) {
 						run(t, `
 									{
 										dog {
-											...unionWithInterface
-										}
-									}
-									fragment unionWithInterface on Pet {
-										...dogOrHumanFragment
-									}
-									fragment dogOrHumanFragment on DogOrHuman {
-										... on Dog {
-											barkVolume
+											...on Pet { ...on DogOrHuman { ...on Dog { barkVolume } } }
 										}
 									}`,
 							Fragments(), Valid)
@@ -2795,15 +2779,7 @@ func TestExecutionValidation(t *testing.T) {
 						run(t, `
 									{
 										dog {
-											...interfaceWithUnion
-										}
-									}
-									fragment interfaceWithUnion on DogOrHuman {
-										...petFragment
-									}
-									fragment petFragment on Pet {
-										... on Dog {
-											barkVolume
+											...on DogOrHuman { ...on Pet { ...on Dog { barkVolume } } }
 										}
 									}`,
 							Fragments(), Valid)
@@ -3294,7 +3270,7 @@ func TestExecutionValidation(t *testing.T) {
 								...frag
 							}
 							fragment frag on Query @fragmentDefinition {}`,
-					DirectivesAreInValidLocations(), Valid)
+					DirectivesAreInValidLocations(), Valid, withDisableNormalization())
 			})
 			t.Run("150 variant", func(t *testing.T) {
 				run(t, `	query @onQuery {

@@ -34,7 +34,8 @@ func (f *fragmentSpreadInlineVisitor) EnterDocument(operation, definition *ast.D
 func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 	parentTypeName := f.definition.NodeNameBytes(f.EnclosingTypeDefinition)
 
-	fragmentDefinitionRef, exists := f.operation.FragmentDefinitionRef(f.operation.FragmentSpreadNameBytes(ref))
+	spreadName := f.operation.FragmentSpreadNameBytes(ref)
+	fragmentDefinitionRef, exists := f.operation.FragmentDefinitionRef(spreadName)
 	if !exists {
 		fragmentName := f.operation.FragmentSpreadNameBytes(ref)
 		f.StopWithExternalErr(operationreport.ErrFragmentUndefined(fragmentName))

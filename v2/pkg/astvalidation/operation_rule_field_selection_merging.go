@@ -26,8 +26,6 @@ type fieldSelectionMergingVisitor struct {
 	scalarRequirements    scalarRequirements
 	nonScalarRequirements nonScalarRequirements
 	refs                  []int
-	pathCache             [256][32]ast.PathItem
-	pathCacheIndex        int
 }
 type nonScalarRequirement struct {
 	path                    ast.Path
@@ -77,18 +75,20 @@ func (f *fieldSelectionMergingVisitor) resetRequirements() {
 func (f *fieldSelectionMergingVisitor) EnterDocument(operation, definition *ast.Document) {
 	f.operation = operation
 	f.definition = definition
-	f.pathCacheIndex = 0
 }
 
-func (f *fieldSelectionMergingVisitor) EnterFragmentDefinition(ref int) {
+func (f *fieldSelectionMergingVisitor) EnterFragmentDefinition(_ int) {
 	f.resetRequirements()
 }
 
-func (f *fieldSelectionMergingVisitor) EnterOperationDefinition(ref int) {
+func (f *fieldSelectionMergingVisitor) EnterOperationDefinition(_ int) {
 	f.resetRequirements()
 }
 
 func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
+
+	path := f.Path.WithoutInlineFragmentNames()
+
 	fieldName := f.operation.FieldNameBytes(ref)
 	if bytes.Equal(fieldName, literal.TYPENAME) {
 		return
@@ -105,7 +105,7 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	fieldDefinitionTypeNode := f.definition.FieldDefinitionTypeNode(definition)
 	if fieldDefinitionTypeNode.Kind != ast.NodeKindScalarTypeDefinition {
 
-		matchedRequirements := f.NonScalarRequirementsByPathField(f.Path, objectName)
+		matchedRequirements := f.NonScalarRequirementsByPathField(path, objectName)
 		fieldDefinitionTypeKindPresentInRequirements := false
 		for _, i := range matchedRequirements {
 
@@ -138,15 +138,6 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 			return
 		}
 
-		var path ast.Path
-		if f.pathCacheIndex != len(f.pathCache)-1 {
-			path = f.pathCache[f.pathCacheIndex][:len(f.Path)]
-			f.pathCacheIndex++
-		} else {
-			path = make(ast.Path, len(f.Path))
-		}
-		copy(path, f.Path)
-
 		f.nonScalarRequirements = append(f.nonScalarRequirements, nonScalarRequirement{
 			path:                    path,
 			objectName:              objectName,
@@ -156,7 +147,7 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 		return
 	}
 
-	matchedRequirements := f.ScalarRequirementsByPathField(f.Path, objectName)
+	matchedRequirements := f.ScalarRequirementsByPathField(path, objectName)
 	fieldDefinitionTypeKindPresentInRequirements := false
 
 	for _, i := range matchedRequirements {
@@ -190,15 +181,6 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 		return
 	}
 
-	var path ast.Path
-	if f.pathCacheIndex != len(f.pathCache)-1 {
-		path = f.pathCache[f.pathCacheIndex][:len(f.Path)]
-		f.pathCacheIndex++
-	} else {
-		path = make(ast.Path, len(f.Path))
-	}
-	copy(path, f.Path)
-
 	f.scalarRequirements = append(f.scalarRequirements, scalarRequirement{
 		path:                    path,
 		objectName:              objectName,
@@ -220,6 +202,6 @@ func (f *fieldSelectionMergingVisitor) potentiallySameObject(left, right ast.Nod
 	}
 }
 
-func (f *fieldSelectionMergingVisitor) EnterSelectionSet(ref int) {
+func (f *fieldSelectionMergingVisitor) EnterSelectionSet(_ int) {
 
 }
