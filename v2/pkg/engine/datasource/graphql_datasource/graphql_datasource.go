@@ -477,35 +477,40 @@ func (p *Planner) EnterInlineFragment(ref int) {
 		return
 	}
 
-	typeCondition := p.visitor.Operation.InlineFragmentTypeConditionName(ref)
-	if typeCondition == nil && !p.visitor.Operation.InlineFragments[ref].HasDirectives {
-		return
-	}
+	hasTypeCondition := p.visitor.Operation.InlineFragmentHasTypeCondition(ref)
+	// after normalization the type condition is always present
+	IsOfTheSameType := p.visitor.Operation.InlineFragmentIsOfTheSameType(ref)
 
-	fragmentType := -1
-	if typeCondition != nil {
-		fragmentType = p.upstreamOperation.AddNamedType(p.visitor.Config.Types.RenameTypeNameOnMatchBytes(typeCondition))
-	}
-
-	inlineFragment := p.upstreamOperation.AddInlineFragment(ast.InlineFragment{
+	// create inline fragment and selection
+	inlineFragmentRef := p.upstreamOperation.AddInlineFragment(ast.InlineFragment{
 		TypeCondition: ast.TypeCondition{
-			Type: fragmentType,
+			Type: ast.InvalidRef,
 		},
 	})
 
-	selection := ast.Selection{
-		Kind: ast.SelectionKindInlineFragment,
-		Ref:  inlineFragment,
-	}
+	currentSelectionSet := p.nodes[len(p.nodes)-1].Ref
 
-	if typeCondition != nil {
+	// when fragment has type condition, and it is not of the same type
+	// we need to add __typename field to selection set
+	if hasTypeCondition && !IsOfTheSameType {
+		typeCondition := p.visitor.Operation.InlineFragmentTypeConditionName(ref)
+		fragmentTypeRef := p.upstreamOperation.AddNamedType(p.visitor.Config.Types.RenameTypeNameOnMatchBytes(typeCondition))
+
+		p.upstreamOperation.InlineFragments[inlineFragmentRef].TypeCondition.Type = fragmentTypeRef
+
 		// add __typename field to selection set which contains typeCondition
 		// so that the resolver can distinguish between the response types
-		p.addTypenameToSelectionSet(p.nodes[len(p.nodes)-1].Ref)
+		p.addTypenameToSelectionSet(currentSelectionSet)
 	}
 
-	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, selection)
-	p.nodes = append(p.nodes, ast.Node{Kind: ast.NodeKindInlineFragment, Ref: inlineFragment})
+	selection := ast.Selection{
+		Kind: ast.SelectionKindInlineFragment,
+		Ref:  inlineFragmentRef,
+	}
+	p.upstreamOperation.AddSelection(currentSelectionSet, selection)
+
+	inlineFragmentNode := ast.Node{Kind: ast.NodeKindInlineFragment, Ref: inlineFragmentRef}
+	p.nodes = append(p.nodes, inlineFragmentNode)
 }
 
 func (p *Planner) LeaveInlineFragment(ref int) {
