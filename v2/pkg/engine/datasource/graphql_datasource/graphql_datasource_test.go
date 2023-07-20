@@ -4258,7 +4258,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			DisableResolveFieldPositions: true,
 		}))
 
-	t.Run("FIXME: planner error. complex nested federation", RunTest(complexFederationSchema,
+	t.Run("complex nested federation", RunTest(complexFederationSchema,
 		`	query User {
 					  user(id: "2") {
 						id
@@ -4296,7 +4296,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate __typename account {__typename ... on PasswordAccount {email} ... on SMSAccount {number}} metadata {name address description} ssn}}","variables":{"a":$$0$$}}}`,
+						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate account {__typename ... on PasswordAccount {email} ... on SMSAccount {number}} metadata {name address description} ssn}}","variables":{"a":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ObjectVariable{
@@ -4316,7 +4316,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
 										BufferId: 1,
-										Input:    `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Input:    `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price __typename}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
 												Path:     []string{"id"},
@@ -4500,7 +4500,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					ChildNodes: []plan.TypeField{
 						{
 							TypeName:   "User",
-							FieldNames: []string{"id", "name", "username", "birthDate", "metadata", "ssn"},
+							FieldNames: []string{"id", "name", "username", "birthDate", "account", "metadata", "ssn"},
 						},
 						{
 							TypeName:   "UserMetadata",
@@ -4525,7 +4525,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "extend type Query { me: User user(id: ID!): User} extend type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccounttype UserMetadata { name: String address: String description: String }",
+							ServiceSDL: "extend type Query { me: User user(id: ID!): User} extend type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccount type UserMetadata { name: String address: String description: String }",
 						},
 					}),
 					Factory: federationFactory,
@@ -4613,7 +4613,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate account {__typename ... on PasswordAccount {email} ... on SMSAccount {number}} metadata {name address description} __typename ssn}}","variables":{"a":$$0$$}}}`,
+						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate account {__typename ... on PasswordAccount {email} ... on SMSAccount {number}} metadata {name address description} ssn}}","variables":{"a":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ObjectVariable{
@@ -4633,7 +4633,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
 										BufferId: 1,
-										Input:    `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Input:    `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price __typename}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
 												Path:     []string{"id"},
@@ -4817,7 +4817,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					ChildNodes: []plan.TypeField{
 						{
 							TypeName:   "User",
-							FieldNames: []string{"id", "name", "username", "birthDate", "metadata", "ssn"},
+							FieldNames: []string{"id", "name", "username", "birthDate", "account", "metadata", "ssn"},
 						},
 						{
 							TypeName:   "UserMetadata",
