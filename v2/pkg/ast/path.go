@@ -12,6 +12,11 @@ import (
 type PathKind int
 
 const (
+	InlineFragmentPathPrefix     = "$"
+	InlineFragmentPathPrefixRune = '$'
+)
+
+const (
 	UnknownPathKind PathKind = iota
 	ArrayIndex
 	FieldName
@@ -75,6 +80,7 @@ func (p Path) String() string {
 				out += unsafebytes.BytesToString(p[i].FieldName)
 			}
 		case InlineFragmentName:
+			out += InlineFragmentPathPrefix
 			out += unsafebytes.BytesToString(p[i].FieldName)
 		}
 	}
@@ -98,6 +104,7 @@ func (p Path) DotDelimitedString() string {
 				out += unsafebytes.BytesToString(p[i].FieldName)
 			}
 		case InlineFragmentName:
+			out += InlineFragmentPathPrefix
 			out += unsafebytes.BytesToString(p[i].FieldName)
 		}
 	}
@@ -109,8 +116,12 @@ func (p *PathItem) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("data must not be nil")
 	}
 	if data[0] == '"' && data[len(data)-1] == '"' {
-		p.Kind = FieldName
 		p.FieldName = data[1 : len(data)-1]
+		if p.FieldName[0] == InlineFragmentPathPrefixRune {
+			p.Kind = InlineFragmentName
+		} else {
+			p.Kind = FieldName
+		}
 		return nil
 	}
 	out, err := strconv.ParseInt(*(*string)(unsafe.Pointer(&data)), 10, 32)
