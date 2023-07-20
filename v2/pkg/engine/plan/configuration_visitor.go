@@ -303,7 +303,7 @@ func (c *configurationVisitor) LeaveField(ref int) {
 }
 
 func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(
-	plannerIndex int, currentPath string, fieldRef int, typeName string, fieldName string, planningBehaviour DataSourcePlanningBehavior,
+	plannerIndex int, currentPath string, fieldRef int, fieldName string, typeName string, planningBehaviour DataSourcePlanningBehavior,
 ) (pathAdded bool) {
 
 	if c.walker.EnclosingTypeDefinition.Kind != ast.NodeKindObjectTypeDefinition {
