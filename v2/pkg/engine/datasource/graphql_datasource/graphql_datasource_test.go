@@ -5247,7 +5247,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			DisableResolveFieldPositions: true,
 		}))
 
-	t.Run("FIXME: missing required field. federated entity with requires", RunTest(requiredFieldTestSchema,
+	t.Run("federated entity with requires", RunTest(requiredFieldTestSchema,
 		`	query QueryWithRequiredFields {
 						serviceOne {
 							serviceTwoFieldOne  # @requires(fields: "serviceOneFieldOne")

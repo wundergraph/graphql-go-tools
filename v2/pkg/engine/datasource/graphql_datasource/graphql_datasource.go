@@ -714,18 +714,23 @@ func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
 	// true. Subsequent fields use hasFederationRoot to determine federation
 	// status.
 	if p.hasFederationRoot {
-		if !p.isInEntitiesSelectionSet() {
-			// if we quering field of entity type, but we are not in the root of the query
-			// we should not add representations variable and should not add inline fragment
-			// e.g. query { _entities { ... on Product { price info {name} } } }
-			// where Info is an entity type, but it is used as a field of Product
-			return
-		}
 		// Ideally the "representations" variable could be set once in
 		// LeaveDocument, but ConfigureFetch is called before this visitor's
 		// LeaveDocument is called. (Updating the visitor logic to call
 		// LeaveDocument in reverse registration order would fix this issue.)
 		p.updateRepresentationsVariable(fieldConfig)
+
+		if !p.isInEntitiesSelectionSet() {
+			// if we quering field of entity type, but we are not in the root of the query
+			// we should not add representations variable and should not add inline fragment
+			// e.g. query { _entities { ... on Product { price info {name} } } }
+			// where Info is an entity type, but it is used as a field of Product
+			//
+			// At the same time, we may need to update representations variables, but not to add an inline fragment
+			// cause, we could have a field which requires an additional field from entity type, which is not a key
+			return
+		}
+
 		// add inline fragment again, because it could be another entity type
 		// e.g. parallel request for a few entities
 		// ... on Product { price }
