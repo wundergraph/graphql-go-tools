@@ -373,11 +373,11 @@ func (p *printVisitor) EnterInlineFragment(ref int) {
 	}
 	p.writeIndented(literal.SPREAD)
 
-	if p.document.InlineFragments[ref].TypeCondition.Type != -1 {
+	if p.document.InlineFragmentHasTypeCondition(ref) && !p.document.InlineFragmentIsOfTheSameType(ref) {
 		p.write(literal.SPACE)
 		p.write(literal.ON)
 		p.write(literal.SPACE)
-		p.write(p.document.Input.ByteSlice(p.document.Types[p.document.InlineFragments[ref].TypeCondition.Type].Name))
+		p.write(p.document.InlineFragmentTypeConditionName(ref))
 		p.write(literal.SPACE)
 	} else if p.document.InlineFragments[ref].HasDirectives {
 		p.write(literal.SPACE)

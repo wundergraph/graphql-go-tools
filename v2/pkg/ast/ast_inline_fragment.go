@@ -7,18 +7,20 @@ import (
 
 // InlineFragment
 // example:
-// ... on User {
-//      friends {
-//        count
-//      }
-//    }
+//
+//	... on User {
+//	     friends {
+//	       count
+//	     }
+//	   }
 type InlineFragment struct {
-	Spread        position.Position // ...
-	TypeCondition TypeCondition     // on NamedType, e.g. on User
-	HasDirectives bool
-	Directives    DirectiveList // optional, e.g. @foo
-	SelectionSet  int           // optional, e.g. { nextField }
-	HasSelections bool
+	Spread          position.Position // ...
+	TypeCondition   TypeCondition     // on NamedType, e.g. on User
+	HasDirectives   bool
+	Directives      DirectiveList // optional, e.g. @foo
+	SelectionSet    int           // optional, e.g. { nextField }
+	HasSelections   bool
+	IsOfTheSameType bool
 }
 
 func (d *Document) CopyInlineFragment(ref int) int {
@@ -68,4 +70,8 @@ func (d *Document) InlineFragmentSelections(ref int) []int {
 func (d *Document) AddInlineFragment(fragment InlineFragment) int {
 	d.InlineFragments = append(d.InlineFragments, fragment)
 	return len(d.InlineFragments) - 1
+}
+
+func (d *Document) InlineFragmentIsOfTheSameType(ref int) bool {
+	return d.InlineFragments[ref].IsOfTheSameType
 }

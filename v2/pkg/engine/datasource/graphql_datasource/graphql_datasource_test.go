@@ -455,7 +455,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource:           &Source{},
 					BufferId:             0,
-					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName __typename @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
+					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName __typename @skip(if: $skip) tn2: __typename @include(if: $skip)}}","variables":{"skip":$$0$$}}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					Variables: resolve.NewVariables(&resolve.ContextVariable{
 						Path:     []string{"skip"},

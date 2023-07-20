@@ -184,6 +184,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	directivesIncludeSkip := astvisitor.NewWalker(48)
+	inlineFragmentAddOnType(&directivesIncludeSkip)
 	directiveIncludeSkip(&directivesIncludeSkip)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
 		name:   "directivesIncludeSkip",
