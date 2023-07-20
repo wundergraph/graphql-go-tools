@@ -3802,7 +3802,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
 										BufferId: 1,
-										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body author {id username} product {upc}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body author {id username} product {reviews {body author {id username}} upc}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
 												Path:     []string{"id"},
@@ -3874,49 +3874,25 @@ func TestGraphQLDataSource(t *testing.T) {
 														Name: []byte("product"),
 														Value: &resolve.Object{
 															Path: []string{"product"},
-															Fetch: &resolve.ParallelFetch{
-																Fetches: []resolve.Fetch{
-																	&resolve.BatchFetch{
-																		Fetch: &resolve.SingleFetch{
-																			BufferId:   2,
-																			Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
-																			DataSource: &Source{},
-																			Variables: resolve.NewVariables(
-																				&resolve.ObjectVariable{
-																					Path:     []string{"upc"},
-																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-																				},
-																			),
-																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
-																			ProcessResponseConfig: resolve.ProcessResponseConfig{
-																				ExtractGraphqlResponse:    true,
-																				ExtractFederationEntities: true,
-																			},
-																			SetTemplateOutputToNullOnVariableNull: true,
+															Fetch: &resolve.BatchFetch{
+																Fetch: &resolve.SingleFetch{
+																	BufferId:   2,
+																	Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
+																	DataSource: &Source{},
+																	Variables: resolve.NewVariables(
+																		&resolve.ObjectVariable{
+																			Path:     []string{"upc"},
+																			Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 																		},
-																		BatchFactory: batchFactory,
+																	),
+																	DataSourceIdentifier: []byte("graphql_datasource.Source"),
+																	ProcessResponseConfig: resolve.ProcessResponseConfig{
+																		ExtractGraphqlResponse:    true,
+																		ExtractFederationEntities: true,
 																	},
-																	&resolve.BatchFetch{
-																		Fetch: &resolve.SingleFetch{
-																			BufferId: 3,
-																			Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {id username}}}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
-																			Variables: resolve.NewVariables(
-																				&resolve.ObjectVariable{
-																					Path:     []string{"upc"},
-																					Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-																				},
-																			),
-																			DataSource:           &Source{},
-																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
-																			ProcessResponseConfig: resolve.ProcessResponseConfig{
-																				ExtractGraphqlResponse:    true,
-																				ExtractFederationEntities: true,
-																			},
-																			SetTemplateOutputToNullOnVariableNull: true,
-																		},
-																		BatchFactory: batchFactory,
-																	},
+																	SetTemplateOutputToNullOnVariableNull: true,
 																},
+																BatchFactory: batchFactory,
 															},
 															Fields: []*resolve.Field{
 																{
@@ -3936,8 +3912,8 @@ func TestGraphQLDataSource(t *testing.T) {
 																	},
 																},
 																{
-																	HasBuffer: true,
-																	BufferID:  3,
+																	HasBuffer: false,
+																	BufferID:  0,
 																	Name:      []byte("reviews"),
 																	Value: &resolve.Array{
 																		Nullable: true,
@@ -4045,7 +4021,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Federation: FederationConfiguration{
 							Enabled:    true,
-							ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") {upc: String! price: Int!}",
+							ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") {upc: String! name: String! price: Int!}",
 						},
 					}),
 					Factory: federationFactory,
