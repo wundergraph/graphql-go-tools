@@ -2,6 +2,7 @@ package astnormalization
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeprinter"
+	"github.com/wundergraph/graphql-go-tools/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
@@ -332,6 +335,26 @@ schema {
 			runNormalization(t, false, `fragment Fields on Country {name} query Q {country {name}}`)
 		})
 	})
+}
+
+func TestParseMissingBaseSchema(t *testing.T) {
+	const (
+		schema = `type Query {
+			hello: String!
+		}`
+
+		query = `query { hello }`
+	)
+	definition, report := astparser.ParseGraphqlDocumentString(schema)
+	assert.False(t, report.HasErrors(), report.Error())
+	doc := ast.NewDocument()
+	doc.Input.ResetInputString(query)
+	astparser.NewParser().Parse(doc, &report)
+	assert.False(t, report.HasErrors(), report.Error())
+	normalizer := NewNormalizer(false, false)
+	normalizer.NormalizeOperation(doc, &definition, &report)
+	assert.True(t, report.HasErrors(), "normalization should report an error")
+	assert.Regexp(t, regexp.MustCompile("forget.*merge.*base.*schema"), report.Error(), "error should mention the user forgot to merge the base schema")
 }
 
 func BenchmarkAstNormalization(b *testing.B) {
