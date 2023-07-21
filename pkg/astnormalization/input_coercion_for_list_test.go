@@ -2,6 +2,9 @@ package astnormalization
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const inputCoercionForListDefinition = `
@@ -174,7 +177,7 @@ func TestInputCoercionForList(t *testing.T) {
 				query Q {
 					inputWithNestedScalar(input: {
 						stringList: null,
-						intList: null
+						intList: null,
 					}) 
 				}`, `Q`,
 				`
@@ -775,6 +778,24 @@ func TestInputCoercionForList(t *testing.T) {
 				}`,
 				`{}`,
 				`{"a":{"list":[{"foo":"bar","list":[{"foo":"bar2","list":[{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}]}]}]}}`, inputCoercionForList)
+		})
+
+		t.Run("invalid query", func(t *testing.T) {
+			got, err := runWalkWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+				query Q {
+					inputWithNestedScalar(input: {
+						stringList: null,
+						intList: null,
+                        unknownField: null
+					}) 
+				}`, `Q`,
+				`
+				query Q($a: InputWithNestedScalarList) {
+					inputWithNestedScalar(input: $a) 
+				}`, `{}`, `{"a":{"stringList":null,"intList":null}}`, inputCoercionForList)
+			require.NoError(t, err, "unexpected error")
+			assert.True(t, got.report.HasErrors())
+			assert.Equal(t, `internal: input value definition not found for "unknownField"`, got.report.Error())
 		})
 	})
 }

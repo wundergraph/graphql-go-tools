@@ -386,17 +386,21 @@ type registerNormalizeVariablesFunc func(walker *astvisitor.Walker) *variablesEx
 type registerNormalizeVariablesDefaulValueFunc func(walker *astvisitor.Walker) *variablesDefaultValueExtractionVisitor
 type registerNormalizeDeleteVariablesFunc func(walker *astvisitor.Walker) *deleteUnusedVariablesVisitor
 
-var runWithVariablesAssert = func(t *testing.T, registerVisitor func(walker *astvisitor.Walker), definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string, additionalNormalizers ...registerNormalizeFunc) {
+type walkResult struct {
+	operationDocument  *ast.Document
+	definitionDocument *ast.Document
+	report             *operationreport.Report
+}
+
+var runWalk = func(t *testing.T, registerVisitor func(walker *astvisitor.Walker), definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string, additionalNormalizers ...registerNormalizeFunc) (*walkResult, error) {
 	t.Helper()
 
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
-	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
-	if err != nil {
-		panic(err)
+	if err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument); err != nil {
+		return nil, err
 	}
 
 	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
-	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
 	report := operationreport.Report{}
 	walker := astvisitor.NewWalker(48)
 
@@ -416,15 +420,40 @@ var runWithVariablesAssert = func(t *testing.T, registerVisitor func(walker *ast
 	// additionally, walking twice also ensures that the normalizers are idempotent
 	walker.Walk(&operationDocument, &definitionDocument, &report)
 
-	if report.HasErrors() {
-		panic(report.Error())
+	return &walkResult{
+		operationDocument:  &operationDocument,
+		definitionDocument: &definitionDocument,
+		report:             &report,
+	}, nil
+}
+
+var runWithVariablesAssert = func(t *testing.T, registerVisitor func(walker *astvisitor.Walker), definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string, additionalNormalizers ...registerNormalizeFunc) {
+	t.Helper()
+
+	got, err := runWalk(t, registerVisitor, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables, additionalNormalizers...)
+	if err != nil {
+		panic(err)
 	}
 
-	actualAST := mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
-	expectedAST := mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
+	if got.report.HasErrors() {
+		panic(got.report.Error())
+	}
+
+	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
+	actualAST := mustString(astprinter.PrintString(got.operationDocument, got.definitionDocument))
+	expectedAST := mustString(astprinter.PrintString(&expectedOutputDocument, got.definitionDocument))
 	assert.Equal(t, expectedAST, actualAST)
-	actualVariables := string(operationDocument.Input.Variables)
+	actualVariables := string(got.operationDocument.Input.Variables)
 	assert.Equal(t, expectedVariables, actualVariables)
+}
+
+var runWalkWithVariables = func(t *testing.T, normalizeFunc registerNormalizeVariablesFunc, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string, additionalNormalizers ...registerNormalizeFunc) (*walkResult, error) {
+	t.Helper()
+
+	return runWalk(t, func(walker *astvisitor.Walker) {
+		visitor := normalizeFunc(walker)
+		visitor.operationName = []byte(operationName)
+	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables, additionalNormalizers...)
 }
 
 var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeVariablesFunc, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string, additionalNormalizers ...registerNormalizeFunc) {
