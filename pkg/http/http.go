@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	log "github.com/jensneuse/abstractlogger"
+	"github.com/wundergraph/graphql-go-tools/pkg/pool"
 )
 
 const (
@@ -43,8 +44,12 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
 	ctx.Context = r.Context()
-	buf := bytes.NewBuffer(make([]byte, 0, 4096))
+
+	buf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(buf)
+
 	err = executor.Execute(ctx, rootNode, buf)
 	if err != nil {
 		g.log.Error("executor.Execute",
