@@ -786,8 +786,8 @@ func TestInputCoercionForList(t *testing.T) {
 					inputWithNestedScalar(input: {
 						stringList: null,
 						intList: null,
-                        unknownField: null
-					}) 
+						unknownField: null
+					})
 				}`, `Q`,
 				`
 				query Q($a: InputWithNestedScalarList) {
