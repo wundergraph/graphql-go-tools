@@ -483,6 +483,42 @@ var run = func(normalizeFunc registerNormalizeFunc, definition, operation, expec
 	}
 }
 
+var runWithExpectedErrors = func(t *testing.T, normalizeFunc registerNormalizeVariablesFunc, definition, operation, expectedError string, additionalNormalizers ...registerNormalizeFunc) {
+	t.Helper()
+
+	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
+	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
+	if err != nil {
+		panic(err)
+	}
+
+	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
+	report := operationreport.Report{}
+	walker := astvisitor.NewWalker(48)
+
+	normalizeFunc(&walker)
+
+	for _, fn := range additionalNormalizers {
+		fn(&walker)
+	}
+
+	walker.Walk(&operationDocument, &definitionDocument, &report)
+	// we run this walker twice because some normalizers may depend on other normalizers
+	// walking twice ensures that all prerequisites are met
+	// additionally, walking twice also ensures that the normalizers are idempotent
+	walker.Walk(&operationDocument, &definitionDocument, &report)
+
+	assert.True(t, report.HasErrors())
+	assert.Condition(t, func() bool {
+		for i := range report.InternalErrors {
+			if report.InternalErrors[i].Error() == expectedError {
+				return true
+			}
+		}
+		return false
+	})
+}
+
 func runMany(definition, operation, expectedOutput string, normalizeFuncs ...registerNormalizeFunc) {
 	var runManyNormalizers = func(walker *astvisitor.Walker) {
 		for _, normalizeFunc := range normalizeFuncs {
