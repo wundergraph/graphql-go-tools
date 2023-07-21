@@ -1,6 +1,7 @@
 package astnormalization
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -188,11 +189,14 @@ we could have data as:
 */
 
 func (i *inputCoercionForListVisitor) walkJsonObject(inputObjDefTypeRef int, data []byte) {
-	err := jsonparser.ObjectEach(data, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	if err := jsonparser.ObjectEach(data, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		i.updateQuery(string(key))
 		defer i.popQuery()
 
 		inputValueDefRef := i.definition.InputObjectTypeDefinitionInputValueDefinitionByName(inputObjDefTypeRef, key)
+		if inputValueDefRef == ast.InvalidRef {
+			return fmt.Errorf("input value definition not found for %q", key)
+		}
 		typeRef := i.definition.ResolveListOrNameType(i.definition.InputValueDefinitionType(inputValueDefRef))
 
 		switch i.definition.Types[typeRef].TypeKind {
@@ -206,8 +210,7 @@ func (i *inputCoercionForListVisitor) walkJsonObject(inputObjDefTypeRef int, dat
 
 		return nil
 
-	})
-	if err != nil {
+	}); err != nil {
 		i.StopWithInternalErr(err)
 	}
 }
