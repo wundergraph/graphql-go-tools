@@ -1,3 +1,12 @@
+type Query {
+    me: User
+    cat: Cat
+}
+
+type Cat {
+    name: String!
+}
+
 interface Comment {
     upc: String!
     body: String!
@@ -32,6 +41,7 @@ extend type User @key(fields: "id") {
     id: ID! @external
     username: String! @external
     reviews: [Review]
+    realName: String!
 }
 
 extend type Product @key(fields: "upc") {
