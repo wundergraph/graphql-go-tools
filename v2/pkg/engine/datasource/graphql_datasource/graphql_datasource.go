@@ -1283,7 +1283,11 @@ func (p *Planner) printQueryPlan(msg string, operation *ast.Document) {
 		return
 	}
 
-	p.debugPrint(msg, "\n", printedOperation)
+	p.debugPrint(msg, "\n",
+		"variables:\n",
+		string(p.upstreamVariables), "\n",
+		"operation:\n",
+		printedOperation)
 }
 
 // printOperation - prints normalized upstream operation
