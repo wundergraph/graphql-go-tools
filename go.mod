@@ -8,7 +8,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.2
 	github.com/dave/jennifer v1.4.0
 	github.com/davecgh/go-spew v1.1.1
-	github.com/eclipse/paho.mqtt.golang v1.2.0
+	github.com/eclipse/paho.mqtt.golang v1.4.3
 	github.com/evanphx/json-patch/v5 v5.1.0
 	github.com/go-test/deep v1.0.8
 	github.com/gobwas/ws v1.0.4
@@ -80,6 +80,7 @@ require (
 	golang.org/x/crypto v0.10.0 // indirect
 	golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f // indirect
 	golang.org/x/net v0.11.0 // indirect
+	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.9.0 // indirect
 	golang.org/x/text v0.10.0 // indirect
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
