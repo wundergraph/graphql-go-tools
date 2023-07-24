@@ -1579,7 +1579,7 @@ func (w *Walker) walk() {
 		}
 	}
 
-	for i := 0; i < len(w.visitors.leaveDocument); {
+	for i := len(w.visitors.leaveDocument)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveDocument[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveDocument, 0, w.visitors.leaveDocument[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveDocument[i], allowedToVisit)
@@ -1598,7 +1598,7 @@ func (w *Walker) walk() {
 			w.skip = false
 			return
 		}
-		i++
+		i--
 	}
 }
 
@@ -1660,7 +1660,7 @@ func (w *Walker) walkOperationDefinition(ref int, skipFor SkipVisitors) {
 
 	w.removeLastAncestor()
 
-	for i := 0; i < len(w.visitors.leaveOperation); {
+	for i := len(w.visitors.leaveOperation)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveOperation[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveOperation, ref, w.visitors.leaveOperation[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveOperation[i], allowedToVisit)
@@ -1680,7 +1680,7 @@ func (w *Walker) walkOperationDefinition(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -1728,7 +1728,7 @@ func (w *Walker) walkVariableDefinition(ref int, skipFor SkipVisitors) {
 
 	w.removeLastAncestor()
 
-	for i := 0; i < len(w.visitors.leaveVariableDefinition); {
+	for i := len(w.visitors.leaveVariableDefinition)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveVariableDefinition[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveVariableDefinition, ref, w.visitors.leaveVariableDefinition[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveVariableDefinition[i], allowedToVisit)
@@ -1748,7 +1748,7 @@ func (w *Walker) walkVariableDefinition(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -1816,7 +1816,7 @@ RefsChanged:
 
 	w.removeLastAncestor()
 
-	for i := 0; i < len(w.visitors.leaveSelectionSet); {
+	for i := len(w.visitors.leaveSelectionSet)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveSelectionSet[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveSelectionSet, ref, w.visitors.leaveSelectionSet[i], skipFor)
 
@@ -1835,7 +1835,7 @@ RefsChanged:
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -1908,7 +1908,7 @@ func (w *Walker) walkField(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindField, ref)
 
-	for i := 0; i < len(w.visitors.leaveField); {
+	for i := len(w.visitors.leaveField)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveField[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveField, ref, w.visitors.leaveField[i], skipFor)
 
@@ -1927,7 +1927,7 @@ func (w *Walker) walkField(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -1975,7 +1975,7 @@ func (w *Walker) walkDirective(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindDirective, ref)
 
-	for i := 0; i < len(w.visitors.leaveDirective); {
+	for i := len(w.visitors.leaveDirective)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveDirective[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveDirective, ref, w.visitors.leaveDirective[i], skipFor)
 
@@ -1994,7 +1994,7 @@ func (w *Walker) walkDirective(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -2028,7 +2028,7 @@ func (w *Walker) walkArgument(ref int, skipFor SkipVisitors) {
 		i++
 	}
 
-	for i := 0; i < len(w.visitors.leaveArgument); {
+	for i := len(w.visitors.leaveArgument)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveArgument[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveArgument, ref, w.visitors.leaveArgument[i], skipFor)
 
@@ -2047,7 +2047,7 @@ func (w *Walker) walkArgument(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -2094,7 +2094,7 @@ func (w *Walker) walkFragmentSpread(ref int, skipFor SkipVisitors) {
 
 	w.removeLastAncestor()
 
-	for i := 0; i < len(w.visitors.leaveFragmentSpread); {
+	for i := len(w.visitors.leaveFragmentSpread)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveFragmentSpread[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveFragmentSpread, ref, w.visitors.leaveFragmentSpread[i], skipFor)
 
@@ -2113,7 +2113,7 @@ func (w *Walker) walkFragmentSpread(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -2175,7 +2175,7 @@ func (w *Walker) walkInlineFragment(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindInlineFragment, ref)
 
-	for i := 0; i < len(w.visitors.leaveInlineFragment); {
+	for i := len(w.visitors.leaveInlineFragment)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveInlineFragment[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveInlineFragment, ref, w.visitors.leaveInlineFragment[i], skipFor)
 
@@ -2194,7 +2194,7 @@ func (w *Walker) walkInlineFragment(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -2250,7 +2250,7 @@ func (w *Walker) walkFragmentDefinition(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindFragmentDefinition, ref)
 
-	for i := 0; i < len(w.visitors.leaveFragmentDefinition); {
+	for i := len(w.visitors.leaveFragmentDefinition)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveFragmentDefinition[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveFragmentDefinition, ref, w.visitors.leaveFragmentDefinition[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveFragmentDefinition[i], allowedToVisit)
@@ -2270,7 +2270,7 @@ func (w *Walker) walkFragmentDefinition(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -2331,7 +2331,7 @@ func (w *Walker) walkObjectTypeDefinition(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindObjectTypeDefinition, ref)
 
-	for i := 0; i < len(w.visitors.leaveObjectTypeDefinition); {
+	for i := len(w.visitors.leaveObjectTypeDefinition)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveObjectTypeDefinition[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveObjectTypeDefinition, ref, w.visitors.leaveObjectTypeDefinition[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveObjectTypeDefinition[i], allowedToVisit)
@@ -2351,7 +2351,7 @@ func (w *Walker) walkObjectTypeDefinition(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -2412,7 +2412,7 @@ func (w *Walker) walkObjectTypeExtension(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindObjectTypeExtension, ref)
 
-	for i := 0; i < len(w.visitors.leaveObjectTypeExtension); {
+	for i := len(w.visitors.leaveObjectTypeExtension)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveObjectTypeExtension[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveObjectTypeExtension, ref, w.visitors.leaveObjectTypeExtension[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveObjectTypeExtension[i], allowedToVisit)
@@ -2432,7 +2432,7 @@ func (w *Walker) walkObjectTypeExtension(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -2493,7 +2493,7 @@ func (w *Walker) walkFieldDefinition(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindFieldDefinition, ref)
 
-	for i := 0; i < len(w.visitors.leaveFieldDefinition); {
+	for i := len(w.visitors.leaveFieldDefinition)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveFieldDefinition[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveFieldDefinition, ref, w.visitors.leaveFieldDefinition[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveFieldDefinition[i], allowedToVisit)
@@ -2513,7 +2513,7 @@ func (w *Walker) walkFieldDefinition(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -2565,7 +2565,7 @@ func (w *Walker) walkInputValueDefinition(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindInputValueDefinition, ref)
 
-	for i := 0; i < len(w.visitors.leaveInputValueDefinition); {
+	for i := len(w.visitors.leaveInputValueDefinition)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveInputValueDefinition[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveInputValueDefinition, ref, w.visitors.leaveInputValueDefinition[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveInputValueDefinition[i], allowedToVisit)
@@ -2585,7 +2585,7 @@ func (w *Walker) walkInputValueDefinition(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -2646,7 +2646,7 @@ func (w *Walker) walkInterfaceTypeDefinition(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindInterfaceTypeDefinition, ref)
 
-	for i := 0; i < len(w.visitors.leaveInterfaceTypeDefinition); {
+	for i := len(w.visitors.leaveInterfaceTypeDefinition)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveInterfaceTypeDefinition[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveInterfaceTypeDefinition, ref, w.visitors.leaveInterfaceTypeDefinition[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveInterfaceTypeDefinition[i], allowedToVisit)
@@ -2666,7 +2666,7 @@ func (w *Walker) walkInterfaceTypeDefinition(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -2727,7 +2727,7 @@ func (w *Walker) walkInterfaceTypeExtension(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindInterfaceTypeExtension, ref)
 
-	for i := 0; i < len(w.visitors.leaveInterfaceTypeExtension); {
+	for i := len(w.visitors.leaveInterfaceTypeExtension)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveInterfaceTypeExtension[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveInterfaceTypeExtension, ref, w.visitors.leaveInterfaceTypeExtension[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveInterfaceTypeExtension[i], allowedToVisit)
@@ -2747,7 +2747,7 @@ func (w *Walker) walkInterfaceTypeExtension(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -2799,7 +2799,7 @@ func (w *Walker) walkScalarTypeDefinition(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindScalarTypeDefinition, ref)
 
-	for i := 0; i < len(w.visitors.leaveScalarTypeDefinition); {
+	for i := len(w.visitors.leaveScalarTypeDefinition)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveScalarTypeDefinition[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveScalarTypeDefinition, ref, w.visitors.leaveScalarTypeDefinition[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveScalarTypeDefinition[i], allowedToVisit)
@@ -2819,7 +2819,7 @@ func (w *Walker) walkScalarTypeDefinition(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -2871,7 +2871,7 @@ func (w *Walker) walkScalarTypeExtension(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindScalarTypeExtension, ref)
 
-	for i := 0; i < len(w.visitors.leaveScalarTypeExtension); {
+	for i := len(w.visitors.leaveScalarTypeExtension)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveScalarTypeExtension[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveScalarTypeExtension, ref, w.visitors.leaveScalarTypeExtension[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveScalarTypeExtension[i], allowedToVisit)
@@ -2891,7 +2891,7 @@ func (w *Walker) walkScalarTypeExtension(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -2952,7 +2952,7 @@ func (w *Walker) walkUnionTypeDefinition(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindUnionTypeDefinition, ref)
 
-	for i := 0; i < len(w.visitors.leaveUnionTypeDefinition); {
+	for i := len(w.visitors.leaveUnionTypeDefinition)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveUnionTypeDefinition[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveUnionTypeDefinition, ref, w.visitors.leaveUnionTypeDefinition[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveUnionTypeDefinition[i], allowedToVisit)
@@ -2972,7 +2972,7 @@ func (w *Walker) walkUnionTypeDefinition(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -3033,7 +3033,7 @@ func (w *Walker) walkUnionTypeExtension(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindUnionTypeExtension, ref)
 
-	for i := 0; i < len(w.visitors.leaveUnionTypeExtension); {
+	for i := len(w.visitors.leaveUnionTypeExtension)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveUnionTypeExtension[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveUnionTypeExtension, ref, w.visitors.leaveUnionTypeExtension[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveUnionTypeExtension[i], allowedToVisit)
@@ -3053,7 +3053,7 @@ func (w *Walker) walkUnionTypeExtension(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -3087,7 +3087,7 @@ func (w *Walker) walkUnionMemberType(ref int, skipFor SkipVisitors) {
 		i++
 	}
 
-	for i := 0; i < len(w.visitors.leaveUnionMemberType); {
+	for i := len(w.visitors.leaveUnionMemberType)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveUnionMemberType[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveUnionMemberType, ref, w.visitors.leaveUnionMemberType[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveUnionMemberType[i], allowedToVisit)
@@ -3107,7 +3107,7 @@ func (w *Walker) walkUnionMemberType(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -3168,7 +3168,7 @@ func (w *Walker) walkEnumTypeDefinition(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindEnumTypeDefinition, ref)
 
-	for i := 0; i < len(w.visitors.leaveEnumTypeDefinition); {
+	for i := len(w.visitors.leaveEnumTypeDefinition)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveEnumTypeDefinition[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveEnumTypeDefinition, ref, w.visitors.leaveEnumTypeDefinition[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveEnumTypeDefinition[i], allowedToVisit)
@@ -3188,7 +3188,7 @@ func (w *Walker) walkEnumTypeDefinition(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -3249,7 +3249,7 @@ func (w *Walker) walkEnumTypeExtension(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindEnumTypeExtension, ref)
 
-	for i := 0; i < len(w.visitors.leaveEnumTypeExtension); {
+	for i := len(w.visitors.leaveEnumTypeExtension)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveEnumTypeExtension[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveEnumTypeExtension, ref, w.visitors.leaveEnumTypeExtension[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveEnumTypeExtension[i], allowedToVisit)
@@ -3269,7 +3269,7 @@ func (w *Walker) walkEnumTypeExtension(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -3321,7 +3321,7 @@ func (w *Walker) walkEnumValueDefinition(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindEnumValueDefinition, ref)
 
-	for i := 0; i < len(w.visitors.leaveEnumValueDefinition); {
+	for i := len(w.visitors.leaveEnumValueDefinition)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveEnumValueDefinition[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveEnumValueDefinition, ref, w.visitors.leaveEnumValueDefinition[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveEnumValueDefinition[i], allowedToVisit)
@@ -3341,7 +3341,7 @@ func (w *Walker) walkEnumValueDefinition(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -3402,7 +3402,7 @@ func (w *Walker) walkInputObjectTypeDefinition(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindInputObjectTypeDefinition, ref)
 
-	for i := 0; i < len(w.visitors.leaveInputObjectTypeDefinition); {
+	for i := len(w.visitors.leaveInputObjectTypeDefinition)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveInputObjectTypeDefinition[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveInputObjectTypeDefinition, ref, w.visitors.leaveInputObjectTypeDefinition[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveInputObjectTypeDefinition[i], allowedToVisit)
@@ -3422,7 +3422,7 @@ func (w *Walker) walkInputObjectTypeDefinition(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -3483,7 +3483,7 @@ func (w *Walker) walkInputObjectTypeExtension(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindInputObjectTypeExtension, ref)
 
-	for i := 0; i < len(w.visitors.leaveInputObjectTypeExtension); {
+	for i := len(w.visitors.leaveInputObjectTypeExtension)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveInputObjectTypeExtension[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveInputObjectTypeExtension, ref, w.visitors.leaveInputObjectTypeExtension[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveInputObjectTypeExtension[i], allowedToVisit)
@@ -3503,7 +3503,7 @@ func (w *Walker) walkInputObjectTypeExtension(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -3560,7 +3560,7 @@ func (w *Walker) walkDirectiveDefinition(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindDirectiveDefinition, ref)
 
-	for i := 0; i < len(w.visitors.leaveDirectiveDefinition); {
+	for i := len(w.visitors.leaveDirectiveDefinition)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveDirectiveDefinition[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveDirectiveDefinition, ref, w.visitors.leaveDirectiveDefinition[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveDirectiveDefinition[i], allowedToVisit)
@@ -3580,7 +3580,7 @@ func (w *Walker) walkDirectiveDefinition(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -3612,7 +3612,7 @@ func (w *Walker) walkDirectiveLocation(location ast.DirectiveLocation, skipFor S
 		i++
 	}
 
-	for i := 0; i < len(w.visitors.leaveDirectiveLocation); {
+	for i := len(w.visitors.leaveDirectiveLocation)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveDirectiveLocation[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveDirectiveLocation, 0, w.visitors.leaveDirectiveLocation[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveDirectiveLocation[i], allowedToVisit)
@@ -3632,7 +3632,7 @@ func (w *Walker) walkDirectiveLocation(location ast.DirectiveLocation, skipFor S
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -3691,7 +3691,7 @@ func (w *Walker) walkSchemaDefinition(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindSchemaDefinition, ref)
 
-	for i := 0; i < len(w.visitors.leaveSchemaDefinition); {
+	for i := len(w.visitors.leaveSchemaDefinition)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveSchemaDefinition[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveSchemaDefinition, ref, w.visitors.leaveSchemaDefinition[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveSchemaDefinition[i], allowedToVisit)
@@ -3711,7 +3711,7 @@ func (w *Walker) walkSchemaDefinition(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -3770,7 +3770,7 @@ func (w *Walker) walkSchemaExtension(ref int, skipFor SkipVisitors) {
 
 	w.setCurrent(ast.NodeKindSchemaExtension, ref)
 
-	for i := 0; i < len(w.visitors.leaveSchemaExtension); {
+	for i := len(w.visitors.leaveSchemaExtension)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveSchemaExtension[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveSchemaExtension, ref, w.visitors.leaveSchemaExtension[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveSchemaExtension[i], allowedToVisit)
@@ -3790,7 +3790,7 @@ func (w *Walker) walkSchemaExtension(ref int, skipFor SkipVisitors) {
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
@@ -3822,7 +3822,7 @@ func (w *Walker) walkRootOperationTypeDefinition(ref int, skipFor SkipVisitors) 
 		i++
 	}
 
-	for i := 0; i < len(w.visitors.leaveRootOperationTypeDefinition); {
+	for i := len(w.visitors.leaveRootOperationTypeDefinition)-1;i>-1; {
 		ancestorAllowed := skipFor.Allow(w.visitors.leaveRootOperationTypeDefinition[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(LeaveRootOperationTypeDefinition, ref, w.visitors.leaveRootOperationTypeDefinition[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.leaveRootOperationTypeDefinition[i], allowedToVisit)
@@ -3842,7 +3842,7 @@ func (w *Walker) walkRootOperationTypeDefinition(ref int, skipFor SkipVisitors) 
 			w.decreaseDepth()
 			return
 		}
-		i++
+		i--
 	}
 
 	w.decreaseDepth()
