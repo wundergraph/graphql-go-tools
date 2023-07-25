@@ -58,6 +58,7 @@ var (
 	UNDERSCORETYPE                = []byte("__type")
 	UNDERSCORESCHEMA              = []byte("__schema")
 	TYPENAME                      = []byte("__typename")
+	INTERNAL_SKIP                 = []byte("__internal_skip")
 	GRAPHQLTYPE                   = []byte("graphqlType")
 	INTERFACE                     = []byte("interface")
 	INPUT                         = []byte("input")

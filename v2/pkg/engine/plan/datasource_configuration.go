@@ -34,6 +34,11 @@ type DataSourceConfiguration struct {
 	Directives DirectiveConfigurations
 	Factory    PlannerFactory
 	Custom     json.RawMessage
+
+	FieldsNew []FieldConfiguration
+	TypesNew  TypeConfigurations
+
+	ParentTypeConfigurations TypeConfigurations
 }
 
 func (d *DataSourceConfiguration) HasRootNode(typeName, fieldName string) bool {
@@ -82,6 +87,40 @@ func (d *DataSourceConfiguration) HasChildNodeWithTypename(typeName string) bool
 		return true
 	}
 	return false
+}
+
+func (d *DataSourceConfiguration) HasTypeConfiguration(typeName, requiresFields string) bool {
+	for i := range d.TypesNew {
+		if typeName != d.TypesNew[i].TypeName {
+			continue
+		}
+		if requiresFields == d.TypesNew[i].RequiresFieldsNew {
+			return true
+		}
+	}
+	return false
+}
+
+func (d *DataSourceConfiguration) HasParentTypeConfiguration(typeName, requiresFields string) bool {
+	for i := range d.ParentTypeConfigurations {
+		if typeName != d.ParentTypeConfigurations[i].TypeName {
+			continue
+		}
+		if requiresFields == d.ParentTypeConfigurations[i].RequiresFieldsNew {
+			return true
+		}
+	}
+	return false
+}
+
+func (d *DataSourceConfiguration) TypeConfigurationsFor(typeName string) (out []TypeConfiguration) {
+	for i := range d.TypesNew {
+		if typeName != d.TypesNew[i].TypeName {
+			continue
+		}
+		out = append(out, d.TypesNew[i])
+	}
+	return out
 }
 
 type DirectiveConfigurations []DirectiveConfiguration

@@ -56,7 +56,8 @@ type TypeConfiguration struct {
 	// the upstream Operation can be rewritten to { ... on Human { height }}
 	// by setting RenameTo to Human
 	// This way, Types can be suffixed / renamed in downstream Schemas while keeping the contract with the upstream ok
-	RenameTo string
+	RenameTo          string
+	RequiresFieldsNew string
 }
 
 type FieldConfigurations []FieldConfiguration
@@ -113,9 +114,10 @@ type FieldConfiguration struct {
 	// DisableDefaultMapping - instructs planner whether to use path mapping coming from Path field
 	DisableDefaultMapping bool
 	// Path - represents a json path to lookup for a field value in response json
-	Path           []string
-	Arguments      ArgumentsConfigurations
-	RequiresFields []string
+	Path              []string
+	Arguments         ArgumentsConfigurations
+	RequiresFields    []string
+	RequiresFieldsNew string
 	// UnescapeResponseJson set to true will allow fields (String,List,Object)
 	// to be resolved from an escaped JSON string
 	// e.g. {"response":"{\"foo\":\"bar\"}"} will be returned as {"foo":"bar"} when path is "response"

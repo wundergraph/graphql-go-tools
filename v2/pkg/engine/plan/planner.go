@@ -101,9 +101,15 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 
 	// pre-process required fields
 
-	p.preProcessRequiredFields(&config, operation, definition, report)
+	// p.preProcessRequiredFields(&config, operation, definition, report)
+	// if config.Debug.PrintOperationWithRequiredFields {
+	// 	fmt.Printf("\n\n\n\n\nOperation after preprocessing of required fields: \n\n")
+	// 	pp, _ := astprinter.PrintStringIndentDebug(operation, nil, "  ")
+	// 	fmt.Println(pp)
+	// }
+
 	if config.Debug.PrintOperationWithRequiredFields {
-		fmt.Printf("\n\n\n\n\nOperation after preprocessing of required fields: \n\n")
+		fmt.Printf("\n\n\n\n\nInitial Operation: \n\n")
 		pp, _ := astprinter.PrintStringIndentDebug(operation, nil, "  ")
 		fmt.Println(pp)
 	}
@@ -122,6 +128,27 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 				fmt.Println(path.String())
 			}
 		}
+	}
+
+	// second run to plan required fields
+	p.configurationVisitor.secondRun = true
+	p.configurationWalker.Walk(operation, definition, report)
+
+	if config.Debug.PrintPlanningPaths {
+		fmt.Printf("\n\n\n\n\nPlanning paths \n\n")
+		for i, planner := range p.configurationVisitor.planners {
+			fmt.Println("Paths for planner", i+1)
+			fmt.Println("Planner parent path", planner.parentPath)
+			for _, path := range planner.paths {
+				fmt.Println(path.String())
+			}
+		}
+	}
+
+	if config.Debug.PrintOperationWithRequiredFields {
+		fmt.Printf("\n\n\n\n\nOperation after preprocessing of required fields: \n\n")
+		pp, _ := astprinter.PrintStringIndentDebug(operation, nil, "  ")
+		fmt.Println(pp)
 	}
 
 	if config.Debug.PlanningVisitor {
@@ -199,22 +226,22 @@ func (p *Planner) selectOperation(operation *ast.Document, operationName string,
 	p.planningVisitor.OperationName = operationName
 }
 
-func (p *Planner) preProcessRequiredFields(config *Configuration, operation, definition *ast.Document, report *operationreport.Report) {
-	if !p.hasRequiredFields(config) {
-		return
-	}
-
-	p.requiredFieldsVisitor.config = config
-	p.requiredFieldsVisitor.operation = operation
-	p.requiredFieldsVisitor.definition = definition
-	p.requiredFieldsWalker.Walk(operation, definition, report)
-}
-
-func (p *Planner) hasRequiredFields(config *Configuration) bool {
-	for i := range config.Fields {
-		if len(config.Fields[i].RequiresFields) != 0 {
-			return true
-		}
-	}
-	return false
-}
+// func (p *Planner) preProcessRequiredFields(config *Configuration, operation, definition *ast.Document, report *operationreport.Report) {
+// 	if !p.hasRequiredFields(config) {
+// 		return
+// 	}
+//
+// 	p.requiredFieldsVisitor.config = config
+// 	p.requiredFieldsVisitor.operation = operation
+// 	p.requiredFieldsVisitor.definition = definition
+// 	p.requiredFieldsWalker.Walk(operation, definition, report)
+// }
+//
+// func (p *Planner) hasRequiredFields(config *Configuration) bool {
+// 	for i := range config.Fields {
+// 		if len(config.Fields[i].RequiresFields) != 0 {
+// 			return true
+// 		}
+// 	}
+// 	return false
+// }

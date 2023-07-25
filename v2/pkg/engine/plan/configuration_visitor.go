@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -25,6 +26,10 @@ type configurationVisitor struct {
 	parentTypeNodes []ast.Node
 
 	ctx context.Context
+
+	currentSelectionSet       int
+	pendingTypeConfigurations map[int]map[string]string
+	secondRun                 bool
 }
 
 type objectFetchConfiguration struct {
@@ -60,6 +65,10 @@ func (c *configurationVisitor) debugPrint(args ...any) {
 }
 
 func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document) {
+	if c.secondRun {
+		return
+	}
+
 	c.operation, c.definition = operation, definition
 	c.currentBufferId = -1
 	c.parentTypeNodes = c.parentTypeNodes[:0]
@@ -80,6 +89,12 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 			delete(c.fieldBuffers, i)
 		}
 	}
+
+	c.pendingTypeConfigurations = make(map[int]map[string]string)
+}
+
+func (c *configurationVisitor) LeaveDocument(operation, definition *ast.Document) {
+	// process planned required fields
 }
 
 func (c *configurationVisitor) EnterOperationDefinition(ref int) {
@@ -92,6 +107,7 @@ func (c *configurationVisitor) EnterOperationDefinition(ref int) {
 
 func (c *configurationVisitor) EnterSelectionSet(ref int) {
 	c.debugPrint("EnterSelectionSet ref:", ref)
+	c.currentSelectionSet = ref
 	c.parentTypeNodes = append(c.parentTypeNodes, c.walker.EnclosingTypeDefinition)
 
 	// When selection is the inline fragment
@@ -125,6 +141,8 @@ func (c *configurationVisitor) EnterSelectionSet(ref int) {
 
 func (c *configurationVisitor) LeaveSelectionSet(ref int) {
 	c.debugPrint("LeaveSelectionSet ref:", ref)
+	c.processPendingRequiredFields(ref)
+	c.currentSelectionSet = ast.InvalidRef
 	c.parentTypeNodes = c.parentTypeNodes[:len(c.parentTypeNodes)-1]
 }
 
@@ -199,10 +217,24 @@ func (c *configurationVisitor) EnterField(ref int) {
 			}
 		}
 	}
+
+	if c.secondRun {
+		return
+	}
+
 	for i, config := range c.config.DataSources {
 		if !config.HasRootNode(typeName, fieldName) {
 			continue
 		}
+
+		// find a planner which has a path that matches the parent path
+		// and has a type configuration that matches the current field configuration
+		possibleTypeConfigurations := config.TypeConfigurationsFor(typeName)
+		typeConfiguration, added := c.planRequiredFields(currentPath, typeName, possibleTypeConfigurations)
+		if added {
+			config.ParentTypeConfigurations = append(config.ParentTypeConfigurations, typeConfiguration)
+		}
+
 		var (
 			bufferID int
 		)
@@ -402,4 +434,64 @@ func (c *configurationVisitor) isSubscription(root int, path string) bool {
 func (c *configurationVisitor) nextBufferID() int {
 	c.currentBufferId++
 	return c.currentBufferId
+}
+
+func (c *configurationVisitor) planRequiredFields(currentPath string, typeName string, possibleTypeConfigurations TypeConfigurations) (config TypeConfiguration, planned bool) {
+	if len(possibleTypeConfigurations) == 0 {
+		return
+	}
+
+	for i, _ := range c.planners {
+		for _, possibleTypeConfig := range possibleTypeConfigurations {
+			if c.planners[i].dataSourceConfiguration.HasTypeConfiguration(typeName, possibleTypeConfig.RequiresFieldsNew) {
+				c.planAddingFieldsFromTypeConfiguration(currentPath, possibleTypeConfig)
+				return possibleTypeConfig, true
+			}
+		}
+	}
+
+	return TypeConfiguration{}, false
+}
+
+func (c *configurationVisitor) planAddingFieldsFromTypeConfiguration(currentPath string, typeConfigurations TypeConfiguration) {
+	key := currentPath + "." + typeConfigurations.RequiresFieldsNew
+
+	configs, hasSelectionSet := c.pendingTypeConfigurations[c.currentSelectionSet]
+	if !hasSelectionSet {
+		configs = make(map[string]string)
+	}
+
+	if _, exists := configs[key]; !exists {
+		configs[key] = typeConfigurations.RequiresFieldsNew
+		c.pendingTypeConfigurations[c.currentSelectionSet] = configs
+	}
+}
+
+func (c *configurationVisitor) processPendingRequiredFields(selectionSetRef int) {
+	configs, hasSelectionSet := c.pendingTypeConfigurations[c.currentSelectionSet]
+	if !hasSelectionSet {
+		return
+	}
+
+	for _, requiredFields := range configs {
+		c.addRequiredFields(selectionSetRef, requiredFields)
+	}
+
+	delete(c.pendingTypeConfigurations, c.currentSelectionSet)
+}
+
+func (c *configurationVisitor) addRequiredFields(selectionSetRef int, requiredFields string) {
+	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
+	key, report := astparser.ParseGraphqlDocumentString(fmt.Sprintf("fragment Key on %s {%s}", typeName, requiredFields))
+	if report.HasErrors() {
+		panic(report.Error())
+	}
+
+	AddRequiredFields(
+		&key,
+		c.operation,
+		c.definition,
+		selectionSetRef,
+		&report,
+	)
 }
