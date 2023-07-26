@@ -38,7 +38,7 @@ type DataSourceConfiguration struct {
 	FieldsNew []FieldConfiguration
 	TypesNew  TypeConfigurations
 
-	ParentTypeConfigurations TypeConfigurations
+	TypesFromParentPlanner TypeConfigurations
 }
 
 func (d *DataSourceConfiguration) HasRootNode(typeName, fieldName string) bool {
@@ -102,11 +102,11 @@ func (d *DataSourceConfiguration) HasTypeConfiguration(typeName, requiresFields 
 }
 
 func (d *DataSourceConfiguration) HasParentTypeConfiguration(typeName, requiresFields string) bool {
-	for i := range d.ParentTypeConfigurations {
-		if typeName != d.ParentTypeConfigurations[i].TypeName {
+	for i := range d.TypesFromParentPlanner {
+		if typeName != d.TypesFromParentPlanner[i].TypeName {
 			continue
 		}
-		if requiresFields == d.ParentTypeConfigurations[i].RequiresFieldsNew {
+		if requiresFields == d.TypesFromParentPlanner[i].RequiresFieldsNew {
 			return true
 		}
 	}

@@ -65,6 +65,7 @@ type Planner struct {
 	customScalarFieldRef    int
 	unnulVariables          bool
 
+	// TODO: this nodes will contain information about which required fields was provided by parent planner
 	parentTypeNodes      []ast.Node
 	addedInlineFragments map[onTypeInlineFragment]struct{}
 }
@@ -424,6 +425,11 @@ func (p *Planner) EnterSelectionSet(ref int) {
 		p.upstreamOperation.InlineFragments[parent.Ref].SelectionSet = set.Ref
 	}
 	p.nodes = append(p.nodes, set)
+
+	if parent.Kind == ast.NodeKindOperationDefinition {
+		p.handleFederation2()
+	}
+
 	if p.visitor.Walker.EnclosingTypeDefinition.Kind.IsAbstractType() {
 		// Adding the typename to abstract (unions and interfaces) types is handled elsewhere
 		return
@@ -697,6 +703,20 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 func (p *Planner) LeaveDocument(_, _ *ast.Document) {
 }
 
+func (p *Planner) handleFederation2() {
+	isNestedFederationRequest := p.isNested && p.config.Federation.Enabled && len(p.dataSourceConfig.TypesFromParentPlanner) > 0
+
+	if !isNestedFederationRequest {
+		return
+	}
+
+	p.hasFederationRoot = true
+	p.federationDepth = p.visitor.Walker.Depth
+	// query($representations: [_Any!]!){_entities(representations: $representations){... on Product
+	p.addRepresentationsVariableDefinition() // $representations: [_Any!]!
+	p.addEntitiesSelectionSet()              // {_entities(representations: $representations)
+}
+
 func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
 	p.DebugPrint("handleFederation", "fieldConfig", fieldConfig)
 
@@ -768,6 +788,18 @@ func (p *Planner) updateRepresentationsVariable(fieldConfig *plan.FieldConfigura
 	}
 
 	// "variables\":{\"representations\":[{\"upc\":\$$0$$\,\"__typename\":\"Product\"}]}}
+
+	// ComposedVariable [
+	// 	ObjectVariable {\"upc\":\$$0$$\,\"__typename\":$$1$$}
+	// 	ObjectVariable {\"upc\":\$$0$$\,\"__typename\":\"$$1$$\"}
+	// ]
+	//
+	// key1, key2, key 3, __typename
+
+	// // "variables\":{\"representations\":$$0$$}}
+
+	//
+
 	parser := astparser.NewParser()
 	doc := ast.NewDocument()
 	doc.Input.ResetInputString(p.config.Federation.ServiceSDL)

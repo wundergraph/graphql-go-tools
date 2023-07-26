@@ -237,7 +237,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 		possibleTypeConfigurations := config.TypeConfigurationsFor(typeName)
 		typeConfiguration, added := c.planRequiredFields(currentPath, typeName, possibleTypeConfigurations)
 		if added {
-			config.ParentTypeConfigurations = append(config.ParentTypeConfigurations, typeConfiguration)
+			config.TypesFromParentPlanner = append(config.TypesFromParentPlanner, typeConfiguration)
 		}
 
 		var (

@@ -83,6 +83,14 @@ func (v *requiredFieldsVisitorNew) LeaveField(ref int) {
 	}
 }
 
+/*
+TODO: PROPAGATE added fields into skip fields of a configuration visitor?
+
+so we will be able to skip them for planning visitor
+and in graphql datasource we just will normalize them away in case of duplicates
+
+*/
+
 func (v *requiredFieldsVisitorNew) addRequiredField(fieldName ast.ByteSlice, selectionSet int) ast.Node {
 	field := ast.Field{
 		Name:         v.operation.Input.AppendInputBytes(fieldName),
