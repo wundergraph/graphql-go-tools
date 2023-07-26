@@ -170,6 +170,11 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 	isSubscription := c.isSubscription(root.Ref, currentPath)
 	for i, plannerConfig := range c.planners {
+		if c.secondRun && plannerConfig.hasPath(currentPath) {
+			// on the second run we need to process only new fields added by the first run
+			continue
+		}
+
 		planningBehaviour := plannerConfig.planner.DataSourcePlanningBehavior()
 
 		if (plannerConfig.hasParent(parentPath) || plannerConfig.hasParent(precedingParentPath)) &&
@@ -322,6 +327,11 @@ func (c *configurationVisitor) LeaveField(ref int) {
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
 	c.debugPrint("LeaveField ref:", ref, "fieldName:", fieldName, "typeName:", typeName)
+
+	if !c.secondRun {
+		// we should evaluate exit paths only on the second run
+		return
+	}
 
 	// fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	parent := c.walker.Path.DotDelimitedString()

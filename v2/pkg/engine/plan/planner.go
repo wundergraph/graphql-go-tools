@@ -128,6 +128,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 				fmt.Println(path.String())
 			}
 		}
+		fmt.Printf("\n\n\n\n\n")
 	}
 
 	// second run to plan required fields
