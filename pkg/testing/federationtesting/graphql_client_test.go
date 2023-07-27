@@ -59,7 +59,7 @@ type GraphqlClient struct {
 
 func (g *GraphqlClient) Query(ctx context.Context, addr, queryFilePath string, variables queryVariables, t *testing.T) []byte {
 	reqBody := loadQuery(t, queryFilePath, variables)
-	req, err := http.NewRequest(http.MethodPost, addr, bytes.NewBuffer(reqBody))
+	req, err := http.NewRequest(ctx, http.MethodPost, addr, bytes.NewBuffer(reqBody))
 	require.NoError(t, err)
 	req = req.WithContext(ctx)
 	resp, err := g.httpClient.Do(req)

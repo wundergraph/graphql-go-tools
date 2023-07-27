@@ -27,7 +27,7 @@ type DatasourcePollerConfig struct {
 }
 
 const ServiceDefinitionQuery = `
-	{ 
+	{
 		"query": "query __ApolloGetServiceDefinition__ { _service { sdl } }",
 		"operationName": "__ApolloGetServiceDefinition__",
 		"variables": {}

@@ -136,7 +136,7 @@ func (s *HttpPollingStreamDataSource) isClosed() bool {
 func (h *HttpPollingStreamDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
 	h.once.Do(func() {
 		h.ch = make(chan []byte)
-		h.request = h.generateRequest(args)
+		h.request = h.generateRequest(ctx, args)
 		h.client = &http.Client{
 			Timeout: time.Second * 5,
 			Transport: &http.Transport{
@@ -210,7 +210,7 @@ func (h *HttpPollingStreamDataSource) startPolling(ctx context.Context) {
 	}
 }
 
-func (h *HttpPollingStreamDataSource) generateRequest(args ResolverArgs) *http.Request {
+func (h *HttpPollingStreamDataSource) generateRequest(ctx context.Context, args ResolverArgs) *http.Request {
 	hostArg := args.ByKey(literal.HOST)
 	urlArg := args.ByKey(literal.URL)
 
@@ -256,7 +256,7 @@ func (h *HttpPollingStreamDataSource) generateRequest(args ResolverArgs) *http.R
 		log.String("url", url),
 	)
 
-	request, err := http.NewRequest(http.MethodGet, url, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		h.Log.Error("HttpPollingStreamDataSource.generateRequest.Resolve.NewRequest",
 			log.Error(err),

@@ -314,9 +314,9 @@ func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out
 		bodyReader = bytes.NewReader(bodyArg)
 	}
 
-	request, err := http.NewRequest(httpMethod, parsedURL.String(), bodyReader)
+	request, err := http.NewRequestWithContext(ctx, httpMethod, parsedURL.String(), bodyReader)
 	if err != nil {
-		r.Log.Error("HttpJsonDataSource.Resolve.NewRequest",
+		r.Log.Error("HttpJsonDataSource.Resolve.NewRequestWithContext",
 			log.Error(err),
 		)
 		return

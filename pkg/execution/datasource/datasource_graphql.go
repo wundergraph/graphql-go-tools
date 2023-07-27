@@ -418,9 +418,9 @@ func (g *GraphQLDataSource) Resolve(ctx context.Context, args ResolverArgs, out 
 		log.ByteString("data", gqlRequestData),
 	)
 
-	request, err := http.NewRequest(http.MethodPost, parsedURL.String(), bytes.NewBuffer(gqlRequestData))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, parsedURL.String(), bytes.NewBuffer(gqlRequestData))
 	if err != nil {
-		g.Log.Error("GraphQLDataSource.http.NewRequest",
+		g.Log.Error("GraphQLDataSource.http.NewRequestWithContext",
 			log.Error(err),
 		)
 		return n, err
