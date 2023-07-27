@@ -2,7 +2,7 @@
 //
 // This is especially useful for ast normalization for nested fragment inlining.
 //
-// This packages is necessary to make AST transformations possible while walking an AST recusively.
+// This packages is necessary to make AST transformations possible while walking an AST recursively.
 // In order to resolve dependencies in a tree (inline fragments & fragment spreads) it's necessary to resolve them in a specific order.
 // The right order to not mess things up is from the deepest level up to the root.
 // Therefore this package is used to register transformations while walking an AST in order to bring all transformations in the right order.

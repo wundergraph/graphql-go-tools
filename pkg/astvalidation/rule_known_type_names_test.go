@@ -174,7 +174,7 @@ func TestKnownTypeNames(t *testing.T) {
 			)
 		})
 
-		t.Run("unkown reference type defined inside extension", func(t *testing.T) {
+		t.Run("unknown reference type defined inside extension", func(t *testing.T) {
 			runDefinitionValidation(t, `
 					type Foo
 					type Query {

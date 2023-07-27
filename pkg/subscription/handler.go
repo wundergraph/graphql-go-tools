@@ -30,7 +30,7 @@ const (
 	DefaultSubscriptionUpdateInterval = "1s"
 )
 
-// Message defines the actual subscription message wich will be passed from client to server and vice versa.
+// Message defines the actual subscription message which will be passed from client to server and vice versa.
 type Message struct {
 	Id      string          `json:"id"`
 	Type    string          `json:"type"`

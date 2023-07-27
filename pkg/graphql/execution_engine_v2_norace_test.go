@@ -18,7 +18,7 @@ import (
 // detector is enabled.
 func TestExecutionEngineV2_FederationAndSubscription_IntegrationTest(t *testing.T) {
 	if flags.IsWindows {
-		t.Skip("skip on windows - test is timing dependendent")
+		t.Skip("skip on windows - test is timing dependent")
 	}
 
 	runIntegration := func(t *testing.T, enableDataLoader bool, secondRun bool) {

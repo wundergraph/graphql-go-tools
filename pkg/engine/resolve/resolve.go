@@ -1194,7 +1194,7 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 					return nil
 				}
 
-				// if fied is of object type than we should not add resolve error here
+				// if field is of object type than we should not add resolve error here
 				if _, ok := object.Fields[i].Value.(*Object); !ok {
 					r.addResolveError(ctx, objectBuf)
 				}

@@ -167,7 +167,7 @@ func TestInlineFragments(t *testing.T) {
 					frag2Field
 				}`)
 	})
-	t.Run("mergeFields interface fields into selection if type implements inferface", func(t *testing.T) {
+	t.Run("mergeFields interface fields into selection if type implements interface", func(t *testing.T) {
 		run(fragmentSpreadInline, testDefinition, `
 				{
 					dog {

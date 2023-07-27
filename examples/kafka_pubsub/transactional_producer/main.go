@@ -30,7 +30,7 @@ Simple test tool to utilize transactional producer API
 Options:
   -h, --help               Print this message and exit.
   -b  --broker             Apache Kafka broker to connect (default: localhost:9092).
-  -p, --product            Comma seperated list of product.
+  -p, --product            Comma separated list of product.
       --enable-transaction Enable transactional producer and commit after producing 10 messages.
       --abort-transaction  Abort the initialized transaction.
 `
@@ -113,7 +113,7 @@ func main() {
 	if args.enableTransaction {
 		err = producer.InitTransactions(ctx)
 		if err != nil {
-			log.Fatalf("Failed to initalize a new transaction: %s", err)
+			log.Fatalf("Failed to initialize a new transaction: %s", err)
 		}
 
 		err = producer.BeginTransaction()

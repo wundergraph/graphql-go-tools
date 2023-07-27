@@ -12,7 +12,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/pkg/subscription"
 )
 
-// WebsocketSubscriptionClient is an actual implementation of the subscritpion client interface.
+// WebsocketSubscriptionClient is an actual implementation of the subscription client interface.
 type WebsocketSubscriptionClient struct {
 	logger abstractlogger.Logger
 	// clientConn holds the actual connection to the client.
@@ -94,7 +94,7 @@ func (w *WebsocketSubscriptionClient) WriteToClient(message subscription.Message
 	return nil
 }
 
-// IsConnected will indicate if the websocket conenction is still established.
+// IsConnected will indicate if the websocket connection is still established.
 func (w *WebsocketSubscriptionClient) IsConnected() bool {
 	return !w.isClosedConnection
 }
@@ -108,7 +108,7 @@ func (w *WebsocketSubscriptionClient) Disconnect() error {
 	return w.clientConn.Close()
 }
 
-// isClosedConnectionError will indicate if the given error is a conenction closed error.
+// isClosedConnectionError will indicate if the given error is a connection closed error.
 func (w *WebsocketSubscriptionClient) isClosedConnectionError(err error) bool {
 	if _, ok := err.(wsutil.ClosedError); ok {
 		w.isClosedConnection = true
