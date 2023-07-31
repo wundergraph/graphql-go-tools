@@ -95,6 +95,7 @@ const (
 	NodeKindBoolean
 	NodeKindInteger
 	NodeKindFloat
+	NodeKindBigInt
 	NodeKindCustom
 
 	FetchKindSingle FetchKind = iota + 1
@@ -427,6 +428,8 @@ func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *Bu
 		return r.resolveInteger(ctx, n, data, bufPair)
 	case *Float:
 		return r.resolveFloat(ctx, n, data, bufPair)
+	case *BigInt:
+		return r.resolveBigInt(ctx, n, data, bufPair)
 	case *EmptyObject:
 		r.resolveEmptyObject(bufPair.Data)
 		return
@@ -952,6 +955,29 @@ func (r *Resolver) resolveFloat(ctx *Context, floatValue *Float, data []byte, fl
 	}
 	floatBuf.Data.WriteBytes(value)
 	r.exportField(ctx, floatValue.Export, value)
+	return nil
+}
+
+func (r *Resolver) resolveBigInt(ctx *Context, bigIntValue *BigInt, data []byte, bigIntBuf *BufPair) error {
+	value, valueType, _, err := jsonparser.Get(data, bigIntValue.Path...)
+	switch {
+	case err != nil, valueType == jsonparser.Null:
+		if !bigIntValue.Nullable {
+			return errNonNullableFieldValueIsNull
+		}
+		r.resolveNull(bigIntBuf.Data)
+		return nil
+	case valueType == jsonparser.Number:
+		bigIntBuf.Data.WriteBytes(value)
+	case valueType == jsonparser.String:
+		bigIntBuf.Data.WriteBytes(quote)
+		bigIntBuf.Data.WriteBytes(value)
+		bigIntBuf.Data.WriteBytes(quote)
+	default:
+		return fmt.Errorf("invalid value type '%s' for path %s, expecting number or string, got: %v", valueType, string(ctx.path()), string(value))
+
+	}
+	r.exportField(ctx, bigIntValue.Export, value)
 	return nil
 }
 
@@ -1567,6 +1593,16 @@ type Integer struct {
 
 func (_ *Integer) NodeKind() NodeKind {
 	return NodeKindInteger
+}
+
+type BigInt struct {
+	Path     []string
+	Nullable bool
+	Export   *FieldExport `json:"export,omitempty"`
+}
+
+func (BigInt) NodeKind() NodeKind {
+	return NodeKindBigInt
 }
 
 type Array struct {

@@ -170,6 +170,43 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("empty object", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &EmptyObject{}, Context{ctx: context.Background()}, `{}`
 	}))
+	t.Run("BigInt", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"n": 12345, "ns_small": "12346", "ns_big": "1152921504606846976"`),
+			},
+			Fields: []*Field{
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("n"),
+					Value: &BigInt{
+						Path:     []string{"n"},
+						Nullable: false,
+					},
+				},
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("ns_small"),
+					Value: &BigInt{
+						Path:     []string{"ns_small"},
+						Nullable: false,
+					},
+				},
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("ns_big"),
+					Value: &BigInt{
+						Path:     []string{"ns_big"},
+						Nullable: false,
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"n":12345,"ns_small":"12346","ns_big":"1152921504606846976"}`
+	}))
 	t.Run("object with null field", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fields: []*Field{
