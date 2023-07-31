@@ -970,7 +970,13 @@ func (r *Resolver) resolveBigInt(ctx *Context, bigIntValue *BigInt, data []byte,
 	case valueType == jsonparser.Number:
 		bigIntBuf.Data.WriteBytes(value)
 	case valueType == jsonparser.String:
-		bigIntBuf.Data.WriteBytes(value)
+		if bigIntIsRepresentableAsNumber(value) {
+			bigIntBuf.Data.WriteBytes(value)
+		} else {
+			bigIntBuf.Data.WriteBytes(quote)
+			bigIntBuf.Data.WriteBytes(value)
+			bigIntBuf.Data.WriteBytes(quote)
+		}
 	default:
 		return fmt.Errorf("invalid value type '%s' for path %s, expecting number or string, got: %v", valueType, string(ctx.path()), string(value))
 
@@ -1839,4 +1845,13 @@ func writeSafe(err error, writer io.Writer, data []byte) error {
 	}
 	_, err = writer.Write(data)
 	return err
+}
+
+func bigIntIsRepresentableAsNumber(bigInt []byte) bool {
+	const (
+		MIN_SAFE_INTEGER = -9007199254740991
+		MAX_SAFE_INTEGER = 9007199254740991
+	)
+	n, err := strconv.ParseInt(unsafebytes.BytesToString(bigInt), 10, 64)
+	return err == nil && n >= MIN_SAFE_INTEGER && n <= MAX_SAFE_INTEGER
 }
