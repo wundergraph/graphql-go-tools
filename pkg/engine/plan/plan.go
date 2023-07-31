@@ -771,6 +771,12 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 					Nullable: nullable,
 					Export:   fieldExport,
 				}
+			case "BigInt":
+				return &resolve.BigInt{
+					Path:     path,
+					Nullable: nullable,
+					Export:   fieldExport,
+				}
 			default:
 				return &resolve.String{
 					Path:                 path,
