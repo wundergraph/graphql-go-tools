@@ -4,7 +4,7 @@ import "testing"
 
 func TestRemoveTypeExtensions(t *testing.T) {
 	t.Run("remove single type extension of fieldDefinition", func(t *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 					type Dog {
 						name: String
 					}
@@ -21,7 +21,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 			removeMergedTypeExtensions)
 	})
 	t.Run("remove single type extension of directive", func(t *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 					type Cat {
 						name: String
 					}
@@ -35,7 +35,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 			removeMergedTypeExtensions)
 	})
 	t.Run("remove multiple type extensions at once", func(t *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 					type Cat {
 						name: String
 					}
@@ -53,7 +53,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 			removeMergedTypeExtensions)
 	})
 	t.Run("remove scalar type extensions", func(t *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 					scalar Coordinates
 					extend scalar Coordinates @deprecated(reason: "some reason") @skip(if: false)
 					 `, `
@@ -63,7 +63,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 			removeMergedTypeExtensions)
 	})
 	t.Run("remove enum type extensions", func(t *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 					enum Countries {DE ES NL}
 					extend enum Countries @deprecated(reason: "some reason") @skip(if: false) {EN IT}
 					 `, `
@@ -73,7 +73,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 			removeMergedTypeExtensions)
 	})
 	t.Run("remove union type extensions", func(t *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 					union Mammal
 					extend union Mammal @deprecated(reason: "some reason") @skip(if: false) = Cat | Dog
 					 `, `
@@ -83,7 +83,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 			removeMergedTypeExtensions)
 	})
 	t.Run("remove input object type extensions", func(t *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 					input DogSize {width: Float height: Float}
 					extend input DogSize @deprecated(reason: "some reason") @skip(if: false) {breadth: Float weight: Float}
 					 `, `
@@ -93,7 +93,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 			removeMergedTypeExtensions)
 	})
 	t.Run("remove interface type extensions", func(t *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 					interface Mammal {
 						name: String
 					}
@@ -113,7 +113,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 	})
 
 	t.Run("remove object type extensions when object type definition does not exist", func(t *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 					extend type Query {
   						_entities(representations: [_Any!]!): [_Entity]!
   						_service: _Service!
@@ -134,7 +134,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 	})
 
 	t.Run("remove input object type extensions when input object type definition does not exist", func(t *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 					extend input Location {
   						lat: Float
 					}
@@ -153,7 +153,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 	})
 
 	t.Run("remove enum type extensions when enum type does not exist", func(t *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 					extend enum Planet {
   						EARTH
 					}
@@ -172,7 +172,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 	})
 
 	t.Run("remove interface type extensions when interface type does not exist", func(t *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 					extend interface Entity {
   						id: ID
 					}
@@ -191,7 +191,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 	})
 
 	t.Run("remove scalar type extensions when scalar type does not exist", func(t *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 					extend scalar IPv4
 					extend scalar IPv4 @deprecated(reason: "use IPv6")
 					`, `
@@ -202,7 +202,7 @@ func TestRemoveTypeExtensions(t *testing.T) {
 	})
 
 	t.Run("remove union type extensions when union type does not exist", func(t *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 					extend union Response = SuccessResponse
 					extend union Response = ErrorResponse
 					`, `

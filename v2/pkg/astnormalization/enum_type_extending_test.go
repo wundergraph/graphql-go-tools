@@ -4,7 +4,7 @@ import "testing"
 
 func TestExtendEnumType(t *testing.T) {
 	t.Run("extend enum type by directive", func(t *testing.T) {
-		run(extendEnumTypeDefinition, testDefinition, `
+		run(t, extendEnumTypeDefinition, testDefinition, `
 					enum Countries {DE ES NL}
 					extend enum Countries @deprecated(reason: "some reason")
 					 `, `
@@ -13,7 +13,7 @@ func TestExtendEnumType(t *testing.T) {
 					`)
 	})
 	t.Run("extend enum type by enum values", func(t *testing.T) {
-		run(extendEnumTypeDefinition, testDefinition, `
+		run(t, extendEnumTypeDefinition, testDefinition, `
 					enum Countries {DE ES NL}
 					extend enum Countries {EN}
 					 `, `
@@ -22,7 +22,7 @@ func TestExtendEnumType(t *testing.T) {
 					`)
 	})
 	t.Run("extend enum type by multiple enum values and directives", func(t *testing.T) {
-		run(extendEnumTypeDefinition, testDefinition, `
+		run(t, extendEnumTypeDefinition, testDefinition, `
 					enum Countries {DE ES NL}
 					extend enum Countries @deprecated(reason: "some reason") @skip(if: false) {EN IT}
 					 `, `
@@ -31,7 +31,7 @@ func TestExtendEnumType(t *testing.T) {
 					`)
 	})
 	t.Run("extend non existent enum type", func(t *testing.T) {
-		run(extendEnumTypeDefinition, "", `
+		run(t, extendEnumTypeDefinition, "", `
 					extend enum Planet { EARTH MARS }
 					extend enum Countries @deprecated(reason: "some reason") @skip(if: false) {EN IT}
 					 `, `

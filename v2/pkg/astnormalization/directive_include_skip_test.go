@@ -4,7 +4,7 @@ import "testing"
 
 func TestDirectiveIncludeVisitor(t *testing.T) {
 	t.Run("remove static include true on inline fragment", func(t *testing.T) {
-		run(directiveIncludeSkip, testDefinition, `
+		run(t, directiveIncludeSkip, testDefinition, `
 				{
 					dog {
 						name: nickname

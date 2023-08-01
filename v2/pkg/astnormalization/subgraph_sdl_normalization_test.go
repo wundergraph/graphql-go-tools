@@ -6,7 +6,7 @@ import (
 
 func TestNormalizeSubgraphSDL(t *testing.T) {
 	t.Run("support both extends directive and implicit extend keyword", func(_ *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 		type User @extends {
 			field: String!
 		}
@@ -16,7 +16,7 @@ func TestNormalizeSubgraphSDL(t *testing.T) {
 	`, registerNormalizeFunc(implicitExtendRootOperation), registerNormalizeFunc(extendsDirective))
 	})
 	t.Run("support both extends directive and implicit extend keyword in schema", func(_ *testing.T) {
-		runManyOnDefinition(`
+		runManyOnDefinition(t, `
 		schema {
 			query: AQuery
 		}

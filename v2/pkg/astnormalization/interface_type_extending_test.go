@@ -4,7 +4,7 @@ import "testing"
 
 func TestExtendInterfaceType(t *testing.T) {
 	t.Run("extend simple interface type by field", func(t *testing.T) {
-		run(extendInterfaceTypeDefinition, testDefinition, `
+		run(t, extendInterfaceTypeDefinition, testDefinition, `
 					interface Mammal {
 						name: String
 					}
@@ -22,7 +22,7 @@ func TestExtendInterfaceType(t *testing.T) {
 					`)
 	})
 	t.Run("extend interface by implements interface", func(t *testing.T) {
-		run(extendInterfaceTypeDefinition, testDefinition, `
+		run(t, extendInterfaceTypeDefinition, testDefinition, `
 					interface A {
 						name: String
 					}
@@ -46,7 +46,7 @@ func TestExtendInterfaceType(t *testing.T) {
 					`)
 	})
 	t.Run("extend interface by implements interface and field", func(t *testing.T) {
-		run(extendInterfaceTypeDefinition, testDefinition, `
+		run(t, extendInterfaceTypeDefinition, testDefinition, `
 					interface A {
 						name: String
 					}
@@ -73,7 +73,7 @@ func TestExtendInterfaceType(t *testing.T) {
 					`)
 	})
 	t.Run("extend simple interface type by directive", func(t *testing.T) {
-		run(extendInterfaceTypeDefinition, testDefinition, `
+		run(t, extendInterfaceTypeDefinition, testDefinition, `
 					interface Mammal {
 						name: String
 					}
@@ -86,7 +86,7 @@ func TestExtendInterfaceType(t *testing.T) {
 					`)
 	})
 	t.Run("extend interface type by complex extends", func(t *testing.T) {
-		run(extendInterfaceTypeDefinition, testDefinition, `
+		run(t, extendInterfaceTypeDefinition, testDefinition, `
 					interface Mammal {
 						name: String
 					}
@@ -108,7 +108,7 @@ func TestExtendInterfaceType(t *testing.T) {
 	})
 
 	t.Run("extend non existent interface", func(t *testing.T) {
-		run(extendInterfaceTypeDefinition, "", `
+		run(t, extendInterfaceTypeDefinition, "", `
 					extend interface Entity { id: ID }
 					extend interface Mammal @deprecated(reason: "some reason") @skip(if: false) { name: String }
 					 `, `
@@ -120,7 +120,7 @@ func TestExtendInterfaceType(t *testing.T) {
 	})
 
 	t.Run("interface extensions implementing other interface implemented by object type", func(t *testing.T) {
-		run(extendInterfaceTypeDefinition, "", `
+		run(t, extendInterfaceTypeDefinition, "", `
 			interface Entity {
 			  name: String
 			}
