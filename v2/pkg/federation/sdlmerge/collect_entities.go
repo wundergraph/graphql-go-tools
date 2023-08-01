@@ -3,7 +3,6 @@ package sdlmerge
 import (
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
-	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
@@ -52,7 +51,7 @@ func (c *collectEntitiesVisitor) resolvePotentialEntity(name string, directiveRe
 		return &err
 	}
 	for _, directiveRef := range directiveRefs {
-		if c.document.DirectiveNameString(directiveRef) != plan.FederationKeyDirectiveName {
+		if c.document.DirectiveNameString(directiveRef) != KeyDirectiveName {
 			continue
 		}
 		c.collectedEntities[name] = struct{}{}

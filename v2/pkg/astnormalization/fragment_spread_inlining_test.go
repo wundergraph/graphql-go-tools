@@ -30,6 +30,35 @@ func TestInlineFragments(t *testing.T) {
 					disallowedSecondRootField
 				}`)
 	})
+	t.Run("simple with directive", func(t *testing.T) {
+		run(t, fragmentSpreadInline, testDefinition, `	
+				subscription sub {
+					...multipleSubscriptions @include(if: true)
+				}
+				fragment multipleSubscriptions on Subscription {
+					newMessage {
+						body
+						sender
+					}
+					disallowedSecondRootField
+				}`, `
+				subscription sub {
+					... on Subscription @include(if: true) {
+						newMessage {
+							body
+							sender
+						}
+						disallowedSecondRootField
+					}
+				}
+				fragment multipleSubscriptions on Subscription {
+					newMessage {
+						body
+						sender
+					}
+					disallowedSecondRootField
+				}`)
+	})
 	t.Run("simple 2x", func(t *testing.T) {
 		run(t, fragmentSpreadInline, testDefinition, `	
 				subscription sub {
@@ -93,7 +122,7 @@ func TestInlineFragments(t *testing.T) {
 						sender
 					}
 					disallowedSecondRootField
-					frag2Field
+					...frag2
 				}
 				fragment frag2 on Subscription {
 					frag2Field
@@ -145,15 +174,13 @@ func TestInlineFragments(t *testing.T) {
 					newMessage {
 						body
 						sender
-						body
+						...messageFrag
 						sender
 						sender
-						sender
-						body
-						sender
+						...nestedMessageFrag
 					}
 					disallowedSecondRootField
-					frag2Field
+					...frag2
 				}
 				fragment messageFrag on Message {
 					body
@@ -165,6 +192,125 @@ func TestInlineFragments(t *testing.T) {
 				}
 				fragment frag2 on Subscription {
 					frag2Field
+				}`)
+	})
+	t.Run("5x nested", func(t *testing.T) {
+		run(t, fragmentSpreadInline, `
+				schema {
+					query: Query
+				}
+
+				type Query {
+					foo: Foo
+				}
+
+				type Foo {
+					fooName: String
+					some: Some
+					bar: Bar
+				}
+
+				type Bar {
+					barName: String
+					baz: Baz
+				}
+
+				type Baz {
+					bazName: String
+					some: Some
+				}
+
+				type Some {
+					something: String
+				}
+				`, `	
+				query q {
+					...QueryFragment
+				}
+
+				fragment QueryFragment on Query {
+					foo {
+						...FooFragment
+					}
+				}
+
+				fragment SomeFragment on Some {
+					something
+				}
+
+				fragment FooFragment on Foo {
+					fooName
+					some {
+						...SomeFragment
+					}
+					bar {
+						...BarFragment
+					}
+				}
+				
+				fragment BarFragment on Bar {
+					barName
+					baz {
+						...BazFragment
+					}
+				}
+				
+				fragment BazFragment on Baz {
+					bazName
+					some {
+						...SomeFragment
+					}
+				}`, `	
+				query q {
+					foo {
+						fooName
+						some {
+							something
+						}
+						bar {
+							barName
+							baz {
+								bazName
+								some {
+									something
+								}
+							}
+						}
+					}
+				}
+
+				fragment QueryFragment on Query {
+					foo {
+						...FooFragment
+					}
+				}
+
+				fragment SomeFragment on Some {
+					something
+				}
+
+				fragment FooFragment on Foo {
+					fooName
+					some {
+						...SomeFragment
+					}
+					bar {
+						...BarFragment
+					}
+				}
+				
+				fragment BarFragment on Bar {
+					barName
+					baz {
+						...BazFragment
+					}
+				}
+				
+				fragment BazFragment on Baz {
+					bazName
+					some {
+						...SomeFragment
+					}
 				}`)
 	})
 	t.Run("mergeFields interface fields into selection if type implements inferface", func(t *testing.T) {
@@ -188,6 +334,11 @@ func TestInlineFragments(t *testing.T) {
 	})
 	t.Run("inline fragments if fragment type definition implements enclosing type definition", func(t *testing.T) {
 		run(t, fragmentSpreadInline, testDefinition, `
+				query conflictingDifferingResponses {
+					pet {
+						...conflictingDifferingResponses
+					}
+				}
 				fragment conflictingDifferingResponses on Pet {
 					...dogFrag
 					...catFrag
@@ -198,13 +349,19 @@ func TestInlineFragments(t *testing.T) {
 				fragment catFrag on Cat {
 					someValue: meowVolume
 				}`, `
+				query conflictingDifferingResponses {
+					pet {
+						... on Dog {
+							someValue: nickname	
+						}
+						... on Cat {
+							someValue: meowVolume
+						}
+					}
+				}
 				fragment conflictingDifferingResponses on Pet {
-					... on Dog {
-						someValue: nickname	
-					}
-					... on Cat {
-						someValue: meowVolume
-					}
+					...dogFrag
+					...catFrag
 				}
 				fragment dogFrag on Dog {
 					someValue: nickname
@@ -241,12 +398,8 @@ func TestInlineFragments(t *testing.T) {
 					}
 				}
 				fragment catDogFrag on CatOrDog {
-					... on Cat {
-						someValue: meowVolume							
-					}
-					... on Dog {
-						someValue: name
-					}
+					...catFrag
+					...dogFrag
 				}
 				fragment catFrag on Cat {
 					someValue: meowVolume
@@ -328,11 +481,7 @@ func TestInlineFragments(t *testing.T) {
 					}
 				}
 				fragment unionWithObjectFragment on Dog {
-						... on CatOrDog {
-							... on Cat {
-								meowVolume
-							}
-						}
+					...catOrDogNameFragment
 				}`)
 	})
 	t.Run("inline fragment inside union inside interface inside type", func(t *testing.T) {
@@ -360,11 +509,7 @@ func TestInlineFragments(t *testing.T) {
 					}
 				}
 				fragment unionWithInterface on Pet {
-					... on DogOrHuman {
-						... on Dog {
-							barkVolume
-						}
-					}
+					...dogOrHumanFragment
 				}
 				fragment dogOrHumanFragment on DogOrHuman {
 					... on Dog {
@@ -399,11 +544,7 @@ func TestInlineFragments(t *testing.T) {
 					}
 				}
 				fragment interfaceWithUnion on DogOrHuman {
-					... on Pet {
-						... on Dog {
-							barkVolume
-						}
-					}
+					...petFragment
 				}
 				fragment petFragment on Pet {
 					... on Dog {
@@ -419,25 +560,21 @@ func TestInlineFragments(t *testing.T) {
 					}
 				}
 				fragment nonIntersectingInterfaces on Pet {
-					...sentientFragment
+					...sentientFragment # invalid fragment spread, but doesn't matter for test
 				}
 				fragment sentientFragment on Sentient {
 					name
 				}`, `
 				{
 					dog {
-						... on Sentient {
-							name
-						}
+						...sentientFragment # invalid fragment spread, but doesn't matter for test
 					}
 				}
 				fragment nonIntersectingInterfaces on Pet {
-					... on Sentient {
-						name
-					}
+					...sentientFragment
 				}
 				fragment sentientFragment on Sentient {
 					name
-				}`)
+				}`, true)
 	})
 }

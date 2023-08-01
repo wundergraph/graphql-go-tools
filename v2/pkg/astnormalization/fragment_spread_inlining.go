@@ -2,10 +2,8 @@ package astnormalization
 
 import (
 	"bytes"
-	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
@@ -14,38 +12,30 @@ func fragmentSpreadInline(walker *astvisitor.Walker) {
 	visitor := fragmentSpreadInlineVisitor{
 		Walker: walker,
 	}
-	walker.RegisterDocumentVisitor(&visitor)
+	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterFragmentSpreadVisitor(&visitor)
+	walker.RegisterEnterFragmentDefinitionVisitor(&visitor)
 }
 
 type fragmentSpreadInlineVisitor struct {
 	*astvisitor.Walker
 	operation, definition *ast.Document
-	transformer           asttransform.Transformer
-	fragmentSpreadDepth   FragmentSpreadDepth
-	depths                Depths
+}
+
+func (f *fragmentSpreadInlineVisitor) EnterFragmentDefinition(ref int) {
+	f.SkipNode()
 }
 
 func (f *fragmentSpreadInlineVisitor) EnterDocument(operation, definition *ast.Document) {
-	f.transformer.Reset()
-	f.depths = f.depths[:0]
 	f.operation = operation
 	f.definition = definition
-
-	f.fragmentSpreadDepth.Get(operation, definition, f.Report, &f.depths)
-	if f.Report.HasErrors() {
-		f.Stop()
-	}
-}
-
-func (f *fragmentSpreadInlineVisitor) LeaveDocument(operation, definition *ast.Document) {
-	f.transformer.ApplyTransformations(operation)
 }
 
 func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 	parentTypeName := f.definition.NodeNameBytes(f.EnclosingTypeDefinition)
 
-	fragmentDefinitionRef, exists := f.operation.FragmentDefinitionRef(f.operation.FragmentSpreadNameBytes(ref))
+	spreadName := f.operation.FragmentSpreadNameBytes(ref)
+	fragmentDefinitionRef, exists := f.operation.FragmentDefinitionRef(spreadName)
 	if !exists {
 		fragmentName := f.operation.FragmentSpreadNameBytes(ref)
 		f.StopWithExternalErr(operationreport.ErrFragmentUndefined(fragmentName))
@@ -68,7 +58,9 @@ func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 	var fragmentInterfaceIntersectsEnclosingUnion bool
 
 	if fragmentNode.Kind == ast.NodeKindInterfaceTypeDefinition && f.EnclosingTypeDefinition.Kind == ast.NodeKindObjectTypeDefinition {
-		enclosingTypeImplementsFragmentType = f.definition.NodeImplementsInterface(f.EnclosingTypeDefinition, fragmentNode)
+		enclosingTypeImplementsFragmentType =
+			f.definition.NodeImplementsInterface(f.EnclosingTypeDefinition, fragmentTypeName) &&
+				f.definition.NodeImplementsInterfaceFields(f.EnclosingTypeDefinition, fragmentNode)
 	}
 
 	if fragmentNode.Kind == ast.NodeKindUnionTypeDefinition {
@@ -76,7 +68,9 @@ func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 	}
 
 	if f.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition {
-		fragmentTypeImplementsEnclosingType = f.definition.NodeImplementsInterface(fragmentNode, f.EnclosingTypeDefinition)
+		fragmentTypeImplementsEnclosingType =
+			f.definition.NodeImplementsInterface(fragmentNode, parentTypeName) &&
+				f.definition.NodeImplementsInterfaceFields(fragmentNode, f.EnclosingTypeDefinition)
 	}
 
 	if f.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition && fragmentNode.Kind == ast.NodeKindUnionTypeDefinition {
@@ -91,25 +85,32 @@ func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 		fragmentTypeIsMemberOfEnclosingUnionType = f.definition.NodeIsUnionMember(fragmentNode, f.EnclosingTypeDefinition)
 	}
 
-	nestedDepth, ok := f.depths.ByRef(ref)
-	if !ok {
-		f.StopWithInternalErr(fmt.Errorf("nested depth missing on depths for FragmentSpread: %s", f.operation.FragmentSpreadNameString(ref)))
-		return
-	}
-
-	precedence := asttransform.Precedence{
-		Depth: nestedDepth,
-		Order: 0,
-	}
-
 	selectionSet := f.Ancestors[len(f.Ancestors)-1].Ref
 	replaceWith := f.operation.FragmentDefinitions[fragmentDefinitionRef].SelectionSet
 	typeCondition := f.operation.FragmentDefinitions[fragmentDefinitionRef].TypeCondition
 
+	fragmentSpreadHasDirectives := f.operation.FragmentSpreadHasDirectives(ref)
+	directiveList := f.operation.FragmentSpreads[ref].Directives
+
 	switch {
 	case fragmentTypeEqualsParentType || enclosingTypeImplementsFragmentType:
-		f.transformer.ReplaceFragmentSpread(precedence, selectionSet, ref, replaceWith)
-	case fragmentTypeImplementsEnclosingType || fragmentTypeIsMemberOfEnclosingUnionType || enclosingTypeIsMemberOfFragmentUnion || fragmentUnionIntersectsEnclosingInterface || fragmentInterfaceIntersectsEnclosingUnion:
-		f.transformer.ReplaceFragmentSpreadWithInlineFragment(precedence, selectionSet, ref, replaceWith, typeCondition)
+		if fragmentSpreadHasDirectives {
+			// when the fragment spread has directives we need to replace the fragment spread with an inline fragment with preserved directives
+			f.operation.ReplaceFragmentSpreadWithInlineFragment(selectionSet, ref, replaceWith, typeCondition, directiveList)
+		} else {
+			// in case the fragment spread has no directives we could just replace selection set with the fragment selection set fields
+			f.operation.ReplaceFragmentSpread(selectionSet, ref, replaceWith)
+		}
+
+	case fragmentTypeImplementsEnclosingType ||
+		fragmentTypeIsMemberOfEnclosingUnionType ||
+		enclosingTypeIsMemberOfFragmentUnion ||
+		fragmentUnionIntersectsEnclosingInterface ||
+		fragmentInterfaceIntersectsEnclosingUnion:
+
+		f.operation.ReplaceFragmentSpreadWithInlineFragment(selectionSet, ref, replaceWith, typeCondition, directiveList)
+
+	default:
+		// all other case are invalid and should be reported by validation
 	}
 }

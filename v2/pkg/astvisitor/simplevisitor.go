@@ -261,6 +261,17 @@ func (w *SimpleWalker) walkFragmentSpread(ref int) {
 	w.increaseDepth()
 
 	w.visitor.EnterFragmentSpread(ref)
+
+	w.appendAncestor(ref, ast.NodeKindFragmentSpread)
+
+	if w.document.FragmentSpreads[ref].HasDirectives {
+		for _, i := range w.document.FragmentSpreads[ref].Directives.Refs {
+			w.walkDirective(i)
+		}
+	}
+
+	w.removeLastAncestor()
+
 	w.visitor.LeaveFragmentSpread(ref)
 
 	w.decreaseDepth()

@@ -30,6 +30,10 @@ import (
 const removeNullVariablesDirectiveName = "removeNullVariables"
 
 type Planner struct {
+	id              int
+	debug           bool
+	printQueryPlans bool
+
 	visitor                    *plan.Visitor
 	dataSourceConfig           plan.DataSourceConfiguration
 	config                     Configuration
@@ -61,7 +65,29 @@ type Planner struct {
 	customScalarFieldRef    int
 	unnulVariables          bool
 
-	parentTypeNodes []ast.Node
+	parentTypeNodes      []ast.Node
+	addedInlineFragments map[onTypeInlineFragment]struct{}
+}
+
+type onTypeInlineFragment struct {
+	TypeCondition string
+	SelectionSet  int
+}
+
+func (p *Planner) SetID(id int) {
+	p.id = id
+}
+
+func (p *Planner) ID() (id int) {
+	return p.id
+}
+
+func (p *Planner) EnableDebug() {
+	p.debug = true
+}
+
+func (p *Planner) EnableQueryPlanLogging() {
+	p.printQueryPlans = true
 }
 
 func (p *Planner) parentNodeIsAbstract() bool {
@@ -370,6 +396,8 @@ func (p *Planner) LeaveOperationDefinition(_ int) {
 }
 
 func (p *Planner) EnterSelectionSet(ref int) {
+	p.debugPrintOperationOnEnter(ast.NodeKindSelectionSet, ref)
+
 	p.parentTypeNodes = append(p.parentTypeNodes, p.visitor.Walker.EnclosingTypeDefinition)
 	if p.insideCustomScalarField {
 		return
@@ -420,7 +448,9 @@ func (p *Planner) addTypenameToSelectionSet(selectionSet int) {
 	})
 }
 
-func (p *Planner) LeaveSelectionSet(_ int) {
+func (p *Planner) LeaveSelectionSet(ref int) {
+	p.debugPrintOperationOnLeave(ast.NodeKindSelectionSet, ref)
+
 	p.parentTypeNodes = p.parentTypeNodes[:len(p.parentTypeNodes)-1]
 	if p.insideCustomScalarField {
 		return
@@ -433,6 +463,8 @@ func (p *Planner) LeaveSelectionSet(_ int) {
 }
 
 func (p *Planner) EnterInlineFragment(ref int) {
+	p.debugPrintOperationOnEnter(ast.NodeKindInlineFragment, ref)
+
 	if p.insideCustomScalarField {
 		return
 	}
@@ -445,38 +477,45 @@ func (p *Planner) EnterInlineFragment(ref int) {
 		return
 	}
 
-	typeCondition := p.visitor.Operation.InlineFragmentTypeConditionName(ref)
-	if typeCondition == nil && !p.visitor.Operation.InlineFragments[ref].HasDirectives {
-		return
-	}
+	hasTypeCondition := p.visitor.Operation.InlineFragmentHasTypeCondition(ref)
+	// after normalization the type condition is always present
+	IsOfTheSameType := p.visitor.Operation.InlineFragmentIsOfTheSameType(ref)
 
-	fragmentType := -1
-	if typeCondition != nil {
-		fragmentType = p.upstreamOperation.AddNamedType(p.visitor.Config.Types.RenameTypeNameOnMatchBytes(typeCondition))
-	}
-
-	inlineFragment := p.upstreamOperation.AddInlineFragment(ast.InlineFragment{
+	// create inline fragment and selection
+	inlineFragmentRef := p.upstreamOperation.AddInlineFragment(ast.InlineFragment{
 		TypeCondition: ast.TypeCondition{
-			Type: fragmentType,
+			Type: ast.InvalidRef,
 		},
 	})
 
-	selection := ast.Selection{
-		Kind: ast.SelectionKindInlineFragment,
-		Ref:  inlineFragment,
-	}
+	currentSelectionSet := p.nodes[len(p.nodes)-1].Ref
 
-	if typeCondition != nil {
+	// when fragment has type condition, and it is not of the same type
+	// we need to add __typename field to selection set
+	if hasTypeCondition && !IsOfTheSameType {
+		typeCondition := p.visitor.Operation.InlineFragmentTypeConditionName(ref)
+		fragmentTypeRef := p.upstreamOperation.AddNamedType(p.visitor.Config.Types.RenameTypeNameOnMatchBytes(typeCondition))
+
+		p.upstreamOperation.InlineFragments[inlineFragmentRef].TypeCondition.Type = fragmentTypeRef
+
 		// add __typename field to selection set which contains typeCondition
 		// so that the resolver can distinguish between the response types
-		p.addTypenameToSelectionSet(p.nodes[len(p.nodes)-1].Ref)
+		p.addTypenameToSelectionSet(currentSelectionSet)
 	}
 
-	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, selection)
-	p.nodes = append(p.nodes, ast.Node{Kind: ast.NodeKindInlineFragment, Ref: inlineFragment})
+	selection := ast.Selection{
+		Kind: ast.SelectionKindInlineFragment,
+		Ref:  inlineFragmentRef,
+	}
+	p.upstreamOperation.AddSelection(currentSelectionSet, selection)
+
+	inlineFragmentNode := ast.Node{Kind: ast.NodeKindInlineFragment, Ref: inlineFragmentRef}
+	p.nodes = append(p.nodes, inlineFragmentNode)
 }
 
-func (p *Planner) LeaveInlineFragment(_ int) {
+func (p *Planner) LeaveInlineFragment(ref int) {
+	p.debugPrintOperationOnLeave(ast.NodeKindInlineFragment, ref)
+
 	if p.insideCustomScalarField {
 		return
 	}
@@ -488,6 +527,12 @@ func (p *Planner) LeaveInlineFragment(_ int) {
 }
 
 func (p *Planner) EnterField(ref int) {
+	p.debugPrintOperationOnEnter(ast.NodeKindField, ref)
+
+	if !p.allowField(ref) {
+		return
+	}
+
 	if p.insideCustomScalarField {
 		return
 	}
@@ -518,6 +563,16 @@ func (p *Planner) EnterField(ref int) {
 
 	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(enclosingTypeName, fieldName)
 	if fieldConfiguration == nil {
+		// When field do not have field configuration, it could be a key field,
+		// and it should be federated.
+		isKeyField := p.visitor.Config.Fields.IsKey(enclosingTypeName, fieldName)
+
+		// When field is not a key and do not have a field configuration,
+		// prevent handling it as federated field
+		if isKeyField {
+			p.handleFederation(fieldConfiguration)
+		}
+
 		p.addField(ref)
 		return
 	}
@@ -525,14 +580,20 @@ func (p *Planner) EnterField(ref int) {
 	// Note: federated fields always have a field configuration because at
 	// least the federation key for the type the field lives on is required
 	// (and required fields are specified in the configuration).
-	p.handleFederation(fieldConfiguration)
+	// Note: We could have a field configuration for the field with JSON type,
+	// but it won't have any required fields, so it won't be federated.
+	if len(fieldConfiguration.RequiresFields) > 0 {
+		p.handleFederation(fieldConfiguration)
+	}
 	p.addField(ref)
 
 	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
 
-	for i := range fieldConfiguration.Arguments {
-		argumentConfiguration := fieldConfiguration.Arguments[i]
-		p.configureArgument(upstreamFieldRef, ref, *fieldConfiguration, argumentConfiguration)
+	if fieldConfiguration != nil {
+		for i := range fieldConfiguration.Arguments {
+			argumentConfiguration := fieldConfiguration.Arguments[i]
+			p.configureArgument(upstreamFieldRef, ref, *fieldConfiguration, argumentConfiguration)
+		}
 	}
 }
 
@@ -549,6 +610,12 @@ func (p *Planner) addCustomField(ref int) {
 }
 
 func (p *Planner) LeaveField(ref int) {
+	p.debugPrintOperationOnLeave(ast.NodeKindField, ref)
+
+	if !p.allowField(ref) {
+		return
+	}
+
 	if p.insideCustomScalarField {
 		if p.customScalarFieldRef == ref {
 			p.insideCustomScalarField = false
@@ -558,6 +625,22 @@ func (p *Planner) LeaveField(ref int) {
 	}
 
 	p.nodes = p.nodes[:len(p.nodes)-1]
+}
+
+// allowField - allows processing a field if datasource has corresponding root or child node
+// This check is required cause planner will add parent path as well, but we not always need to add fields from path.
+// This is 3rd step of checks in addition to: planning path and skipFor functionality
+// if field is __typename, it is always allowed
+func (p *Planner) allowField(ref int) bool {
+	fieldName := p.visitor.Operation.FieldNameString(ref)
+
+	if fieldName == "__typename" {
+		return true
+	}
+
+	enclosingTypeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+	return p.dataSourceConfig.HasRootNode(enclosingTypeName, fieldName) ||
+		p.dataSourceConfig.HasChildNode(enclosingTypeName, fieldName)
 }
 
 func (p *Planner) EnterArgument(_ int) {
@@ -590,6 +673,7 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 	p.argTypeRef = -1
 
 	p.addDirectivesToVariableDefinitions = map[int][]int{}
+	p.addedInlineFragments = map[onTypeInlineFragment]struct{}{}
 
 	p.upstreamDefinition = nil
 	if p.config.UpstreamSchema != "" {
@@ -614,6 +698,8 @@ func (p *Planner) LeaveDocument(_, _ *ast.Document) {
 }
 
 func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
+	p.DebugPrint("handleFederation", "fieldConfig", fieldConfig)
+
 	if !p.config.Federation.Enabled { // federation must be enabled
 		return
 	}
@@ -633,6 +719,26 @@ func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
 		// LeaveDocument is called. (Updating the visitor logic to call
 		// LeaveDocument in reverse registration order would fix this issue.)
 		p.updateRepresentationsVariable(fieldConfig)
+
+		if !p.isInEntitiesSelectionSet() {
+			// if we quering field of entity type, but we are not in the root of the query
+			// we should not add representations variable and should not add inline fragment
+			// e.g. query { _entities { ... on Product { price info {name} } } }
+			// where Info is an entity type, but it is used as a field of Product
+			//
+			// At the same time, we may need to update representations variables, but not to add an inline fragment
+			// cause, we could have a field which requires an additional field from entity type, which is not a key
+			return
+		}
+
+		// add inline fragment again, because it could be another entity type
+		// e.g. parallel request for a few entities
+		// ... on Product { price }
+		// ,,, on StockItem { stock }
+		if !p.isOnTypeInlineFragmentAllowed() {
+			return
+		}
+		p.addOnTypeInlineFragment() // ... on Product
 		return
 	}
 	p.hasFederationRoot = true
@@ -645,6 +751,13 @@ func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
 }
 
 func (p *Planner) updateRepresentationsVariable(fieldConfig *plan.FieldConfiguration) {
+	p.DebugPrint("updateRepresentationsVariable", "fieldConfig", fieldConfig)
+
+	if fieldConfig == nil {
+		// field config is nil when we are handling key field without field configuration
+		return
+	}
+
 	if p.visitor.Walker.Depth != p.federationDepth {
 		// given that this field has a different depth than the federation root, we skip this field
 		// this is because we only have to handle federated fields that are part of the "current" federated request
@@ -672,6 +785,7 @@ func (p *Planner) updateRepresentationsVariable(fieldConfig *plan.FieldConfigura
 		return
 	}
 
+	// TODO: this code is broken in case we have multiple federated fields from different entities
 	if len(p.representationsJson) == 0 {
 		// If the parent is an abstract type, i.e., an interface or union,
 		// the representation typename must come from a parent fetch response.
@@ -725,7 +839,55 @@ func (p *Planner) fieldDefinition(fieldName, typeName string) *ast.FieldDefiniti
 	return &p.visitor.Definition.FieldDefinitions[definition]
 }
 
+// isOnTypeInlineFragmentAllowed returns false if we already have an entity fragment with the same type name
+func (p *Planner) isOnTypeInlineFragmentAllowed() bool {
+	p.DebugPrint("isOnTypeInlineFragmentAllowed")
+
+	if !(len(p.nodes) > 1 && p.nodes[len(p.nodes)-1].Kind == ast.NodeKindSelectionSet) {
+		return true
+	}
+
+	fragmentInfo := onTypeInlineFragment{
+		TypeCondition: string(p.lastFieldEnclosingTypeName),
+		SelectionSet:  p.nodes[len(p.nodes)-1].Ref,
+	}
+
+	_, exists := p.addedInlineFragments[fragmentInfo]
+	return !exists
+}
+
+func (p *Planner) isInEntitiesSelectionSet() bool {
+	if !(len(p.nodes) > 2) {
+		return false
+	}
+
+	if p.nodes[len(p.nodes)-1].Kind != ast.NodeKindSelectionSet {
+		return false
+	}
+
+	if p.nodes[len(p.nodes)-2].Kind != ast.NodeKindField {
+		return false
+	}
+
+	fieldName := p.upstreamOperation.FieldNameBytes(p.nodes[len(p.nodes)-2].Ref)
+
+	return bytes.Equal(fieldName, []byte("_entities"))
+}
+
 func (p *Planner) addOnTypeInlineFragment() {
+	p.DebugPrint("addOnTypeInlineFragment")
+
+	shouldCopyDirectives := false
+	copyFromRef := ast.InvalidRef
+	if len(p.visitor.Walker.Ancestors) > 2 &&
+		p.visitor.Walker.Ancestors[len(p.visitor.Walker.Ancestors)-2].Kind == ast.NodeKindInlineFragment &&
+		p.visitor.Operation.InlineFragmentHasDirectives(p.visitor.Walker.Ancestors[len(p.visitor.Walker.Ancestors)-2].Ref) {
+		shouldCopyDirectives = true
+		copyFromRef = p.visitor.Walker.Ancestors[len(p.visitor.Walker.Ancestors)-2].Ref
+
+		// TODO: check whole ancestor tree for the inline fragment with directives
+	}
+
 	selectionSet := p.upstreamOperation.AddSelectionSet()
 	p.addTypenameToSelectionSet(p.nodes[len(p.nodes)-1].Ref)
 	onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchBytes([]byte(p.lastFieldEnclosingTypeName))
@@ -737,11 +899,24 @@ func (p *Planner) addOnTypeInlineFragment() {
 			Type: typeRef,
 		},
 	})
+
+	if shouldCopyDirectives {
+		for _, ref := range p.visitor.Operation.InlineFragments[copyFromRef].Directives.Refs {
+			p.addDirectiveToNode(ref, ast.Node{Kind: ast.NodeKindInlineFragment, Ref: inlineFragment})
+		}
+	}
+
 	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, ast.Selection{
 		Kind: ast.SelectionKindInlineFragment,
 		Ref:  inlineFragment,
 	})
 	p.nodes = append(p.nodes, selectionSet)
+
+	fragmentInfo := onTypeInlineFragment{
+		SelectionSet:  selectionSet.Ref,
+		TypeCondition: string(onTypeName),
+	}
+	p.addedInlineFragments[fragmentInfo] = struct{}{}
 }
 
 func (p *Planner) addEntitiesSelectionSet() {
@@ -1039,11 +1214,87 @@ const (
 	parseDocumentFailedErrMsg = "printOperation: parse %s failed"
 )
 
+func (p *Planner) debugPrintOperationOnEnter(kind ast.NodeKind, ref int) {
+	if !p.debug {
+		return
+	}
+
+	switch kind {
+	case ast.NodeKindField:
+		fieldName := p.visitor.Operation.FieldNameString(ref)
+		p.DebugPrint("EnterField : ", fieldName, " ref: ", ref)
+	case ast.NodeKindInlineFragment:
+		fragmentTypeCondition := p.visitor.Operation.InlineFragmentTypeConditionNameString(ref)
+		p.DebugPrint("EnterInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
+	case ast.NodeKindSelectionSet:
+		p.DebugPrint("EnterSelectionSet", " ref: ", ref)
+	}
+	p.debugPrintOperation()
+}
+
+func (p *Planner) debugPrintOperationOnLeave(kind ast.NodeKind, ref int) {
+	if !p.debug {
+		return
+	}
+
+	switch kind {
+	case ast.NodeKindField:
+		fieldName := p.visitor.Operation.FieldNameString(ref)
+		p.DebugPrint("LeaveField : ", fieldName, " ref: ", ref)
+	case ast.NodeKindInlineFragment:
+		fragmentTypeCondition := p.visitor.Operation.InlineFragmentTypeConditionNameString(ref)
+		p.DebugPrint("LeaveInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
+	case ast.NodeKindSelectionSet:
+		p.DebugPrint("LeaveSelectionSet", " ref: ", ref)
+	}
+	p.debugPrintOperation()
+}
+
+func (p *Planner) debugPrintOperation() {
+	if !p.debug {
+		return
+	}
+
+	op, _ := astprinter.PrintStringIndentDebug(p.upstreamOperation, nil, "  ")
+	p.DebugPrint("printed operation:\n", op)
+}
+
+func (p *Planner) DebugPrint(args ...interface{}) {
+	if !p.debug {
+		return
+	}
+
+	p.debugPrint(args...)
+}
+
+func (p *Planner) debugPrint(args ...interface{}) {
+	allArgs := []interface{}{"[GraphqlDS]: ", p.config.Fetch.URL, ":", p.id, ":"}
+	allArgs = append(allArgs, args...)
+	fmt.Println(allArgs...)
+}
+
+func (p *Planner) printQueryPlan(msg string, operation *ast.Document) {
+	if !p.printQueryPlans {
+		return
+	}
+
+	printedOperation, err := astprinter.PrintStringIndent(operation, nil, "  ")
+	if err != nil {
+		return
+	}
+
+	p.debugPrint(msg, "\n",
+		"variables:\n",
+		string(p.upstreamVariables), "\n",
+		"operation:\n",
+		printedOperation)
+}
+
 // printOperation - prints normalized upstream operation
 func (p *Planner) printOperation() []byte {
 	buf := &bytes.Buffer{}
 
-	err := astprinter.Print(p.upstreamOperation, nil, buf)
+	err := astprinter.PrintIndent(p.upstreamOperation, nil, []byte("  "), buf)
 	if err != nil {
 		return nil
 	}
@@ -1107,6 +1358,8 @@ func (p *Planner) printOperation() []byte {
 		p.stopWithError(normalizationFailedErrMsg)
 		return nil
 	}
+
+	p.printQueryPlan("upstream operation:", p.upstreamOperation)
 
 	validator := astvalidation.DefaultOperationValidator()
 	validator.Validate(operation, definition, report)
@@ -1228,6 +1481,7 @@ func (p *Planner) normalizeOperation(operation, definition *ast.Document, report
 		astnormalization.WithExtractVariables(),
 		astnormalization.WithRemoveFragmentDefinitions(),
 		astnormalization.WithRemoveUnusedVariables(),
+		astnormalization.WithInlineFragmentSpreads(),
 	)
 	normalizer.NormalizeOperation(operation, definition, report)
 
@@ -1283,7 +1537,13 @@ func (p *Planner) addField(ref int) {
 		Ref:  field.Ref,
 	}
 
-	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, selection)
+	lastNode := p.nodes[len(p.nodes)-1]
+	if lastNode.Kind != ast.NodeKindSelectionSet {
+		p.stopWithError("expected last node to be a selection set, got %s", lastNode.Kind)
+		return
+	}
+
+	p.upstreamOperation.AddSelection(lastNode.Ref, selection)
 	p.nodes = append(p.nodes, field)
 }
 

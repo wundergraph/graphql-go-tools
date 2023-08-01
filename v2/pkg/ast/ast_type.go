@@ -200,10 +200,10 @@ func (d *Document) TypesAreCompatibleDeep(left int, right int) bool {
 				return false
 			}
 			if leftNode.Kind == NodeKindInterfaceTypeDefinition && rightNode.Kind == NodeKindObjectTypeDefinition {
-				return d.NodeImplementsInterface(rightNode, leftNode)
+				return d.NodeImplementsInterfaceFields(rightNode, leftNode)
 			}
 			if leftNode.Kind == NodeKindObjectTypeDefinition && rightNode.Kind == NodeKindInterfaceTypeDefinition {
-				return d.NodeImplementsInterface(leftNode, rightNode)
+				return d.NodeImplementsInterfaceFields(leftNode, rightNode)
 			}
 			if leftNode.Kind == NodeKindUnionTypeDefinition && rightNode.Kind == NodeKindObjectTypeDefinition {
 				return d.NodeIsUnionMember(rightNode, leftNode)

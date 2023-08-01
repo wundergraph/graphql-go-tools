@@ -40,29 +40,48 @@ func (d *Document) FragmentSpreadNameString(ref int) string {
 	return unsafebytes.BytesToString(d.FragmentSpreadNameBytes(ref))
 }
 
+func (d *Document) FragmentSpreadHasDirectives(ref int) bool {
+	return len(d.FragmentSpreads[ref].Directives.Refs) != 0
+}
+
 // ReplaceFragmentSpread replaces a fragment spread with a given selection set
 // attention! this might lead to duplicate field problems because the same field with its unique field reference might be copied into the same selection set
 // possible problems: changing directives or sub selections will affect both fields with the same id
 // simple solution: run normalization deduplicate fields
 // as part of the normalization flow this problem will be handled automatically
-// just be careful in case you use this function outside of the normalization package
+// just be careful in case you use this function outside the normalization package
 func (d *Document) ReplaceFragmentSpread(selectionSet int, spreadRef int, replaceWithSelectionSet int) {
-	for i, j := range d.SelectionSets[selectionSet].SelectionRefs {
-		if d.Selections[j].Kind == SelectionKindFragmentSpread && d.Selections[j].Ref == spreadRef {
-			d.SelectionSets[selectionSet].SelectionRefs = append(d.SelectionSets[selectionSet].SelectionRefs[:i], append(d.SelectionSets[replaceWithSelectionSet].SelectionRefs, d.SelectionSets[selectionSet].SelectionRefs[i+1:]...)...)
+	for i, selectionRef := range d.SelectionSets[selectionSet].SelectionRefs {
+		if d.Selections[selectionRef].Kind == SelectionKindFragmentSpread && d.Selections[selectionRef].Ref == spreadRef {
+
+			selectionSetCopyRef := d.CopySelectionSet(replaceWithSelectionSet)
+
+			d.SelectionSets[selectionSet].SelectionRefs = append(
+				// selections before
+				d.SelectionSets[selectionSet].SelectionRefs[:i],
+				// replaced selection
+				append(d.SelectionSets[selectionSetCopyRef].SelectionRefs,
+					// selections after
+					d.SelectionSets[selectionSet].SelectionRefs[i+1:]...)...,
+			)
 			d.Index.ReplacedFragmentSpreads = append(d.Index.ReplacedFragmentSpreads, spreadRef)
 			return
 		}
 	}
 }
 
-// ReplaceFragmentSpreadWithInlineFragment replaces a given fragment spread with a inline fragment
+// ReplaceFragmentSpreadWithInlineFragment replaces a given fragment spread with an inline fragment
 // attention! the same rules apply as for 'ReplaceFragmentSpread', look above!
-func (d *Document) ReplaceFragmentSpreadWithInlineFragment(selectionSet int, spreadRef int, replaceWithSelectionSet int, typeCondition TypeCondition) {
+func (d *Document) ReplaceFragmentSpreadWithInlineFragment(selectionSet int, spreadRef int, replaceWithSelectionSet int, typeCondition TypeCondition, directiveList DirectiveList) {
+	selectionSetCopyRef := d.CopySelectionSet(replaceWithSelectionSet)
+	directiveListCopy := d.CopyDirectiveList(directiveList)
+
 	d.InlineFragments = append(d.InlineFragments, InlineFragment{
 		TypeCondition: typeCondition,
-		SelectionSet:  replaceWithSelectionSet,
-		HasSelections: len(d.SelectionSets[replaceWithSelectionSet].SelectionRefs) != 0,
+		SelectionSet:  selectionSetCopyRef,
+		HasSelections: len(d.SelectionSets[selectionSetCopyRef].SelectionRefs) != 0,
+		Directives:    directiveListCopy,
+		HasDirectives: len(directiveListCopy.Refs) != 0,
 	})
 	ref := len(d.InlineFragments) - 1
 	d.Selections = append(d.Selections, Selection{

@@ -4,6 +4,7 @@ package astprinter
 import (
 	"bytes"
 	"io"
+	"strconv"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
@@ -25,6 +26,14 @@ func PrintIndent(document, definition *ast.Document, indent []byte, out io.Write
 	return printer.Print(document, definition, out)
 }
 
+func PrintIndentDebug(document, definition *ast.Document, indent []byte, out io.Writer) error {
+	printer := Printer{
+		indent: indent,
+		debug:  true,
+	}
+	return printer.Print(document, definition, out)
+}
+
 // PrintString is the same as Print but returns a string instead of writing to an io.Writer
 func PrintString(document, definition *ast.Document) (string, error) {
 	buff := &bytes.Buffer{}
@@ -41,18 +50,28 @@ func PrintStringIndent(document, definition *ast.Document, indent string) (strin
 	return out, err
 }
 
+// PrintStringIndentDebug is the same as PrintStringIndent but prints debug information
+func PrintStringIndentDebug(document, definition *ast.Document, indent string) (string, error) {
+	buff := &bytes.Buffer{}
+	err := PrintIndentDebug(document, definition, []byte(indent), buff)
+	out := buff.String()
+	return out, err
+}
+
 // Printer walks a GraphQL document and prints it as a string
 type Printer struct {
 	indent     []byte
 	visitor    printVisitor
 	walker     astvisitor.SimpleWalker
 	registered bool
+	debug      bool
 }
 
 // Print starts the actual AST printing
 // Keep a printer and re-use it in case you'd like to print ASTs in the hot path.
 func (p *Printer) Print(document, definition *ast.Document, out io.Writer) error {
 	p.visitor.indent = p.indent
+	p.visitor.debug = p.debug
 	p.visitor.err = nil
 	p.visitor.document = document
 	p.visitor.out = out
@@ -74,6 +93,7 @@ type printVisitor struct {
 	inputValueDefinitionCloser []byte
 	isFirstDirectiveLocation   bool
 	isDirectiveRepeatable      bool
+	debug                      bool
 }
 
 func (p *printVisitor) write(data []byte) {
@@ -161,7 +181,12 @@ func (p *printVisitor) LeaveDirective(ref int) {
 		if !p.document.VariableDefinitionsAfter(ancestor.Ref) {
 			p.write(literal.SPACE)
 		}
-	case ast.NodeKindInlineFragment:
+	case ast.NodeKindInlineFragment,
+		ast.NodeKindFragmentSpread:
+		if len(p.SelectionsAfter) > 0 {
+			p.write(literal.SPACE)
+		}
+	case ast.NodeKindSelectionSet:
 		if len(p.SelectionsAfter) > 0 {
 			p.write(literal.SPACE)
 		}
@@ -268,7 +293,16 @@ func (p *printVisitor) LeaveOperationDefinition(ref int) {
 }
 
 func (p *printVisitor) EnterSelectionSet(ref int) {
-	p.write(literal.LBRACE)
+	if p.debug {
+		p.writeIndented(literal.LINETERMINATOR)
+		p.writeIndented([]byte("# SelectionSet ref:"))
+		p.write([]byte(strconv.Itoa(ref)))
+		p.write(literal.LINETERMINATOR)
+		p.writeIndented(literal.LBRACE)
+	} else {
+		p.write(literal.LBRACE)
+	}
+
 	if p.indent != nil {
 		p.write(literal.LINETERMINATOR)
 	}
@@ -282,6 +316,12 @@ func (p *printVisitor) LeaveSelectionSet(ref int) {
 }
 
 func (p *printVisitor) EnterField(ref int) {
+	if p.debug {
+		p.writeIndented([]byte("# Field ref:"))
+		p.write([]byte(strconv.Itoa(ref)))
+		p.write(literal.LINETERMINATOR)
+	}
+
 	if p.document.Fields[ref].Alias.IsDefined {
 		p.writeIndented(p.document.Input.ByteSlice(p.document.Fields[ref].Alias.Name))
 		p.write(literal.COLON)
@@ -308,6 +348,9 @@ func (p *printVisitor) LeaveField(ref int) {
 func (p *printVisitor) EnterFragmentSpread(ref int) {
 	p.writeIndented(literal.SPREAD)
 	p.write(p.document.Input.ByteSlice(p.document.FragmentSpreads[ref].FragmentName))
+	if p.document.FragmentSpreads[ref].HasDirectives {
+		p.write(literal.SPACE)
+	}
 }
 
 func (p *printVisitor) LeaveFragmentSpread(ref int) {
@@ -322,17 +365,23 @@ func (p *printVisitor) LeaveFragmentSpread(ref int) {
 }
 
 func (p *printVisitor) EnterInlineFragment(ref int) {
+	if p.debug {
+		p.write(literal.LINETERMINATOR)
+		p.writeIndented([]byte("# InlineFragment ref:"))
+		p.write([]byte(strconv.Itoa(ref)))
+		p.write(literal.LINETERMINATOR)
+	}
 	p.writeIndented(literal.SPREAD)
-	if p.document.InlineFragments[ref].TypeCondition.Type != -1 {
+
+	if p.document.InlineFragmentHasTypeCondition(ref) && !p.document.InlineFragmentIsOfTheSameType(ref) {
 		p.write(literal.SPACE)
 		p.write(literal.ON)
 		p.write(literal.SPACE)
-		p.write(p.document.Input.ByteSlice(p.document.Types[p.document.InlineFragments[ref].TypeCondition.Type].Name))
+		p.write(p.document.InlineFragmentTypeConditionName(ref))
 		p.write(literal.SPACE)
 	} else if p.document.InlineFragments[ref].HasDirectives {
 		p.write(literal.SPACE)
 	}
-
 }
 
 func (p *printVisitor) LeaveInlineFragment(ref int) {

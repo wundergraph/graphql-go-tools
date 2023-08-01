@@ -1,14 +1,9 @@
-package plan
+package federationdata
 
 import (
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
-)
-
-const FederationKeyDirectiveName = "key"
-
-const (
-	federationRequireDirectiveName  = "requires"
-	federationExternalDirectiveName = "external"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/pkg/federation/sdlmerge"
 )
 
 // LocalTypeFieldExtractor takes an ast.Document as input and generates the
@@ -30,8 +25,8 @@ type LocalTypeFieldExtractor struct {
 	rootNodeNames          *rootNodeNamesMap
 	childrenSeen           map[string]struct{}
 	childrenToProcess      []string
-	rootNodes              []TypeField
-	childNodes             []TypeField
+	rootNodes              []plan.TypeField
+	childNodes             []plan.TypeField
 }
 
 func NewLocalTypeFieldExtractor(document *ast.Document) *LocalTypeFieldExtractor {
@@ -40,8 +35,8 @@ func NewLocalTypeFieldExtractor(document *ast.Document) *LocalTypeFieldExtractor
 		queryTypeName:        "Query",
 		mutationTypeName:     "Mutation",
 		subscriptionTypeName: "Subscription",
-		rootNodes:            make([]TypeField, 0),
-		childNodes:           make([]TypeField, 0),
+		rootNodes:            make([]plan.TypeField, 0),
+		childNodes:           make([]plan.TypeField, 0),
 	}
 }
 
@@ -89,7 +84,7 @@ func (r *rootNodeNamesMap) asSlice() []string {
 // GetAllNodes returns all root and child nodes in the document associated with
 // the LocalTypeFieldExtractor. See LocalTypeFieldExtractor for a detailed
 // explanation of what root and child nodes are.
-func (e *LocalTypeFieldExtractor) GetAllNodes() ([]TypeField, []TypeField) {
+func (e *LocalTypeFieldExtractor) GetAllNodes() (rootNodes []plan.TypeField, childNodes []plan.TypeField) {
 	// The strategy for the extractor is as follows:
 	//
 	// 1. Loop over each node in the document and collect information into
@@ -130,7 +125,12 @@ func (e *LocalTypeFieldExtractor) GetAllNodes() ([]TypeField, []TypeField) {
 	// child nodes to process.
 	e.createRootNodes()
 
-	// 3. Process the child node queue to create child nodes. When processing
+	// 3. Add interfaces to the child node queue. When processing child nodes,
+	// Interface types should be present as child nodes, as we couldn't know
+	// when they will appear in the query.
+	e.addInterfacesToChildrenToProcess()
+
+	// 4. Process the child node queue to create child nodes. When processing
 	// child nodes, loop over the fields of the child to find additional
 	// children to process.
 	e.createChildNodes()
@@ -201,13 +201,13 @@ func (e *LocalTypeFieldExtractor) getNodeInfo(node ast.Node) *nodeInformation {
 	nodeInfo, ok := e.nodeInfoMap[typeName]
 	if ok {
 		// if this node has the key directive, we need to add it to the node information
-		nodeInfo.hasKeyDirective = nodeInfo.hasKeyDirective || e.document.NodeHasDirectiveByNameString(node, FederationKeyDirectiveName)
+		nodeInfo.hasKeyDirective = nodeInfo.hasKeyDirective || e.document.NodeHasDirectiveByNameString(node, sdlmerge.KeyDirectiveName)
 		return nodeInfo
 	}
 
 	nodeInfo = &nodeInformation{
 		typeName:        typeName,
-		hasKeyDirective: e.document.NodeHasDirectiveByNameString(node, FederationKeyDirectiveName),
+		hasKeyDirective: e.document.NodeHasDirectiveByNameString(node, sdlmerge.KeyDirectiveName),
 		requiredFields:  make(map[string]struct{}),
 	}
 
@@ -226,7 +226,7 @@ func (e *LocalTypeFieldExtractor) isRootNode(nodeInfo *nodeInformation) bool {
 func (e *LocalTypeFieldExtractor) collectFieldDefinitions(node ast.Node, nodeInfo *nodeInformation) {
 	for _, ref := range e.document.NodeFieldDefinitions(node) {
 		isExternal := e.document.FieldDefinitionHasNamedDirective(ref,
-			federationExternalDirectiveName)
+			sdlmerge.ExternalDirectiveName)
 
 		if isExternal {
 			nodeInfo.externalFieldRefs = append(nodeInfo.externalFieldRefs, ref)
@@ -245,6 +245,14 @@ func (e *LocalTypeFieldExtractor) assignConcreteTypesToInterfaces() {
 	for interfaceName, concreteTypeNames := range e.possibleInterfaceTypes {
 		if nodeInfo, ok := e.nodeInfoMap[interfaceName]; ok {
 			nodeInfo.concreteTypeNames = concreteTypeNames
+		}
+	}
+}
+
+func (e *LocalTypeFieldExtractor) addInterfacesToChildrenToProcess() {
+	for typeName, information := range e.nodeInfoMap {
+		if information.isInterface {
+			e.pushChildIfNotAlreadyProcessed(typeName)
 		}
 	}
 }
@@ -296,7 +304,7 @@ func (e *LocalTypeFieldExtractor) createRootNodes() {
 		for i, ref := range nodeInfo.localFieldRefs {
 			fieldNames[i] = e.processFieldRef(ref)
 		}
-		e.rootNodes = append(e.rootNodes, TypeField{
+		e.rootNodes = append(e.rootNodes, plan.TypeField{
 			TypeName:   typeName,
 			FieldNames: fieldNames,
 		})
@@ -308,6 +316,10 @@ func (e *LocalTypeFieldExtractor) createChildNodes() {
 		typeName := e.childrenToProcess[len(e.childrenToProcess)-1]
 		e.childrenToProcess = e.childrenToProcess[:len(e.childrenToProcess)-1]
 		nodeInfo, ok := e.nodeInfoMap[typeName]
+		if typeName == "Store" {
+			println("here")
+		}
+
 		if !ok {
 			continue
 		}
@@ -341,7 +353,7 @@ func (e *LocalTypeFieldExtractor) createChildNodes() {
 				fieldNames = append(fieldNames, fieldName)
 			}
 		}
-		e.childNodes = append(e.childNodes, TypeField{
+		e.childNodes = append(e.childNodes, plan.TypeField{
 			TypeName:   typeName,
 			FieldNames: fieldNames,
 		})

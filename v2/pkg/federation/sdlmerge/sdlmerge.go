@@ -2,15 +2,14 @@ package sdlmerge
 
 import (
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
-	"github.com/wundergraph/graphql-go-tools/pkg/astvalidation"
-	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/astprinter"
+	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
+	"github.com/wundergraph/graphql-go-tools/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
@@ -133,13 +132,12 @@ func (m *normalizer) setupWalkers() {
 		},
 		// visitors for cleaning up federated duplicated fields and directives
 		{
-			newRemoveFieldDefinitions("external"),
+			newRemoveFieldDefinitions(ExternalDirectiveName),
 			newRemoveDuplicateFieldedSharedTypesVisitor(),
 			newRemoveDuplicateFieldlessSharedTypesVisitor(),
-			newMergeDuplicatedFieldsVisitor(),
-			newRemoveInterfaceDefinitionDirective("key"),
-			newRemoveObjectTypeDefinitionDirective("key"),
-			newRemoveFieldDefinitionDirective("provides", "requires"),
+			newRemoveInterfaceDefinitionDirective(KeyDirectiveName),
+			newRemoveObjectTypeDefinitionDirective(KeyDirectiveName),
+			newRemoveFieldDefinitionDirective(ProvidesDirectiveName, RequireDirectiveName),
 		},
 	}
 
@@ -188,7 +186,7 @@ func (e entitySet) isExtensionForEntity(nameBytes []byte, directiveRefs []int, d
 
 func isEntityExtension(directiveRefs []int, document *ast.Document) bool {
 	for _, directiveRef := range directiveRefs {
-		if document.DirectiveNameString(directiveRef) == plan.FederationKeyDirectiveName {
+		if document.DirectiveNameString(directiveRef) == KeyDirectiveName {
 			return true
 		}
 	}

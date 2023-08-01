@@ -543,9 +543,10 @@ var expectedMyHeroPlanWithFragment = &SynchronousResponsePlan{
 								Value: &resolve.String{
 									Path: []string{"name"},
 								},
+								// During fragement inlining we are creating a new selections, so they will not have positions
 								Position: resolve.Position{
-									Line:   3,
-									Column: 6,
+									Line:   0,
+									Column: 0,
 								},
 							},
 						},

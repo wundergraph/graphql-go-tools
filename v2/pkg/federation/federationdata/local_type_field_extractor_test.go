@@ -1,4 +1,4 @@
-package plan
+package federationdata
 
 import (
 	"sort"
@@ -7,9 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
 )
 
-func sortNodesAndFields(nodes []TypeField) {
+func sortNodesAndFields(nodes []plan.TypeField) {
 	sort.Slice(nodes, func(i, j int) bool {
 		return nodes[i].TypeName < nodes[j].TypeName
 	})
@@ -19,7 +20,7 @@ func sortNodesAndFields(nodes []TypeField) {
 }
 
 func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
-	run := func(t *testing.T, SDL string, expectedRoot, expectedChild []TypeField) {
+	run := func(t *testing.T, SDL string, expectedRoot, expectedChild []plan.TypeField) {
 		t.Helper()
 
 		document := unsafeparser.ParseGraphqlDocumentString(SDL)
@@ -52,12 +53,12 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				id: ID!
 			}
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Mutation", FieldNames: []string{"addUser", "deleteUser"}},
 				{TypeName: "Query", FieldNames: []string{"me"}},
 				{TypeName: "Subscription", FieldNames: []string{"userChanges"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "User", FieldNames: []string{"id"}},
 			})
 	})
@@ -82,10 +83,10 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				id: ID!
 			}
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"me"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "User", FieldNames: []string{"id"}},
 			})
 	})
@@ -111,10 +112,10 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				one: OrphanOne
 			}
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"me"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "User", FieldNames: []string{"id"}},
 			})
 	})
@@ -138,10 +139,10 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				user: User
 			}
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"me", "review", "user"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Review", FieldNames: []string{"comment", "id", "rating", "user"}},
 				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
 			})
@@ -166,10 +167,10 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				user: User
 			}
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"me"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Review", FieldNames: []string{"comment", "id", "rating", "user"}},
 				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
 			})
@@ -206,10 +207,10 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				user: User
 			}
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"communication", "me", "user"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Comment", FieldNames: []string{"comment", "id", "user"}},
 				{TypeName: "Communication", FieldNames: []string{"comment", "id", "user"}},
 				{TypeName: "Review", FieldNames: []string{"comment", "id", "rating", "user"}},
@@ -251,12 +252,12 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				user: User
 			}
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Comment", FieldNames: []string{"comment", "id", "user"}},
 				{TypeName: "Query", FieldNames: []string{"communication", "me", "user"}},
 				{TypeName: "Review", FieldNames: []string{"comment", "id", "rating", "user"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Comment", FieldNames: []string{"comment", "id", "user"}},
 				{TypeName: "Communication", FieldNames: []string{"comment", "id", "user"}},
 				{TypeName: "Review", FieldNames: []string{"comment", "id", "rating", "user"}},
@@ -297,12 +298,12 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				user: User
 			}
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Comment", FieldNames: []string{"comment", "user"}},
 				{TypeName: "Query", FieldNames: []string{"communication", "me", "user"}},
 				{TypeName: "Review", FieldNames: []string{"comment", "rating", "user"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Comment", FieldNames: []string{"comment", "id", "user"}},
 				{TypeName: "Communication", FieldNames: []string{"comment", "id", "user"}},
 				{TypeName: "Review", FieldNames: []string{"comment", "id", "rating", "user"}},
@@ -337,13 +338,47 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 
 			union Communication = Review | Comment
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"communication", "me", "user"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Comment", FieldNames: []string{"comment", "id", "user"}},
 				{TypeName: "Review", FieldNames: []string{"comment", "id", "rating", "user"}},
 				{TypeName: "User", FieldNames: []string{"communications", "id"}},
+			})
+	})
+	t.Run("union + interface", func(t *testing.T) {
+		run(t, `
+			type Query {
+				histories: [History]
+			}
+			
+			union History = Purchase | Sale
+			
+			interface Info {
+				quantity: Int!
+			}
+			
+			type Purchase implements Info {
+				quantity: Int!
+			}
+			
+			interface Store {
+				location: String!
+			}
+			
+			type Sale implements Store {
+				location: String!
+			}
+		`,
+			[]plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"histories"}},
+			},
+			[]plan.TypeField{
+				{TypeName: "Info", FieldNames: []string{"quantity"}},
+				{TypeName: "Purchase", FieldNames: []string{"quantity"}},
+				{TypeName: "Sale", FieldNames: []string{"location"}},
+				{TypeName: "Store", FieldNames: []string{"location"}},
 			})
 	})
 	t.Run("extended union", func(t *testing.T) {
@@ -374,12 +409,12 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 
 			extend union Communication = Review | Comment
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Comment", FieldNames: []string{"comment", "user"}},
 				{TypeName: "Query", FieldNames: []string{"communication", "me", "user"}},
 				{TypeName: "Review", FieldNames: []string{"comment", "rating", "user"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Comment", FieldNames: []string{"comment", "id", "user"}},
 				{TypeName: "Review", FieldNames: []string{"comment", "id", "rating", "user"}},
 				{TypeName: "User", FieldNames: []string{"communications", "id"}},
@@ -420,10 +455,10 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 
 			extend union Communication = Post
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"communication", "me", "user"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Comment", FieldNames: []string{"comment", "id", "user"}},
 				{TypeName: "Post", FieldNames: []string{"content", "id"}},
 				{TypeName: "Review", FieldNames: []string{"comment", "id", "rating", "user"}},
@@ -443,10 +478,10 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				rating: Int!
 			}
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Review", FieldNames: []string{"comment", "id", "rating"}},
 			})
 	})
@@ -467,11 +502,11 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				rating: Int!
 			}
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"me"}},
 				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Review", FieldNames: []string{"comment", "id", "rating"}},
 				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
 			})
@@ -489,10 +524,10 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				author: User! @provide(fields: "username")
 			}
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "User", FieldNames: []string{"reviews"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Review", FieldNames: []string{"author", "comment"}},
 				{TypeName: "User", FieldNames: []string{"id", "reviews", "username"}},
 			})
@@ -514,10 +549,10 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				author: User!
 			}
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"review"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Review", FieldNames: []string{"author", "comment"}},
 				{TypeName: "User", FieldNames: []string{"id"}},
 			})
@@ -539,11 +574,11 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				author: User!
 			}
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"reviews"}},
 				{TypeName: "User", FieldNames: []string{"reviews"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Review", FieldNames: []string{"author", "comment", "id"}},
 				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
 			})
@@ -564,10 +599,10 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				author: User! @provide(fields: "username")
 			}
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "User", FieldNames: []string{"fullname", "reviews"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Review", FieldNames: []string{"author", "comment"}},
 				{TypeName: "User", FieldNames: []string{"fullname", "id", "reviews", "username"}},
 			})
@@ -605,12 +640,12 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
                    description: String!
            }
        `,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Product", FieldNames: []string{"addedBy", "description", "id"}},
 				{TypeName: "Query", FieldNames: []string{"products", "reviews"}},
 				{TypeName: "User", FieldNames: []string{"reviews"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Product", FieldNames: []string{"addedBy", "description", "id"}},
 				{TypeName: "Review", FieldNames: []string{"author", "comment", "id"}},
 				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
@@ -649,12 +684,12 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
                    addedBy: User!
            }
        `,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Product", FieldNames: []string{"addedBy", "description", "id"}},
 				{TypeName: "Query", FieldNames: []string{"products", "reviews"}},
 				{TypeName: "User", FieldNames: []string{"reviews"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Product", FieldNames: []string{"addedBy", "description", "id"}},
 				{TypeName: "Review", FieldNames: []string{"author", "comment", "id"}},
 				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
@@ -690,10 +725,10 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				length: Float!
 			}
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"search"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Character", FieldNames: []string{"friends", "name"}},
 				{TypeName: "Droid", FieldNames: []string{"friends", "name", "primaryFunction"}},
 				{TypeName: "Human", FieldNames: []string{"friends", "height", "name"}},
@@ -723,10 +758,10 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				friends: [Character]
 			}
 		`,
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"search"}},
 			},
-			[]TypeField{
+			[]plan.TypeField{
 				{TypeName: "Character", FieldNames: []string{"friends", "name"}},
 				{TypeName: "Droid", FieldNames: []string{"friends", "name", "primaryFunction"}},
 				{TypeName: "Human", FieldNames: []string{"friends", "height", "name"}},
