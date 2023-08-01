@@ -16,7 +16,7 @@ import (
 	"github.com/99designs/gqlgen/plugin/federation/fedruntime"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
-	"github.com/wundergraph/graphql-go-tools/examples/federation/accounts/graph/model"
+	"github.com/wundergraph/graphql-go-tools/v2/examples/federation/accounts/graph/model"
 )
 
 // region    ************************** generated!.gotpl **************************

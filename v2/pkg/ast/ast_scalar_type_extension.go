@@ -1,8 +1,8 @@
 package ast
 
 import (
-	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafebytes"
-	"github.com/wundergraph/graphql-go-tools/pkg/lexer/position"
+	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafebytes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
 )
 
 type ScalarTypeExtension struct {

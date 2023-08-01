@@ -10,7 +10,7 @@ import (
 	log "github.com/jensneuse/abstractlogger"
 	"github.com/nats-io/nats.go"
 
-	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
 type NatsDataSourceConfig struct {

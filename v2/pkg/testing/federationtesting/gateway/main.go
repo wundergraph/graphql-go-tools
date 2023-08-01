@@ -7,9 +7,9 @@ import (
 	"github.com/gobwas/ws"
 	log "github.com/jensneuse/abstractlogger"
 
-	http2 "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/gateway/http"
+	http2 "github.com/wundergraph/graphql-go-tools/v2/pkg/testing/federationtesting/gateway/http"
 
-	"github.com/wundergraph/graphql-go-tools/pkg/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
 )
 
 func NewDatasource(serviceConfig []ServiceConfig, httpClient *http.Client) *DatasourcePollerPoller {
@@ -26,7 +26,7 @@ func Handler(
 ) *Gateway {
 	upgrader := &ws.DefaultHTTPUpgrader
 	upgrader.Header = http.Header{}
-	//upgrader.Header.Add("Sec-Websocket-Protocol", "graphql-ws")
+	// upgrader.Header.Add("Sec-Websocket-Protocol", "graphql-ws")
 
 	datasourceWatcher := datasourcePoller
 

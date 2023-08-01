@@ -9,8 +9,8 @@ import (
 	"github.com/jensneuse/pipeline/pkg/pipe"
 	"github.com/jensneuse/pipeline/pkg/step"
 
-	"github.com/wundergraph/graphql-go-tools/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/pkg/execution/datasource"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/execution/datasource"
 )
 
 func TestExecution_With_Transformation(t *testing.T) {

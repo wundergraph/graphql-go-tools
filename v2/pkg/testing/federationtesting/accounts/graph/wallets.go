@@ -1,6 +1,6 @@
 package graph
 
-import "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/accounts/graph/model"
+import "github.com/wundergraph/graphql-go-tools/v2/pkg/testing/federationtesting/accounts/graph/model"
 
 var walletOne = &model.WalletType1{
 	Currency:      "USD",

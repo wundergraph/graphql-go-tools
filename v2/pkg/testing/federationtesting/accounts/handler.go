@@ -4,7 +4,7 @@ package accounts
 import (
 	"net/http"
 
-	"github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/accounts/graph"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/federationtesting/accounts/graph"
 )
 
 func Handler() http.Handler {

@@ -1,7 +1,7 @@
 package plan
 
 import (
-	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 type Kind int

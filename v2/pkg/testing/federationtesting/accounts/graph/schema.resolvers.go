@@ -7,8 +7,8 @@ package graph
 import (
 	"context"
 
-	"github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/accounts/graph/generated"
-	"github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/accounts/graph/model"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/federationtesting/accounts/graph/generated"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/federationtesting/accounts/graph/model"
 )
 
 // Me is the resolver for the me field.

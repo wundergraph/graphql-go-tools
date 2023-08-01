@@ -1,6 +1,6 @@
 package graph
 
-import "github.com/wundergraph/graphql-go-tools/examples/federation/products/graph/model"
+import "github.com/wundergraph/graphql-go-tools/v2/examples/federation/products/graph/model"
 
 var hats = []*model.Product{
 	{

@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/wundergraph/graphql-go-tools/pkg/astparser"
-	graphqlDataSource "github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
-	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/pkg/federation"
-	"github.com/wundergraph/graphql-go-tools/pkg/federation/federationdata"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
+	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation/federationdata"
 )
 
 type federationEngineConfigFactoryOptions struct {

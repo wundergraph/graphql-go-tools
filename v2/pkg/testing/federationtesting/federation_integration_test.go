@@ -7,8 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jensneuse/abstractlogger"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"path"
@@ -16,10 +14,13 @@ import (
 	"testing"
 	"time"
 
-	accounts "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/accounts/graph"
-	"github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/gateway"
-	products "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/products/graph"
-	reviews "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/reviews/graph"
+	"github.com/jensneuse/abstractlogger"
+	"github.com/stretchr/testify/assert"
+
+	accounts "github.com/wundergraph/graphql-go-tools/v2/pkg/testing/federationtesting/accounts/graph"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/federationtesting/gateway"
+	products "github.com/wundergraph/graphql-go-tools/v2/pkg/testing/federationtesting/products/graph"
+	reviews "github.com/wundergraph/graphql-go-tools/v2/pkg/testing/federationtesting/reviews/graph"
 )
 
 func newFederationSetup() *federationSetup {

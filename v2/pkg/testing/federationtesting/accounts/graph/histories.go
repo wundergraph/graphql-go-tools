@@ -1,7 +1,7 @@
 package graph
 
 import (
-	"github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/accounts/graph/model"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/federationtesting/accounts/graph/model"
 )
 
 var histories = []model.History{

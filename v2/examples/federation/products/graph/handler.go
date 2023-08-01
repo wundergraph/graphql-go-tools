@@ -13,7 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 	"go.uber.org/atomic"
 
-	"github.com/wundergraph/graphql-go-tools/examples/federation/products/graph/generated"
+	"github.com/wundergraph/graphql-go-tools/v2/examples/federation/products/graph/generated"
 )
 
 var websocketConnections atomic.Uint32

@@ -1,10 +1,10 @@
 package astparser
 
 import (
-	"github.com/wundergraph/graphql-go-tools/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/pkg/lexer/identkeyword"
-	"github.com/wundergraph/graphql-go-tools/pkg/lexer/keyword"
-	"github.com/wundergraph/graphql-go-tools/pkg/lexer/token"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/identkeyword"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/keyword"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/token"
 )
 
 // read - reads and returns next token

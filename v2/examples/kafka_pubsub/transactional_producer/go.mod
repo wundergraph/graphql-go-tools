@@ -1,4 +1,4 @@
-module github.com/wundergraph/graphql-go-tools/examples/kafka_pubsub/transactional_producer
+module github.com/wundergraph/graphql-go-tools/v2/examples/kafka_pubsub/transactional_producer
 
 go 1.18
 

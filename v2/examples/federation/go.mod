@@ -1,4 +1,4 @@
-module github.com/wundergraph/graphql-go-tools/examples/federation
+module github.com/wundergraph/graphql-go-tools/v2/examples/federation
 
 go 1.18
 
@@ -8,7 +8,7 @@ require (
 	github.com/gorilla/websocket v1.5.0
 	github.com/jensneuse/abstractlogger v0.0.4
 	github.com/vektah/gqlparser/v2 v2.5.1
-	github.com/wundergraph/graphql-go-tools v0.0.0-00010101000000-000000000000
+	github.com/wundergraph/graphql-go-tools/v2 v2.0.0
 	go.uber.org/atomic v1.9.0
 	go.uber.org/zap v1.18.1
 )
@@ -67,4 +67,4 @@ require (
 	nhooyr.io/websocket v1.8.7 // indirect
 )
 
-replace github.com/wundergraph/graphql-go-tools => ../../
+replace github.com/wundergraph/graphql-go-tools/v2 => ../../

@@ -10,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting"
-	"github.com/wundergraph/graphql-go-tools/pkg/testing/flags"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/federationtesting"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/flags"
 )
 
 // This tests produces data races in the generated gql code. Disable it when the race
