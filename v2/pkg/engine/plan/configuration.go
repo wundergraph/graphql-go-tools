@@ -1,5 +1,7 @@
 package plan
 
+import "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+
 type Configuration struct {
 	DefaultFlushIntervalMillis int64
 	DataSources                []DataSourceConfiguration
@@ -9,6 +11,7 @@ type Configuration struct {
 	// This setting removes position information from all fields
 	// In production, this should be set to false so that error messages are easier to understand
 	DisableResolveFieldPositions bool
+	CustomResolveMap             map[string]resolve.CustomResolve
 
 	// Debug - configure debug options
 	Debug DebugConfiguration
