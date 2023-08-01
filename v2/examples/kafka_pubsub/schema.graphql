@@ -1,0 +1,13 @@
+type Product {
+    name: String!
+    price: Int!
+    in_stock: Int!
+}
+
+type Query {
+    topProducts(first: Int): [Product]
+}
+
+type Subscription {
+    stock(name: String): Product!
+}

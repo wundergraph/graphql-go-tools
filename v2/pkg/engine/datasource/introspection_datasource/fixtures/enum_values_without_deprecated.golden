@@ -1,0 +1,14 @@
+[
+  {
+    "name": "NEWHOPE",
+    "description": "",
+    "isDeprecated": false,
+    "deprecationReason": null
+  },
+  {
+    "name": "EMPIRE",
+    "description": "",
+    "isDeprecated": false,
+    "deprecationReason": null
+  }
+]

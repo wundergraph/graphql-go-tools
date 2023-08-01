@@ -1,0 +1,22 @@
+(playground.Handlers) (len=5 cap=5) {
+ (playground.HandlerConfig) {
+  Path: (string) (len=11) "/playground",
+  Handler: (http.HandlerFunc) <nil>
+ },
+ (playground.HandlerConfig) {
+  Path: (string) (len=26) "/playground/playground.css",
+  Handler: (http.HandlerFunc) <nil>
+ },
+ (playground.HandlerConfig) {
+  Path: (string) (len=25) "/playground/playground.js",
+  Handler: (http.HandlerFunc) <nil>
+ },
+ (playground.HandlerConfig) {
+  Path: (string) (len=23) "/playground/favicon.png",
+  Handler: (http.HandlerFunc) <nil>
+ },
+ (playground.HandlerConfig) {
+  Path: (string) (len=20) "/playground/logo.png",
+  Handler: (http.HandlerFunc) <nil>
+ }
+}

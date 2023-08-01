@@ -1,0 +1,12 @@
+query Fragments($droidID: ID!){
+    hero {
+        ...characterFields
+    }
+    droid(id: $droidID) {
+        ...characterFields
+    }
+}
+
+fragment characterFields on Character {
+    name
+}

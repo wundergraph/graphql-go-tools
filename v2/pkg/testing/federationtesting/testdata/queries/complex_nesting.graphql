@@ -1,0 +1,41 @@
+query ComplexNesting {
+    me {
+        id
+        username
+        history {
+            ... on Store {
+                location
+            }
+            ... on Purchase {
+                wallet {
+                    currency
+                }
+            }
+            ... on Sale {
+                location
+                product {
+                    upc
+                    name
+                }
+            }
+        }
+        reviews {
+            __typename
+            attachments {
+                ... on Comment {
+                    upc
+                    ... on Rating {
+                        body
+                    }
+                }
+                ... on Question {
+                    body
+                }
+                ... on Video {
+                    upc
+                    size
+                }
+            }
+        }
+    }
+}
