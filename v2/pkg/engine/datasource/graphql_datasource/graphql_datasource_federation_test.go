@@ -139,10 +139,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 			}),
 			Factory: federationFactory,
-			TypesNew: plan.TypeConfigurations{
+			FieldConfigurations: plan.FieldConfigurations{
 				{
-					TypeName:          "Account",
-					RequiresFieldsNew: "id info {a b}",
+					TypeName:                   "Account",
+					RequiresFieldsSelectionSet: "id info {a b}",
 				},
 			},
 		}
@@ -170,10 +170,16 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 			}),
 			Factory: federationFactory,
-			TypesNew: plan.TypeConfigurations{
+			FieldConfigurations: plan.FieldConfigurations{
 				{
-					TypeName:          "Account",
-					RequiresFieldsNew: "id info {a b}",
+					TypeName:                   "Account",
+					FieldName:                  "",
+					RequiresFieldsSelectionSet: "id info {a b}",
+				},
+				{
+					TypeName:                   "Address",
+					FieldName:                  "fullAddress",
+					RequiresFieldsSelectionSet: "line1 line2",
 				},
 			},
 		}

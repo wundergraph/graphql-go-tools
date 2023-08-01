@@ -704,7 +704,7 @@ func (p *Planner) LeaveDocument(_, _ *ast.Document) {
 }
 
 func (p *Planner) handleFederation2() {
-	isNestedFederationRequest := p.isNested && p.config.Federation.Enabled && len(p.dataSourceConfig.TypesFromParentPlanner) > 0
+	isNestedFederationRequest := p.isNested && p.config.Federation.Enabled && len(p.dataSourceConfig.FieldConfigurationsFromParentPlanner) > 0
 
 	if !isNestedFederationRequest {
 		return

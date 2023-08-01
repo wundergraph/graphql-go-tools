@@ -232,13 +232,24 @@ func (c *configurationVisitor) EnterField(ref int) {
 			continue
 		}
 
-		// find a planner which has a path that matches the parent path
-		// and has a type configuration that matches the current field configuration
-		possibleTypeConfigurations := config.TypeConfigurationsFor(typeName)
-		typeConfiguration, added := c.planRequiredFields(currentPath, typeName, possibleTypeConfigurations)
-		if added {
-			config.TypesFromParentPlanner = append(config.TypesFromParentPlanner, typeConfiguration)
+		// add required fields for type (@key)
+		possibleTypeConfigurations := config.FieldConfigurationsForType(typeName)
+		if len(possibleTypeConfigurations) > 0 {
+			typeConfiguration, added := c.planRequiredFields(currentPath, typeName, possibleTypeConfigurations)
+			if added {
+				config.FieldConfigurationsFromParentPlanner = append(config.FieldConfigurationsFromParentPlanner, typeConfiguration)
+			}
 		}
+
+		// TODO: not ready yet
+		// // add required fields for field and type (@requires)
+		// possibleTypeConfigurations = config.FieldConfigurationsForTypeAndField(typeName, fieldName)
+		// if len(possibleTypeConfigurations) > 0 {
+		// 	typeConfiguration, added := c.planRequiredFields(currentPath, typeName, possibleTypeConfigurations)
+		// 	if added {
+		// 		config.FieldConfigurationsFromParentPlanner = append(config.FieldConfigurationsFromParentPlanner, typeConfiguration)
+		// 	}
+		// }
 
 		var (
 			bufferID int
@@ -446,25 +457,25 @@ func (c *configurationVisitor) nextBufferID() int {
 	return c.currentBufferId
 }
 
-func (c *configurationVisitor) planRequiredFields(currentPath string, typeName string, possibleTypeConfigurations TypeConfigurations) (config TypeConfiguration, planned bool) {
-	if len(possibleTypeConfigurations) == 0 {
+func (c *configurationVisitor) planRequiredFields(currentPath string, typeName string, possibleFieldConfigurations []FieldConfiguration) (config FieldConfiguration, planned bool) {
+	if len(possibleFieldConfigurations) == 0 {
 		return
 	}
 
 	for i, _ := range c.planners {
-		for _, possibleTypeConfig := range possibleTypeConfigurations {
-			if c.planners[i].dataSourceConfiguration.HasTypeConfiguration(typeName, possibleTypeConfig.RequiresFieldsNew) {
-				c.planAddingFieldsFromTypeConfiguration(currentPath, possibleTypeConfig)
-				return possibleTypeConfig, true
+		for _, possibleFieldConfig := range possibleFieldConfigurations {
+			if c.planners[i].dataSourceConfiguration.HasFieldConfiguration(typeName, possibleFieldConfig.RequiresFieldsSelectionSet) {
+				c.planAddingFieldsFromTypeConfiguration(currentPath, possibleFieldConfig)
+				return possibleFieldConfig, true
 			}
 		}
 	}
 
-	return TypeConfiguration{}, false
+	return FieldConfiguration{}, false
 }
 
-func (c *configurationVisitor) planAddingFieldsFromTypeConfiguration(currentPath string, typeConfigurations TypeConfiguration) {
-	key := currentPath + "." + typeConfigurations.RequiresFieldsNew
+func (c *configurationVisitor) planAddingFieldsFromTypeConfiguration(currentPath string, fieldConfiguration FieldConfiguration) {
+	key := currentPath + "." + fieldConfiguration.RequiresFieldsSelectionSet
 
 	configs, hasSelectionSet := c.pendingTypeConfigurations[c.currentSelectionSet]
 	if !hasSelectionSet {
@@ -472,7 +483,7 @@ func (c *configurationVisitor) planAddingFieldsFromTypeConfiguration(currentPath
 	}
 
 	if _, exists := configs[key]; !exists {
-		configs[key] = typeConfigurations.RequiresFieldsNew
+		configs[key] = fieldConfiguration.RequiresFieldsSelectionSet
 		c.pendingTypeConfigurations[c.currentSelectionSet] = configs
 	}
 }

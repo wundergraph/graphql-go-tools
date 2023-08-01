@@ -22,23 +22,28 @@ type TypeField struct {
 	FieldNames []string
 }
 
+type AlternativeTypeField struct {
+	TypeField
+	AncestorNode TypeField
+}
+
 type DataSourceConfiguration struct {
 	// RootNodes - defines the nodes where the responsibility of the DataSource begins
 	// When you enter a node, and it is not a child node
-	// when you have entered into a field which representing data source - it means that we starting a new planning stage
+	// when you have entered into a field which representing data source - it means that we are starting a new planning stage
 	RootNodes []TypeField
 	// ChildNodes - describes additional fields which will be requested along with fields which has a datasources
-	// They are always required for the Graphql datasources cause each field could have it's own datasource
-	// For any single point datasource like HTTP/REST or GRPC we could not request less fields, as we always get a full response
-	ChildNodes []TypeField
-	Directives DirectiveConfigurations
-	Factory    PlannerFactory
-	Custom     json.RawMessage
+	// They are always required for the Graphql datasources cause each field could have its own datasource
+	// For any single point datasource like HTTP/REST or GRPC we could not request fewer fields, as we always get a full response
+	ChildNodes       []TypeField
+	AlternativeNodes []AlternativeTypeField
+	Directives       DirectiveConfigurations
+	Factory          PlannerFactory
+	Custom           json.RawMessage
 
-	FieldsNew []FieldConfiguration
-	TypesNew  TypeConfigurations
-
-	TypesFromParentPlanner TypeConfigurations
+	TypeConfigurations                   TypeConfigurations
+	FieldConfigurations                  FieldConfigurations
+	FieldConfigurationsFromParentPlanner FieldConfigurations
 }
 
 func (d *DataSourceConfiguration) HasRootNode(typeName, fieldName string) bool {
@@ -89,36 +94,34 @@ func (d *DataSourceConfiguration) HasChildNodeWithTypename(typeName string) bool
 	return false
 }
 
-func (d *DataSourceConfiguration) HasTypeConfiguration(typeName, requiresFields string) bool {
-	for i := range d.TypesNew {
-		if typeName != d.TypesNew[i].TypeName {
+func (d *DataSourceConfiguration) HasFieldConfiguration(typeName, requiresFields string) bool {
+	for i := range d.FieldConfigurations {
+		if typeName != d.FieldConfigurations[i].TypeName {
 			continue
 		}
-		if requiresFields == d.TypesNew[i].RequiresFieldsNew {
+		if requiresFields == d.FieldConfigurations[i].RequiresFieldsSelectionSet {
 			return true
 		}
 	}
 	return false
 }
 
-func (d *DataSourceConfiguration) HasParentTypeConfiguration(typeName, requiresFields string) bool {
-	for i := range d.TypesFromParentPlanner {
-		if typeName != d.TypesFromParentPlanner[i].TypeName {
+func (d *DataSourceConfiguration) FieldConfigurationsForType(typeName string) (out []FieldConfiguration) {
+	for i := range d.FieldConfigurations {
+		if d.FieldConfigurations[i].TypeName != typeName || d.FieldConfigurations[i].FieldName != "" {
 			continue
 		}
-		if requiresFields == d.TypesFromParentPlanner[i].RequiresFieldsNew {
-			return true
-		}
+		out = append(out, d.FieldConfigurations[i])
 	}
-	return false
+	return out
 }
 
-func (d *DataSourceConfiguration) TypeConfigurationsFor(typeName string) (out []TypeConfiguration) {
-	for i := range d.TypesNew {
-		if typeName != d.TypesNew[i].TypeName {
+func (d *DataSourceConfiguration) FieldConfigurationsForTypeAndField(typeName, fieldName string) (out []FieldConfiguration) {
+	for i := range d.FieldConfigurations {
+		if d.FieldConfigurations[i].TypeName != typeName || d.FieldConfigurations[i].FieldName != fieldName {
 			continue
 		}
-		out = append(out, d.TypesNew[i])
+		out = append(out, d.FieldConfigurations[i])
 	}
 	return out
 }

@@ -5,8 +5,10 @@ import "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 type Configuration struct {
 	DefaultFlushIntervalMillis int64
 	DataSources                []DataSourceConfiguration
-	Fields                     FieldConfigurations
-	Types                      TypeConfigurations
+	// deprecated: use DataSourceConfiguration.FieldConfigurations instead
+	Fields FieldConfigurations
+	// deprecated: use DataSourceConfiguration.TypeConfigurations instead
+	Types TypeConfigurations
 	// DisableResolveFieldPositions should be set to true for testing purposes
 	// This setting removes position information from all fields
 	// In production, this should be set to false so that error messages are easier to understand
@@ -56,8 +58,7 @@ type TypeConfiguration struct {
 	// the upstream Operation can be rewritten to { ... on Human { height }}
 	// by setting RenameTo to Human
 	// This way, Types can be suffixed / renamed in downstream Schemas while keeping the contract with the upstream ok
-	RenameTo          string
-	RequiresFieldsNew string
+	RenameTo string
 }
 
 type FieldConfigurations []FieldConfiguration
@@ -114,10 +115,11 @@ type FieldConfiguration struct {
 	// DisableDefaultMapping - instructs planner whether to use path mapping coming from Path field
 	DisableDefaultMapping bool
 	// Path - represents a json path to lookup for a field value in response json
-	Path              []string
-	Arguments         ArgumentsConfigurations
-	RequiresFields    []string
-	RequiresFieldsNew string
+	Path      []string
+	Arguments ArgumentsConfigurations
+	// deprecated: use RequiresFieldsNew instead
+	RequiresFields             []string
+	RequiresFieldsSelectionSet string
 	// UnescapeResponseJson set to true will allow fields (String,List,Object)
 	// to be resolved from an escaped JSON string
 	// e.g. {"response":"{\"foo\":\"bar\"}"} will be returned as {"foo":"bar"} when path is "response"
