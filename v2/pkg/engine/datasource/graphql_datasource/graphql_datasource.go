@@ -34,21 +34,15 @@ type Planner struct {
 	debug           bool
 	printQueryPlans bool
 
-	visitor                    *plan.Visitor
-	dataSourceConfig           plan.DataSourceConfiguration
-	config                     Configuration
-	upstreamOperation          *ast.Document
-	upstreamVariables          []byte
-	representationsJson        []byte
-	nodes                      []ast.Node
-	variables                  resolve.Variables
-	lastFieldEnclosingTypeName string
-	disallowSingleFlight       bool
-	hasFederationRoot          bool
-	// federationDepth is the depth in the response tree where the federation root is located.
-	// this field allows us to dismiss all federated fields that belong to a different subgraph easily
-	federationDepth                    int
-	extractEntities                    bool
+	visitor                            *plan.Visitor
+	dataSourceConfig                   plan.DataSourceConfiguration
+	config                             Configuration
+	upstreamOperation                  *ast.Document
+	upstreamVariables                  []byte
+	nodes                              []ast.Node
+	variables                          resolve.Variables
+	lastFieldEnclosingTypeName         string
+	disallowSingleFlight               bool
 	fetchClient                        *http.Client
 	subscriptionClient                 GraphQLSubscriptionClient
 	isNested                           bool   // isNested - flags that datasource is nested e.g. field with datasource is not on a query type
@@ -60,14 +54,20 @@ type Planner struct {
 	upstreamDefinition                 *ast.Document
 	currentVariableDefinition          int
 	addDirectivesToVariableDefinitions map[int][]int
+	insideCustomScalarField            bool
+	customScalarFieldRef               int
+	unnulVariables                     bool
+	parentTypeNodes                    []ast.Node
 
-	insideCustomScalarField bool
-	customScalarFieldRef    int
-	unnulVariables          bool
+	// federation
 
-	// TODO: this nodes will contain information about which required fields was provided by parent planner
-	parentTypeNodes      []ast.Node
 	addedInlineFragments map[onTypeInlineFragment]struct{}
+	hasFederationRoot    bool
+	// federationDepth is the depth in the response tree where the federation root is located.
+	// this field allows us to dismiss all federated fields that belong to a different subgraph easily
+	federationDepth     int
+	extractEntities     bool
+	representationsJson []byte
 }
 
 type onTypeInlineFragment struct {
@@ -427,7 +427,7 @@ func (p *Planner) EnterSelectionSet(ref int) {
 	p.nodes = append(p.nodes, set)
 
 	if parent.Kind == ast.NodeKindOperationDefinition {
-		p.handleFederation2()
+		p.addRepresentationsQuery()
 	}
 
 	if p.visitor.Walker.EnclosingTypeDefinition.Kind.IsAbstractType() {
@@ -579,6 +579,8 @@ func (p *Planner) EnterField(ref int) {
 			p.handleFederation(fieldConfiguration)
 		}
 
+		p.handleOnTypeInlineFragment()
+
 		p.addField(ref)
 		return
 	}
@@ -703,7 +705,7 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 func (p *Planner) LeaveDocument(_, _ *ast.Document) {
 }
 
-func (p *Planner) handleFederation2() {
+func (p *Planner) addRepresentationsQuery() {
 	isNestedFederationRequest := p.isNested && p.config.Federation.Enabled && len(p.dataSourceConfig.FieldConfigurationsFromParentPlanner) > 0
 
 	if !isNestedFederationRequest {
@@ -715,6 +717,31 @@ func (p *Planner) handleFederation2() {
 	// query($representations: [_Any!]!){_entities(representations: $representations){... on Product
 	p.addRepresentationsVariableDefinition() // $representations: [_Any!]!
 	p.addEntitiesSelectionSet()              // {_entities(representations: $representations)
+}
+
+func (p *Planner) handleOnTypeInlineFragment() {
+	if p.hasFederationRoot {
+		if !p.isInEntitiesSelectionSet() {
+			// if we quering field of entity type, but we are not in the root of the query
+			// we should not add representations variable and should not add inline fragment
+			// e.g. query { _entities { ... on Product { price info {name} } } }
+			// where Info is an entity type, but it is used as a field of Product
+			//
+			// At the same time, we may need to update representations variables, but not to add an inline fragment
+			// cause, we could have a field which requires an additional field from entity type, which is not a key
+			return
+		}
+
+		// add inline fragment again, because it could be another entity type
+		// e.g. parallel request for a few entities
+		// ... on Product { price }
+		// ,,, on StockItem { stock }
+		if !p.isOnTypeInlineFragmentAllowed() {
+			return
+		}
+		p.addOnTypeInlineFragment() // ... on Product
+		return
+	}
 }
 
 func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
