@@ -151,13 +151,21 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			RootNodes: []plan.TypeField{
 				{
 					TypeName:   "Account",
-					FieldNames: []string{"id", "name", "info"},
+					FieldNames: []string{"id", "name", "info", "shippingInfo"},
 				},
 			},
 			ChildNodes: []plan.TypeField{
 				{
 					TypeName:   "Info",
 					FieldNames: []string{"a", "b"},
+				},
+				{
+					TypeName:   "ShippingInfo",
+					FieldNames: []string{"zip"},
+				},
+				{
+					TypeName:   "Address",
+					FieldNames: []string{"id", "fullAddress"},
 				},
 			},
 			Custom: ConfigJson(Configuration{
@@ -218,16 +226,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
-						Fetch: &resolve.ParallelFetch{
-							Fetches: []resolve.Fetch{
-								&resolve.SingleFetch{
-									BufferId:              0,
-									Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"query{user{account{id info{a b}}}}"}}`,
-									DataSource:            &Source{},
-									DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-									ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
-								},
-							},
+						Fetch: &resolve.SingleFetch{
+							BufferId:              0,
+							Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"query{user{account{id info{a b}}}}"}}`,
+							DataSource:            &Source{},
+							DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+							ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 						},
 						Fields: []*resolve.Field{
 							{
@@ -271,7 +275,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												},
 												Fetch: &resolve.SingleFetch{
 													BufferId:   1,
-													Input:      `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippinInfo {zip}}}}","variables":{"representations":$$0$$}}}`,
+													Input:      `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":$$0$$}}}`,
 													DataSource: &Source{},
 													Variables: resolve.NewVariables(
 														&resolve.ContextVariable{
