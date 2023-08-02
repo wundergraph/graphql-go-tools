@@ -17,7 +17,7 @@ type addRequiredFieldsInput struct {
 func addRequiredFields(input *addRequiredFieldsInput) {
 	walker := astvisitor.NewWalker(48)
 
-	visitor := &requiredFieldsVisitorNew{
+	visitor := &requiredFieldsVisitor{
 		Walker: &walker,
 		input:  input,
 	}
@@ -28,19 +28,19 @@ func addRequiredFields(input *addRequiredFieldsInput) {
 	walker.Walk(input.key, input.definition, input.report)
 }
 
-type requiredFieldsVisitorNew struct {
+type requiredFieldsVisitor struct {
 	*astvisitor.Walker
 	OperationNodes []ast.Node
 	input          *addRequiredFieldsInput
 }
 
-func (v *requiredFieldsVisitorNew) EnterDocument(_, _ *ast.Document) {
+func (v *requiredFieldsVisitor) EnterDocument(_, _ *ast.Document) {
 	v.OperationNodes = make([]ast.Node, 0, 3)
 	v.OperationNodes = append(v.OperationNodes,
 		ast.Node{Kind: ast.NodeKindSelectionSet, Ref: v.input.operationSelectionSet})
 }
 
-func (v *requiredFieldsVisitorNew) EnterSelectionSet(ref int) {
+func (v *requiredFieldsVisitor) EnterSelectionSet(ref int) {
 	if v.Walker.Depth == 2 {
 		return
 	}
@@ -54,7 +54,7 @@ func (v *requiredFieldsVisitorNew) EnterSelectionSet(ref int) {
 	v.OperationNodes = append(v.OperationNodes, selectionSetNode)
 }
 
-func (v *requiredFieldsVisitorNew) LeaveSelectionSet(ref int) {
+func (v *requiredFieldsVisitor) LeaveSelectionSet(ref int) {
 	if v.Walker.Depth == 0 {
 		return
 	}
@@ -62,7 +62,7 @@ func (v *requiredFieldsVisitorNew) LeaveSelectionSet(ref int) {
 	v.OperationNodes = v.OperationNodes[:len(v.OperationNodes)-1]
 }
 
-func (v *requiredFieldsVisitorNew) EnterField(ref int) {
+func (v *requiredFieldsVisitor) EnterField(ref int) {
 	fieldName := v.input.key.FieldNameBytes(ref)
 
 	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
@@ -85,13 +85,13 @@ func (v *requiredFieldsVisitorNew) EnterField(ref int) {
 	}
 }
 
-func (v *requiredFieldsVisitorNew) LeaveField(ref int) {
+func (v *requiredFieldsVisitor) LeaveField(ref int) {
 	if v.input.key.FieldHasSelections(ref) {
 		v.OperationNodes = v.OperationNodes[:len(v.OperationNodes)-1]
 	}
 }
 
-func (v *requiredFieldsVisitorNew) addRequiredField(fieldName ast.ByteSlice, selectionSet int) ast.Node {
+func (v *requiredFieldsVisitor) addRequiredField(fieldName ast.ByteSlice, selectionSet int) ast.Node {
 	field := ast.Field{
 		Name:         v.input.operation.Input.AppendInputBytes(fieldName),
 		SelectionSet: ast.InvalidRef,
