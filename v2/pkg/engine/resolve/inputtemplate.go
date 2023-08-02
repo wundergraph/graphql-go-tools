@@ -55,6 +55,8 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuf
 				if undefined {
 					undefinedVariables = append(undefinedVariables, segment.VariableSourcePath[0])
 				}
+			case ResolvableObjectVariableKind:
+				err = i.renderResolvableObjectVariable(ctx.Context(), data, segment, preparedInput)
 			case HeaderVariableKind:
 				err = i.renderHeaderVariable(ctx, segment.VariableSourcePath, preparedInput)
 			default:
@@ -99,6 +101,10 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []by
 		}
 	}
 	return segment.Renderer.RenderVariable(ctx, value, preparedInput)
+}
+
+func (i *InputTemplate) renderResolvableObjectVariable(ctx context.Context, objectData []byte, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {
+	return segment.Renderer.RenderVariable(ctx, objectData, preparedInput)
 }
 
 func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) (variableWasUndefined bool, err error) {

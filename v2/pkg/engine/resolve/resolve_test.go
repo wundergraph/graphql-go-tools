@@ -4487,17 +4487,3 @@ func (h hookContextPathMatcher) Matches(x interface{}) bool {
 func (h hookContextPathMatcher) String() string {
 	return fmt.Sprintf("is equal to %s", h.path)
 }
-
-type initTestVariableRenderer func(jsonSchema string) VariableRenderer
-
-func useTestPlainVariableRenderer() initTestVariableRenderer {
-	return func(jsonSchema string) VariableRenderer {
-		return NewPlainVariableRendererWithValidation(jsonSchema)
-	}
-}
-
-func useTestJSONVariableRenderer() initTestVariableRenderer {
-	return func(jsonSchema string) VariableRenderer {
-		return NewJSONVariableRendererWithValidation(jsonSchema)
-	}
-}

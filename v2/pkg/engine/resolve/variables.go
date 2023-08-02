@@ -10,6 +10,7 @@ const (
 	ContextVariableKind VariableKind = iota + 1
 	ObjectVariableKind
 	HeaderVariableKind
+	ResolvableObjectVariableKind
 )
 
 const (
@@ -153,4 +154,31 @@ func (h *HeaderVariable) Equals(another Variable) bool {
 		}
 	}
 	return true
+}
+
+type ResolvableObjectVariable struct {
+	selectionSet string
+	Renderer     VariableRenderer
+}
+
+func (h *ResolvableObjectVariable) TemplateSegment() TemplateSegment {
+	return TemplateSegment{
+		SegmentType:  VariableSegmentType,
+		VariableKind: ResolvableObjectVariableKind,
+	}
+}
+
+func (h *ResolvableObjectVariable) GetVariableKind() VariableKind {
+	return ResolvableObjectVariableKind
+}
+
+func (h *ResolvableObjectVariable) Equals(another Variable) bool {
+	if another == nil {
+		return false
+	}
+	if another.GetVariableKind() != h.GetVariableKind() {
+		return false
+	}
+	anotherHeaderVariable := another.(*ResolvableObjectVariable)
+	return h.selectionSet == anotherHeaderVariable.selectionSet
 }

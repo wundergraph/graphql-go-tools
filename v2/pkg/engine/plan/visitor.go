@@ -331,10 +331,6 @@ func (v *Visitor) linkFetchConfiguration(fieldRef int) {
 				v.fetchConfigurations[i].trigger = &plan.Response.Trigger
 			}
 		} else {
-			if len(v.objects) == 0 {
-				fmt.Println("here")
-			}
-
 			v.fetchConfigurations[i].object = v.objects[len(v.objects)-1]
 		}
 	}

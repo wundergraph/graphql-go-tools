@@ -19,6 +19,7 @@ const (
 	VariableRendererKindJson                  = "json"
 	VariableRendererKindJsonWithValidation    = "jsonWithValidation"
 	VariableRendererKindGraphqlWithValidation = "graphqlWithValidation"
+	VariableRendererKindGraphqlResolve        = "graphqlResolve"
 	VariableRendererKindCsv                   = "csv"
 )
 
@@ -482,4 +483,28 @@ func extractStringWithQuotes(rootValueType JsonRootType, data []byte) ([]byte, j
 		return data[1 : len(data)-1], desiredType
 	}
 	return data, desiredType
+}
+
+type GraphQLVariableResolveRenderer struct {
+	Kind string
+	Node *Object
+}
+
+func (g *GraphQLVariableResolveRenderer) GetKind() string {
+	return g.Kind
+}
+
+func (g *GraphQLVariableResolveRenderer) RenderVariable(ctx context.Context, data []byte, out io.Writer) error {
+
+	resolver := New(ctx, nil, false)
+
+	bufPair := resolver.getBufPair()
+	defer resolver.freeBufPair(bufPair)
+
+	if err := resolver.resolveNode(&Context{}, g.Node, data, bufPair); err != nil {
+		return err
+	}
+
+	_, err := out.Write(bufPair.Data.Bytes())
+	return err
 }
