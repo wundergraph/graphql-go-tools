@@ -3,41 +3,41 @@ package plan
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-func AddRequiredFields(key, operation, definition *ast.Document, operationSelectionSet int, report *operationreport.Report) {
+type addRequiredFieldsInput struct {
+	key, operation, definition *ast.Document
+	report                     *operationreport.Report
+	operationSelectionSet      int
+	skipFieldRefs              *[]int
+	parentPath                 string
+}
+
+func addRequiredFields(input *addRequiredFieldsInput) {
 	walker := astvisitor.NewWalker(48)
 
 	visitor := &requiredFieldsVisitorNew{
-		Walker:                &walker,
-		operation:             operation,
-		operationSelectionSet: operationSelectionSet,
+		Walker: &walker,
+		input:  input,
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterEnterFieldVisitor(visitor)
 	walker.RegisterEnterSelectionSetVisitor(visitor)
 
-	walker.Walk(key, definition, report)
-	if report.HasErrors() {
-		panic(report.Error())
-	}
+	walker.Walk(input.key, input.definition, input.report)
 }
 
 type requiredFieldsVisitorNew struct {
 	*astvisitor.Walker
-	key                   *ast.Document
-	operation             *ast.Document
-	operationSelectionSet int
-	OperationNodes        []ast.Node
+	OperationNodes []ast.Node
+	input          *addRequiredFieldsInput
 }
 
-func (v *requiredFieldsVisitorNew) EnterDocument(key, _ *ast.Document) {
-	v.key = key
+func (v *requiredFieldsVisitorNew) EnterDocument(_, _ *ast.Document) {
 	v.OperationNodes = make([]ast.Node, 0, 3)
 	v.OperationNodes = append(v.OperationNodes,
-		ast.Node{Kind: ast.NodeKindSelectionSet, Ref: v.operationSelectionSet})
+		ast.Node{Kind: ast.NodeKindSelectionSet, Ref: v.input.operationSelectionSet})
 }
 
 func (v *requiredFieldsVisitorNew) EnterSelectionSet(ref int) {
@@ -45,11 +45,11 @@ func (v *requiredFieldsVisitorNew) EnterSelectionSet(ref int) {
 		return
 	}
 
-	selectionSetNode := v.operation.AddSelectionSet()
+	selectionSetNode := v.input.operation.AddSelectionSet()
 
 	fieldNode := v.OperationNodes[len(v.OperationNodes)-1]
-	v.operation.Fields[fieldNode.Ref].HasSelections = true
-	v.operation.Fields[fieldNode.Ref].SelectionSet = selectionSetNode.Ref
+	v.input.operation.Fields[fieldNode.Ref].HasSelections = true
+	v.input.operation.Fields[fieldNode.Ref].SelectionSet = selectionSetNode.Ref
 
 	v.OperationNodes = append(v.OperationNodes, selectionSetNode)
 }
@@ -63,51 +63,48 @@ func (v *requiredFieldsVisitorNew) LeaveSelectionSet(ref int) {
 }
 
 func (v *requiredFieldsVisitorNew) EnterField(ref int) {
-	fieldName := v.key.FieldNameBytes(ref)
+	fieldName := v.input.key.FieldNameBytes(ref)
 
 	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
 
-	if v.operation.SelectionSetHasFieldSelectionWithNameOrAliasBytes(selectionSetRef, fieldName) {
+	operationHasField, operationFieldRef := v.input.operation.SelectionSetHasFieldSelectionWithNameOrAliasBytes(selectionSetRef, fieldName)
+	if operationHasField {
+		// do not add required field if the field is already present in the operation
+		// but add an operation node from operation if the field has selections
+		if !v.input.operation.FieldHasSelections(operationFieldRef) {
+			return
+		}
+
+		v.OperationNodes = append(v.OperationNodes, ast.Node{Kind: ast.NodeKindField, Ref: operationFieldRef})
 		return
 	}
 
 	fieldNode := v.addRequiredField(fieldName, selectionSetRef)
-	if v.key.FieldHasSelections(ref) {
+	if v.input.key.FieldHasSelections(ref) {
 		v.OperationNodes = append(v.OperationNodes, fieldNode)
 	}
 }
 
 func (v *requiredFieldsVisitorNew) LeaveField(ref int) {
-	if v.key.FieldHasSelections(ref) {
+	if v.input.key.FieldHasSelections(ref) {
 		v.OperationNodes = v.OperationNodes[:len(v.OperationNodes)-1]
 	}
 }
 
-/*
-TODO: PROPAGATE added fields into skip fields of a configuration visitor?
-
-so we will be able to skip them for planning visitor
-and in graphql datasource we just will normalize them away in case of duplicates
-
-*/
-
 func (v *requiredFieldsVisitorNew) addRequiredField(fieldName ast.ByteSlice, selectionSet int) ast.Node {
 	field := ast.Field{
-		Name:         v.operation.Input.AppendInputBytes(fieldName),
+		Name:         v.input.operation.Input.AppendInputBytes(fieldName),
 		SelectionSet: ast.InvalidRef,
 	}
-	addedField := v.operation.AddField(field)
+	addedField := v.input.operation.AddField(field)
 
 	selection := ast.Selection{
 		Kind: ast.SelectionKindField,
 		Ref:  addedField.Ref,
 	}
-	v.operation.AddSelection(selectionSet, selection)
+	v.input.operation.AddSelection(selectionSet, selection)
 
-	directiveRef := v.operation.AddDirective(ast.Directive{
-		Name: v.operation.Input.AppendInputBytes(literal.INTERNAL_SKIP),
-	})
-	v.operation.AddDirectiveToNode(directiveRef, ast.Node{Kind: ast.NodeKindField, Ref: addedField.Ref})
+	*v.input.skipFieldRefs = append(*v.input.skipFieldRefs, addedField.Ref)
 
 	return addedField
 }

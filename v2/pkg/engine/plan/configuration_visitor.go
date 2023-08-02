@@ -30,6 +30,7 @@ type configurationVisitor struct {
 	currentSelectionSet       int
 	pendingTypeConfigurations map[int]map[string]string
 	secondRun                 bool
+	skipFieldsRefs            []int
 }
 
 type objectFetchConfiguration struct {
@@ -88,6 +89,11 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 		for i := range c.fieldBuffers {
 			delete(c.fieldBuffers, i)
 		}
+	}
+	if c.skipFieldsRefs == nil {
+		c.skipFieldsRefs = make([]int, 0, 8)
+	} else {
+		c.skipFieldsRefs = c.skipFieldsRefs[:0]
 	}
 
 	c.pendingTypeConfigurations = make(map[int]map[string]string)
@@ -489,7 +495,7 @@ func (c *configurationVisitor) planAddingFieldsFromTypeConfiguration(currentPath
 }
 
 func (c *configurationVisitor) processPendingRequiredFields(selectionSetRef int) {
-	configs, hasSelectionSet := c.pendingTypeConfigurations[c.currentSelectionSet]
+	configs, hasSelectionSet := c.pendingTypeConfigurations[selectionSetRef]
 	if !hasSelectionSet {
 		return
 	}
@@ -498,21 +504,31 @@ func (c *configurationVisitor) processPendingRequiredFields(selectionSetRef int)
 		c.addRequiredFields(selectionSetRef, requiredFields)
 	}
 
-	delete(c.pendingTypeConfigurations, c.currentSelectionSet)
+	delete(c.pendingTypeConfigurations, selectionSetRef)
 }
 
 func (c *configurationVisitor) addRequiredFields(selectionSetRef int, requiredFields string) {
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
 	key, report := astparser.ParseGraphqlDocumentString(fmt.Sprintf("fragment Key on %s {%s}", typeName, requiredFields))
 	if report.HasErrors() {
-		panic(report.Error())
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse required fields for %s", typeName))
 	}
 
-	AddRequiredFields(
-		&key,
-		c.operation,
-		c.definition,
-		selectionSetRef,
-		&report,
-	)
+	parentPath := c.walker.Path.DotDelimitedString()
+
+	input := &addRequiredFieldsInput{
+		key:                   &key,
+		operation:             c.operation,
+		definition:            c.definition,
+		report:                &report,
+		operationSelectionSet: selectionSetRef,
+		skipFieldRefs:         &c.skipFieldsRefs,
+		parentPath:            parentPath,
+	}
+
+	addRequiredFields(input)
+	if report.HasErrors() {
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields for %s", typeName))
+	}
+
 }

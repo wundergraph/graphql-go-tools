@@ -35,7 +35,7 @@ type Visitor struct {
 	planners                     []plannerConfiguration
 	fetchConfigurations          []objectFetchConfiguration
 	fieldBuffers                 map[int]int
-	skipFieldPaths               []string
+	skipFieldsRefs               []int
 	fieldConfigs                 map[int]*FieldConfiguration
 	exportedVariables            map[string]struct{}
 	skipIncludeFields            map[int]skipIncludeField
@@ -445,9 +445,8 @@ func (v *Visitor) LeaveField(ref int) {
 }
 
 func (v *Visitor) skipField(ref int) bool {
-	fullPath := v.Walker.Path.DotDelimitedString() + "." + v.Operation.FieldAliasOrNameString(ref)
-	for i := range v.skipFieldPaths {
-		if v.skipFieldPaths[i] == fullPath {
+	for _, skipRef := range v.skipFieldsRefs {
+		if skipRef == ref {
 			return true
 		}
 	}

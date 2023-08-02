@@ -99,7 +99,7 @@ func (d *DataSourceConfiguration) HasFieldConfiguration(typeName, requiresFields
 		if typeName != d.FieldConfigurations[i].TypeName {
 			continue
 		}
-		if requiresFields == d.FieldConfigurations[i].RequiresFieldsSelectionSet {
+		if d.FieldConfigurations[i].RequiresFieldsSelectionSet == requiresFields {
 			return true
 		}
 	}
