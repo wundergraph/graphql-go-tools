@@ -1,11 +1,9 @@
 package graphql
 
 import (
-	"bytes"
 	"compress/flate"
 	"compress/gzip"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -23,7 +21,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/staticdatasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/execution"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/starwars"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/federationtesting"
@@ -799,7 +796,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		},
 	))
 
-	schemaWithCustomScalar, _ := NewSchemaFromString(string(`
+	schemaWithCustomScalar, _ := NewSchemaFromString(`
     scalar Long
     type Asset {
       id: Long!
@@ -807,23 +804,16 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
     type Query {
       asset: Asset
     }
-  `))
+  `)
 	t.Run("FIXME", func(t *testing.T) {
 		t.Skip("TODO: FIXME")
 		t.Run("query with custom scalar", runWithoutError(
 			ExecutionEngineV2TestCase{
 				schema: schemaWithCustomScalar,
 				operation: func(t *testing.T) Request {
-					request := Request{}
-					body := execution.GraphqlRequest{
-						Query:         `{asset{id}}`,
-						OperationName: "",
-						Variables:     nil,
+					return Request{
+						Query: `{asset{id}}`,
 					}
-					jsonBytes, _ := json.Marshal(body)
-					err := UnmarshalRequest(bytes.NewBuffer(jsonBytes), &request)
-					require.NoError(t, err)
-					return request
 				},
 				dataSources: []plan.DataSourceConfiguration{
 					{

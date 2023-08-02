@@ -2,7 +2,6 @@ package graphql
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -14,7 +13,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/introspection"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
@@ -185,22 +183,6 @@ func (s *Schema) Validate() (result ValidationResult, err error) {
 		Valid:  isValid,
 		Errors: schemaValidationErrorsFromOperationReport(report),
 	}, nil
-}
-
-// IntrospectionResponse - writes full schema introspection response into writer
-func (s *Schema) IntrospectionResponse(out io.Writer) error {
-	var (
-		introspectionData = struct {
-			Data introspection.Data `json:"data"`
-		}{}
-		report operationreport.Report
-	)
-	gen := introspection.NewGenerator()
-	gen.Generate(&s.document, &report, &introspectionData.Data)
-	if report.HasErrors() {
-		return report
-	}
-	return json.NewEncoder(out).Encode(introspectionData)
 }
 
 func (s *Schema) GetAllFieldArguments(skipFieldFuncs ...SkipFieldFunc) []TypeFieldArguments {
@@ -435,12 +417,6 @@ func createSchema(schemaContent []byte, mergeWithBaseSchema bool) (*Schema, erro
 	}
 
 	return schema, nil
-}
-
-func SchemaIntrospection(schema *Schema) (*ExecutionResult, error) {
-	var buf bytes.Buffer
-	err := schema.IntrospectionResponse(&buf)
-	return &ExecutionResult{&buf}, err
 }
 
 type SkipFieldFunc func(typeName, fieldName string, definition ast.Document) bool

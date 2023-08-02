@@ -2,7 +2,6 @@ package graphql
 
 import (
 	"bytes"
-	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,7 +11,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/goldie"
 )
 
 func TestNewSchemaFromReader(t *testing.T) {
@@ -389,35 +387,6 @@ func TestSchema_Validate(t *testing.T) {
 		true,
 		0,
 	))
-}
-
-func TestSchema_IntrospectionResponse(t *testing.T) {
-	schemaBytes := []byte("schema { query: Query } type Query { hello: String }")
-	schemaReader := bytes.NewBuffer(schemaBytes)
-	schema, err := NewSchemaFromReader(schemaReader)
-	assert.NoError(t, err)
-	out := &bytes.Buffer{}
-	err = schema.IntrospectionResponse(out)
-	assert.NoError(t, err)
-	goldie.Assert(t, "introspection_response", out.Bytes())
-}
-
-func TestSchemaIntrospection(t *testing.T) {
-	schemaString := "schema { query: Query } type Query { hello: String }"
-	schema, err := NewSchemaFromString(schemaString)
-	assert.NoError(t, err)
-
-	result, err := SchemaIntrospection(schema)
-	assert.NoError(t, err)
-
-	resp := result.GetAsHTTPResponse()
-	assert.NotNil(t, resp)
-	assert.NotNil(t, resp.Body)
-
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	assert.NoError(t, err)
-
-	goldie.Assert(t, "introspection_response", bodyBytes)
 }
 
 func TestSchema_GetAllFieldArguments(t *testing.T) {

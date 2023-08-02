@@ -6,11 +6,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/require"
-
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/execution"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/execution/datasource"
 )
 
 type QueryVariables map[string]interface{}
@@ -45,15 +41,14 @@ type TestCase struct {
 	RequestBody []byte
 }
 
-func SetRelativePathToStarWarsPackage(path string) {
-	testdataPath = path
+type GraphqlRequest struct {
+	OperationName string          `json:"operationName"`
+	Variables     json.RawMessage `json:"variables"`
+	Query         string          `json:"query"`
 }
 
-func NewExecutionHandler(t *testing.T) *execution.Handler {
-	base, err := datasource.NewBaseDataSourcePlanner(Schema(t), datasource.PlannerConfiguration{}, abstractlogger.NoopLogger)
-	require.NoError(t, err)
-	executionHandler := execution.NewHandler(base, nil)
-	return executionHandler
+func SetRelativePathToStarWarsPackage(path string) {
+	testdataPath = path
 }
 
 func Schema(t *testing.T) []byte {
@@ -69,10 +64,6 @@ func LoadQuery(t *testing.T, fileName string, variables QueryVariables) []byte {
 	return RequestBody(t, string(query), variables)
 }
 
-func InvalidQueryRequestBody(t *testing.T) []byte {
-	return RequestBody(t, "query { trap { meme } }", nil)
-}
-
 func RequestBody(t *testing.T, query string, variables QueryVariables) []byte {
 	var variableJsonBytes []byte
 	if len(variables) > 0 {
@@ -81,7 +72,7 @@ func RequestBody(t *testing.T, query string, variables QueryVariables) []byte {
 		require.NoError(t, err)
 	}
 
-	body := execution.GraphqlRequest{
+	body := GraphqlRequest{
 		OperationName: "",
 		Variables:     variableJsonBytes,
 		Query:         query,
@@ -91,11 +82,4 @@ func RequestBody(t *testing.T, query string, variables QueryVariables) []byte {
 	require.NoError(t, err)
 
 	return jsonBytes
-}
-
-func ReviewInput() map[string]interface{} {
-	return map[string]interface{}{
-		"stars":      5,
-		"commentary": "This is a great movie!",
-	}
 }

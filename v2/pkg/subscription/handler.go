@@ -243,8 +243,6 @@ func (h *Handler) handleOnBeforeStart(executor Executor) error {
 		if hook := e.engine.GetWebsocketBeforeStartHook(); hook != nil {
 			return hook.OnBeforeStart(e.reqCtx, e.operation)
 		}
-	case *ExecutorV1:
-		// do nothing
 	}
 
 	return nil
