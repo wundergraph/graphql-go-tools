@@ -1,10 +1,18 @@
 package plan
 
 import (
+	"fmt"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
+
+func RequiredFieldsFragment(typeName, requiredFields string) (*ast.Document, *operationreport.Report) {
+	key, report := astparser.ParseGraphqlDocumentString(fmt.Sprintf("fragment Key on %s {%s}", typeName, requiredFields))
+	return &key, &report
+}
 
 type addRequiredFieldsInput struct {
 	key, operation, definition *ast.Document
@@ -97,6 +105,8 @@ func (v *requiredFieldsVisitor) addRequiredField(fieldName ast.ByteSlice, select
 		SelectionSet: ast.InvalidRef,
 	}
 	addedField := v.input.operation.AddField(field)
+
+	// TODO: add arguments support
 
 	selection := ast.Selection{
 		Kind: ast.SelectionKindField,

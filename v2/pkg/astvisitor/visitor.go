@@ -1351,13 +1351,13 @@ func (w *Walker) Walk(document, definition *ast.Document, report *operationrepor
 	w.walk()
 }
 
-// Defer runs the provided func() after the current batch of visitors
+// DefferOnEnterField runs the provided func() after the current batch of visitors
 // This gives you the possibility to execute some code that should e.g. run after all EnterField Visitors
-func (w *Walker) Defer(fn func()) {
+func (w *Walker) DefferOnEnterField(fn func()) {
 	w.deferred = append(w.deferred, fn)
 }
 
-func (w *Walker) runDeferred() {
+func (w *Walker) runOnEnterFieldDeferred() {
 	if len(w.deferred) == 0 {
 		return
 	}
@@ -1872,7 +1872,7 @@ func (w *Walker) walkField(ref int, skipFor SkipVisitors) {
 		i++
 	}
 
-	w.runDeferred()
+	w.runOnEnterFieldDeferred()
 
 	w.appendAncestor(ref, ast.NodeKindField)
 	if w.stop {

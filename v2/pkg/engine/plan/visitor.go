@@ -527,7 +527,7 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 				UnescapeResponseJson: unescapeResponseJson,
 			}
 			v.objects = append(v.objects, object)
-			v.Walker.Defer(func() {
+			v.Walker.DefferOnEnterField(func() {
 				v.currentFields = append(v.currentFields, objectFields{
 					popOnField: fieldRef,
 					fields:     &object.Fields,

@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -509,7 +508,7 @@ func (c *configurationVisitor) processPendingRequiredFields(selectionSetRef int)
 
 func (c *configurationVisitor) addRequiredFields(selectionSetRef int, requiredFields string) {
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
-	key, report := astparser.ParseGraphqlDocumentString(fmt.Sprintf("fragment Key on %s {%s}", typeName, requiredFields))
+	key, report := RequiredFieldsFragment(typeName, requiredFields)
 	if report.HasErrors() {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse required fields for %s", typeName))
 	}
@@ -517,10 +516,10 @@ func (c *configurationVisitor) addRequiredFields(selectionSetRef int, requiredFi
 	parentPath := c.walker.Path.DotDelimitedString()
 
 	input := &addRequiredFieldsInput{
-		key:                   &key,
+		key:                   key,
 		operation:             c.operation,
 		definition:            c.definition,
-		report:                &report,
+		report:                report,
 		operationSelectionSet: selectionSetRef,
 		skipFieldRefs:         &c.skipFieldsRefs,
 		parentPath:            parentPath,
