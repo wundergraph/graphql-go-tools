@@ -11,6 +11,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqljsonschema"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 const (
@@ -495,16 +496,15 @@ func (g *GraphQLVariableResolveRenderer) GetKind() string {
 }
 
 func (g *GraphQLVariableResolveRenderer) RenderVariable(ctx context.Context, data []byte, out io.Writer) error {
+	resolver := NewSimpleResolver()
 
-	resolver := New(ctx, nil, false)
+	buf := pool.FastBuffer.Get()
+	defer pool.FastBuffer.Put(buf)
 
-	bufPair := resolver.getBufPair()
-	defer resolver.freeBufPair(bufPair)
-
-	if err := resolver.resolveNode(&Context{}, g.Node, data, bufPair); err != nil {
+	if err := resolver.resolveNode(g.Node, data, buf); err != nil {
 		return err
 	}
 
-	_, err := out.Write(bufPair.Data.Bytes())
+	_, err := out.Write(buf.Bytes())
 	return err
 }
