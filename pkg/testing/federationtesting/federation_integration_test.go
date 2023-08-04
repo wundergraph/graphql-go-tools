@@ -450,6 +450,66 @@ func TestFederationIntegrationTest(t *testing.T) {
 }`
 		assert.Equal(t, compact(expected), string(resp))
 	})
+
+	t.Run("Merged fields are still resolved", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "queries/allUsers.graphql"), nil, t)
+		expected := `
+{
+	"data": {
+		"allUsers": [
+			{
+				"id": "1",
+				"username": "One",
+				"preferredPayment": {
+					"name": "VISA",
+					"isContactless": true
+				}
+			},
+			{
+				"id": "2",
+				"username": "Two",
+				"preferredPayment": {
+					"name": "MasterCard",
+					"isContactless": false
+				}
+			},
+			{
+				"id": "3",
+				"username": "Three",
+				"preferredPayment": {
+					"name": "50 dollary doos",
+					"isRefundable": false
+				}
+			},
+			{
+				"id": "4",
+				"username": "Four",
+				"preferredPayment": {
+					"name": "one MILLION dollars",
+					"isRefundable": true
+				}
+			},
+			{
+				"id": "5",
+				"username": "Five",
+				"preferredPayment": {
+					"name": "EUR"
+				}
+			},
+			{
+				"id": "1234",
+				"username": "Me",
+				"preferredPayment": {
+					"name": "USD"
+				}
+			}
+		]
+	}
+}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
 }
 
 func compact(input string) string {

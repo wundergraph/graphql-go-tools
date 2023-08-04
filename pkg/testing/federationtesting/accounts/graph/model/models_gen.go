@@ -16,6 +16,11 @@ type Info interface {
 	GetQuantity() int
 }
 
+type PaymentType interface {
+	IsPaymentType()
+	GetName() string
+}
+
 type Store interface {
 	IsStore()
 	GetLocation() string
@@ -27,9 +32,33 @@ type Wallet interface {
 	GetAmount() float64
 }
 
+type Card struct {
+	Name          string `json:"name"`
+	IsContactless bool   `json:"isContactless"`
+}
+
+func (Card) IsPaymentType()       {}
+func (this Card) GetName() string { return this.Name }
+
+type Cash struct {
+	Name            string `json:"name"`
+	RequiresReceipt bool   `json:"requiresReceipt"`
+}
+
+func (Cash) IsPaymentType()       {}
+func (this Cash) GetName() string { return this.Name }
+
 type Cat struct {
 	Name string `json:"name"`
 }
+
+type GiftCard struct {
+	Name         string `json:"name"`
+	IsRefundable bool   `json:"isRefundable"`
+}
+
+func (GiftCard) IsPaymentType()       {}
+func (this GiftCard) GetName() string { return this.Name }
 
 type Product struct {
 	Upc string `json:"upc"`
@@ -60,10 +89,11 @@ func (Sale) IsStore()                 {}
 func (this Sale) GetLocation() string { return this.Location }
 
 type User struct {
-	ID       string    `json:"id"`
-	Username string    `json:"username"`
-	History  []History `json:"history"`
-	RealName string    `json:"realName"`
+	ID               string      `json:"id"`
+	Username         string      `json:"username"`
+	History          []History   `json:"history"`
+	RealName         string      `json:"realName"`
+	PreferredPayment PaymentType `json:"preferredPayment"`
 }
 
 func (User) IsIdentifiable()    {}

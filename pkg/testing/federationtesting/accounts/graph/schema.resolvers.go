@@ -6,29 +6,23 @@ package graph
 
 import (
 	"context"
-
 	"github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/accounts/graph/generated"
 	"github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/accounts/graph/model"
 )
 
+// AllUsers is the resolver for the allUsers field.
+func (r *queryResolver) AllUsers(ctx context.Context) ([]*model.User, error) {
+	return users, nil
+}
+
 // Me is the resolver for the me field.
 func (r *queryResolver) Me(ctx context.Context) (*model.User, error) {
-	return &model.User{
-		ID:       "1234",
-		Username: "Me",
-		History:  histories,
-		RealName: "User Usington",
-	}, nil
+	return users[0], nil
 }
 
 // Identifiable is the resolver for the identifiable field.
 func (r *queryResolver) Identifiable(ctx context.Context) (model.Identifiable, error) {
-	return &model.User{
-		ID:       "1234",
-		Username: "Me",
-		History:  histories,
-		RealName: "User Usington",
-	}, nil
+	return users[0], nil
 }
 
 // Histories is the resolver for the histories field.

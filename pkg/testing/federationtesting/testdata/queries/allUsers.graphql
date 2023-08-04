@@ -1,0 +1,15 @@
+query {
+  allUsers {
+    id
+    username
+    preferredPayment {
+      name
+      ... on Card {
+        isContactless
+      }
+      ... on GiftCard {
+        isRefundable
+      }
+    }
+  }
+}

@@ -1,4 +1,5 @@
 extend type Query {
+    allUsers: [User!]!
     me: User
     identifiable: Identifiable
     histories: [History]
@@ -13,11 +14,31 @@ interface Identifiable {
     id: ID!
 }
 
+interface PaymentType {
+    name: String!
+}
+
+type Card implements PaymentType {
+    name: String!
+    isContactless: Boolean!
+}
+
+type Cash implements PaymentType {
+    name: String!
+    requiresReceipt: Boolean!
+}
+
+type GiftCard implements PaymentType {
+    name: String!
+    isRefundable: Boolean!
+}
+
 type User implements Identifiable @key(fields: "id")  {
     id: ID!
     username: String!
     history: [History!]!
     realName: String!
+    preferredPayment: PaymentType!
 }
 
 extend type Product @key(fields: "upc") {
