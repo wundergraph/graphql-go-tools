@@ -35,7 +35,6 @@ type representationVariableVisitor struct {
 	key, definition *ast.Document
 
 	currentFields []objectFields
-	currentField  *resolve.Field
 	rootObject    *resolve.Object
 }
 
@@ -69,12 +68,12 @@ func (v *representationVariableVisitor) EnterField(ref int) {
 	}
 	fieldDefinitionType := v.definition.FieldDefinitionType(fieldDefinition)
 
-	v.currentField = &resolve.Field{
+	currentField := &resolve.Field{
 		Name:  fieldName,
 		Value: v.resolveFieldValue(ref, fieldDefinitionType, true, []string{string(fieldName)}),
 	}
 
-	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
+	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, currentField)
 }
 
 func (v *representationVariableVisitor) LeaveField(ref int) {

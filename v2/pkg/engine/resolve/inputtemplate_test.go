@@ -440,6 +440,24 @@ func TestInputTemplate_Render(t *testing.T) {
 														Nullable: false,
 													},
 												},
+												{
+													Name: []byte("items"),
+													Value: &Array{
+														Path:     []string{"items"},
+														Nullable: false,
+														Item: &Object{
+															Nullable: false,
+															Fields: []*Field{
+																{
+																	Name: []byte("active"),
+																	Value: &Boolean{
+																		Path: []string{"active"},
+																	},
+																},
+															},
+														},
+													},
+												},
 											},
 										},
 									},
@@ -458,10 +476,10 @@ func TestInputTemplate_Render(t *testing.T) {
 				Variables: []byte(""),
 			}
 			buf := fastbuffer.New()
-			err := template.Render(ctx, []byte(`{"name":"home","address":{"zip":"00000"}}`), buf)
+			err := template.Render(ctx, []byte(`{"name":"home","address":{"zip":"00000","items":[{"name":"home","active":true}]}}`), buf)
 			assert.NoError(t, err)
 			out := buf.String()
-			assert.Equal(t, `{"key":{"address":{"zip":"00000"}}}`, out)
+			assert.Equal(t, `{"key":{"address":{"zip":"00000","items":[{"active":true}]}}}`, out)
 		})
 	})
 }

@@ -62,9 +62,6 @@ func (r *SimpleResolver) resolveObject(object *Object, data []byte, resolveBuf *
 		}
 	}
 
-	fieldBuf := pool.FastBuffer.Get()
-	defer pool.FastBuffer.Put(fieldBuf)
-
 	objectBuf := pool.FastBuffer.Get()
 	defer pool.FastBuffer.Put(objectBuf)
 
@@ -81,7 +78,7 @@ func (r *SimpleResolver) resolveObject(object *Object, data []byte, resolveBuf *
 		objectBuf.WriteBytes(object.Fields[i].Name)
 		objectBuf.WriteBytes(quote)
 		objectBuf.WriteBytes(colon)
-		err = r.resolveNode(object.Fields[i].Value, fieldData, fieldBuf)
+		err = r.resolveNode(object.Fields[i].Value, fieldData, objectBuf)
 		if err != nil {
 			if errors.Is(err, errNonNullableFieldValueIsNull) {
 				objectBuf.Reset()
@@ -94,8 +91,6 @@ func (r *SimpleResolver) resolveObject(object *Object, data []byte, resolveBuf *
 			}
 			return err
 		}
-		objectBuf.WriteBytes(fieldBuf.Bytes())
-		fieldBuf.Reset()
 	}
 
 	if first {
@@ -114,13 +109,13 @@ func (r *SimpleResolver) resolveObject(object *Object, data []byte, resolveBuf *
 	return
 }
 
-func (r *SimpleResolver) resolveArray(array *Array, data []byte, arrayBuf *fastbuffer.FastBuffer) (err error) {
+func (r *SimpleResolver) resolveArray(array *Array, data []byte, resolveBuf *fastbuffer.FastBuffer) (err error) {
 	if len(array.Path) != 0 {
 		data, _, _, _ = jsonparser.Get(data, array.Path...)
 	}
 
 	if bytes.Equal(data, emptyArray) {
-		r.resolveEmptyArray(arrayBuf)
+		r.resolveEmptyArray(resolveBuf)
 		return
 	}
 
@@ -136,32 +131,21 @@ func (r *SimpleResolver) resolveArray(array *Array, data []byte, arrayBuf *fastb
 
 	if len(arrayItems) == 0 {
 		if !array.Nullable {
-			r.resolveEmptyArray(arrayBuf)
+			r.resolveEmptyArray(resolveBuf)
 			return errNonNullableFieldValueIsNull
 		}
-		r.resolveNull(arrayBuf)
+		r.resolveNull(resolveBuf)
 		return nil
 	}
-
-	return r.resolveArraySynchronous(array, &arrayItems, arrayBuf)
-}
-
-func (r *SimpleResolver) resolveArraySynchronous(array *Array, arrayItems *[][]byte, resolveBuf *fastbuffer.FastBuffer) (err error) {
-	itemBuf := pool.FastBuffer.Get()
-	defer pool.FastBuffer.Put(itemBuf)
 
 	arrayBuf := pool.FastBuffer.Get()
 	defer pool.FastBuffer.Put(arrayBuf)
 
+	hasPreviousItem := false
+
 	arrayBuf.WriteBytes(lBrack)
-
-	var (
-		hasPreviousItem bool
-		dataWritten     int
-	)
-
-	for i := range *arrayItems {
-		err = r.resolveNode(array.Item, (*arrayItems)[i], itemBuf)
+	for i := range arrayItems {
+		err = r.resolveNode(array.Item, arrayItems[i], arrayBuf)
 		if err != nil {
 			if errors.Is(err, errNonNullableFieldValueIsNull) {
 				if !array.Nullable {
@@ -172,17 +156,14 @@ func (r *SimpleResolver) resolveArraySynchronous(array *Array, arrayItems *[][]b
 			}
 			return err
 		}
-		dataWritten += itemBuf.Len()
-		arrayBuf.WriteBytes(itemBuf.Bytes())
-		if !hasPreviousItem && dataWritten != 0 {
+		if !hasPreviousItem {
 			hasPreviousItem = true
 		}
-		itemBuf.Reset()
 	}
-
 	arrayBuf.WriteBytes(rBrack)
+
 	resolveBuf.WriteBytes(arrayBuf.Bytes())
-	return
+	return nil
 }
 
 func (r *SimpleResolver) resolveNull(b *fastbuffer.FastBuffer) {
