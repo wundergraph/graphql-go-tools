@@ -2,6 +2,8 @@ package resolve
 
 import (
 	"strconv"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
 type VariableKind int
@@ -11,6 +13,7 @@ const (
 	ObjectVariableKind
 	HeaderVariableKind
 	ResolvableObjectVariableKind
+	ListVariableKind
 )
 
 const (
@@ -157,14 +160,16 @@ func (h *HeaderVariable) Equals(another Variable) bool {
 }
 
 type ResolvableObjectVariable struct {
-	selectionSet string
-	Renderer     VariableRenderer
+	Path     []string
+	Renderer VariableRenderer
 }
 
 func (h *ResolvableObjectVariable) TemplateSegment() TemplateSegment {
 	return TemplateSegment{
-		SegmentType:  VariableSegmentType,
-		VariableKind: ResolvableObjectVariableKind,
+		SegmentType:        VariableSegmentType,
+		VariableKind:       ResolvableObjectVariableKind,
+		Renderer:           h.Renderer,
+		VariableSourcePath: h.Path,
 	}
 }
 
@@ -180,5 +185,69 @@ func (h *ResolvableObjectVariable) Equals(another Variable) bool {
 		return false
 	}
 	anotherHeaderVariable := another.(*ResolvableObjectVariable)
-	return h.selectionSet == anotherHeaderVariable.selectionSet
+
+	if len(h.Path) != len(anotherHeaderVariable.Path) {
+		return false
+	}
+	for i := range h.Path {
+		if h.Path[i] != anotherHeaderVariable.Path[i] {
+			return false
+		}
+	}
+	return true
+}
+
+type ListVariable struct {
+	Variables
+}
+
+func (h *ListVariable) TemplateSegment() TemplateSegment {
+	// len: lb + rb + (variables + commas -1 )
+	segments := make([]TemplateSegment, 0, (len(h.Variables)*2-1)+2)
+
+	segments = append(segments, TemplateSegment{
+		SegmentType: StaticSegmentType,
+		Data:        literal.LBRACK,
+	})
+
+	for i := range h.Variables {
+		segments = append(segments, h.Variables[i].TemplateSegment())
+		if i < len(h.Variables)-1 {
+			segments = append(segments, TemplateSegment{
+				SegmentType: StaticSegmentType,
+				Data:        literal.COMMA,
+			})
+		}
+	}
+
+	segments = append(segments, TemplateSegment{
+		SegmentType: StaticSegmentType,
+		Data:        literal.RBRACK,
+	})
+
+	return TemplateSegment{
+		SegmentType: ListSegmentType,
+		Segments:    segments,
+	}
+}
+
+func (h *ListVariable) GetVariableKind() VariableKind {
+	return ListVariableKind
+}
+
+func (h *ListVariable) Equals(another Variable) bool {
+	if another == nil {
+		return false
+	}
+	if another.GetVariableKind() != h.GetVariableKind() {
+		return false
+	}
+	anotherVariable := another.(*ListVariable)
+
+	for i, variable := range h.Variables {
+		if !variable.Equals(anotherVariable.Variables[i]) {
+			return false
+		}
+	}
+	return true
 }

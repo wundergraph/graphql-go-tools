@@ -491,6 +491,13 @@ type GraphQLVariableResolveRenderer struct {
 	Node *Object
 }
 
+func NewGraphQLVariableResolveRenderer(node *Object) *GraphQLVariableResolveRenderer {
+	return &GraphQLVariableResolveRenderer{
+		Kind: VariableRendererKindGraphqlResolve,
+		Node: node,
+	}
+}
+
 func (g *GraphQLVariableResolveRenderer) GetKind() string {
 	return g.Kind
 }
