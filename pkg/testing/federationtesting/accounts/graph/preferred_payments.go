@@ -3,31 +3,27 @@ package graph
 import "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/accounts/graph/model"
 
 var debitCard = model.Card{
-	Name:          "VISA",
-	IsContactless: true,
+	Medium:   model.PaymentMediumDigital,
+	CardType: model.CardTypeVisa,
 }
 
 var creditCard = model.Card{
-	Name:          "MasterCard",
-	IsContactless: false,
+	Medium:   model.PaymentMediumDigital,
+	CardType: model.CardTypeMastercard,
 }
 
 var fiftyGiftCard = model.GiftCard{
-	Name:         "50 dollary doos",
-	IsRefundable: false,
+	Medium: model.PaymentMediumBespoke,
 }
 
 var millionGiftCard = model.GiftCard{
-	Name:         "one MILLION dollars",
-	IsRefundable: true,
+	Medium: model.PaymentMediumBespoke,
 }
 
 var eur = model.Cash{
-	Name:            "EUR",
-	RequiresReceipt: true,
+	Medium: model.PaymentMediumMaterial,
 }
 
 var usd = model.Cash{
-	Name:            "USD",
-	RequiresReceipt: false,
+	Medium: model.PaymentMediumMaterial,
 }

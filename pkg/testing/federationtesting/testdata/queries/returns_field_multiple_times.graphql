@@ -3,9 +3,7 @@ query {
     id
     username
     preferredPayment {
-      ... on Card {
-        medium
-      }
+      medium
       ... on Cash {
         medium
       }

@@ -6,6 +6,7 @@ package graph
 
 import (
 	"context"
+
 	"github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/accounts/graph/generated"
 	"github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/accounts/graph/model"
 )

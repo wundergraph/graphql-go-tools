@@ -463,46 +463,44 @@ func TestFederationIntegrationTest(t *testing.T) {
 				"id": "1",
 				"username": "One",
 				"preferredPayment": {
-					"name": "VISA",
-					"isContactless": true
+					"medium": "DIGITAL",
+					"cardType": "VISA"
 				}
 			},
 			{
 				"id": "2",
 				"username": "Two",
 				"preferredPayment": {
-					"name": "MasterCard",
-					"isContactless": false
+					"medium": "DIGITAL",
+					"cardType": "MASTERCARD"
 				}
 			},
 			{
 				"id": "3",
 				"username": "Three",
 				"preferredPayment": {
-					"name": "50 dollary doos",
-					"isRefundable": false
+					"medium": "BESPOKE"
 				}
 			},
 			{
 				"id": "4",
 				"username": "Four",
 				"preferredPayment": {
-					"name": "one MILLION dollars",
-					"isRefundable": true
+					"medium": "BESPOKE"
 				}
 			},
 			{
 				"id": "5",
 				"username": "Five",
 				"preferredPayment": {
-					"name": "EUR"
+					"medium": "MATERIAL"
 				}
 			},
 			{
 				"id": "1234",
 				"username": "Me",
 				"preferredPayment": {
-					"name": "USD"
+					"medium": "MATERIAL"
 				}
 			}
 		]

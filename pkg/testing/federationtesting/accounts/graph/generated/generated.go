@@ -46,13 +46,12 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Card struct {
-		IsContactless func(childComplexity int) int
-		Name          func(childComplexity int) int
+		CardType func(childComplexity int) int
+		Medium   func(childComplexity int) int
 	}
 
 	Cash struct {
-		Name            func(childComplexity int) int
-		RequiresReceipt func(childComplexity int) int
+		Medium func(childComplexity int) int
 	}
 
 	Cat struct {
@@ -64,8 +63,7 @@ type ComplexityRoot struct {
 	}
 
 	GiftCard struct {
-		IsRefundable func(childComplexity int) int
-		Name         func(childComplexity int) int
+		Medium func(childComplexity int) int
 	}
 
 	Product struct {
@@ -145,33 +143,26 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	_ = ec
 	switch typeName + "." + field {
 
-	case "Card.isContactless":
-		if e.complexity.Card.IsContactless == nil {
+	case "Card.cardType":
+		if e.complexity.Card.CardType == nil {
 			break
 		}
 
-		return e.complexity.Card.IsContactless(childComplexity), true
+		return e.complexity.Card.CardType(childComplexity), true
 
-	case "Card.name":
-		if e.complexity.Card.Name == nil {
+	case "Card.medium":
+		if e.complexity.Card.Medium == nil {
 			break
 		}
 
-		return e.complexity.Card.Name(childComplexity), true
+		return e.complexity.Card.Medium(childComplexity), true
 
-	case "Cash.name":
-		if e.complexity.Cash.Name == nil {
+	case "Cash.medium":
+		if e.complexity.Cash.Medium == nil {
 			break
 		}
 
-		return e.complexity.Cash.Name(childComplexity), true
-
-	case "Cash.requiresReceipt":
-		if e.complexity.Cash.RequiresReceipt == nil {
-			break
-		}
-
-		return e.complexity.Cash.RequiresReceipt(childComplexity), true
+		return e.complexity.Cash.Medium(childComplexity), true
 
 	case "Cat.name":
 		if e.complexity.Cat.Name == nil {
@@ -192,19 +183,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Entity.FindUserByID(childComplexity, args["id"].(string)), true
 
-	case "GiftCard.isRefundable":
-		if e.complexity.GiftCard.IsRefundable == nil {
+	case "GiftCard.medium":
+		if e.complexity.GiftCard.Medium == nil {
 			break
 		}
 
-		return e.complexity.GiftCard.IsRefundable(childComplexity), true
-
-	case "GiftCard.name":
-		if e.complexity.GiftCard.Name == nil {
-			break
-		}
-
-		return e.complexity.GiftCard.Name(childComplexity), true
+		return e.complexity.GiftCard.Medium(childComplexity), true
 
 	case "Product.upc":
 		if e.complexity.Product.Upc == nil {
@@ -461,23 +445,33 @@ interface Identifiable {
     id: ID!
 }
 
+enum PaymentMedium {
+    BESPOKE
+    DIGITAL
+    MATERIAL
+}
+
 interface PaymentType {
-    name: String!
+    medium: PaymentMedium!
+}
+
+enum CardType {
+    VISA
+    MASTERCARD
+    AMEX
 }
 
 type Card implements PaymentType {
-    name: String!
-    isContactless: Boolean!
+    medium: PaymentMedium!
+    cardType: CardType!
 }
 
 type Cash implements PaymentType {
-    name: String!
-    requiresReceipt: Boolean!
+    medium: PaymentMedium!
 }
 
 type GiftCard implements PaymentType {
-    name: String!
-    isRefundable: Boolean!
+    medium: PaymentMedium!
 }
 
 type User implements Identifiable @key(fields: "id")  {
@@ -650,8 +644,8 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 
 // region    **************************** field.gotpl *****************************
 
-func (ec *executionContext) _Card_name(ctx context.Context, field graphql.CollectedField, obj *model.Card) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Card_name(ctx, field)
+func (ec *executionContext) _Card_medium(ctx context.Context, field graphql.CollectedField, obj *model.Card) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Card_medium(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -664,7 +658,7 @@ func (ec *executionContext) _Card_name(ctx context.Context, field graphql.Collec
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Name, nil
+		return obj.Medium, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -676,26 +670,26 @@ func (ec *executionContext) _Card_name(ctx context.Context, field graphql.Collec
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(model.PaymentMedium)
 	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalNPaymentMedium2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐPaymentMedium(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Card_name(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Card_medium(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Card",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			return nil, errors.New("field of type PaymentMedium does not have child fields")
 		},
 	}
 	return fc, nil
 }
 
-func (ec *executionContext) _Card_isContactless(ctx context.Context, field graphql.CollectedField, obj *model.Card) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Card_isContactless(ctx, field)
+func (ec *executionContext) _Card_cardType(ctx context.Context, field graphql.CollectedField, obj *model.Card) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Card_cardType(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -708,7 +702,7 @@ func (ec *executionContext) _Card_isContactless(ctx context.Context, field graph
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.IsContactless, nil
+		return obj.CardType, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -720,26 +714,26 @@ func (ec *executionContext) _Card_isContactless(ctx context.Context, field graph
 		}
 		return graphql.Null
 	}
-	res := resTmp.(bool)
+	res := resTmp.(model.CardType)
 	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+	return ec.marshalNCardType2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐCardType(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Card_isContactless(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Card_cardType(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Card",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
+			return nil, errors.New("field of type CardType does not have child fields")
 		},
 	}
 	return fc, nil
 }
 
-func (ec *executionContext) _Cash_name(ctx context.Context, field graphql.CollectedField, obj *model.Cash) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Cash_name(ctx, field)
+func (ec *executionContext) _Cash_medium(ctx context.Context, field graphql.CollectedField, obj *model.Cash) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Cash_medium(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -752,7 +746,7 @@ func (ec *executionContext) _Cash_name(ctx context.Context, field graphql.Collec
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Name, nil
+		return obj.Medium, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -764,63 +758,19 @@ func (ec *executionContext) _Cash_name(ctx context.Context, field graphql.Collec
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(model.PaymentMedium)
 	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalNPaymentMedium2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐPaymentMedium(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Cash_name(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Cash_medium(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Cash",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Cash_requiresReceipt(ctx context.Context, field graphql.CollectedField, obj *model.Cash) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Cash_requiresReceipt(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.RequiresReceipt, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Cash_requiresReceipt(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Cash",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
+			return nil, errors.New("field of type PaymentMedium does not have child fields")
 		},
 	}
 	return fc, nil
@@ -937,8 +887,8 @@ func (ec *executionContext) fieldContext_Entity_findUserByID(ctx context.Context
 	return fc, nil
 }
 
-func (ec *executionContext) _GiftCard_name(ctx context.Context, field graphql.CollectedField, obj *model.GiftCard) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_GiftCard_name(ctx, field)
+func (ec *executionContext) _GiftCard_medium(ctx context.Context, field graphql.CollectedField, obj *model.GiftCard) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_GiftCard_medium(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -951,7 +901,7 @@ func (ec *executionContext) _GiftCard_name(ctx context.Context, field graphql.Co
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Name, nil
+		return obj.Medium, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -963,63 +913,19 @@ func (ec *executionContext) _GiftCard_name(ctx context.Context, field graphql.Co
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(model.PaymentMedium)
 	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalNPaymentMedium2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐPaymentMedium(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_GiftCard_name(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_GiftCard_medium(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "GiftCard",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _GiftCard_isRefundable(ctx context.Context, field graphql.CollectedField, obj *model.GiftCard) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_GiftCard_isRefundable(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.IsRefundable, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_GiftCard_isRefundable(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "GiftCard",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
+			return nil, errors.New("field of type PaymentMedium does not have child fields")
 		},
 	}
 	return fc, nil
@@ -4269,16 +4175,16 @@ func (ec *executionContext) _Card(ctx context.Context, sel ast.SelectionSet, obj
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Card")
-		case "name":
+		case "medium":
 
-			out.Values[i] = ec._Card_name(ctx, field, obj)
+			out.Values[i] = ec._Card_medium(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
-		case "isContactless":
+		case "cardType":
 
-			out.Values[i] = ec._Card_isContactless(ctx, field, obj)
+			out.Values[i] = ec._Card_cardType(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++
@@ -4304,16 +4210,9 @@ func (ec *executionContext) _Cash(ctx context.Context, sel ast.SelectionSet, obj
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Cash")
-		case "name":
+		case "medium":
 
-			out.Values[i] = ec._Cash_name(ctx, field, obj)
-
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
-		case "requiresReceipt":
-
-			out.Values[i] = ec._Cash_requiresReceipt(ctx, field, obj)
+			out.Values[i] = ec._Cash_medium(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++
@@ -4420,16 +4319,9 @@ func (ec *executionContext) _GiftCard(ctx context.Context, sel ast.SelectionSet,
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("GiftCard")
-		case "name":
+		case "medium":
 
-			out.Values[i] = ec._GiftCard_name(ctx, field, obj)
-
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
-		case "isRefundable":
-
-			out.Values[i] = ec._GiftCard_isRefundable(ctx, field, obj)
+			out.Values[i] = ec._GiftCard_medium(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++
@@ -5243,6 +5135,16 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) unmarshalNCardType2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐCardType(ctx context.Context, v interface{}) (model.CardType, error) {
+	var res model.CardType
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCardType2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐCardType(ctx context.Context, sel ast.SelectionSet, v model.CardType) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) unmarshalNFloat2float64(ctx context.Context, v interface{}) (float64, error) {
 	res, err := graphql.UnmarshalFloatContext(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -5340,6 +5242,16 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNPaymentMedium2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐPaymentMedium(ctx context.Context, v interface{}) (model.PaymentMedium, error) {
+	var res model.PaymentMedium
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPaymentMedium2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐPaymentMedium(ctx context.Context, sel ast.SelectionSet, v model.PaymentMedium) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNPaymentType2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐPaymentType(ctx context.Context, sel ast.SelectionSet, v model.PaymentType) graphql.Marshaler {

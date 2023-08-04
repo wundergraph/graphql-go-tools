@@ -2,6 +2,12 @@
 
 package model
 
+import (
+	"fmt"
+	"io"
+	"strconv"
+)
+
 type History interface {
 	IsHistory()
 }
@@ -18,7 +24,7 @@ type Info interface {
 
 type PaymentType interface {
 	IsPaymentType()
-	GetName() string
+	GetMedium() PaymentMedium
 }
 
 type Store interface {
@@ -33,32 +39,30 @@ type Wallet interface {
 }
 
 type Card struct {
-	Name          string `json:"name"`
-	IsContactless bool   `json:"isContactless"`
+	Medium   PaymentMedium `json:"medium"`
+	CardType CardType      `json:"cardType"`
 }
 
-func (Card) IsPaymentType()       {}
-func (this Card) GetName() string { return this.Name }
+func (Card) IsPaymentType()                {}
+func (this Card) GetMedium() PaymentMedium { return this.Medium }
 
 type Cash struct {
-	Name            string `json:"name"`
-	RequiresReceipt bool   `json:"requiresReceipt"`
+	Medium PaymentMedium `json:"medium"`
 }
 
-func (Cash) IsPaymentType()       {}
-func (this Cash) GetName() string { return this.Name }
+func (Cash) IsPaymentType()                {}
+func (this Cash) GetMedium() PaymentMedium { return this.Medium }
 
 type Cat struct {
 	Name string `json:"name"`
 }
 
 type GiftCard struct {
-	Name         string `json:"name"`
-	IsRefundable bool   `json:"isRefundable"`
+	Medium PaymentMedium `json:"medium"`
 }
 
-func (GiftCard) IsPaymentType()       {}
-func (this GiftCard) GetName() string { return this.Name }
+func (GiftCard) IsPaymentType()                {}
+func (this GiftCard) GetMedium() PaymentMedium { return this.Medium }
 
 type Product struct {
 	Upc string `json:"upc"`
@@ -120,3 +124,89 @@ type WalletType2 struct {
 func (WalletType2) IsWallet()                {}
 func (this WalletType2) GetCurrency() string { return this.Currency }
 func (this WalletType2) GetAmount() float64  { return this.Amount }
+
+type CardType string
+
+const (
+	CardTypeVisa       CardType = "VISA"
+	CardTypeMastercard CardType = "MASTERCARD"
+	CardTypeAmex       CardType = "AMEX"
+)
+
+var AllCardType = []CardType{
+	CardTypeVisa,
+	CardTypeMastercard,
+	CardTypeAmex,
+}
+
+func (e CardType) IsValid() bool {
+	switch e {
+	case CardTypeVisa, CardTypeMastercard, CardTypeAmex:
+		return true
+	}
+	return false
+}
+
+func (e CardType) String() string {
+	return string(e)
+}
+
+func (e *CardType) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = CardType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid CardType", str)
+	}
+	return nil
+}
+
+func (e CardType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+type PaymentMedium string
+
+const (
+	PaymentMediumBespoke  PaymentMedium = "BESPOKE"
+	PaymentMediumDigital  PaymentMedium = "DIGITAL"
+	PaymentMediumMaterial PaymentMedium = "MATERIAL"
+)
+
+var AllPaymentMedium = []PaymentMedium{
+	PaymentMediumBespoke,
+	PaymentMediumDigital,
+	PaymentMediumMaterial,
+}
+
+func (e PaymentMedium) IsValid() bool {
+	switch e {
+	case PaymentMediumBespoke, PaymentMediumDigital, PaymentMediumMaterial:
+		return true
+	}
+	return false
+}
+
+func (e PaymentMedium) String() string {
+	return string(e)
+}
+
+func (e *PaymentMedium) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = PaymentMedium(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid PaymentMedium", str)
+	}
+	return nil
+}
+
+func (e PaymentMedium) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
