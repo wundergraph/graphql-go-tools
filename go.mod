@@ -24,7 +24,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/nats-io/nats.go v1.19.1
 	github.com/r3labs/sse/v2 v2.8.1
-	github.com/santhosh-tekuri/jsonschema/v5 v5.3.0
+	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/sebdah/goldie/v2 v2.5.3
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.3.2
