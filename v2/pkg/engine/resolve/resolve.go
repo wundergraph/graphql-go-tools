@@ -100,6 +100,7 @@ const (
 	FetchKindSingle FetchKind = iota + 1
 	FetchKindParallel
 	FetchKindBatch
+	FetchKindSerial
 )
 
 type HookContext struct {
@@ -1466,6 +1467,14 @@ type ParallelFetch struct {
 
 func (_ *ParallelFetch) FetchKind() FetchKind {
 	return FetchKindParallel
+}
+
+type SerialFetch struct {
+	Fetches []Fetch
+}
+
+func (_ *SerialFetch) FetchKind() FetchKind {
+	return FetchKindSerial
 }
 
 type BatchFetch struct {
