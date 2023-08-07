@@ -127,7 +127,7 @@ func (e *internalExecutionContext) setRequest(request resolve.Request) {
 }
 
 func (e *internalExecutionContext) setContext(ctx context.Context) {
-	e.resolveContext.Context = ctx
+	e.resolveContext = e.resolveContext.WithContext(ctx)
 }
 
 func (e *internalExecutionContext) setVariables(variables []byte) {

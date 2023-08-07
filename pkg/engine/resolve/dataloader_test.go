@@ -93,7 +93,7 @@ func TestDataLoader_Load(t *testing.T) {
 				},
 			},
 			DataSource: userService,
-		}, &Context{Context: context.Background()}, `{"data":{"me": {"id": "1234","username": "Me","__typename": "User"}}}`
+		}, &Context{ctx: context.Background()}, `{"data":{"me": {"id": "1234","username": "Me","__typename": "User"}}}`
 	}))
 
 	t.Run("requires nested request", testFn(map[int]fetchState{
@@ -149,7 +149,7 @@ func TestDataLoader_Load(t *testing.T) {
 				},
 			},
 			DataSource: userService,
-		}, &Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}}, `{"data":{"user": {"id":11, "username": "Username 11"}}}`
+		}, &Context{ctx: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}}, `{"data":{"user": {"id":11, "username": "Username 11"}}}`
 	}))
 
 	t.Run("fetch error", func(t *testing.T) {
@@ -187,7 +187,7 @@ func TestDataLoader_Load(t *testing.T) {
 
 		bufPair := NewBufPair()
 		err := dl.Load(
-			&Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}},
+			&Context{ctx: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}},
 			&SingleFetch{
 				BufferId: 2,
 				InputTemplate: InputTemplate{
@@ -257,7 +257,7 @@ func TestDataLoader_Load(t *testing.T) {
 				},
 			},
 			DataSource: nil,
-		}, &Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}}, `{"user": {"id":11, "username": "Username 11"}}`
+		}, &Context{ctx: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}}, `{"user": {"id":11, "username": "Username 11"}}`
 	}))
 
 	t.Run("fetch errors in corresponding call", testFnErr(map[int]fetchState{
@@ -287,7 +287,7 @@ func TestDataLoader_Load(t *testing.T) {
 				},
 			},
 			DataSource: nil,
-		}, &Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}}, `someError`
+		}, &Context{ctx: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}}, `someError`
 	}))
 
 	t.Run("doesn't requires nested request", testFn(map[int]fetchState{
@@ -317,7 +317,7 @@ func TestDataLoader_Load(t *testing.T) {
 				},
 			},
 			DataSource: nil,
-		}, &Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}}, `{"user": {"id":22, "username": "Username 22"}}`
+		}, &Context{ctx: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}}, `{"user": {"id":22, "username": "Username 22"}}`
 	}))
 
 	t.Run("requires nested request with array in path", testFn(map[int]fetchState{
@@ -373,7 +373,7 @@ func TestDataLoader_Load(t *testing.T) {
 				},
 			},
 			DataSource: userService,
-		}, &Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"someProp", arrayElementKey}}, `{"data":{"user": {"id":11, "username": "Username 11"}}}`
+		}, &Context{ctx: context.Background(), lastFetchID: 1, responseElements: []string{"someProp", arrayElementKey}}, `{"data":{"user": {"id":11, "username": "Username 11"}}}`
 	}))
 
 	t.Run("requires nested request with null array in path", testFn(map[int]fetchState{
@@ -429,7 +429,7 @@ func TestDataLoader_Load(t *testing.T) {
 				},
 			},
 			DataSource: userService,
-		}, &Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"someProp", arrayElementKey}}, `{"data":{"user": {"id":11, "username": "Username 11"}}}`
+		}, &Context{ctx: context.Background(), lastFetchID: 1, responseElements: []string{"someProp", arrayElementKey}}, `{"data":{"user": {"id":11, "username": "Username 11"}}}`
 	}))
 }
 
@@ -511,7 +511,7 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 				DataSource: userService,
 			},
 			BatchFactory: batchFactory,
-		}, &Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}}, `{"name": "Trilby"}`
+		}, &Context{ctx: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}}, `{"name": "Trilby"}`
 	}))
 
 	t.Run("deeply nested fetch with varying fields", testFn(map[int]fetchState{
@@ -577,7 +577,7 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 				DataSource: carService,
 			},
 			BatchFactory: batchFactory,
-		}, &Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"vehicle", "engine"}}, `{"horsepower": 200}`
+		}, &Context{ctx: context.Background(), lastFetchID: 1, responseElements: []string{"vehicle", "engine"}}, `{"horsepower": 200}`
 	}))
 
 	t.Run("doesn't requires nested request", testFn(map[int]fetchState{
@@ -608,7 +608,7 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 					},
 				},
 			},
-		}, &Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}}, `{"user": {"id":22, "username": "Username 22"}}`
+		}, &Context{ctx: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}}, `{"user": {"id":22, "username": "Username 22"}}`
 	}))
 
 	t.Run("fetch error", func(t *testing.T) {
@@ -648,7 +648,7 @@ func TestDataLoader_LoadBatch(t *testing.T) {
 			Return(expErr)
 
 		err := dl.LoadBatch(
-			&Context{Context: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}},
+			&Context{ctx: context.Background(), lastFetchID: 1, responseElements: []string{"someProp"}},
 			&BatchFetch{
 				Fetch: &SingleFetch{
 					BufferId: 2,

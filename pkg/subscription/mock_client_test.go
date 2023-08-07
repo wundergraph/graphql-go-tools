@@ -2,9 +2,11 @@ package subscription
 
 import (
 	"errors"
+	"sync"
 )
 
 type mockClient struct {
+	mu                 sync.Mutex
 	messagesFromServer []Message
 	messageToServer    *Message
 	err                error
@@ -21,18 +23,24 @@ func newMockClient() *mockClient {
 }
 
 func (c *mockClient) ReadFromClient() (*Message, error) {
+	c.mu.Lock()
 	returnErr := c.err
+	c.mu.Unlock()
 	returnMessage := <-c.messagePipe
 	if returnErr != nil {
 		return nil, returnErr
 	}
 
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.serverHasRead = true
 	c.err = nil
 	return returnMessage, returnErr
 }
 
 func (c *mockClient) WriteToClient(message Message) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.messagesFromServer = append(c.messagesFromServer, message)
 	return c.err
 }
@@ -47,11 +55,15 @@ func (c *mockClient) Disconnect() error {
 }
 
 func (c *mockClient) hasMoreMessagesThan(num int) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return len(c.messagesFromServer) > num
 }
 
 func (c *mockClient) readFromServer() []Message {
-	return c.messagesFromServer
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.messagesFromServer[0:len(c.messagesFromServer):len(c.messagesFromServer)]
 }
 
 func (c *mockClient) prepareConnectionInitMessage() *mockClient {
@@ -106,11 +118,15 @@ func (c *mockClient) send() bool {
 }
 
 func (c *mockClient) withoutError() *mockClient {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.err = nil
 	return c
 }
 
 func (c *mockClient) withError() *mockClient {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.err = errors.New("error")
 	return c
 }
@@ -120,6 +136,8 @@ func (c *mockClient) and() *mockClient {
 }
 
 func (c *mockClient) reset() *mockClient {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.messagesFromServer = []Message{}
 	c.err = nil
 	return c

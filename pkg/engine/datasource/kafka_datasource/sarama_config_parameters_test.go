@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
 	"os"
 	"sort"
 	"strconv"
@@ -618,16 +619,22 @@ func TestSarama_Balance_Strategy(t *testing.T) {
 		options.Sanitize()
 		require.NoError(t, options.Validate())
 
-		kc := &KafkaConsumerGroupBridge{
-			ctx: context.Background(),
-			log: logger(),
+		runTest := func() {
+			ctx := resolve.NewContext(context.Background())
+			defer ctx.Context().Done()
+
+			kc := &KafkaConsumerGroupBridge{
+				ctx: ctx.Context(),
+				log: logger(),
+			}
+
+			sc, err := kc.prepareSaramaConfig(options)
+			require.NoError(t, err)
+
+			st := sc.Consumer.Group.Rebalance.Strategy
+			require.Equal(t, name, st.Name())
 		}
-
-		sc, err := kc.prepareSaramaConfig(options)
-		require.NoError(t, err)
-
-		st := sc.Consumer.Group.Rebalance.Strategy
-		require.Equal(t, name, st.Name())
+		runTest()
 	}
 }
 
@@ -649,15 +656,20 @@ func TestSarama_Isolation_Level(t *testing.T) {
 		options.Sanitize()
 		require.NoError(t, options.Validate())
 
-		kc := &KafkaConsumerGroupBridge{
-			ctx: context.Background(),
-			log: logger(),
+		runtTest := func() {
+			ctx := resolve.NewContext(context.Background())
+			defer ctx.Context().Done()
+
+			kc := &KafkaConsumerGroupBridge{
+				ctx: ctx.Context(),
+				log: logger(),
+			}
+
+			sc, err := kc.prepareSaramaConfig(options)
+			require.NoError(t, err)
+			sc.Consumer.IsolationLevel = value
 		}
-
-		sc, err := kc.prepareSaramaConfig(options)
-		require.NoError(t, err)
-
-		sc.Consumer.IsolationLevel = value
+		runtTest()
 	}
 }
 
@@ -676,8 +688,11 @@ func TestSarama_Config_SASL_Authentication(t *testing.T) {
 	options.Sanitize()
 	require.NoError(t, options.Validate())
 
+	ctx := resolve.NewContext(context.Background())
+	defer ctx.Context().Done()
+
 	kc := &KafkaConsumerGroupBridge{
-		ctx: context.Background(),
+		ctx: ctx.Context(),
 		log: logger(),
 	}
 

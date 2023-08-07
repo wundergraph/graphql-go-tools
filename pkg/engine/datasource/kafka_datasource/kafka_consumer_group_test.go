@@ -2,6 +2,7 @@ package kafka_datasource
 
 import (
 	"context"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
 	"sync"
 	"testing"
 	"time"
@@ -74,14 +75,17 @@ func newMockKafkaBroker(t *testing.T, topic, group string, fr *sarama.FetchRespo
 // testConsumerGroupHandler implements sarama.ConsumerGroupHandler interface for testing purposes.
 type testConsumerGroupHandler struct {
 	processMessage func(msg *sarama.ConsumerMessage)
+	resolveCtx     *resolve.Context
 	ctx            context.Context
 	cancel         context.CancelFunc
 }
 
 func newDefaultConsumerGroupHandler(processMessage func(msg *sarama.ConsumerMessage)) *testConsumerGroupHandler {
-	ctx, cancel := context.WithCancel(context.Background())
+	resolveCtx := resolve.NewContext(context.Background())
+	ctx, cancel := context.WithCancel(resolveCtx.Context())
 	return &testConsumerGroupHandler{
 		processMessage: processMessage,
+		resolveCtx:     resolveCtx,
 		ctx:            ctx,
 		cancel:         cancel,
 	}
@@ -142,7 +146,10 @@ func TestKafkaMockBroker(t *testing.T) {
 	called := 0
 
 	// Stop after 15 seconds and return an error.
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	resolveCtx := resolve.NewContext(context.Background())
+	defer resolveCtx.Context().Done()
+
+	ctx, cancel := context.WithTimeout(resolveCtx.Context(), 15*time.Second)
 	processMessage := func(msg *sarama.ConsumerMessage) {
 		defer cancel()
 
@@ -156,6 +163,7 @@ func TestKafkaMockBroker(t *testing.T) {
 	}
 
 	handler := newDefaultConsumerGroupHandler(processMessage)
+	handler.resolveCtx.Context().Done()
 
 	errCh := make(chan error, 1)
 
@@ -255,8 +263,8 @@ func TestKafkaConsumerGroup_StartConsuming_And_Stop(t *testing.T) {
 }
 
 func TestKafkaConsumerGroup_Config_StartConsumingLatest(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := resolve.NewContext(context.Background())
+	defer ctx.Context().Done()
 
 	consumedMsgCh := make(chan *sarama.ConsumerMessage)
 	var mockTopicName = "test.mock.topic"
@@ -265,7 +273,7 @@ func TestKafkaConsumerGroup_Config_StartConsumingLatest(t *testing.T) {
 	// If the StartConsumingLatest config option is true, it resets the offset,
 	// and we'll observe this behavior.
 	kg := &kafkaConsumerGroupHandler{
-		ctx:      ctx,
+		ctx:      ctx.Context(),
 		messages: consumedMsgCh,
 		log:      logger(),
 		options: &GraphQLSubscriptionOptions{

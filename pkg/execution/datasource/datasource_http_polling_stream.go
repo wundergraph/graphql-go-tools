@@ -110,11 +110,27 @@ type HttpPollingStreamDataSource struct {
 	Log      log.Logger
 	once     sync.Once
 	ch       chan []byte
-	closed   bool
 	Delay    time.Duration
 	client   *http.Client
 	request  *http.Request
 	lastData []byte
+
+	// The mutex guards the fields following it. Use the
+	// accessor methods to read/write them.
+	mu     sync.RWMutex
+	closed bool
+}
+
+func (s *HttpPollingStreamDataSource) close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.closed = true
+}
+
+func (s *HttpPollingStreamDataSource) isClosed() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.closed
 }
 
 func (h *HttpPollingStreamDataSource) Resolve(ctx context.Context, args ResolverArgs, out io.Writer) (n int, err error) {
@@ -130,7 +146,7 @@ func (h *HttpPollingStreamDataSource) Resolve(ctx context.Context, args Resolver
 		}
 		go h.startPolling(ctx)
 	})
-	if h.closed {
+	if h.isClosed() {
 		return
 	}
 	select {
@@ -145,7 +161,7 @@ func (h *HttpPollingStreamDataSource) Resolve(ctx context.Context, args Resolver
 			)
 		}
 	case <-ctx.Done():
-		h.closed = true
+		h.close()
 		return
 	}
 	return
@@ -162,7 +178,7 @@ func (h *HttpPollingStreamDataSource) startPolling(ctx context.Context) {
 		var data []byte
 		select {
 		case <-ctx.Done():
-			h.closed = true
+			h.close()
 			return
 		default:
 			response, err := h.client.Do(h.request)
@@ -186,7 +202,7 @@ func (h *HttpPollingStreamDataSource) startPolling(ctx context.Context) {
 		h.lastData = data
 		select {
 		case <-ctx.Done():
-			h.closed = true
+			h.close()
 			return
 		case h.ch <- data:
 			continue

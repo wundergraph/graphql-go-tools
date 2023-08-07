@@ -60,7 +60,7 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 
 type Source struct{}
 
-func (_ Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
+func (Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
 	_, err = w.Write(input)
 	return
 }

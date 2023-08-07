@@ -45,10 +45,10 @@ func TestWithoutDefer(t *testing.T) {
 								InputTemplate: InputTemplate{
 									Segments: []TemplateSegment{
 										{
-											SegmentType:                  VariableSegmentType,
-											VariableKind:                 ObjectVariableKind,
-											VariableSourcePath:           []string{"id"},
-											Renderer: NewGraphQLVariableRenderer(`{"type":"number"}`),
+											SegmentType:        VariableSegmentType,
+											VariableKind:       ObjectVariableKind,
+											VariableSourcePath: []string{"id"},
+											Renderer:           NewGraphQLVariableRenderer(`{"type":"number"}`),
 										},
 									},
 								},
@@ -221,10 +221,10 @@ func TestDefer(t *testing.T) {
 					InputTemplate: InputTemplate{
 						Segments: []TemplateSegment{
 							{
-								SegmentType:                  VariableSegmentType,
-								VariableKind:                 ObjectVariableKind,
-								VariableSourcePath:           []string{"id"},
-								Renderer: NewGraphQLVariableRenderer(`{"type":"number"}`),
+								SegmentType:        VariableSegmentType,
+								VariableKind:       ObjectVariableKind,
+								VariableSourcePath: []string{"id"},
+								Renderer:           NewGraphQLVariableRenderer(`{"type":"number"}`),
 							},
 						},
 					},
@@ -419,6 +419,7 @@ func BenchmarkDefer(b *testing.B) {
 		_ = resolver.ResolveGraphQLStreamingResponse(ctx, res, nil, writer)
 
 		ctx.Free()
+		ctx.ctx = context.Background()
 		// writer.flushed = writer.flushed[:0]
 	}
 }

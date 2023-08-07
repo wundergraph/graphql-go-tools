@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 )
 
 type InitialHttpRequestContext struct {
@@ -18,32 +19,50 @@ func NewInitialHttpRequestContext(r *http.Request) *InitialHttpRequestContext {
 	}
 }
 
-type subscriptionCancellations map[string]context.CancelFunc
+type subscriptionCancellations struct {
+	mu            sync.RWMutex
+	cancellations map[string]context.CancelFunc
+}
 
-func (sc subscriptionCancellations) AddWithParent(id string, parent context.Context) (context.Context, error) {
-	_, ok := sc[id]
-	if ok {
+func (sc *subscriptionCancellations) AddWithParent(id string, parent context.Context) (context.Context, error) {
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
+	if sc.cancellations == nil {
+		sc.cancellations = make(map[string]context.CancelFunc)
+	}
+	if _, ok := sc.cancellations[id]; ok {
 		return nil, fmt.Errorf("subscriber for %s already exists", id)
 	}
-
 	ctx, cancelFunc := context.WithCancel(parent)
-	sc[id] = cancelFunc
+	sc.cancellations[id] = cancelFunc
 	return ctx, nil
 }
 
-func (sc subscriptionCancellations) Cancel(id string) (ok bool) {
-	cancelFunc, ok := sc[id]
+func (sc *subscriptionCancellations) Cancel(id string) (ok bool) {
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
+	cancelFunc, ok := sc.cancellations[id]
 	if !ok {
 		return false
 	}
 
 	cancelFunc()
-	delete(sc, id)
+	delete(sc.cancellations, id)
 	return true
 }
 
-func (sc subscriptionCancellations) CancelAll() {
-	for _, cancelFunc := range sc {
+func (sc *subscriptionCancellations) CancelAll() {
+	// We have full control over the cancellation functions (see AddWithParent()), so
+	// it's fine to invoke them with the lock held
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+	for _, cancelFunc := range sc.cancellations {
 		cancelFunc()
 	}
+}
+
+func (sc *subscriptionCancellations) Len() int {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+	return len(sc.cancellations)
 }
