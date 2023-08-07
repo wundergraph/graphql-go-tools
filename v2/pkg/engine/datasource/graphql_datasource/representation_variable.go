@@ -12,7 +12,7 @@ type objectFields struct {
 	fields     *[]*resolve.Field
 }
 
-func BuildRepresentationVariableNode(key, definition *ast.Document) (resolve.Node, error) {
+func BuildRepresentationVariableNode(key, definition *ast.Document) (*resolve.Object, error) {
 	walker := astvisitor.NewWalker(48)
 
 	visitor := &representationVariableVisitor{

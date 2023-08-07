@@ -703,6 +703,32 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 }
 
 func (p *Planner) LeaveDocument(_, _ *ast.Document) {
+	p.addRepresentationsVariable()
+}
+
+func (p *Planner) addRepresentationsVariable() {
+	if len(p.dataSourceConfig.FieldConfigurationsFromParentPlanner) == 0 {
+		return
+	}
+
+	variable, _ := p.variables.AddVariable(p.buildRepresentationsVariable())
+	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", []byte(variable))
+}
+
+func (p *Planner) buildRepresentationsVariable() resolve.Variable {
+	variables := resolve.NewVariables()
+	for _, cfg := range p.dataSourceConfig.FieldConfigurationsFromParentPlanner {
+		key, _ := plan.RequiredFieldsFragment(cfg.TypeName, cfg.RequiresFieldsSelectionSet)
+		node, _ := BuildRepresentationVariableNode(key, p.visitor.Definition)
+
+		variables.AddVariable(resolve.NewResolvableObjectVariable(
+			[]string{"FIXME"}, // FIXME: provide a path
+			node,
+		))
+	}
+
+	representationsVariable := resolve.NewListVariable(variables)
+	return representationsVariable
 }
 
 func (p *Planner) addRepresentationsQuery() {

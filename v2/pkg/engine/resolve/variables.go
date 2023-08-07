@@ -164,6 +164,13 @@ type ResolvableObjectVariable struct {
 	Renderer VariableRenderer
 }
 
+func NewResolvableObjectVariable(path []string, node *Object) *ResolvableObjectVariable {
+	return &ResolvableObjectVariable{
+		Path:     path,
+		Renderer: NewGraphQLVariableResolveRenderer(node),
+	}
+}
+
 func (h *ResolvableObjectVariable) TemplateSegment() TemplateSegment {
 	return TemplateSegment{
 		SegmentType:        VariableSegmentType,
@@ -199,6 +206,12 @@ func (h *ResolvableObjectVariable) Equals(another Variable) bool {
 
 type ListVariable struct {
 	Variables
+}
+
+func NewListVariable(variables Variables) *ListVariable {
+	return &ListVariable{
+		Variables: variables,
+	}
 }
 
 func (h *ListVariable) TemplateSegment() TemplateSegment {

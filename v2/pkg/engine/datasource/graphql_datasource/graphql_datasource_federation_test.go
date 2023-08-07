@@ -228,7 +228,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
 							BufferId:              0,
-							Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"query{user{account{id info{a b}}}}"}}`,
+							Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"query{user {account {id info {a b}}}}"}}`,
 							DataSource:            &Source{},
 							DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 							ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
@@ -243,22 +243,23 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Nullable: true,
 									Fields: []*resolve.Field{
 										{
-											HasBuffer: true,
-											BufferID:  1,
-											Name:      []byte("account"),
-
+											Name: []byte("account"),
 											Value: &resolve.Object{
 												Path:     []string{"account"},
 												Nullable: true,
 												Fields: []*resolve.Field{
 													{
-														Name: []byte("name"),
+														HasBuffer: true,
+														BufferID:  1,
+														Name:      []byte("name"),
 														Value: &resolve.String{
 															Path: []string{"name"},
 														},
 													},
 													{
-														Name: []byte("shippingInfo"),
+														HasBuffer: true,
+														BufferID:  1,
+														Name:      []byte("shippingInfo"),
 														Value: &resolve.Object{
 															Path:     []string{"shippingInfo"},
 															Nullable: true,
@@ -277,12 +278,52 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													BufferId:   1,
 													Input:      `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":$$0$$}}}`,
 													DataSource: &Source{},
-													Variables: resolve.NewVariables(
-														&resolve.ContextVariable{
-															Path:     []string{"b"},
-															Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+													Variables: []resolve.Variable{
+														&resolve.ListVariable{
+															Variables: []resolve.Variable{
+																&resolve.ResolvableObjectVariable{
+																	Path: []string{"FIXME"},
+																	Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																		Fields: []*resolve.Field{
+																			{
+																				Name: []byte("__typename"),
+																				Value: &resolve.String{
+																					Path: []string{"__typename"},
+																				},
+																			},
+																			{
+																				Name: []byte("id"),
+																				Value: &resolve.String{
+																					Path: []string{"id"},
+																				},
+																			},
+																			{
+																				Name: []byte("info"),
+																				Value: &resolve.Object{
+																					Path:     []string{"info"},
+																					Nullable: true,
+																					Fields: []*resolve.Field{
+																						{
+																							Name: []byte("a"),
+																							Value: &resolve.String{
+																								Path: []string{"a"},
+																							},
+																						},
+																						{
+																							Name: []byte("b"),
+																							Value: &resolve.String{
+																								Path: []string{"b"},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																	}),
+																},
+															},
 														},
-													),
+													},
 													DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 													ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 												},
