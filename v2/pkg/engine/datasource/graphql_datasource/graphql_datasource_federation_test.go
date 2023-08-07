@@ -228,7 +228,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
 							BufferId:              0,
-							Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"query{user {account {id info {a b}}}}"}}`,
+							Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {id info {a b}}}}"}}`,
 							DataSource:            &Source{},
 							DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 							ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
