@@ -25,6 +25,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				id: ID!
 				line1: String!
 				line2: String!
+				line3(test: String!): String!
 				fullAddress: String!
 			}
 			type Info {
@@ -44,6 +45,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				account: Account
 			}
 		`
+
 		usersSubgraphSDL := `
 			extend type Query {
 				user: User
@@ -79,6 +81,65 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			}
 		`
 
+		// TODO: add test for requires from 2 sibling subgraphs - should be Serial: Parallel -> Single
+		// TODO: add test for requires from 1 parent and 2 sibling subgraphs
+		// TODO: add test for requires+provides
+
+		usersDatasourceConfiguration := plan.DataSourceConfiguration{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"user"},
+				},
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id", "account", "oldAccount"},
+				},
+				{
+					TypeName:   "Account",
+					FieldNames: []string{"id", "info", "address"},
+				},
+				{
+					TypeName:   "Address",
+					FieldNames: []string{"id", "line1", "line2"},
+				},
+			},
+			ChildNodes: []plan.TypeField{
+				{
+					TypeName:   "ShippingInfo",
+					FieldNames: []string{"zip"},
+				},
+				{
+					TypeName:   "Info",
+					FieldNames: []string{"a", "b"},
+				},
+			},
+			Custom: ConfigJson(Configuration{
+				Fetch: FetchConfiguration{
+					URL: "http://user.service",
+				},
+				Federation: FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: usersSubgraphSDL,
+				},
+			}),
+			Factory: federationFactory,
+			FieldConfigurations: plan.FieldConfigurations{
+				{
+					TypeName:                   "User",
+					RequiresFieldsSelectionSet: "id",
+				},
+				{
+					TypeName:                   "Account",
+					RequiresFieldsSelectionSet: "id info {a b}",
+				},
+				{
+					TypeName:                   "Address",
+					RequiresFieldsSelectionSet: "id",
+				},
+			},
+		}
+
 		accountsSubgraphSDL := `
 			extend type Query {
 				account: Account
@@ -108,62 +169,19 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				fullAddress: String! @requires(fields: "line1 line2 line3(test:\"BOOM\")")
 			}
 		`
-
-		// TODO: add test for requires from 2 sibling subgraphs - should be Serial: Parallel -> Single
-		// TODO: add test for requires from 1 parent and 2 sibling subgraphs
-		// TODO: add test for requires+provides
-
-		addressesSubgraphSDL := `
-			extend type Address @key(fields: "id") {
-				id: ID!
-				line3(test: String!): String!
-			}
-		`
-
-		usersDatasourceConfiguration := plan.DataSourceConfiguration{
-			RootNodes: []plan.TypeField{
-				{
-					TypeName:   "Query",
-					FieldNames: []string{"user"},
-				},
-			},
-			ChildNodes: []plan.TypeField{
-				{
-					TypeName:   "User",
-					FieldNames: []string{"id", "account"},
-				},
-				{
-					TypeName:   "Account",
-					FieldNames: []string{"id", "info"},
-				},
-				{
-					TypeName:   "Info",
-					FieldNames: []string{"a", "b"},
-				},
-			},
-			Custom: ConfigJson(Configuration{
-				Fetch: FetchConfiguration{
-					URL: "http://user.service",
-				},
-				Federation: FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: usersSubgraphSDL,
-				},
-			}),
-			Factory: federationFactory,
-			FieldConfigurations: plan.FieldConfigurations{
-				{
-					TypeName:                   "Account",
-					RequiresFieldsSelectionSet: "id info {a b}",
-				},
-			},
-		}
-
 		accountsDatasourceConfiguration := plan.DataSourceConfiguration{
 			RootNodes: []plan.TypeField{
 				{
+					TypeName:   "Query",
+					FieldNames: []string{"account"},
+				},
+				{
 					TypeName:   "Account",
 					FieldNames: []string{"id", "name", "info", "shippingInfo"},
+				},
+				{
+					TypeName:   "Address",
+					FieldNames: []string{"id", "fullAddress"},
 				},
 			},
 			ChildNodes: []plan.TypeField{
@@ -174,10 +192,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				{
 					TypeName:   "ShippingInfo",
 					FieldNames: []string{"zip"},
-				},
-				{
-					TypeName:   "Address",
-					FieldNames: []string{"id", "fullAddress"},
 				},
 			},
 			Custom: ConfigJson(Configuration{
@@ -198,12 +212,23 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 				{
 					TypeName:                   "Address",
+					FieldName:                  "",
+					RequiresFieldsSelectionSet: "id",
+				},
+				{
+					TypeName:                   "Address",
 					FieldName:                  "fullAddress",
-					RequiresFieldsSelectionSet: "line1 line2",
+					RequiresFieldsSelectionSet: "line1 line2 line3(test:\"BOOM\")",
 				},
 			},
 		}
 
+		addressesSubgraphSDL := `
+			extend type Address @key(fields: "id") {
+				id: ID!
+				line3(test: String!): String!
+			}
+		`
 		addressesDatasourceConfiguration := plan.DataSourceConfiguration{
 			RootNodes: []plan.TypeField{
 				{
@@ -223,6 +248,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			Factory: federationFactory,
 			FieldConfigurations: plan.FieldConfigurations{
 				{
+					TypeName:                   "Address",
+					FieldName:                  "",
+					RequiresFieldsSelectionSet: "id",
+				},
+				{
 					TypeName:  "Address",
 					FieldName: "line3",
 					Arguments: plan.ArgumentsConfigurations{
@@ -235,12 +265,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			},
 		}
 
+		dataSources := []plan.DataSourceConfiguration{
+			usersDatasourceConfiguration,
+			accountsDatasourceConfiguration,
+			addressesDatasourceConfiguration,
+		}
+
 		planConfiguration := plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				usersDatasourceConfiguration,
-				accountsDatasourceConfiguration,
-				addressesDatasourceConfiguration,
-			},
+			DataSources:                  dataSources,
 			DisableResolveFieldPositions: true,
 			Debug: plan.DebugConfiguration{
 				PrintOperationWithRequiredFields: true,
