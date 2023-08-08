@@ -180,6 +180,9 @@ func (c *configurationVisitor) EnterField(ref int) {
 			continue
 		}
 
+		// add required fields for field and type (@requires)
+		c.handleRequiredFieldsForTypeAndField(&plannerConfig.dataSourceConfiguration, currentPath, typeName, fieldName)
+
 		planningBehaviour := plannerConfig.planner.DataSourcePlanningBehavior()
 
 		if (plannerConfig.hasParent(parentPath) || plannerConfig.hasParent(precedingParentPath)) &&
@@ -239,6 +242,9 @@ func (c *configurationVisitor) EnterField(ref int) {
 
 		// add required fields for type (@key)
 		c.handleRequiredFieldsForType(&config, currentPath, typeName)
+
+		// add required fields for field and type (@requires)
+		c.handleRequiredFieldsForTypeAndField(&config, currentPath, typeName, fieldName)
 
 		var (
 			bufferID int
@@ -457,6 +463,9 @@ func (c *configurationVisitor) nextBufferID() int {
 func (c *configurationVisitor) handleRequiredFieldsForTypeAndField(config *DataSourceConfiguration, currentPath string, typeName, fieldName string) {
 	fieldConfigurations := config.FieldConfigurationsForTypeAndField(typeName, fieldName)
 	for _, fieldConfiguration := range fieldConfigurations {
+		if fieldConfiguration.RequiresFieldsSelectionSet == "" {
+			continue
+		}
 		c.planAddingFieldsFromTypeConfiguration(currentPath, fieldConfiguration)
 		fieldConfiguration.Path = []string{string(c.walker.Path[len(c.walker.Path)-1].FieldName)}
 		config.FieldConfigurationsFromParentPlanner = append(config.FieldConfigurationsFromParentPlanner, fieldConfiguration)
@@ -482,6 +491,10 @@ func (c *configurationVisitor) planRequiredFields(currentPath string, typeName s
 
 	for i, _ := range c.planners {
 		for _, possibleFieldConfig := range possibleFieldConfigurations {
+			if possibleFieldConfig.RequiresFieldsSelectionSet == "" {
+				continue
+			}
+
 			if c.planners[i].dataSourceConfiguration.HasFieldConfiguration(typeName, possibleFieldConfig.RequiresFieldsSelectionSet) {
 				c.planAddingFieldsFromTypeConfiguration(currentPath, possibleFieldConfig)
 				return possibleFieldConfig, true
