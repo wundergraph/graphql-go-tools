@@ -1366,7 +1366,7 @@ func (p *Planner) debugPrint(args ...interface{}) {
 	fmt.Println(allArgs...)
 }
 
-func (p *Planner) printQueryPlan(msg string, operation *ast.Document) {
+func (p *Planner) printQueryPlan(operation *ast.Document) {
 	if !p.printQueryPlans {
 		return
 	}
@@ -1376,11 +1376,37 @@ func (p *Planner) printQueryPlan(msg string, operation *ast.Document) {
 		return
 	}
 
-	p.debugPrint(msg, "\n",
-		"variables:\n",
-		string(p.upstreamVariables), "\n",
+	args := []interface{}{
+		"Execution plan:\n",
+	}
+
+	if len(p.upstreamVariables) > 0 {
+		args = append(args,
+			"variables:\n",
+			string(p.upstreamVariables),
+			"\n")
+	}
+
+	if len(p.dataSourceConfig.FieldConfigurationsFromParentPlanner) > 0 {
+		args = append(args, "Representations:\n")
+		for _, cfg := range p.dataSourceConfig.FieldConfigurationsFromParentPlanner {
+			key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.RequiresFieldsSelectionSet, true)
+			if report.HasErrors() {
+				continue
+			}
+			printedKey, err := astprinter.PrintStringIndent(key, nil, "  ")
+			if err != nil {
+				continue
+			}
+			args = append(args, printedKey, "\n")
+		}
+	}
+
+	args = append(args,
 		"operation:\n",
 		printedOperation)
+
+	p.debugPrint(args...)
 }
 
 // printOperation - prints normalized upstream operation
@@ -1452,7 +1478,7 @@ func (p *Planner) printOperation() []byte {
 		return nil
 	}
 
-	p.printQueryPlan("upstream operation:", p.upstreamOperation)
+	p.printQueryPlan(p.upstreamOperation)
 
 	validator := astvalidation.DefaultOperationValidator()
 	validator.Validate(operation, definition, report)
