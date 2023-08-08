@@ -177,7 +177,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 	for i, plannerConfig := range c.planners {
 		if c.secondRun && plannerConfig.hasPath(currentPath) {
 			// on the second run we need to process only new fields added by the first run
-			continue
+			return
 		}
 
 		// add required fields for field and type (@requires)
@@ -229,10 +229,6 @@ func (c *configurationVisitor) EnterField(ref int) {
 				return
 			}
 		}
-	}
-
-	if c.secondRun {
-		return
 	}
 
 	for i, config := range c.config.DataSources {
