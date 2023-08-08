@@ -69,9 +69,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				zip: String! @external
 			}
 
-			extend type Info {
-				a: ID! @external
-				b: ID! @external
+			type Info {
+				a: ID!
+				b: ID!
 			}
 
 			type Address @key(fields: "id") {
@@ -83,6 +83,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 
 		// TODO: add test for requires from 2 sibling subgraphs - should be Serial: Parallel -> Single
 		// TODO: add test for requires from 1 parent and 2 sibling subgraphs
+		// TODO: add test for requires when query already has the required field with the different argument - potentially requires alias?
 		// TODO: add test for requires+provides
 
 		usersDatasourceConfiguration := plan.DataSourceConfiguration{
@@ -265,11 +266,59 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			},
 		}
 
+		// addressesEnricherSubgraphSDL := `
+		// 	extend type Address @key(fields: "id") {
+		// 		id: ID!
+		// 		line3(test: String!): String!
+		// 	}
+		// `
+		// addressesEnricherDatasourceConfiguration := plan.DataSourceConfiguration{
+		// 	RootNodes: []plan.TypeField{
+		// 		{
+		// 			TypeName:   "Address",
+		// 			FieldNames: []string{"id", "line3"},
+		// 		},
+		// 	},
+		// 	Custom: ConfigJson(Configuration{
+		// 		Fetch: FetchConfiguration{
+		// 			URL: "http://address.service",
+		// 		},
+		// 		Federation: FederationConfiguration{
+		// 			Enabled:    true,
+		// 			ServiceSDL: addressesSubgraphSDL,
+		// 		},
+		// 	}),
+		// 	Factory: federationFactory,
+		// 	FieldConfigurations: plan.FieldConfigurations{
+		// 		{
+		// 			TypeName:                   "Address",
+		// 			FieldName:                  "",
+		// 			RequiresFieldsSelectionSet: "id",
+		// 		},
+		// 		{
+		// 			TypeName:  "Address",
+		// 			FieldName: "line3",
+		// 			Arguments: plan.ArgumentsConfigurations{
+		// 				{
+		// 					Name:       "test",
+		// 					SourceType: plan.FieldArgumentSource,
+		// 				},
+		// 			},
+		// 		},
+		// 	},
+		// }
+
 		dataSources := []plan.DataSourceConfiguration{
 			usersDatasourceConfiguration,
 			accountsDatasourceConfiguration,
 			addressesDatasourceConfiguration,
 		}
+
+		// // shuffle dataSources to ensure that the order doesn't matter
+		// rand.Seed(time.Now().UnixNano())
+		// rand.Shuffle(len(dataSources), func(i, j int) {
+		// 	dataSources[i], dataSources[j] = dataSources[j], dataSources[i]
+		// })
 
 		planConfiguration := plan.Configuration{
 			DataSources:                  dataSources,
