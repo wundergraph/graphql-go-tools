@@ -1478,14 +1478,14 @@ func (p *Planner) printOperation() []byte {
 		return nil
 	}
 
-	p.printQueryPlan(p.upstreamOperation)
-
 	validator := astvalidation.DefaultOperationValidator()
 	validator.Validate(operation, definition, report)
 	if report.HasErrors() {
 		p.stopWithError("validation failed: %s", report.Error())
 		return nil
 	}
+
+	p.printQueryPlan(p.upstreamOperation)
 
 	buf.Reset()
 
