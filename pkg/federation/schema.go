@@ -2,6 +2,7 @@ package federation
 
 import (
 	"fmt"
+	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
@@ -49,6 +50,11 @@ func (s *schemaBuilder) extendQueryTypeWithFederationFields(schema string) strin
 	if report.HasErrors() {
 		return schema
 	}
+
+	if err := asttransform.MergeDefinitionWithBaseSchema(doc); err != nil {
+		return schema
+	}
+
 	queryTypeName := doc.Index.QueryTypeName.String()
 	if queryTypeName == "" {
 		queryTypeName = "Query"
@@ -143,7 +149,7 @@ func (s *schemaBuilderVisitor) addEntity(entity string) {
 	s.entityUnionTypes = append(s.entityUnionTypes, entity)
 }
 
-func (s *schemaBuilderVisitor) EnterDocument(operation, definition *ast.Document) {
+func (s *schemaBuilderVisitor) EnterDocument(operation, _ *ast.Document) {
 	s.definition = operation
 }
 
