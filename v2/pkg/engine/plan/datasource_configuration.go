@@ -106,24 +106,12 @@ func (d *DataSourceConfiguration) HasFieldConfiguration(typeName, requiresFields
 	return false
 }
 
-func (d *DataSourceConfiguration) FieldConfigurationsForType(typeName string) (out []FieldConfiguration) {
-	for i := range d.FieldConfigurations {
-		if d.FieldConfigurations[i].TypeName != typeName || d.FieldConfigurations[i].FieldName != "" {
-			continue
-		}
-		out = append(out, d.FieldConfigurations[i])
-	}
-	return out
+func (d *DataSourceConfiguration) FieldConfigurationsForType(typeName string) []FieldConfiguration {
+	return d.FieldConfigurations.FilterByType(typeName)
 }
 
-func (d *DataSourceConfiguration) FieldConfigurationsForTypeAndField(typeName, fieldName string) (out []FieldConfiguration) {
-	for i := range d.FieldConfigurations {
-		if d.FieldConfigurations[i].TypeName != typeName || d.FieldConfigurations[i].FieldName != fieldName {
-			continue
-		}
-		out = append(out, d.FieldConfigurations[i])
-	}
-	return out
+func (d *DataSourceConfiguration) FieldConfigurationsForTypeAndField(typeName, fieldName string) []FieldConfiguration {
+	return d.FieldConfigurations.FilterByTypeAndField(typeName, fieldName)
 }
 
 type DirectiveConfigurations []DirectiveConfiguration

@@ -1,6 +1,12 @@
 package plan
 
-import "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+import (
+	"fmt"
+
+	"golang.org/x/exp/slices"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+)
 
 type Configuration struct {
 	DefaultFlushIntervalMillis int64
@@ -72,6 +78,35 @@ func (f FieldConfigurations) ForTypeField(typeName, fieldName string) *FieldConf
 	return nil
 }
 
+func (f FieldConfigurations) ForType(typeName string) (*FieldConfiguration, int) {
+	for i := range f {
+		if f[i].TypeName == typeName {
+			return &f[i], i
+		}
+	}
+	return nil, -1
+}
+
+func (f FieldConfigurations) FilterByType(typeName string) (out []FieldConfiguration) {
+	for i := range f {
+		if f[i].TypeName != typeName || f[i].FieldName != "" {
+			continue
+		}
+		out = append(out, f[i])
+	}
+	return out
+}
+
+func (f FieldConfigurations) FilterByTypeAndField(typeName, fieldName string) (out []FieldConfiguration) {
+	for i := range f {
+		if f[i].TypeName != typeName || f[i].FieldName != fieldName {
+			continue
+		}
+		out = append(out, f[i])
+	}
+	return out
+}
+
 func (f FieldConfigurations) IsKey(typeName, fieldName string) bool {
 	for i := range f {
 		if f[i].TypeName != typeName {
@@ -107,6 +142,22 @@ func (f FieldConfigurations) Keys(typeName, fieldName string) (out []string) {
 	}
 
 	return
+}
+
+func AppendFieldConfigurationWithMerge(configs FieldConfigurations, config FieldConfiguration) FieldConfigurations {
+	cfg, i := configs.ForType(config.TypeName)
+	if i == -1 {
+		return append(configs, config)
+	}
+
+	if !slices.Equal(cfg.Path, config.Path) {
+		return append(configs, config)
+	}
+
+	cfg.RequiresFieldsSelectionSet = fmt.Sprintf("%s %s", cfg.RequiresFieldsSelectionSet, config.RequiresFieldsSelectionSet)
+	configs[i] = *cfg
+
+	return configs
 }
 
 type FieldConfiguration struct {
