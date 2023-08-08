@@ -242,6 +242,8 @@ func (c *configurationVisitor) EnterField(ref int) {
 		if len(possibleTypeConfigurations) > 0 {
 			typeConfiguration, added := c.planRequiredFields(currentPath, typeName, possibleTypeConfigurations)
 			if added {
+				// TODO: could path be an array?
+				typeConfiguration.Path = []string{string(c.walker.Path[len(c.walker.Path)-1].FieldName)}
 				config.FieldConfigurationsFromParentPlanner = append(config.FieldConfigurationsFromParentPlanner, typeConfiguration)
 			}
 		}
@@ -428,8 +430,16 @@ func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
 func (c *configurationVisitor) addPlannerPathForTypename(
 	plannerIndex int, currentPath string, fieldRef int, fieldName string, typeName string, planningBehaviour DataSourcePlanningBehavior,
 ) (pathAdded bool) {
-	if !(fieldName == "__typename" && planningBehaviour.IncludeTypeNameFields) {
+	if fieldName != "__typename" {
 		return false
+	}
+	if !planningBehaviour.IncludeTypeNameFields {
+		return false
+	}
+
+	if c.planners[plannerIndex].hasPath(currentPath) {
+		// do not add a path for __typename if it already exists
+		return true
 	}
 
 	c.planners[plannerIndex].paths = append(c.planners[plannerIndex].paths, pathConfiguration{
@@ -508,7 +518,7 @@ func (c *configurationVisitor) processPendingRequiredFields(selectionSetRef int)
 
 func (c *configurationVisitor) addRequiredFields(selectionSetRef int, requiredFields string) {
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
-	key, report := RequiredFieldsFragment(typeName, requiredFields)
+	key, report := RequiredFieldsFragment(typeName, requiredFields, true)
 	if report.HasErrors() {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse required fields for %s", typeName))
 	}

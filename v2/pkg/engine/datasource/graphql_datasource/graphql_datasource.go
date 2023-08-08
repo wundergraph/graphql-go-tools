@@ -430,18 +430,18 @@ func (p *Planner) EnterSelectionSet(ref int) {
 		p.addRepresentationsQuery()
 	}
 
-	if p.visitor.Walker.EnclosingTypeDefinition.Kind.IsAbstractType() {
-		// Adding the typename to abstract (unions and interfaces) types is handled elsewhere
-		return
-	}
+	// if p.visitor.Walker.EnclosingTypeDefinition.Kind.IsAbstractType() {
+	// 	// Adding the typename to abstract (unions and interfaces) types is handled elsewhere
+	// 	return
+	// }
 
-	for _, selectionRef := range p.visitor.Operation.SelectionSets[ref].SelectionRefs {
-		if p.visitor.Operation.Selections[selectionRef].Kind == ast.SelectionKindField {
-			if p.visitor.Operation.FieldNameUnsafeString(p.visitor.Operation.Selections[selectionRef].Ref) == "__typename" {
-				p.addTypenameToSelectionSet(set.Ref)
-			}
-		}
-	}
+	// for _, selectionRef := range p.visitor.Operation.SelectionSets[ref].SelectionRefs {
+	// 	if p.visitor.Operation.Selections[selectionRef].Kind == ast.SelectionKindField {
+	// 		if p.visitor.Operation.FieldNameUnsafeString(p.visitor.Operation.Selections[selectionRef].Ref) == "__typename" {
+	// 			p.addTypenameToSelectionSet(set.Ref)
+	// 		}
+	// 	}
+	// }
 }
 
 func (p *Planner) addTypenameToSelectionSet(selectionSet int) {
@@ -718,11 +718,19 @@ func (p *Planner) addRepresentationsVariable() {
 func (p *Planner) buildRepresentationsVariable() resolve.Variable {
 	variables := resolve.NewVariables()
 	for _, cfg := range p.dataSourceConfig.FieldConfigurationsFromParentPlanner {
-		key, _ := plan.RequiredFieldsFragment(cfg.TypeName, cfg.RequiresFieldsSelectionSet)
-		node, _ := BuildRepresentationVariableNode(key, p.visitor.Definition)
+		key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.RequiresFieldsSelectionSet, false)
+		if report.HasErrors() {
+			p.visitor.Walker.StopWithInternalErr(report)
+			return nil
+		}
+		node, err := BuildRepresentationVariableNode(key, p.visitor.Definition)
+		if err != nil {
+			p.visitor.Walker.StopWithInternalErr(err)
+			return nil
+		}
 
 		variables.AddVariable(resolve.NewResolvableObjectVariable(
-			[]string{"FIXME"}, // FIXME: provide a path
+			cfg.Path,
 			node,
 		))
 	}

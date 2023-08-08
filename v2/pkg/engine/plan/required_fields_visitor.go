@@ -9,8 +9,18 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-func RequiredFieldsFragment(typeName, requiredFields string) (*ast.Document, *operationreport.Report) {
-	key, report := astparser.ParseGraphqlDocumentString(fmt.Sprintf("fragment Key on %s {%s}", typeName, requiredFields))
+const (
+	requiredFieldsFragmentTemplate             = `fragment Key on %s {%s}`
+	requiredFieldsFragmentTemplateWithTypeName = `fragment Key on %s { __typename %s}`
+)
+
+func RequiredFieldsFragment(typeName, requiredFields string, includeTypename bool) (*ast.Document, *operationreport.Report) {
+	template := requiredFieldsFragmentTemplate
+	if includeTypename {
+		template = requiredFieldsFragmentTemplateWithTypeName
+	}
+
+	key, report := astparser.ParseGraphqlDocumentString(fmt.Sprintf(template, typeName, requiredFields))
 	return &key, &report
 }
 

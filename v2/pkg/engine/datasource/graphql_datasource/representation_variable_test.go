@@ -13,7 +13,7 @@ import (
 func TestBuildRepresentationVariableNode(t *testing.T) {
 	runTest := func(t *testing.T, definitionStr, keyStr string, expectedNode resolve.Node) {
 		definition, _ := astparser.ParseGraphqlDocumentString(definitionStr)
-		key, _ := plan.RequiredFieldsFragment("User", keyStr)
+		key, _ := plan.RequiredFieldsFragment("User", keyStr, false)
 
 		node, err := BuildRepresentationVariableNode(key, &definition)
 		require.NoError(t, err)
