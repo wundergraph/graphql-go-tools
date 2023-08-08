@@ -238,25 +238,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 		}
 
 		// add required fields for type (@key)
-		possibleTypeConfigurations := config.FieldConfigurationsForType(typeName)
-		if len(possibleTypeConfigurations) > 0 {
-			typeConfiguration, added := c.planRequiredFields(currentPath, typeName, possibleTypeConfigurations)
-			if added {
-				// TODO: could path be an array?
-				typeConfiguration.Path = []string{string(c.walker.Path[len(c.walker.Path)-1].FieldName)}
-				config.FieldConfigurationsFromParentPlanner = append(config.FieldConfigurationsFromParentPlanner, typeConfiguration)
-			}
-		}
-
-		// TODO: not ready yet
-		// // add required fields for field and type (@requires)
-		// possibleTypeConfigurations = config.FieldConfigurationsForTypeAndField(typeName, fieldName)
-		// if len(possibleTypeConfigurations) > 0 {
-		// 	typeConfiguration, added := c.planRequiredFields(currentPath, typeName, possibleTypeConfigurations)
-		// 	if added {
-		// 		config.FieldConfigurationsFromParentPlanner = append(config.FieldConfigurationsFromParentPlanner, typeConfiguration)
-		// 	}
-		// }
+		c.handleRequiredFieldsForType(&config, currentPath, typeName)
 
 		var (
 			bufferID int
@@ -470,6 +452,27 @@ func (c *configurationVisitor) isSubscription(root int, path string) bool {
 func (c *configurationVisitor) nextBufferID() int {
 	c.currentBufferId++
 	return c.currentBufferId
+}
+
+func (c *configurationVisitor) handleRequiredFieldsForTypeAndField(config *DataSourceConfiguration, currentPath string, typeName, fieldName string) {
+	fieldConfigurations := config.FieldConfigurationsForTypeAndField(typeName, fieldName)
+	for _, fieldConfiguration := range fieldConfigurations {
+		c.planAddingFieldsFromTypeConfiguration(currentPath, fieldConfiguration)
+		fieldConfiguration.Path = []string{string(c.walker.Path[len(c.walker.Path)-1].FieldName)}
+		config.FieldConfigurationsFromParentPlanner = append(config.FieldConfigurationsFromParentPlanner, fieldConfiguration)
+	}
+}
+
+func (c *configurationVisitor) handleRequiredFieldsForType(config *DataSourceConfiguration, currentPath string, typeName string) {
+	possibleTypeConfigurations := config.FieldConfigurationsForType(typeName)
+	if len(possibleTypeConfigurations) > 0 {
+		typeConfiguration, added := c.planRequiredFields(currentPath, typeName, possibleTypeConfigurations)
+		if added {
+			// TODO: could path be an array?
+			typeConfiguration.Path = []string{string(c.walker.Path[len(c.walker.Path)-1].FieldName)}
+			config.FieldConfigurationsFromParentPlanner = append(config.FieldConfigurationsFromParentPlanner, typeConfiguration)
+		}
+	}
 }
 
 func (c *configurationVisitor) planRequiredFields(currentPath string, typeName string, possibleFieldConfigurations []FieldConfiguration) (config FieldConfiguration, planned bool) {
