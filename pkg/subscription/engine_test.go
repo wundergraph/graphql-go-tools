@@ -55,9 +55,9 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 				Times(2)
 
 			eventHandlerMock := NewMockEventHandler(ctrl)
-			eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeError), gomock.Eq(idQuery), gomock.Nil(), gomock.Any()).
+			eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeOnError), gomock.Eq(idQuery), gomock.Nil(), gomock.Any()).
 				Times(1)
-			eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeError), gomock.Eq(idMutation), gomock.Nil(), gomock.Any()).
+			eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeOnError), gomock.Eq(idMutation), gomock.Nil(), gomock.Any()).
 				Times(1)
 
 			engine := ExecutorEngine{
@@ -82,7 +82,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 
 				<-ctx.Done()
 				return true
-			}, 50*time.Millisecond, 10*time.Millisecond)
+			}, 1*time.Second, 10*time.Millisecond)
 		})
 
 		t.Run("on execution success", func(t *testing.T) {
@@ -121,13 +121,9 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 				Times(2)
 
 			eventHandlerMock := NewMockEventHandler(ctrl)
-			eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeData), gomock.Eq(idQuery), gomock.AssignableToTypeOf([]byte{}), gomock.Nil()).
+			eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeOnNonSubscriptionExecutionResult), gomock.Eq(idQuery), gomock.AssignableToTypeOf([]byte{}), gomock.Nil()).
 				Times(1)
-			eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeData), gomock.Eq(idMutation), gomock.AssignableToTypeOf([]byte{}), gomock.Nil()).
-				Times(1)
-			eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeCompleted), gomock.Eq(idQuery), gomock.Nil(), gomock.Nil()).
-				Times(1)
-			eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeCompleted), gomock.Eq(idMutation), gomock.Nil(), gomock.Nil()).
+			eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeOnNonSubscriptionExecutionResult), gomock.Eq(idMutation), gomock.AssignableToTypeOf([]byte{}), gomock.Nil()).
 				Times(1)
 
 			engine := ExecutorEngine{
@@ -152,7 +148,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 
 				<-ctx.Done()
 				return true
-			}, 50*time.Millisecond, 10*time.Millisecond)
+			}, 1*time.Second, 10*time.Millisecond)
 		})
 	})
 
@@ -185,7 +181,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 				Times(1)
 
 			eventHandlerMock := NewMockEventHandler(ctrl)
-			eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeError), gomock.Eq(id), gomock.Nil(), gomock.Any()).
+			eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeOnError), gomock.Eq(id), gomock.Nil(), gomock.Any()).
 				MinTimes(2)
 
 			engine := ExecutorEngine{
@@ -205,7 +201,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 				err := engine.StartOperation(ctx, id, payload, eventHandlerMock)
 				<-ctx.Done()
 				return assert.NoError(t, err)
-			}, 50*time.Millisecond, 10*time.Millisecond)
+			}, 1*time.Second, 10*time.Millisecond)
 		})
 
 		t.Run("on execution success", func(t *testing.T) {
@@ -238,7 +234,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 				Times(1)
 
 			eventHandlerMock := NewMockEventHandler(ctrl)
-			eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeData), gomock.Eq(id), gomock.AssignableToTypeOf([]byte{}), gomock.Nil()).
+			eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeOnSubscriptionData), gomock.Eq(id), gomock.AssignableToTypeOf([]byte{}), gomock.Nil()).
 				MinTimes(2)
 
 			engine := ExecutorEngine{
@@ -257,9 +253,9 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 			assert.Eventually(t, func() bool {
 				err := engine.StartOperation(ctx, id, payload, eventHandlerMock)
 				<-ctx.Done()
-				<-time.After(5 * time.Millisecond)
+				time.Sleep(5 * time.Millisecond)
 				return assert.NoError(t, err)
-			}, 50*time.Millisecond, 10*time.Millisecond)
+			}, 1*time.Second, 10*time.Millisecond)
 		})
 	})
 
@@ -293,9 +289,9 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 			Times(1)
 
 		eventHandlerMock := NewMockEventHandler(ctrl)
-		eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeError), gomock.Eq(id), gomock.Nil(), gomock.Any()).
+		eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeOnDuplicatedSubscriberID), gomock.Eq(id), gomock.Nil(), gomock.Any()).
 			Times(1)
-		eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeData), gomock.Eq(id), gomock.AssignableToTypeOf([]byte{}), gomock.Nil()).
+		eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeOnSubscriptionData), gomock.Eq(id), gomock.AssignableToTypeOf([]byte{}), gomock.Nil()).
 			Times(1)
 
 		engine := ExecutorEngine{
@@ -320,7 +316,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 
 			<-ctx.Done()
 			return true
-		}, 50*time.Millisecond, 10*time.Millisecond)
+		}, 1*time.Second, 10*time.Millisecond)
 	})
 }
 
@@ -334,9 +330,9 @@ func TestExecutorEngine_StopSubscription(t *testing.T) {
 	payload := []byte(`{"query":"subscription { receiveData }"}`)
 
 	eventHandlerMock := NewMockEventHandler(ctrl)
-	eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeCompleted), gomock.Eq(id), gomock.Nil(), gomock.Nil()).
+	eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeOnSubscriptionCompleted), gomock.Eq(id), gomock.Nil(), gomock.Nil()).
 		Times(1)
-	eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeData), gomock.Eq(id), gomock.AssignableToTypeOf([]byte{}), gomock.Nil()).
+	eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeOnSubscriptionData), gomock.Eq(id), gomock.AssignableToTypeOf([]byte{}), gomock.Nil()).
 		MinTimes(1)
 
 	executorMock := NewMockExecutor(ctrl)
@@ -375,15 +371,15 @@ func TestExecutorEngine_StopSubscription(t *testing.T) {
 		err := engine.StartOperation(ctx, id, payload, eventHandlerMock)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, engine.subCancellations.Len())
-		<-time.After(5 * time.Millisecond)
+		time.Sleep(5 * time.Millisecond)
 
 		err = engine.StopSubscription(id, eventHandlerMock)
 		assert.NoError(t, err)
 		assert.Equal(t, 0, engine.subCancellations.Len())
-		<-time.After(5 * time.Millisecond)
+		time.Sleep(5 * time.Millisecond)
 
 		return true
-	}, 50*time.Millisecond, 5*time.Millisecond)
+	}, 1*time.Second, 5*time.Millisecond)
 }
 
 func TestExecutorEngine_TerminateAllConnections(t *testing.T) {
@@ -395,9 +391,9 @@ func TestExecutorEngine_TerminateAllConnections(t *testing.T) {
 	payload := []byte(`{"query":"subscription { receiveData }"}`)
 
 	eventHandlerMock := NewMockEventHandler(ctrl)
-	eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeConnectionTerminatedByServer), gomock.Eq(""), gomock.Eq([]byte("connection terminated by server")), gomock.Nil()).
+	eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeOnConnectionTerminatedByServer), gomock.Eq(""), gomock.Eq([]byte("connection terminated by server")), gomock.Nil()).
 		Times(1)
-	eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeData), gomock.Any(), gomock.AssignableToTypeOf([]byte{}), gomock.Nil()).
+	eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeOnSubscriptionData), gomock.Any(), gomock.AssignableToTypeOf([]byte{}), gomock.Nil()).
 		MinTimes(3)
 
 	executorMock := NewMockExecutor(ctrl)
@@ -440,15 +436,15 @@ func TestExecutorEngine_TerminateAllConnections(t *testing.T) {
 		err = engine.StartOperation(ctx, "3", payload, eventHandlerMock)
 		assert.NoError(t, err)
 		assert.Equal(t, 3, engine.subCancellations.Len())
-		<-time.After(5 * time.Millisecond)
+		time.Sleep(5 * time.Millisecond)
 
 		err = engine.TerminateAllSubscriptions(eventHandlerMock)
 		assert.NoError(t, err)
 		assert.Equal(t, 0, engine.subCancellations.Len())
-		<-time.After(5 * time.Millisecond)
+		time.Sleep(5 * time.Millisecond)
 
 		return true
-	}, 50*time.Millisecond, 5*time.Millisecond)
+	}, 1*time.Second, 5*time.Millisecond)
 }
 
 func assignableToContextWithCancel(ctx context.Context) gomock.Matcher {

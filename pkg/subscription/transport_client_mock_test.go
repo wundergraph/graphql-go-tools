@@ -47,6 +47,20 @@ func (mr *MockTransportClientMockRecorder) Disconnect() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Disconnect", reflect.TypeOf((*MockTransportClient)(nil).Disconnect))
 }
 
+// DisconnectWithReason mocks base method.
+func (m *MockTransportClient) DisconnectWithReason(arg0 interface{}) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DisconnectWithReason", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DisconnectWithReason indicates an expected call of DisconnectWithReason.
+func (mr *MockTransportClientMockRecorder) DisconnectWithReason(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DisconnectWithReason", reflect.TypeOf((*MockTransportClient)(nil).DisconnectWithReason), arg0)
+}
+
 // IsConnected mocks base method.
 func (m *MockTransportClient) IsConnected() bool {
 	m.ctrl.T.Helper()

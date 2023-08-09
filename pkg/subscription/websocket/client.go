@@ -12,6 +12,33 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/pkg/subscription"
 )
 
+// CloseReason is type that is used to provide a close reason to Client.DisconnectWithReason.
+type CloseReason ws.Frame
+
+// CompiledCloseReason is a pre-compiled close reason to be provided to Client.DisconnectWithReason.
+type CompiledCloseReason []byte
+
+var (
+	CompiledCloseReasonNormal CompiledCloseReason = ws.MustCompileFrame(
+		ws.NewCloseFrame(ws.NewCloseFrameBody(
+			ws.StatusNormalClosure, "Normal Closure",
+		)),
+	)
+	CompiledCloseReasonInternalServerError CompiledCloseReason = ws.MustCompileFrame(
+		ws.NewCloseFrame(ws.NewCloseFrameBody(
+			ws.StatusInternalServerError, "Internal Server Error",
+		)),
+	)
+)
+
+// NewCloseReason is used to compose a close frame with code and reason message.
+func NewCloseReason(code uint16, reason string) CloseReason {
+	wsCloseFrame := ws.NewCloseFrame(ws.NewCloseFrameBody(
+		ws.StatusCode(code), reason,
+	))
+	return CloseReason(wsCloseFrame)
+}
+
 // Client is an actual implementation of the subscription client interface.
 type Client struct {
 	logger abstractlogger.Logger
@@ -31,8 +58,9 @@ func NewClient(logger abstractlogger.Logger, clientConn net.Conn) *Client {
 
 // ReadBytesFromClient will read a subscription message from the websocket client.
 func (c *Client) ReadBytesFromClient() ([]byte, error) {
-	var data []byte
-	var opCode ws.OpCode
+	if c.isClosedConnection {
+		return nil, subscription.ErrTransportClientClosedConnection
+	}
 
 	data, opCode, err := wsutil.ReadClientData(c.clientConn)
 	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, io.ErrUnexpectedEOF) {
@@ -91,6 +119,46 @@ func (c *Client) Disconnect() error {
 	)
 	c.isClosedConnection = true
 	return c.clientConn.Close()
+}
+
+// DisconnectWithReason will close the websocket and provide the close code and reason.
+// It can only consume CloseReason or CompiledCloseReason.
+func (c *Client) DisconnectWithReason(reason interface{}) error {
+	var err error
+	switch reason := reason.(type) {
+	case CloseReason:
+		err = c.writeFrame(ws.Frame(reason))
+	case CompiledCloseReason:
+		err = c.writeCompiledFrame(reason)
+	default:
+		c.logger.Error("websocket.Client.DisconnectWithReason: on reason/frame parsing",
+			abstractlogger.String("message", "unknown reason provided"),
+		)
+		frame := NewCloseReason(4400, "unknown reason")
+		err = c.writeFrame(ws.Frame(frame))
+	}
+
+	c.logger.Debug("websocket.Client.DisconnectWithReason: before sending close frame",
+		abstractlogger.String("message", "disconnecting client"),
+	)
+
+	if err != nil {
+		c.logger.Error("websocket.Client.DisconnectWithReason: after writing close reason",
+			abstractlogger.Error(err),
+		)
+		return err
+	}
+
+	return c.Disconnect()
+}
+
+func (c *Client) writeFrame(frame ws.Frame) error {
+	return ws.WriteFrame(c.clientConn, frame)
+}
+
+func (c *Client) writeCompiledFrame(compiledFrame []byte) error {
+	_, err := c.clientConn.Write(compiledFrame)
+	return err
 }
 
 // isClosedConnectionError will indicate if the given error is a connection closed error.

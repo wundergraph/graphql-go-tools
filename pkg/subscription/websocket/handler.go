@@ -3,6 +3,7 @@ package websocket
 import (
 	"context"
 	"net"
+	"net/http"
 	"time"
 
 	"github.com/jensneuse/abstractlogger"
@@ -10,22 +11,32 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/pkg/subscription"
 )
 
+const (
+	DefaultConnectionInitTimeOut = "15s"
+
+	HeaderSecWebSocketProtocol = "Sec-WebSocket-Protocol"
+)
+
 // Protocol defines the protocol names as type.
 type Protocol string
 
 const (
-	ProtocolGraphQLWS Protocol = "graphql-ws"
+	ProtocolUndefined          Protocol = ""
+	ProtocolGraphQLWS          Protocol = "graphql-ws"
+	ProtocolGraphQLTransportWS Protocol = "graphql-transport-ws"
 )
 
-var DefaultProtocol = ProtocolGraphQLWS
+var DefaultProtocol = ProtocolGraphQLTransportWS
 
 // HandleOptions can be used to pass options to the websocket handler.
 type HandleOptions struct {
 	Logger                           abstractlogger.Logger
+	Protocol                         Protocol
 	WebSocketInitFunc                InitFunc
 	CustomClient                     subscription.TransportClient
 	CustomKeepAliveInterval          time.Duration
 	CustomSubscriptionUpdateInterval time.Duration
+	CustomConnectionInitTimeOut      time.Duration
 	CustomReadErrorTimeOut           time.Duration
 	CustomSubscriptionEngine         subscription.Engine
 }
@@ -69,6 +80,13 @@ func WithCustomSubscriptionUpdateInterval(subscriptionUpdateInterval time.Durati
 	}
 }
 
+// WithCustomConnectionInitTimeOut is a function that sets a custom connection init time out.
+func WithCustomConnectionInitTimeOut(connectionInitTimeOut time.Duration) HandleOptionFunc {
+	return func(opts *HandleOptions) {
+		opts.CustomConnectionInitTimeOut = connectionInitTimeOut
+	}
+}
+
 // WithCustomReadErrorTimeOut is a function that sets a custom read error time out for the
 // websocket handler.
 func WithCustomReadErrorTimeOut(readErrorTimeOut time.Duration) HandleOptionFunc {
@@ -84,11 +102,41 @@ func WithCustomSubscriptionEngine(subscriptionEngine subscription.Engine) Handle
 	}
 }
 
-// Handle will handle the websocket subscription. It can take optional option functions to customize the handler
-// behavior.
+// WithProtocol is a function that sets the protocol.
+func WithProtocol(protocol Protocol) HandleOptionFunc {
+	return func(opts *HandleOptions) {
+		opts.Protocol = protocol
+	}
+}
+
+// WithProtocolFromRequestHeaders is a function that sets the protocol based on the request headers.
+// It fallbacks to the DefaultProtocol if the header can't be found, the value is invalid or no request
+// was provided.
+func WithProtocolFromRequestHeaders(req *http.Request) HandleOptionFunc {
+	return func(opts *HandleOptions) {
+		if req == nil {
+			opts.Protocol = DefaultProtocol
+			return
+		}
+
+		protocolHeaderValue := req.Header.Get(HeaderSecWebSocketProtocol)
+		switch Protocol(protocolHeaderValue) {
+		case ProtocolGraphQLWS:
+			opts.Protocol = ProtocolGraphQLWS
+		case ProtocolGraphQLTransportWS:
+			opts.Protocol = ProtocolGraphQLTransportWS
+		default:
+			opts.Protocol = DefaultProtocol
+		}
+	}
+}
+
+// Handle will handle the websocket subscription. It can take optional option functions to customize the handler.
+// behavior. By default, it uses the 'graphql-transport-ws' protocol.
 func Handle(done chan bool, errChan chan error, conn net.Conn, executorPool subscription.ExecutorPool, options ...HandleOptionFunc) {
 	definedOptions := HandleOptions{
-		Logger: abstractlogger.Noop{},
+		Logger:   abstractlogger.Noop{},
+		Protocol: DefaultProtocol,
 	}
 
 	for _, optionFunc := range options {
@@ -121,11 +169,7 @@ func HandleWithOptions(done chan bool, errChan chan error, conn net.Conn, execut
 		client = NewClient(options.Logger, conn)
 	}
 
-	protocolHandler, err := NewProtocolGraphQLWSHandlerWithOptions(client, ProtocolGraphQLWSHandlerOptions{
-		Logger:                  options.Logger,
-		WebSocketInitFunc:       options.WebSocketInitFunc,
-		CustomKeepAliveInterval: options.CustomKeepAliveInterval,
-	})
+	protocolHandler, err := createProtocolHandler(options, client)
 	if err != nil {
 		options.Logger.Error("websocket.HandleWithOptions: on protocol handler creation",
 			abstractlogger.String("message", "could not create protocol handler"),
@@ -156,4 +200,29 @@ func HandleWithOptions(done chan bool, errChan chan error, conn net.Conn, execut
 
 	close(done)
 	subscriptionHandler.Handle(context.Background()) // Blocking
+}
+
+func createProtocolHandler(handleOptions HandleOptions, client subscription.TransportClient) (protocolHandler subscription.Protocol, err error) {
+	protocol := handleOptions.Protocol
+	if protocol == ProtocolUndefined {
+		protocol = DefaultProtocol
+	}
+
+	switch protocol {
+	case ProtocolGraphQLWS:
+		protocolHandler, err = NewProtocolGraphQLWSHandlerWithOptions(client, ProtocolGraphQLWSHandlerOptions{
+			Logger:                  handleOptions.Logger,
+			WebSocketInitFunc:       handleOptions.WebSocketInitFunc,
+			CustomKeepAliveInterval: handleOptions.CustomKeepAliveInterval,
+		})
+	default:
+		protocolHandler, err = NewProtocolGraphQLTransportWSHandlerWithOptions(client, ProtocolGraphQLTransportWSHandlerOptions{
+			Logger:                    handleOptions.Logger,
+			WebSocketInitFunc:         handleOptions.WebSocketInitFunc,
+			CustomKeepAliveInterval:   handleOptions.CustomKeepAliveInterval,
+			CustomInitTimeOutDuration: handleOptions.CustomConnectionInitTimeOut,
+		})
+	}
+
+	return protocolHandler, err
 }

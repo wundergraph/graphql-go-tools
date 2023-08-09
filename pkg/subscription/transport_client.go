@@ -22,4 +22,6 @@ type TransportClient interface {
 	IsConnected() bool
 	// Disconnect will close the connection between server and client.
 	Disconnect() error
+	// DisconnectWithReason will close the connection but is also able to process a reason for closure.
+	DisconnectWithReason(reason interface{}) error
 }
