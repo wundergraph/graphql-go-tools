@@ -26,6 +26,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				line1: String!
 				line2: String!
 				line3(test: String!): String!
+				country: String!
+				city: String!
+				zip: String!
 				fullAddress: String!
 			}
 			type Info {
@@ -167,7 +170,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				line1: String! @external
 				line2: String! @external
 				line3(test: String!): String! @external
-				fullAddress: String! @requires(fields: "line1 line2 line3(test:\"BOOM\")")
+				zip: String! @external
+				fullAddress: String! @requires(fields: "line1 line2 line3(test:\"BOOM\") zip")
 			}
 		`
 		accountsDatasourceConfiguration := plan.DataSourceConfiguration{
@@ -219,7 +223,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				{
 					TypeName:                   "Address",
 					FieldName:                  "fullAddress",
-					RequiresFieldsSelectionSet: "line1 line2 line3(test:\"BOOM\")",
+					RequiresFieldsSelectionSet: "line1 line2 line3(test:\"BOOM\") zip",
 				},
 			},
 		}
@@ -228,13 +232,16 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			extend type Address @key(fields: "id") {
 				id: ID!
 				line3(test: String!): String!
+				country: String! @external
+				city: String! @external
+				zip: String! @requires(fields: "country city")
 			}
 		`
 		addressesDatasourceConfiguration := plan.DataSourceConfiguration{
 			RootNodes: []plan.TypeField{
 				{
 					TypeName:   "Address",
-					FieldNames: []string{"id", "line3"},
+					FieldNames: []string{"id", "line3", "zip"},
 				},
 			},
 			Custom: ConfigJson(Configuration{
@@ -263,55 +270,52 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
+				{
+					TypeName:                   "Address",
+					FieldName:                  "zip",
+					RequiresFieldsSelectionSet: "country city",
+				},
 			},
 		}
 
-		// addressesEnricherSubgraphSDL := `
-		// 	extend type Address @key(fields: "id") {
-		// 		id: ID!
-		// 		line3(test: String!): String!
-		// 	}
-		// `
-		// addressesEnricherDatasourceConfiguration := plan.DataSourceConfiguration{
-		// 	RootNodes: []plan.TypeField{
-		// 		{
-		// 			TypeName:   "Address",
-		// 			FieldNames: []string{"id", "line3"},
-		// 		},
-		// 	},
-		// 	Custom: ConfigJson(Configuration{
-		// 		Fetch: FetchConfiguration{
-		// 			URL: "http://address.service",
-		// 		},
-		// 		Federation: FederationConfiguration{
-		// 			Enabled:    true,
-		// 			ServiceSDL: addressesSubgraphSDL,
-		// 		},
-		// 	}),
-		// 	Factory: federationFactory,
-		// 	FieldConfigurations: plan.FieldConfigurations{
-		// 		{
-		// 			TypeName:                   "Address",
-		// 			FieldName:                  "",
-		// 			RequiresFieldsSelectionSet: "id",
-		// 		},
-		// 		{
-		// 			TypeName:  "Address",
-		// 			FieldName: "line3",
-		// 			Arguments: plan.ArgumentsConfigurations{
-		// 				{
-		// 					Name:       "test",
-		// 					SourceType: plan.FieldArgumentSource,
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// }
+		addressesEnricherSubgraphSDL := `
+			extend type Address @key(fields: "id") {
+				id: ID!
+				country: String!
+				city: String!
+			}
+		`
+		addressesEnricherDatasourceConfiguration := plan.DataSourceConfiguration{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Address",
+					FieldNames: []string{"id", "country", "city"},
+				},
+			},
+			Custom: ConfigJson(Configuration{
+				Fetch: FetchConfiguration{
+					URL: "http://address-enricher.service",
+				},
+				Federation: FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: addressesEnricherSubgraphSDL,
+				},
+			}),
+			Factory: federationFactory,
+			FieldConfigurations: plan.FieldConfigurations{
+				{
+					TypeName:                   "Address",
+					FieldName:                  "",
+					RequiresFieldsSelectionSet: "id",
+				},
+			},
+		}
 
 		dataSources := []plan.DataSourceConfiguration{
 			usersDatasourceConfiguration,
 			accountsDatasourceConfiguration,
 			addressesDatasourceConfiguration,
+			addressesEnricherDatasourceConfiguration,
 		}
 
 		// // shuffle dataSources to ensure that the order doesn't matter
@@ -327,9 +331,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				PrintOperationWithRequiredFields: true,
 				PrintPlanningPaths:               true,
 				PrintQueryPlans:                  true,
-				ConfigurationVisitor:             true,
-				PlanningVisitor:                  true,
-				DatasourceVisitor:                true,
+				ConfigurationVisitor:             false,
+				PlanningVisitor:                  false,
+				DatasourceVisitor:                false,
 			},
 		}
 
