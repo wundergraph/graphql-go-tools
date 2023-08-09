@@ -58,16 +58,16 @@ func TestSubscriptionIdsShouldBeUnique(t *testing.T) {
 
 	ctx, err = sc.AddWithParent("1", context.Background())
 	assert.Nil(t, err)
-	assert.Equal(t, 1, len(sc.cancellations))
+	assert.Equal(t, 1, sc.Len())
 	assert.NotNil(t, ctx)
 
 	ctx, err = sc.AddWithParent("2", context.Background())
 	assert.Nil(t, err)
-	assert.Equal(t, 2, len(sc.cancellations))
+	assert.Equal(t, 2, sc.Len())
 	assert.NotNil(t, ctx)
 
 	ctx, err = sc.AddWithParent("2", context.Background())
 	assert.NotNil(t, err)
-	assert.Equal(t, 2, len(sc.cancellations))
+	assert.Equal(t, 2, sc.Len())
 	assert.Nil(t, ctx)
 }
