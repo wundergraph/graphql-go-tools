@@ -250,6 +250,8 @@ func (v *Visitor) LeaveSelectionSet(ref int) {
 func (v *Visitor) EnterField(ref int) {
 	v.debugOnEnterNode(ast.NodeKindField, ref)
 
+	v.linkFetchConfiguration(ref)
+
 	if v.skipField(ref) {
 		return
 	}
@@ -282,8 +284,6 @@ func (v *Visitor) EnterField(ref int) {
 	if !ok {
 		return
 	}
-
-	v.linkFetchConfiguration(ref)
 
 	path := v.resolveFieldPath(ref)
 	fieldDefinitionType := v.Definition.FieldDefinitionType(fieldDefinition)
