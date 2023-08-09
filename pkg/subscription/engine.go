@@ -6,6 +6,7 @@ package subscription
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -14,6 +15,18 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/graphql"
 )
+
+type errOnBeforeStartHookFailure struct {
+	wrappedErr error
+}
+
+func (e *errOnBeforeStartHookFailure) Unwrap() error {
+	return e.wrappedErr
+}
+
+func (e *errOnBeforeStartHookFailure) Error() string {
+	return fmt.Sprintf("on before start hook failed: %s", e.wrappedErr.Error())
+}
 
 // Engine defines the function for a subscription engine.
 type Engine interface {
@@ -43,7 +56,8 @@ func (e *ExecutorEngine) StartOperation(ctx context.Context, id string, payload 
 	}
 
 	if err = e.handleOnBeforeStart(executor); err != nil {
-		return err
+		eventHandler.Emit(EventTypeOnError, id, nil, err)
+		return &errOnBeforeStartHookFailure{wrappedErr: err}
 	}
 
 	if executor.OperationType() == ast.OperationTypeSubscription {

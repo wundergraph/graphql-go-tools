@@ -183,9 +183,19 @@ func (u *UniversalProtocolHandler) Handle(ctx context.Context) {
 			if len(message) > 0 {
 				err := u.protocol.Handle(ctxWithCancel, u.engine, message)
 				if err != nil {
-					u.logger.Error("subscription.UniversalProtocolHandler.Handle: on protocol handling message",
-						abstractlogger.Error(err),
-					)
+					var onBeforeStartHookError *errOnBeforeStartHookFailure
+					if errors.As(err, &onBeforeStartHookError) {
+						// if we do have an errOnBeforeStartHookFailure than the error is expected and should be
+						// logged as 'Debug'.
+						u.logger.Debug("subscription.UniversalProtocolHandler.Handle: on protocol handling message",
+							abstractlogger.Error(err),
+						)
+					} else {
+						// all other errors should be treated as unexpected and therefore being logged as 'Error'.
+						u.logger.Error("subscription.UniversalProtocolHandler.Handle: on protocol handling message",
+							abstractlogger.Error(err),
+						)
+					}
 				}
 			}
 		}
