@@ -582,6 +582,19 @@ func (p *Planner) EnterField(ref int) {
 		p.handleOnTypeInlineFragment()
 
 		p.addField(ref)
+
+		// TODO: temporary add it here to make new configuration work
+		{
+			fieldConfiguration := p.dataSourceConfig.FieldConfigurations.ForTypeField(enclosingTypeName, fieldName)
+			if fieldConfiguration != nil {
+				upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
+				for i := range fieldConfiguration.Arguments {
+					argumentConfiguration := fieldConfiguration.Arguments[i]
+					p.configureArgument(upstreamFieldRef, ref, *fieldConfiguration, argumentConfiguration)
+				}
+			}
+		}
+
 		return
 	}
 

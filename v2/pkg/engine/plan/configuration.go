@@ -107,6 +107,7 @@ func (f FieldConfigurations) FilterByTypeAndField(typeName, fieldName string) (o
 	return out
 }
 
+// deprecated: should be no longer be used
 func (f FieldConfigurations) IsKey(typeName, fieldName string) bool {
 	for i := range f {
 		if f[i].TypeName != typeName {
@@ -120,28 +121,6 @@ func (f FieldConfigurations) IsKey(typeName, fieldName string) bool {
 		}
 	}
 	return false
-}
-
-func (f FieldConfigurations) Keys(typeName, fieldName string) (out []string) {
-	keys := map[string]struct{}{}
-
-	for i := range f {
-		if f[i].TypeName != typeName {
-			continue
-		}
-
-		for j := range f[i].RequiresFields {
-			if f[i].RequiresFields[j] != fieldName {
-				keys[f[i].RequiresFields[j]] = struct{}{}
-			}
-		}
-	}
-
-	for k := range keys {
-		out = append(out, k)
-	}
-
-	return
 }
 
 func AppendFieldConfigurationWithMerge(configs FieldConfigurations, config FieldConfiguration) FieldConfigurations {
