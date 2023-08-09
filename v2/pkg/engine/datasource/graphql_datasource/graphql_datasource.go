@@ -1626,7 +1626,8 @@ func (p *Planner) replaceQueryType(definition *ast.Document) {
 func (p *Planner) normalizeOperation(operation, definition *ast.Document, report *operationreport.Report) (ok bool) {
 	report.Reset()
 	normalizer := astnormalization.NewWithOpts(
-		astnormalization.WithExtractVariables(),
+		// we should not extract variables from the upstream operation as they will be lost
+		// cause when we are building an input we use our own variables
 		astnormalization.WithRemoveFragmentDefinitions(),
 		astnormalization.WithRemoveUnusedVariables(),
 		astnormalization.WithInlineFragmentSpreads(),
