@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astimport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -35,9 +36,12 @@ type addRequiredFieldsInput struct {
 func addRequiredFields(input *addRequiredFieldsInput) {
 	walker := astvisitor.NewWalker(48)
 
+	importer := &astimport.Importer{}
+
 	visitor := &requiredFieldsVisitor{
-		Walker: &walker,
-		input:  input,
+		Walker:   &walker,
+		input:    input,
+		importer: importer,
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterEnterFieldVisitor(visitor)
@@ -50,6 +54,7 @@ type requiredFieldsVisitor struct {
 	*astvisitor.Walker
 	OperationNodes []ast.Node
 	input          *addRequiredFieldsInput
+	importer       *astimport.Importer
 }
 
 func (v *requiredFieldsVisitor) EnterDocument(_, _ *ast.Document) {
@@ -97,7 +102,7 @@ func (v *requiredFieldsVisitor) EnterField(ref int) {
 		return
 	}
 
-	fieldNode := v.addRequiredField(fieldName, selectionSetRef)
+	fieldNode := v.addRequiredField(ref, fieldName, selectionSetRef)
 	if v.input.key.FieldHasSelections(ref) {
 		v.OperationNodes = append(v.OperationNodes, fieldNode)
 	}
@@ -109,14 +114,20 @@ func (v *requiredFieldsVisitor) LeaveField(ref int) {
 	}
 }
 
-func (v *requiredFieldsVisitor) addRequiredField(fieldName ast.ByteSlice, selectionSet int) ast.Node {
+func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteSlice, selectionSet int) ast.Node {
 	field := ast.Field{
 		Name:         v.input.operation.Input.AppendInputBytes(fieldName),
 		SelectionSet: ast.InvalidRef,
 	}
 	addedField := v.input.operation.AddField(field)
 
-	// TODO: add arguments support
+	if v.input.key.FieldHasArguments(keyRef) {
+		importedArgs := v.importer.ImportArguments(v.input.key.Fields[keyRef].Arguments.Refs, v.input.key, v.input.operation)
+
+		for _, arg := range importedArgs {
+			v.input.operation.AddArgumentToField(addedField.Ref, arg)
+		}
+	}
 
 	selection := ast.Selection{
 		Kind: ast.SelectionKindField,
