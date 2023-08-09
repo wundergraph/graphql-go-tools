@@ -963,10 +963,17 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 	switch existing := config.object.Fetch.(type) {
 	case *resolve.SingleFetch:
 		copyOfExisting := *existing
-		parallel := &resolve.ParallelFetch{
-			Fetches: []resolve.Fetch{&copyOfExisting, fetch},
+		if copyOfExisting.DissallowParallelFetch {
+			serial := &resolve.SerialFetch{
+				Fetches: []resolve.Fetch{&copyOfExisting, fetch},
+			}
+			config.object.Fetch = serial
+		} else {
+			parallel := &resolve.ParallelFetch{
+				Fetches: []resolve.Fetch{&copyOfExisting, fetch},
+			}
+			config.object.Fetch = parallel
 		}
-		config.object.Fetch = parallel
 	case *resolve.BatchFetch:
 		copyOfExisting := *existing
 		parallel := &resolve.ParallelFetch{
@@ -974,6 +981,8 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 		}
 		config.object.Fetch = parallel
 	case *resolve.ParallelFetch:
+		existing.Fetches = append(existing.Fetches, fetch)
+	case *resolve.SerialFetch:
 		existing.Fetches = append(existing.Fetches, fetch)
 	}
 }
@@ -988,6 +997,7 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external Fet
 		DataSource:                            external.DataSource,
 		Variables:                             external.Variables,
 		DisallowSingleFlight:                  external.DisallowSingleFlight,
+		DissallowParallelFetch:                external.DisallowParallelFetch,
 		DataSourceIdentifier:                  []byte(dataSourceType),
 		ProcessResponseConfig:                 external.ProcessResponseConfig,
 		DisableDataLoader:                     external.DisableDataLoader,

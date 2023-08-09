@@ -1441,11 +1441,12 @@ type SingleFetch struct {
 	// By default SingleFlight for fetches is disabled and needs to be enabled on the Resolver first
 	// If the resolver allows SingleFlight it's up to each individual DataSource Planner to decide whether an Operation
 	// should be allowed to use SingleFlight
-	DisallowSingleFlight  bool
-	DisableDataLoader     bool
-	InputTemplate         InputTemplate
-	DataSourceIdentifier  []byte
-	ProcessResponseConfig ProcessResponseConfig
+	DisallowSingleFlight   bool
+	DisableDataLoader      bool
+	DissallowParallelFetch bool
+	InputTemplate          InputTemplate
+	DataSourceIdentifier   []byte
+	ProcessResponseConfig  ProcessResponseConfig
 	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
 	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
 	// Returning null in this case tells the batch implementation to skip this item

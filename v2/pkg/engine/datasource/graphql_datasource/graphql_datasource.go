@@ -338,8 +338,9 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		DataSource: &Source{
 			httpClient: p.fetchClient,
 		},
-		Variables:            p.variables,
-		DisallowSingleFlight: p.disallowSingleFlight,
+		Variables:             p.variables,
+		DisallowSingleFlight:  p.disallowSingleFlight,
+		DisallowParallelFetch: p.disallowParallelFetch(),
 		ProcessResponseConfig: resolve.ProcessResponseConfig{
 			ExtractGraphqlResponse:    true,
 			ExtractFederationEntities: p.extractEntities,
@@ -347,6 +348,21 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		BatchConfig:                           batchConfig,
 		SetTemplateOutputToNullOnVariableNull: batchConfig.AllowBatch,
 	}
+}
+
+func (p *Planner) disallowParallelFetch() bool {
+	if len(p.dataSourceConfig.FieldConfigurationsFromParentPlanner) == 0 {
+		return false
+	}
+
+	for _, fieldConfig := range p.dataSourceConfig.FieldConfigurationsFromParentPlanner {
+		if fieldConfig.FieldName != "" {
+			// if there field name in field config representation variables includes fields from @requires directive
+			return true
+		}
+	}
+
+	return false
 }
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {

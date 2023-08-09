@@ -134,7 +134,9 @@ func AppendFieldConfigurationWithMerge(configs FieldConfigurations, config Field
 	}
 
 	cfg.RequiresFieldsSelectionSet = fmt.Sprintf("%s %s", cfg.RequiresFieldsSelectionSet, config.RequiresFieldsSelectionSet)
-	configs[i] = *cfg
+	if cfg.FieldName == "" {
+		cfg.FieldName = config.FieldName
+	}
 
 	return configs
 }

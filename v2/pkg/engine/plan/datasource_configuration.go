@@ -209,6 +209,7 @@ type FetchConfiguration struct {
 	// If this is set to false, the planner might still decide to override it,
 	// e.g. if a field depends on an exported variable which doesn't work with DataLoader
 	DisableDataLoader     bool
+	DisallowParallelFetch bool
 	ProcessResponseConfig resolve.ProcessResponseConfig
 	BatchConfig           BatchConfig
 	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
