@@ -28,8 +28,9 @@ type configurationVisitor struct {
 
 	currentSelectionSet       int
 	pendingTypeConfigurations map[int]map[string]string
-	secondRun                 bool
+	secondaryRun              bool
 	skipFieldsRefs            []int
+	hasNewFields              bool
 }
 
 type objectFetchConfiguration struct {
@@ -65,7 +66,9 @@ func (c *configurationVisitor) debugPrint(args ...any) {
 }
 
 func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document) {
-	if c.secondRun {
+	c.hasNewFields = false
+
+	if c.secondaryRun {
 		return
 	}
 
@@ -175,7 +178,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 	isSubscription := c.isSubscription(root.Ref, currentPath)
 	for i, plannerConfig := range c.planners {
-		if c.secondRun && plannerConfig.hasPath(currentPath) {
+		if c.secondaryRun && plannerConfig.hasPath(currentPath) {
 			// on the second run we need to process only new fields added by the first run
 			return
 		}
@@ -330,7 +333,7 @@ func (c *configurationVisitor) LeaveField(ref int) {
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
 	c.debugPrint("LeaveField ref:", ref, "fieldName:", fieldName, "typeName:", typeName)
 
-	if !c.secondRun {
+	if !c.secondaryRun {
 		// we should evaluate exit paths only on the second run
 		return
 	}
@@ -465,6 +468,7 @@ func (c *configurationVisitor) handleRequiredFieldsForTypeAndField(config *DataS
 		c.planAddingFieldsFromTypeConfiguration(currentPath, fieldConfiguration)
 		fieldConfiguration.Path = []string{string(c.walker.Path[len(c.walker.Path)-1].FieldName)}
 		config.FieldConfigurationsFromParentPlanner = AppendFieldConfigurationWithMerge(config.FieldConfigurationsFromParentPlanner, fieldConfiguration)
+		c.hasNewFields = true
 	}
 }
 
@@ -476,6 +480,7 @@ func (c *configurationVisitor) handleRequiredFieldsForType(config *DataSourceCon
 			// TODO: could path be an array?
 			typeConfiguration.Path = []string{string(c.walker.Path[len(c.walker.Path)-1].FieldName)}
 			config.FieldConfigurationsFromParentPlanner = AppendFieldConfigurationWithMerge(config.FieldConfigurationsFromParentPlanner, typeConfiguration)
+			c.hasNewFields = true
 		}
 	}
 }

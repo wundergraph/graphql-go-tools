@@ -70,59 +70,24 @@ func (p *Planner) SetDebugConfig(config DebugConfiguration) {
 }
 
 func (p *Planner) Plan(operation, definition *ast.Document, operationName string, report *operationreport.Report) (plan Plan) {
-
-	// make a copy of the config as the pre-processor modifies it
-
-	config := p.config
-
-	// select operation
-
 	p.selectOperation(operation, operationName, report)
 	if report.HasErrors() {
 		return
 	}
 
-	if config.Debug.PrintOperationWithRequiredFields {
-		p.debugMessage("Operation without required fields:")
-		p.printOperation(operation)
-	}
-
-	// find planning paths and add required fields
-
-	p.configurationVisitor.config = config
-	p.configurationWalker.Walk(operation, definition, report)
+	p.findPlanningPaths(operation, definition, report)
 	if report.HasErrors() {
 		return
 	}
 
-	if config.Debug.PrintPlanningPaths {
-		p.printPlanningPaths()
-	}
-
-	if config.Debug.PrintOperationWithRequiredFields {
-		p.debugMessage("Operation with required fields:")
-		p.printOperation(operation)
-	}
-
-	// second run to add path for the required fields
-	p.configurationVisitor.secondRun = true
-	p.configurationWalker.Walk(operation, definition, report)
-	if report.HasErrors() {
-		return
-	}
-
-	if config.Debug.PrintPlanningPaths {
-		p.printPlanningPaths()
-	}
-
-	if config.Debug.PlanningVisitor {
+	if p.config.Debug.PlanningVisitor {
 		p.debugMessage("Planning visitor:")
 	}
 
 	// configure planning visitor
 
 	p.planningVisitor.planners = p.configurationVisitor.planners
-	p.planningVisitor.Config = config
+	p.planningVisitor.Config = p.configurationVisitor.config
 	p.planningVisitor.fetchConfigurations = p.configurationVisitor.fetches
 	p.planningVisitor.fieldBuffers = p.configurationVisitor.fieldBuffers
 	p.planningVisitor.skipFieldsRefs = p.configurationVisitor.skipFieldsRefs
@@ -170,6 +135,55 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	return p.planningVisitor.plan
 }
 
+func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) {
+	// make a copy of the config as the configuration visitor modifies it
+	config := p.config
+
+	if p.config.Debug.PrintOperationWithRequiredFields {
+		p.debugMessage("Initial operation:")
+		p.printOperation(operation)
+	}
+
+	p.configurationVisitor.config = config
+	p.configurationVisitor.secondaryRun = false
+	p.configurationWalker.Walk(operation, definition, report)
+	if report.HasErrors() {
+		return
+	}
+
+	if p.config.Debug.PrintOperationWithRequiredFields {
+		p.debugMessage("Operation after initial run:")
+		p.printOperation(operation)
+	}
+
+	if config.Debug.PrintPlanningPaths {
+		p.printPlanningPaths()
+	}
+
+	i := 1
+	// secondary runs to add path for the new required fields
+	for p.configurationVisitor.hasNewFields {
+		p.configurationVisitor.secondaryRun = true
+		p.configurationVisitor.hasNewFields = false
+
+		p.configurationWalker.Walk(operation, definition, report)
+		if report.HasErrors() {
+			return
+		}
+
+		if config.Debug.PrintOperationWithRequiredFields {
+			p.debugMessage(fmt.Sprintf("After run #%d. Operation with new required fields:", i))
+			p.printOperation(operation)
+		}
+
+		if config.Debug.PrintPlanningPaths {
+			p.debugMessage(fmt.Sprintf("After run #%d. Planning paths", i))
+			p.printPlanningPaths()
+		}
+		i++
+	}
+}
+
 func (p *Planner) selectOperation(operation *ast.Document, operationName string, report *operationreport.Report) {
 
 	numOfOperations := operation.NumOfOperationDefinitions()
@@ -209,5 +223,5 @@ func (p *Planner) printPlanningPaths() {
 }
 
 func (p *Planner) debugMessage(msg string) {
-	fmt.Printf("\n\n\n\n\n%s\n\n", msg)
+	fmt.Printf("\n\n%s\n\n", msg)
 }
