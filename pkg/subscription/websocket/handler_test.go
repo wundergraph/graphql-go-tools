@@ -3,6 +3,7 @@ package websocket
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -29,7 +30,7 @@ func TestHandleWithOptions(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		executorPoolV2 := setupExecutorPoolV2(t, ctx, chatServer.URL)
+		executorPoolV2 := setupExecutorPoolV2(t, ctx, chatServer.URL, nil)
 		serverConn, _ := net.Pipe()
 		testClient := NewTestClient(false)
 
@@ -104,7 +105,7 @@ func TestHandleWithOptions(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		executorPoolV2 := setupExecutorPoolV2(t, ctx, chatServer.URL)
+		executorPoolV2 := setupExecutorPoolV2(t, ctx, chatServer.URL, nil)
 		serverConn, _ := net.Pipe()
 		testClient := NewTestClient(false)
 
@@ -171,6 +172,52 @@ func TestHandleWithOptions(t *testing.T) {
 			return true
 		}, 2*time.Second, 2*time.Millisecond, "never satisfied on stop subscription")
 	})
+
+	t.Run("should handle on before start error", func(t *testing.T) {
+		chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
+		defer chatServer.Close()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		executorPoolV2 := setupExecutorPoolV2(t, ctx, chatServer.URL, &FailingOnBeforeStartHook{})
+		serverConn, _ := net.Pipe()
+		testClient := NewTestClient(false)
+
+		done := make(chan bool)
+		errChan := make(chan error)
+		go Handle(
+			done,
+			errChan,
+			serverConn,
+			executorPoolV2,
+			WithProtocol(ProtocolGraphQLTransportWS),
+			WithCustomClient(testClient),
+			WithCustomSubscriptionUpdateInterval(50*time.Millisecond),
+			WithCustomKeepAliveInterval(3600*time.Second), // keep_alive should not intervene with our tests, so make it high
+		)
+
+		require.Eventually(t, func() bool {
+			<-done
+			return true
+		}, 1*time.Second, 2*time.Millisecond)
+
+		testClient.writeMessageFromClient([]byte(`{"type":"connection_init"}`))
+		assert.Eventually(t, func() bool {
+			expectedMessage := []byte(`{"type":"connection_ack"}`)
+			actualMessage := testClient.readMessageToClient()
+			assert.Equal(t, expectedMessage, actualMessage)
+			return true
+		}, 1*time.Second, 2*time.Millisecond, "never satisfied on connection_init")
+
+		testClient.writeMessageFromClient([]byte(`{"id":"1","type":"subscribe","payload":{"query":"{ room(name:\"#my_room\") { name } }"}}`))
+		assert.Eventually(t, func() bool {
+			expectedMessage := []byte(`{"id":"1","type":"error","payload":[{"message":"on before start error"}]}`)
+			actualMessage := testClient.readMessageToClient()
+			assert.Equal(t, expectedMessage, actualMessage)
+			return true
+		}, 2*time.Second, 2*time.Millisecond, "never satisfied on before start error")
+	})
 }
 
 func TestWithProtocolFromRequestHeaders(t *testing.T) {
@@ -200,7 +247,7 @@ func TestWithProtocolFromRequestHeaders(t *testing.T) {
 	})
 }
 
-func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string) *subscription.ExecutorV2Pool {
+func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string, onBeforeStartHook graphql.WebsocketBeforeStartHook) *subscription.ExecutorV2Pool {
 	chatSchemaBytes, err := subscriptiontesting.LoadSchemaFromExamplesDirectoryWithinPkg()
 	require.NoError(t, err)
 
@@ -208,6 +255,7 @@ func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string
 	require.NoError(t, err)
 
 	engineConf := graphql.NewEngineV2Configuration(chatSchema)
+	engineConf.SetWebsocketBeforeStartHook(onBeforeStartHook)
 	engineConf.SetDataSources([]plan.DataSourceConfiguration{
 		{
 			RootNodes: []plan.TypeField{
@@ -287,4 +335,10 @@ func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string
 
 	executorPool := subscription.NewExecutorV2Pool(engine, ctx)
 	return executorPool
+}
+
+type FailingOnBeforeStartHook struct{}
+
+func (f *FailingOnBeforeStartHook) OnBeforeStart(reqCtx context.Context, operation *graphql.Request) error {
+	return errors.New("on before start error")
 }
