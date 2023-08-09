@@ -2,9 +2,14 @@ package subscription
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
+)
+
+var (
+	ErrSubscriberIDAlreadyExists = errors.New("subscriber id already exists")
 )
 
 type InitialHttpRequestContext struct {
@@ -31,7 +36,7 @@ func (sc *subscriptionCancellations) AddWithParent(id string, parent context.Con
 		sc.cancellations = make(map[string]context.CancelFunc)
 	}
 	if _, ok := sc.cancellations[id]; ok {
-		return nil, fmt.Errorf("subscriber for %s already exists", id)
+		return nil, fmt.Errorf("%w: %s", ErrSubscriberIDAlreadyExists, id)
 	}
 	ctx, cancelFunc := context.WithCancel(parent)
 	sc.cancellations[id] = cancelFunc

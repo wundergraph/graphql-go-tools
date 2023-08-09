@@ -644,7 +644,7 @@ func TestHandler_Handle(t *testing.T) {
 				expectedErrorMessage := Message{
 					Id:      "1",
 					Type:    MessageTypeError,
-					Payload: []byte(`[{"message":"subscriber for 1 already exists"}]`),
+					Payload: []byte(`[{"message":"subscriber id already exists: 1"}]`),
 				}
 				assert.Contains(t, messagesFromServer, expectedErrorMessage)
 			})

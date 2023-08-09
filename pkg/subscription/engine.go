@@ -5,6 +5,7 @@ package subscription
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -47,8 +48,11 @@ func (e *ExecutorEngine) StartOperation(ctx context.Context, id string, payload 
 
 	if executor.OperationType() == ast.OperationTypeSubscription {
 		ctx, subsErr := e.subCancellations.AddWithParent(id, ctx)
-		if subsErr != nil {
-			eventHandler.Emit(EventTypeError, id, nil, subsErr)
+		if errors.Is(subsErr, ErrSubscriberIDAlreadyExists) {
+			eventHandler.Emit(EventTypeOnDuplicatedSubscriberID, id, nil, subsErr)
+			return subsErr
+		} else if subsErr != nil {
+			eventHandler.Emit(EventTypeOnError, id, nil, subsErr)
 			return subsErr
 		}
 		go e.startSubscription(ctx, id, executor, eventHandler)
@@ -62,7 +66,7 @@ func (e *ExecutorEngine) StartOperation(ctx context.Context, id string, payload 
 // StopSubscription will stop an active subscription.
 func (e *ExecutorEngine) StopSubscription(id string, eventHandler EventHandler) error {
 	e.subCancellations.Cancel(id)
-	eventHandler.Emit(EventTypeCompleted, id, nil, nil)
+	eventHandler.Emit(EventTypeOnSubscriptionCompleted, id, nil, nil)
 	return nil
 }
 
@@ -76,7 +80,7 @@ func (e *ExecutorEngine) TerminateAllSubscriptions(eventHandler EventHandler) er
 		e.subCancellations.Cancel(id)
 	}
 
-	eventHandler.Emit(EventTypeConnectionTerminatedByServer, "", []byte("connection terminated by server"), nil)
+	eventHandler.Emit(EventTypeOnConnectionTerminatedByServer, "", []byte("connection terminated by server"), nil)
 	return nil
 }
 
@@ -128,7 +132,7 @@ func (e *ExecutorEngine) executeSubscription(buf *graphql.EngineResultWriter, id
 		e.logger.Debug("subscription.Handle.executeSubscription()",
 			abstractlogger.ByteString("execution_result", data),
 		)
-		eventHandler.Emit(EventTypeData, id, data, nil)
+		eventHandler.Emit(EventTypeOnSubscriptionData, id, data, nil)
 	})
 	defer buf.SetFlushCallback(nil)
 
@@ -138,7 +142,7 @@ func (e *ExecutorEngine) executeSubscription(buf *graphql.EngineResultWriter, id
 			abstractlogger.Error(err),
 		)
 
-		eventHandler.Emit(EventTypeError, id, nil, err)
+		eventHandler.Emit(EventTypeOnError, id, nil, err)
 		return
 	}
 
@@ -147,7 +151,7 @@ func (e *ExecutorEngine) executeSubscription(buf *graphql.EngineResultWriter, id
 		e.logger.Debug("subscription.Handle.executeSubscription()",
 			abstractlogger.ByteString("execution_result", data),
 		)
-		eventHandler.Emit(EventTypeData, id, data, nil)
+		eventHandler.Emit(EventTypeOnSubscriptionData, id, data, nil)
 	}
 }
 
@@ -173,7 +177,7 @@ func (e *ExecutorEngine) handleNonSubscriptionOperation(ctx context.Context, id 
 			abstractlogger.Error(err),
 		)
 
-		eventHandler.Emit(EventTypeError, id, nil, err)
+		eventHandler.Emit(EventTypeOnError, id, nil, err)
 		return
 	}
 
@@ -181,8 +185,7 @@ func (e *ExecutorEngine) handleNonSubscriptionOperation(ctx context.Context, id 
 		abstractlogger.ByteString("execution_result", buf.Bytes()),
 	)
 
-	eventHandler.Emit(EventTypeData, id, buf.Bytes(), err)
-	eventHandler.Emit(EventTypeCompleted, id, nil, nil)
+	eventHandler.Emit(EventTypeOnNonSubscriptionExecutionResult, id, buf.Bytes(), err)
 }
 
 // Interface Guards
