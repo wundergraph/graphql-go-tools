@@ -368,6 +368,24 @@ func TestProtocolGraphQLWSHandler_Handle(t *testing.T) {
 		err := protocol.Handle(ctx, mockEngine, []byte(`{"id":"1","type":"stop"}`))
 		assert.NoError(t, err)
 	})
+
+	t.Run("should not panic on broken input", func(t *testing.T) {
+		testClient := NewTestClient(false)
+		protocol := NewTestProtocolGraphQLWSHandler(testClient)
+
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		ctrl := gomock.NewController(t)
+		mockEngine := NewMockEngine(ctrl)
+
+		err := protocol.Handle(ctx, mockEngine, []byte(`{"type":"connection_init","payload":{something}}`))
+		assert.NoError(t, err)
+
+		expectedMessage := []byte(`{"type":"error","payload":[{"message":"json syntax error"}]}`)
+		actualMessage := testClient.readMessageToClient()
+		assert.Equal(t, expectedMessage, actualMessage)
+	})
 }
 
 func NewTestGraphQLWSWriteEventHandler(testClient subscription.TransportClient) GraphQLWSWriteEventHandler {
