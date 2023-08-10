@@ -52,6 +52,9 @@ func (d *ProcessDataSource) traverseFetch(fetch resolve.Fetch) {
 		for i := range f.Fetches {
 			d.traverseFetch(f.Fetches[i])
 		}
+	case *resolve.SerialFetch:
+		// TODO: sort fetches based on buffer id and then traverse
+		panic("implement me")
 	}
 }
 

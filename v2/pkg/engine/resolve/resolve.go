@@ -1286,6 +1286,9 @@ func (r *Resolver) resolveFetch(ctx *Context, fetch Fetch, data []byte, set *res
 		err = r.resolveBatchFetch(ctx, f, preparedInput.Data, set.buffers[f.Fetch.BufferId])
 	case *ParallelFetch:
 		err = r.resolveParallelFetch(ctx, f, data, set)
+	case *SerialFetch:
+		// TODO: implement
+		panic("implement me")
 	}
 	return
 }
