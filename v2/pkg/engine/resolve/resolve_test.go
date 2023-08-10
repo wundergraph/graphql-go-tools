@@ -4011,6 +4011,221 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		}))
 	})
 
+	t.Run("federation: composed keys, requires, provides", func(t *testing.T) {
+		mockedDS := func(ctrl *gomock.Controller, expectedInput, responseData string) *MockDataSource {
+			service := NewMockDataSource(ctrl)
+			service.EXPECT().
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+				DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+					actual := string(input)
+					expected := expectedInput
+					pair := NewBufPair()
+					if assert.Equal(t, expected, actual) {
+						pair.Data.WriteString(responseData)
+					} else {
+						pair.Data.WriteString("null")
+					}
+
+					return writeGraphqlResponse(pair, w, false)
+				})
+			return service
+		}
+
+		t.Run("composed keys", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+			return &GraphQLResponse{
+				Data: &Object{
+					Fetch: &SingleFetch{
+						BufferId: 0,
+						DataSource: mockedDS(
+							ctrl,
+							`{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
+							`{"user":{"account":{"__typename":"Account","id":"1234","info":{"a":"foo","b":"bar"}}}}`,
+						),
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
+						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
+						InputTemplate: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+					},
+					Fields: []*Field{
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("user"),
+							Value: &Object{
+								Path:     []string{"user"},
+								Nullable: true,
+								Fields: []*Field{
+									{
+										Name: []byte("account"),
+										Value: &Object{
+											Path:     []string{"account"},
+											Nullable: true,
+											Fields: []*Field{
+												{
+													HasBuffer: true,
+													BufferID:  1,
+													Name:      []byte("name"),
+													Value: &String{
+														Path: []string{"name"},
+													},
+												},
+												{
+													HasBuffer: true,
+													BufferID:  1,
+													Name:      []byte("shippingInfo"),
+													Value: &Object{
+														Path:     []string{"shippingInfo"},
+														Nullable: true,
+														Fields: []*Field{
+															{
+																Name: []byte("zip"),
+																Value: &String{
+																	Path: []string{"zip"},
+																},
+															},
+														},
+													},
+												},
+											},
+											Fetch: &SingleFetch{
+												BufferId: 1,
+												DataSource: mockedDS(
+													ctrl,
+													`{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":[{"__typename":"Account","id":"1234","info":{"a":"foo","b":"bar"}}]}}}`,
+													`{"_entities":[{"__typename":"Account","name":"John Doe","shippingInfo":{"zip":"12345"}}]}`,
+												),
+												Input: `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":$$0$$}}}`,
+												InputTemplate: InputTemplate{
+													Segments: []TemplateSegment{
+														{
+															Data:        []byte(`{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":`),
+															SegmentType: StaticSegmentType,
+														},
+														{
+															SegmentType: ListSegmentType,
+															Segments: []TemplateSegment{
+																{
+																	Data:        []byte(`[`),
+																	SegmentType: StaticSegmentType,
+																},
+																{
+																	SegmentType:  VariableSegmentType,
+																	VariableKind: ResolvableObjectVariableKind,
+																	Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																		Fields: []*Field{
+																			{
+																				Name: []byte("__typename"),
+																				Value: &String{
+																					Path: []string{"__typename"},
+																				},
+																			},
+																			{
+																				Name: []byte("id"),
+																				Value: &String{
+																					Path: []string{"id"},
+																				},
+																			},
+																			{
+																				Name: []byte("info"),
+																				Value: &Object{
+																					Path:     []string{"info"},
+																					Nullable: true,
+																					Fields: []*Field{
+																						{
+																							Name: []byte("a"),
+																							Value: &String{
+																								Path: []string{"a"},
+																							},
+																						},
+																						{
+																							Name: []byte("b"),
+																							Value: &String{
+																								Path: []string{"b"},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		},
+																	}),
+																},
+																{
+																	Data:        []byte(`]`),
+																	SegmentType: StaticSegmentType,
+																},
+															},
+														},
+														{
+															Data:        []byte(`}}}`),
+															SegmentType: StaticSegmentType,
+														},
+													},
+												},
+												Variables: []Variable{
+													&ListVariable{
+														Variables: []Variable{
+															&ResolvableObjectVariable{
+																Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																	Fields: []*Field{
+																		{
+																			Name: []byte("__typename"),
+																			Value: &String{
+																				Path: []string{"__typename"},
+																			},
+																		},
+																		{
+																			Name: []byte("id"),
+																			Value: &String{
+																				Path: []string{"id"},
+																			},
+																		},
+																		{
+																			Name: []byte("info"),
+																			Value: &Object{
+																				Path:     []string{"info"},
+																				Nullable: true,
+																				Fields: []*Field{
+																					{
+																						Name: []byte("a"),
+																						Value: &String{
+																							Path: []string{"a"},
+																						},
+																					},
+																					{
+																						Name: []byte("b"),
+																						Value: &String{
+																							Path: []string{"b"},
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																}),
+															},
+														},
+													},
+												},
+												DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+												ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true, ExtractFederationEntities: true},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, Context{ctx: context.Background()}, `{"data":{"user":{"account":{"name":"John Doe","shippingInfo":{"zip":"12345"}}}}}`
+		}))
+	})
 }
 
 func TestResolver_WithHeader(t *testing.T) {
