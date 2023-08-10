@@ -3,6 +3,7 @@ package websocket
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -347,12 +348,17 @@ func (p *ProtocolGraphQLTransportWSHandler) Handle(ctx context.Context, engine s
 
 	message, err := p.reader.Read(data)
 	if err != nil {
+		var jsonSyntaxError *json.SyntaxError
+		if errors.As(err, &jsonSyntaxError) {
+			p.closeConnectionWithReason(NewCloseReason(4400, "JSON syntax error"))
+			return nil
+		}
 		p.logger.Error("websocket.ProtocolGraphQLTransportWSHandler.Handle: on message reading",
 			abstractlogger.Error(err),
 			abstractlogger.ByteString("payload", data),
 		)
+		return err
 	}
-
 	switch message.Type {
 	case GraphQLTransportWSMessageTypeConnectionInit:
 		ctx, err = p.handleInit(ctx, message.Payload)

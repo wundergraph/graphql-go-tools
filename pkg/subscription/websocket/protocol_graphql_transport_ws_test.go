@@ -497,6 +497,26 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 			return true
 		}, 1*time.Second, 2*time.Millisecond)
 	})
+
+	t.Run("should not panic on broken input", func(t *testing.T) {
+		testClient := NewTestClient(false)
+		protocol := NewTestProtocolGraphQLTransportWSHandler(testClient)
+
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		ctrl := gomock.NewController(t)
+		mockEngine := NewMockEngine(ctrl)
+		mockEngine.EXPECT().StopSubscription(gomock.Eq("1"), gomock.Eq(&protocol.eventHandler))
+
+		assert.Eventually(t, func() bool {
+			inputMessage := []byte(`{"type":"connection_init","payload":{something}}`)
+			err := protocol.Handle(ctx, mockEngine, inputMessage)
+			assert.NoError(t, err)
+			assert.False(t, testClient.IsConnected())
+			return true
+		}, 1*time.Second, 2*time.Millisecond)
+	})
 }
 
 func NewTestGraphQLTransportWSEventHandler(testClient subscription.TransportClient) GraphQLTransportWSEventHandler {

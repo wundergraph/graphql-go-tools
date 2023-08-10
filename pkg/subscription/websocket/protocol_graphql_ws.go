@@ -290,10 +290,16 @@ func NewProtocolGraphQLWSHandlerWithOptions(client subscription.TransportClient,
 func (p *ProtocolGraphQLWSHandler) Handle(ctx context.Context, engine subscription.Engine, data []byte) error {
 	message, err := p.reader.Read(data)
 	if err != nil {
+		var jsonSyntaxError *json.SyntaxError
+		if errors.As(err, &jsonSyntaxError) {
+			p.writeEventHandler.HandleWriteEvent(GraphQLWSMessageTypeError, "", nil, errors.New("json syntax error"))
+			return nil
+		}
 		p.logger.Error("websocket.ProtocolGraphQLWSHandler.Handle: on message reading",
 			abstractlogger.Error(err),
 			abstractlogger.ByteString("payload", data),
 		)
+		return err
 	}
 
 	switch message.Type {
