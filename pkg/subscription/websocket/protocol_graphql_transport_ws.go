@@ -373,6 +373,8 @@ func (p *ProtocolGraphQLTransportWSHandler) Handle(ctx context.Context, engine s
 		p.startHeartbeat(ctx)
 	case GraphQLTransportWSMessageTypePing:
 		p.handlePing(message.Payload)
+	case GraphQLTransportWSMessageTypePong:
+		return nil // no need to act on pong currently (this may change in future for heartbeat checks)
 	case GraphQLTransportWSMessageTypeSubscribe:
 		return p.handleSubscribe(ctx, engine, message)
 	case GraphQLTransportWSMessageTypeComplete:
