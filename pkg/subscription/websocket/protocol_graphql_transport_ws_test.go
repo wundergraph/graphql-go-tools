@@ -498,6 +498,25 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 		}, 1*time.Second, 2*time.Millisecond)
 	})
 
+	t.Run("should allow pong messages from client", func(t *testing.T) {
+		testClient := NewTestClient(false)
+		protocol := NewTestProtocolGraphQLTransportWSHandler(testClient)
+
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		ctrl := gomock.NewController(t)
+		mockEngine := NewMockEngine(ctrl)
+
+		assert.Eventually(t, func() bool {
+			inputMessage := []byte(`{"type":"pong"}`)
+			err := protocol.Handle(ctx, mockEngine, inputMessage)
+			assert.NoError(t, err)
+			assert.True(t, testClient.IsConnected())
+			return true
+		}, 1*time.Second, 2*time.Millisecond)
+	})
+
 	t.Run("should not panic on broken input", func(t *testing.T) {
 		testClient := NewTestClient(false)
 		protocol := NewTestProtocolGraphQLTransportWSHandler(testClient)
@@ -536,7 +555,8 @@ func NewTestProtocolGraphQLTransportWSHandler(testClient subscription.TransportC
 		reader: GraphQLTransportWSMessageReader{
 			logger: abstractlogger.Noop{},
 		},
-		eventHandler:      NewTestGraphQLTransportWSEventHandler(testClient),
-		heartbeatInterval: 30,
+		eventHandler:                  NewTestGraphQLTransportWSEventHandler(testClient),
+		heartbeatInterval:             30,
+		connectionInitTimeOutDuration: 10 * time.Second,
 	}
 }
