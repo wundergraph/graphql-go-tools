@@ -60,15 +60,11 @@ func (e *ExecutorEngine) StartOperation(ctx context.Context, id string, payload 
 		return &errOnBeforeStartHookFailure{wrappedErr: err}
 	}
 
+	if ctx, err = e.checkForDuplicateSubscriberID(ctx, id, eventHandler); err != nil {
+		return err
+	}
+
 	if executor.OperationType() == ast.OperationTypeSubscription {
-		ctx, subsErr := e.subCancellations.AddWithParent(id, ctx)
-		if errors.Is(subsErr, ErrSubscriberIDAlreadyExists) {
-			eventHandler.Emit(EventTypeOnDuplicatedSubscriberID, id, nil, subsErr)
-			return subsErr
-		} else if subsErr != nil {
-			eventHandler.Emit(EventTypeOnError, id, nil, subsErr)
-			return subsErr
-		}
 		go e.startSubscription(ctx, id, executor, eventHandler)
 		return nil
 	}
@@ -109,6 +105,18 @@ func (e *ExecutorEngine) handleOnBeforeStart(executor Executor) error {
 	}
 
 	return nil
+}
+
+func (e *ExecutorEngine) checkForDuplicateSubscriberID(ctx context.Context, id string, eventHandler EventHandler) (context.Context, error) {
+	ctx, subsErr := e.subCancellations.AddWithParent(id, ctx)
+	if errors.Is(subsErr, ErrSubscriberIDAlreadyExists) {
+		eventHandler.Emit(EventTypeOnDuplicatedSubscriberID, id, nil, subsErr)
+		return ctx, subsErr
+	} else if subsErr != nil {
+		eventHandler.Emit(EventTypeOnError, id, nil, subsErr)
+		return ctx, subsErr
+	}
+	return ctx, nil
 }
 
 func (e *ExecutorEngine) startSubscription(ctx context.Context, id string, executor Executor, eventHandler EventHandler) {
@@ -171,6 +179,7 @@ func (e *ExecutorEngine) executeSubscription(buf *graphql.EngineResultWriter, id
 
 func (e *ExecutorEngine) handleNonSubscriptionOperation(ctx context.Context, id string, executor Executor, eventHandler EventHandler) {
 	defer func() {
+		e.subCancellations.Cancel(id)
 		err := e.executorPool.Put(executor)
 		if err != nil {
 			e.logger.Error("subscription.Handle.handleNonSubscriptionOperation()",

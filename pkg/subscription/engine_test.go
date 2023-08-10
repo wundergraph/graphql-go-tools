@@ -38,7 +38,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 			executorMock.EXPECT().OperationType().
 				Return(ast.OperationTypeMutation).
 				Times(1)
-			executorMock.EXPECT().SetContext(gomock.Eq(ctx)).
+			executorMock.EXPECT().SetContext(assignableToContextWithCancel(ctx)).
 				Times(2)
 			executorMock.EXPECT().Execute(gomock.AssignableToTypeOf(&graphql.EngineResultWriter{})).
 				Return(errors.New("error")).
@@ -105,7 +105,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 			executorMock.EXPECT().OperationType().
 				Return(ast.OperationTypeMutation).
 				Times(1)
-			executorMock.EXPECT().SetContext(gomock.Eq(ctx)).
+			executorMock.EXPECT().SetContext(assignableToContextWithCancel(ctx)).
 				Times(2)
 			executorMock.EXPECT().Execute(gomock.AssignableToTypeOf(&graphql.EngineResultWriter{})).
 				Times(2)
@@ -267,25 +267,30 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 		defer cancelFunc()
 
 		id := "1"
-		payload := []byte(`{"query":"subscription { receiveData }"}`)
+		payloadSubscription := []byte(`{"query":"subscription { receiveData }"}`)
+		payloadQuery := []byte(`{"query":"query { hello }"}`)
 
-		executorMock := NewMockExecutor(ctrl)
-		executorMock.EXPECT().OperationType().
+		executorMockQuery := NewMockExecutor(ctrl)
+		executorMockSubscription := NewMockExecutor(ctrl)
+		executorMockSubscription.EXPECT().OperationType().
 			Return(ast.OperationTypeSubscription).
-			Times(2)
-		executorMock.EXPECT().SetContext(assignableToContextWithCancel(ctx)).
 			Times(1)
-		executorMock.EXPECT().Execute(gomock.AssignableToTypeOf(&graphql.EngineResultWriter{})).
+		executorMockSubscription.EXPECT().SetContext(assignableToContextWithCancel(ctx)).
+			Times(1)
+		executorMockSubscription.EXPECT().Execute(gomock.AssignableToTypeOf(&graphql.EngineResultWriter{})).
 			Do(func(resultWriter *graphql.EngineResultWriter) {
 				_, _ = resultWriter.Write([]byte(`{ "data": { "receiveData": "newData" } }`))
 			}).
 			Times(1)
 
 		executorPoolMock := NewMockExecutorPool(ctrl)
-		executorPoolMock.EXPECT().Get(gomock.Eq(payload)).
-			Return(executorMock, nil).
-			Times(2)
-		executorPoolMock.EXPECT().Put(gomock.Eq(executorMock)).
+		executorPoolMock.EXPECT().Get(gomock.Eq(payloadSubscription)).
+			Return(executorMockSubscription, nil).
+			Times(1)
+		executorPoolMock.EXPECT().Get(gomock.Eq(payloadQuery)).
+			Return(executorMockQuery, nil).
+			Times(1)
+		executorPoolMock.EXPECT().Put(gomock.Eq(executorMockSubscription)).
 			Times(1)
 
 		eventHandlerMock := NewMockEventHandler(ctrl)
@@ -308,13 +313,14 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 		}
 
 		assert.Eventually(t, func() bool {
-			err := engine.StartOperation(ctx, id, payload, eventHandlerMock)
+			err := engine.StartOperation(ctx, id, payloadSubscription, eventHandlerMock)
 			assert.NoError(t, err)
 
-			err = engine.StartOperation(ctx, id, payload, eventHandlerMock)
+			err = engine.StartOperation(ctx, id, payloadQuery, eventHandlerMock)
 			assert.Error(t, err)
 
 			<-ctx.Done()
+			time.Sleep(20 * time.Millisecond)
 			return true
 		}, 1*time.Second, 10*time.Millisecond)
 	})
