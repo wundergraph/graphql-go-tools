@@ -742,6 +742,7 @@ func (p *Planner) addRepresentationsVariable() {
 
 	variable, _ := p.variables.AddVariable(p.buildRepresentationsVariable())
 	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", []byte(variable))
+	p.extractEntities = true
 }
 
 func (p *Planner) buildRepresentationsVariable() resolve.Variable {
