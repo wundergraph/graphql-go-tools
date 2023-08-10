@@ -35,7 +35,7 @@ type Visitor struct {
 	planners                     []plannerConfiguration
 	fetchConfigurations          []objectFetchConfiguration
 	fieldBuffers                 map[int]int
-	skipFieldPaths               []string
+	skipFieldsRefs               []int
 	fieldConfigs                 map[int]*FieldConfiguration
 	exportedVariables            map[string]struct{}
 	skipIncludeFields            map[int]skipIncludeField
@@ -250,6 +250,8 @@ func (v *Visitor) LeaveSelectionSet(ref int) {
 func (v *Visitor) EnterField(ref int) {
 	v.debugOnEnterNode(ast.NodeKindField, ref)
 
+	v.linkFetchConfiguration(ref)
+
 	if v.skipField(ref) {
 		return
 	}
@@ -282,8 +284,6 @@ func (v *Visitor) EnterField(ref int) {
 	if !ok {
 		return
 	}
-
-	v.linkFetchConfiguration(ref)
 
 	path := v.resolveFieldPath(ref)
 	fieldDefinitionType := v.Definition.FieldDefinitionType(fieldDefinition)
@@ -331,10 +331,6 @@ func (v *Visitor) linkFetchConfiguration(fieldRef int) {
 				v.fetchConfigurations[i].trigger = &plan.Response.Trigger
 			}
 		} else {
-			if len(v.objects) == 0 {
-				fmt.Println("here")
-			}
-
 			v.fetchConfigurations[i].object = v.objects[len(v.objects)-1]
 		}
 	}
@@ -445,9 +441,8 @@ func (v *Visitor) LeaveField(ref int) {
 }
 
 func (v *Visitor) skipField(ref int) bool {
-	fullPath := v.Walker.Path.DotDelimitedString() + "." + v.Operation.FieldAliasOrNameString(ref)
-	for i := range v.skipFieldPaths {
-		if v.skipFieldPaths[i] == fullPath {
+	for _, skipRef := range v.skipFieldsRefs {
+		if skipRef == ref {
 			return true
 		}
 	}
@@ -532,7 +527,7 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 				UnescapeResponseJson: unescapeResponseJson,
 			}
 			v.objects = append(v.objects, object)
-			v.Walker.Defer(func() {
+			v.Walker.DefferOnEnterField(func() {
 				v.currentFields = append(v.currentFields, objectFields{
 					popOnField: fieldRef,
 					fields:     &object.Fields,
@@ -968,10 +963,17 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 	switch existing := config.object.Fetch.(type) {
 	case *resolve.SingleFetch:
 		copyOfExisting := *existing
-		parallel := &resolve.ParallelFetch{
-			Fetches: []resolve.Fetch{&copyOfExisting, fetch},
+		if copyOfExisting.DissallowParallelFetch {
+			serial := &resolve.SerialFetch{
+				Fetches: []resolve.Fetch{&copyOfExisting, fetch},
+			}
+			config.object.Fetch = serial
+		} else {
+			parallel := &resolve.ParallelFetch{
+				Fetches: []resolve.Fetch{&copyOfExisting, fetch},
+			}
+			config.object.Fetch = parallel
 		}
-		config.object.Fetch = parallel
 	case *resolve.BatchFetch:
 		copyOfExisting := *existing
 		parallel := &resolve.ParallelFetch{
@@ -979,6 +981,8 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 		}
 		config.object.Fetch = parallel
 	case *resolve.ParallelFetch:
+		existing.Fetches = append(existing.Fetches, fetch)
+	case *resolve.SerialFetch:
 		existing.Fetches = append(existing.Fetches, fetch)
 	}
 }
@@ -993,6 +997,7 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external Fet
 		DataSource:                            external.DataSource,
 		Variables:                             external.Variables,
 		DisallowSingleFlight:                  external.DisallowSingleFlight,
+		DissallowParallelFetch:                external.DisallowParallelFetch,
 		DataSourceIdentifier:                  []byte(dataSourceType),
 		ProcessResponseConfig:                 external.ProcessResponseConfig,
 		DisableDataLoader:                     external.DisableDataLoader,

@@ -22,18 +22,28 @@ type TypeField struct {
 	FieldNames []string
 }
 
+type AlternativeTypeField struct {
+	TypeField
+	AncestorNode TypeField
+}
+
 type DataSourceConfiguration struct {
 	// RootNodes - defines the nodes where the responsibility of the DataSource begins
 	// When you enter a node, and it is not a child node
-	// when you have entered into a field which representing data source - it means that we starting a new planning stage
+	// when you have entered into a field which representing data source - it means that we are starting a new planning stage
 	RootNodes []TypeField
 	// ChildNodes - describes additional fields which will be requested along with fields which has a datasources
-	// They are always required for the Graphql datasources cause each field could have it's own datasource
-	// For any single point datasource like HTTP/REST or GRPC we could not request less fields, as we always get a full response
-	ChildNodes []TypeField
-	Directives DirectiveConfigurations
-	Factory    PlannerFactory
-	Custom     json.RawMessage
+	// They are always required for the Graphql datasources cause each field could have its own datasource
+	// For any single point datasource like HTTP/REST or GRPC we could not request fewer fields, as we always get a full response
+	ChildNodes       []TypeField
+	AlternativeNodes []AlternativeTypeField
+	Directives       DirectiveConfigurations
+	Factory          PlannerFactory
+	Custom           json.RawMessage
+
+	TypeConfigurations                   TypeConfigurations
+	FieldConfigurations                  FieldConfigurations
+	FieldConfigurationsFromParentPlanner FieldConfigurations
 }
 
 func (d *DataSourceConfiguration) HasRootNode(typeName, fieldName string) bool {
@@ -82,6 +92,26 @@ func (d *DataSourceConfiguration) HasChildNodeWithTypename(typeName string) bool
 		return true
 	}
 	return false
+}
+
+func (d *DataSourceConfiguration) HasFieldConfiguration(typeName, requiresFields string) bool {
+	for i := range d.FieldConfigurations {
+		if typeName != d.FieldConfigurations[i].TypeName {
+			continue
+		}
+		if d.FieldConfigurations[i].RequiresFieldsSelectionSet == requiresFields {
+			return true
+		}
+	}
+	return false
+}
+
+func (d *DataSourceConfiguration) FieldConfigurationsForType(typeName string) []FieldConfiguration {
+	return d.FieldConfigurations.FilterByType(typeName)
+}
+
+func (d *DataSourceConfiguration) FieldConfigurationsForTypeAndField(typeName, fieldName string) []FieldConfiguration {
+	return d.FieldConfigurations.FilterByTypeAndField(typeName, fieldName)
 }
 
 type DirectiveConfigurations []DirectiveConfiguration
@@ -179,6 +209,7 @@ type FetchConfiguration struct {
 	// If this is set to false, the planner might still decide to override it,
 	// e.g. if a field depends on an exported variable which doesn't work with DataLoader
 	DisableDataLoader     bool
+	DisallowParallelFetch bool
 	ProcessResponseConfig resolve.ProcessResponseConfig
 	BatchConfig           BatchConfig
 	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null

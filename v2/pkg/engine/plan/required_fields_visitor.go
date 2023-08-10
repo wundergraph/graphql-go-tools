@@ -4,131 +4,138 @@ import (
 	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astimport"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-type skipFieldData struct {
-	selectionSetRef int
-	requiredField   string
-	fieldPath       string
+const (
+	requiredFieldsFragmentTemplate             = `fragment Key on %s {%s}`
+	requiredFieldsFragmentTemplateWithTypeName = `fragment Key on %s { __typename %s}`
+)
+
+func RequiredFieldsFragment(typeName, requiredFields string, includeTypename bool) (*ast.Document, *operationreport.Report) {
+	template := requiredFieldsFragmentTemplate
+	if includeTypename {
+		template = requiredFieldsFragmentTemplateWithTypeName
+	}
+
+	key, report := astparser.ParseGraphqlDocumentString(fmt.Sprintf(template, typeName, requiredFields))
+	return &key, &report
+}
+
+type addRequiredFieldsInput struct {
+	key, operation, definition *ast.Document
+	report                     *operationreport.Report
+	operationSelectionSet      int
+	skipFieldRefs              *[]int
+	parentPath                 string
+}
+
+func addRequiredFields(input *addRequiredFieldsInput) {
+	walker := astvisitor.NewWalker(48)
+
+	importer := &astimport.Importer{}
+
+	visitor := &requiredFieldsVisitor{
+		Walker:   &walker,
+		input:    input,
+		importer: importer,
+	}
+	walker.RegisterEnterDocumentVisitor(visitor)
+	walker.RegisterEnterFieldVisitor(visitor)
+	walker.RegisterEnterSelectionSetVisitor(visitor)
+
+	walker.Walk(input.key, input.definition, input.report)
 }
 
 type requiredFieldsVisitor struct {
-	operation, definition *ast.Document
-	walker                *astvisitor.Walker
-	config                *Configuration
-	operationName         string
-	skipFieldPaths        []string
-	// selectedFieldPaths is a set of all explicitly selected field paths
-	selectedFieldPaths map[string]struct{}
-	// skipFieldDataPaths is to prevent appending duplicate skipFieldData to potentialSkipFieldDatas
-	skipFieldDataPaths map[string]struct{}
-	// potentialSkipFieldDatas is used in LeaveDocument to determine whether a required field should be skipped
-	// Must be a slice to preserve field order, which is why duplicates are handled with a set
-	potentialSkipFieldDatas []*skipFieldData
+	*astvisitor.Walker
+	OperationNodes []ast.Node
+	input          *addRequiredFieldsInput
+	importer       *astimport.Importer
 }
 
-func (r *requiredFieldsVisitor) EnterDocument(_, _ *ast.Document) {
-	r.skipFieldPaths = r.skipFieldPaths[:0]
-	r.selectedFieldPaths = make(map[string]struct{})
-	r.potentialSkipFieldDatas = make([]*skipFieldData, 0)
+func (v *requiredFieldsVisitor) EnterDocument(_, _ *ast.Document) {
+	v.OperationNodes = make([]ast.Node, 0, 3)
+	v.OperationNodes = append(v.OperationNodes,
+		ast.Node{Kind: ast.NodeKindSelectionSet, Ref: v.input.operationSelectionSet})
 }
 
-func (r *requiredFieldsVisitor) EnterField(ref int) {
-	typeName := r.walker.EnclosingTypeDefinition.NameString(r.definition)
-	fieldName := r.operation.FieldNameUnsafeString(ref)
-	fieldConfig := r.config.Fields.ForTypeField(typeName, fieldName)
-	path := r.walker.Path.DotDelimitedString()
-	if fieldConfig == nil {
-		isKey := r.config.Fields.IsKey(typeName, fieldName)
-		if isKey {
-			// If the field is a key, we need to add all other keys from this type as required fields
-			// Note: at this moment we don't know which subgraph we will be quering, so we may request
-			// more keys than are actually required.
-			otherKeys := r.config.Fields.Keys(typeName, fieldName)
-			r.addFieldData(otherKeys)
-		}
-
-		// Record all explicitly selected fields
-		// A field selected on an interface will have the same field path as a fragment on an object
-		// LeaveDocument uses this record to ensure only required fields that were not explicitly selected are skipped
-		r.selectedFieldPaths[fmt.Sprintf("%s.%s", path, fieldName)] = struct{}{}
+func (v *requiredFieldsVisitor) EnterSelectionSet(ref int) {
+	if v.Walker.Depth == 2 {
 		return
 	}
 
-	r.addFieldData(fieldConfig.RequiresFields)
+	selectionSetNode := v.input.operation.AddSelectionSet()
+
+	fieldNode := v.OperationNodes[len(v.OperationNodes)-1]
+	v.input.operation.Fields[fieldNode.Ref].HasSelections = true
+	v.input.operation.Fields[fieldNode.Ref].SelectionSet = selectionSetNode.Ref
+
+	v.OperationNodes = append(v.OperationNodes, selectionSetNode)
 }
 
-func (r *requiredFieldsVisitor) addFieldData(requiredFields []string) {
-	if len(requiredFields) == 0 {
+func (v *requiredFieldsVisitor) LeaveSelectionSet(ref int) {
+	if v.Walker.Depth == 0 {
 		return
 	}
 
-	selectionSet := r.walker.Ancestors[len(r.walker.Ancestors)-1]
-	if selectionSet.Kind != ast.NodeKindSelectionSet {
-		return
-	}
-
-	path := r.walker.Path.DotDelimitedString()
-
-	for _, requiredField := range requiredFields {
-		requiredFieldPath := fmt.Sprintf("%s.%s", path, requiredField)
-		// Prevent adding duplicates to the slice (order is necessary; hence, a separate map)
-		if _, ok := r.skipFieldDataPaths[requiredFieldPath]; ok {
-			continue
-		}
-		// For each required field, collect the data required to handle (in LeaveDocument) whether we should skip it
-		data := &skipFieldData{
-			selectionSetRef: selectionSet.Ref,
-			requiredField:   requiredField,
-			fieldPath:       requiredFieldPath,
-		}
-		r.potentialSkipFieldDatas = append(r.potentialSkipFieldDatas, data)
-	}
+	v.OperationNodes = v.OperationNodes[:len(v.OperationNodes)-1]
 }
 
-func (r *requiredFieldsVisitor) handleRequiredField(selectionSet int, requiredFieldName, fullFieldPath string) {
-	for _, ref := range r.operation.SelectionSets[selectionSet].SelectionRefs {
-		selection := r.operation.Selections[ref]
-		if selection.Kind != ast.SelectionKindField {
-			continue
-		}
-		name := r.operation.FieldAliasOrNameString(selection.Ref)
-		if name == requiredFieldName {
-			// already exists
+func (v *requiredFieldsVisitor) EnterField(ref int) {
+	fieldName := v.input.key.FieldNameBytes(ref)
+
+	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
+
+	operationHasField, operationFieldRef := v.input.operation.SelectionSetHasFieldSelectionWithNameOrAliasBytes(selectionSetRef, fieldName)
+	if operationHasField {
+		// do not add required field if the field is already present in the operation
+		// but add an operation node from operation if the field has selections
+		if !v.input.operation.FieldHasSelections(operationFieldRef) {
 			return
 		}
+
+		v.OperationNodes = append(v.OperationNodes, ast.Node{Kind: ast.NodeKindField, Ref: operationFieldRef})
+		return
 	}
-	r.addRequiredField(requiredFieldName, selectionSet, fullFieldPath)
+
+	fieldNode := v.addRequiredField(ref, fieldName, selectionSetRef)
+	if v.input.key.FieldHasSelections(ref) {
+		v.OperationNodes = append(v.OperationNodes, fieldNode)
+	}
 }
 
-func (r *requiredFieldsVisitor) addRequiredField(fieldName string, selectionSet int, fullFieldPath string) {
-	field := ast.Field{
-		Name: r.operation.Input.AppendInputString(fieldName),
+func (v *requiredFieldsVisitor) LeaveField(ref int) {
+	if v.input.key.FieldHasSelections(ref) {
+		v.OperationNodes = v.OperationNodes[:len(v.OperationNodes)-1]
 	}
-	addedField := r.operation.AddField(field)
+}
+
+func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteSlice, selectionSet int) ast.Node {
+	field := ast.Field{
+		Name:         v.input.operation.Input.AppendInputBytes(fieldName),
+		SelectionSet: ast.InvalidRef,
+	}
+	addedField := v.input.operation.AddField(field)
+
+	if v.input.key.FieldHasArguments(keyRef) {
+		importedArgs := v.importer.ImportArguments(v.input.key.Fields[keyRef].Arguments.Refs, v.input.key, v.input.operation)
+
+		for _, arg := range importedArgs {
+			v.input.operation.AddArgumentToField(addedField.Ref, arg)
+		}
+	}
+
 	selection := ast.Selection{
 		Kind: ast.SelectionKindField,
 		Ref:  addedField.Ref,
 	}
-	r.operation.AddSelection(selectionSet, selection)
-	r.skipFieldPaths = append(r.skipFieldPaths, fullFieldPath)
-}
+	v.input.operation.AddSelection(selectionSet, selection)
 
-func (r *requiredFieldsVisitor) EnterOperationDefinition(ref int) {
-	operationName := r.operation.OperationDefinitionNameString(ref)
-	if r.operationName != operationName {
-		r.walker.SkipNode()
-		return
-	}
-}
+	*v.input.skipFieldRefs = append(*v.input.skipFieldRefs, addedField.Ref)
 
-func (r *requiredFieldsVisitor) LeaveDocument(_, _ *ast.Document) {
-	for _, data := range r.potentialSkipFieldDatas {
-		path := data.fieldPath
-		// If a field was not explicitly selected, skip it
-		if _, ok := r.selectedFieldPaths[path]; !ok {
-			r.handleRequiredField(data.selectionSetRef, data.requiredField, path)
-		}
-	}
+	return addedField
 }

@@ -410,4 +410,203 @@ func TestInputTemplate_Render(t *testing.T) {
 			})
 		})
 	})
+
+	t.Run("GraphQLVariableResolveRenderer", func(t *testing.T) {
+		t.Run("nested objects", func(t *testing.T) {
+			template := InputTemplate{
+				Segments: []TemplateSegment{
+					{
+						SegmentType: StaticSegmentType,
+						Data:        []byte(`{"key":`),
+					},
+					{
+						SegmentType:  VariableSegmentType,
+						VariableKind: ResolvableObjectVariableKind,
+						Renderer: &GraphQLVariableResolveRenderer{
+							Kind: VariableRendererKindGraphqlResolve,
+							Node: &Object{
+								Nullable: false,
+								Fields: []*Field{
+									{
+										Name: []byte("address"),
+										Value: &Object{
+											Path:     []string{"address"},
+											Nullable: false,
+											Fields: []*Field{
+												{
+													Name: []byte("zip"),
+													Value: &String{
+														Path:     []string{"zip"},
+														Nullable: false,
+													},
+												},
+												{
+													Name: []byte("items"),
+													Value: &Array{
+														Path:     []string{"items"},
+														Nullable: false,
+														Item: &Object{
+															Nullable: false,
+															Fields: []*Field{
+																{
+																	Name: []byte("active"),
+																	Value: &Boolean{
+																		Path: []string{"active"},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						SegmentType: StaticSegmentType,
+						Data:        []byte(`}`),
+					},
+				},
+			}
+			ctx := &Context{
+				ctx:       context.Background(),
+				Variables: []byte(""),
+			}
+			buf := fastbuffer.New()
+			err := template.Render(ctx, []byte(`{"name":"home","address":{"zip":"00000","items":[{"name":"home","active":true}]}}`), buf)
+			assert.NoError(t, err)
+			out := buf.String()
+			assert.Equal(t, `{"key":{"address":{"zip":"00000","items":[{"active":true}]}}}`, out)
+		})
+	})
+
+	t.Run("ListSegment", func(t *testing.T) {
+		t.Run("nested objects", func(t *testing.T) {
+			template := InputTemplate{
+				Segments: []TemplateSegment{
+					{
+						SegmentType: StaticSegmentType,
+						Data:        []byte(`{"representations":`),
+					},
+					{
+						SegmentType: ListSegmentType,
+						Segments: []TemplateSegment{
+							{
+								SegmentType: StaticSegmentType,
+								Data:        []byte(`[`),
+							},
+							{
+								SegmentType:        VariableSegmentType,
+								VariableKind:       ResolvableObjectVariableKind,
+								VariableSourcePath: []string{"address"},
+								Renderer: &GraphQLVariableResolveRenderer{
+									Kind: VariableRendererKindGraphqlResolve,
+									Node: &Object{
+										Nullable: false,
+										Fields: []*Field{
+											{
+												Name: []byte("__typename"),
+												Value: &String{
+													Path:     []string{"__typename"},
+													Nullable: false,
+												},
+											},
+											{
+												Name: []byte("address"),
+												Value: &Object{
+													Path:     []string{"address"},
+													Nullable: false,
+													Fields: []*Field{
+														{
+															Name: []byte("zip"),
+															Value: &String{
+																Path:     []string{"zip"},
+																Nullable: false,
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+							{
+								SegmentType: StaticSegmentType,
+								Data:        []byte(`,`),
+							},
+							{
+								SegmentType:        VariableSegmentType,
+								VariableKind:       ResolvableObjectVariableKind,
+								VariableSourcePath: []string{"product"},
+								Renderer: &GraphQLVariableResolveRenderer{
+									Kind: VariableRendererKindGraphqlResolve,
+									Node: &Object{
+										Nullable: false,
+										Fields: []*Field{
+											{
+												Name: []byte("__typename"),
+												Value: &String{
+													Path:     []string{"__typename"},
+													Nullable: false,
+												},
+											},
+											{
+												Name: []byte("id"),
+												Value: &String{
+													Path:     []string{"id"},
+													Nullable: false,
+												},
+											},
+											{
+												Name: []byte("name"),
+												Value: &String{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+											},
+										},
+									},
+								},
+							},
+							{
+								SegmentType: StaticSegmentType,
+								Data:        []byte(`]`),
+							},
+						},
+					},
+					{
+						SegmentType: StaticSegmentType,
+						Data:        []byte(`}`),
+					},
+				},
+			}
+			ctx := &Context{
+				ctx:       context.Background(),
+				Variables: []byte(""),
+			}
+			buf := fastbuffer.New()
+			err := template.Render(ctx, []byte(`{"address":{"__typename":"Address","address":{"zip":"00000"}},"product":{"__typename":"Product","id":"1","name":"table"}}`), buf)
+			assert.NoError(t, err)
+			out := buf.String()
+			assert.Equal(t, `{"representations":[{"__typename":"Address","address":{"zip":"00000"}},{"__typename":"Product","id":"1","name":"table"}]}`, out)
+		})
+	})
+}
+
+type initTestVariableRenderer func(jsonSchema string) VariableRenderer
+
+func useTestPlainVariableRenderer() initTestVariableRenderer {
+	return func(jsonSchema string) VariableRenderer {
+		return NewPlainVariableRendererWithValidation(jsonSchema)
+	}
+}
+
+func useTestJSONVariableRenderer() initTestVariableRenderer {
+	return func(jsonSchema string) VariableRenderer {
+		return NewJSONVariableRendererWithValidation(jsonSchema)
+	}
 }

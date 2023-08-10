@@ -12,13 +12,11 @@ import (
 )
 
 type Planner struct {
-	config                Configuration
-	configurationWalker   *astvisitor.Walker
-	configurationVisitor  *configurationVisitor
-	planningWalker        *astvisitor.Walker
-	planningVisitor       *Visitor
-	requiredFieldsWalker  *astvisitor.Walker
-	requiredFieldsVisitor *requiredFieldsVisitor
+	config               Configuration
+	configurationWalker  *astvisitor.Walker
+	configurationVisitor *configurationVisitor
+	planningWalker       *astvisitor.Walker
+	planningVisitor      *Visitor
 }
 
 // NewPlanner creates a new Planner from the Configuration and a ctx object
@@ -30,19 +28,6 @@ type Planner struct {
 // At the time when the resolver and all operations should be garbage collected, ensure to first cancel or timeout the ctx object
 // If you don't cancel the context.Context, the goroutines will run indefinitely and there's no reference left to stop them
 func NewPlanner(ctx context.Context, config Configuration) *Planner {
-
-	// required fields pre-processing
-
-	requiredFieldsWalker := astvisitor.NewWalker(48)
-	requiredFieldsV := &requiredFieldsVisitor{
-		walker: &requiredFieldsWalker,
-	}
-
-	requiredFieldsWalker.RegisterEnterDocumentVisitor(requiredFieldsV)
-	requiredFieldsWalker.RegisterEnterOperationVisitor(requiredFieldsV)
-	requiredFieldsWalker.RegisterEnterFieldVisitor(requiredFieldsV)
-	requiredFieldsWalker.RegisterLeaveDocumentVisitor(requiredFieldsV)
-
 	// configuration
 
 	configurationWalker := astvisitor.NewWalker(48)
@@ -66,13 +51,11 @@ func NewPlanner(ctx context.Context, config Configuration) *Planner {
 	}
 
 	p := &Planner{
-		config:                config,
-		configurationWalker:   &configurationWalker,
-		configurationVisitor:  configVisitor,
-		planningWalker:        &planningWalker,
-		planningVisitor:       planningVisitor,
-		requiredFieldsWalker:  &requiredFieldsWalker,
-		requiredFieldsVisitor: requiredFieldsV,
+		config:               config,
+		configurationWalker:  &configurationWalker,
+		configurationVisitor: configVisitor,
+		planningWalker:       &planningWalker,
+		planningVisitor:      planningVisitor,
 	}
 
 	return p
@@ -87,54 +70,27 @@ func (p *Planner) SetDebugConfig(config DebugConfiguration) {
 }
 
 func (p *Planner) Plan(operation, definition *ast.Document, operationName string, report *operationreport.Report) (plan Plan) {
-
-	// make a copy of the config as the pre-processor modifies it
-
-	config := p.config
-
-	// select operation
-
 	p.selectOperation(operation, operationName, report)
 	if report.HasErrors() {
 		return
 	}
 
-	// pre-process required fields
-
-	p.preProcessRequiredFields(&config, operation, definition, report)
-	if config.Debug.PrintOperationWithRequiredFields {
-		fmt.Printf("\n\n\n\n\nOperation after preprocessing of required fields: \n\n")
-		pp, _ := astprinter.PrintStringIndentDebug(operation, nil, "  ")
-		fmt.Println(pp)
+	p.findPlanningPaths(operation, definition, report)
+	if report.HasErrors() {
+		return
 	}
 
-	// find planning paths
-
-	p.configurationVisitor.config = config
-	p.configurationWalker.Walk(operation, definition, report)
-
-	if config.Debug.PrintPlanningPaths {
-		fmt.Printf("\n\n\n\n\nPlanning paths \n\n")
-		for i, planner := range p.configurationVisitor.planners {
-			fmt.Println("Paths for planner", i+1)
-			fmt.Println("Planner parent path", planner.parentPath)
-			for _, path := range planner.paths {
-				fmt.Println(path.String())
-			}
-		}
-	}
-
-	if config.Debug.PlanningVisitor {
-		fmt.Printf("\n\n\n\n\nPlanning visitor: \n\n")
+	if p.config.Debug.PlanningVisitor {
+		p.debugMessage("Planning visitor:")
 	}
 
 	// configure planning visitor
 
 	p.planningVisitor.planners = p.configurationVisitor.planners
-	p.planningVisitor.Config = config
+	p.planningVisitor.Config = p.configurationVisitor.config
 	p.planningVisitor.fetchConfigurations = p.configurationVisitor.fetches
 	p.planningVisitor.fieldBuffers = p.configurationVisitor.fieldBuffers
-	p.planningVisitor.skipFieldPaths = p.requiredFieldsVisitor.skipFieldPaths
+	p.planningVisitor.skipFieldsRefs = p.configurationVisitor.skipFieldsRefs
 
 	p.planningWalker.ResetVisitors()
 	p.planningWalker.SetVisitorFilter(p.planningVisitor)
@@ -172,8 +128,60 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	// process the plan
 
 	p.planningWalker.Walk(operation, definition, report)
+	if report.HasErrors() {
+		return
+	}
 
 	return p.planningVisitor.plan
+}
+
+func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) {
+	// make a copy of the config as the configuration visitor modifies it
+	config := p.config
+
+	if p.config.Debug.PrintOperationWithRequiredFields {
+		p.debugMessage("Initial operation:")
+		p.printOperation(operation)
+	}
+
+	p.configurationVisitor.config = config
+	p.configurationVisitor.secondaryRun = false
+	p.configurationWalker.Walk(operation, definition, report)
+	if report.HasErrors() {
+		return
+	}
+
+	if p.config.Debug.PrintOperationWithRequiredFields {
+		p.debugMessage("Operation after initial run:")
+		p.printOperation(operation)
+	}
+
+	if config.Debug.PrintPlanningPaths {
+		p.printPlanningPaths()
+	}
+
+	i := 1
+	// secondary runs to add path for the new required fields
+	for p.configurationVisitor.hasNewFields {
+		p.configurationVisitor.secondaryRun = true
+		p.configurationVisitor.hasNewFields = false
+
+		p.configurationWalker.Walk(operation, definition, report)
+		if report.HasErrors() {
+			return
+		}
+
+		if config.Debug.PrintOperationWithRequiredFields {
+			p.debugMessage(fmt.Sprintf("After run #%d. Operation with new required fields:", i))
+			p.printOperation(operation)
+		}
+
+		if config.Debug.PrintPlanningPaths {
+			p.debugMessage(fmt.Sprintf("After run #%d. Planning paths", i))
+			p.printPlanningPaths()
+		}
+		i++
+	}
 }
 
 func (p *Planner) selectOperation(operation *ast.Document, operationName string, report *operationreport.Report) {
@@ -194,27 +202,26 @@ func (p *Planner) selectOperation(operation *ast.Document, operationName string,
 		return
 	}
 
-	p.requiredFieldsVisitor.operationName = operationName
 	p.configurationVisitor.operationName = operationName
 	p.planningVisitor.OperationName = operationName
 }
 
-func (p *Planner) preProcessRequiredFields(config *Configuration, operation, definition *ast.Document, report *operationreport.Report) {
-	if !p.hasRequiredFields(config) {
-		return
-	}
-
-	p.requiredFieldsVisitor.config = config
-	p.requiredFieldsVisitor.operation = operation
-	p.requiredFieldsVisitor.definition = definition
-	p.requiredFieldsWalker.Walk(operation, definition, report)
+func (p *Planner) printOperation(operation *ast.Document) {
+	pp, _ := astprinter.PrintStringIndentDebug(operation, nil, "  ")
+	fmt.Println(pp)
 }
 
-func (p *Planner) hasRequiredFields(config *Configuration) bool {
-	for i := range config.Fields {
-		if len(config.Fields[i].RequiresFields) != 0 {
-			return true
+func (p *Planner) printPlanningPaths() {
+	p.debugMessage("Planning paths:")
+	for i, planner := range p.configurationVisitor.planners {
+		fmt.Println("Paths for planner", i+1)
+		fmt.Println("Planner parent path", planner.parentPath)
+		for _, path := range planner.paths {
+			fmt.Println(path.String())
 		}
 	}
-	return false
+}
+
+func (p *Planner) debugMessage(msg string) {
+	fmt.Printf("\n\n%s\n\n", msg)
 }

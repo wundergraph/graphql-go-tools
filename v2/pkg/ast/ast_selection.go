@@ -155,27 +155,27 @@ func (d *Document) RemoveFromSelectionSet(ref int, index int) {
 	d.SelectionSets[ref].SelectionRefs = append(d.SelectionSets[ref].SelectionRefs[:index], d.SelectionSets[ref].SelectionRefs[index+1:]...)
 }
 
-func (d *Document) SelectionSetHasFieldSelectionWithNameOrAliasBytes(set int, nameOrAlias []byte) bool {
+func (d *Document) SelectionSetHasFieldSelectionWithNameOrAliasBytes(set int, nameOrAlias []byte) (exist bool, fieldRef int) {
 	for _, i := range d.SelectionSets[set].SelectionRefs {
 		if d.Selections[i].Kind != SelectionKindField {
 			continue
 		}
-		field := d.Selections[i].Ref
-		fieldName := d.FieldNameBytes(field)
+		fieldRef := d.Selections[i].Ref
+		fieldName := d.FieldNameBytes(fieldRef)
 		if bytes.Equal(fieldName, nameOrAlias) {
-			return true
+			return true, fieldRef
 		}
-		if !d.FieldAliasIsDefined(field) {
+		if !d.FieldAliasIsDefined(fieldRef) {
 			continue
 		}
-		fieldAlias := d.FieldAliasBytes(field)
+		fieldAlias := d.FieldAliasBytes(fieldRef)
 		if bytes.Equal(fieldAlias, nameOrAlias) {
-			return true
+			return true, fieldRef
 		}
 	}
-	return false
+	return false, InvalidRef
 }
 
-func (d *Document) SelectionSetHasFieldSelectionWithNameOrAliasString(set int, nameOrAlias string) bool {
+func (d *Document) SelectionSetHasFieldSelectionWithNameOrAliasString(set int, nameOrAlias string) (exist bool, fieldRef int) {
 	return d.SelectionSetHasFieldSelectionWithNameOrAliasBytes(set, unsafebytes.StringToBytes(nameOrAlias))
 }

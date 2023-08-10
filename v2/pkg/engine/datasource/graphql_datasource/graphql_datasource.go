@@ -34,21 +34,15 @@ type Planner struct {
 	debug           bool
 	printQueryPlans bool
 
-	visitor                    *plan.Visitor
-	dataSourceConfig           plan.DataSourceConfiguration
-	config                     Configuration
-	upstreamOperation          *ast.Document
-	upstreamVariables          []byte
-	representationsJson        []byte
-	nodes                      []ast.Node
-	variables                  resolve.Variables
-	lastFieldEnclosingTypeName string
-	disallowSingleFlight       bool
-	hasFederationRoot          bool
-	// federationDepth is the depth in the response tree where the federation root is located.
-	// this field allows us to dismiss all federated fields that belong to a different subgraph easily
-	federationDepth                    int
-	extractEntities                    bool
+	visitor                            *plan.Visitor
+	dataSourceConfig                   plan.DataSourceConfiguration
+	config                             Configuration
+	upstreamOperation                  *ast.Document
+	upstreamVariables                  []byte
+	nodes                              []ast.Node
+	variables                          resolve.Variables
+	lastFieldEnclosingTypeName         string
+	disallowSingleFlight               bool
 	fetchClient                        *http.Client
 	subscriptionClient                 GraphQLSubscriptionClient
 	isNested                           bool   // isNested - flags that datasource is nested e.g. field with datasource is not on a query type
@@ -60,13 +54,20 @@ type Planner struct {
 	upstreamDefinition                 *ast.Document
 	currentVariableDefinition          int
 	addDirectivesToVariableDefinitions map[int][]int
+	insideCustomScalarField            bool
+	customScalarFieldRef               int
+	unnulVariables                     bool
+	parentTypeNodes                    []ast.Node
 
-	insideCustomScalarField bool
-	customScalarFieldRef    int
-	unnulVariables          bool
+	// federation
 
-	parentTypeNodes      []ast.Node
 	addedInlineFragments map[onTypeInlineFragment]struct{}
+	hasFederationRoot    bool
+	// federationDepth is the depth in the response tree where the federation root is located.
+	// this field allows us to dismiss all federated fields that belong to a different subgraph easily
+	federationDepth     int
+	extractEntities     bool
+	representationsJson []byte
 }
 
 type onTypeInlineFragment struct {
@@ -337,8 +338,9 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		DataSource: &Source{
 			httpClient: p.fetchClient,
 		},
-		Variables:            p.variables,
-		DisallowSingleFlight: p.disallowSingleFlight,
+		Variables:             p.variables,
+		DisallowSingleFlight:  p.disallowSingleFlight,
+		DisallowParallelFetch: p.disallowParallelFetch(),
 		ProcessResponseConfig: resolve.ProcessResponseConfig{
 			ExtractGraphqlResponse:    true,
 			ExtractFederationEntities: p.extractEntities,
@@ -346,6 +348,21 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		BatchConfig:                           batchConfig,
 		SetTemplateOutputToNullOnVariableNull: batchConfig.AllowBatch,
 	}
+}
+
+func (p *Planner) disallowParallelFetch() bool {
+	if len(p.dataSourceConfig.FieldConfigurationsFromParentPlanner) == 0 {
+		return false
+	}
+
+	for _, fieldConfig := range p.dataSourceConfig.FieldConfigurationsFromParentPlanner {
+		if fieldConfig.FieldName != "" {
+			// if there field name in field config representation variables includes fields from @requires directive
+			return true
+		}
+	}
+
+	return false
 }
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
@@ -424,18 +441,23 @@ func (p *Planner) EnterSelectionSet(ref int) {
 		p.upstreamOperation.InlineFragments[parent.Ref].SelectionSet = set.Ref
 	}
 	p.nodes = append(p.nodes, set)
-	if p.visitor.Walker.EnclosingTypeDefinition.Kind.IsAbstractType() {
-		// Adding the typename to abstract (unions and interfaces) types is handled elsewhere
-		return
+
+	if parent.Kind == ast.NodeKindOperationDefinition {
+		p.addRepresentationsQuery()
 	}
 
-	for _, selectionRef := range p.visitor.Operation.SelectionSets[ref].SelectionRefs {
-		if p.visitor.Operation.Selections[selectionRef].Kind == ast.SelectionKindField {
-			if p.visitor.Operation.FieldNameUnsafeString(p.visitor.Operation.Selections[selectionRef].Ref) == "__typename" {
-				p.addTypenameToSelectionSet(set.Ref)
-			}
-		}
-	}
+	// if p.visitor.Walker.EnclosingTypeDefinition.Kind.IsAbstractType() {
+	// 	// Adding the typename to abstract (unions and interfaces) types is handled elsewhere
+	// 	return
+	// }
+
+	// for _, selectionRef := range p.visitor.Operation.SelectionSets[ref].SelectionRefs {
+	// 	if p.visitor.Operation.Selections[selectionRef].Kind == ast.SelectionKindField {
+	// 		if p.visitor.Operation.FieldNameUnsafeString(p.visitor.Operation.Selections[selectionRef].Ref) == "__typename" {
+	// 			p.addTypenameToSelectionSet(set.Ref)
+	// 		}
+	// 	}
+	// }
 }
 
 func (p *Planner) addTypenameToSelectionSet(selectionSet int) {
@@ -573,7 +595,22 @@ func (p *Planner) EnterField(ref int) {
 			p.handleFederation(fieldConfiguration)
 		}
 
+		p.handleOnTypeInlineFragment()
+
 		p.addField(ref)
+
+		// TODO: temporary add it here to make new configuration work
+		{
+			fieldConfiguration := p.dataSourceConfig.FieldConfigurations.ForTypeField(enclosingTypeName, fieldName)
+			if fieldConfiguration != nil {
+				upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
+				for i := range fieldConfiguration.Arguments {
+					argumentConfiguration := fieldConfiguration.Arguments[i]
+					p.configureArgument(upstreamFieldRef, ref, *fieldConfiguration, argumentConfiguration)
+				}
+			}
+		}
+
 		return
 	}
 
@@ -695,6 +732,78 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 }
 
 func (p *Planner) LeaveDocument(_, _ *ast.Document) {
+	p.addRepresentationsVariable()
+}
+
+func (p *Planner) addRepresentationsVariable() {
+	if len(p.dataSourceConfig.FieldConfigurationsFromParentPlanner) == 0 {
+		return
+	}
+
+	variable, _ := p.variables.AddVariable(p.buildRepresentationsVariable())
+	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", []byte(variable))
+}
+
+func (p *Planner) buildRepresentationsVariable() resolve.Variable {
+	variables := resolve.NewVariables()
+	for _, cfg := range p.dataSourceConfig.FieldConfigurationsFromParentPlanner {
+		key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.RequiresFieldsSelectionSet, false)
+		if report.HasErrors() {
+			p.visitor.Walker.StopWithInternalErr(report)
+			return nil
+		}
+		node, err := BuildRepresentationVariableNode(key, p.visitor.Definition)
+		if err != nil {
+			p.visitor.Walker.StopWithInternalErr(err)
+			return nil
+		}
+
+		variables.AddVariable(resolve.NewResolvableObjectVariable(
+			node,
+		))
+	}
+
+	representationsVariable := resolve.NewListVariable(variables)
+	return representationsVariable
+}
+
+func (p *Planner) addRepresentationsQuery() {
+	isNestedFederationRequest := p.isNested && p.config.Federation.Enabled && len(p.dataSourceConfig.FieldConfigurationsFromParentPlanner) > 0
+
+	if !isNestedFederationRequest {
+		return
+	}
+
+	p.hasFederationRoot = true
+	p.federationDepth = p.visitor.Walker.Depth
+	// query($representations: [_Any!]!){_entities(representations: $representations){... on Product
+	p.addRepresentationsVariableDefinition() // $representations: [_Any!]!
+	p.addEntitiesSelectionSet()              // {_entities(representations: $representations)
+}
+
+func (p *Planner) handleOnTypeInlineFragment() {
+	if p.hasFederationRoot {
+		if !p.isInEntitiesSelectionSet() {
+			// if we quering field of entity type, but we are not in the root of the query
+			// we should not add representations variable and should not add inline fragment
+			// e.g. query { _entities { ... on Product { price info {name} } } }
+			// where Info is an entity type, but it is used as a field of Product
+			//
+			// At the same time, we may need to update representations variables, but not to add an inline fragment
+			// cause, we could have a field which requires an additional field from entity type, which is not a key
+			return
+		}
+
+		// add inline fragment again, because it could be another entity type
+		// e.g. parallel request for a few entities
+		// ... on Product { price }
+		// ,,, on StockItem { stock }
+		if !p.isOnTypeInlineFragmentAllowed() {
+			return
+		}
+		p.addOnTypeInlineFragment() // ... on Product
+		return
+	}
 }
 
 func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
@@ -768,6 +877,18 @@ func (p *Planner) updateRepresentationsVariable(fieldConfig *plan.FieldConfigura
 	}
 
 	// "variables\":{\"representations\":[{\"upc\":\$$0$$\,\"__typename\":\"Product\"}]}}
+
+	// ComposedVariable [
+	// 	ObjectVariable {\"upc\":\$$0$$\,\"__typename\":$$1$$}
+	// 	ObjectVariable {\"upc\":\$$0$$\,\"__typename\":\"$$1$$\"}
+	// ]
+	//
+	// key1, key2, key 3, __typename
+
+	// // "variables\":{\"representations\":$$0$$}}
+
+	//
+
 	parser := astparser.NewParser()
 	doc := ast.NewDocument()
 	doc.Input.ResetInputString(p.config.Federation.ServiceSDL)
@@ -1273,7 +1394,7 @@ func (p *Planner) debugPrint(args ...interface{}) {
 	fmt.Println(allArgs...)
 }
 
-func (p *Planner) printQueryPlan(msg string, operation *ast.Document) {
+func (p *Planner) printQueryPlan(operation *ast.Document) {
 	if !p.printQueryPlans {
 		return
 	}
@@ -1283,11 +1404,37 @@ func (p *Planner) printQueryPlan(msg string, operation *ast.Document) {
 		return
 	}
 
-	p.debugPrint(msg, "\n",
-		"variables:\n",
-		string(p.upstreamVariables), "\n",
+	args := []interface{}{
+		"Execution plan:\n",
+	}
+
+	if len(p.upstreamVariables) > 0 {
+		args = append(args,
+			"variables:\n",
+			string(p.upstreamVariables),
+			"\n")
+	}
+
+	if len(p.dataSourceConfig.FieldConfigurationsFromParentPlanner) > 0 {
+		args = append(args, "Representations:\n")
+		for _, cfg := range p.dataSourceConfig.FieldConfigurationsFromParentPlanner {
+			key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.RequiresFieldsSelectionSet, true)
+			if report.HasErrors() {
+				continue
+			}
+			printedKey, err := astprinter.PrintStringIndent(key, nil, "  ")
+			if err != nil {
+				continue
+			}
+			args = append(args, printedKey, "\n")
+		}
+	}
+
+	args = append(args,
 		"operation:\n",
 		printedOperation)
+
+	p.debugPrint(args...)
 }
 
 // printOperation - prints normalized upstream operation
@@ -1359,14 +1506,14 @@ func (p *Planner) printOperation() []byte {
 		return nil
 	}
 
-	p.printQueryPlan("upstream operation:", p.upstreamOperation)
-
 	validator := astvalidation.DefaultOperationValidator()
 	validator.Validate(operation, definition, report)
 	if report.HasErrors() {
 		p.stopWithError("validation failed: %s", report.Error())
 		return nil
 	}
+
+	p.printQueryPlan(p.upstreamOperation)
 
 	buf.Reset()
 
@@ -1478,7 +1625,8 @@ func (p *Planner) replaceQueryType(definition *ast.Document) {
 func (p *Planner) normalizeOperation(operation, definition *ast.Document, report *operationreport.Report) (ok bool) {
 	report.Reset()
 	normalizer := astnormalization.NewWithOpts(
-		astnormalization.WithExtractVariables(),
+		// we should not extract variables from the upstream operation as they will be lost
+		// cause when we are building an input we use our own variables
 		astnormalization.WithRemoveFragmentDefinitions(),
 		astnormalization.WithRemoveUnusedVariables(),
 		astnormalization.WithInlineFragmentSpreads(),

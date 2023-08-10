@@ -25,6 +25,12 @@ type configurationVisitor struct {
 	parentTypeNodes []ast.Node
 
 	ctx context.Context
+
+	currentSelectionSet       int
+	pendingTypeConfigurations map[int]map[string]string
+	secondaryRun              bool
+	skipFieldsRefs            []int
+	hasNewFields              bool
 }
 
 type objectFetchConfiguration struct {
@@ -60,6 +66,12 @@ func (c *configurationVisitor) debugPrint(args ...any) {
 }
 
 func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document) {
+	c.hasNewFields = false
+
+	if c.secondaryRun {
+		return
+	}
+
 	c.operation, c.definition = operation, definition
 	c.currentBufferId = -1
 	c.parentTypeNodes = c.parentTypeNodes[:0]
@@ -80,6 +92,17 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 			delete(c.fieldBuffers, i)
 		}
 	}
+	if c.skipFieldsRefs == nil {
+		c.skipFieldsRefs = make([]int, 0, 8)
+	} else {
+		c.skipFieldsRefs = c.skipFieldsRefs[:0]
+	}
+
+	c.pendingTypeConfigurations = make(map[int]map[string]string)
+}
+
+func (c *configurationVisitor) LeaveDocument(operation, definition *ast.Document) {
+	// process planned required fields
 }
 
 func (c *configurationVisitor) EnterOperationDefinition(ref int) {
@@ -92,6 +115,7 @@ func (c *configurationVisitor) EnterOperationDefinition(ref int) {
 
 func (c *configurationVisitor) EnterSelectionSet(ref int) {
 	c.debugPrint("EnterSelectionSet ref:", ref)
+	c.currentSelectionSet = ref
 	c.parentTypeNodes = append(c.parentTypeNodes, c.walker.EnclosingTypeDefinition)
 
 	// When selection is the inline fragment
@@ -125,6 +149,8 @@ func (c *configurationVisitor) EnterSelectionSet(ref int) {
 
 func (c *configurationVisitor) LeaveSelectionSet(ref int) {
 	c.debugPrint("LeaveSelectionSet ref:", ref)
+	c.processPendingRequiredFields(ref)
+	c.currentSelectionSet = ast.InvalidRef
 	c.parentTypeNodes = c.parentTypeNodes[:len(c.parentTypeNodes)-1]
 }
 
@@ -152,6 +178,14 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 	isSubscription := c.isSubscription(root.Ref, currentPath)
 	for i, plannerConfig := range c.planners {
+		if c.secondaryRun && plannerConfig.hasPath(currentPath) {
+			// on the second run we need to process only new fields added by the first run
+			return
+		}
+
+		// add required fields for field and type (@requires)
+		c.handleRequiredFieldsForTypeAndField(&plannerConfig.dataSourceConfiguration, currentPath, typeName, fieldName)
+
 		planningBehaviour := plannerConfig.planner.DataSourcePlanningBehavior()
 
 		if (plannerConfig.hasParent(parentPath) || plannerConfig.hasParent(precedingParentPath)) &&
@@ -199,10 +233,18 @@ func (c *configurationVisitor) EnterField(ref int) {
 			}
 		}
 	}
+
 	for i, config := range c.config.DataSources {
 		if !config.HasRootNode(typeName, fieldName) {
 			continue
 		}
+
+		// add required fields for type (@key)
+		c.handleRequiredFieldsForType(&config, currentPath, typeName)
+
+		// add required fields for field and type (@requires)
+		c.handleRequiredFieldsForTypeAndField(&config, currentPath, typeName, fieldName)
+
 		var (
 			bufferID int
 		)
@@ -291,6 +333,11 @@ func (c *configurationVisitor) LeaveField(ref int) {
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
 	c.debugPrint("LeaveField ref:", ref, "fieldName:", fieldName, "typeName:", typeName)
 
+	if !c.secondaryRun {
+		// we should evaluate exit paths only on the second run
+		return
+	}
+
 	// fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	parent := c.walker.Path.DotDelimitedString()
 	current := parent + "." + fieldAliasOrName
@@ -370,8 +417,16 @@ func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
 func (c *configurationVisitor) addPlannerPathForTypename(
 	plannerIndex int, currentPath string, fieldRef int, fieldName string, typeName string, planningBehaviour DataSourcePlanningBehavior,
 ) (pathAdded bool) {
-	if !(fieldName == "__typename" && planningBehaviour.IncludeTypeNameFields) {
+	if fieldName != "__typename" {
 		return false
+	}
+	if !planningBehaviour.IncludeTypeNameFields {
+		return false
+	}
+
+	if c.planners[plannerIndex].hasPath(currentPath) {
+		// do not add a path for __typename if it already exists
+		return true
 	}
 
 	c.planners[plannerIndex].paths = append(c.planners[plannerIndex].paths, pathConfiguration{
@@ -402,4 +457,101 @@ func (c *configurationVisitor) isSubscription(root int, path string) bool {
 func (c *configurationVisitor) nextBufferID() int {
 	c.currentBufferId++
 	return c.currentBufferId
+}
+
+func (c *configurationVisitor) handleRequiredFieldsForTypeAndField(config *DataSourceConfiguration, currentPath string, typeName, fieldName string) {
+	fieldConfigurations := config.FieldConfigurationsForTypeAndField(typeName, fieldName)
+	for _, fieldConfiguration := range fieldConfigurations {
+		if fieldConfiguration.RequiresFieldsSelectionSet == "" {
+			continue
+		}
+		c.planAddingFieldsFromTypeConfiguration(currentPath, fieldConfiguration)
+		config.FieldConfigurationsFromParentPlanner = AppendFieldConfigurationWithMerge(config.FieldConfigurationsFromParentPlanner, fieldConfiguration)
+		c.hasNewFields = true
+	}
+}
+
+func (c *configurationVisitor) handleRequiredFieldsForType(config *DataSourceConfiguration, currentPath string, typeName string) {
+	possibleTypeConfigurations := config.FieldConfigurationsForType(typeName)
+	if len(possibleTypeConfigurations) > 0 {
+		typeConfiguration, added := c.planRequiredFields(currentPath, typeName, possibleTypeConfigurations)
+		if added {
+			config.FieldConfigurationsFromParentPlanner = AppendFieldConfigurationWithMerge(config.FieldConfigurationsFromParentPlanner, typeConfiguration)
+			c.hasNewFields = true
+		}
+	}
+}
+
+func (c *configurationVisitor) planRequiredFields(currentPath string, typeName string, possibleFieldConfigurations []FieldConfiguration) (config FieldConfiguration, planned bool) {
+	if len(possibleFieldConfigurations) == 0 {
+		return
+	}
+
+	for i, _ := range c.planners {
+		for _, possibleFieldConfig := range possibleFieldConfigurations {
+			if possibleFieldConfig.RequiresFieldsSelectionSet == "" {
+				continue
+			}
+
+			if c.planners[i].dataSourceConfiguration.HasFieldConfiguration(typeName, possibleFieldConfig.RequiresFieldsSelectionSet) {
+				c.planAddingFieldsFromTypeConfiguration(currentPath, possibleFieldConfig)
+				return possibleFieldConfig, true
+			}
+		}
+	}
+
+	return FieldConfiguration{}, false
+}
+
+func (c *configurationVisitor) planAddingFieldsFromTypeConfiguration(currentPath string, fieldConfiguration FieldConfiguration) {
+	key := currentPath + "." + fieldConfiguration.RequiresFieldsSelectionSet
+
+	configs, hasSelectionSet := c.pendingTypeConfigurations[c.currentSelectionSet]
+	if !hasSelectionSet {
+		configs = make(map[string]string)
+	}
+
+	if _, exists := configs[key]; !exists {
+		configs[key] = fieldConfiguration.RequiresFieldsSelectionSet
+		c.pendingTypeConfigurations[c.currentSelectionSet] = configs
+	}
+}
+
+func (c *configurationVisitor) processPendingRequiredFields(selectionSetRef int) {
+	configs, hasSelectionSet := c.pendingTypeConfigurations[selectionSetRef]
+	if !hasSelectionSet {
+		return
+	}
+
+	for _, requiredFields := range configs {
+		c.addRequiredFields(selectionSetRef, requiredFields)
+	}
+
+	delete(c.pendingTypeConfigurations, selectionSetRef)
+}
+
+func (c *configurationVisitor) addRequiredFields(selectionSetRef int, requiredFields string) {
+	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
+	key, report := RequiredFieldsFragment(typeName, requiredFields, true)
+	if report.HasErrors() {
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse required fields for %s", typeName))
+	}
+
+	parentPath := c.walker.Path.DotDelimitedString()
+
+	input := &addRequiredFieldsInput{
+		key:                   key,
+		operation:             c.operation,
+		definition:            c.definition,
+		report:                report,
+		operationSelectionSet: selectionSetRef,
+		skipFieldRefs:         &c.skipFieldsRefs,
+		parentPath:            parentPath,
+	}
+
+	addRequiredFields(input)
+	if report.HasErrors() {
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields for %s", typeName))
+	}
+
 }

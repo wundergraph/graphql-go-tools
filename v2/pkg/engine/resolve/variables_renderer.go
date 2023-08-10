@@ -5,21 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"strconv"
 
 	"github.com/buger/jsonparser"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqljsonschema"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
-)
-
-type VariableKind int
-
-const (
-	ContextVariableKind VariableKind = iota + 1
-	ObjectVariableKind
-	HeaderVariableKind
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 const (
@@ -28,6 +20,7 @@ const (
 	VariableRendererKindJson                  = "json"
 	VariableRendererKindJsonWithValidation    = "jsonWithValidation"
 	VariableRendererKindGraphqlWithValidation = "graphqlWithValidation"
+	VariableRendererKindGraphqlResolve        = "graphqlResolve"
 	VariableRendererKindCsv                   = "csv"
 )
 
@@ -476,152 +469,6 @@ func (c *CSVVariableRenderer) RenderVariable(_ context.Context, data []byte, out
 	return err
 }
 
-type ContextVariable struct {
-	Path     []string
-	Renderer VariableRenderer
-}
-
-func (c *ContextVariable) TemplateSegment() TemplateSegment {
-	return TemplateSegment{
-		SegmentType:        VariableSegmentType,
-		VariableKind:       ContextVariableKind,
-		VariableSourcePath: c.Path,
-		Renderer:           c.Renderer,
-	}
-}
-
-func (c *ContextVariable) Equals(another Variable) bool {
-	if another == nil {
-		return false
-	}
-	if another.GetVariableKind() != c.GetVariableKind() {
-		return false
-	}
-	anotherContextVariable := another.(*ContextVariable)
-	if len(c.Path) != len(anotherContextVariable.Path) {
-		return false
-	}
-	for i := range c.Path {
-		if c.Path[i] != anotherContextVariable.Path[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func (_ *ContextVariable) GetVariableKind() VariableKind {
-	return ContextVariableKind
-}
-
-type ObjectVariable struct {
-	Path     []string
-	Renderer VariableRenderer
-}
-
-func (o *ObjectVariable) TemplateSegment() TemplateSegment {
-	return TemplateSegment{
-		SegmentType:        VariableSegmentType,
-		VariableKind:       ObjectVariableKind,
-		VariableSourcePath: o.Path,
-		Renderer:           o.Renderer,
-	}
-}
-
-func (o *ObjectVariable) Equals(another Variable) bool {
-	if another == nil {
-		return false
-	}
-	if another.GetVariableKind() != o.GetVariableKind() {
-		return false
-	}
-	anotherObjectVariable := another.(*ObjectVariable)
-	if len(o.Path) != len(anotherObjectVariable.Path) {
-		return false
-	}
-	for i := range o.Path {
-		if o.Path[i] != anotherObjectVariable.Path[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func (o *ObjectVariable) GetVariableKind() VariableKind {
-	return ObjectVariableKind
-}
-
-type HeaderVariable struct {
-	Path []string
-}
-
-func (h *HeaderVariable) TemplateSegment() TemplateSegment {
-	return TemplateSegment{
-		SegmentType:        VariableSegmentType,
-		VariableKind:       HeaderVariableKind,
-		VariableSourcePath: h.Path,
-	}
-}
-
-func (h *HeaderVariable) GetVariableKind() VariableKind {
-	return HeaderVariableKind
-}
-
-func (h *HeaderVariable) Equals(another Variable) bool {
-	if another == nil {
-		return false
-	}
-	if another.GetVariableKind() != h.GetVariableKind() {
-		return false
-	}
-	anotherHeaderVariable := another.(*HeaderVariable)
-	if len(h.Path) != len(anotherHeaderVariable.Path) {
-		return false
-	}
-	for i := range h.Path {
-		if h.Path[i] != anotherHeaderVariable.Path[i] {
-			return false
-		}
-	}
-	return true
-}
-
-type Variable interface {
-	GetVariableKind() VariableKind
-	Equals(another Variable) bool
-	TemplateSegment() TemplateSegment
-}
-
-type Variables []Variable
-
-func NewVariables(variables ...Variable) Variables {
-	return variables
-}
-
-const (
-	variablePrefixSuffix = "$$"
-)
-
-func (v *Variables) AddVariable(variable Variable) (name string, exists bool) {
-	index := -1
-	for i := range *v {
-		if (*v)[i].Equals(variable) {
-			index = i
-			exists = true
-			break
-		}
-	}
-	if index == -1 {
-		*v = append(*v, variable)
-		index = len(*v) - 1
-	}
-	i := strconv.Itoa(index)
-	name = variablePrefixSuffix + i + variablePrefixSuffix
-	return
-}
-
-type VariableSchema struct {
-}
-
 func extractStringWithQuotes(rootValueType JsonRootType, data []byte) ([]byte, jsonparser.ValueType) {
 	desiredType := jsonparser.Unknown
 	switch rootValueType.Kind {
@@ -637,4 +484,34 @@ func extractStringWithQuotes(rootValueType JsonRootType, data []byte) ([]byte, j
 		return data[1 : len(data)-1], desiredType
 	}
 	return data, desiredType
+}
+
+type GraphQLVariableResolveRenderer struct {
+	Kind string
+	Node *Object
+}
+
+func NewGraphQLVariableResolveRenderer(node *Object) *GraphQLVariableResolveRenderer {
+	return &GraphQLVariableResolveRenderer{
+		Kind: VariableRendererKindGraphqlResolve,
+		Node: node,
+	}
+}
+
+func (g *GraphQLVariableResolveRenderer) GetKind() string {
+	return g.Kind
+}
+
+func (g *GraphQLVariableResolveRenderer) RenderVariable(ctx context.Context, data []byte, out io.Writer) error {
+	resolver := NewSimpleResolver()
+
+	buf := pool.FastBuffer.Get()
+	defer pool.FastBuffer.Put(buf)
+
+	if err := resolver.resolveNode(g.Node, data, buf); err != nil {
+		return err
+	}
+
+	_, err := out.Write(buf.Bytes())
+	return err
 }

@@ -17,6 +17,7 @@ type SegmentType int
 const (
 	StaticSegmentType SegmentType = iota + 1
 	VariableSegmentType
+	ListSegmentType
 )
 
 type TemplateSegment struct {
@@ -25,6 +26,7 @@ type TemplateSegment struct {
 	VariableKind       VariableKind
 	VariableSourcePath []string
 	Renderer           VariableRenderer
+	Segments           []TemplateSegment
 }
 
 type InputTemplate struct {
@@ -41,33 +43,8 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuf
 	var undefinedVariables []string
 
 	for _, segment := range i.Segments {
-		var err error
-		switch segment.SegmentType {
-		case StaticSegmentType:
-			preparedInput.WriteBytes(segment.Data)
-		case VariableSegmentType:
-			switch segment.VariableKind {
-			case ObjectVariableKind:
-				err = i.renderObjectVariable(ctx.Context(), data, segment, preparedInput)
-			case ContextVariableKind:
-				var undefined bool
-				undefined, err = i.renderContextVariable(ctx, segment, preparedInput)
-				if undefined {
-					undefinedVariables = append(undefinedVariables, segment.VariableSourcePath[0])
-				}
-			case HeaderVariableKind:
-				err = i.renderHeaderVariable(ctx, segment.VariableSourcePath, preparedInput)
-			default:
-				err = fmt.Errorf("InputTemplate.Render: cannot resolve variable of kind: %d", segment.VariableKind)
-			}
-			if err != nil {
-				if errors.Is(err, setTemplateOutputNull) {
-					preparedInput.Reset()
-					preparedInput.WriteBytes(literal.NULL)
-					return nil
-				}
-				return err
-			}
+		if err := i.renderSegment(ctx, data, segment, preparedInput, &undefinedVariables); err != nil {
+			return err
 		}
 	}
 
@@ -77,6 +54,42 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuf
 		preparedInput.Reset()
 		preparedInput.WriteBytes(output)
 	}
+	return nil
+}
+
+func (i *InputTemplate) renderSegment(ctx *Context, data []byte, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer, undefinedVariables *[]string) (err error) {
+	switch segment.SegmentType {
+	case StaticSegmentType:
+		preparedInput.WriteBytes(segment.Data)
+	case ListSegmentType:
+		err = i.renderListSegment(ctx, data, segment, preparedInput)
+	case VariableSegmentType:
+		switch segment.VariableKind {
+		case ObjectVariableKind:
+			err = i.renderObjectVariable(ctx.Context(), data, segment, preparedInput)
+		case ContextVariableKind:
+			var undefined bool
+			undefined, err = i.renderContextVariable(ctx, segment, preparedInput)
+			if undefined {
+				*undefinedVariables = append(*undefinedVariables, segment.VariableSourcePath[0])
+			}
+		case ResolvableObjectVariableKind:
+			err = i.renderResolvableObjectVariable(ctx.Context(), data, segment, preparedInput)
+		case HeaderVariableKind:
+			err = i.renderHeaderVariable(ctx, segment.VariableSourcePath, preparedInput)
+		default:
+			err = fmt.Errorf("InputTemplate.Render: cannot resolve variable of kind: %d", segment.VariableKind)
+		}
+		if err != nil {
+			if errors.Is(err, setTemplateOutputNull) {
+				preparedInput.Reset()
+				preparedInput.WriteBytes(literal.NULL)
+				return nil
+			}
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -99,6 +112,20 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []by
 		}
 	}
 	return segment.Renderer.RenderVariable(ctx, value, preparedInput)
+}
+
+func (i *InputTemplate) renderResolvableObjectVariable(ctx context.Context, objectData []byte, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {
+	return segment.Renderer.RenderVariable(ctx, objectData, preparedInput)
+}
+
+func (i *InputTemplate) renderListSegment(ctx *Context, objectData []byte, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {
+	for _, segment := range segment.Segments {
+		if err := i.renderSegment(ctx, objectData, segment, preparedInput, nil); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) (variableWasUndefined bool, err error) {
