@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"strconv"
 	"sync"
 	"time"
@@ -17,322 +16,10 @@ import (
 	"github.com/tidwall/gjson"
 	errors "golang.org/x/xerrors"
 
-	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastbuffer"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
-
-var (
-	lBrace            = []byte("{")
-	rBrace            = []byte("}")
-	lBrack            = []byte("[")
-	rBrack            = []byte("]")
-	comma             = []byte(",")
-	colon             = []byte(":")
-	quote             = []byte("\"")
-	quotedComma       = []byte(`","`)
-	null              = []byte("null")
-	literalData       = []byte("data")
-	literalErrors     = []byte("errors")
-	literalMessage    = []byte("message")
-	literalLocations  = []byte("locations")
-	literalLine       = []byte("line")
-	literalColumn     = []byte("column")
-	literalPath       = []byte("path")
-	literalExtensions = []byte("extensions")
-
-	unableToResolveMsg = []byte("unable to resolve")
-	emptyArray         = []byte("[]")
-)
-
-var (
-	errNonNullableFieldValueIsNull = errors.New("non Nullable field value is null")
-	errTypeNameSkipped             = errors.New("skipped because of __typename condition")
-	errHeaderPathInvalid           = errors.New("invalid header path: header variables must be of this format: .request.header.{{ key }} ")
-
-	ErrUnableToResolve = errors.New("unable to resolve operation")
-)
-
-var (
-	responsePaths = [][]string{
-		{"errors"},
-		{"data"},
-	}
-	errorPaths = [][]string{
-		{"message"},
-		{"locations"},
-		{"path"},
-		{"extensions"},
-	}
-	entitiesPath = []string{"_entities"}
-)
-
-const (
-	rootErrorsPathIndex = 0
-	rootDataPathIndex   = 1
-
-	errorsMessagePathIndex    = 0
-	errorsLocationsPathIndex  = 1
-	errorsPathPathIndex       = 2
-	errorsExtensionsPathIndex = 3
-)
-
-type Node interface {
-	NodeKind() NodeKind
-}
-
-type NodeKind int
-type FetchKind int
-
-const (
-	NodeKindObject NodeKind = iota + 1
-	NodeKindEmptyObject
-	NodeKindArray
-	NodeKindEmptyArray
-	NodeKindNull
-	NodeKindString
-	NodeKindBoolean
-	NodeKindInteger
-	NodeKindFloat
-	NodeKindCustom
-
-	FetchKindSingle FetchKind = iota + 1
-	FetchKindParallel
-	FetchKindBatch
-	FetchKindSerial
-)
-
-type HookContext struct {
-	CurrentPath []byte
-}
-
-type BeforeFetchHook interface {
-	OnBeforeFetch(ctx HookContext, input []byte)
-}
-
-type AfterFetchHook interface {
-	OnData(ctx HookContext, output []byte, singleFlight bool)
-	OnError(ctx HookContext, output []byte, singleFlight bool)
-}
-
-type Context struct {
-	ctx              context.Context
-	Variables        []byte
-	Request          Request
-	pathElements     [][]byte
-	responseElements []string
-	lastFetchID      int
-	patches          []patch
-	usedBuffers      []*bytes.Buffer
-	currentPatch     int
-	maxPatch         int
-	pathPrefix       []byte
-	dataLoader       *dataLoader
-	beforeFetchHook  BeforeFetchHook
-	afterFetchHook   AfterFetchHook
-	position         Position
-	RenameTypeNames  []RenameTypeName
-}
-
-type Request struct {
-	Header http.Header
-}
-
-func NewContext(ctx context.Context) *Context {
-	if ctx == nil {
-		panic("nil context.Context")
-	}
-	return &Context{
-		ctx:          ctx,
-		Variables:    make([]byte, 0, 4096),
-		pathPrefix:   make([]byte, 0, 4096),
-		pathElements: make([][]byte, 0, 16),
-		patches:      make([]patch, 0, 48),
-		usedBuffers:  make([]*bytes.Buffer, 0, 48),
-		currentPatch: -1,
-		maxPatch:     -1,
-		position:     Position{},
-		dataLoader:   nil,
-	}
-}
-
-func (c *Context) Context() context.Context {
-	return c.ctx
-}
-
-func (c *Context) WithContext(ctx context.Context) *Context {
-	if ctx == nil {
-		panic("nil context.Context")
-	}
-	cpy := *c
-	cpy.ctx = ctx
-	return &cpy
-}
-
-func (c *Context) clone() Context {
-	variables := make([]byte, len(c.Variables))
-	copy(variables, c.Variables)
-	pathPrefix := make([]byte, len(c.pathPrefix))
-	copy(pathPrefix, c.pathPrefix)
-	pathElements := make([][]byte, len(c.pathElements))
-	for i := range pathElements {
-		pathElements[i] = make([]byte, len(c.pathElements[i]))
-		copy(pathElements[i], c.pathElements[i])
-	}
-	patches := make([]patch, len(c.patches))
-	for i := range patches {
-		patches[i] = patch{
-			path:      make([]byte, len(c.patches[i].path)),
-			extraPath: make([]byte, len(c.patches[i].extraPath)),
-			data:      make([]byte, len(c.patches[i].data)),
-			index:     c.patches[i].index,
-		}
-		copy(patches[i].path, c.patches[i].path)
-		copy(patches[i].extraPath, c.patches[i].extraPath)
-		copy(patches[i].data, c.patches[i].data)
-	}
-	return Context{
-		ctx:             c.ctx,
-		Variables:       variables,
-		Request:         c.Request,
-		pathElements:    pathElements,
-		patches:         patches,
-		usedBuffers:     make([]*bytes.Buffer, 0, 48),
-		currentPatch:    c.currentPatch,
-		maxPatch:        c.maxPatch,
-		pathPrefix:      pathPrefix,
-		beforeFetchHook: c.beforeFetchHook,
-		afterFetchHook:  c.afterFetchHook,
-		position:        c.position,
-	}
-}
-
-func (c *Context) Free() {
-	c.ctx = nil
-	c.Variables = c.Variables[:0]
-	c.pathPrefix = c.pathPrefix[:0]
-	c.pathElements = c.pathElements[:0]
-	c.patches = c.patches[:0]
-	for i := range c.usedBuffers {
-		pool.BytesBuffer.Put(c.usedBuffers[i])
-	}
-	c.usedBuffers = c.usedBuffers[:0]
-	c.currentPatch = -1
-	c.maxPatch = -1
-	c.beforeFetchHook = nil
-	c.afterFetchHook = nil
-	c.Request.Header = nil
-	c.position = Position{}
-	c.dataLoader = nil
-	c.RenameTypeNames = nil
-}
-
-func (c *Context) SetBeforeFetchHook(hook BeforeFetchHook) {
-	c.beforeFetchHook = hook
-}
-
-func (c *Context) SetAfterFetchHook(hook AfterFetchHook) {
-	c.afterFetchHook = hook
-}
-
-func (c *Context) setPosition(position Position) {
-	c.position = position
-}
-
-func (c *Context) addResponseElements(elements []string) {
-	c.responseElements = append(c.responseElements, elements...)
-}
-
-func (c *Context) addResponseArrayElements(elements []string) {
-	c.responseElements = append(c.responseElements, elements...)
-	c.responseElements = append(c.responseElements, arrayElementKey)
-}
-
-func (c *Context) removeResponseLastElements(elements []string) {
-	c.responseElements = c.responseElements[:len(c.responseElements)-len(elements)]
-}
-func (c *Context) removeResponseArrayLastElements(elements []string) {
-	c.responseElements = c.responseElements[:len(c.responseElements)-(len(elements)+1)]
-}
-
-func (c *Context) resetResponsePathElements() {
-	c.responseElements = nil
-}
-
-func (c *Context) addPathElement(elem []byte) {
-	c.pathElements = append(c.pathElements, elem)
-}
-
-func (c *Context) addIntegerPathElement(elem int) {
-	b := unsafebytes.StringToBytes(strconv.Itoa(elem))
-	c.pathElements = append(c.pathElements, b)
-}
-
-func (c *Context) removeLastPathElement() {
-	c.pathElements = c.pathElements[:len(c.pathElements)-1]
-}
-
-func (c *Context) path() []byte {
-	buf := pool.BytesBuffer.Get()
-	c.usedBuffers = append(c.usedBuffers, buf)
-	if len(c.pathPrefix) != 0 {
-		buf.Write(c.pathPrefix)
-	} else {
-		buf.Write(literal.SLASH)
-		buf.Write(literal.DATA)
-	}
-	for i := range c.pathElements {
-		if i == 0 && bytes.Equal(literal.DATA, c.pathElements[0]) {
-			continue
-		}
-		_, _ = buf.Write(literal.SLASH)
-		_, _ = buf.Write(c.pathElements[i])
-	}
-	return buf.Bytes()
-}
-
-func (c *Context) addPatch(index int, path, extraPath, data []byte) {
-	next := patch{path: path, extraPath: extraPath, data: data, index: index}
-	c.patches = append(c.patches, next)
-	c.maxPatch++
-}
-
-func (c *Context) popNextPatch() (patch patch, ok bool) {
-	c.currentPatch++
-	if c.currentPatch > c.maxPatch {
-		return patch, false
-	}
-	return c.patches[c.currentPatch], true
-}
-
-type patch struct {
-	path, extraPath, data []byte
-	index                 int
-}
-
-type Fetch interface {
-	FetchKind() FetchKind
-}
-
-type Fetches []Fetch
-
-type DataSourceBatchFactory interface {
-	CreateBatch(inputs [][]byte) (DataSourceBatch, error)
-}
-
-type DataSourceBatch interface {
-	Demultiplex(responseBufPair *BufPair, outputBuffers []*BufPair) (err error)
-	Input() *fastbuffer.FastBuffer
-}
-
-type DataSource interface {
-	Load(ctx context.Context, input []byte, w io.Writer) (err error)
-}
-
-type SubscriptionDataSource interface {
-	Start(ctx context.Context, input []byte, next chan<- []byte) error
-}
 
 type Resolver struct {
 	ctx               context.Context
@@ -346,13 +33,6 @@ type Resolver struct {
 	hash64Pool        sync.Pool
 	dataloaderFactory *dataLoaderFactory
 	fetcher           *Fetcher
-}
-
-type inflightFetch struct {
-	waitLoad sync.WaitGroup
-	waitFree sync.WaitGroup
-	err      error
-	bufPair  BufPair
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -443,53 +123,9 @@ func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *Bu
 
 func (r *Resolver) validateContext(ctx *Context) (err error) {
 	if ctx.maxPatch != -1 || ctx.currentPatch != -1 {
-		return fmt.Errorf("Context must be resetted using Free() before re-using it")
+		return fmt.Errorf("context must be resetted using Free() before re-using it")
 	}
 	return nil
-}
-
-func extractResponse(responseData []byte, bufPair *BufPair, cfg ProcessResponseConfig) {
-	if len(responseData) == 0 {
-		return
-	}
-
-	if !cfg.ExtractGraphqlResponse {
-		bufPair.Data.WriteBytes(responseData)
-		return
-	}
-
-	jsonparser.EachKey(responseData, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
-		switch i {
-		case rootErrorsPathIndex:
-			_, _ = jsonparser.ArrayEach(bytes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-				var (
-					message, locations, path, extensions []byte
-				)
-				jsonparser.EachKey(value, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
-					switch i {
-					case errorsMessagePathIndex:
-						message = bytes
-					case errorsLocationsPathIndex:
-						locations = bytes
-					case errorsPathPathIndex:
-						path = bytes
-					case errorsExtensionsPathIndex:
-						extensions = bytes
-					}
-				}, errorPaths...)
-				if message != nil {
-					bufPair.WriteErr(message, locations, path, extensions)
-				}
-			})
-		case rootDataPathIndex:
-			if cfg.ExtractFederationEntities {
-				data, _, _, _ := jsonparser.Get(bytes, entitiesPath...)
-				bufPair.Data.WriteBytes(data)
-				return
-			}
-			bufPair.Data.WriteBytes(bytes)
-		}
-	}, responsePaths...)
 }
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
@@ -527,15 +163,6 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	}
 
 	return writeGraphqlResponse(buf, writer, ignoreData)
-}
-
-func writeAndFlush(writer FlushWriter, msg []byte) error {
-	_, err := writer.Write(msg)
-	if err != nil {
-		return err
-	}
-	writer.Flush()
-	return nil
 }
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer FlushWriter) (err error) {
@@ -1252,15 +879,6 @@ func (r *Resolver) recursivelySkipBatchResults(ctx *Context, object *Object, dat
 	}
 }
 
-func (r *Resolver) freeResultSet(set *resultSet) {
-	for i := range set.buffers {
-		set.buffers[i].Reset()
-		r.bufPairPool.Put(set.buffers[i])
-		delete(set.buffers, i)
-	}
-	r.resultSetPool.Put(set)
-}
-
 func (r *Resolver) resolveFetch(ctx *Context, fetch Fetch, data []byte, set *resultSet) (err error) {
 	// if context is cancelled, we should not resolve the fetch
 	if errors.Is(ctx.Context().Err(), context.Canceled) {
@@ -1368,319 +986,6 @@ func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, prepared
 	return r.fetcher.Fetch(ctx, fetch, preparedInput, buf)
 }
 
-type Object struct {
-	Nullable             bool
-	Path                 []string
-	Fields               []*Field
-	Fetch                Fetch
-	UnescapeResponseJson bool `json:"unescape_response_json,omitempty"`
-}
-
-func (_ *Object) NodeKind() NodeKind {
-	return NodeKindObject
-}
-
-type EmptyObject struct{}
-
-func (_ *EmptyObject) NodeKind() NodeKind {
-	return NodeKindEmptyObject
-}
-
-type EmptyArray struct{}
-
-func (_ *EmptyArray) NodeKind() NodeKind {
-	return NodeKindEmptyArray
-}
-
-type Field struct {
-	Name                    []byte
-	Value                   Node
-	Position                Position
-	Defer                   *DeferField
-	Stream                  *StreamField
-	HasBuffer               bool
-	BufferID                int
-	OnTypeNames             [][]byte
-	SkipDirectiveDefined    bool
-	SkipVariableName        string
-	IncludeDirectiveDefined bool
-	IncludeVariableName     string
-}
-
-type Position struct {
-	Line   uint32
-	Column uint32
-}
-
-type StreamField struct {
-	InitialBatchSize int
-}
-
-type DeferField struct{}
-
-type Null struct {
-	Defer Defer
-}
-
-type Defer struct {
-	Enabled    bool
-	PatchIndex int
-}
-
-func (_ *Null) NodeKind() NodeKind {
-	return NodeKindNull
-}
-
-type resultSet struct {
-	buffers map[int]*BufPair
-}
-
-type SingleFetch struct {
-	BufferId   int
-	Input      string
-	DataSource DataSource
-	Variables  Variables
-	// DisallowSingleFlight is used for write operations like mutations, POST, DELETE etc. to disable singleFlight
-	// By default SingleFlight for fetches is disabled and needs to be enabled on the Resolver first
-	// If the resolver allows SingleFlight it's up to each individual DataSource Planner to decide whether an Operation
-	// should be allowed to use SingleFlight
-	DisallowSingleFlight   bool
-	DisableDataLoader      bool
-	DissallowParallelFetch bool
-	InputTemplate          InputTemplate
-	DataSourceIdentifier   []byte
-	ProcessResponseConfig  ProcessResponseConfig
-	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
-	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
-	// Returning null in this case tells the batch implementation to skip this item
-	SetTemplateOutputToNullOnVariableNull bool
-}
-
-type ProcessResponseConfig struct {
-	ExtractGraphqlResponse    bool
-	ExtractFederationEntities bool
-}
-
-func (_ *SingleFetch) FetchKind() FetchKind {
-	return FetchKindSingle
-}
-
-type ParallelFetch struct {
-	Fetches []Fetch
-}
-
-func (_ *ParallelFetch) FetchKind() FetchKind {
-	return FetchKindParallel
-}
-
-type SerialFetch struct {
-	Fetches []Fetch
-}
-
-func (_ *SerialFetch) FetchKind() FetchKind {
-	return FetchKindSerial
-}
-
-type BatchFetch struct {
-	Fetch        *SingleFetch
-	BatchFactory DataSourceBatchFactory
-}
-
-func (_ *BatchFetch) FetchKind() FetchKind {
-	return FetchKindBatch
-}
-
-// FieldExport takes the value of the field during evaluation (rendering of the field)
-// and stores it in the variables using the Path as JSON pointer.
-type FieldExport struct {
-	Path     []string
-	AsString bool
-}
-
-type String struct {
-	Path                 []string
-	Nullable             bool
-	Export               *FieldExport `json:"export,omitempty"`
-	UnescapeResponseJson bool         `json:"unescape_response_json,omitempty"`
-	IsTypeName           bool         `json:"is_type_name,omitempty"`
-}
-
-func (_ *String) NodeKind() NodeKind {
-	return NodeKindString
-}
-
-type CustomResolve interface {
-	Resolve(value []byte) ([]byte, error)
-}
-
-type CustomNode struct {
-	CustomResolve
-	Nullable bool
-	Path     []string
-}
-
-func (_ *CustomNode) NodeKind() NodeKind {
-	return NodeKindCustom
-}
-
-type Boolean struct {
-	Path     []string
-	Nullable bool
-	Export   *FieldExport `json:"export,omitempty"`
-}
-
-func (_ *Boolean) NodeKind() NodeKind {
-	return NodeKindBoolean
-}
-
-type Float struct {
-	Path     []string
-	Nullable bool
-	Export   *FieldExport `json:"export,omitempty"`
-}
-
-func (_ *Float) NodeKind() NodeKind {
-	return NodeKindFloat
-}
-
-type Integer struct {
-	Path     []string
-	Nullable bool
-	Export   *FieldExport `json:"export,omitempty"`
-}
-
-func (_ *Integer) NodeKind() NodeKind {
-	return NodeKindInteger
-}
-
-type Array struct {
-	Path                []string
-	Nullable            bool
-	ResolveAsynchronous bool
-	Item                Node
-	Stream              Stream
-}
-
-type Stream struct {
-	Enabled          bool
-	InitialBatchSize int
-	PatchIndex       int
-}
-
-func (_ *Array) NodeKind() NodeKind {
-	return NodeKindArray
-}
-
-type GraphQLSubscription struct {
-	Trigger  GraphQLSubscriptionTrigger
-	Response *GraphQLResponse
-}
-
-type GraphQLSubscriptionTrigger struct {
-	Input         []byte
-	InputTemplate InputTemplate
-	Variables     Variables
-	Source        SubscriptionDataSource
-}
-
-type FlushWriter interface {
-	io.Writer
-	Flush()
-}
-
-type GraphQLResponse struct {
-	Data            Node
-	RenameTypeNames []RenameTypeName
-}
-
-type RenameTypeName struct {
-	From, To []byte
-}
-
-type GraphQLStreamingResponse struct {
-	InitialResponse *GraphQLResponse
-	Patches         []*GraphQLResponsePatch
-	FlushInterval   int64
-}
-
-type GraphQLResponsePatch struct {
-	Value     Node
-	Fetch     Fetch
-	Operation []byte
-}
-
-type BufPair struct {
-	Data   *fastbuffer.FastBuffer
-	Errors *fastbuffer.FastBuffer
-}
-
-func NewBufPair() *BufPair {
-	return &BufPair{
-		Data:   fastbuffer.New(),
-		Errors: fastbuffer.New(),
-	}
-}
-
-func (b *BufPair) HasData() bool {
-	return b.Data.Len() != 0
-}
-
-func (b *BufPair) HasErrors() bool {
-	return b.Errors.Len() != 0
-}
-
-func (b *BufPair) Reset() {
-	b.Data.Reset()
-	b.Errors.Reset()
-}
-
-func (b *BufPair) writeErrors(data []byte) {
-	b.Errors.WriteBytes(data)
-}
-
-func (b *BufPair) WriteErr(message, locations, path, extensions []byte) {
-	if b.HasErrors() {
-		b.writeErrors(comma)
-	}
-	b.writeErrors(lBrace)
-	b.writeErrors(quote)
-	b.writeErrors(literalMessage)
-	b.writeErrors(quote)
-	b.writeErrors(colon)
-	b.writeErrors(quote)
-	b.writeErrors(message)
-	b.writeErrors(quote)
-
-	if locations != nil {
-		b.writeErrors(comma)
-		b.writeErrors(quote)
-		b.writeErrors(literalLocations)
-		b.writeErrors(quote)
-		b.writeErrors(colon)
-		b.writeErrors(locations)
-	}
-
-	if path != nil {
-		b.writeErrors(comma)
-		b.writeErrors(quote)
-		b.writeErrors(literalPath)
-		b.writeErrors(quote)
-		b.writeErrors(colon)
-		b.writeErrors(path)
-	}
-
-	if extensions != nil {
-		b.writeErrors(comma)
-		b.writeErrors(quote)
-		b.writeErrors(literalExtensions)
-		b.writeErrors(quote)
-		b.writeErrors(colon)
-		b.writeErrors(extensions)
-	}
-
-	b.writeErrors(rBrace)
-}
-
 func (r *Resolver) MergeBufPairs(from, to *BufPair, prefixDataWithComma bool) {
 	r.MergeBufPairData(from, to, prefixDataWithComma)
 	r.MergeBufPairErrors(from, to)
@@ -1708,18 +1013,27 @@ func (r *Resolver) MergeBufPairErrors(from, to *BufPair) {
 	from.Errors.Reset()
 }
 
-func (r *Resolver) freeBufPair(pair *BufPair) {
-	pair.Data.Reset()
-	pair.Errors.Reset()
-	r.bufPairPool.Put(pair)
-}
-
 func (r *Resolver) getResultSet() *resultSet {
 	return r.resultSetPool.Get().(*resultSet)
 }
 
+func (r *Resolver) freeResultSet(set *resultSet) {
+	for i := range set.buffers {
+		set.buffers[i].Reset()
+		r.bufPairPool.Put(set.buffers[i])
+		delete(set.buffers, i)
+	}
+	r.resultSetPool.Put(set)
+}
+
 func (r *Resolver) getBufPair() *BufPair {
 	return r.bufPairPool.Get().(*BufPair)
+}
+
+func (r *Resolver) freeBufPair(pair *BufPair) {
+	pair.Data.Reset()
+	pair.Errors.Reset()
+	r.bufPairPool.Put(pair)
 }
 
 func (r *Resolver) getBufPairSlice() *[]*BufPair {
@@ -1748,44 +1062,4 @@ func (r *Resolver) getWaitGroup() *sync.WaitGroup {
 
 func (r *Resolver) freeWaitGroup(wg *sync.WaitGroup) {
 	r.waitGroupPool.Put(wg)
-}
-
-func writeGraphqlResponse(buf *BufPair, writer io.Writer, ignoreData bool) (err error) {
-	hasErrors := buf.Errors.Len() != 0
-	hasData := buf.Data.Len() != 0 && !ignoreData
-
-	err = writeSafe(err, writer, lBrace)
-
-	if hasErrors {
-		err = writeSafe(err, writer, quote)
-		err = writeSafe(err, writer, literalErrors)
-		err = writeSafe(err, writer, quote)
-		err = writeSafe(err, writer, colon)
-		err = writeSafe(err, writer, lBrack)
-		err = writeSafe(err, writer, buf.Errors.Bytes())
-		err = writeSafe(err, writer, rBrack)
-		err = writeSafe(err, writer, comma)
-	}
-
-	err = writeSafe(err, writer, quote)
-	err = writeSafe(err, writer, literalData)
-	err = writeSafe(err, writer, quote)
-	err = writeSafe(err, writer, colon)
-
-	if hasData {
-		_, err = writer.Write(buf.Data.Bytes())
-	} else {
-		err = writeSafe(err, writer, literal.NULL)
-	}
-	err = writeSafe(err, writer, rBrace)
-
-	return err
-}
-
-func writeSafe(err error, writer io.Writer, data []byte) error {
-	if err != nil {
-		return err
-	}
-	_, err = writer.Write(data)
-	return err
 }

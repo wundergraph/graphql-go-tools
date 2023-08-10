@@ -19,6 +19,13 @@ type Fetcher struct {
 	inflightFetches          map[uint64]*inflightFetch
 }
 
+type inflightFetch struct {
+	waitLoad sync.WaitGroup
+	waitFree sync.WaitGroup
+	err      error
+	bufPair  BufPair
+}
+
 func NewFetcher(enableSingleFlightLoader bool) *Fetcher {
 	return &Fetcher{
 		EnableSingleFlightLoader: enableSingleFlightLoader,
