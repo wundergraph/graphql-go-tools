@@ -115,15 +115,7 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []by
 }
 
 func (i *InputTemplate) renderResolvableObjectVariable(ctx context.Context, objectData []byte, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {
-	value, valueType, _, err := jsonparser.Get(objectData, segment.VariableSourcePath...)
-	if err != nil || valueType == jsonparser.Null {
-		if err == jsonparser.KeyPathNotFoundError {
-			preparedInput.WriteBytes(literal.NULL)
-			return nil
-		}
-		return err
-	}
-	return segment.Renderer.RenderVariable(ctx, value, preparedInput)
+	return segment.Renderer.RenderVariable(ctx, objectData, preparedInput)
 }
 
 func (i *InputTemplate) renderListSegment(ctx *Context, objectData []byte, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {

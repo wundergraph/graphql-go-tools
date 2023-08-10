@@ -38,7 +38,6 @@ func TestDataSourceInput_Process(t *testing.T) {
 									&resolve.ListVariable{
 										Variables: resolve.NewVariables(
 											&resolve.ResolvableObjectVariable{
-												Path: []string{"me"},
 												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
 													Nullable: false,
 													Fields: []*resolve.Field{
@@ -112,7 +111,6 @@ func TestDataSourceInput_Process(t *testing.T) {
 																&resolve.ListVariable{
 																	Variables: resolve.NewVariables(
 																		&resolve.ResolvableObjectVariable{
-																			Path: []string{"product"},
 																			Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
 																				Nullable: false,
 																				Fields: []*resolve.Field{
@@ -213,9 +211,8 @@ func TestDataSourceInput_Process(t *testing.T) {
 													Data:        []byte(`[`),
 												},
 												{
-													SegmentType:        resolve.VariableSegmentType,
-													VariableKind:       resolve.ResolvableObjectVariableKind,
-													VariableSourcePath: []string{"me"},
+													SegmentType:  resolve.VariableSegmentType,
+													VariableKind: resolve.ResolvableObjectVariableKind,
 													Renderer: &resolve.GraphQLVariableResolveRenderer{
 														Kind: resolve.VariableRendererKindGraphqlResolve,
 														Node: &resolve.Object{
@@ -310,9 +307,8 @@ func TestDataSourceInput_Process(t *testing.T) {
 																				Data:        []byte(`[`),
 																			},
 																			{
-																				SegmentType:        resolve.VariableSegmentType,
-																				VariableKind:       resolve.ResolvableObjectVariableKind,
-																				VariableSourcePath: []string{"product"},
+																				SegmentType:  resolve.VariableSegmentType,
+																				VariableKind: resolve.ResolvableObjectVariableKind,
 																				Renderer: &resolve.GraphQLVariableResolveRenderer{
 																					Kind: resolve.VariableRendererKindGraphqlResolve,
 																					Node: &resolve.Object{

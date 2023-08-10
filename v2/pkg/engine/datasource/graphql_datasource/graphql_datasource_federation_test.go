@@ -413,7 +413,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														&resolve.ListVariable{
 															Variables: []resolve.Variable{
 																&resolve.ResolvableObjectVariable{
-																	Path: []string{"account"},
 																	Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
 																		Fields: []*resolve.Field{
 																			{
@@ -537,7 +536,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			&resolve.ListVariable{
 																				Variables: []resolve.Variable{
 																					&resolve.ResolvableObjectVariable{
-																						Path: []string{"address"},
 																						Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
 																							Fields: []*resolve.Field{
 																								{
@@ -594,7 +592,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			&resolve.ListVariable{
 																				Variables: []resolve.Variable{
 																					&resolve.ResolvableObjectVariable{
-																						Path: []string{"address"},
 																						Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
 																							Fields: []*resolve.Field{
 																								{
@@ -638,7 +635,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			&resolve.ListVariable{
 																				Variables: []resolve.Variable{
 																					&resolve.ResolvableObjectVariable{
-																						Path: []string{"address"},
 																						Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
 																							Fields: []*resolve.Field{
 																								{

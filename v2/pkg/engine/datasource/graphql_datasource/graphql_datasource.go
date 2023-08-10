@@ -759,7 +759,6 @@ func (p *Planner) buildRepresentationsVariable() resolve.Variable {
 		}
 
 		variables.AddVariable(resolve.NewResolvableObjectVariable(
-			cfg.Path,
 			node,
 		))
 	}

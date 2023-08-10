@@ -466,7 +466,6 @@ func (c *configurationVisitor) handleRequiredFieldsForTypeAndField(config *DataS
 			continue
 		}
 		c.planAddingFieldsFromTypeConfiguration(currentPath, fieldConfiguration)
-		fieldConfiguration.Path = []string{string(c.walker.Path[len(c.walker.Path)-1].FieldName)}
 		config.FieldConfigurationsFromParentPlanner = AppendFieldConfigurationWithMerge(config.FieldConfigurationsFromParentPlanner, fieldConfiguration)
 		c.hasNewFields = true
 	}
@@ -477,8 +476,6 @@ func (c *configurationVisitor) handleRequiredFieldsForType(config *DataSourceCon
 	if len(possibleTypeConfigurations) > 0 {
 		typeConfiguration, added := c.planRequiredFields(currentPath, typeName, possibleTypeConfigurations)
 		if added {
-			// TODO: could path be an array?
-			typeConfiguration.Path = []string{string(c.walker.Path[len(c.walker.Path)-1].FieldName)}
 			config.FieldConfigurationsFromParentPlanner = AppendFieldConfigurationWithMerge(config.FieldConfigurationsFromParentPlanner, typeConfiguration)
 			c.hasNewFields = true
 		}

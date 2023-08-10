@@ -160,23 +160,20 @@ func (h *HeaderVariable) Equals(another Variable) bool {
 }
 
 type ResolvableObjectVariable struct {
-	Path     []string
-	Renderer VariableRenderer
+	Renderer *GraphQLVariableResolveRenderer
 }
 
-func NewResolvableObjectVariable(path []string, node *Object) *ResolvableObjectVariable {
+func NewResolvableObjectVariable(node *Object) *ResolvableObjectVariable {
 	return &ResolvableObjectVariable{
-		Path:     path,
 		Renderer: NewGraphQLVariableResolveRenderer(node),
 	}
 }
 
 func (h *ResolvableObjectVariable) TemplateSegment() TemplateSegment {
 	return TemplateSegment{
-		SegmentType:        VariableSegmentType,
-		VariableKind:       ResolvableObjectVariableKind,
-		Renderer:           h.Renderer,
-		VariableSourcePath: h.Path,
+		SegmentType:  VariableSegmentType,
+		VariableKind: ResolvableObjectVariableKind,
+		Renderer:     h.Renderer,
 	}
 }
 
@@ -191,17 +188,9 @@ func (h *ResolvableObjectVariable) Equals(another Variable) bool {
 	if another.GetVariableKind() != h.GetVariableKind() {
 		return false
 	}
-	anotherHeaderVariable := another.(*ResolvableObjectVariable)
+	anotherVariable := another.(*ResolvableObjectVariable)
 
-	if len(h.Path) != len(anotherHeaderVariable.Path) {
-		return false
-	}
-	for i := range h.Path {
-		if h.Path[i] != anotherHeaderVariable.Path[i] {
-			return false
-		}
-	}
-	return true
+	return h.Renderer.Node == anotherVariable.Renderer.Node
 }
 
 type ListVariable struct {
