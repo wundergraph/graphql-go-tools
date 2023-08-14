@@ -10,6 +10,8 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafeprinter"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
