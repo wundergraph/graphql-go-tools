@@ -130,18 +130,18 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 			}),
 			Factory: federationFactory,
-			FieldConfigurations: plan.FieldConfigurations{
+			RequiredFields: plan.RequiredFieldsConfigurations{
 				{
-					TypeName:                   "User",
-					RequiresFieldsSelectionSet: "id",
+					TypeName:     "User",
+					SelectionSet: "id",
 				},
 				{
-					TypeName:                   "Account",
-					RequiresFieldsSelectionSet: "id info {a b}",
+					TypeName:     "Account",
+					SelectionSet: "id info {a b}",
 				},
 				{
-					TypeName:                   "Address",
-					RequiresFieldsSelectionSet: "id",
+					TypeName:     "Address",
+					SelectionSet: "id",
 				},
 			},
 		}
@@ -211,21 +211,21 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 			}),
 			Factory: federationFactory,
-			FieldConfigurations: plan.FieldConfigurations{
+			RequiredFields: plan.RequiredFieldsConfigurations{
 				{
-					TypeName:                   "Account",
-					FieldName:                  "",
-					RequiresFieldsSelectionSet: "id info {a b}",
+					TypeName:     "Account",
+					FieldName:    "",
+					SelectionSet: "id info {a b}",
 				},
 				{
-					TypeName:                   "Address",
-					FieldName:                  "",
-					RequiresFieldsSelectionSet: "id",
+					TypeName:     "Address",
+					FieldName:    "",
+					SelectionSet: "id",
 				},
 				{
-					TypeName:                   "Address",
-					FieldName:                  "fullAddress",
-					RequiresFieldsSelectionSet: "line1 line2 line3(test:\"BOOM\") zip",
+					TypeName:     "Address",
+					FieldName:    "fullAddress",
+					SelectionSet: "line1 line2 line3(test:\"BOOM\") zip",
 				},
 			},
 		}
@@ -256,26 +256,16 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 			}),
 			Factory: federationFactory,
-			FieldConfigurations: plan.FieldConfigurations{
+			RequiredFields: plan.RequiredFieldsConfigurations{
 				{
-					TypeName:                   "Address",
-					FieldName:                  "",
-					RequiresFieldsSelectionSet: "id",
+					TypeName:     "Address",
+					FieldName:    "",
+					SelectionSet: "id",
 				},
 				{
-					TypeName:  "Address",
-					FieldName: "line3",
-					Arguments: plan.ArgumentsConfigurations{
-						{
-							Name:       "test",
-							SourceType: plan.FieldArgumentSource,
-						},
-					},
-				},
-				{
-					TypeName:                   "Address",
-					FieldName:                  "zip",
-					RequiresFieldsSelectionSet: "country city",
+					TypeName:     "Address",
+					FieldName:    "zip",
+					SelectionSet: "country city",
 				},
 			},
 		}
@@ -304,11 +294,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 			}),
 			Factory: federationFactory,
-			FieldConfigurations: plan.FieldConfigurations{
+			RequiredFields: plan.RequiredFieldsConfigurations{
 				{
-					TypeName:                   "Address",
-					FieldName:                  "",
-					RequiresFieldsSelectionSet: "id",
+					TypeName:     "Address",
+					FieldName:    "",
+					SelectionSet: "id",
 				},
 			},
 		}
@@ -336,6 +326,18 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				ConfigurationVisitor:             false,
 				PlanningVisitor:                  false,
 				DatasourceVisitor:                false,
+			},
+			Fields: plan.FieldConfigurations{
+				{
+					TypeName:  "Address",
+					FieldName: "line3",
+					Arguments: plan.ArgumentsConfigurations{
+						{
+							Name:       "test",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
 			},
 		}
 

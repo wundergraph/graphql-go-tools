@@ -351,11 +351,11 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 }
 
 func (p *Planner) disallowParallelFetch() bool {
-	if len(p.dataSourceConfig.FieldConfigurationsFromParentPlanner) == 0 {
+	if !p.dataSourceConfig.HasRequiredFieldsFromParentPlanner() {
 		return false
 	}
 
-	for _, fieldConfig := range p.dataSourceConfig.FieldConfigurationsFromParentPlanner {
+	for _, fieldConfig := range p.dataSourceConfig.RequiredFieldsFromParentPlanner {
 		if fieldConfig.FieldName != "" {
 			// if there field name in field config representation variables includes fields from @requires directive
 			return true
@@ -604,7 +604,7 @@ func (p *Planner) EnterField(ref int) {
 
 		// TODO: temporary add it here to make new configuration work
 		{
-			fieldConfiguration := p.dataSourceConfig.FieldConfigurations.ForTypeField(p.lastFieldEnclosingTypeName, fieldName)
+			fieldConfiguration := p.dataSourceConfig.RequiredFields.ForTypeField(p.lastFieldEnclosingTypeName, fieldName)
 			if fieldConfiguration != nil {
 				upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
 				for i := range fieldConfiguration.Arguments {
@@ -745,7 +745,7 @@ func (p *Planner) LeaveDocument(_, _ *ast.Document) {
 }
 
 func (p *Planner) addRepresentationsVariable() {
-	if len(p.dataSourceConfig.FieldConfigurationsFromParentPlanner) == 0 {
+	if !p.dataSourceConfig.HasRequiredFieldsFromParentPlanner() {
 		return
 	}
 
@@ -756,8 +756,8 @@ func (p *Planner) addRepresentationsVariable() {
 
 func (p *Planner) buildRepresentationsVariable() resolve.Variable {
 	variables := resolve.NewVariables()
-	for _, cfg := range p.dataSourceConfig.FieldConfigurationsFromParentPlanner {
-		key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.RequiresFieldsSelectionSet, false)
+	for _, cfg := range p.dataSourceConfig.RequiredFieldsFromParentPlanner {
+		key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, false)
 		if report.HasErrors() {
 			p.visitor.Walker.StopWithInternalErr(report)
 			return nil
@@ -778,7 +778,7 @@ func (p *Planner) buildRepresentationsVariable() resolve.Variable {
 }
 
 func (p *Planner) addRepresentationsQuery() {
-	isNestedFederationRequest := p.isNested && p.config.Federation.Enabled && len(p.dataSourceConfig.FieldConfigurationsFromParentPlanner) > 0
+	isNestedFederationRequest := p.isNested && p.config.Federation.Enabled && p.dataSourceConfig.HasRequiredFieldsFromParentPlanner()
 
 	if !isNestedFederationRequest {
 		return
@@ -1425,10 +1425,10 @@ func (p *Planner) printQueryPlan(operation *ast.Document) {
 			"\n")
 	}
 
-	if len(p.dataSourceConfig.FieldConfigurationsFromParentPlanner) > 0 {
+	if p.dataSourceConfig.HasRequiredFieldsFromParentPlanner() {
 		args = append(args, "Representations:\n")
-		for _, cfg := range p.dataSourceConfig.FieldConfigurationsFromParentPlanner {
-			key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.RequiresFieldsSelectionSet, true)
+		for _, cfg := range p.dataSourceConfig.RequiredFieldsFromParentPlanner {
+			key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, true)
 			if report.HasErrors() {
 				continue
 			}

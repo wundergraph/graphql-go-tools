@@ -460,51 +460,44 @@ func (c *configurationVisitor) nextBufferID() int {
 }
 
 func (c *configurationVisitor) handleRequiredFieldsForTypeAndField(config *DataSourceConfiguration, currentPath string, typeName, fieldName string) {
-	fieldConfigurations := config.FieldConfigurationsForTypeAndField(typeName, fieldName)
-	for _, fieldConfiguration := range fieldConfigurations {
-		if fieldConfiguration.RequiresFieldsSelectionSet == "" {
-			continue
-		}
-		c.planAddingFieldsFromTypeConfiguration(currentPath, fieldConfiguration)
-		config.FieldConfigurationsFromParentPlanner = AppendFieldConfigurationWithMerge(config.FieldConfigurationsFromParentPlanner, fieldConfiguration)
+	requiredFieldsForTypeAndField := config.RequiredFieldsForTypeAndField(typeName, fieldName)
+	for _, requiredFieldsConfiguration := range requiredFieldsForTypeAndField {
+		c.planAddingRequiredFields(currentPath, requiredFieldsConfiguration)
+		config.RequiredFieldsFromParentPlanner = AppendRequiredFieldsConfigurationWithMerge(config.RequiredFieldsFromParentPlanner, requiredFieldsConfiguration)
 		c.hasNewFields = true
 	}
 }
 
 func (c *configurationVisitor) handleRequiredFieldsForType(config *DataSourceConfiguration, currentPath string, typeName string) {
-	possibleTypeConfigurations := config.FieldConfigurationsForType(typeName)
-	if len(possibleTypeConfigurations) > 0 {
-		typeConfiguration, added := c.planRequiredFields(currentPath, typeName, possibleTypeConfigurations)
+	requiredFieldsForType := config.RequiredFieldsForType(typeName)
+	if len(requiredFieldsForType) > 0 {
+		requiredFieldsConfiguration, added := c.planRequiredFields(currentPath, typeName, requiredFieldsForType)
 		if added {
-			config.FieldConfigurationsFromParentPlanner = AppendFieldConfigurationWithMerge(config.FieldConfigurationsFromParentPlanner, typeConfiguration)
+			config.RequiredFieldsFromParentPlanner = AppendRequiredFieldsConfigurationWithMerge(config.RequiredFieldsFromParentPlanner, requiredFieldsConfiguration)
 			c.hasNewFields = true
 		}
 	}
 }
 
-func (c *configurationVisitor) planRequiredFields(currentPath string, typeName string, possibleFieldConfigurations []FieldConfiguration) (config FieldConfiguration, planned bool) {
-	if len(possibleFieldConfigurations) == 0 {
+func (c *configurationVisitor) planRequiredFields(currentPath string, typeName string, possibleRequiredFields []RequiredFieldsConfiguration) (config RequiredFieldsConfiguration, planned bool) {
+	if len(possibleRequiredFields) == 0 {
 		return
 	}
 
-	for i, _ := range c.planners {
-		for _, possibleFieldConfig := range possibleFieldConfigurations {
-			if possibleFieldConfig.RequiresFieldsSelectionSet == "" {
-				continue
-			}
-
-			if c.planners[i].dataSourceConfiguration.HasFieldConfiguration(typeName, possibleFieldConfig.RequiresFieldsSelectionSet) {
-				c.planAddingFieldsFromTypeConfiguration(currentPath, possibleFieldConfig)
-				return possibleFieldConfig, true
+	for i := range c.planners {
+		for _, possibleRequiredFieldConfig := range possibleRequiredFields {
+			if c.planners[i].dataSourceConfiguration.HasRequirement(typeName, possibleRequiredFieldConfig.SelectionSet) {
+				c.planAddingRequiredFields(currentPath, possibleRequiredFieldConfig)
+				return possibleRequiredFieldConfig, true
 			}
 		}
 	}
 
-	return FieldConfiguration{}, false
+	return RequiredFieldsConfiguration{}, false
 }
 
-func (c *configurationVisitor) planAddingFieldsFromTypeConfiguration(currentPath string, fieldConfiguration FieldConfiguration) {
-	key := currentPath + "." + fieldConfiguration.RequiresFieldsSelectionSet
+func (c *configurationVisitor) planAddingRequiredFields(currentPath string, fieldConfiguration RequiredFieldsConfiguration) {
+	key := currentPath + "." + fieldConfiguration.SelectionSet
 
 	configs, hasSelectionSet := c.pendingTypeConfigurations[c.currentSelectionSet]
 	if !hasSelectionSet {
@@ -512,7 +505,7 @@ func (c *configurationVisitor) planAddingFieldsFromTypeConfiguration(currentPath
 	}
 
 	if _, exists := configs[key]; !exists {
-		configs[key] = fieldConfiguration.RequiresFieldsSelectionSet
+		configs[key] = fieldConfiguration.SelectionSet
 		c.pendingTypeConfigurations[c.currentSelectionSet] = configs
 	}
 }
@@ -553,5 +546,4 @@ func (c *configurationVisitor) addRequiredFields(selectionSetRef int, requiredFi
 	if report.HasErrors() {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields for %s", typeName))
 	}
-
 }

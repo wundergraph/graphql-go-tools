@@ -1,20 +1,14 @@
 package plan
 
 import (
-	"fmt"
-
-	"golang.org/x/exp/slices"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 type Configuration struct {
 	DefaultFlushIntervalMillis int64
 	DataSources                []DataSourceConfiguration
-	// deprecated: use DataSourceConfiguration.FieldConfigurations instead
-	Fields FieldConfigurations
-	// deprecated: use DataSourceConfiguration.TypeConfigurations instead
-	Types TypeConfigurations
+	Fields                     FieldConfigurations
+	Types                      TypeConfigurations
 	// DisableResolveFieldPositions should be set to true for testing purposes
 	// This setting removes position information from all fields
 	// In production, this should be set to false so that error messages are easier to understand
@@ -87,26 +81,6 @@ func (f FieldConfigurations) ForType(typeName string) (*FieldConfiguration, int)
 	return nil, -1
 }
 
-func (f FieldConfigurations) FilterByType(typeName string) (out []FieldConfiguration) {
-	for i := range f {
-		if f[i].TypeName != typeName || f[i].FieldName != "" {
-			continue
-		}
-		out = append(out, f[i])
-	}
-	return out
-}
-
-func (f FieldConfigurations) FilterByTypeAndField(typeName, fieldName string) (out []FieldConfiguration) {
-	for i := range f {
-		if f[i].TypeName != typeName || f[i].FieldName != fieldName {
-			continue
-		}
-		out = append(out, f[i])
-	}
-	return out
-}
-
 // deprecated: should be no longer be used
 func (f FieldConfigurations) IsKey(typeName, fieldName string) bool {
 	for i := range f {
@@ -123,24 +97,6 @@ func (f FieldConfigurations) IsKey(typeName, fieldName string) bool {
 	return false
 }
 
-func AppendFieldConfigurationWithMerge(configs FieldConfigurations, config FieldConfiguration) FieldConfigurations {
-	cfg, i := configs.ForType(config.TypeName)
-	if i == -1 {
-		return append(configs, config)
-	}
-
-	if !slices.Equal(cfg.Path, config.Path) {
-		return append(configs, config)
-	}
-
-	cfg.RequiresFieldsSelectionSet = fmt.Sprintf("%s %s", cfg.RequiresFieldsSelectionSet, config.RequiresFieldsSelectionSet)
-	if cfg.FieldName == "" {
-		cfg.FieldName = config.FieldName
-	}
-
-	return configs
-}
-
 type FieldConfiguration struct {
 	TypeName  string
 	FieldName string
@@ -149,9 +105,8 @@ type FieldConfiguration struct {
 	// Path - represents a json path to lookup for a field value in response json
 	Path      []string
 	Arguments ArgumentsConfigurations
-	// deprecated: use RequiresFieldsNew instead
-	RequiresFields             []string
-	RequiresFieldsSelectionSet string
+	// deprecated: use DataSourceConfiguration.RequiredFields instead
+	RequiresFields []string
 	// UnescapeResponseJson set to true will allow fields (String,List,Object)
 	// to be resolved from an escaped JSON string
 	// e.g. {"response":"{\"foo\":\"bar\"}"} will be returned as {"foo":"bar"} when path is "response"

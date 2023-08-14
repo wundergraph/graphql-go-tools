@@ -17,11 +17,6 @@ type PlannerFactory interface {
 	Planner(ctx context.Context) DataSourcePlanner
 }
 
-type TypeField struct {
-	TypeName   string
-	FieldNames []string
-}
-
 type AlternativeTypeField struct {
 	TypeField
 	AncestorNode TypeField
@@ -31,87 +26,50 @@ type DataSourceConfiguration struct {
 	// RootNodes - defines the nodes where the responsibility of the DataSource begins
 	// When you enter a node, and it is not a child node
 	// when you have entered into a field which representing data source - it means that we are starting a new planning stage
-	RootNodes []TypeField
+	RootNodes TypeFields
 	// ChildNodes - describes additional fields which will be requested along with fields which has a datasources
 	// They are always required for the Graphql datasources cause each field could have its own datasource
 	// For any single point datasource like HTTP/REST or GRPC we could not request fewer fields, as we always get a full response
-	ChildNodes       []TypeField
+	ChildNodes       TypeFields
 	AlternativeNodes []AlternativeTypeField
 	Directives       DirectiveConfigurations
 	Factory          PlannerFactory
 	Custom           json.RawMessage
 
-	TypeConfigurations                   TypeConfigurations
-	FieldConfigurations                  FieldConfigurations
-	FieldConfigurationsFromParentPlanner FieldConfigurations
+	RequiredFields                  RequiredFieldsConfigurations
+	RequiredFieldsFromParentPlanner RequiredFieldsConfigurations
 }
 
 func (d *DataSourceConfiguration) HasRootNode(typeName, fieldName string) bool {
-	for i := range d.RootNodes {
-		if typeName != d.RootNodes[i].TypeName {
-			continue
-		}
-		for j := range d.RootNodes[i].FieldNames {
-			if fieldName == d.RootNodes[i].FieldNames[j] {
-				return true
-			}
-		}
-	}
-	return false
+	return d.RootNodes.HasNode(typeName, fieldName)
 }
 
 func (d *DataSourceConfiguration) HasRootNodeWithTypename(typeName string) bool {
-	for i := range d.RootNodes {
-		if typeName != d.RootNodes[i].TypeName {
-			continue
-		}
-		return true
-	}
-	return false
+	return d.RootNodes.HasNodeWithTypename(typeName)
 }
 
 func (d *DataSourceConfiguration) HasChildNode(typeName, fieldName string) bool {
-	for i := range d.ChildNodes {
-		if typeName != d.ChildNodes[i].TypeName {
-			continue
-		}
-		for j := range d.ChildNodes[i].FieldNames {
-			if fieldName == d.ChildNodes[i].FieldNames[j] {
-				return true
-			}
-		}
-	}
-	return false
+	return d.ChildNodes.HasNode(typeName, fieldName)
 }
 
 func (d *DataSourceConfiguration) HasChildNodeWithTypename(typeName string) bool {
-	for i := range d.ChildNodes {
-		if typeName != d.ChildNodes[i].TypeName {
-			continue
-		}
-		return true
-	}
-	return false
+	return d.ChildNodes.HasNodeWithTypename(typeName)
 }
 
-func (d *DataSourceConfiguration) HasFieldConfiguration(typeName, requiresFields string) bool {
-	for i := range d.FieldConfigurations {
-		if typeName != d.FieldConfigurations[i].TypeName {
-			continue
-		}
-		if d.FieldConfigurations[i].RequiresFieldsSelectionSet == requiresFields {
-			return true
-		}
-	}
-	return false
+func (d *DataSourceConfiguration) HasRequirement(typeName, requiresFields string) bool {
+	return d.RequiredFields.HasRequirement(typeName, requiresFields)
 }
 
-func (d *DataSourceConfiguration) FieldConfigurationsForType(typeName string) []FieldConfiguration {
-	return d.FieldConfigurations.FilterByType(typeName)
+func (d *DataSourceConfiguration) RequiredFieldsForType(typeName string) []RequiredFieldsConfiguration {
+	return d.RequiredFields.FilterByType(typeName)
 }
 
-func (d *DataSourceConfiguration) FieldConfigurationsForTypeAndField(typeName, fieldName string) []FieldConfiguration {
-	return d.FieldConfigurations.FilterByTypeAndField(typeName, fieldName)
+func (d *DataSourceConfiguration) RequiredFieldsForTypeAndField(typeName, fieldName string) []RequiredFieldsConfiguration {
+	return d.RequiredFields.FilterByTypeAndField(typeName, fieldName)
+}
+
+func (d *DataSourceConfiguration) HasRequiredFieldsFromParentPlanner() bool {
+	return len(d.RequiredFieldsFromParentPlanner) > 0
 }
 
 type DirectiveConfigurations []DirectiveConfiguration
