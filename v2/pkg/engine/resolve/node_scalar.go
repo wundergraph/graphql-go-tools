@@ -42,6 +42,16 @@ func (_ *Integer) NodeKind() NodeKind {
 	return NodeKindInteger
 }
 
+type BigInt struct {
+	Path     []string
+	Nullable bool
+	Export   *FieldExport `json:"export,omitempty"`
+}
+
+func (BigInt) NodeKind() NodeKind {
+	return NodeKindBigInt
+}
+
 type Null struct {
 	Defer Defer
 }

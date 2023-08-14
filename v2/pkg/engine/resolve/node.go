@@ -10,6 +10,7 @@ const (
 	NodeKindBoolean
 	NodeKindInteger
 	NodeKindFloat
+	NodeKindBigInt
 	NodeKindCustom
 )
 
