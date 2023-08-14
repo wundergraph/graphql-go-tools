@@ -2,6 +2,10 @@ extend type Query {
     topProducts(first: Int = 5): [Product]
 }
 
+extend type Mutation {
+    setPrice(upc: String!, price: Int!): Product
+}
+
 extend type Subscription {
     updatedPrice: Product!
     updateProductPrice(upc: String!): Product!

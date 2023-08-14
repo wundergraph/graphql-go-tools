@@ -2098,17 +2098,17 @@ func newFederationSetup() *federationSetup {
 }
 
 func newFederationEngine(ctx context.Context, setup *federationSetup, enableDataLoader bool) (engine *ExecutionEngineV2, schema *Schema, err error) {
-	accountsSDL, err := federationtesting.LoadSDLFromExamplesDirectoryWithinPkg(federationtesting.UpstreamAccounts)
+	accountsSDL, err := federationtesting.LoadTestingSubgraphSDL(federationtesting.UpstreamAccounts)
 	if err != nil {
 		return
 	}
 
-	productsSDL, err := federationtesting.LoadSDLFromExamplesDirectoryWithinPkg(federationtesting.UpstreamProducts)
+	productsSDL, err := federationtesting.LoadTestingSubgraphSDL(federationtesting.UpstreamProducts)
 	if err != nil {
 		return
 	}
 
-	reviewsSDL, err := federationtesting.LoadSDLFromExamplesDirectoryWithinPkg(federationtesting.UpstreamReviews)
+	reviewsSDL, err := federationtesting.LoadTestingSubgraphSDL(federationtesting.UpstreamReviews)
 	if err != nil {
 		return
 	}
@@ -2118,18 +2118,66 @@ func newFederationEngine(ctx context.Context, setup *federationSetup, enableData
 	accountsDataSource := plan.DataSourceConfiguration{
 		RootNodes: []plan.TypeField{
 			{
-				TypeName:   "Query",
-				FieldNames: []string{"me"},
+				TypeName: "Query",
+				// TODO: conflicting paths is not supported yet
+				// FieldNames: []string{"me", "identifiable", "histories", "cat"},
+				FieldNames: []string{"identifiable", "histories", "cat"},
 			},
 			{
 				TypeName:   "User",
-				FieldNames: []string{"id", "name", "username"},
+				FieldNames: []string{"id", "username", "history", "realName"},
+			},
+			{
+				TypeName:   "Product",
+				FieldNames: []string{"upc"},
 			},
 		},
 		ChildNodes: []plan.TypeField{
 			{
-				TypeName:   "User",
-				FieldNames: []string{"id", "name", "username"},
+				TypeName:   "Cat",
+				FieldNames: []string{"name"},
+			},
+			{
+				TypeName:   "Identifiable",
+				FieldNames: []string{"id"},
+			},
+			{
+				TypeName:   "Info",
+				FieldNames: []string{"quantity"},
+			},
+			{
+				TypeName:   "Purchase",
+				FieldNames: []string{"product", "wallet", "quantity"},
+			},
+			{
+				TypeName:   "Store",
+				FieldNames: []string{"location"},
+			},
+			{
+				TypeName:   "Sale",
+				FieldNames: []string{"product", "rating", "location"},
+			},
+			{
+				TypeName:   "Wallet",
+				FieldNames: []string{"currency", "amount"},
+			},
+			{
+				TypeName:   "WalletType1",
+				FieldNames: []string{"currency", "amount", "specialField1"},
+			},
+			{
+				TypeName:   "WalletType2",
+				FieldNames: []string{"currency", "amount", "specialField2"},
+			},
+		},
+		RequiredFields: plan.RequiredFieldsConfigurations{
+			{
+				TypeName:     "User",
+				SelectionSet: "id",
+			},
+			{
+				TypeName:     "Product",
+				SelectionSet: "upc",
 			},
 		},
 		Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
@@ -2156,21 +2204,21 @@ func newFederationEngine(ctx context.Context, setup *federationSetup, enableData
 			},
 			{
 				TypeName:   "Product",
-				FieldNames: []string{"upc", "name", "price", "weight"},
+				FieldNames: []string{"upc", "name", "price", "inStock"},
 			},
 			{
 				TypeName:   "Subscription",
-				FieldNames: []string{"updatedPrice"},
+				FieldNames: []string{"updatedPrice", "updateProductPrice"},
 			},
 			{
 				TypeName:   "Mutation",
 				FieldNames: []string{"setPrice"},
 			},
 		},
-		ChildNodes: []plan.TypeField{
+		RequiredFields: plan.RequiredFieldsConfigurations{
 			{
-				TypeName:   "Product",
-				FieldNames: []string{"upc", "name", "price", "weight"},
+				TypeName:     "Product",
+				SelectionSet: "upc",
 			},
 		},
 		Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
@@ -2195,26 +2243,60 @@ func newFederationEngine(ctx context.Context, setup *federationSetup, enableData
 	reviewsDataSource := plan.DataSourceConfiguration{
 		RootNodes: []plan.TypeField{
 			{
-				TypeName:   "User",
-				FieldNames: []string{"reviews"},
-			},
-			{
-				TypeName:   "Product",
-				FieldNames: []string{"reviews"},
-			},
-		},
-		ChildNodes: []plan.TypeField{
-			{
-				TypeName:   "Review",
-				FieldNames: []string{"id", "body", "author", "product"},
+				TypeName:   "Query",
+				FieldNames: []string{"me", "cat"},
 			},
 			{
 				TypeName:   "User",
-				FieldNames: []string{"id", "username", "reviews"},
+				FieldNames: []string{"id", "reviews", "realName"},
 			},
 			{
 				TypeName:   "Product",
 				FieldNames: []string{"upc", "reviews"},
+			},
+			{
+				TypeName:   "Mutation",
+				FieldNames: []string{"addReview"},
+			},
+		},
+		ChildNodes: []plan.TypeField{
+			{
+				TypeName:   "Cat",
+				FieldNames: []string{"name"},
+			},
+			{
+				TypeName:   "Comment",
+				FieldNames: []string{"upc", "body"},
+			},
+			{
+				TypeName:   "Review",
+				FieldNames: []string{"body", "author", "product", "attachments"},
+			},
+			{
+				TypeName:   "Question",
+				FieldNames: []string{"upc", "body"},
+			},
+			{
+				TypeName:   "Rating",
+				FieldNames: []string{"upc", "body", "score"},
+			},
+			{
+				TypeName:   "Rating",
+				FieldNames: []string{"upc", "body", "score"},
+			},
+			{
+				TypeName:   "Video",
+				FieldNames: []string{"upc", "size"},
+			},
+		},
+		RequiredFields: plan.RequiredFieldsConfigurations{
+			{
+				TypeName:     "User",
+				SelectionSet: "id",
+			},
+			{
+				TypeName:     "Product",
+				SelectionSet: "upc",
 			},
 		},
 		Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
@@ -2261,41 +2343,6 @@ func newFederationEngine(ctx context.Context, setup *federationSetup, enableData
 
 	fieldConfigs := plan.FieldConfigurations{
 		{
-			TypeName:       "User",
-			FieldName:      "name",
-			RequiresFields: []string{"id"},
-		},
-		{
-			TypeName:       "User",
-			FieldName:      "username",
-			RequiresFields: []string{"id"},
-		},
-		{
-			TypeName:       "Product",
-			FieldName:      "name",
-			RequiresFields: []string{"upc"},
-		},
-		{
-			TypeName:       "Product",
-			FieldName:      "price",
-			RequiresFields: []string{"upc"},
-		},
-		{
-			TypeName:       "Product",
-			FieldName:      "weight",
-			RequiresFields: []string{"upc"},
-		},
-		{
-			TypeName:       "User",
-			FieldName:      "reviews",
-			RequiresFields: []string{"id"},
-		},
-		{
-			TypeName:       "Product",
-			FieldName:      "reviews",
-			RequiresFields: []string{"upc"},
-		},
-		{
 			TypeName:  "Query",
 			FieldName: "topProducts",
 			Arguments: []plan.ArgumentConfiguration{
@@ -2319,6 +2366,34 @@ func newFederationEngine(ctx context.Context, setup *federationSetup, enableData
 				},
 			},
 		},
+		{
+			TypeName:  "Subscription",
+			FieldName: "updateProductPrice",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "upc",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Mutation",
+			FieldName: "addReview",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "authorID",
+					SourceType: plan.FieldArgumentSource,
+				},
+				{
+					Name:       "upc",
+					SourceType: plan.FieldArgumentSource,
+				},
+				{
+					Name:       "review",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
 	}
 
 	schema, err = federationSchema()
@@ -2333,6 +2408,15 @@ func newFederationEngine(ctx context.Context, setup *federationSetup, enableData
 	engineConfig.AddDataSource(pollingDataSource)
 	engineConfig.SetFieldConfigurations(fieldConfigs)
 	engineConfig.EnableDataLoader(enableDataLoader)
+
+	engineConfig.plannerConfig.Debug = plan.DebugConfiguration{
+		PrintOperationWithRequiredFields: true,
+		PrintPlanningPaths:               true,
+		PrintQueryPlans:                  true,
+		ConfigurationVisitor:             false,
+		PlanningVisitor:                  false,
+		DatasourceVisitor:                false,
+	}
 
 	engine, err = NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConfig)
 	if err != nil {

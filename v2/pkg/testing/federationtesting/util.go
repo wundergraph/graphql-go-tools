@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	federationExampleDirectoryRelativePath = "pkg/testing/federationtesting"
+	federationTestingDirectoryRelativePath = "pkg/testing/federationtesting"
 
 	QueryReviewsOfMe = `query ReviewsOfMe {
   me {
@@ -38,12 +38,12 @@ const (
 	UpstreamReviews  Upstream = "reviews"
 )
 
-func LoadSDLFromExamplesDirectoryWithinPkg(upstream Upstream) ([]byte, error) {
+func LoadTestingSubgraphSDL(upstream Upstream) ([]byte, error) {
 	wd, err := os.Getwd()
 	if err != nil {
 		return nil, err
 	}
 
-	absolutePath := filepath.Join(strings.Split(wd, "pkg")[0], federationExampleDirectoryRelativePath, string(upstream), "graph", "schema.graphqls")
+	absolutePath := filepath.Join(strings.Split(wd, "pkg")[0], federationTestingDirectoryRelativePath, string(upstream), "graph", "schema.graphqls")
 	return ioutil.ReadFile(absolutePath)
 }
