@@ -64,7 +64,6 @@ type Planner struct {
 	addedInlineFragments map[onTypeInlineFragment]struct{}
 	hasFederationRoot    bool
 	extractEntities      bool
-	representationsJson  []byte
 }
 
 type onTypeInlineFragment struct {
@@ -661,7 +660,6 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 	p.parentTypeNodes = p.parentTypeNodes[:0]
 	p.upstreamVariables = nil
 	p.variables = p.variables[:0]
-	p.representationsJson = p.representationsJson[:0]
 	p.disallowSingleFlight = false
 	p.hasFederationRoot = false
 	p.extractEntities = false
