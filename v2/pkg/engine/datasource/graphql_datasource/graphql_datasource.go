@@ -1494,11 +1494,11 @@ func (p *Planner) printOperation() []byte {
 			p.stopWithError("unable to parse upstream schema")
 			return nil
 		}
-	}
 
-	if err := asttransform.MergeDefinitionWithBaseSchema(definition); err != nil {
-		p.stopWithError("unable to merge upstream schema with base schema")
-		return nil
+		if err := asttransform.MergeDefinitionWithBaseSchema(definition); err != nil {
+			p.stopWithError("unable to merge upstream schema with base schema")
+			return nil
+		}
 	}
 
 	// When datasource is nested and definition query type do not contain operation field
