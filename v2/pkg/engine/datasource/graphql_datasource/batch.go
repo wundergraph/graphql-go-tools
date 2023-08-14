@@ -77,6 +77,8 @@ func (b *Batch) Demultiplex(responseBufPair *resolve.BufPair, bufPairs []*resolv
 }
 
 func (b *BatchFactory) multiplexBatch(out *fastbuffer.FastBuffer, inputs [][]byte) (responseMappings []inputResponseBufferMappings, batchSize int, err error) {
+	var responseIdxMap = make(map[string]int, len(inputs))
+
 	if len(inputs) == 0 {
 		return nil, 0, nil
 	}
@@ -101,6 +103,11 @@ func (b *BatchFactory) multiplexBatch(out *fastbuffer.FastBuffer, inputs [][]byt
 				assignedBufferIndices: []int{i},
 				skip:                  true,
 			})
+
+			if _, exists := responseIdxMap[string(inputs[i])]; !exists {
+				responseIdxMap[string(inputs[i])] = variablesIdx
+			}
+
 			variablesIdx++
 			skippedInputs++
 			continue
@@ -116,12 +123,10 @@ func (b *BatchFactory) multiplexBatch(out *fastbuffer.FastBuffer, inputs [][]byt
 		}
 
 		_, err = jsonparser.ArrayEach(inputVariables, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-			for j := range responseMappings {
-				existing := responseMappings[j].originalInput
-				if bytes.Equal(existing, value) {
-					responseMappings[j].assignedBufferIndices = append(responseMappings[j].assignedBufferIndices, i)
-					return
-				}
+			responseIndex, exists := responseIdxMap[string(value)]
+			if exists {
+				responseMappings[responseIndex].assignedBufferIndices = append(responseMappings[responseIndex].assignedBufferIndices, i)
+				return
 			}
 
 			if variablesBuf.Len() != 1 {
@@ -134,6 +139,10 @@ func (b *BatchFactory) multiplexBatch(out *fastbuffer.FastBuffer, inputs [][]byt
 				originalInput:         value,
 				assignedBufferIndices: []int{i},
 			})
+
+			if _, exists := responseIdxMap[string(value)]; !exists {
+				responseIdxMap[string(value)] = variablesIdx
+			}
 
 			variablesIdx++
 		})

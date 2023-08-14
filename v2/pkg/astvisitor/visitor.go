@@ -1377,7 +1377,8 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 
 	switch kind {
 	case ast.NodeKindOperationDefinition:
-		switch w.document.OperationDefinitions[ref].OperationType {
+		operationType := w.document.OperationDefinitions[ref].OperationType
+		switch operationType {
 		case ast.OperationTypeQuery:
 			typeName = w.definition.Index.QueryTypeName
 			w.Path = append(w.Path, ast.PathItem{
@@ -1397,6 +1398,11 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 				FieldName: literal.SUBSCRIPTION,
 			})
 		default:
+			w.StopWithExternalErr(operationreport.ErrInvalidOperationType(operationType))
+			return
+		}
+		if len(typeName) == 0 {
+			w.StopWithExternalErr(operationreport.ErrOperationTypeUndefined(operationType))
 			return
 		}
 	case ast.NodeKindInlineFragment:

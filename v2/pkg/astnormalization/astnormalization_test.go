@@ -2,6 +2,7 @@ package astnormalization
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -403,6 +404,26 @@ schema {
 	})
 }
 
+func TestParseMissingBaseSchema(t *testing.T) {
+	const (
+		schema = `type Query {
+			hello: String!
+		}`
+
+		query = `query { hello }`
+	)
+	definition, report := astparser.ParseGraphqlDocumentString(schema)
+	assert.False(t, report.HasErrors(), report.Error())
+	doc := ast.NewDocument()
+	doc.Input.ResetInputString(query)
+	astparser.NewParser().Parse(doc, &report)
+	assert.False(t, report.HasErrors(), report.Error())
+	normalizer := NewNormalizer(false, false)
+	normalizer.NormalizeOperation(doc, &definition, &report)
+	assert.True(t, report.HasErrors(), "normalization should report an error")
+	assert.Regexp(t, regexp.MustCompile("forget.*merge.*base.*schema"), report.Error(), "error should mention the user forgot to merge the base schema")
+}
+
 func BenchmarkAstNormalization(b *testing.B) {
 
 	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
@@ -531,6 +552,42 @@ var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, op
 	}
 
 	assert.Equal(t, want, got)
+}
+
+var runWithExpectedErrors = func(t *testing.T, normalizeFunc registerNormalizeVariablesFunc, definition, operation, expectedError string, additionalNormalizers ...registerNormalizeFunc) {
+	t.Helper()
+
+	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
+	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
+	if err != nil {
+		panic(err)
+	}
+
+	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
+	report := operationreport.Report{}
+	walker := astvisitor.NewWalker(48)
+
+	normalizeFunc(&walker)
+
+	for _, fn := range additionalNormalizers {
+		fn(&walker)
+	}
+
+	walker.Walk(&operationDocument, &definitionDocument, &report)
+	// we run this walker twice because some normalizers may depend on other normalizers
+	// walking twice ensures that all prerequisites are met
+	// additionally, walking twice also ensures that the normalizers are idempotent
+	walker.Walk(&operationDocument, &definitionDocument, &report)
+
+	assert.True(t, report.HasErrors())
+	assert.Condition(t, func() bool {
+		for i := range report.InternalErrors {
+			if report.InternalErrors[i].Error() == expectedError {
+				return true
+			}
+		}
+		return false
+	})
 }
 
 func runMany(t *testing.T, definition, operation, expectedOutput string, normalizeFuncs ...registerNormalizeFunc) {
