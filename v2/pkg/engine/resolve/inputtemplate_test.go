@@ -499,9 +499,8 @@ func TestInputTemplate_Render(t *testing.T) {
 								Data:        []byte(`[`),
 							},
 							{
-								SegmentType:        VariableSegmentType,
-								VariableKind:       ResolvableObjectVariableKind,
-								VariableSourcePath: []string{"address"},
+								SegmentType:  VariableSegmentType,
+								VariableKind: ResolvableObjectVariableKind,
 								Renderer: &GraphQLVariableResolveRenderer{
 									Kind: VariableRendererKindGraphqlResolve,
 									Node: &Object{
@@ -536,44 +535,6 @@ func TestInputTemplate_Render(t *testing.T) {
 							},
 							{
 								SegmentType: StaticSegmentType,
-								Data:        []byte(`,`),
-							},
-							{
-								SegmentType:        VariableSegmentType,
-								VariableKind:       ResolvableObjectVariableKind,
-								VariableSourcePath: []string{"product"},
-								Renderer: &GraphQLVariableResolveRenderer{
-									Kind: VariableRendererKindGraphqlResolve,
-									Node: &Object{
-										Nullable: false,
-										Fields: []*Field{
-											{
-												Name: []byte("__typename"),
-												Value: &String{
-													Path:     []string{"__typename"},
-													Nullable: false,
-												},
-											},
-											{
-												Name: []byte("id"),
-												Value: &String{
-													Path:     []string{"id"},
-													Nullable: false,
-												},
-											},
-											{
-												Name: []byte("name"),
-												Value: &String{
-													Path:     []string{"name"},
-													Nullable: false,
-												},
-											},
-										},
-									},
-								},
-							},
-							{
-								SegmentType: StaticSegmentType,
 								Data:        []byte(`]`),
 							},
 						},
@@ -589,10 +550,10 @@ func TestInputTemplate_Render(t *testing.T) {
 				Variables: []byte(""),
 			}
 			buf := fastbuffer.New()
-			err := template.Render(ctx, []byte(`{"address":{"__typename":"Address","address":{"zip":"00000"}},"product":{"__typename":"Product","id":"1","name":"table"}}`), buf)
+			err := template.Render(ctx, []byte(`{"__typename":"Address","address":{"zip":"00000"}}`), buf)
 			assert.NoError(t, err)
 			out := buf.String()
-			assert.Equal(t, `{"representations":[{"__typename":"Address","address":{"zip":"00000"}},{"__typename":"Product","id":"1","name":"table"}]}`, out)
+			assert.Equal(t, `{"representations":[{"__typename":"Address","address":{"zip":"00000"}}]}`, out)
 		})
 	})
 }
