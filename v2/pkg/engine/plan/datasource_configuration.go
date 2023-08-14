@@ -195,9 +195,10 @@ type DataSourcePlanner interface {
 }
 
 type SubscriptionConfiguration struct {
-	Input      string
-	Variables  resolve.Variables
-	DataSource resolve.SubscriptionDataSource
+	Input                 string
+	Variables             resolve.Variables
+	DataSource            resolve.SubscriptionDataSource
+	ProcessResponseConfig resolve.ProcessResponseConfig
 }
 
 type FetchConfiguration struct {

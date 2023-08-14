@@ -387,6 +387,10 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 			client: p.subscriptionClient,
 		},
 		Variables: p.variables,
+		ProcessResponseConfig: resolve.ProcessResponseConfig{
+			ExtractGraphqlResponse:    true,
+			ExtractFederationEntities: false,
+		},
 	}
 }
 

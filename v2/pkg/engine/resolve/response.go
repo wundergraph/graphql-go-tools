@@ -14,10 +14,11 @@ type GraphQLSubscription struct {
 }
 
 type GraphQLSubscriptionTrigger struct {
-	Input         []byte
-	InputTemplate InputTemplate
-	Variables     Variables
-	Source        SubscriptionDataSource
+	Input                 []byte
+	InputTemplate         InputTemplate
+	Variables             Variables
+	Source                SubscriptionDataSource
+	ProcessResponseConfig ProcessResponseConfig
 }
 
 type GraphQLResponse struct {

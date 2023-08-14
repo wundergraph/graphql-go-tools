@@ -939,6 +939,7 @@ func (v *Visitor) configureSubscription(config objectFetchConfiguration) {
 	subscription := config.planner.ConfigureSubscription()
 	config.trigger.Variables = subscription.Variables
 	config.trigger.Source = subscription.DataSource
+	config.trigger.ProcessResponseConfig = subscription.ProcessResponseConfig
 	v.resolveInputTemplates(config, &subscription.Input, &config.trigger.Variables)
 	config.trigger.Input = []byte(subscription.Input)
 }

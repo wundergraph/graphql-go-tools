@@ -133,17 +133,12 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	buf := r.getBufPair()
 	defer r.freeBufPair(buf)
 
-	responseBuf := r.getBufPair()
-	defer r.freeBufPair(responseBuf)
-
-	extractResponse(data, responseBuf, ProcessResponseConfig{ExtractGraphqlResponse: true})
-
 	if data != nil {
 		ctx.lastFetchID = initialValueID
 	}
 
 	if r.dataLoaderEnabled {
-		ctx.dataLoader = r.dataloaderFactory.newDataLoader(responseBuf.Data.Bytes())
+		ctx.dataLoader = r.dataloaderFactory.newDataLoader(data)
 		defer func() {
 			r.dataloaderFactory.freeDataLoader(ctx.dataLoader)
 			ctx.dataLoader = nil
@@ -151,15 +146,44 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	}
 
 	ignoreData := false
-	err = r.resolveNode(ctx, response.Data, responseBuf.Data.Bytes(), buf)
+	err = r.resolveNode(ctx, response.Data, data, buf)
 	if err != nil {
 		if !errors.Is(err, errNonNullableFieldValueIsNull) {
 			return
 		}
 		ignoreData = true
 	}
-	if responseBuf.Errors.Len() > 0 {
-		r.MergeBufPairErrors(responseBuf, buf)
+
+	return writeGraphqlResponse(buf, writer, ignoreData)
+}
+
+func (r *Resolver) resolveGraphQLSubscriptionResponse(ctx *Context, response *GraphQLResponse, subscriptionData *BufPair, writer io.Writer) (err error) {
+
+	buf := r.getBufPair()
+	defer r.freeBufPair(buf)
+
+	if subscriptionData.HasData() {
+		ctx.lastFetchID = initialValueID
+	}
+
+	if r.dataLoaderEnabled {
+		ctx.dataLoader = r.dataloaderFactory.newDataLoader(subscriptionData.Data.Bytes())
+		defer func() {
+			r.dataloaderFactory.freeDataLoader(ctx.dataLoader)
+			ctx.dataLoader = nil
+		}()
+	}
+
+	ignoreData := false
+	err = r.resolveNode(ctx, response.Data, subscriptionData.Data.Bytes(), buf)
+	if err != nil {
+		if !errors.Is(err, errNonNullableFieldValueIsNull) {
+			return
+		}
+		ignoreData = true
+	}
+	if subscriptionData.HasErrors() {
+		r.MergeBufPairErrors(subscriptionData, buf)
 	}
 
 	return writeGraphqlResponse(buf, writer, ignoreData)
@@ -196,6 +220,9 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return err
 	}
 
+	responseBuf := r.getBufPair()
+	defer r.freeBufPair(responseBuf)
+
 	for {
 		select {
 		case <-resolverDone:
@@ -205,7 +232,9 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 			if !ok {
 				return nil
 			}
-			err = r.ResolveGraphQLResponse(ctx, subscription.Response, data, writer)
+			responseBuf.Reset()
+			extractResponse(data, responseBuf, subscription.Trigger.ProcessResponseConfig)
+			err = r.resolveGraphQLSubscriptionResponse(ctx, subscription.Response, responseBuf, writer)
 			if err != nil {
 				return err
 			}
