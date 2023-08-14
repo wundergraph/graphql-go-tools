@@ -4069,6 +4069,19 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		}
 
 		t.Run("composed keys", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+			expectedAccountsQuery := `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":[{"__typename":"Account","id":"1234","info":{"a":"foo","b":"bar"}}]}}}`
+
+			accountsBatchFactory := NewMockDataSourceBatchFactory(ctrl)
+			accountsBatchFactory.EXPECT().
+				CreateBatch([][]byte{
+					[]byte(expectedAccountsQuery),
+				}).
+				Return(NewFakeDataSourceBatch(
+					expectedAccountsQuery,
+					[]resultedBufPair{
+						{data: `{"__typename":"Account","name":"John Doe","shippingInfo":{"zip":"12345"}}`},
+					}), nil)
+
 			return &GraphQLResponse{
 				Data: &Object{
 					Fetch: &SingleFetch{
@@ -4131,30 +4144,86 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 													},
 												},
 											},
-											Fetch: &SingleFetch{
-												BufferId: 1,
-												DataSource: mockedDS(
-													ctrl,
-													`{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":[{"__typename":"Account","id":"1234","info":{"a":"foo","b":"bar"}}]}}}`,
-													`{"_entities":[{"__typename":"Account","name":"John Doe","shippingInfo":{"zip":"12345"}}]}`,
-												),
-												Input: `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":$$0$$}}}`,
-												InputTemplate: InputTemplate{
-													Segments: []TemplateSegment{
-														{
-															Data:        []byte(`{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":`),
-															SegmentType: StaticSegmentType,
-														},
-														{
-															SegmentType: ListSegmentType,
-															Segments: []TemplateSegment{
-																{
-																	Data:        []byte(`[`),
-																	SegmentType: StaticSegmentType,
+											Fetch: &BatchFetch{
+												BatchFactory: accountsBatchFactory,
+												Fetch: &SingleFetch{
+													BufferId: 1,
+													DataSource: mockedDS(
+														ctrl,
+														expectedAccountsQuery,
+														`{"_entities":[{"__typename":"Account","name":"John Doe","shippingInfo":{"zip":"12345"}}]}`,
+													),
+													Input: `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":$$0$$}}}`,
+													InputTemplate: InputTemplate{
+														Segments: []TemplateSegment{
+															{
+																Data:        []byte(`{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":`),
+																SegmentType: StaticSegmentType,
+															},
+															{
+																SegmentType: ListSegmentType,
+																Segments: []TemplateSegment{
+																	{
+																		Data:        []byte(`[`),
+																		SegmentType: StaticSegmentType,
+																	},
+																	{
+																		SegmentType:  VariableSegmentType,
+																		VariableKind: ResolvableObjectVariableKind,
+																		Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																			Fields: []*Field{
+																				{
+																					Name: []byte("__typename"),
+																					Value: &String{
+																						Path: []string{"__typename"},
+																					},
+																				},
+																				{
+																					Name: []byte("id"),
+																					Value: &String{
+																						Path: []string{"id"},
+																					},
+																				},
+																				{
+																					Name: []byte("info"),
+																					Value: &Object{
+																						Path:     []string{"info"},
+																						Nullable: true,
+																						Fields: []*Field{
+																							{
+																								Name: []byte("a"),
+																								Value: &String{
+																									Path: []string{"a"},
+																								},
+																							},
+																							{
+																								Name: []byte("b"),
+																								Value: &String{
+																									Path: []string{"b"},
+																								},
+																							},
+																						},
+																					},
+																				},
+																			},
+																		}),
+																	},
+																	{
+																		Data:        []byte(`]`),
+																		SegmentType: StaticSegmentType,
+																	},
 																},
-																{
-																	SegmentType:  VariableSegmentType,
-																	VariableKind: ResolvableObjectVariableKind,
+															},
+															{
+																Data:        []byte(`}}}`),
+																SegmentType: StaticSegmentType,
+															},
+														},
+													},
+													Variables: []Variable{
+														&ListVariable{
+															Variables: []Variable{
+																&ResolvableObjectVariable{
 																	Renderer: NewGraphQLVariableResolveRenderer(&Object{
 																		Fields: []*Field{
 																			{
@@ -4193,65 +4262,12 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																		},
 																	}),
 																},
-																{
-																	Data:        []byte(`]`),
-																	SegmentType: StaticSegmentType,
-																},
-															},
-														},
-														{
-															Data:        []byte(`}}}`),
-															SegmentType: StaticSegmentType,
-														},
-													},
-												},
-												Variables: []Variable{
-													&ListVariable{
-														Variables: []Variable{
-															&ResolvableObjectVariable{
-																Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																	Fields: []*Field{
-																		{
-																			Name: []byte("__typename"),
-																			Value: &String{
-																				Path: []string{"__typename"},
-																			},
-																		},
-																		{
-																			Name: []byte("id"),
-																			Value: &String{
-																				Path: []string{"id"},
-																			},
-																		},
-																		{
-																			Name: []byte("info"),
-																			Value: &Object{
-																				Path:     []string{"info"},
-																				Nullable: true,
-																				Fields: []*Field{
-																					{
-																						Name: []byte("a"),
-																						Value: &String{
-																							Path: []string{"a"},
-																						},
-																					},
-																					{
-																						Name: []byte("b"),
-																						Value: &String{
-																							Path: []string{"b"},
-																						},
-																					},
-																				},
-																			},
-																		},
-																	},
-																}),
 															},
 														},
 													},
+													DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+													ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true, ExtractFederationEntities: true},
 												},
-												DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-												ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true, ExtractFederationEntities: true},
 											},
 										},
 									},
