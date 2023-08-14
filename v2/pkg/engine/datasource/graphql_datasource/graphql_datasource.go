@@ -63,11 +63,8 @@ type Planner struct {
 
 	addedInlineFragments map[onTypeInlineFragment]struct{}
 	hasFederationRoot    bool
-	// federationDepth is the depth in the response tree where the federation root is located.
-	// this field allows us to dismiss all federated fields that belong to a different subgraph easily
-	federationDepth     int
-	extractEntities     bool
-	representationsJson []byte
+	extractEntities      bool
+	representationsJson  []byte
 }
 
 type onTypeInlineFragment struct {
@@ -586,50 +583,9 @@ func (p *Planner) EnterField(ref int) {
 		p.rootTypeName = p.lastFieldEnclosingTypeName
 	}
 
-	fieldConfiguration = p.visitor.Config.Fields.ForTypeField(p.lastFieldEnclosingTypeName, fieldName)
-	if fieldConfiguration == nil {
-		// When field do not have field configuration, it could be a key field,
-		// and it should be federated.
-		isKeyField := p.visitor.Config.Fields.IsKey(p.lastFieldEnclosingTypeName, fieldName)
+	p.handleOnTypeInlineFragment()
 
-		// When field is not a key and do not have a field configuration,
-		// prevent handling it as federated field
-		if isKeyField {
-			p.handleFederation(fieldConfiguration)
-		}
-
-		p.handleOnTypeInlineFragment()
-
-		p.addField(ref)
-
-		// TODO: temporary add it here to make new configuration work
-		{
-			fieldConfiguration := p.dataSourceConfig.RequiredFields.ForTypeField(p.lastFieldEnclosingTypeName, fieldName)
-			if fieldConfiguration != nil {
-				upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
-				for i := range fieldConfiguration.Arguments {
-					argumentConfiguration := fieldConfiguration.Arguments[i]
-					p.configureArgument(upstreamFieldRef, ref, *fieldConfiguration, argumentConfiguration)
-				}
-			}
-		}
-
-		return
-	}
-
-	// Note: federated fields always have a field configuration because at
-	// least the federation key for the type the field lives on is required
-	// (and required fields are specified in the configuration).
-	// Note: We could have a field configuration for the field with JSON type,
-	// but it won't have any required fields, so it won't be federated.
-	if len(fieldConfiguration.RequiresFields) > 0 {
-		p.handleFederation(fieldConfiguration)
-	}
-	p.addField(ref)
-
-	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
-
-	p.addFieldArguments(upstreamFieldRef, ref, fieldConfiguration)
+	p.addFieldArguments(p.addField(ref), ref, fieldConfiguration)
 }
 
 func (p *Planner) addFieldArguments(upstreamFieldRef int, fieldRef int, fieldConfiguration *plan.FieldConfiguration) {
@@ -785,7 +741,6 @@ func (p *Planner) addRepresentationsQuery() {
 	}
 
 	p.hasFederationRoot = true
-	p.federationDepth = p.visitor.Walker.Depth
 	// query($representations: [_Any!]!){_entities(representations: $representations){... on Product
 	p.addRepresentationsVariableDefinition() // $representations: [_Any!]!
 	p.addEntitiesSelectionSet()              // {_entities(representations: $representations)
@@ -814,148 +769,6 @@ func (p *Planner) handleOnTypeInlineFragment() {
 		p.addOnTypeInlineFragment() // ... on Product
 		return
 	}
-}
-
-func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
-	p.DebugPrint("handleFederation", "fieldConfig", fieldConfig)
-
-	if !p.config.Federation.Enabled { // federation must be enabled
-		return
-	}
-	// If there's no federation root and this isn't a nested request, this
-	// isn't a federated field and there's nothing to do.
-	if !p.hasFederationRoot && !p.isNestedRequest() {
-		return
-	}
-	// If a federated root is already present, the representations variable has
-	// already been added. Update it to include information for the additional
-	// field. NOTE: only the first federated field has isNestedRequest set to
-	// true. Subsequent fields use hasFederationRoot to determine federation
-	// status.
-	if p.hasFederationRoot {
-		// Ideally the "representations" variable could be set once in
-		// LeaveDocument, but ConfigureFetch is called before this visitor's
-		// LeaveDocument is called. (Updating the visitor logic to call
-		// LeaveDocument in reverse registration order would fix this issue.)
-		p.updateRepresentationsVariable(fieldConfig)
-
-		if !p.isInEntitiesSelectionSet() {
-			// if we quering field of entity type, but we are not in the root of the query
-			// we should not add representations variable and should not add inline fragment
-			// e.g. query { _entities { ... on Product { price info {name} } } }
-			// where Info is an entity type, but it is used as a field of Product
-			//
-			// At the same time, we may need to update representations variables, but not to add an inline fragment
-			// cause, we could have a field which requires an additional field from entity type, which is not a key
-			return
-		}
-
-		// add inline fragment again, because it could be another entity type
-		// e.g. parallel request for a few entities
-		// ... on Product { price }
-		// ,,, on StockItem { stock }
-		if !p.isOnTypeInlineFragmentAllowed() {
-			return
-		}
-		p.addOnTypeInlineFragment() // ... on Product
-		return
-	}
-	p.hasFederationRoot = true
-	p.federationDepth = p.visitor.Walker.Depth
-	// query($representations: [_Any!]!){_entities(representations: $representations){... on Product
-	p.addRepresentationsVariableDefinition()     // $representations: [_Any!]!
-	p.addEntitiesSelectionSet()                  // {_entities(representations: $representations)
-	p.addOnTypeInlineFragment()                  // ... on Product
-	p.updateRepresentationsVariable(fieldConfig) // "variables\":{\"representations\":[{\"upc\":\"$$0$$\",\"__typename\":\"Product\"}]}}
-}
-
-func (p *Planner) updateRepresentationsVariable(fieldConfig *plan.FieldConfiguration) {
-	p.DebugPrint("updateRepresentationsVariable", "fieldConfig", fieldConfig)
-
-	if fieldConfig == nil {
-		// field config is nil when we are handling key field without field configuration
-		return
-	}
-
-	if p.visitor.Walker.Depth != p.federationDepth {
-		// given that this field has a different depth than the federation root, we skip this field
-		// this is because we only have to handle federated fields that are part of the "current" federated request
-		// we're calling this func with the current field because it's both another federated subfield,
-		// but the current subgraph is also capable of resolving it
-		// in this case, we don't need to add the required fields to the variables because the context differs
-		return
-	}
-
-	// "variables\":{\"representations\":[{\"upc\":\$$0$$\,\"__typename\":\"Product\"}]}}
-
-	// ComposedVariable [
-	// 	ObjectVariable {\"upc\":\$$0$$\,\"__typename\":$$1$$}
-	// 	ObjectVariable {\"upc\":\$$0$$\,\"__typename\":\"$$1$$\"}
-	// ]
-	//
-	// key1, key2, key 3, __typename
-
-	// // "variables\":{\"representations\":$$0$$}}
-
-	//
-
-	parser := astparser.NewParser()
-	doc := ast.NewDocument()
-	doc.Input.ResetInputString(p.config.Federation.ServiceSDL)
-	report := &operationreport.Report{}
-	parser.Parse(doc, report)
-	if report.HasErrors() {
-		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("GraphQL Planner: failed parsing Federation SDL"))
-		return
-	}
-
-	// RequiresFields includes `@requires` fields as well as federation keys
-	// for the type containing the field currently being visited.
-	fields := fieldConfig.RequiresFields
-	if len(fields) == 0 {
-		return
-	}
-
-	// TODO: this code is broken in case we have multiple federated fields from different entities
-	if len(p.representationsJson) == 0 {
-		// If the parent is an abstract type, i.e., an interface or union,
-		// the representation typename must come from a parent fetch response.
-		if p.parentNodeIsAbstract() {
-			objectVariable := &resolve.ObjectVariable{
-				Path: []string{"__typename"},
-			}
-			objectVariable.Renderer = resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`)
-			if variable, exists := p.variables.AddVariable(objectVariable); !exists {
-				p.representationsJson, _ = sjson.SetRawBytes(p.representationsJson, "__typename", []byte(variable))
-			}
-		} else { // otherwise use the concrete typename
-			onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchStr(p.lastFieldEnclosingTypeName)
-			p.representationsJson, _ = sjson.SetRawBytes(nil, "__typename", []byte("\""+onTypeName+"\""))
-		}
-	}
-
-	for i := range fields {
-		objectVariable := &resolve.ObjectVariable{
-			Path: []string{fields[i]},
-		}
-		fieldDef := p.fieldDefinition(fields[i], p.lastFieldEnclosingTypeName)
-		if fieldDef == nil {
-			continue
-		}
-		renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(p.visitor.Definition, p.visitor.Definition, fieldDef.Type)
-		if err != nil {
-			continue
-		}
-		objectVariable.Renderer = renderer
-		variable, exists := p.variables.AddVariable(objectVariable)
-		if exists {
-			continue
-		}
-		p.representationsJson, _ = sjson.SetRawBytes(p.representationsJson, fields[i], []byte(variable))
-	}
-	representationsJson := append([]byte("["), append(p.representationsJson, []byte("]")...)...)
-	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", representationsJson)
-	p.extractEntities = true
 }
 
 func (p *Planner) fieldDefinition(fieldName, typeName string) *ast.FieldDefinition {
@@ -1686,7 +1499,7 @@ func (p *Planner) handleFieldAlias(ref int) (newFieldName string, alias ast.Alia
 }
 
 // addField - add a field to an upstream operation
-func (p *Planner) addField(ref int) {
+func (p *Planner) addField(ref int) (upstreamFieldRef int) {
 	fieldName, alias := p.handleFieldAlias(ref)
 
 	field := p.upstreamOperation.AddField(ast.Field{
@@ -1701,6 +1514,8 @@ func (p *Planner) addField(ref int) {
 
 	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, selection)
 	p.nodes = append(p.nodes, field)
+
+	return field.Ref
 }
 
 type OnWsConnectionInitCallback func(ctx context.Context, url string, header http.Header) (json.RawMessage, error)
