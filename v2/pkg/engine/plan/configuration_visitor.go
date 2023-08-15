@@ -26,7 +26,7 @@ type configurationVisitor struct {
 
 	ctx context.Context
 
-	currentSelectionSet       int
+	selectionSetRefs          []int
 	pendingTypeConfigurations map[int]map[string]string
 	secondaryRun              bool
 	skipFieldsRefs            []int
@@ -41,6 +41,14 @@ type objectFetchConfiguration struct {
 	isSubscription     bool
 	fieldRef           int
 	fieldDefinitionRef int
+}
+
+func (c *configurationVisitor) currentSelectionSet() int {
+	if len(c.selectionSetRefs) == 0 {
+		return ast.InvalidRef
+	}
+
+	return c.selectionSetRefs[len(c.selectionSetRefs)-1]
 }
 
 func (c *configurationVisitor) addPath(i int, configuration pathConfiguration) {
@@ -67,6 +75,12 @@ func (c *configurationVisitor) debugPrint(args ...any) {
 
 func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document) {
 	c.hasNewFields = false
+
+	if c.selectionSetRefs == nil {
+		c.selectionSetRefs = make([]int, 0, 8)
+	} else {
+		c.selectionSetRefs = c.selectionSetRefs[:0]
+	}
 
 	if c.secondaryRun {
 		return
@@ -115,7 +129,7 @@ func (c *configurationVisitor) EnterOperationDefinition(ref int) {
 
 func (c *configurationVisitor) EnterSelectionSet(ref int) {
 	c.debugPrint("EnterSelectionSet ref:", ref)
-	c.currentSelectionSet = ref
+	c.selectionSetRefs = append(c.selectionSetRefs, ref)
 	c.parentTypeNodes = append(c.parentTypeNodes, c.walker.EnclosingTypeDefinition)
 
 	// When selection is the inline fragment
@@ -150,7 +164,7 @@ func (c *configurationVisitor) EnterSelectionSet(ref int) {
 func (c *configurationVisitor) LeaveSelectionSet(ref int) {
 	c.debugPrint("LeaveSelectionSet ref:", ref)
 	c.processPendingRequiredFields(ref)
-	c.currentSelectionSet = ast.InvalidRef
+	c.selectionSetRefs = c.selectionSetRefs[:len(c.selectionSetRefs)-1]
 	c.parentTypeNodes = c.parentTypeNodes[:len(c.parentTypeNodes)-1]
 }
 
@@ -499,14 +513,16 @@ func (c *configurationVisitor) planRequiredFields(currentPath string, typeName s
 func (c *configurationVisitor) planAddingRequiredFields(currentPath string, fieldConfiguration RequiredFieldsConfiguration) {
 	key := currentPath + "." + fieldConfiguration.SelectionSet
 
-	configs, hasSelectionSet := c.pendingTypeConfigurations[c.currentSelectionSet]
+	currentSelectionSet := c.currentSelectionSet()
+
+	configs, hasSelectionSet := c.pendingTypeConfigurations[currentSelectionSet]
 	if !hasSelectionSet {
 		configs = make(map[string]string)
 	}
 
 	if _, exists := configs[key]; !exists {
 		configs[key] = fieldConfiguration.SelectionSet
-		c.pendingTypeConfigurations[c.currentSelectionSet] = configs
+		c.pendingTypeConfigurations[currentSelectionSet] = configs
 	}
 }
 
