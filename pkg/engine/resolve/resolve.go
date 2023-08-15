@@ -587,7 +587,6 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	}
 
 	completed := make(chan bool)
-
 	err = subscription.Trigger.Source.Start(c, subscriptionInput, next, completed)
 	if err != nil {
 		if errors.Is(err, ErrUnableToResolve) {

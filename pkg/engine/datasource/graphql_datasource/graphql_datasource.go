@@ -326,6 +326,7 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 	input := httpclient.SetInputBodyWithPath(nil, p.upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
 	input = httpclient.SetInputURL(input, []byte(p.config.Subscription.URL))
+
 	if p.config.Subscription.UseSSE {
 		input = httpclient.SetInputFlag(input, httpclient.USESSE)
 		if p.config.Subscription.SSEMethodPost {
