@@ -72,31 +72,6 @@ func (f FieldConfigurations) ForTypeField(typeName, fieldName string) *FieldConf
 	return nil
 }
 
-func (f FieldConfigurations) ForType(typeName string) (*FieldConfiguration, int) {
-	for i := range f {
-		if f[i].TypeName == typeName {
-			return &f[i], i
-		}
-	}
-	return nil, -1
-}
-
-// deprecated: should be no longer be used
-func (f FieldConfigurations) IsKey(typeName, fieldName string) bool {
-	for i := range f {
-		if f[i].TypeName != typeName {
-			continue
-		}
-
-		for j := range f[i].RequiresFields {
-			if f[i].RequiresFields[j] == fieldName {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 type FieldConfiguration struct {
 	TypeName  string
 	FieldName string
