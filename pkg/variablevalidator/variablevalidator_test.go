@@ -12,14 +12,28 @@ import (
 )
 
 const testDefinition = `
+input StringQueryInput{
+    eq: String
+    contains: String
+    nested: StringQueryInput
+}
+
 input CustomInput {
     requiredField: String!
     optionalField: String
+	query: StringQueryInput
+	arrayField: [String!]
+}
+
+input QueryInput{
+    name: StringQueryInput
+    tag: StringQueryInput
 }
 
 type Query{
     simpleQuery(code: ID): String
     inputOfInt(code: Int!): String
+    queryUsingStringQuery(in: QueryInput!): String
 }
 
 type Mutation {
@@ -27,6 +41,11 @@ type Mutation {
 }`
 
 const (
+	testStringQuery = `
+query main($in: QueryInput!){
+    queryUsingStringQuery(in: $in)
+}`
+
 	testQuery = `
 query testQuery($code: ID!){
   simpleQuery(code: $code)
@@ -45,12 +64,12 @@ query testQuery($code: Int!){
 }
 `
 
-	customInputMutation = `
+	testCustomInputMutation = `
 mutation testMutation($in: CustomInput!){
 	customInputNonNull(in: $in)
 }`
 
-	customMultipleOperation = `
+	testCustomMultipleOperation = `
 query testQuery($code: ID!){
   simpleQuery(code: $code)
 }
@@ -93,18 +112,24 @@ func TestVariableValidator(t *testing.T) {
 		},
 		{
 			name:          "nested input variable",
-			operation:     customInputMutation,
+			operation:     testCustomInputMutation,
 			variables:     `{"in":{"optionalField":"test"}}`,
 			expectedError: `Validation for variable "in" failed: missing properties: 'requiredField'`,
 		},
 		{
+			name:          "invalid variable type",
+			operation:     testCustomInputMutation,
+			variables:     `{"in":{"query":{"eq":2}, "requiredField": "test"}}`,
+			expectedError: `Validation for variable "in" failed: field query.eq, expected string or null, but got number`,
+		},
+		{
 			name:      "multiple operation should validate first operation",
-			operation: customMultipleOperation,
+			operation: testCustomMultipleOperation,
 			variables: `{"code":"NG"}`,
 		},
 		{
 			name:          "multiple operation should validate operation name",
-			operation:     customMultipleOperation,
+			operation:     testCustomMultipleOperation,
 			operationName: "testMutation",
 			variables:     `{"in":{"requiredField":"test"}}`,
 		},
@@ -118,6 +143,24 @@ func TestVariableValidator(t *testing.T) {
 			name:      "invalid variable json non null input",
 			operation: testQueryNonNullInput,
 			variables: `"\n            {\"code\":{\"code\":{\"in\":[\"PL\",\"UA\"],\"extra\":\"koza\"}}}\n        "`,
+		},
+		{
+			name:          "should use $refs",
+			operation:     testStringQuery,
+			variables:     `{"in":{"name":{"eq":1}}}`,
+			expectedError: `Validation for variable "in" failed: field name.eq, expected string or null, but got number`,
+		},
+		{
+			name:          "array type",
+			operation:     testCustomInputMutation,
+			variables:     `{"in":{"requiredField":"test","arrayField":{"value":1}}}`,
+			expectedError: `Validation for variable "in" failed: field arrayField, expected array or null, but got object`,
+		},
+		{
+			name:          "deeply nested field",
+			operation:     testStringQuery,
+			variables:     `{"in":{"name":{"nested":{"eq":1}}}}`,
+			expectedError: `Validation for variable "in" failed: field name.nested.eq, expected string or null, but got number`,
 		},
 	}
 	for _, c := range testCases {

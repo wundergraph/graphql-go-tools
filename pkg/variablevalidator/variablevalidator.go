@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/buger/jsonparser"
 	"github.com/santhosh-tekuri/jsonschema/v5"
@@ -89,13 +90,29 @@ func (v *validatorVisitor) EnterVariableDefinition(ref int) {
 	if err := schemaValidator.Validate(context.Background(), variable); err != nil {
 		message := err.Error()
 		var validationErr *jsonschema.ValidationError
-		if errors.As(err, &validationErr) && len(validationErr.Causes) > 0 {
-			message = validationErr.Causes[0].Message
+		if errors.As(err, &validationErr) {
+			message = extractErrorMessageFromValidationError(validationErr).Error()
 		}
 
 		v.StopWithExternalErr(operationreport.ErrVariableValidationFailed(variableName, message, v.operation.VariableDefinitions[ref].VariableValue.Position))
 		return
 	}
+}
+
+// extractErrorMessageFromValidationError recursively extracts the first validation error in validationError
+// it also extracts the location of the error if an InstanceLocation exists
+func extractErrorMessageFromValidationError(validationError *jsonschema.ValidationError) error {
+	if len(validationError.Causes) > 0 {
+		return extractErrorMessageFromValidationError(validationError.Causes[0])
+	}
+	var builder strings.Builder
+	if validationError.InstanceLocation != "" {
+		location := strings.Trim(validationError.InstanceLocation, "/")
+		location = strings.ReplaceAll(location, "/", ".")
+		builder.WriteString(fmt.Sprintf("field %s, ", location))
+	}
+	builder.WriteString(validationError.Message)
+	return errors.New(builder.String())
 }
 
 func (v *validatorVisitor) EnterOperationDefinition(ref int) {
