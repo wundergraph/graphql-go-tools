@@ -13,7 +13,14 @@ type Processor struct {
 }
 
 func (p *Processor) AddPostProcessor(pr PostProcessor) {
+	if p.postProcessors == nil {
+		p.postProcessors = make([]PostProcessor, 0)
+	}
 	p.postProcessors = append([]PostProcessor{pr}, p.postProcessors...)
+}
+
+func (p *Processor) Count() int {
+	return len(p.postProcessors)
 }
 
 func DefaultProcessor() *Processor {

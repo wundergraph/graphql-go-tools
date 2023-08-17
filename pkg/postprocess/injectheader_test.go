@@ -1,10 +1,12 @@
 package postprocess
 
 import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/plan"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
-	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestProcessInjectHeader_Process(t *testing.T) {
@@ -123,11 +125,11 @@ func TestProcessInjectHeader_Process(t *testing.T) {
 		},
 	}
 
-	processor := &ProcessInjectHeader{
-		header: map[string][]string{
+	processor := NewProcessInjectHeader(
+		map[string][]string{
 			"X-Tyk-Custom": {"hello"},
 		},
-	}
+	)
 	actual := processor.Process(pre)
 
 	assert.Equal(t, expected, actual)
@@ -158,9 +160,9 @@ func TestProcessInjectHeader_injectHeader(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			processor := &ProcessInjectHeader{header: map[string][]string{
+			processor := NewProcessInjectHeader(map[string][]string{
 				"custom": {"hello"},
-			}}
+			})
 			gotten := processor.injectHeader(test.in)
 			assert.Equal(t, test.expected, gotten)
 		})

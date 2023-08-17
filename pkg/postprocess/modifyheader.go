@@ -9,22 +9,30 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/plan"
 )
 
-type ProcessInjectHeader struct {
-	header              http.Header
+type HeaderModifier func(header http.Header)
+
+type ProcessModifyHeader struct {
+	headerModifier      HeaderModifier
 	fetchInputProcessor *ProcessFetchInput
 }
 
-func NewProcessInjectHeader(header http.Header) *ProcessInjectHeader {
-	p := &ProcessInjectHeader{header: header}
-	p.fetchInputProcessor = NewProcessFetchInput(p.injectHeader)
+func NewProcessModifyHeader(headerModifier HeaderModifier) *ProcessModifyHeader {
+	p := &ProcessModifyHeader{
+		headerModifier: headerModifier,
+	}
+	p.fetchInputProcessor = NewProcessFetchInput(p.modifyHeader)
 	return p
 }
 
-func (p *ProcessInjectHeader) Process(pre plan.Plan) plan.Plan {
+func (p *ProcessModifyHeader) Process(pre plan.Plan) plan.Plan {
 	return p.fetchInputProcessor.Process(pre)
 }
 
-func (p *ProcessInjectHeader) injectHeader(input []byte) string {
+func (p *ProcessModifyHeader) modifyHeader(input []byte) string {
+	if p.headerModifier == nil {
+		return string(input)
+	}
+
 	var header http.Header
 	val, valType, _, err := jsonparser.Get(input, "header")
 	if err != nil && valType != jsonparser.NotExist {
@@ -33,18 +41,17 @@ func (p *ProcessInjectHeader) injectHeader(input []byte) string {
 
 	switch valType {
 	case jsonparser.NotExist:
-		header = p.header
+		header = make(http.Header)
 	case jsonparser.Object:
 		err := json.Unmarshal(val, &header)
 		if err != nil {
 			return string(input)
 		}
-		for key, val := range p.header {
-			header[key] = val
-		}
 	default:
 		return string(input)
 	}
+
+	p.headerModifier(header)
 
 	m, err := json.Marshal(header)
 	if err != nil {

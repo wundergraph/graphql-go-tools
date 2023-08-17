@@ -11,13 +11,13 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasource/introspection_datasource"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jensneuse/abstractlogger"
 
 	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/astprinter"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasource/httpclient"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasource/introspection_datasource"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/plan"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
@@ -196,6 +196,15 @@ func WithAdditionalHttpHeaders(headers http.Header, excludeByKeys ...string) Exe
 				resolveContext.Request.Header.Add(headerKey, headerValue)
 			}
 		}
+	}
+}
+
+func WithHeaderModifier(modifier postprocess.HeaderModifier) ExecutionOptionsV2 {
+	return func(postProcessor *postprocess.Processor, resolveContext *resolve.Context) {
+		if modifier == nil {
+			return
+		}
+		postProcessor.AddPostProcessor(postprocess.NewProcessModifyHeader(modifier))
 	}
 }
 

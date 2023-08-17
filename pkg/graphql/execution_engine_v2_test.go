@@ -25,6 +25,7 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/plan"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/postprocess"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/starwars"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/testing/federationtesting"
 	accounts "github.com/TykTechnologies/graphql-go-tools/pkg/testing/federationtesting/accounts/graph"
@@ -140,6 +141,32 @@ func TestWithAdditionalHttpHeaders(t *testing.T) {
 			http.CanonicalHeaderKey("X-Other-Key"): []string{"x-other-value"},
 		}
 		assert.Equal(t, expectedHeaders, internalExecutionCtx.resolveContext.Request.Header)
+	})
+}
+
+func TestWithHeaderModifier(t *testing.T) {
+	headerModifier := func(header http.Header) {
+		for headerKey, headerValue := range header {
+			header[headerKey] = []string{fmt.Sprintf("%s modified", headerValue[0])}
+		}
+	}
+
+	t.Run("should add modify header postprocess", func(t *testing.T) {
+		processor := &postprocess.Processor{}
+		require.Equal(t, 0, processor.Count())
+
+		optionFunc := WithHeaderModifier(headerModifier)
+		optionFunc(processor, nil)
+		assert.Equal(t, 1, processor.Count())
+	})
+
+	t.Run("should not touch post processor if no modifier is provided", func(t *testing.T) {
+		processor := &postprocess.Processor{}
+		require.Equal(t, 0, processor.Count())
+
+		optionFunc := WithHeaderModifier(nil)
+		optionFunc(processor, nil)
+		assert.Equal(t, 0, processor.Count())
 	})
 }
 
