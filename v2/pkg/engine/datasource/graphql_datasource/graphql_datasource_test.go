@@ -357,6 +357,126 @@ func TestGraphQLDataSource(t *testing.T) {
 		DisableResolveFieldPositions: true,
 	}))
 
+	t.Run("selections on interface type with on type condition", RunTest(
+		`
+		type Query {
+		  thing: Thing
+		}
+		
+		type Thing {
+		  id: String!
+		  abstractThing: AbstractThing
+		}
+		
+		interface AbstractThing {
+		  name: String
+		}
+		
+		type ConcreteOne implements AbstractThing {
+		  name: String
+		}
+		
+		type ConcreteTwo implements AbstractThing {
+		  name: String
+		}
+		`, `
+		{
+		  thing {
+			id
+			abstractThing {
+			  ... on ConcreteOne {
+				name
+			  }
+			}
+		  }
+		}`,
+		"", &plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						DataSource:            &Source{},
+						BufferId:              0,
+						Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{thing {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
+						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					},
+					Fields: []*resolve.Field{
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("thing"),
+							Value: &resolve.Object{
+								Path:     []string{"thing"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("id"),
+										Value: &resolve.String{
+											Path: []string{"id"},
+										},
+									},
+									{
+										Name: []byte("abstractThing"),
+										Value: &resolve.Object{
+											Path:     []string{"abstractThing"},
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Nullable: true,
+														Path:     []string{"name"},
+													},
+													OnTypeNames: [][]byte{[]byte("ConcreteOne")},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, plan.Configuration{
+			DataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"thing"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Thing",
+							FieldNames: []string{"id", "abstractThing"},
+						},
+						{
+							TypeName:   "AbstractThing",
+							FieldNames: []string{"name"},
+						},
+						{
+							TypeName:   "ConcreteOne",
+							FieldNames: []string{"name"},
+						},
+						{
+							TypeName:   "ConcreteTwo",
+							FieldNames: []string{"name"},
+						},
+					},
+					Factory: &Factory{},
+					Custom: ConfigJson(Configuration{
+						Fetch: FetchConfiguration{
+							URL: "https://swapi.com/graphql",
+						},
+					}),
+				},
+			},
+			Fields:                       []plan.FieldConfiguration{},
+			DisableResolveFieldPositions: true,
+		}))
+
 	t.Run("skip directive with variable", RunTest(interfaceSelectionSchema, `
 		query MyQuery ($skip: Boolean!) {
 			user {

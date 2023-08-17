@@ -1273,7 +1273,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			}, Context{ctx: context.Background()},
-			`{"pets":[{"name":"Woofie"}]}`
+			`{"pets":[{"name":"Woofie"},{}]}`
 	}))
 	t.Run("non null object with field condition can be null", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -1301,7 +1301,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			}, Context{ctx: context.Background()},
-			`{}`
+			`{"cat":{}}`
 	}))
 	t.Run("object with multiple type conditions", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -1403,7 +1403,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			}, Context{ctx: context.Background()},
-			`{"pets":[{"name":"Woofie"}]}`
+			`{"pets":[{"name":"Woofie"},{}]}`
 	}))
 
 	t.Run("resolve fieldsets based on __typename when field is Nullable", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
@@ -1487,7 +1487,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			}, Context{ctx: context.Background()},
-			`{"pets":[{"name":"Woofie"}]}`
+			`{"pets":[{"name":"Woofie"},{}]}`
 	}))
 	t.Run("parent object variables", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -2442,6 +2442,136 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"data":{"nullableField":null}}`
 	}))
+
+	t.Run("interface response", func(t *testing.T) {
+		t.Run("fields nullable", func(t *testing.T) {
+			obj := func(fakeData string) *GraphQLResponse {
+				return &GraphQLResponse{
+					Data: &Object{
+						Fetch: &SingleFetch{
+							DataSource:            FakeDataSource(fakeData),
+							BufferId:              0,
+							Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{thing {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
+							DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+							ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
+						},
+						Fields: []*Field{
+							{
+								HasBuffer: true,
+								BufferID:  0,
+								Name:      []byte("thing"),
+								Value: &Object{
+									Path:     []string{"thing"},
+									Nullable: true,
+									Fields: []*Field{
+										{
+											Name: []byte("id"),
+											Value: &String{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("abstractThing"),
+											Value: &Object{
+												Path:     []string{"abstractThing"},
+												Nullable: true,
+												Fields: []*Field{
+													{
+														Name: []byte("name"),
+														Value: &String{
+															Nullable: true,
+															Path:     []string{"name"},
+														},
+														OnTypeNames: [][]byte{[]byte("ConcreteOne")},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+			}
+
+			t.Run("interface response with matching type", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+				return obj(`{"data":{"thing":{"id":"1","abstractThing":{"__typename":"ConcreteOne","name":"foo"}}}}`),
+					Context{ctx: context.Background()},
+					`{"data":{"thing":{"id":"1","abstractThing":{"name":"foo"}}}}`
+			}))
+
+			t.Run("interface response with not matching type", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+				return obj(`{"data":{"thing":{"id":"1","abstractThing":{"__typename":"ConcreteTwo"}}}}`),
+					Context{ctx: context.Background()},
+					`{"data":{"thing":{"id":"1","abstractThing":{}}}}`
+			}))
+		})
+
+		t.Run("array of not nullable fields", func(t *testing.T) {
+			obj := func(fakeData string) *GraphQLResponse {
+				return &GraphQLResponse{
+					Data: &Object{
+						Fetch: &SingleFetch{
+							DataSource:            FakeDataSource(fakeData),
+							BufferId:              0,
+							Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{things {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
+							DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+							ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
+						},
+						Fields: []*Field{
+							{
+								HasBuffer: true,
+								BufferID:  0,
+								Name:      []byte("things"),
+								Value: &Array{
+									Path: []string{"things"},
+									Item: &Object{
+										Fields: []*Field{
+											{
+												Name: []byte("id"),
+												Value: &String{
+													Path: []string{"id"},
+												},
+											},
+											{
+												Name: []byte("abstractThing"),
+												Value: &Object{
+													Path: []string{"abstractThing"},
+													Fields: []*Field{
+														{
+															Name: []byte("name"),
+															Value: &String{
+																Path: []string{"name"},
+															},
+															OnTypeNames: [][]byte{[]byte("ConcreteOne")},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+			}
+
+			t.Run("interface response with matching type", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+				return obj(`{"data":{"things":[{"id":"1","abstractThing":{"__typename":"ConcreteOne","name":"foo"}}]}}`),
+					Context{ctx: context.Background()},
+					`{"data":{"things":[{"id":"1","abstractThing":{"name":"foo"}}]}}`
+			}))
+
+			t.Run("interface response with not matching type", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+				return obj(`{"data":{"things":[{"id":"1","abstractThing":{"__typename":"ConcreteTwo"}}]}}`),
+					Context{ctx: context.Background()},
+					`{"data":{"things":[{"id":"1","abstractThing":{}}]}}`
+			}))
+		})
+	})
+
 	t.Run("null field should bubble up to parent with error", testFnWithError(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{

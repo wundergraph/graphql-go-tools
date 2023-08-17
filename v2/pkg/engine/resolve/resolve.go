@@ -889,13 +889,13 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 	allSkipped := len(object.Fields) != 0 && len(object.Fields) == skipCount
 	if allSkipped {
 		// return empty object if all fields have been skipped
-		objectBuf.Data.WriteBytes(lBrace)
-		objectBuf.Data.WriteBytes(rBrace)
+		r.resolveEmptyObject(objectBuf.Data)
 		return
 	}
 	if first {
-		if typeNameSkip && !object.Nullable {
-			return errTypeNameSkipped
+		if typeNameSkip {
+			r.resolveEmptyObject(objectBuf.Data)
+			return
 		}
 		if !object.Nullable {
 			r.addResolveError(ctx, objectBuf)
