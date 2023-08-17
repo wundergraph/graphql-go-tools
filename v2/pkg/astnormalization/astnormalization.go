@@ -80,10 +80,18 @@ import (
 func NormalizeOperation(operation, definition *ast.Document, report *operationreport.Report) {
 	normalizer := NewNormalizer(false, false)
 	normalizer.NormalizeOperation(operation, definition, report)
+
+	// TODO: change to use NewWithOpts
+	// TODO: set a default name for the operation
 }
 
 func NormalizeNamedOperation(operation, definition *ast.Document, operationName []byte, report *operationreport.Report) {
-	normalizer := NewNormalizer(true, true)
+	normalizer := NewWithOpts(
+		WithExtractVariables(),
+		WithRemoveFragmentDefinitions(),
+		WithInlineFragmentSpreads(),
+		WithRemoveNotMatchingOperationDefinitions(),
+	)
 	normalizer.NormalizeNamedOperation(operation, definition, operationName, report)
 }
 
@@ -94,10 +102,11 @@ type walkerStage struct {
 
 // OperationNormalizer walks a given AST and applies all registered rules
 type OperationNormalizer struct {
-	operationWalkers     []walkerStage
-	variablesExtraction  *variablesExtractionVisitor
-	options              options
-	definitionNormalizer *DefinitionNormalizer
+	operationWalkers                  []walkerStage
+	variablesExtraction               *variablesExtractionVisitor
+	removeOperationDefinitionsVisitor *removeOperationDefinitionsVisitor
+	options                           options
+	definitionNormalizer              *DefinitionNormalizer
 }
 
 // NewNormalizer creates a new OperationNormalizer and sets up all default rules
@@ -132,11 +141,12 @@ func NewWithOpts(opts ...Option) *OperationNormalizer {
 }
 
 type options struct {
-	removeFragmentDefinitions bool
-	inlineFragmentSpreads     bool
-	extractVariables          bool
-	removeUnusedVariables     bool
-	normalizeDefinition       bool
+	removeFragmentDefinitions             bool
+	inlineFragmentSpreads                 bool
+	extractVariables                      bool
+	removeUnusedVariables                 bool
+	removeNotMatchingOperationDefinitions bool
+	normalizeDefinition                   bool
 }
 
 type Option func(options *options)
@@ -165,6 +175,12 @@ func WithRemoveUnusedVariables() Option {
 	}
 }
 
+func WithRemoveNotMatchingOperationDefinitions() Option {
+	return func(options *options) {
+		options.removeNotMatchingOperationDefinitions = true
+	}
+}
+
 func WithNormalizeDefinition() Option {
 	return func(options *options) {
 		options.normalizeDefinition = true
@@ -186,8 +202,13 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	directivesIncludeSkip := astvisitor.NewWalker(48)
 	inlineFragmentAddOnType(&directivesIncludeSkip)
 	directiveIncludeSkip(&directivesIncludeSkip)
+
+	if o.options.removeNotMatchingOperationDefinitions {
+		o.removeOperationDefinitionsVisitor = removeOperationDefinitions(&directivesIncludeSkip)
+	}
+
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
-		name:   "directivesIncludeSkip",
+		name:   "directivesIncludeSkip, removeOperationDefinitions",
 		walker: &directivesIncludeSkip,
 	})
 
@@ -274,6 +295,11 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 	if o.variablesExtraction != nil {
 		o.variablesExtraction.operationName = operationName
 	}
+
+	if o.removeOperationDefinitionsVisitor != nil {
+		o.removeOperationDefinitionsVisitor.operationName = operationName
+	}
+
 	for i := range o.operationWalkers {
 		o.operationWalkers[i].walker.Walk(operation, definition, report)
 		if report.HasErrors() {

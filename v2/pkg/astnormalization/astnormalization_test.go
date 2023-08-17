@@ -293,7 +293,7 @@ schema {
 }
 
 func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
-	t.Run("should properly remove fragments", func(t *testing.T) {
+	t.Run("should properly remove fragments and unmatched query", func(t *testing.T) {
 		schema := `
 			type Query {
 				items: Attributes
@@ -311,6 +311,11 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 
 		query := `
 			query Items {
+				items {
+					...AttributesFragment
+				}
+			}
+			query OtherItems {
 				items {
 					...AttributesFragment
 				}
@@ -351,8 +356,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		operation := unsafeparser.ParseGraphqlDocumentString(query)
 
 		report := operationreport.Report{}
-		normalizer := NewNormalizer(true, true)
-		normalizer.NormalizeNamedOperation(&operation, &definition, []byte("Items"), &report)
+		NormalizeNamedOperation(&operation, &definition, []byte("Items"), &report)
 		assert.False(t, report.HasErrors())
 
 		actual, _ := astprinter.PrintStringIndent(&operation, &definition, " ")
