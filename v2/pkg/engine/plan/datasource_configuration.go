@@ -17,11 +17,6 @@ type PlannerFactory interface {
 	Planner(ctx context.Context) DataSourcePlanner
 }
 
-type AlternativeTypeField struct {
-	TypeField
-	AncestorNode TypeField
-}
-
 type DataSourceConfiguration struct {
 	// RootNodes - defines the nodes where the responsibility of the DataSource begins
 	// When you enter a node, and it is not a child node
@@ -30,14 +25,15 @@ type DataSourceConfiguration struct {
 	// ChildNodes - describes additional fields which will be requested along with fields which has a datasources
 	// They are always required for the Graphql datasources cause each field could have its own datasource
 	// For any single point datasource like HTTP/REST or GRPC we could not request fewer fields, as we always get a full response
-	ChildNodes       TypeFields
-	AlternativeNodes []AlternativeTypeField
-	Directives       DirectiveConfigurations
-	Factory          PlannerFactory
-	Custom           json.RawMessage
+	ChildNodes TypeFields
+	Directives DirectiveConfigurations
+	Factory    PlannerFactory
+	Custom     json.RawMessage
 
+	// RequiredFields - describes fields which are required for the field or a type and field
 	RequiredFields                  RequiredFieldsConfigurations
 	RequiredFieldsFromParentPlanner RequiredFieldsConfigurations
+	ParentPath                      string
 }
 
 func (d *DataSourceConfiguration) HasRootNode(typeName, fieldName string) bool {
