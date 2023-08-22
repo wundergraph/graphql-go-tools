@@ -2168,14 +2168,16 @@ func newFederationEngine(ctx context.Context, setup *federationSetup, enableData
 				FieldNames: []string{"currency", "amount", "specialField2"},
 			},
 		},
-		RequiredFields: plan.RequiredFieldsConfigurations{
-			{
-				TypeName:     "User",
-				SelectionSet: "id",
-			},
-			{
-				TypeName:     "Product",
-				SelectionSet: "upc",
+		FederationMetaData: plan.FederationMetaData{
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Product",
+					SelectionSet: "upc",
+				},
 			},
 		},
 		Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
@@ -2213,10 +2215,12 @@ func newFederationEngine(ctx context.Context, setup *federationSetup, enableData
 				FieldNames: []string{"setPrice"},
 			},
 		},
-		RequiredFields: plan.RequiredFieldsConfigurations{
-			{
-				TypeName:     "Product",
-				SelectionSet: "upc",
+		FederationMetaData: plan.FederationMetaData{
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "upc",
+				},
 			},
 		},
 		Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
@@ -2287,14 +2291,16 @@ func newFederationEngine(ctx context.Context, setup *federationSetup, enableData
 				FieldNames: []string{"upc", "size"},
 			},
 		},
-		RequiredFields: plan.RequiredFieldsConfigurations{
-			{
-				TypeName:     "User",
-				SelectionSet: "id",
-			},
-			{
-				TypeName:     "Product",
-				SelectionSet: "upc",
+		FederationMetaData: plan.FederationMetaData{
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Product",
+					SelectionSet: "upc",
+				},
 			},
 		},
 		Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{

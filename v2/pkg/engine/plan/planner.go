@@ -103,7 +103,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 
 	for key := range p.planningVisitor.planners {
 		config := p.planningVisitor.planners[key].dataSourceConfiguration
-		config.ParentPath = p.planningVisitor.planners[key].parentPath
+		config.ParentInfo.Path = p.planningVisitor.planners[key].parentPath
 		isNested := p.planningVisitor.planners[key].isNestedPlanner()
 
 		if plannerWithId, ok := p.planningVisitor.planners[key].planner.(astvisitor.VisitorIdentifier); ok {
