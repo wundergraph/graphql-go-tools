@@ -104,6 +104,7 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []by
 func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) (variableWasUndefined bool, err error) {
 	value, valueType, offset, err := jsonparser.Get(ctx.Variables, segment.VariableSourcePath...)
 	if err != nil || valueType == jsonparser.Null {
+		undefined := false
 		if err == jsonparser.KeyPathNotFoundError {
 			preparedInput.WriteBytes(literal.NULL)
 			return true, nil
