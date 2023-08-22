@@ -30,10 +30,13 @@ type DataSourceConfiguration struct {
 	Factory    PlannerFactory
 	Custom     json.RawMessage
 
-	// RequiredFields - describes fields which are required for the field or a type and field
-	RequiredFields                  RequiredFieldsConfigurations
-	RequiredFieldsFromParentPlanner RequiredFieldsConfigurations
-	ParentPath                      string
+	FederationMetaData FederationMetaData
+	ParentInfo         DataSourceParentInfo
+}
+
+type DataSourceParentInfo struct {
+	RequiredFields FederationFieldConfigurations
+	Path           string
 }
 
 func (d *DataSourceConfiguration) HasRootNode(typeName, fieldName string) bool {
@@ -52,20 +55,20 @@ func (d *DataSourceConfiguration) HasChildNodeWithTypename(typeName string) bool
 	return d.ChildNodes.HasNodeWithTypename(typeName)
 }
 
-func (d *DataSourceConfiguration) HasRequirement(typeName, requiresFields string) bool {
-	return d.RequiredFields.HasRequirement(typeName, requiresFields)
+func (d *DataSourceConfiguration) HasKeyRequirement(typeName, requiresFields string) bool {
+	return d.FederationMetaData.Keys.HasSelectionSet(typeName, requiresFields)
 }
 
-func (d *DataSourceConfiguration) RequiredFieldsForType(typeName string) []RequiredFieldsConfiguration {
-	return d.RequiredFields.FilterByType(typeName)
+func (d *DataSourceConfiguration) RequiredFieldsByKey(typeName string) []FederationFieldConfiguration {
+	return d.FederationMetaData.Keys.FilterByType(typeName)
 }
 
-func (d *DataSourceConfiguration) RequiredFieldsForTypeAndField(typeName, fieldName string) []RequiredFieldsConfiguration {
-	return d.RequiredFields.FilterByTypeAndField(typeName, fieldName)
+func (d *DataSourceConfiguration) RequiredFieldsByRequires(typeName, fieldName string) []FederationFieldConfiguration {
+	return d.FederationMetaData.Requires.FilterByTypeAndField(typeName, fieldName)
 }
 
 func (d *DataSourceConfiguration) HasRequiredFieldsFromParentPlanner() bool {
-	return len(d.RequiredFieldsFromParentPlanner) > 0
+	return len(d.ParentInfo.RequiredFields) > 0
 }
 
 type DirectiveConfigurations []DirectiveConfiguration

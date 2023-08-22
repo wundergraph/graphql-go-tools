@@ -351,7 +351,7 @@ func (p *Planner) disallowParallelFetch() bool {
 		return false
 	}
 
-	for _, fieldConfig := range p.dataSourceConfig.RequiredFieldsFromParentPlanner {
+	for _, fieldConfig := range p.dataSourceConfig.ParentInfo.RequiredFields {
 		if fieldConfig.FieldName != "" {
 			// if there field name in field config representation variables includes fields from @requires directive
 			return true
@@ -637,7 +637,7 @@ func (p *Planner) allowField(ref int) bool {
 	// This is required to correctly plan on datasource which has corresponding child/root node,
 	// but we don't need to add it to the query as we are in the nested request
 	currentPath := fmt.Sprintf("%s.%s", p.visitor.Walker.Path.DotDelimitedString(), p.visitor.Operation.FieldNameString(ref))
-	if currentPath == p.dataSourceConfig.ParentPath && p.dataSourceConfig.ParentPath != "query" {
+	if p.dataSourceConfig.ParentInfo.Path != "query" && p.dataSourceConfig.ParentInfo.Path == currentPath {
 		return false
 	}
 
@@ -718,7 +718,7 @@ func (p *Planner) addRepresentationsVariable() {
 
 func (p *Planner) buildRepresentationsVariable() resolve.Variable {
 	variables := resolve.NewVariables()
-	for _, cfg := range p.dataSourceConfig.RequiredFieldsFromParentPlanner {
+	for _, cfg := range p.dataSourceConfig.ParentInfo.RequiredFields {
 		key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, false)
 		if report.HasErrors() {
 			p.visitor.Walker.StopWithInternalErr(report)
@@ -1246,7 +1246,7 @@ func (p *Planner) printQueryPlan(operation *ast.Document) {
 
 	if p.dataSourceConfig.HasRequiredFieldsFromParentPlanner() {
 		args = append(args, "Representations:\n")
-		for _, cfg := range p.dataSourceConfig.RequiredFieldsFromParentPlanner {
+		for _, cfg := range p.dataSourceConfig.ParentInfo.RequiredFields {
 			key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, true)
 			if report.HasErrors() {
 				continue

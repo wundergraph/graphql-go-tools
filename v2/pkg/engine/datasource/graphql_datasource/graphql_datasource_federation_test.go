@@ -130,18 +130,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 			}),
 			Factory: federationFactory,
-			RequiredFields: plan.RequiredFieldsConfigurations{
-				{
-					TypeName:     "User",
-					SelectionSet: "id",
-				},
-				{
-					TypeName:     "Account",
-					SelectionSet: "id info {a b}",
-				},
-				{
-					TypeName:     "Address",
-					SelectionSet: "id",
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Account",
+						SelectionSet: "id info {a b}",
+					},
+					{
+						TypeName:     "Address",
+						SelectionSet: "id",
+					},
 				},
 			},
 		}
@@ -211,21 +213,25 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 			}),
 			Factory: federationFactory,
-			RequiredFields: plan.RequiredFieldsConfigurations{
-				{
-					TypeName:     "Account",
-					FieldName:    "",
-					SelectionSet: "id info {a b}",
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Account",
+						FieldName:    "",
+						SelectionSet: "id info {a b}",
+					},
+					{
+						TypeName:     "Address",
+						FieldName:    "",
+						SelectionSet: "id",
+					},
 				},
-				{
-					TypeName:     "Address",
-					FieldName:    "",
-					SelectionSet: "id",
-				},
-				{
-					TypeName:     "Address",
-					FieldName:    "fullAddress",
-					SelectionSet: "line1 line2 line3(test:\"BOOM\") zip",
+				Requires: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Address",
+						FieldName:    "fullAddress",
+						SelectionSet: "line1 line2 line3(test:\"BOOM\") zip",
+					},
 				},
 			},
 		}
@@ -256,16 +262,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 			}),
 			Factory: federationFactory,
-			RequiredFields: plan.RequiredFieldsConfigurations{
-				{
-					TypeName:     "Address",
-					FieldName:    "",
-					SelectionSet: "id",
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Address",
+						FieldName:    "",
+						SelectionSet: "id",
+					},
 				},
-				{
-					TypeName:     "Address",
-					FieldName:    "zip",
-					SelectionSet: "country city",
+				Requires: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Address",
+						FieldName:    "zip",
+						SelectionSet: "country city",
+					},
 				},
 			},
 		}
@@ -294,11 +304,13 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 			}),
 			Factory: federationFactory,
-			RequiredFields: plan.RequiredFieldsConfigurations{
-				{
-					TypeName:     "Address",
-					FieldName:    "",
-					SelectionSet: "id",
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Address",
+						FieldName:    "",
+						SelectionSet: "id",
+					},
 				},
 			},
 		}
@@ -847,10 +859,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 			}),
 			Factory: federationFactory,
-			RequiredFields: plan.RequiredFieldsConfigurations{
-				{
-					TypeName:     "User",
-					SelectionSet: "id",
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
 				},
 			},
 		}
@@ -897,10 +911,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 			}),
 			Factory: federationFactory,
-			RequiredFields: plan.RequiredFieldsConfigurations{
-				{
-					TypeName:     "User",
-					SelectionSet: "id",
+			FederationMetaData: plan.FederationMetaData{
+				Requires: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
 				},
 			},
 		}
