@@ -25,13 +25,13 @@ require (
 	github.com/jensneuse/pipeline v0.0.0-20200117120358-9fb4de085cd6
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/nats-io/nats.go v1.19.1
-	github.com/ory/dockertest v3.3.5+incompatible
+	github.com/ory/dockertest/v3 v3.10.0
 	github.com/r3labs/sse/v2 v2.8.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.0
 	github.com/sebdah/goldie/v2 v2.5.3
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.3.2
-	github.com/stretchr/testify v1.7.1
+	github.com/stretchr/testify v1.8.0
 	github.com/tidwall/gjson v1.11.0
 	github.com/tidwall/sjson v1.0.4
 	github.com/vektah/gqlparser/v2 v2.5.1
@@ -51,8 +51,10 @@ require (
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/agnivade/levenshtein v1.1.1 // indirect
-	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
+	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/containerd/continuity v0.4.1 // indirect
+	github.com/docker/cli v20.10.17+incompatible // indirect
+	github.com/docker/docker v20.10.7+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/eapache/go-resiliency v1.2.0 // indirect
@@ -61,13 +63,14 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gobwas/httphead v0.0.0-20180130184737-2c6c146eadee // indirect
 	github.com/gobwas/pool v0.2.0 // indirect
+	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/snappy v0.0.3 // indirect
+	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.1.1 // indirect
-	github.com/gotestyourself/gotestyourself v2.2.0+incompatible // indirect
 	github.com/hashicorp/go-uuid v1.0.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/huandu/xstrings v1.2.1 // indirect
-	github.com/imdario/mergo v0.3.8 // indirect
+	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
 	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
@@ -75,7 +78,6 @@ require (
 	github.com/jcmturner/gokrb5/v8 v8.4.2 // indirect
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/klauspost/compress v1.14.4 // indirect
-	github.com/lib/pq v1.10.9 // indirect
 	github.com/logrusorgru/aurora/v3 v3.0.0 // indirect
 	github.com/magiconair/properties v1.8.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
@@ -83,6 +85,7 @@ require (
 	github.com/mitchellh/copystructure v1.0.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.0 // indirect
+	github.com/moby/term v0.0.0-20201216013528-df9cb8a40635 // indirect
 	github.com/nats-io/nats-server/v2 v2.8.2 // indirect
 	github.com/nats-io/nkeys v0.3.0 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
@@ -102,15 +105,17 @@ require (
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
+	github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f // indirect
+	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
+	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/crypto v0.10.0 // indirect
 	golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f // indirect
-	golang.org/x/mod v0.8.0 // indirect
+	golang.org/x/mod v0.9.0 // indirect
 	golang.org/x/net v0.11.0 // indirect
 	golang.org/x/sys v0.9.0 // indirect
 	golang.org/x/text v0.10.0 // indirect
-	golang.org/x/tools v0.6.0 // indirect
+	golang.org/x/tools v0.7.0 // indirect
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gotest.tools v2.2.0+incompatible // indirect
 )

@@ -14,8 +14,8 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/go-zookeeper/zk"
-	"github.com/ory/dockertest"
-	"github.com/ory/dockertest/docker"
+	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
