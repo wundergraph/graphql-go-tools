@@ -310,14 +310,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			addressesEnricherDatasourceConfiguration,
 		}
 
-		// shuffle dataSources to ensure that the order doesn't matter
-		rand.Seed(time.Now().UnixNano())
-		rand.Shuffle(len(dataSources), func(i, j int) {
-			dataSources[i], dataSources[j] = dataSources[j], dataSources[i]
-		})
-
 		planConfiguration := plan.Configuration{
-			DataSources:                  dataSources,
+			DataSources:                  shuffle(dataSources),
 			DisableResolveFieldPositions: true,
 			Debug: plan.DebugConfiguration{
 				PrintOperationWithRequiredFields: true,
@@ -793,4 +787,172 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			// }`
 		})
 	})
+
+	t.Run("shareable", func(t *testing.T) {
+		definition := `
+			type User @key(fields: "id") {
+				id: ID!
+				details: Details! @shareable
+			}
+
+			type Details {
+				forename: String!
+				surname: String!
+			}
+
+			type Query {
+				me: User
+			}
+		`
+
+		firstSubgraphSDL := `
+			type User @key(fields: "id") {
+				id: ID!
+				details: Details! @shareable
+			}
+
+			type Details {
+				forename: String!
+			}
+
+			type Query {
+				me: User
+			}
+		`
+
+		firstDatasourceConfiguration := plan.DataSourceConfiguration{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"me"},
+				},
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id", "details"},
+				},
+			},
+			ChildNodes: []plan.TypeField{
+				{
+					TypeName:   "Details",
+					FieldNames: []string{"forename"},
+				},
+			},
+			Custom: ConfigJson(Configuration{
+				Fetch: FetchConfiguration{
+					URL: "http://first.service",
+				},
+				Federation: FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: firstSubgraphSDL,
+				},
+			}),
+			Factory: federationFactory,
+			RequiredFields: plan.RequiredFieldsConfigurations{
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
+				},
+			},
+		}
+
+		secondSubgraphSDL := `
+			type User @key(fields: "id") {
+				id: ID!
+				details: Details! @shareable
+			}
+
+			type Details {
+				surname: String!
+			}
+
+			type Query {
+				me: User
+			}
+		`
+		secondDatasourceConfiguration := plan.DataSourceConfiguration{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"me"},
+				},
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id", "details"},
+				},
+			},
+			ChildNodes: []plan.TypeField{
+				{
+					TypeName:   "Details",
+					FieldNames: []string{"surname"},
+				},
+			},
+			Custom: ConfigJson(Configuration{
+				Fetch: FetchConfiguration{
+					URL: "http://second.service",
+				},
+				Federation: FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: secondSubgraphSDL,
+				},
+			}),
+			Factory: federationFactory,
+			RequiredFields: plan.RequiredFieldsConfigurations{
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
+				},
+			},
+		}
+
+		dataSources := []plan.DataSourceConfiguration{
+			firstDatasourceConfiguration,
+			secondDatasourceConfiguration,
+		}
+
+		planConfiguration := plan.Configuration{
+			DataSources:                  shuffle(dataSources),
+			DisableResolveFieldPositions: true,
+			Debug: plan.DebugConfiguration{
+				PrintOperationWithRequiredFields: true,
+				PrintPlanningPaths:               true,
+				PrintQueryPlans:                  true,
+				ConfigurationVisitor:             false,
+				PlanningVisitor:                  false,
+				DatasourceVisitor:                false,
+			},
+		}
+
+		t.Run("", func(t *testing.T) {
+
+			t.Run("basic", RunTest(
+				definition,
+				`
+				query basic {
+					me {
+						details {
+							forename
+							surname
+						}
+					}
+				}
+			`,
+				"basic",
+				&plan.SynchronousResponsePlan{
+					Response: &resolve.GraphQLResponse{},
+				},
+				planConfiguration,
+			))
+		})
+	})
+}
+
+// shuffle randomizes the order of the data sources
+// to ensure that the order doesn't matter
+func shuffle(dataSources []plan.DataSourceConfiguration) []plan.DataSourceConfiguration {
+	rand.Seed(time.Now().UnixNano())
+	rand.Shuffle(len(dataSources), func(i, j int) {
+		dataSources[i], dataSources[j] = dataSources[j], dataSources[i]
+	})
+
+	return dataSources
 }
