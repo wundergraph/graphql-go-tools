@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/cespare/xxhash/v2"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -32,6 +34,10 @@ type DataSourceConfiguration struct {
 
 	FederationMetaData FederationMetaData
 	ParentInfo         DataSourceParentInfo
+}
+
+func (d *DataSourceConfiguration) Hash() uint64 {
+	return xxhash.Sum64(d.Custom)
 }
 
 type DataSourceParentInfo struct {
