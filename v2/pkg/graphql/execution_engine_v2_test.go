@@ -2118,10 +2118,8 @@ func newFederationEngine(ctx context.Context, setup *federationSetup, enableData
 	accountsDataSource := plan.DataSourceConfiguration{
 		RootNodes: []plan.TypeField{
 			{
-				TypeName: "Query",
-				// TODO: conflicting paths is not supported yet
-				// FieldNames: []string{"me", "identifiable", "histories", "cat"},
-				FieldNames: []string{"identifiable", "histories", "cat"},
+				TypeName:   "Query",
+				FieldNames: []string{"me", "identifiable", "histories", "cat"},
 			},
 			{
 				TypeName:   "User",

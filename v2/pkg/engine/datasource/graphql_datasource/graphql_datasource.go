@@ -633,6 +633,14 @@ func (p *Planner) LeaveField(ref int) {
 // This is 3rd step of checks in addition to: planning path and skipFor functionality
 // if field is __typename, it is always allowed
 func (p *Planner) allowField(ref int) bool {
+	// In addition, we skip field if its path are equal to planner parent path
+	// This is required to correctly plan on datasource which has corresponding child/root node,
+	// but we don't need to add it to the query as we are in the nested request
+	currentPath := fmt.Sprintf("%s.%s", p.visitor.Walker.Path.DotDelimitedString(), p.visitor.Operation.FieldNameString(ref))
+	if currentPath == p.dataSourceConfig.ParentPath && p.dataSourceConfig.ParentPath != "query" {
+		return false
+	}
+
 	fieldName := p.visitor.Operation.FieldNameString(ref)
 
 	if fieldName == "__typename" {
@@ -790,7 +798,7 @@ func (p *Planner) isOnTypeInlineFragmentAllowed() bool {
 	}
 
 	fragmentInfo := onTypeInlineFragment{
-		TypeCondition: string(p.lastFieldEnclosingTypeName),
+		TypeCondition: p.lastFieldEnclosingTypeName,
 		SelectionSet:  p.nodes[len(p.nodes)-1].Ref,
 	}
 
