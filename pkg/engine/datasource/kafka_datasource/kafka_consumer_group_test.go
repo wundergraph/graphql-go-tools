@@ -2,7 +2,6 @@ package kafka_datasource
 
 import (
 	"context"
-	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
 	"sync"
 	"testing"
 	"time"
@@ -12,6 +11,8 @@ import (
 	log "github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
 )
 
 const defaultPartition = 0

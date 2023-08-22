@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
 	"os"
 	"sort"
 	"strconv"
@@ -18,6 +17,8 @@ import (
 	"github.com/ory/dockertest"
 	"github.com/ory/dockertest/docker"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
 )
 
 // Possible errors with dockertest setup:
