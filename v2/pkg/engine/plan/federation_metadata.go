@@ -48,6 +48,15 @@ func (f FederationFieldConfigurations) ForType(typeName string) (*FederationFiel
 	return nil, -1
 }
 
+func (f FederationFieldConfigurations) HasTypeAndField(typeName, fieldName string) bool {
+	for i := range f {
+		if f[i].TypeName == typeName && f[i].FieldName == fieldName {
+			return true
+		}
+	}
+	return false
+}
+
 func (f FederationFieldConfigurations) HasSelectionSet(typeName, selectionSet string) bool {
 	for i := range f {
 		if typeName != f[i].TypeName {
