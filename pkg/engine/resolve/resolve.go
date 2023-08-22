@@ -96,6 +96,8 @@ const (
 	NodeKindBoolean
 	NodeKindInteger
 	NodeKindFloat
+	NodeKindBigInt
+	NodeKindCustom
 
 	FetchKindSingle FetchKind = iota + 1
 	FetchKindParallel
@@ -427,12 +429,16 @@ func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *Bu
 		return r.resolveInteger(ctx, n, data, bufPair)
 	case *Float:
 		return r.resolveFloat(ctx, n, data, bufPair)
+	case *BigInt:
+		return r.resolveBigInt(ctx, n, data, bufPair)
 	case *EmptyObject:
 		r.resolveEmptyObject(bufPair.Data)
 		return
 	case *EmptyArray:
 		r.resolveEmptyArray(bufPair.Data)
 		return
+	case *CustomNode:
+		return r.resolveCustom(ctx, n, data, bufPair)
 	default:
 		return
 	}
@@ -494,17 +500,12 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	buf := r.getBufPair()
 	defer r.freeBufPair(buf)
 
-	responseBuf := r.getBufPair()
-	defer r.freeBufPair(responseBuf)
-
-	extractResponse(data, responseBuf, ProcessResponseConfig{ExtractGraphqlResponse: true})
-
 	if data != nil {
 		ctx.lastFetchID = initialValueID
 	}
 
 	if r.dataLoaderEnabled {
-		ctx.dataLoader = r.dataloaderFactory.newDataLoader(responseBuf.Data.Bytes())
+		ctx.dataLoader = r.dataloaderFactory.newDataLoader(data)
 		defer func() {
 			r.dataloaderFactory.freeDataLoader(ctx.dataLoader)
 			ctx.dataLoader = nil
@@ -512,15 +513,44 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	}
 
 	ignoreData := false
-	err = r.resolveNode(ctx, response.Data, responseBuf.Data.Bytes(), buf)
+	err = r.resolveNode(ctx, response.Data, data, buf)
 	if err != nil {
 		if !errors.Is(err, errNonNullableFieldValueIsNull) {
 			return
 		}
 		ignoreData = true
 	}
-	if responseBuf.Errors.Len() > 0 {
-		r.MergeBufPairErrors(responseBuf, buf)
+
+	return writeGraphqlResponse(buf, writer, ignoreData)
+}
+
+func (r *Resolver) resolveGraphQLSubscriptionResponse(ctx *Context, response *GraphQLResponse, subscriptionData *BufPair, writer io.Writer) (err error) {
+
+	buf := r.getBufPair()
+	defer r.freeBufPair(buf)
+
+	if subscriptionData.HasData() {
+		ctx.lastFetchID = initialValueID
+	}
+
+	if r.dataLoaderEnabled {
+		ctx.dataLoader = r.dataloaderFactory.newDataLoader(subscriptionData.Data.Bytes())
+		defer func() {
+			r.dataloaderFactory.freeDataLoader(ctx.dataLoader)
+			ctx.dataLoader = nil
+		}()
+	}
+
+	ignoreData := false
+	err = r.resolveNode(ctx, response.Data, subscriptionData.Data.Bytes(), buf)
+	if err != nil {
+		if !errors.Is(err, errNonNullableFieldValueIsNull) {
+			return
+		}
+		ignoreData = true
+	}
+	if subscriptionData.HasErrors() {
+		r.MergeBufPairErrors(subscriptionData, buf)
 	}
 
 	return writeGraphqlResponse(buf, writer, ignoreData)
@@ -566,6 +596,9 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return err
 	}
 
+	responseBuf := r.getBufPair()
+	defer r.freeBufPair(responseBuf)
+
 	for {
 		select {
 		case <-resolverDone:
@@ -575,7 +608,9 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 			if !ok {
 				return nil
 			}
-			err = r.ResolveGraphQLResponse(ctx, subscription.Response, data, writer)
+			responseBuf.Reset()
+			extractResponse(data, responseBuf, subscription.Trigger.ProcessResponseConfig)
+			err = r.resolveGraphQLSubscriptionResponse(ctx, subscription.Response, responseBuf, writer)
 			if err != nil {
 				return err
 			}
@@ -921,6 +956,42 @@ func (r *Resolver) resolveFloat(ctx *Context, floatValue *Float, data []byte, fl
 	}
 	floatBuf.Data.WriteBytes(value)
 	r.exportField(ctx, floatValue.Export, value)
+	return nil
+}
+
+func (r *Resolver) resolveBigInt(ctx *Context, bigIntValue *BigInt, data []byte, bigIntBuf *BufPair) error {
+	value, valueType, _, err := jsonparser.Get(data, bigIntValue.Path...)
+	switch {
+	case err != nil, valueType == jsonparser.Null:
+		if !bigIntValue.Nullable {
+			return errNonNullableFieldValueIsNull
+		}
+		r.resolveNull(bigIntBuf.Data)
+		return nil
+	case valueType == jsonparser.Number:
+		bigIntBuf.Data.WriteBytes(value)
+	case valueType == jsonparser.String:
+		bigIntBuf.Data.WriteBytes(quote)
+		bigIntBuf.Data.WriteBytes(value)
+		bigIntBuf.Data.WriteBytes(quote)
+	default:
+		return fmt.Errorf("invalid value type '%s' for path %s, expecting number or string, got: %v", valueType, string(ctx.path()), string(value))
+
+	}
+	r.exportField(ctx, bigIntValue.Export, value)
+	return nil
+}
+
+func (r *Resolver) resolveCustom(ctx *Context, customValue *CustomNode, data []byte, customBuf *BufPair) error {
+	value, dataType, _, _ := jsonparser.Get(data, customValue.Path...)
+	if dataType == jsonparser.Null && !customValue.Nullable {
+		return errNonNullableFieldValueIsNull
+	}
+	resolvedValue, err := customValue.Resolve(value)
+	if err != nil {
+		return fmt.Errorf("failed to resolve value type %s for path %s via custom resolver", dataType, string(ctx.path()))
+	}
+	customBuf.Data.WriteBytes(resolvedValue)
 	return nil
 }
 
@@ -1497,6 +1568,20 @@ func (_ *String) NodeKind() NodeKind {
 	return NodeKindString
 }
 
+type CustomResolve interface {
+	Resolve(value []byte) ([]byte, error)
+}
+
+type CustomNode struct {
+	CustomResolve
+	Nullable bool
+	Path     []string
+}
+
+func (_ *CustomNode) NodeKind() NodeKind {
+	return NodeKindCustom
+}
+
 type Boolean struct {
 	Path     []string
 	Nullable bool
@@ -1527,6 +1612,16 @@ func (_ *Integer) NodeKind() NodeKind {
 	return NodeKindInteger
 }
 
+type BigInt struct {
+	Path     []string
+	Nullable bool
+	Export   *FieldExport `json:"export,omitempty"`
+}
+
+func (BigInt) NodeKind() NodeKind {
+	return NodeKindBigInt
+}
+
 type Array struct {
 	Path                []string
 	Nullable            bool
@@ -1551,10 +1646,11 @@ type GraphQLSubscription struct {
 }
 
 type GraphQLSubscriptionTrigger struct {
-	Input         []byte
-	InputTemplate InputTemplate
-	Variables     Variables
-	Source        SubscriptionDataSource
+	Input                 []byte
+	InputTemplate         InputTemplate
+	Variables             Variables
+	Source                SubscriptionDataSource
+	ProcessResponseConfig ProcessResponseConfig
 }
 
 type FlushWriter interface {

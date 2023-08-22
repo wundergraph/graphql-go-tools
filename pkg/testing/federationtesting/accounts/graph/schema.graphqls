@@ -2,6 +2,11 @@ extend type Query {
     me: User
     identifiable: Identifiable
     histories: [History]
+    cat: Cat
+}
+
+type Cat {
+    name: String!
 }
 
 interface Identifiable {
@@ -12,6 +17,7 @@ type User implements Identifiable @key(fields: "id")  {
     id: ID!
     username: String!
     history: [History!]!
+    realName: String!
 }
 
 extend type Product @key(fields: "upc") {

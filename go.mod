@@ -41,6 +41,7 @@ require (
 	github.com/r3labs/sse/v2 v2.8.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.0
 	github.com/sebdah/goldie v0.0.0-20180424091453-8784dd1ab561
+	github.com/sebdah/goldie/v2 v2.5.3
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.3.2
 	github.com/stretchr/testify v1.8.1

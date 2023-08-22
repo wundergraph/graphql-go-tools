@@ -490,3 +490,10 @@ func ErrExtensionWithKeyDirectiveMustExtendEntity(typeName string) (err External
 	err.Message = fmt.Sprintf("the extension named '%s' has a key directive but there is no entity of the same name", typeName)
 	return err
 }
+
+func ErrDuplicateFieldsMustBeIdentical(fieldName, parentName, typeOne, typeTwo string) (err ExternalError) {
+	err.Message = fmt.Sprintf("field '%s' on type '%s' is defined in multiple subgraphs "+
+		"but the fields cannot be merged because the types of the fields are non-identical:\n"+
+		"first subgraph: type '%s'\n second subgraph: type '%s'", fieldName, parentName, typeOne, typeTwo)
+	return err
+}

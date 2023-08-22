@@ -3675,6 +3675,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Source: &SubscriptionSource{
 					NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
 				},
+				ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 			},
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -3713,6 +3714,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Source: &SubscriptionSource{
 					client: NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
 				},
+				ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 			},
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{

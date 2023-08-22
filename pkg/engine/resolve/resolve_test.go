@@ -5,6 +5,7 @@ package resolve
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -108,6 +109,18 @@ func newResolver(ctx context.Context, enableSingleFlight bool, enableDataLoader 
 	return New(ctx, NewFetcher(enableSingleFlight), enableDataLoader)
 }
 
+type customResolver struct{}
+
+func (customResolver) Resolve(value []byte) ([]byte, error) {
+	return value, nil
+}
+
+type customErrResolve struct{}
+
+func (customErrResolve) Resolve(value []byte) ([]byte, error) {
+	return nil, errors.New("custom error")
+}
+
 func TestResolver_ResolveNode(t *testing.T) {
 	testFn := func(enableSingleFlight bool, enableDataLoader bool, fn func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string)) func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -156,6 +169,43 @@ func TestResolver_ResolveNode(t *testing.T) {
 	}))
 	t.Run("empty object", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &EmptyObject{}, Context{ctx: context.Background()}, `{}`
+	}))
+	t.Run("BigInt", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"n": 12345, "ns_small": "12346", "ns_big": "1152921504606846976"`),
+			},
+			Fields: []*Field{
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("n"),
+					Value: &BigInt{
+						Path:     []string{"n"},
+						Nullable: false,
+					},
+				},
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("ns_small"),
+					Value: &BigInt{
+						Path:     []string{"ns_small"},
+						Nullable: false,
+					},
+				},
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("ns_big"),
+					Value: &BigInt{
+						Path:     []string{"ns_big"},
+						Nullable: false,
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"n":12345,"ns_small":"12346","ns_big":"1152921504606846976"}`
 	}))
 	t.Run("object with null field", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -1883,6 +1933,65 @@ func TestResolver_ResolveNode(t *testing.T) {
 			}))
 		})
 	})
+
+	t.Run("custom", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"id": "1"}`),
+			},
+			Fields: []*Field{
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("id"),
+					Value: &CustomNode{
+						CustomResolve: customResolver{},
+						Path:          []string{"id"},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"id":1}`
+	}))
+	t.Run("custom nullable", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"id": null}`),
+			},
+			Fields: []*Field{
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("id"),
+					Value: &CustomNode{
+						CustomResolve: customErrResolve{},
+						Path:          []string{"id"},
+						Nullable:      false,
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, errNonNullableFieldValueIsNull.Error()
+	}))
+	t.Run("custom error", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"id": "1"}`),
+			},
+			Fields: []*Field{
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("id"),
+					Value: &CustomNode{
+						CustomResolve: customErrResolve{},
+						Path:          []string{"id"},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `failed to resolve value type string for path /data/id via custom resolver`
+	}))
 }
 
 func TestResolver_WithHooks(t *testing.T) {
@@ -1991,6 +2100,7 @@ func TestResolver_WithHooks(t *testing.T) {
 			},
 		}, Context{ctx: context.Background(), beforeFetchHook: beforeFetch, afterFetchHook: afterFetch}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
 	}))
+
 }
 
 func TestResolver_ResolveGraphQLResponse(t *testing.T) {
@@ -4093,7 +4203,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	setup := func(ctx context.Context, stream SubscriptionDataSource) (*Resolver, *GraphQLSubscription, *TestFlushWriter) {
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
-				Source: stream,
+				Source:                stream,
+				ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
 			},
 			Response: &GraphQLResponse{
 				Data: &Object{

@@ -36,6 +36,7 @@ type Configuration struct {
 	// This setting removes position information from all fields
 	// In production, this should be set to false so that error messages are easier to understand
 	DisableResolveFieldPositions bool
+	CustomResolveMap             map[string]resolve.CustomResolve
 }
 
 type DirectiveConfigurations []DirectiveConfiguration
@@ -731,6 +732,13 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 		}
 	case ast.TypeKindNamed:
 		typeName := v.Definition.ResolveTypeNameString(typeRef)
+		customResolve, ok := v.Config.CustomResolveMap[typeName]
+		if ok {
+			return &resolve.CustomNode{
+				CustomResolve: customResolve,
+				Path:          path,
+			}
+		}
 		typeDefinitionNode, ok := v.Definition.Index.FirstNodeByNameStr(typeName)
 		if !ok {
 			return &resolve.Null{}
@@ -760,6 +768,12 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 				}
 			case "Float":
 				return &resolve.Float{
+					Path:     path,
+					Nullable: nullable,
+					Export:   fieldExport,
+				}
+			case "BigInt":
+				return &resolve.BigInt{
 					Path:     path,
 					Nullable: nullable,
 					Export:   fieldExport,
@@ -1198,6 +1212,7 @@ func (v *Visitor) configureSubscription(config objectFetchConfiguration) {
 	subscription := config.planner.ConfigureSubscription()
 	config.trigger.Variables = subscription.Variables
 	config.trigger.Source = subscription.DataSource
+	config.trigger.ProcessResponseConfig = subscription.ProcessResponseConfig
 	v.resolveInputTemplates(config, &subscription.Input, &config.trigger.Variables)
 	config.trigger.Input = []byte(subscription.Input)
 }
@@ -1379,9 +1394,10 @@ type DataSourcePlanner interface {
 }
 
 type SubscriptionConfiguration struct {
-	Input      string
-	Variables  resolve.Variables
-	DataSource resolve.SubscriptionDataSource
+	Input                 string
+	Variables             resolve.Variables
+	DataSource            resolve.SubscriptionDataSource
+	ProcessResponseConfig resolve.ProcessResponseConfig
 }
 
 type FetchConfiguration struct {

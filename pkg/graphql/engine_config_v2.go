@@ -41,6 +41,10 @@ type dataLoaderConfig struct {
 	EnableDataLoader         bool
 }
 
+func (e *EngineV2Configuration) SetCustomResolveMap(customResolveMap map[string]resolve.CustomResolve) {
+	e.plannerConfig.CustomResolveMap = customResolveMap
+}
+
 func (e *EngineV2Configuration) AddDataSource(dataSource plan.DataSourceConfiguration) {
 	e.plannerConfig.DataSources = append(e.plannerConfig.DataSources, dataSource)
 }

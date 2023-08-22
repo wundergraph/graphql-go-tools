@@ -17,9 +17,16 @@ type federationEngineConfigFactoryOptions struct {
 	streamingClient           *http.Client
 	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
 	subscriptionType          SubscriptionType
+	customResolveMap          map[string]resolve.CustomResolve
 }
 
 type FederationEngineConfigFactoryOption func(options *federationEngineConfigFactoryOptions)
+
+func WithCustomResolveMap(customResolveMap map[string]resolve.CustomResolve) FederationEngineConfigFactoryOption {
+	return func(options *federationEngineConfigFactoryOptions) {
+		options.customResolveMap = customResolveMap
+	}
+}
 
 func WithFederationHttpClient(client *http.Client) FederationEngineConfigFactoryOption {
 	return func(options *federationEngineConfigFactoryOptions) {
@@ -72,6 +79,7 @@ func NewFederationEngineConfigFactory(dataSourceConfigs []graphqlDataSource.Conf
 		batchFactory:              batchFactory,
 		subscriptionClientFactory: options.subscriptionClientFactory,
 		subscriptionType:          options.subscriptionType,
+		customResolveMap:          options.customResolveMap,
 	}
 }
 
@@ -84,6 +92,7 @@ type FederationEngineConfigFactory struct {
 	batchFactory              resolve.DataSourceBatchFactory
 	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
 	subscriptionType          SubscriptionType
+	customResolveMap          map[string]resolve.CustomResolve
 }
 
 func (f *FederationEngineConfigFactory) SetMergedSchemaFromString(mergedSchema string) (err error) {
@@ -136,6 +145,10 @@ func (f *FederationEngineConfigFactory) EngineV2Configuration() (conf EngineV2Co
 
 	conf.SetFieldConfigurations(fieldConfigs)
 	conf.SetDataSources(dataSources)
+
+	if f.customResolveMap != nil {
+		conf.SetCustomResolveMap(f.customResolveMap)
+	}
 
 	return conf, nil
 }

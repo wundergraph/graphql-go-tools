@@ -136,6 +136,7 @@ func (m *normalizer) setupWalkers() {
 			newRemoveFieldDefinitions("external"),
 			newRemoveDuplicateFieldedSharedTypesVisitor(),
 			newRemoveDuplicateFieldlessSharedTypesVisitor(),
+			newMergeDuplicatedFieldsVisitor(),
 			newRemoveInterfaceDefinitionDirective("key"),
 			newRemoveObjectTypeDefinitionDirective("key"),
 			newRemoveFieldDefinitionDirective("provides", "requires"),

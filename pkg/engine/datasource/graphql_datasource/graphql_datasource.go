@@ -343,6 +343,10 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 			client: p.subscriptionClient,
 		},
 		Variables: p.variables,
+		ProcessResponseConfig: resolve.ProcessResponseConfig{
+			ExtractGraphqlResponse:    true,
+			ExtractFederationEntities: false,
+		},
 	}
 }
 
@@ -492,18 +496,17 @@ func (p *Planner) EnterField(ref int) {
 	}
 
 	fieldName := p.visitor.Operation.FieldNameString(ref)
-	enclosingTypeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+	p.lastFieldEnclosingTypeName = p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(p.lastFieldEnclosingTypeName, fieldName)
 
 	for i := range p.config.CustomScalarTypeFields {
-		if p.config.CustomScalarTypeFields[i].TypeName == enclosingTypeName && p.config.CustomScalarTypeFields[i].FieldName == fieldName {
+		if p.config.CustomScalarTypeFields[i].TypeName == p.lastFieldEnclosingTypeName && p.config.CustomScalarTypeFields[i].FieldName == fieldName {
 			p.insideCustomScalarField = true
 			p.customScalarFieldRef = ref
-			p.addCustomField(ref)
+			p.addFieldArguments(p.addCustomField(ref), ref, fieldConfiguration)
 			return
 		}
 	}
-
-	p.lastFieldEnclosingTypeName = enclosingTypeName
 
 	// store root field name and ref
 	if p.rootFieldName == "" {
@@ -512,10 +515,9 @@ func (p *Planner) EnterField(ref int) {
 	}
 	// store root type name
 	if p.rootTypeName == "" {
-		p.rootTypeName = enclosingTypeName
+		p.rootTypeName = p.lastFieldEnclosingTypeName
 	}
 
-	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(enclosingTypeName, fieldName)
 	if fieldConfiguration == nil {
 		p.addField(ref)
 		return
@@ -529,22 +531,30 @@ func (p *Planner) EnterField(ref int) {
 
 	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
 
-	for i := range fieldConfiguration.Arguments {
-		argumentConfiguration := fieldConfiguration.Arguments[i]
-		p.configureArgument(upstreamFieldRef, ref, *fieldConfiguration, argumentConfiguration)
+	p.addFieldArguments(upstreamFieldRef, ref, fieldConfiguration)
+}
+
+func (p *Planner) addFieldArguments(upstreamFieldRef int, fieldRef int, fieldConfiguration *plan.FieldConfiguration) {
+	if fieldConfiguration != nil {
+		for i := range fieldConfiguration.Arguments {
+			argumentConfiguration := fieldConfiguration.Arguments[i]
+			p.configureArgument(upstreamFieldRef, fieldRef, *fieldConfiguration, argumentConfiguration)
+		}
 	}
 }
 
-func (p *Planner) addCustomField(ref int) {
-	fieldName := p.visitor.Operation.FieldNameString(ref)
-	field := p.upstreamOperation.AddField(ast.Field{
-		Name: p.upstreamOperation.Input.AppendInputString(fieldName),
+func (p *Planner) addCustomField(ref int) (upstreamFieldRef int) {
+	fieldName, alias := p.handleFieldAlias(ref)
+	fieldNode := p.upstreamOperation.AddField(ast.Field{
+		Name:  p.upstreamOperation.Input.AppendInputString(fieldName),
+		Alias: alias,
 	})
 	selection := ast.Selection{
 		Kind: ast.SelectionKindField,
-		Ref:  field.Ref,
+		Ref:  fieldNode.Ref,
 	}
 	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, selection)
+	return fieldNode.Ref
 }
 
 func (p *Planner) LeaveField(ref int) {
@@ -1090,11 +1100,11 @@ func (p *Planner) printOperation() []byte {
 			p.stopWithError("unable to parse upstream schema")
 			return nil
 		}
-	}
 
-	if err := asttransform.MergeDefinitionWithBaseSchema(definition); err != nil {
-		p.stopWithError("unable to merge upstream schema with base schema")
-		return nil
+		if err := asttransform.MergeDefinitionWithBaseSchema(definition); err != nil {
+			p.stopWithError("unable to merge upstream schema with base schema")
+			return nil
+		}
 	}
 
 	// When datasource is nested and definition query type do not contain operation field
@@ -1233,11 +1243,9 @@ func (p *Planner) normalizeOperation(operation, definition *ast.Document, report
 	return !report.HasErrors()
 }
 
-// addField - add a field to an upstream operation
-func (p *Planner) addField(ref int) {
+func (p *Planner) handleFieldAlias(ref int) (newFieldName string, alias ast.Alias) {
 	fieldName := p.visitor.Operation.FieldNameString(ref)
-
-	alias := ast.Alias{
+	alias = ast.Alias{
 		IsDefined: p.visitor.Operation.FieldAliasIsDefined(ref),
 	}
 
@@ -1271,6 +1279,12 @@ func (p *Planner) addField(ref int) {
 			break
 		}
 	}
+	return fieldName, alias
+}
+
+// addField - add a field to an upstream operation
+func (p *Planner) addField(ref int) {
+	fieldName, alias := p.handleFieldAlias(ref)
 
 	field := p.upstreamOperation.AddField(ast.Field{
 		Name:  p.upstreamOperation.Input.AppendInputString(fieldName),

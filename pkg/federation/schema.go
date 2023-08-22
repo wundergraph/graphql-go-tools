@@ -7,6 +7,7 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/astparser"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/astprinter"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/asttransform"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/astvisitor"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/federation/sdlmerge"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
@@ -49,6 +50,11 @@ func (s *schemaBuilder) extendQueryTypeWithFederationFields(schema string) strin
 	if report.HasErrors() {
 		return schema
 	}
+
+	if err := asttransform.MergeDefinitionWithBaseSchema(doc); err != nil {
+		return schema
+	}
+
 	queryTypeName := doc.Index.QueryTypeName.String()
 	if queryTypeName == "" {
 		queryTypeName = "Query"
@@ -143,7 +149,7 @@ func (s *schemaBuilderVisitor) addEntity(entity string) {
 	s.entityUnionTypes = append(s.entityUnionTypes, entity)
 }
 
-func (s *schemaBuilderVisitor) EnterDocument(operation, definition *ast.Document) {
+func (s *schemaBuilderVisitor) EnterDocument(operation, _ *ast.Document) {
 	s.definition = operation
 }
 

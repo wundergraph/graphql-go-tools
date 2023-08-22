@@ -4,7 +4,9 @@
 package federationtesting
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -118,4 +120,46 @@ func TestFederationIntegrationTest(t *testing.T) {
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":1}}}}`, string(<-messages))
 		assert.Equal(t, `{"id":"1","type":"data","payload":{"data":{"updateProductPrice":{"upc":"top-1","name":"Trilby","price":2}}}}`, string(<-messages))
 	})
+
+	t.Run("Merged fields are still resolved", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "queries/merged_field.graphql"), nil, t)
+		expected := `
+{
+	"data": {
+		"cat": {
+			"name": "Pepper"
+		},
+		"me": {
+			"id": "1234",
+			"username": "Me",
+			"realName": "User Usington",
+			"reviews": [
+				{
+					"body": "A highly effective form of birth control."
+				},
+				{
+					"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits."
+				}
+			],
+			"history": [
+				{
+					"rating": 5
+				}
+			]
+		}
+	}
+}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+}
+
+func compact(input string) string {
+	var out bytes.Buffer
+	err := json.Compact(&out, []byte(input))
+	if err != nil {
+		return ""
+	}
+	return out.String()
 }
