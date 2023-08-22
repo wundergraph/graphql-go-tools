@@ -139,6 +139,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) {
 	// make a copy of the config as the configuration visitor modifies it
 	config := p.config
+	config.DataSources = FilterDataSources(operation, definition, report, config.DataSources)
 
 	if p.config.Debug.PrintOperationWithRequiredFields {
 		p.debugMessage("Initial operation:")
