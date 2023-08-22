@@ -198,7 +198,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 		}
 
 		// add required fields for field and type (@requires)
-		c.handleRequiredFieldsForTypeAndField(&plannerConfig.dataSourceConfiguration, currentPath, typeName, fieldName)
+		c.handleFieldRequiredByRequires(&plannerConfig.dataSourceConfiguration, currentPath, typeName, fieldName)
 
 		planningBehaviour := plannerConfig.planner.DataSourcePlanningBehavior()
 
@@ -254,10 +254,10 @@ func (c *configurationVisitor) EnterField(ref int) {
 		}
 
 		// add required fields for type (@key)
-		c.handleRequiredFieldsForType(&config, currentPath, typeName)
+		c.handleFieldsRequiredByKey(&config, currentPath, typeName)
 
 		// add required fields for field and type (@requires)
-		c.handleRequiredFieldsForTypeAndField(&config, currentPath, typeName, fieldName)
+		c.handleFieldRequiredByRequires(&config, currentPath, typeName, fieldName)
 
 		var (
 			bufferID int
@@ -473,44 +473,44 @@ func (c *configurationVisitor) nextBufferID() int {
 	return c.currentBufferId
 }
 
-func (c *configurationVisitor) handleRequiredFieldsForTypeAndField(config *DataSourceConfiguration, currentPath string, typeName, fieldName string) {
-	requiredFieldsForTypeAndField := config.RequiredFieldsForTypeAndField(typeName, fieldName)
+func (c *configurationVisitor) handleFieldRequiredByRequires(config *DataSourceConfiguration, currentPath string, typeName, fieldName string) {
+	requiredFieldsForTypeAndField := config.RequiredFieldsByRequires(typeName, fieldName)
 	for _, requiredFieldsConfiguration := range requiredFieldsForTypeAndField {
 		c.planAddingRequiredFields(currentPath, requiredFieldsConfiguration)
-		config.RequiredFieldsFromParentPlanner = AppendRequiredFieldsConfigurationWithMerge(config.RequiredFieldsFromParentPlanner, requiredFieldsConfiguration)
+		config.ParentInfo.RequiredFields = AppendRequiredFieldsConfigurationWithMerge(config.ParentInfo.RequiredFields, requiredFieldsConfiguration)
 		c.hasNewFields = true
 	}
 }
 
-func (c *configurationVisitor) handleRequiredFieldsForType(config *DataSourceConfiguration, currentPath string, typeName string) {
-	requiredFieldsForType := config.RequiredFieldsForType(typeName)
+func (c *configurationVisitor) handleFieldsRequiredByKey(config *DataSourceConfiguration, currentPath string, typeName string) {
+	requiredFieldsForType := config.RequiredFieldsByKey(typeName)
 	if len(requiredFieldsForType) > 0 {
-		requiredFieldsConfiguration, added := c.planRequiredFields(currentPath, typeName, requiredFieldsForType)
+		requiredFieldsConfiguration, added := c.planKeyRequiredFields(currentPath, typeName, requiredFieldsForType)
 		if added {
-			config.RequiredFieldsFromParentPlanner = AppendRequiredFieldsConfigurationWithMerge(config.RequiredFieldsFromParentPlanner, requiredFieldsConfiguration)
+			config.ParentInfo.RequiredFields = AppendRequiredFieldsConfigurationWithMerge(config.ParentInfo.RequiredFields, requiredFieldsConfiguration)
 			c.hasNewFields = true
 		}
 	}
 }
 
-func (c *configurationVisitor) planRequiredFields(currentPath string, typeName string, possibleRequiredFields []RequiredFieldsConfiguration) (config RequiredFieldsConfiguration, planned bool) {
+func (c *configurationVisitor) planKeyRequiredFields(currentPath string, typeName string, possibleRequiredFields []FederationFieldConfiguration) (config FederationFieldConfiguration, planned bool) {
 	if len(possibleRequiredFields) == 0 {
 		return
 	}
 
 	for i := range c.planners {
 		for _, possibleRequiredFieldConfig := range possibleRequiredFields {
-			if c.planners[i].dataSourceConfiguration.HasRequirement(typeName, possibleRequiredFieldConfig.SelectionSet) {
+			if c.planners[i].dataSourceConfiguration.HasKeyRequirement(typeName, possibleRequiredFieldConfig.SelectionSet) {
 				c.planAddingRequiredFields(currentPath, possibleRequiredFieldConfig)
 				return possibleRequiredFieldConfig, true
 			}
 		}
 	}
 
-	return RequiredFieldsConfiguration{}, false
+	return FederationFieldConfiguration{}, false
 }
 
-func (c *configurationVisitor) planAddingRequiredFields(currentPath string, fieldConfiguration RequiredFieldsConfiguration) {
+func (c *configurationVisitor) planAddingRequiredFields(currentPath string, fieldConfiguration FederationFieldConfiguration) {
 	key := currentPath + "." + fieldConfiguration.SelectionSet
 
 	currentSelectionSet := c.currentSelectionSet()

@@ -80,7 +80,7 @@ type FieldConfiguration struct {
 	// Path - represents a json path to lookup for a field value in response json
 	Path      []string
 	Arguments ArgumentsConfigurations
-	// deprecated: use DataSourceConfiguration.RequiredFields instead
+	// deprecated: use DataSourceConfiguration.FederationMetaData instead
 	RequiresFields []string
 	// UnescapeResponseJson set to true will allow fields (String,List,Object)
 	// to be resolved from an escaped JSON string
