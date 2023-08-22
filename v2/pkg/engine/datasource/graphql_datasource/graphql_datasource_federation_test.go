@@ -866,6 +866,16 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				},
+				Shareable: plan.FederationFieldConfigurations{
+					{
+						TypeName:  "User",
+						FieldName: "details",
+					},
+					{
+						TypeName:  "Details",
+						FieldName: "forename",
+					},
+				},
 			},
 		}
 
@@ -912,10 +922,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			}),
 			Factory: federationFactory,
 			FederationMetaData: plan.FederationMetaData{
-				Requires: plan.FederationFieldConfigurations{
+				Keys: plan.FederationFieldConfigurations{
 					{
 						TypeName:     "User",
 						SelectionSet: "id",
+					},
+				},
+				Shareable: plan.FederationFieldConfigurations{
+					{
+						TypeName:  "User",
+						FieldName: "details",
+					},
+					{
+						TypeName:  "Details",
+						FieldName: "forename",
 					},
 				},
 			},
