@@ -229,7 +229,11 @@ func (h *Handler) handleStart(ctx context.Context, id string, payload []byte) {
 	}
 
 	if executor.OperationType() == ast.OperationTypeSubscription {
-		ctx := h.subCancellations.AddWithParent(id, ctx)
+		ctx, subsErr := h.subCancellations.AddWithParent(id, ctx)
+		if subsErr != nil {
+			h.handleError(id, graphql.RequestErrorsFromError(subsErr))
+			return
+		}
 		go h.startSubscription(ctx, id, executor)
 		return
 	}
