@@ -23,12 +23,12 @@ func TestTimeOutChecker(t *testing.T) {
 			Logger:          abstractlogger.Noop{},
 			TimeOutContext:  timeOutCtx,
 			TimeOutAction:   timeOutAction,
-			TimeOutDuration: 5 * time.Millisecond,
+			TimeOutDuration: 100 * time.Millisecond,
 		}
 		go TimeOutChecker(params)
-		time.Sleep(2 * time.Millisecond)
-		timeOutCancel()
 		time.Sleep(5 * time.Millisecond)
+		timeOutCancel()
+		<-timeOutCtx.Done()
 		assert.False(t, timeOutActionExecuted)
 	})
 
