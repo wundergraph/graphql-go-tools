@@ -362,7 +362,7 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 
 		err := protocol.Handle(ctx, mockEngine, []byte(`{"type":"something"}`))
 		assert.NoError(t, err)
-		assert.False(t, testClient.isConnected)
+		assert.False(t, testClient.IsConnected())
 	})
 
 	t.Run("for connection_init", func(t *testing.T) {

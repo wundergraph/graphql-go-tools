@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,9 +33,13 @@ func TestTimeOutChecker(t *testing.T) {
 	})
 
 	t.Run("should stop process if timer runs out", func(t *testing.T) {
+		wg := &sync.WaitGroup{}
+		wg.Add(1)
+
 		timeOutActionExecuted := false
 		timeOutAction := func() {
 			timeOutActionExecuted = true
+			wg.Done()
 		}
 
 		timeOutCtx, timeOutCancel := context.WithCancel(context.Background())
@@ -48,7 +53,7 @@ func TestTimeOutChecker(t *testing.T) {
 			TimeOutDuration: 10 * time.Millisecond,
 		}
 		go TimeOutChecker(params)
-		time.Sleep(15 * time.Millisecond)
+		wg.Wait()
 		assert.True(t, timeOutActionExecuted)
 	})
 }

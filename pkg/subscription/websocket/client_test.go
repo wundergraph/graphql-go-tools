@@ -247,7 +247,7 @@ func TestClient_DisconnectWithReason(t *testing.T) {
 			assert.Equal(t, ws.OpClose, actualServerResult.opCode)
 			assert.Equal(t, ws.StatusCode(4400), actualServerResult.statusCode)
 			assert.Equal(t, "unknown reason", actualServerResult.closeReason)
-			assert.Equal(t, true, websocketClient.isClosedConnection)
+			assert.Equal(t, false, websocketClient.IsConnected())
 			return true
 		}, 1*time.Second, 2*time.Millisecond)
 	})
@@ -272,7 +272,7 @@ func TestClient_DisconnectWithReason(t *testing.T) {
 			assert.Equal(t, ws.OpClose, actualServerResult.opCode)
 			assert.Equal(t, ws.StatusCode(4400), actualServerResult.statusCode)
 			assert.Equal(t, "error occurred", actualServerResult.closeReason)
-			assert.Equal(t, true, websocketClient.isClosedConnection)
+			assert.Equal(t, false, websocketClient.IsConnected())
 			return true
 		}, 1*time.Second, 2*time.Millisecond)
 	})
@@ -297,7 +297,7 @@ func TestClient_DisconnectWithReason(t *testing.T) {
 			assert.Equal(t, ws.OpClose, actualServerResult.opCode)
 			assert.Equal(t, ws.StatusCode(1000), actualServerResult.statusCode)
 			assert.Equal(t, "Normal Closure", actualServerResult.closeReason)
-			assert.Equal(t, true, websocketClient.isClosedConnection)
+			assert.Equal(t, false, websocketClient.IsConnected())
 			return true
 		}, 1*time.Second, 2*time.Millisecond)
 	})
@@ -332,7 +332,7 @@ func TestClient_isClosedConnectionError(t *testing.T) {
 }
 
 type TestClient struct {
-	mu                *sync.Mutex
+	connectionMutex   *sync.RWMutex
 	messageFromClient chan []byte
 	messageToClient   chan []byte
 	isConnected       bool
@@ -341,7 +341,7 @@ type TestClient struct {
 
 func NewTestClient(shouldFail bool) *TestClient {
 	return &TestClient{
-		mu:                &sync.Mutex{},
+		connectionMutex:   &sync.RWMutex{},
 		messageFromClient: make(chan []byte, 1),
 		messageToClient:   make(chan []byte, 1),
 		isConnected:       true,
@@ -360,22 +360,26 @@ func (t *TestClient) WriteBytesToClient(message []byte) error {
 	if t.shouldFail {
 		return errors.New("shouldFail is true")
 	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
 	t.messageToClient <- message
 	return nil
 }
 
 func (t *TestClient) IsConnected() bool {
+	t.connectionMutex.RLock()
+	defer t.connectionMutex.RUnlock()
 	return t.isConnected
 }
 
 func (t *TestClient) Disconnect() error {
+	t.connectionMutex.Lock()
+	defer t.connectionMutex.Unlock()
 	t.isConnected = false
 	return nil
 }
 
 func (t *TestClient) DisconnectWithReason(reason interface{}) error {
+	t.connectionMutex.Lock()
+	defer t.connectionMutex.Unlock()
 	t.isConnected = false
 	return nil
 }
@@ -385,8 +389,6 @@ func (t *TestClient) readMessageToClient() []byte {
 }
 
 func (t *TestClient) writeMessageFromClient(message []byte) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
 	t.messageFromClient <- message
 }
 
