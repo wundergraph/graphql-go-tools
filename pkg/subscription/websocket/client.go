@@ -9,7 +9,7 @@ import (
 	"github.com/gobwas/ws/wsutil"
 	"github.com/jensneuse/abstractlogger"
 
-	"github.com/TykTechnologies/graphql-go-tools/pkg/subscription"
+	"github.com/wundergraph/graphql-go-tools/pkg/subscription"
 )
 
 // Client is an actual implementation of the subscription client interface.

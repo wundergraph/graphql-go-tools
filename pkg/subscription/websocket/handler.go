@@ -7,7 +7,7 @@ import (
 
 	"github.com/jensneuse/abstractlogger"
 
-	"github.com/TykTechnologies/graphql-go-tools/pkg/subscription"
+	"github.com/wundergraph/graphql-go-tools/pkg/subscription"
 )
 
 // Protocol defines the protocol names as type.

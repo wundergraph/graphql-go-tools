@@ -12,8 +12,8 @@ import (
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/TykTechnologies/graphql-go-tools/pkg/graphql"
-	"github.com/TykTechnologies/graphql-go-tools/pkg/subscription"
+	"github.com/wundergraph/graphql-go-tools/pkg/graphql"
+	"github.com/wundergraph/graphql-go-tools/pkg/subscription"
 )
 
 func TestGraphQLWSMessageReader_Read(t *testing.T) {

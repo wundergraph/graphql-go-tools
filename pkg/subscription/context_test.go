@@ -26,11 +26,13 @@ func TestNewInitialHttpRequestContext(t *testing.T) {
 func TestSubscriptionCancellations(t *testing.T) {
 	cancellations := subscriptionCancellations{}
 	var ctx context.Context
+	var err error
 
 	t.Run("should add a cancellation func to map", func(t *testing.T) {
 		require.Equal(t, 0, cancellations.Len())
 
-		ctx = cancellations.AddWithParent("1", context.Background())
+		ctx, err = cancellations.AddWithParent("1", context.Background())
+		assert.Nil(t, err)
 		assert.Equal(t, 1, cancellations.Len())
 		assert.NotNil(t, ctx)
 	})
