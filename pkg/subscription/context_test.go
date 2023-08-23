@@ -48,3 +48,24 @@ func TestSubscriptionCancellations(t *testing.T) {
 		assert.Equal(t, 0, cancellations.Len())
 	})
 }
+
+func TestSubscriptionIdsShouldBeUnique(t *testing.T) {
+	sc := subscriptionCancellations{}
+	var ctx context.Context
+	var err error
+
+	ctx, err = sc.AddWithParent("1", context.Background())
+	assert.Nil(t, err)
+	assert.Equal(t, 1, sc.Len())
+	assert.NotNil(t, ctx)
+
+	ctx, err = sc.AddWithParent("2", context.Background())
+	assert.Nil(t, err)
+	assert.Equal(t, 2, sc.Len())
+	assert.NotNil(t, ctx)
+
+	ctx, err = sc.AddWithParent("2", context.Background())
+	assert.NotNil(t, err)
+	assert.Equal(t, 2, sc.Len())
+	assert.Nil(t, ctx)
+}
