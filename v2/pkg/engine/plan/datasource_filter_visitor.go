@@ -9,18 +9,47 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-func FilterDataSources(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) ([]DataSourceConfiguration, error) {
+func FilterDataSources(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) ([]DataSourceConfiguration, NodeSuggestions, error) {
 	usedDataSources, err := findBestDataSourceSet(operation, definition, report, dataSources)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	filtered := make([]DataSourceConfiguration, 0, len(usedDataSources))
+	suggestions := make(NodeSuggestions, 0, len(usedDataSources))
 	for _, ds := range usedDataSources {
 		filtered = append(filtered, ds.DataSource)
+		for _, node := range ds.UsedNodes {
+			suggestions = append(suggestions, NodeSuggestion{
+				TypeName:       node.TypeName,
+				FieldName:      node.FieldName,
+				DataSourceHash: ds.DataSource.Hash(),
+			})
+		}
 	}
 
-	return filtered, nil
+	return filtered, suggestions, nil
+}
+
+type NodeSuggestion struct {
+	TypeName       string
+	FieldName      string
+	DataSourceHash uint64
+}
+
+type NodeSuggestions []NodeSuggestion
+
+func (f NodeSuggestions) HasSuggestion(typeName, fieldName string) (dsHash uint64, ok bool) {
+	if len(f) == 0 {
+		return -1, false
+	}
+
+	for i := range f {
+		if typeName == f[i].TypeName && fieldName == f[i].FieldName {
+			return f[i].DataSourceHash, true
+		}
+	}
+	return -1, false
 }
 
 type UsedNode struct {
