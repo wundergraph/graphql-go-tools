@@ -1,12 +1,12 @@
-package main
+package plan
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
+	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 type dsBuilder struct {
@@ -218,20 +218,11 @@ func TestVisitDataSource(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.Query, func(t *testing.T) {
-			// t.Parallel()
+			definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(tc.Definition)
+			operation := unsafeparser.ParseGraphqlDocumentString(tc.Query)
 
-			definition, report := astparser.ParseGraphqlDocumentString(tc.Definition)
-			if report.HasErrors() {
-				t.Fatal(report.Error())
-			}
-			if err := asttransform.MergeDefinitionWithBaseSchema(&definition); err != nil {
-				t.Fatal(err)
-			}
-			operation, report := astparser.ParseGraphqlDocumentString(tc.Query)
-			if report.HasErrors() {
-				t.Fatal(report.Error())
-			}
-			planned, err := PlanDataSources(&operation, &definition, &report, tc.DataSources)
+			report := operationreport.Report{}
+			planned, err := findBestDataSourceSet(&operation, &definition, &report, tc.DataSources)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -248,5 +239,4 @@ func TestVisitDataSource(t *testing.T) {
 			assert.Equal(t, expected, planned)
 		})
 	}
-
 }

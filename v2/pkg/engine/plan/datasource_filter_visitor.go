@@ -9,8 +9,18 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-func FilterDataSources(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) []DataSourceConfiguration {
-	return nil
+func FilterDataSources(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) ([]DataSourceConfiguration, error) {
+	usedDataSources, err := findBestDataSourceSet(operation, definition, report, dataSources)
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := make([]DataSourceConfiguration, 0, len(usedDataSources))
+	for _, ds := range usedDataSources {
+		filtered = append(filtered, ds.DataSource)
+	}
+
+	return filtered, nil
 }
 
 type UsedNode struct {
@@ -23,7 +33,7 @@ type UsedDataSourceConfiguration struct {
 	UsedNodes  []*UsedNode
 }
 
-type dataSourceVisitor struct {
+type findUsedDataSourceVisitor struct {
 	operation   *ast.Document
 	definition  *ast.Document
 	walker      *astvisitor.Walker
@@ -31,30 +41,13 @@ type dataSourceVisitor struct {
 	err         error
 }
 
-func hasNode(f []TypeField, typeName, fieldName string) bool {
-	for i := range f {
-		if typeName != f[i].TypeName {
-			continue
-		}
-		for j := range f[i].FieldNames {
-			if fieldName == f[i].FieldNames[j] {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func (v *dataSourceVisitor) EnterField(ref int) {
-	if v.err != nil {
-		return
-	}
+func (v *findUsedDataSourceVisitor) EnterField(ref int) {
 	typeName := v.walker.EnclosingTypeDefinition.NameString(v.definition)
 	fieldName := v.operation.FieldNameUnsafeString(ref)
 	found := false
 	for _, v := range v.dataSources {
 		ds := v.DataSource
-		if ds.HasRootNode(typeName, fieldName) || hasNode(ds.ChildNodes, typeName, fieldName) {
+		if ds.HasRootNode(typeName, fieldName) || ds.HasChildNode(typeName, fieldName) {
 			v.UsedNodes = append(v.UsedNodes, &UsedNode{
 				TypeName:  typeName,
 				FieldName: fieldName,
@@ -78,7 +71,7 @@ func (e *errOperationFieldNotResolved) Error() string {
 	return fmt.Sprintf("could not resolve %s.%s", e.TypeName, e.FieldName)
 }
 
-func planDataSources(operation *ast.Document, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) ([]*UsedDataSourceConfiguration, error) {
+func findUsedDataSources(operation *ast.Document, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) ([]*UsedDataSourceConfiguration, error) {
 	if report == nil {
 		panic("report can't be nil")
 	}
@@ -90,7 +83,7 @@ func planDataSources(operation *ast.Document, definition *ast.Document, report *
 			DataSource: v,
 		}
 	}
-	visitor := &dataSourceVisitor{
+	visitor := &findUsedDataSourceVisitor{
 		operation:   operation,
 		definition:  definition,
 		walker:      &walker,
@@ -99,7 +92,7 @@ func planDataSources(operation *ast.Document, definition *ast.Document, report *
 	walker.RegisterEnterFieldVisitor(visitor)
 	walker.Walk(operation, definition, report)
 	if report.HasErrors() {
-		return nil, errors.New(report.Error())
+		return nil, report
 	}
 	if visitor.err != nil {
 		return nil, visitor.err
@@ -113,11 +106,11 @@ func planDataSources(operation *ast.Document, definition *ast.Document, report *
 	return usedDataSources, nil
 }
 
-func PlanDataSources(operation *ast.Document, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) ([]*UsedDataSourceConfiguration, error) {
+func findBestDataSourceSet(operation *ast.Document, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) ([]*UsedDataSourceConfiguration, error) {
 	if report == nil {
 		report = &operationreport.Report{}
 	}
-	planned, err := planDataSources(operation, definition, report, dataSources)
+	planned, err := findUsedDataSources(operation, definition, report, dataSources)
 	if err != nil {
 		return nil, err
 	}
@@ -126,13 +119,9 @@ func PlanDataSources(operation *ast.Document, definition *ast.Document, report *
 	}
 	best := planned
 	for excluded := range dataSources {
-		subset := make([]DataSourceConfiguration, 0, len(dataSources)-1)
-		for ii, ds := range dataSources {
-			if ii != excluded {
-				subset = append(subset, ds)
-			}
-		}
-		result, err := PlanDataSources(operation, definition, report, subset)
+		subset := dataSourcesSubset(dataSources, excluded)
+
+		result, err := findBestDataSourceSet(operation, definition, report, subset)
 		if err != nil {
 			var rerr *errOperationFieldNotResolved
 			if errors.As(err, &rerr) {
@@ -146,4 +135,11 @@ func PlanDataSources(operation *ast.Document, definition *ast.Document, report *
 		}
 	}
 	return best, nil
+}
+
+func dataSourcesSubset(dataSources []DataSourceConfiguration, exclude int) []DataSourceConfiguration {
+	subset := make([]DataSourceConfiguration, 0, len(dataSources)-1)
+	subset = append(subset, dataSources[:exclude]...)
+	subset = append(subset, dataSources[exclude+1:]...)
+	return subset
 }

@@ -34,10 +34,16 @@ type DataSourceConfiguration struct {
 
 	FederationMetaData FederationMetaData
 	ParentInfo         DataSourceParentInfo
+
+	hash uint64
 }
 
 func (d *DataSourceConfiguration) Hash() uint64 {
-	return xxhash.Sum64(d.Custom)
+	if d.hash != 0 {
+		return d.hash
+	}
+	d.hash = xxhash.Sum64(d.Custom)
+	return d.hash
 }
 
 type DataSourceParentInfo struct {

@@ -75,9 +75,9 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		return
 	}
 
-	p.findPlanningPaths(operation, definition, report)
-	if report.HasErrors() {
-		return
+	err := p.findPlanningPaths(operation, definition, report)
+	if err != nil || report.HasErrors() {
+		return nil
 	}
 
 	if p.config.Debug.PlanningVisitor {
@@ -136,10 +136,13 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	return p.planningVisitor.plan
 }
 
-func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) {
+func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) (err error) {
 	// make a copy of the config as the configuration visitor modifies it
 	config := p.config
-	config.DataSources = FilterDataSources(operation, definition, report, config.DataSources)
+	config.DataSources, err = FilterDataSources(operation, definition, report, config.DataSources)
+	if err != nil {
+		return err
+	}
 
 	if p.config.Debug.PrintOperationWithRequiredFields {
 		p.debugMessage("Initial operation:")
@@ -150,7 +153,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 	p.configurationVisitor.secondaryRun = false
 	p.configurationWalker.Walk(operation, definition, report)
 	if report.HasErrors() {
-		return
+		return report
 	}
 
 	if p.config.Debug.PrintOperationWithRequiredFields {
@@ -170,7 +173,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 
 		p.configurationWalker.Walk(operation, definition, report)
 		if report.HasErrors() {
-			return
+			return report
 		}
 
 		if config.Debug.PrintOperationWithRequiredFields {
@@ -184,6 +187,8 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 		}
 		i++
 	}
+
+	return nil
 }
 
 func (p *Planner) selectOperation(operation *ast.Document, operationName string, report *operationreport.Report) {

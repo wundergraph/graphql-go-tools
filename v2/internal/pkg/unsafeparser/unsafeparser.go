@@ -1,4 +1,4 @@
-// package unsafeparser is for testing purposes only when error handling is overhead and panics are ok
+// Package unsafeparser is for testing purposes only when error handling is overhead and panics are ok
 package unsafeparser
 
 import (
@@ -6,6 +6,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 )
 
 func ParseGraphqlDocumentString(input string) ast.Document {
@@ -30,4 +31,12 @@ func ParseGraphqlDocumentFile(filePath string) ast.Document {
 		panic(err)
 	}
 	return ParseGraphqlDocumentBytes(fileBytes)
+}
+
+func ParseGraphqlDocumentStringWithBaseSchema(input string) ast.Document {
+	definition := ParseGraphqlDocumentString(input)
+	if err := asttransform.MergeDefinitionWithBaseSchema(&definition); err != nil {
+		panic(err)
+	}
+	return definition
 }
