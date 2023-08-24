@@ -19,6 +19,7 @@ type configurationVisitor struct {
 	config                Configuration
 	planners              []plannerConfiguration
 	fetches               []objectFetchConfiguration
+	dataSourceSuggestions NodeSuggestions
 	currentBufferId       int
 	fieldBuffers          map[int]int
 
@@ -31,6 +32,14 @@ type configurationVisitor struct {
 	secondaryRun              bool
 	skipFieldsRefs            []int
 	hasNewFields              bool
+	missingPathTracker        map[string]uint64
+	addedPathTracker          []pathConfiguration
+}
+
+type missingPath struct {
+	path                  string
+	hash                  uint64
+	precedingRootNodePath string
 }
 
 type objectFetchConfiguration struct {
@@ -61,6 +70,30 @@ func (c *configurationVisitor) addPath(i int, configuration pathConfiguration) {
 	configuration.depth = c.walker.Depth
 
 	c.planners[i].addPath(configuration)
+
+	c.saveAddedPath(configuration)
+}
+
+func (c *configurationVisitor) saveAddedPath(configuration pathConfiguration) {
+	c.addedPathTracker = append(c.addedPathTracker, configuration)
+}
+
+func (c *configurationVisitor) findPreviousRootPath(currentPath string) (previousRootPath string, found bool) {
+	if len(c.addedPathTracker) == 0 {
+		return "", false
+	}
+
+	for i := len(c.addedPathTracker) - 1; i >= 0; i-- {
+		if strings.HasPrefix(currentPath, c.addedPathTracker[i].path) && c.addedPathTracker[i].isRootNode {
+			return c.addedPathTracker[i].path, true
+		}
+	}
+	return "", false
+}
+
+func (c *configurationVisitor) addMissingPath(path string, parentPath string, hash uint64) {
+	// TODO: handle parent path
+	c.missingPathTracker[path] = hash
 }
 
 func (c *configurationVisitor) debugPrint(args ...any) {
@@ -113,6 +146,8 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 	}
 
 	c.pendingTypeConfigurations = make(map[int]map[string]string)
+	c.missingPathTracker = make(map[string]uint64)
+	c.addedPathTracker = make([]pathConfiguration, 0, 8)
 }
 
 func (c *configurationVisitor) LeaveDocument(operation, definition *ast.Document) {
@@ -192,6 +227,9 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 	isSubscription := c.isSubscription(root.Ref, currentPath)
 	for i, plannerConfig := range c.planners {
+		hasRootNode := plannerConfig.dataSourceConfiguration.HasRootNode(typeName, fieldName)
+		hasChildNode := plannerConfig.dataSourceConfiguration.HasChildNode(typeName, fieldName)
+
 		if c.secondaryRun && plannerConfig.hasPath(currentPath) {
 			// on the second run we need to process only new fields added by the first run
 			return
@@ -203,7 +241,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 		planningBehaviour := plannerConfig.planner.DataSourcePlanningBehavior()
 
 		if (plannerConfig.hasParent(parentPath) || plannerConfig.hasParent(precedingParentPath)) &&
-			plannerConfig.dataSourceConfiguration.HasRootNode(typeName, fieldName) &&
+			hasRootNode &&
 			planningBehaviour.MergeAliasedRootNodes {
 			// same parent + root node = root sibling
 
@@ -213,6 +251,8 @@ func (c *configurationVisitor) EnterField(ref int) {
 				typeName:         typeName,
 				fieldRef:         ref,
 				enclosingNode:    c.walker.EnclosingTypeDefinition,
+				dsHash:           plannerConfig.dataSourceConfiguration.Hash(),
+				isRootNode:       true,
 			})
 			c.fieldBuffers[ref] = plannerConfig.bufferID
 
@@ -223,8 +263,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 				return
 			}
 
-			if plannerConfig.dataSourceConfiguration.HasChildNode(typeName, fieldName) ||
-				(plannerConfig.dataSourceConfiguration.HasRootNode(typeName, fieldName) && planningBehaviour.MergeAliasedRootNodes) {
+			if hasChildNode || (hasRootNode && planningBehaviour.MergeAliasedRootNodes) {
 
 				// has parent path + has child node = child
 				c.addPath(i, pathConfiguration{
@@ -233,6 +272,8 @@ func (c *configurationVisitor) EnterField(ref int) {
 					typeName:         typeName,
 					fieldRef:         ref,
 					enclosingNode:    c.walker.EnclosingTypeDefinition,
+					dsHash:           plannerConfig.dataSourceConfiguration.Hash(),
+					isRootNode:       hasRootNode,
 				})
 
 				return
@@ -275,6 +316,8 @@ func (c *configurationVisitor) EnterField(ref int) {
 				typeName:         typeName,
 				fieldRef:         ref,
 				enclosingNode:    c.walker.EnclosingTypeDefinition,
+				dsHash:           config.Hash(),
+				isRootNode:       true,
 			},
 		}
 
@@ -338,6 +381,18 @@ func (c *configurationVisitor) EnterField(ref int) {
 			fieldDefinitionRef: fieldDefinition,
 		})
 		return
+	}
+
+	// if we're here, we didn't find a planner for the field
+	suggestedDataSourceHash, ok := c.dataSourceSuggestions.HasSuggestion(typeName, fieldName)
+	if ok {
+		parentPath, found := c.findPreviousRootPath(currentPath)
+		if found {
+			c.addMissingPath(currentPath, parentPath, suggestedDataSourceHash)
+		}
+	} else {
+		// should not happen
+		c.walker.StopWithInternalErr(fmt.Errorf("could not find a data source for field %s.%s with path %s", typeName, fieldName, currentPath))
 	}
 }
 

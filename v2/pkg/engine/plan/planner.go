@@ -139,7 +139,8 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) (err error) {
 	// make a copy of the config as the configuration visitor modifies it
 	config := p.config
-	config.DataSources, err = FilterDataSources(operation, definition, report, config.DataSources)
+	var suggestions NodeSuggestions
+	config.DataSources, suggestions, err = FilterDataSources(operation, definition, report, config.DataSources)
 	if err != nil {
 		return err
 	}
@@ -150,6 +151,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 	}
 
 	p.configurationVisitor.config = config
+	p.configurationVisitor.dataSourceSuggestions = suggestions
 	p.configurationVisitor.secondaryRun = false
 	p.configurationWalker.Walk(operation, definition, report)
 	if report.HasErrors() {

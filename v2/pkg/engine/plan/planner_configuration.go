@@ -93,7 +93,9 @@ type pathConfiguration struct {
 	fieldRef      int
 	enclosingNode ast.Node
 
-	depth int
+	depth      int
+	dsHash     uint64
+	isRootNode bool
 }
 
 func (p *pathConfiguration) String() string {
