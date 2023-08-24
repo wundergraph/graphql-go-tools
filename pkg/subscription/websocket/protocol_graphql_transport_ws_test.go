@@ -362,7 +362,7 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 
 		err := protocol.Handle(ctx, mockEngine, []byte(`{"type":"something"}`))
 		assert.NoError(t, err)
-		assert.False(t, testClient.isConnected)
+		assert.False(t, testClient.IsConnected())
 	})
 
 	t.Run("for connection_init", func(t *testing.T) {
@@ -410,7 +410,7 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 			testClient := NewTestClient(false)
 			protocol := NewTestProtocolGraphQLTransportWSHandler(testClient)
 			protocol.heartbeatInterval = 4 * time.Millisecond
-			protocol.connectionInitTimeOutDuration = 15 * time.Millisecond
+			protocol.connectionInitTimeOutDuration = 25 * time.Millisecond
 			protocol.eventHandler.OnConnectionOpened = protocol.startConnectionInitTimer
 
 			ctrl := gomock.NewController(t)
@@ -429,7 +429,7 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 				assert.Equal(t, expectedAckMessage, testClient.readMessageToClient())
 				time.Sleep(6 * time.Millisecond)
 				assert.Equal(t, expectedHeartbeatMessage, testClient.readMessageToClient())
-				time.Sleep(15 * time.Millisecond)
+				time.Sleep(50 * time.Millisecond)
 				assert.True(t, protocol.eventHandler.Writer.Client.IsConnected())
 				assert.True(t, protocol.connectionInitTimerStarted)
 				assert.Nil(t, protocol.connectionInitTimeOutCancel)

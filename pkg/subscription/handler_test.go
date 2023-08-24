@@ -3,6 +3,7 @@ package subscription
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +15,9 @@ import (
 
 func TestUniversalProtocolHandler_Handle(t *testing.T) {
 	t.Run("should terminate when client is disconnected", func(t *testing.T) {
+		wg := &sync.WaitGroup{}
+		wg.Add(1)
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -32,6 +36,9 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 
 		engineMock := NewMockEngine(ctrl)
 		engineMock.EXPECT().TerminateAllSubscriptions(eventHandlerMock).
+			Do(func(_ EventHandler) {
+				wg.Done()
+			}).
 			Times(1)
 
 		ctx, cancelFunc := context.WithCancel(context.Background())
@@ -48,13 +55,16 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 			go handler.Handle(ctx)
 			time.Sleep(5 * time.Millisecond)
 			cancelFunc()
-			<-ctx.Done()                     // Check if channel is closed
-			time.Sleep(5 * time.Millisecond) // Give some time to close connections
+			<-ctx.Done() // Check if channel is closed
+			wg.Wait()
 			return true
 		}, 1*time.Second, 5*time.Millisecond)
 	})
 
 	t.Run("should terminate when reading on closed connection", func(t *testing.T) {
+		wg := &sync.WaitGroup{}
+		wg.Add(1)
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -76,6 +86,9 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 
 		engineMock := NewMockEngine(ctrl)
 		engineMock.EXPECT().TerminateAllSubscriptions(eventHandlerMock).
+			Do(func(_ EventHandler) {
+				wg.Done()
+			}).
 			Times(1)
 
 		ctx, cancelFunc := context.WithCancel(context.Background())
@@ -92,13 +105,16 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 			go handler.Handle(ctx)
 			time.Sleep(5 * time.Millisecond)
 			cancelFunc()
-			<-ctx.Done()                     // Check if channel is closed
-			time.Sleep(5 * time.Millisecond) // Give some time to close connections
+			<-ctx.Done() // Check if channel is closed
+			wg.Wait()
 			return true
 		}, 1*time.Second, 5*time.Millisecond)
 	})
 
 	t.Run("should sent event on client read error", func(t *testing.T) {
+		wg := &sync.WaitGroup{}
+		wg.Add(1)
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -122,6 +138,9 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 
 		engineMock := NewMockEngine(ctrl)
 		engineMock.EXPECT().TerminateAllSubscriptions(eventHandlerMock).
+			Do(func(_ EventHandler) {
+				wg.Done()
+			}).
 			Times(1)
 
 		ctx, cancelFunc := context.WithCancel(context.Background())
@@ -138,13 +157,16 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 			go handler.Handle(ctx)
 			time.Sleep(5 * time.Millisecond)
 			cancelFunc()
-			<-ctx.Done()                     // Check if channel is closed
-			time.Sleep(5 * time.Millisecond) // Give some time to close connections
+			<-ctx.Done() // Check if channel is closed
+			wg.Wait()
 			return true
 		}, 1*time.Second, 5*time.Millisecond)
 	})
 
 	t.Run("should handover message to protocol handler", func(t *testing.T) {
+		wg := &sync.WaitGroup{}
+		wg.Add(1)
+
 		ctx, cancelFunc := context.WithCancel(context.Background())
 
 		ctrl := gomock.NewController(t)
@@ -163,6 +185,9 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 
 		engineMock := NewMockEngine(ctrl)
 		engineMock.EXPECT().TerminateAllSubscriptions(eventHandlerMock).
+			Do(func(_ EventHandler) {
+				wg.Done()
+			}).
 			Times(1)
 
 		protocolMock := NewMockProtocol(ctrl)
@@ -185,14 +210,17 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 			go handler.Handle(ctx)
 			time.Sleep(5 * time.Millisecond)
 			cancelFunc()
-			<-ctx.Done()                     // Check if channel is closed
-			time.Sleep(5 * time.Millisecond) // Give some time to close connections
+			<-ctx.Done() // Check if channel is closed
+			wg.Wait()
 			return true
 		}, 1*time.Second, 5*time.Millisecond)
 	})
 
 	t.Run("read error time out", func(t *testing.T) {
 		t.Run("should stop handler when read error timer runs out", func(t *testing.T) {
+			wg := &sync.WaitGroup{}
+			wg.Add(1)
+
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -216,6 +244,9 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 
 			engineMock := NewMockEngine(ctrl)
 			engineMock.EXPECT().TerminateAllSubscriptions(eventHandlerMock).
+				Do(func(_ EventHandler) {
+					wg.Done()
+				}).
 				Times(1)
 
 			ctx, cancelFunc := context.WithCancel(context.Background())
@@ -233,11 +264,15 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 			assert.Eventually(t, func() bool {
 				go handler.Handle(ctx)
 				time.Sleep(30 * time.Millisecond)
+				wg.Wait()
 				return true
 			}, 1*time.Second, 5*time.Millisecond)
 		})
 
 		t.Run("should continue running handler after intermittent read error", func(t *testing.T) {
+			wg := &sync.WaitGroup{}
+			wg.Add(1)
+
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -274,6 +309,9 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 
 			engineMock := NewMockEngine(ctrl)
 			engineMock.EXPECT().TerminateAllSubscriptions(eventHandlerMock).
+				Do(func(_ EventHandler) {
+					wg.Done()
+				}).
 				Times(1)
 
 			ctx, cancelFunc := context.WithCancel(context.Background())
@@ -291,8 +329,8 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 				go handler.Handle(ctx)
 				time.Sleep(10 * time.Millisecond)
 				cancelFunc()
-				<-ctx.Done()                     // Check if channel is closed
-				time.Sleep(5 * time.Millisecond) // Give some time to close connections
+				<-ctx.Done() // Check if channel is closed
+				wg.Wait()
 				return true
 			}, 1*time.Second, 5*time.Millisecond)
 		})

@@ -19,6 +19,9 @@ import (
 func TestExecutorEngine_StartOperation(t *testing.T) {
 	t.Run("execute non-subscription operation", func(t *testing.T) {
 		t.Run("on execution failure", func(t *testing.T) {
+			wg := &sync.WaitGroup{}
+			wg.Add(2)
+
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -52,6 +55,9 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 				Return(executorMock, nil).
 				Times(1)
 			executorPoolMock.EXPECT().Put(gomock.Eq(executorMock)).
+				Do(func(_ Executor) {
+					wg.Done()
+				}).
 				Times(2)
 
 			eventHandlerMock := NewMockEventHandler(ctrl)
@@ -81,11 +87,15 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 				assert.NoError(t, err)
 
 				<-ctx.Done()
+				wg.Wait()
 				return true
 			}, 1*time.Second, 10*time.Millisecond)
 		})
 
 		t.Run("on execution success", func(t *testing.T) {
+			wg := &sync.WaitGroup{}
+			wg.Add(2)
+
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -118,6 +128,9 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 				Return(executorMock, nil).
 				Times(1)
 			executorPoolMock.EXPECT().Put(gomock.Eq(executorMock)).
+				Do(func(_ Executor) {
+					wg.Done()
+				}).
 				Times(2)
 
 			eventHandlerMock := NewMockEventHandler(ctrl)
@@ -147,6 +160,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 				assert.NoError(t, err)
 
 				<-ctx.Done()
+				wg.Wait()
 				return true
 			}, 1*time.Second, 10*time.Millisecond)
 		})
@@ -154,6 +168,9 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 
 	t.Run("execute subscription operation", func(t *testing.T) {
 		t.Run("on execution failure", func(t *testing.T) {
+			wg := &sync.WaitGroup{}
+			wg.Add(1)
+
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -178,6 +195,9 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 				Return(executorMock, nil).
 				Times(1)
 			executorPoolMock.EXPECT().Put(gomock.Eq(executorMock)).
+				Do(func(_ Executor) {
+					wg.Done()
+				}).
 				Times(1)
 
 			eventHandlerMock := NewMockEventHandler(ctrl)
@@ -200,11 +220,15 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 			assert.Eventually(t, func() bool {
 				err := engine.StartOperation(ctx, id, payload, eventHandlerMock)
 				<-ctx.Done()
+				wg.Wait()
 				return assert.NoError(t, err)
 			}, 1*time.Second, 10*time.Millisecond)
 		})
 
 		t.Run("on execution success", func(t *testing.T) {
+			wg := sync.WaitGroup{}
+			wg.Add(1)
+
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -231,6 +255,9 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 				Return(executorMock, nil).
 				Times(1)
 			executorPoolMock.EXPECT().Put(gomock.Eq(executorMock)).
+				Do(func(_ Executor) {
+					wg.Done()
+				}).
 				Times(1)
 
 			eventHandlerMock := NewMockEventHandler(ctrl)
@@ -253,13 +280,16 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 			assert.Eventually(t, func() bool {
 				err := engine.StartOperation(ctx, id, payload, eventHandlerMock)
 				<-ctx.Done()
-				time.Sleep(5 * time.Millisecond)
+				wg.Wait()
 				return assert.NoError(t, err)
 			}, 1*time.Second, 10*time.Millisecond)
 		})
 	})
 
 	t.Run("error on duplicate id", func(t *testing.T) {
+		wg := &sync.WaitGroup{}
+		wg.Add(1)
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -291,6 +321,9 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 			Return(executorMockQuery, nil).
 			Times(1)
 		executorPoolMock.EXPECT().Put(gomock.Eq(executorMockSubscription)).
+			Do(func(_ Executor) {
+				wg.Done()
+			}).
 			Times(1)
 
 		eventHandlerMock := NewMockEventHandler(ctrl)
@@ -320,13 +353,16 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 			assert.Error(t, err)
 
 			<-ctx.Done()
-			time.Sleep(20 * time.Millisecond)
+			wg.Wait()
 			return true
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 }
 
 func TestExecutorEngine_StopSubscription(t *testing.T) {
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -358,6 +394,9 @@ func TestExecutorEngine_StopSubscription(t *testing.T) {
 		Return(executorMock, nil).
 		Times(1)
 	executorPoolMock.EXPECT().Put(gomock.Eq(executorMock)).
+		Do(func(_ Executor) {
+			wg.Done()
+		}).
 		Times(1)
 
 	engine := ExecutorEngine{
@@ -382,13 +421,16 @@ func TestExecutorEngine_StopSubscription(t *testing.T) {
 		err = engine.StopSubscription(id, eventHandlerMock)
 		assert.NoError(t, err)
 		assert.Equal(t, 0, engine.subCancellations.Len())
-		time.Sleep(5 * time.Millisecond)
+		wg.Wait()
 
 		return true
 	}, 1*time.Second, 5*time.Millisecond)
 }
 
 func TestExecutorEngine_TerminateAllConnections(t *testing.T) {
+	wg := &sync.WaitGroup{}
+	wg.Add(3)
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -419,6 +461,9 @@ func TestExecutorEngine_TerminateAllConnections(t *testing.T) {
 		Return(executorMock, nil).
 		Times(3)
 	executorPoolMock.EXPECT().Put(gomock.Eq(executorMock)).
+		Do(func(_ Executor) {
+			wg.Done()
+		}).
 		Times(3)
 
 	engine := ExecutorEngine{
@@ -447,7 +492,7 @@ func TestExecutorEngine_TerminateAllConnections(t *testing.T) {
 		err = engine.TerminateAllSubscriptions(eventHandlerMock)
 		assert.NoError(t, err)
 		assert.Equal(t, 0, engine.subCancellations.Len())
-		time.Sleep(5 * time.Millisecond)
+		wg.Wait()
 
 		return true
 	}, 1*time.Second, 5*time.Millisecond)

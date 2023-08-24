@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
@@ -46,6 +47,7 @@ type Client struct {
 	clientConn net.Conn
 	// isClosedConnection indicates if the websocket connection is closed.
 	isClosedConnection bool
+	mu                 *sync.RWMutex
 }
 
 // NewClient will create a new websocket subscription client.
@@ -53,18 +55,19 @@ func NewClient(logger abstractlogger.Logger, clientConn net.Conn) *Client {
 	return &Client{
 		logger:     logger,
 		clientConn: clientConn,
+		mu:         &sync.RWMutex{},
 	}
 }
 
 // ReadBytesFromClient will read a subscription message from the websocket client.
 func (c *Client) ReadBytesFromClient() ([]byte, error) {
-	if c.isClosedConnection {
+	if !c.IsConnected() {
 		return nil, subscription.ErrTransportClientClosedConnection
 	}
 
 	data, opCode, err := wsutil.ReadClientData(c.clientConn)
 	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, io.ErrUnexpectedEOF) {
-		c.isClosedConnection = true
+		c.changeConnectionStateToClosed()
 		return nil, subscription.ErrTransportClientClosedConnection
 	} else if err != nil {
 		if c.isClosedConnectionError(err) {
@@ -87,13 +90,13 @@ func (c *Client) ReadBytesFromClient() ([]byte, error) {
 
 // WriteBytesToClient will write a subscription message to the websocket client.
 func (c *Client) WriteBytesToClient(message []byte) error {
-	if c.isClosedConnection {
+	if !c.IsConnected() {
 		return subscription.ErrTransportClientClosedConnection
 	}
 
 	err := wsutil.WriteServerMessage(c.clientConn, ws.OpText, message)
 	if errors.Is(err, io.ErrClosedPipe) {
-		c.isClosedConnection = true
+		c.changeConnectionStateToClosed()
 		return subscription.ErrTransportClientClosedConnection
 	} else if err != nil {
 		c.logger.Error("websocket.Client.WriteBytesToClient: after writing to client",
@@ -109,6 +112,8 @@ func (c *Client) WriteBytesToClient(message []byte) error {
 
 // IsConnected will indicate if the websocket connection is still established.
 func (c *Client) IsConnected() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return !c.isClosedConnection
 }
 
@@ -117,7 +122,7 @@ func (c *Client) Disconnect() error {
 	c.logger.Debug("websocket.Client.Disconnect: before disconnect",
 		abstractlogger.String("message", "disconnecting client"),
 	)
-	c.isClosedConnection = true
+	c.changeConnectionStateToClosed()
 	return c.clientConn.Close()
 }
 
@@ -163,11 +168,19 @@ func (c *Client) writeCompiledFrame(compiledFrame []byte) error {
 
 // isClosedConnectionError will indicate if the given error is a connection closed error.
 func (c *Client) isClosedConnectionError(err error) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	var closedErr wsutil.ClosedError
 	if errors.As(err, &closedErr) {
 		c.isClosedConnection = true
 	}
 	return c.isClosedConnection
+}
+
+func (c *Client) changeConnectionStateToClosed() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.isClosedConnection = true
 }
 
 // Interface Guard
