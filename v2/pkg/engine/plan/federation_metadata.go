@@ -5,10 +5,9 @@ import (
 )
 
 type FederationMetaData struct {
-	Keys      FederationFieldConfigurations
-	Requires  FederationFieldConfigurations
-	Provides  FederationFieldConfigurations
-	Shareable FederationFieldConfigurations
+	Keys     FederationFieldConfigurations
+	Requires FederationFieldConfigurations
+	Provides FederationFieldConfigurations
 }
 
 type FederationFieldConfiguration struct {
