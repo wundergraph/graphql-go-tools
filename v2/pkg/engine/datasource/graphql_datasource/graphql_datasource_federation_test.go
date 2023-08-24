@@ -801,186 +801,320 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 	})
 
 	t.Run("shareable", func(t *testing.T) {
-		definition := `
-			type User {
-				id: ID!
-				details: Details!
-			}
+		t.Run("on entity", func(t *testing.T) {
+			definition := `
+				type User {
+					id: ID!
+					details: Details!
+				}
+	
+				type Details {
+					forename: String!
+					surname: String!
+					middlename: String!
+				}
+	
+				type Query {
+					me: User
+				}
+			`
 
-			type Details {
-				forename: String!
-				surname: String!
-			}
+			firstSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					details: Details! @shareable
+				}
+	
+				type Details {
+					forename: String! @shareable
+					middlename: String!
+				}
+	
+				type Query {
+					me: User
+				}
+			`
 
-			type Query {
-				me: User
-			}
-		`
-
-		firstSubgraphSDL := `
-			type User @key(fields: "id") {
-				id: ID!
-				details: Details! @shareable
-			}
-
-			type Details {
-				forename: String! @shareable
-			}
-
-			type Query {
-				me: User
-			}
-		`
-
-		firstDatasourceConfiguration := plan.DataSourceConfiguration{
-			RootNodes: []plan.TypeField{
-				{
-					TypeName:   "Query",
-					FieldNames: []string{"me"},
-				},
-				{
-					TypeName:   "User",
-					FieldNames: []string{"id", "details"},
-				},
-			},
-			ChildNodes: []plan.TypeField{
-				{
-					TypeName:   "Details",
-					FieldNames: []string{"forename"},
-				},
-			},
-			Custom: ConfigJson(Configuration{
-				Fetch: FetchConfiguration{
-					URL: "http://first.service",
-				},
-				Federation: FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: firstSubgraphSDL,
-				},
-			}),
-			Factory: federationFactory,
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
+			firstDatasourceConfiguration := plan.DataSourceConfiguration{
+				RootNodes: []plan.TypeField{
 					{
-						TypeName:     "User",
-						SelectionSet: "id",
-					},
-				},
-				Shareable: plan.FederationFieldConfigurations{
-					{
-						TypeName:  "User",
-						FieldName: "details",
+						TypeName:   "Query",
+						FieldNames: []string{"me"},
 					},
 					{
-						TypeName:  "Details",
-						FieldName: "forename",
+						TypeName:   "User",
+						FieldNames: []string{"id", "details"},
 					},
 				},
-			},
-		}
-
-		secondSubgraphSDL := `
-			type User @key(fields: "id") {
-				id: ID!
-				details: Details! @shareable
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Details",
+						FieldNames: []string{"forename", "middlename"},
+					},
+				},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://first.service",
+					},
+					Federation: FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: firstSubgraphSDL,
+					},
+				}),
+				Factory: federationFactory,
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+					},
+				},
 			}
 
-			type Details {
-				forename: String! @shareable
-				surname: String!
+			secondSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					details: Details! @shareable
+				}
+	
+				type Details {
+					forename: String! @shareable
+					surname: String!
+				}
+	
+				type Query {
+					me: User
+				}
+			`
+			secondDatasourceConfiguration := plan.DataSourceConfiguration{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"me"},
+					},
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "details"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Details",
+						FieldNames: []string{"forename", "surname"},
+					},
+				},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://second.service",
+					},
+					Federation: FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: secondSubgraphSDL,
+					},
+				}),
+				Factory: federationFactory,
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+					},
+				},
 			}
 
-			type Query {
-				me: User
-			}
-		`
-		secondDatasourceConfiguration := plan.DataSourceConfiguration{
-			RootNodes: []plan.TypeField{
-				{
-					TypeName:   "Query",
-					FieldNames: []string{"me"},
-				},
-				{
-					TypeName:   "User",
-					FieldNames: []string{"id", "details"},
-				},
-			},
-			ChildNodes: []plan.TypeField{
-				{
-					TypeName:   "Details",
-					FieldNames: []string{"forename", "surname"},
-				},
-			},
-			Custom: ConfigJson(Configuration{
-				Fetch: FetchConfiguration{
-					URL: "http://second.service",
-				},
-				Federation: FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: secondSubgraphSDL,
-				},
-			}),
-			Factory: federationFactory,
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "User",
-						SelectionSet: "id",
-					},
-				},
-				Shareable: plan.FederationFieldConfigurations{
-					{
-						TypeName:  "User",
-						FieldName: "details",
-					},
-					{
-						TypeName:  "Details",
-						FieldName: "forename",
-					},
-				},
-			},
-		}
-
-		dataSources := []plan.DataSourceConfiguration{
-			firstDatasourceConfiguration,
-			secondDatasourceConfiguration,
-		}
-
-		planConfiguration := plan.Configuration{
-			// TODO: shuffle will not work predictably unless we have planner suggestions
-			// DataSources:                  shuffle(dataSources),
-			DataSources:                  dataSources,
-			DisableResolveFieldPositions: true,
-			Debug: plan.DebugConfiguration{
-				PrintOperationWithRequiredFields: true,
-				PrintPlanningPaths:               true,
-				PrintQueryPlans:                  true,
-				ConfigurationVisitor:             false,
-				PlanningVisitor:                  false,
-				DatasourceVisitor:                false,
-			},
-		}
-
-		t.Run("", func(t *testing.T) {
-
-			t.Run("basic", RunTest(
-				definition,
-				`
-				query basic {
-					me {
-						details {
-							forename
-							surname
+			t.Run("only shared field", func(t *testing.T) {
+				query := `
+					query basic {
+						me {
+							details {
+								forename
+							}
 						}
 					}
+				`
+
+				expectedResponse := func(input string) *plan.SynchronousResponsePlan {
+					return &plan.SynchronousResponsePlan{
+						Response: &resolve.GraphQLResponse{
+							Data: &resolve.Object{
+								Fetch: &resolve.SingleFetch{
+									BufferId: 0,
+									Input:    input,
+									ProcessResponseConfig: resolve.ProcessResponseConfig{
+										ExtractGraphqlResponse: true,
+									},
+									DataSource:           &Source{},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								},
+								Fields: []*resolve.Field{
+									{
+										HasBuffer: true,
+										BufferID:  0,
+										Name:      []byte("me"),
+										Value: &resolve.Object{
+											Path:     []string{"me"},
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("details"),
+													Value: &resolve.Object{
+														Path: []string{"details"},
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("forename"),
+																Value: &resolve.String{
+																	Path: []string{"forename"},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					}
 				}
-			`,
-				"basic",
-				&plan.SynchronousResponsePlan{
-					Response: &resolve.GraphQLResponse{},
-				},
-				planConfiguration,
-			))
+
+				t.Run("ds order: first,second", RunTest(
+					definition,
+					query,
+					"basic",
+					expectedResponse(`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename}}}"}}`),
+					plan.Configuration{
+						DataSources: []plan.DataSourceConfiguration{
+							firstDatasourceConfiguration,
+							secondDatasourceConfiguration,
+						},
+						DisableResolveFieldPositions: true,
+					},
+				))
+
+				t.Run("ds order: second,first", RunTest(
+					definition,
+					query,
+					"basic",
+					expectedResponse(`{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename}}}"}}`),
+					plan.Configuration{
+						DataSources: []plan.DataSourceConfiguration{
+							secondDatasourceConfiguration,
+							firstDatasourceConfiguration,
+						},
+						DisableResolveFieldPositions: true,
+					},
+				))
+
+			})
+
+			t.Run("shared and not shared field", func(t *testing.T) {
+				dataSources := []plan.DataSourceConfiguration{
+					firstDatasourceConfiguration,
+					secondDatasourceConfiguration,
+				}
+
+				planConfiguration := plan.Configuration{
+					// TODO: shuffle will not work predictably unless we have planner suggestions
+					// DataSources:                  shuffle(dataSources),
+					DataSources:                  dataSources,
+					DisableResolveFieldPositions: true,
+					Debug: plan.DebugConfiguration{
+						PrintOperationWithRequiredFields: true,
+						PrintPlanningPaths:               true,
+						PrintQueryPlans:                  true,
+						ConfigurationVisitor:             false,
+						PlanningVisitor:                  false,
+						DatasourceVisitor:                false,
+					},
+				}
+
+				t.Run("resolve from single subgraph", RunTest(
+					definition,
+					`
+						query basic {
+							me {
+								details {
+									forename
+									surname
+								}
+							}
+						}
+					`,
+					"basic",
+					&plan.SynchronousResponsePlan{
+						Response: &resolve.GraphQLResponse{
+							Data: &resolve.Object{
+								Fetch: &resolve.SingleFetch{
+									BufferId: 0,
+									Input:    `{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname}}}"}}`,
+									ProcessResponseConfig: resolve.ProcessResponseConfig{
+										ExtractGraphqlResponse: true,
+									},
+									DataSource:           &Source{},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								},
+								Fields: []*resolve.Field{
+									{
+										HasBuffer: true,
+										BufferID:  0,
+										Name:      []byte("me"),
+										Value: &resolve.Object{
+											Path:     []string{"me"},
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("details"),
+													Value: &resolve.Object{
+														Path: []string{"details"},
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("forename"),
+																Value: &resolve.String{
+																	Path: []string{"forename"},
+																},
+															},
+															{
+																Name: []byte("surname"),
+																Value: &resolve.String{
+																	Path: []string{"surname"},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					planConfiguration,
+				))
+
+				t.Run("resolve from a few subgraph", RunTest(
+					definition,
+					`
+						query basic {
+							me {
+								details {
+									forename
+									surname
+									middlename
+								}
+							}
+						}
+					`,
+					"basic",
+					&plan.SynchronousResponsePlan{
+						Response: &resolve.GraphQLResponse{},
+					},
+					planConfiguration,
+				))
+			})
 		})
 	})
 }
