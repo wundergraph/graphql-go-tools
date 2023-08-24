@@ -3,7 +3,9 @@ package datasourcetesting
 import (
 	"context"
 	"encoding/json"
+	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -63,4 +65,15 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 			extraCheck(t, op, actualPlan)
 		}
 	}
+}
+
+// ShuffleDS randomizes the order of the data sources
+// to ensure that the order doesn't matter
+func ShuffleDS(dataSources []plan.DataSourceConfiguration) []plan.DataSourceConfiguration {
+	rand.Seed(time.Now().UnixNano())
+	rand.Shuffle(len(dataSources), func(i, j int) {
+		dataSources[i], dataSources[j] = dataSources[j], dataSources[i]
+	})
+
+	return dataSources
 }

@@ -1,9 +1,7 @@
 package graphql_datasource
 
 import (
-	"math/rand"
 	"testing"
-	"time"
 
 	. "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -323,7 +321,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 		}
 
 		planConfiguration := plan.Configuration{
-			DataSources:                  shuffle(dataSources),
+			DataSources:                  ShuffleDS(dataSources),
 			DisableResolveFieldPositions: true,
 			Debug: plan.DebugConfiguration{
 				PrintOperationWithRequiredFields: true,
@@ -1117,15 +1115,4 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			})
 		})
 	})
-}
-
-// shuffle randomizes the order of the data sources
-// to ensure that the order doesn't matter
-func shuffle(dataSources []plan.DataSourceConfiguration) []plan.DataSourceConfiguration {
-	rand.Seed(time.Now().UnixNano())
-	rand.Shuffle(len(dataSources), func(i, j int) {
-		dataSources[i], dataSources[j] = dataSources[j], dataSources[i]
-	})
-
-	return dataSources
 }
