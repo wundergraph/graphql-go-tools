@@ -30,7 +30,7 @@ import (
 const removeNullVariablesDirectiveName = "removeNullVariables"
 
 type Planner struct {
-	id              int
+	id              uint64
 	debug           bool
 	printQueryPlans bool
 
@@ -71,11 +71,11 @@ type onTypeInlineFragment struct {
 	SelectionSet  int
 }
 
-func (p *Planner) SetID(id int) {
+func (p *Planner) SetID(id uint64) {
 	p.id = id
 }
 
-func (p *Planner) ID() (id int) {
+func (p *Planner) ID() (id uint64) {
 	return p.id
 }
 

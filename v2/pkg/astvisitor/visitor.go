@@ -676,8 +676,8 @@ type (
 	}
 
 	VisitorIdentifier interface {
-		ID() int
-		SetID(id int)
+		ID() uint64
+		SetID(id uint64)
 	}
 )
 

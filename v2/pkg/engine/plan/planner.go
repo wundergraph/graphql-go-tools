@@ -75,6 +75,11 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		return
 	}
 
+	// assign hash to each datasource
+	for i := range p.config.DataSources {
+		p.config.DataSources[i].Hash()
+	}
+
 	err := p.findPlanningPaths(operation, definition, report)
 	if err != nil || report.HasErrors() {
 		return nil
@@ -107,7 +112,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		isNested := p.planningVisitor.planners[key].isNestedPlanner()
 
 		if plannerWithId, ok := p.planningVisitor.planners[key].planner.(astvisitor.VisitorIdentifier); ok {
-			plannerWithId.SetID(key + 1)
+			plannerWithId.SetID(config.Hash())
 		}
 		if plannerWithDebug, ok := p.planningVisitor.planners[key].planner.(DataSourceDebugger); ok {
 			if p.config.Debug.DatasourceVisitor {
