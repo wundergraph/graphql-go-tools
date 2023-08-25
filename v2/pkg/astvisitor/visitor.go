@@ -14,7 +14,7 @@ var (
 	ErrDefinitionMustNotBeNil = fmt.Errorf("definition must not be nil when walking operations")
 )
 
-type SkipVisitors []int
+type SkipVisitors []uint64
 
 func (s SkipVisitors) Allow(planner interface{}) bool {
 	p, ok := planner.(VisitorIdentifier)
@@ -31,7 +31,7 @@ func (s SkipVisitors) Allow(planner interface{}) bool {
 	return true
 }
 
-func newSkipVisitors(skips []int, planner interface{}, allowedToVisit bool) SkipVisitors {
+func newSkipVisitors(skips []uint64, planner interface{}, allowedToVisit bool) SkipVisitors {
 	p, ok := planner.(VisitorIdentifier)
 	if !ok {
 		return skips
@@ -42,7 +42,7 @@ func newSkipVisitors(skips []int, planner interface{}, allowedToVisit bool) Skip
 		if i == j {
 			if allowedToVisit {
 				// if visiting was allowed explicitly we have to remove the skip for the nested nodes
-				newSkips := make([]int, 0, len(skips))
+				newSkips := make([]uint64, 0, len(skips))
 				newSkips = append(newSkips, skips[:k]...)
 				newSkips = append(newSkips, skips[k+1:]...)
 				return newSkips
@@ -54,7 +54,7 @@ func newSkipVisitors(skips []int, planner interface{}, allowedToVisit bool) Skip
 	if allowedToVisit {
 		return skips
 	}
-	newSkips := make([]int, 0, len(skips)+1)
+	newSkips := make([]uint64, 0, len(skips)+1)
 	newSkips = append(newSkips, skips...)
 	return append(newSkips, j) // add new skipped planner index
 }

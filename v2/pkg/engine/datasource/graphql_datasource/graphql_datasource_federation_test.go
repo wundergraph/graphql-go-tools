@@ -810,6 +810,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					forename: String!
 					surname: String!
 					middlename: String!
+					age: Int!
 				}
 	
 				type Query {
@@ -922,6 +923,49 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 			}
 
+			thirdSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					details: Details! @shareable
+				}
+	
+				type Details {
+					age: Int!
+				}
+			`
+			thirdDatasourceConfiguration := plan.DataSourceConfiguration{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "details"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Details",
+						FieldNames: []string{"age"},
+					},
+				},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://third.service",
+					},
+					Federation: FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: thirdSubgraphSDL,
+					},
+				}),
+				Factory: federationFactory,
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+					},
+				},
+			}
+
 			t.Run("only shared field", func(t *testing.T) {
 				query := `
 					query basic {
@@ -987,6 +1031,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						DataSources: []plan.DataSourceConfiguration{
 							firstDatasourceConfiguration,
 							secondDatasourceConfiguration,
+							thirdDatasourceConfiguration,
 						},
 						DisableResolveFieldPositions: true,
 					},
@@ -1001,6 +1046,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						DataSources: []plan.DataSourceConfiguration{
 							secondDatasourceConfiguration,
 							firstDatasourceConfiguration,
+							thirdDatasourceConfiguration,
 						},
 						DisableResolveFieldPositions: true,
 					},
@@ -1012,6 +1058,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				dataSources := []plan.DataSourceConfiguration{
 					firstDatasourceConfiguration,
 					secondDatasourceConfiguration,
+					thirdDatasourceConfiguration,
 				}
 
 				planConfiguration := plan.Configuration{
@@ -1023,9 +1070,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						PrintOperationWithRequiredFields: true,
 						PrintPlanningPaths:               true,
 						PrintQueryPlans:                  true,
-						ConfigurationVisitor:             false,
-						PlanningVisitor:                  false,
-						DatasourceVisitor:                false,
+						ConfigurationVisitor:             true,
+						PlanningVisitor:                  true,
+						DatasourceVisitor:                true,
 					},
 				}
 
@@ -1093,7 +1140,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					planConfiguration,
 				))
 
-				t.Run("resolve from a few subgraph", RunTest(
+				t.Run("resolve from two subgraphs", RunTest(
 					definition,
 					`
 						query basic {
@@ -1112,6 +1159,28 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					},
 					planConfiguration,
 				))
+
+				t.Run("resolve from three subgraphs", RunTest(
+					definition,
+					`
+						query basic {
+							me {
+								details {
+									forename
+									surname
+									middlename
+									age
+								}
+							}
+						}
+					`,
+					"basic",
+					&plan.SynchronousResponsePlan{
+						Response: &resolve.GraphQLResponse{},
+					},
+					planConfiguration,
+				))
+
 			})
 		})
 	})

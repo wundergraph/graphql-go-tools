@@ -9,12 +9,16 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-type DsMap map[uint64]DataSourceConfiguration
+type DsMap map[DSHash]DataSourceConfiguration
 
-func FilterDataSources(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) (used, unused DsMap, suggestions NodeSuggestions, err error) {
+func FilterDataSources(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) (used, unused DsMap, suggestions NodeSuggestions) {
 	usedDataSources, err := findBestDataSourceSet(operation, definition, report, dataSources)
+	if report.HasErrors() {
+		return nil, nil, nil
+	}
 	if err != nil {
-		return nil, nil, nil, err
+		report.AddInternalError(err)
+		return nil, nil, nil
 	}
 
 	used = make(DsMap, len(usedDataSources))
@@ -38,18 +42,18 @@ func FilterDataSources(operation, definition *ast.Document, report *operationrep
 		}
 	}
 
-	return used, unused, suggestions, nil
+	return used, unused, suggestions
 }
 
 type NodeSuggestion struct {
 	TypeName       string
 	FieldName      string
-	DataSourceHash uint64
+	DataSourceHash DSHash
 }
 
 type NodeSuggestions []NodeSuggestion
 
-func (f NodeSuggestions) HasSuggestion(typeName, fieldName string) (dsHash uint64, ok bool) {
+func (f NodeSuggestions) HasSuggestion(typeName, fieldName string) (dsHash DSHash, ok bool) {
 	if len(f) == 0 {
 		return 0, false
 	}
@@ -107,13 +111,10 @@ type errOperationFieldNotResolved struct {
 }
 
 func (e *errOperationFieldNotResolved) Error() string {
-	return fmt.Sprintf("could not resolve %s.%s", e.TypeName, e.FieldName)
+	return fmt.Sprintf("could not find datasource to resolve %s.%s", e.TypeName, e.FieldName)
 }
 
 func findUsedDataSources(operation *ast.Document, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) ([]*UsedDataSourceConfiguration, error) {
-	if report == nil {
-		panic("report can't be nil")
-	}
 	walker := astvisitor.NewWalker(32)
 	dataSourcesToVisit := make([]*UsedDataSourceConfiguration, len(dataSources))
 	for ii, v := range dataSources {

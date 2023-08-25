@@ -94,7 +94,7 @@ type pathConfiguration struct {
 	enclosingNode ast.Node
 
 	depth      int
-	dsHash     uint64
+	dsHash     DSHash
 	isRootNode bool
 }
 
@@ -106,6 +106,8 @@ func (p *pathConfiguration) String() string {
 	j["shouldWalkFields"] = p.shouldWalkFields
 	j["typeName"] = p.typeName
 	j["fieldRef"] = p.fieldRef
+	j["ds"] = p.dsHash
+	j["isRootNode"] = p.isRootNode
 
 	b, _ := json.Marshal(j)
 
