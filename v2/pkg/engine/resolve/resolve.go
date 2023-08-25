@@ -95,9 +95,6 @@ func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *Bu
 	case *Array:
 		return r.resolveArray(ctx, n, data, bufPair)
 	case *Null:
-		if n.Defer.Enabled {
-			r.preparePatch(ctx, n.Defer.PatchIndex, nil, data)
-		}
 		r.resolveNull(bufPair.Data)
 		return
 	case *String:
@@ -132,23 +129,21 @@ func (r *Resolver) validateContext(ctx *Context) (err error) {
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
 
+	dataBuf := pool.FastBuffer.Get()
+	defer pool.FastBuffer.Put(dataBuf)
+
+	loader := &Loader{}
+	err = loader.LoadGraphQLResponseData(ctx, response, data, dataBuf)
+	defer loader.Free()
+	if err != nil {
+		return
+	}
+
 	buf := r.getBufPair()
 	defer r.freeBufPair(buf)
 
-	if data != nil {
-		ctx.lastFetchID = initialValueID
-	}
-
-	if r.dataLoaderEnabled {
-		ctx.dataLoader = r.dataloaderFactory.newDataLoader(data)
-		defer func() {
-			r.dataloaderFactory.freeDataLoader(ctx.dataLoader)
-			ctx.dataLoader = nil
-		}()
-	}
-
 	ignoreData := false
-	err = r.resolveNode(ctx, response.Data, data, buf)
+	err = r.resolveNode(ctx, response.Data, dataBuf.Bytes(), buf)
 	if err != nil {
 		if !errors.Is(err, errNonNullableFieldValueIsNull) {
 			return
@@ -165,7 +160,8 @@ func (r *Resolver) resolveGraphQLSubscriptionResponse(ctx *Context, response *Gr
 	defer r.freeBufPair(buf)
 
 	if subscriptionData.HasData() {
-		ctx.lastFetchID = initialValueID
+		ctx.lastFetchID = ctx.lastFetchID[:0]
+		ctx.lastFetchID = append(ctx.lastFetchID, initialValueID)
 	}
 
 	if r.dataLoaderEnabled {
@@ -325,7 +321,7 @@ func (r *Resolver) ResolveGraphQLResponsePatch(ctx *Context, patch *GraphQLRespo
 
 	ctx.pathPrefix = append(path, extraPath...)
 
-	if patch.Fetch != nil {
+	/*	if patch.Fetch != nil {
 		set := r.getResultSet()
 		defer r.freeResultSet(set)
 		err = r.resolveFetch(ctx, patch.Fetch, data, set)
@@ -337,7 +333,7 @@ func (r *Resolver) ResolveGraphQLResponsePatch(ctx *Context, patch *GraphQLRespo
 			r.MergeBufPairErrors(set.buffers[0], buf)
 			data = set.buffers[0].Data.Bytes()
 		}
-	}
+	}*/
 
 	err = r.resolveNode(ctx, patch.Value, data, buf)
 	if err != nil {
@@ -429,35 +425,19 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 	ctx.addResponseArrayElements(array.Path)
 	defer func() { ctx.removeResponseArrayLastElements(array.Path) }()
 
-	if array.ResolveAsynchronous && !array.Stream.Enabled && !r.dataLoaderEnabled {
-		return r.resolveArrayAsynchronous(ctx, array, arrayItems, arrayBuf)
-	}
 	return r.resolveArraySynchronous(ctx, array, arrayItems, arrayBuf)
 }
 
 func (r *Resolver) resolveArraySynchronous(ctx *Context, array *Array, arrayItems *[][]byte, arrayBuf *BufPair) (err error) {
-
-	itemBuf := r.getBufPair()
-	defer r.freeBufPair(itemBuf)
-
 	arrayBuf.Data.WriteBytes(lBrack)
-	var (
-		hasPreviousItem bool
-		dataWritten     int
-	)
+	hasPreviousItem := false
+	start := arrayBuf.Data.Len()
 	for i := range *arrayItems {
-
-		if array.Stream.Enabled {
-			if i > array.Stream.InitialBatchSize-1 {
-				ctx.addIntegerPathElement(i)
-				r.preparePatch(ctx, array.Stream.PatchIndex, nil, (*arrayItems)[i])
-				ctx.removeLastPathElement()
-				continue
-			}
-		}
-
 		ctx.addIntegerPathElement(i)
-		err = r.resolveNode(ctx, array.Item, (*arrayItems)[i], itemBuf)
+		if hasPreviousItem {
+			arrayBuf.Data.WriteBytes(comma)
+		}
+		err = r.resolveNode(ctx, array.Item, (*arrayItems)[i], arrayBuf)
 		ctx.removeLastPathElement()
 		if err != nil {
 			if errors.Is(err, errNonNullableFieldValueIsNull) && array.Nullable {
@@ -469,77 +449,8 @@ func (r *Resolver) resolveArraySynchronous(ctx *Context, array *Array, arrayItem
 				err = nil
 				continue
 			}
+			hasPreviousItem = arrayBuf.Data.Len() > start
 			return
-		}
-		dataWritten += itemBuf.Data.Len()
-		r.MergeBufPairs(itemBuf, arrayBuf, hasPreviousItem)
-		if !hasPreviousItem && dataWritten != 0 {
-			hasPreviousItem = true
-		}
-	}
-
-	arrayBuf.Data.WriteBytes(rBrack)
-	return
-}
-
-func (r *Resolver) resolveArrayAsynchronous(ctx *Context, array *Array, arrayItems *[][]byte, arrayBuf *BufPair) (err error) {
-
-	arrayBuf.Data.WriteBytes(lBrack)
-
-	bufSlice := r.getBufPairSlice()
-	defer r.freeBufPairSlice(bufSlice)
-
-	wg := r.getWaitGroup()
-	defer r.freeWaitGroup(wg)
-
-	errCh := r.getErrChan()
-	defer r.freeErrChan(errCh)
-
-	wg.Add(len(*arrayItems))
-
-	for i := range *arrayItems {
-		itemBuf := r.getBufPair()
-		*bufSlice = append(*bufSlice, itemBuf)
-		itemData := (*arrayItems)[i]
-		cloned := ctx.clone()
-		go func(ctx Context, i int) {
-			ctx.addPathElement([]byte(strconv.Itoa(i)))
-			if e := r.resolveNode(&ctx, array.Item, itemData, itemBuf); e != nil && !errors.Is(e, errTypeNameSkipped) {
-				select {
-				case errCh <- e:
-				default:
-				}
-			}
-			ctx.Free()
-			wg.Done()
-		}(cloned, i)
-	}
-
-	wg.Wait()
-
-	select {
-	case err = <-errCh:
-	default:
-	}
-
-	if err != nil {
-		if errors.Is(err, errNonNullableFieldValueIsNull) && array.Nullable {
-			arrayBuf.Data.Reset()
-			r.resolveNull(arrayBuf.Data)
-			return nil
-		}
-		return
-	}
-
-	var (
-		hasPreviousItem bool
-		dataWritten     int
-	)
-	for i := range *bufSlice {
-		dataWritten += (*bufSlice)[i].Data.Len()
-		r.MergeBufPairs((*bufSlice)[i], arrayBuf, hasPreviousItem)
-		if !hasPreviousItem && dataWritten != 0 {
-			hasPreviousItem = true
 		}
 	}
 
@@ -703,14 +614,6 @@ func (r *Resolver) renameTypeName(ctx *Context, str *String, typeName []byte) []
 	return typeName
 }
 
-func (r *Resolver) preparePatch(ctx *Context, patchIndex int, extraPath, data []byte) {
-	buf := pool.BytesBuffer.Get()
-	ctx.usedBuffers = append(ctx.usedBuffers, buf)
-	_, _ = buf.Write(data)
-	path, data := ctx.path(), buf.Bytes()
-	ctx.addPatch(patchIndex, path, extraPath, data)
-}
-
 func (r *Resolver) resolveNull(b *fastbuffer.FastBuffer) {
 	b.WriteBytes(null)
 }
@@ -754,11 +657,7 @@ func (r *Resolver) addResolveError(ctx *Context, objectBuf *BufPair) {
 func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, objectBuf *BufPair) (err error) {
 	if len(object.Path) != 0 {
 		data, _, _, _ = jsonparser.Get(data, object.Path...)
-
 		if len(data) == 0 || bytes.Equal(data, literal.NULL) {
-			// we will not traverse the children if the object is null
-			// therefore, we must "pop" the null element from the batch
-			r.recursivelySkipBatchResults(ctx, object, data)
 			if object.Nullable {
 				r.resolveNull(objectBuf.Data)
 				return
@@ -767,33 +666,11 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			r.addResolveError(ctx, objectBuf)
 			return errNonNullableFieldValueIsNull
 		}
-
-		ctx.addResponseElements(object.Path)
-		defer ctx.removeResponseLastElements(object.Path)
 	}
 
 	if object.UnescapeResponseJson {
 		data = bytes.ReplaceAll(data, []byte(`\"`), []byte(`"`))
 	}
-
-	var set *resultSet
-	if object.Fetch != nil {
-		set = r.getResultSet()
-		defer r.freeResultSet(set)
-		err = r.resolveFetch(ctx, object.Fetch, data, set)
-		if err != nil {
-			return
-		}
-		for i := range set.buffers {
-			r.MergeBufPairErrors(set.buffers[i], objectBuf)
-		}
-	}
-
-	fieldBuf := r.getBufPair()
-	defer r.freeBufPair(fieldBuf)
-
-	responseElements := ctx.responseElements
-	lastFetchID := ctx.lastFetchID
 
 	typeNameSkip := false
 	first := true
@@ -815,20 +692,8 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			}
 		}
 
-		var fieldData []byte
-		if set != nil && object.Fields[i].HasBuffer {
-			buffer, ok := set.buffers[object.Fields[i].BufferID]
-			if ok {
-				fieldData = buffer.Data.Bytes()
-				ctx.resetResponsePathElements()
-				ctx.lastFetchID = object.Fields[i].BufferID
-			}
-		} else {
-			fieldData = data
-		}
-
 		if object.Fields[i].OnTypeNames != nil {
-			typeName, _, _, _ := jsonparser.Get(fieldData, "__typename")
+			typeName, _, _, _ := jsonparser.Get(data, "__typename")
 			hasMatch := false
 			for _, onTypeName := range object.Fields[i].OnTypeNames {
 				if bytes.Equal(typeName, onTypeName) {
@@ -838,9 +703,6 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			}
 			if !hasMatch {
 				typeNameSkip = true
-				// Restore the response elements that may have been reset above.
-				ctx.responseElements = responseElements
-				ctx.lastFetchID = lastFetchID
 				continue
 			}
 		}
@@ -857,10 +719,8 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 		objectBuf.Data.WriteBytes(colon)
 		ctx.addPathElement(object.Fields[i].Name)
 		ctx.setPosition(object.Fields[i].Position)
-		err = r.resolveNode(ctx, object.Fields[i].Value, fieldData, fieldBuf)
+		err = r.resolveNode(ctx, object.Fields[i].Value, data, objectBuf)
 		ctx.removeLastPathElement()
-		ctx.responseElements = responseElements
-		ctx.lastFetchID = lastFetchID
 		if err != nil {
 			if errors.Is(err, errTypeNameSkipped) {
 				objectBuf.Data.Reset()
@@ -869,7 +729,7 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			}
 			if errors.Is(err, errNonNullableFieldValueIsNull) {
 				objectBuf.Data.Reset()
-				r.MergeBufPairErrors(fieldBuf, objectBuf)
+				//r.MergeBufPairErrors(fieldBuf, objectBuf)
 
 				if object.Nullable {
 					r.resolveNull(objectBuf.Data)
@@ -884,7 +744,7 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 
 			return
 		}
-		r.MergeBufPairs(fieldBuf, objectBuf, false)
+		//r.MergeBufPairs(fieldBuf, objectBuf, false)
 	}
 	allSkipped := len(object.Fields) != 0 && len(object.Fields) == skipCount
 	if allSkipped {
@@ -906,143 +766,6 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 	}
 	objectBuf.Data.WriteBytes(rBrace)
 	return
-}
-
-// recursivelySkipBatchResults traverses an object and skips all batch results by triggering fetch
-// when a fetch is attached to an object using batch fetch, only the first object will actually trigger the fetch
-// subsequent objects (siblings) will load the result from the cache, filled by the first sibling
-// if one sibling has no data (null), we have to "pop" the null result (generated by the batch resolver) from the cache
-// this is because the "null" sibling will not trigger a fetch by itself, as it has no data and will not resolve any fields
-func (r *Resolver) recursivelySkipBatchResults(ctx *Context, object *Object, data []byte) {
-	if object.Fetch != nil && object.Fetch.FetchKind() == FetchKindBatch {
-		set := r.getResultSet()
-		defer r.freeResultSet(set)
-		_ = r.resolveFetch(ctx, object.Fetch, data, set)
-	}
-	for i := range object.Fields {
-		value := object.Fields[i].Value
-		switch v := value.(type) {
-		case *Object:
-			r.recursivelySkipBatchResults(ctx, v, data)
-		case *Array:
-			switch av := v.Item.(type) {
-			case *Object:
-				r.recursivelySkipBatchResults(ctx, av, data)
-			}
-		}
-	}
-}
-
-func (r *Resolver) resolveFetch(ctx *Context, fetch Fetch, data []byte, set *resultSet) (err error) {
-	// if context is cancelled, we should not resolve the fetch
-	if errors.Is(ctx.Context().Err(), context.Canceled) {
-		return nil
-	}
-
-	switch f := fetch.(type) {
-	case *SingleFetch:
-		preparedInput := r.getBufPair()
-		defer r.freeBufPair(preparedInput)
-		err = r.prepareSingleFetch(ctx, f, data, set, preparedInput.Data)
-		if err != nil {
-			return err
-		}
-		err = r.resolveSingleFetch(ctx, f, preparedInput.Data, set.buffers[f.BufferId])
-	case *BatchFetch:
-		preparedInput := r.getBufPair()
-		defer r.freeBufPair(preparedInput)
-		err = r.prepareSingleFetch(ctx, f.Fetch, data, set, preparedInput.Data)
-		if err != nil {
-			return err
-		}
-		err = r.resolveBatchFetch(ctx, f, preparedInput.Data, set.buffers[f.Fetch.BufferId])
-	case *ParallelFetch:
-		err = r.resolveParallelFetch(ctx, f, data, set)
-	case *SerialFetch:
-		// TODO: implement
-		panic("implement me")
-	}
-	return
-}
-
-func (r *Resolver) resolveParallelFetch(ctx *Context, fetch *ParallelFetch, data []byte, set *resultSet) (err error) {
-	preparedInputs := r.getBufPairSlice()
-	defer r.freeBufPairSlice(preparedInputs)
-
-	resolvers := make([]func() error, 0, len(fetch.Fetches))
-
-	wg := r.getWaitGroup()
-	defer r.freeWaitGroup(wg)
-
-	for i := range fetch.Fetches {
-		wg.Add(1)
-		switch f := fetch.Fetches[i].(type) {
-		case *SingleFetch:
-			preparedInput := r.getBufPair()
-			err = r.prepareSingleFetch(ctx, f, data, set, preparedInput.Data)
-			if err != nil {
-				return err
-			}
-			*preparedInputs = append(*preparedInputs, preparedInput)
-			buf := set.buffers[f.BufferId]
-			resolvers = append(resolvers, func() error {
-				return r.resolveSingleFetch(ctx, f, preparedInput.Data, buf)
-			})
-		case *BatchFetch:
-			preparedInput := r.getBufPair()
-			err = r.prepareSingleFetch(ctx, f.Fetch, data, set, preparedInput.Data)
-			if err != nil {
-				return err
-			}
-			*preparedInputs = append(*preparedInputs, preparedInput)
-			buf := set.buffers[f.Fetch.BufferId]
-			resolvers = append(resolvers, func() error {
-				return r.resolveBatchFetch(ctx, f, preparedInput.Data, buf)
-			})
-		}
-	}
-
-	for _, resolver := range resolvers {
-		go func(r func() error) {
-			_ = r()
-			wg.Done()
-		}(resolver)
-	}
-
-	wg.Wait()
-
-	return
-}
-
-func (r *Resolver) prepareSingleFetch(ctx *Context, fetch *SingleFetch, data []byte, set *resultSet, preparedInput *fastbuffer.FastBuffer) (err error) {
-	err = fetch.InputTemplate.Render(ctx, data, preparedInput)
-	buf := r.getBufPair()
-	set.buffers[fetch.BufferId] = buf
-	return
-}
-
-func (r *Resolver) resolveBatchFetch(ctx *Context, fetch *BatchFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) error {
-	if r.dataLoaderEnabled {
-		return ctx.dataLoader.LoadBatch(ctx, fetch, buf)
-	}
-
-	if err := r.fetcher.FetchBatch(ctx, fetch, []*fastbuffer.FastBuffer{preparedInput}, []*BufPair{buf}); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (r *Resolver) resolveSingleFetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuffer.FastBuffer, buf *BufPair) error {
-	if r.dataLoaderEnabled && !fetch.DisableDataLoader {
-		return ctx.dataLoader.Load(ctx, fetch, buf)
-	}
-	return r.fetcher.Fetch(ctx, fetch, preparedInput, buf)
-}
-
-func (r *Resolver) MergeBufPairs(from, to *BufPair, prefixDataWithComma bool) {
-	r.MergeBufPairData(from, to, prefixDataWithComma)
-	r.MergeBufPairErrors(from, to)
 }
 
 func (r *Resolver) MergeBufPairData(from, to *BufPair, prefixDataWithComma bool) {

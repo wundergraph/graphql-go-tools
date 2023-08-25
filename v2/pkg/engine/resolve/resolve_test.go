@@ -15,7 +15,6 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastbuffer"
 )
 
@@ -1031,7 +1030,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				return &Object{
 					Fetch: &SingleFetch{
 						BufferId:   0,
-						DataSource: FakeDataSource(`{"jsonList":["{\"field\":\"value\"}"]}`),
+						DataSource: FakeDataSource(`{"jsonList":["{"field":"value"}"]}`),
 					},
 					Fields: []*Field{
 						{
@@ -1077,7 +1076,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				return &Object{
 					Fetch: &SingleFetch{
 						BufferId:   0,
-						DataSource: FakeDataSource(`{"jsonList":["{\"field\":\"value\"}"]}`),
+						DataSource: FakeDataSource(`{"jsonList":["{"field":"value"}"]}`),
 					},
 					Fields: []*Field{
 						{
@@ -1093,7 +1092,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							},
 						},
 					},
-				}, Context{ctx: context.Background()}, `{"jsonList":["{\"field\":\"value\"}"]}`
+				}, Context{ctx: context.Background()}, `{"jsonList":["{"field":"value"}"]}`
 			}))
 			t.Run("json input", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
 				return &Object{
@@ -1572,7 +1571,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				Fetch: &SingleFetch{
 					BufferId: 0,
 					// Datasource returns a JSON object within a string
-					DataSource: FakeDataSource(`{"data":"{ \"hello\": \"world\", \"numberAsString\": \"1\", \"number\": 1, \"bool\": true, \"null\": null, \"array\": [1,2,3], \"object\": {\"key\": \"value\"} }"}`),
+					DataSource: FakeDataSource(`{"data":"{ "hello": "world", "numberAsString": "1", "number": 1, "bool": true, "null": null, "array": [1,2,3], "object": {"key": "value"} }"}`),
 				},
 				Nullable: false,
 				Fields: []*Field{
@@ -3122,6 +3121,318 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 			},
 		}, Context{ctx: context.Background(), Variables: []byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`)}, `{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"serviceTwo":{"fieldTwo":"fieldTwoValue","serviceOneResponse":{"fieldOne":"fieldOneValue"}},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}}`
+	}))
+	t.Run("serial fetch", testFn(true, true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+
+		user := NewMockDataSource(ctrl)
+		user.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {__typename id line1 line2}}}}"}}`
+				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
+				pair.Data.WriteString(`{"user":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}}}`)
+				return writeGraphqlResponse(pair, w, false)
+			})
+
+		addressEnricher := NewMockDataSource(ctrl)
+		addressEnricher.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":[{"__typename":"Address","id":"address-1"}]}}}`
+				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
+				pair.Data.WriteString(`{"__typename":"Address","country":"country-1","city":"city-1"}`)
+				return writeGraphqlResponse(pair, w, false)
+			})
+
+		address := NewMockDataSource(ctrl)
+		address.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":[{"__typename":"Address","id":"address-1","country":"country-1","city":"city-1"}]}}}`
+				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
+				pair.Data.WriteString(`{"__typename": "Address", "line3": "line3-1", "zip": "zip-1"}`)
+				return writeGraphqlResponse(pair, w, false)
+			})
+
+		account := NewMockDataSource(ctrl)
+		account.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
+				actual := string(input)
+				expected := `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":[{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}]}}}`
+				assert.Equal(t, expected, actual)
+				pair := NewBufPair()
+				pair.Data.WriteString(`{"__typename":"Address","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1"}`)
+				return writeGraphqlResponse(pair, w, false)
+			})
+
+		return &GraphQLResponse{
+			Data: &Object{
+				Fetch: &SingleFetch{
+					BufferId: 0,
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								SegmentType: StaticSegmentType,
+								Data:        []byte(`{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {__typename id line1 line2}}}}"}}`),
+							},
+						},
+					},
+					DataSource:            user,
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("user"),
+						Value: &Object{
+							Path:     []string{"user"},
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("account"),
+									Value: &Object{
+										Path:     []string{"account"},
+										Nullable: true,
+										Fields: []*Field{
+											{
+												Name: []byte("address"),
+												Value: &Object{
+													Path:     []string{"address"},
+													Nullable: true,
+													Fields: []*Field{
+														{
+															HasBuffer: true,
+															BufferID:  1,
+															Name:      []byte("fullAddress"),
+															Value: &String{
+																Path: []string{"fullAddress"},
+															},
+														},
+													},
+													Fetch: &SerialFetch{
+														Fetches: []Fetch{
+															&EntityFetch{
+																Fetch: &SingleFetch{
+																	BufferId:              3,
+																	Input:                 `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":$$0$$}}}`,
+																	DataSource:            addressEnricher,
+																	DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+																	ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
+																	InputTemplate: InputTemplate{
+																		Segments: []TemplateSegment{
+																			{
+																				SegmentType: StaticSegmentType,
+																				Data:        []byte(`{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":`),
+																			},
+																			{
+																				SegmentType: ListSegmentType,
+																				Segments: []TemplateSegment{
+																					{
+																						SegmentType: StaticSegmentType,
+																						Data:        []byte(`[`),
+																					},
+																					{
+																						SegmentType:  VariableSegmentType,
+																						VariableKind: ResolvableObjectVariableKind,
+																						Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																							Fields: []*Field{
+																								{
+																									Name: []byte("__typename"),
+																									Value: &String{
+																										Path: []string{"__typename"},
+																									},
+																								},
+																								{
+																									Name: []byte("id"),
+																									Value: &String{
+																										Path: []string{"id"},
+																									},
+																								},
+																							},
+																						}),
+																					},
+																					{
+																						SegmentType: StaticSegmentType,
+																						Data:        []byte(`]`),
+																					},
+																				},
+																			},
+																			{
+																				SegmentType: StaticSegmentType,
+																				Data:        []byte(`}}}`),
+																			},
+																		},
+																	},
+																},
+															},
+															&EntityFetch{
+																Fetch: &SingleFetch{
+																	BufferId:               2,
+																	DissallowParallelFetch: true,
+																	Input:                  `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":$$0$$}}}`,
+																	DataSource:             address,
+																	DataSourceIdentifier:   []byte("graphql_datasource.Source"),
+																	ProcessResponseConfig:  ProcessResponseConfig{ExtractGraphqlResponse: true},
+																	InputTemplate: InputTemplate{
+																		Segments: []TemplateSegment{
+																			{
+																				SegmentType: StaticSegmentType,
+																				Data:        []byte(`{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":`),
+																			},
+																			{
+																				SegmentType: ListSegmentType,
+																				Segments: []TemplateSegment{
+																					{
+																						SegmentType: StaticSegmentType,
+																						Data:        []byte(`[`),
+																					},
+																					{
+																						SegmentType:  VariableSegmentType,
+																						VariableKind: ResolvableObjectVariableKind,
+																						Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																							Fields: []*Field{
+																								{
+																									Name: []byte("__typename"),
+																									Value: &String{
+																										Path: []string{"__typename"},
+																									},
+																								},
+																								{
+																									Name: []byte("id"),
+																									Value: &String{
+																										Path: []string{"id"},
+																									},
+																								},
+																								{
+																									Name: []byte("country"),
+																									Value: &String{
+																										Path: []string{"country"},
+																									},
+																								},
+																								{
+																									Name: []byte("city"),
+																									Value: &String{
+																										Path: []string{"city"},
+																									},
+																								},
+																							},
+																						}),
+																					},
+																					{
+																						SegmentType: StaticSegmentType,
+																						Data:        []byte(`]`),
+																					},
+																				},
+																			},
+																			{
+																				SegmentType: StaticSegmentType,
+																				Data:        []byte(`}}}`),
+																			},
+																		},
+																	},
+																},
+															},
+															&EntityFetch{
+																Fetch: &SingleFetch{
+																	BufferId:               1,
+																	DissallowParallelFetch: true,
+																	Input:                  `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":$$0$$}}}`,
+																	DataSource:             account,
+																	DataSourceIdentifier:   []byte("graphql_datasource.Source"),
+																	ProcessResponseConfig:  ProcessResponseConfig{ExtractGraphqlResponse: true},
+																	InputTemplate: InputTemplate{
+																		Segments: []TemplateSegment{
+																			{
+																				SegmentType: StaticSegmentType,
+																				Data:        []byte(`{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":`),
+																			},
+																			{
+																				SegmentType: ListSegmentType,
+																				Segments: []TemplateSegment{
+																					{
+																						SegmentType: StaticSegmentType,
+																						Data:        []byte(`[`),
+																					},
+																					{
+																						SegmentType:  VariableSegmentType,
+																						VariableKind: ResolvableObjectVariableKind,
+																						Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																							Fields: []*Field{
+																								{
+																									Name: []byte("__typename"),
+																									Value: &String{
+																										Path: []string{"__typename"},
+																									},
+																								},
+																								{
+																									Name: []byte("id"),
+																									Value: &String{
+																										Path: []string{"id"},
+																									},
+																								},
+																								{
+																									Name: []byte("line1"),
+																									Value: &String{
+																										Path: []string{"line1"},
+																									},
+																								},
+																								{
+																									Name: []byte("line2"),
+																									Value: &String{
+																										Path: []string{"line2"},
+																									},
+																								},
+																								{
+																									Name: []byte("line3"),
+																									Value: &String{
+																										Path: []string{"line3"},
+																									},
+																								},
+																								{
+																									Name: []byte("zip"),
+																									Value: &String{
+																										Path: []string{"zip"},
+																									},
+																								},
+																							},
+																						}),
+																					},
+																					{
+																						SegmentType: StaticSegmentType,
+																						Data:        []byte(`]`),
+																					},
+																				},
+																			},
+																			{
+																				SegmentType: StaticSegmentType,
+																				Data:        []byte(`}}}`),
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"data":{"user":{"account":{"address":{"fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1"}}}}}`
 	}))
 	t.Run("federation", func(t *testing.T) {
 		t.Skip("FIXME")

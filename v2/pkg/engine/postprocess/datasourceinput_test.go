@@ -301,7 +301,6 @@ func TestDataSourceInput_Process(t *testing.T) {
 																	{
 																		SegmentType: resolve.ListSegmentType,
 																		Segments: []resolve.TemplateSegment{
-
 																			{
 																				SegmentType: resolve.StaticSegmentType,
 																				Data:        []byte(`[`),
