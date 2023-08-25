@@ -41,7 +41,7 @@ type NodeSuggestions []NodeSuggestion
 
 func (f NodeSuggestions) HasSuggestion(typeName, fieldName string) (dsHash uint64, ok bool) {
 	if len(f) == 0 {
-		return -1, false
+		return 0, false
 	}
 
 	for i := range f {
@@ -49,7 +49,7 @@ func (f NodeSuggestions) HasSuggestion(typeName, fieldName string) (dsHash uint6
 			return f[i].DataSourceHash, true
 		}
 	}
-	return -1, false
+	return 0, false
 }
 
 type UsedNode struct {
