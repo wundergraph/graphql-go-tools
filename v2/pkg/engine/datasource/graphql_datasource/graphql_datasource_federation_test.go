@@ -1160,6 +1160,24 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					planConfiguration,
 				))
 
+				t.Run("resolve from two subgraphs - not shared field", RunTest(
+					definition,
+					`
+						query basic {
+							me {
+								details {
+									age
+								}
+							}
+						}
+					`,
+					"basic",
+					&plan.SynchronousResponsePlan{
+						Response: &resolve.GraphQLResponse{},
+					},
+					planConfiguration,
+				))
+
 				t.Run("resolve from three subgraphs", RunTest(
 					definition,
 					`
