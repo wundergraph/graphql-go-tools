@@ -9,6 +9,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
+type DSHash uint64
+
 type PlannerFactory interface {
 	// Planner should return the DataSourcePlanner
 	// closer is the closing channel for all stateful DataSources
@@ -35,14 +37,14 @@ type DataSourceConfiguration struct {
 	FederationMetaData FederationMetaData
 	ParentInfo         DataSourceParentInfo
 
-	hash uint64
+	hash DSHash
 }
 
-func (d *DataSourceConfiguration) Hash() uint64 {
+func (d *DataSourceConfiguration) Hash() DSHash {
 	if d.hash != 0 {
 		return d.hash
 	}
-	d.hash = xxhash.Sum64(d.Custom)
+	d.hash = DSHash(xxhash.Sum64(d.Custom))
 	return d.hash
 }
 

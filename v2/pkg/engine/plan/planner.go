@@ -81,7 +81,11 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	}
 
 	err := p.findPlanningPaths(operation, definition, report)
-	if err != nil || report.HasErrors() {
+	if report.HasErrors() {
+		return nil
+	}
+
+	if err != nil {
 		return nil
 	}
 
@@ -92,7 +96,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	// configure planning visitor
 
 	p.planningVisitor.planners = p.configurationVisitor.planners
-	p.planningVisitor.Config = p.configurationVisitor.config
+	p.planningVisitor.Config = p.config
 	p.planningVisitor.fetchConfigurations = p.configurationVisitor.fetches
 	p.planningVisitor.fieldBuffers = p.configurationVisitor.fieldBuffers
 	p.planningVisitor.skipFieldsRefs = p.configurationVisitor.skipFieldsRefs
@@ -112,7 +116,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		isNested := p.planningVisitor.planners[key].isNestedPlanner()
 
 		if plannerWithId, ok := p.planningVisitor.planners[key].planner.(astvisitor.VisitorIdentifier); ok {
-			plannerWithId.SetID(config.Hash())
+			plannerWithId.SetID(uint64(config.Hash()))
 		}
 		if plannerWithDebug, ok := p.planningVisitor.planners[key].planner.(DataSourceDebugger); ok {
 			if p.config.Debug.DatasourceVisitor {
@@ -142,12 +146,9 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 }
 
 func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) (err error) {
-	// make a copy of the config as the configuration visitor modifies it
-	config := p.config
-	var suggestions NodeSuggestions
-	config.DataSources, suggestions, err = FilterDataSources(operation, definition, report, config.DataSources)
-	if err != nil {
-		return err
+	used, unused, suggestions := FilterDataSources(operation, definition, report, p.config.DataSources)
+	if report.HasErrors() {
+		return
 	}
 
 	if p.config.Debug.PrintOperationWithRequiredFields {
@@ -155,7 +156,9 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 		p.printOperation(operation)
 	}
 
-	p.configurationVisitor.config = config
+	p.configurationVisitor.debug = p.config.Debug.ConfigurationVisitor
+	p.configurationVisitor.usedDataSources = used
+	p.configurationVisitor.unusedDataSources = unused
 	p.configurationVisitor.dataSourceSuggestions = suggestions
 	p.configurationVisitor.secondaryRun = false
 	p.configurationWalker.Walk(operation, definition, report)
@@ -168,13 +171,13 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 		p.printOperation(operation)
 	}
 
-	if config.Debug.PrintPlanningPaths {
+	if p.config.Debug.PrintPlanningPaths {
 		p.printPlanningPaths()
 	}
 
 	i := 1
 	// secondary runs to add path for the new required fields
-	for p.configurationVisitor.hasNewFields {
+	for p.configurationVisitor.hasNewFields || p.configurationVisitor.hasMissingPaths() {
 		p.configurationVisitor.secondaryRun = true
 		p.configurationVisitor.hasNewFields = false
 
@@ -183,12 +186,12 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 			return report
 		}
 
-		if config.Debug.PrintOperationWithRequiredFields {
+		if p.config.Debug.PrintOperationWithRequiredFields {
 			p.debugMessage(fmt.Sprintf("After run #%d. Operation with new required fields:", i))
 			p.printOperation(operation)
 		}
 
-		if config.Debug.PrintPlanningPaths {
+		if p.config.Debug.PrintPlanningPaths {
 			p.debugMessage(fmt.Sprintf("After run #%d. Planning paths", i))
 			p.printPlanningPaths()
 		}
@@ -227,8 +230,8 @@ func (p *Planner) printOperation(operation *ast.Document) {
 
 func (p *Planner) printPlanningPaths() {
 	p.debugMessage("Planning paths:")
-	for i, planner := range p.configurationVisitor.planners {
-		fmt.Println("Paths for planner", i+1)
+	for _, planner := range p.configurationVisitor.planners {
+		fmt.Println("Paths for planner", planner.dataSourceConfiguration.hash)
 		fmt.Println("Planner parent path", planner.parentPath)
 		for _, path := range planner.paths {
 			fmt.Println(path.String())

@@ -952,6 +952,7 @@ func (v *Visitor) configureSubscription(config objectFetchConfiguration) {
 
 func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 	if config.object == nil {
+		v.Walker.StopWithInternalErr(fmt.Errorf("object fetch configuration has empty object"))
 		return
 	}
 	fetchConfig := config.planner.ConfigureFetch()
