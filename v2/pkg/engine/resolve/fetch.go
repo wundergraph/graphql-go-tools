@@ -7,6 +7,7 @@ const (
 	FetchKindParallel
 	FetchKindBatch
 	FetchKindSerial
+	FetchKindEntity
 )
 
 type Fetch interface {
@@ -68,4 +69,12 @@ type BatchFetch struct {
 
 func (_ *BatchFetch) FetchKind() FetchKind {
 	return FetchKindBatch
+}
+
+type EntityFetch struct {
+	Fetch *SingleFetch
+}
+
+func (_ *EntityFetch) FetchKind() FetchKind {
+	return FetchKindEntity
 }
