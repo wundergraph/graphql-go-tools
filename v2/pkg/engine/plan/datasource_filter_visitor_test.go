@@ -15,22 +15,22 @@ type dsBuilder struct {
 
 func dsb() *dsBuilder { return &dsBuilder{} }
 
-func (b *dsBuilder) RootNodeFields(typeName string, fieldNames []string) *dsBuilder {
+func (b *dsBuilder) RootNodeFields(typeName string, fieldNames ...string) *dsBuilder {
 	b.ds.RootNodes = append(b.ds.RootNodes, TypeField{TypeName: typeName, FieldNames: fieldNames})
 	return b
 }
 
 func (b *dsBuilder) RootNode(typeName string, fieldName string) *dsBuilder {
-	return b.RootNodeFields(typeName, []string{fieldName})
+	return b.RootNodeFields(typeName, fieldName)
 }
 
-func (b *dsBuilder) ChildNodeFields(typeName string, fieldNames []string) *dsBuilder {
+func (b *dsBuilder) ChildNodeFields(typeName string, fieldNames ...string) *dsBuilder {
 	b.ds.ChildNodes = append(b.ds.ChildNodes, TypeField{TypeName: typeName, FieldNames: fieldNames})
 	return b
 }
 
 func (b *dsBuilder) ChildNode(typeName string, fieldName string) *dsBuilder {
-	return b.ChildNodeFields(typeName, []string{fieldName})
+	return b.ChildNodeFields(typeName, fieldName)
 }
 
 func (b *dsBuilder) DS() DataSourceConfiguration {
@@ -71,9 +71,9 @@ func TestVisitDataSource(t *testing.T) {
 				}
 			`,
 			DataSources: []DataSourceConfiguration{
-				dsb().RootNode("Query", "user").ChildNode("User", "id").DS(),
-				dsb().RootNode("User", "name").RootNode("User", "surname").DS(),
-				dsb().RootNode("User", "age").DS(),
+				dsb().RootNode("Query", "user").RootNode("User", "id").DS(),
+				dsb().RootNodeFields("User", "id", "name", "surname").DS(),
+				dsb().RootNodeFields("User", "id", "age").DS(),
 			},
 			Expected: []expectedDataSource{
 				{
@@ -93,6 +93,7 @@ func TestVisitDataSource(t *testing.T) {
 					user: User
 				}
 				type User {
+					id: Int
 					age: Int
 					name: String
 					surname: String
@@ -108,11 +109,11 @@ func TestVisitDataSource(t *testing.T) {
 				}
 			`,
 			DataSources: []DataSourceConfiguration{
-				dsb().RootNode("Query", "user").ChildNode("User", "age").DS(),
-				dsb().RootNode("User", "age").RootNode("User", "name").DS(),
-				dsb().RootNode("User", "name").RootNode("User", "surname").DS(),
-				dsb().RootNode("User", "age").DS(),
-				dsb().RootNode("User", "name").DS(),
+				dsb().RootNode("Query", "user").RootNodeFields("User", "id", "age").DS(),
+				dsb().RootNodeFields("User", "id", "age", "name").DS(),
+				dsb().RootNodeFields("User", "id", "name", "surname").DS(),
+				dsb().RootNodeFields("User", "id", "age").DS(),
+				dsb().RootNodeFields("User", "id", "name").DS(),
 			},
 			Expected: []expectedDataSource{
 				{
@@ -125,13 +126,14 @@ func TestVisitDataSource(t *testing.T) {
 				},
 			},
 		},
-		// Initial example from SVG
+		// Entities: User, Address, Lines
 		{
 			Definition: `
 						type Query {
 							user: User
 						}
 						type User {
+							id: String
 							name: String
 							details: Details
 						}
@@ -140,10 +142,12 @@ func TestVisitDataSource(t *testing.T) {
 							address: Address
 						}
 						type Address {
+							id: String
 							name: String
 							lines: Lines
 						}
 						type Lines {
+							id: String
 							line1: String
 							line2: String
 						}
@@ -169,28 +173,24 @@ func TestVisitDataSource(t *testing.T) {
 				// sub1
 				dsb().
 					RootNode("Query", "user").
-					ChildNode("User", "name").DS(),
+					RootNodeFields("User", "id", "name").DS(),
 				// sub2
 				dsb().
 					RootNode("Query", "user").
-					ChildNode("Details", "address").
-					ChildNode("User", "details").
-					ChildNode("User", "name").
-					ChildNode("Details", "age").
-					ChildNode("Details", "address").
-					ChildNode("Address", "name").
-					ChildNode("Address", "lines").
+					RootNodeFields("User", "id", "details", "name").
+					ChildNodeFields("Details", "address", "age").
+					RootNodeFields("Address", "id", "name", "lines").
+					RootNodeFields("Lines", "id").
 					DS(),
 				// sub3
 				dsb().
-					ChildNode("Details", "address").
-					ChildNode("Address", "lines").
-					ChildNode("Lines", "line1").
+					RootNodeFields("Address", "id", "lines").
+					RootNodeFields("Lines", "id", "line1").
 					DS(),
 				// sub4
 				dsb().
-					RootNode("Lines", "line1").
-					RootNode("Lines", "line2").DS(),
+					RootNodeFields("Lines", "id", "line1", "line2").
+					DS(),
 			},
 			Expected: []expectedDataSource{
 				{
@@ -211,6 +211,51 @@ func TestVisitDataSource(t *testing.T) {
 						{"Lines", "line1"},
 						{"Lines", "line2"},
 					},
+				},
+			},
+		},
+		{
+			Definition: `
+				type Query {
+					me: User
+				}
+				type User {
+					id: Int
+					details: Details
+				}
+				type Details {
+					name: String
+					surname: String
+				}
+			`,
+			Query: `
+				query {
+					me {
+						details {
+							surname
+						}
+					}
+				}
+			`,
+			DataSources: []DataSourceConfiguration{
+				dsb().
+					RootNode("Query", "me").
+					RootNodeFields("User", "id", "details").
+					ChildNode("Details", "name").
+					DS(),
+				dsb().
+					RootNodeFields("User", "id", "details").
+					ChildNode("Details", "surname").
+					DS(),
+			},
+			Expected: []expectedDataSource{
+				{
+					Index:     0,
+					UsedNodes: []*UsedNode{{"Query", "me"}},
+				},
+				{
+					Index:     1,
+					UsedNodes: []*UsedNode{{"User", "details"}, {"Details", "surname"}},
 				},
 			},
 		},
