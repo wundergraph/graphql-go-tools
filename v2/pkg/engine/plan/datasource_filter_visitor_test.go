@@ -42,7 +42,7 @@ type expectedDataSource struct {
 	UsedNodes []*UsedNode
 }
 
-func TestVisitDataSource(t *testing.T) {
+func TestFindBestDataSourceSet(t *testing.T) {
 	testCases := []struct {
 		Definition  string
 		Query       string
@@ -378,6 +378,106 @@ func TestVisitDataSource(t *testing.T) {
 				{
 					Index:     0,
 					UsedNodes: []*UsedNode{{"Query", "me"}},
+				},
+				{
+					Index:     1,
+					UsedNodes: []*UsedNode{{"User", "details"}, {"Details", "surname"}},
+				},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.Query, func(t *testing.T) {
+			definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(tc.Definition)
+			operation := unsafeparser.ParseGraphqlDocumentString(tc.Query)
+
+			report := operationreport.Report{}
+			planned, err := findBestDataSourceSet(&operation, &definition, &report, tc.DataSources)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report.HasErrors() {
+				t.Fatal(report.Error())
+			}
+			var expected []*UsedDataSourceConfiguration
+			for _, exp := range tc.Expected {
+				expected = append(expected, &UsedDataSourceConfiguration{
+					DataSource: tc.DataSources[exp.Index],
+					UsedNodes:  exp.UsedNodes,
+				})
+			}
+			assert.Equal(t, expected, planned)
+		})
+	}
+}
+
+func TestFindUsedDataSources(t *testing.T) {
+	testCases := []struct {
+		Definition  string
+		Query       string
+		DataSources []DataSourceConfiguration
+		Expected    []expectedDataSource
+	}{
+		{
+			Definition: `
+				type Query {
+					me: User
+				}
+				type User {
+					id: Int
+					details: Details
+				}
+				type Details {
+					name: String
+					surname: String
+				}
+			`,
+			Query: `
+				query {
+					me {
+						details {
+							surname
+						}
+					}
+				}
+			`,
+			DataSources: []DataSourceConfiguration{
+				/*
+					type Query {
+						me: User
+					}
+					type User @key(fields: "id") {
+						id: Int
+						details: Details
+					}
+					type Details {
+						name: String
+					}
+				*/
+				dsb().
+					RootNode("Query", "me").
+					RootNodeFields("User", "id", "details").
+					ChildNode("Details", "name").
+					DS(),
+				/*
+					type User @key(fields: "id") {
+						id: Int
+						details: Details
+					}
+					type Details {
+						surname: String
+					}
+				*/
+				dsb().
+					RootNodeFields("User", "id", "details").
+					ChildNode("Details", "surname").
+					DS(),
+			},
+			Expected: []expectedDataSource{
+				{
+					Index:     0,
+					UsedNodes: []*UsedNode{{"Query", "me"}, {"User", "details"}},
 				},
 				{
 					Index:     1,

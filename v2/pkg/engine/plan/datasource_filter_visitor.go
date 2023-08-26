@@ -96,7 +96,6 @@ func (v *findUsedDataSourceVisitor) EnterField(ref int) {
 				FieldName: fieldName,
 			})
 			found = true
-			break
 		}
 	}
 
