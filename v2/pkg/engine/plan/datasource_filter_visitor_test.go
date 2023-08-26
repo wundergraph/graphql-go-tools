@@ -59,6 +59,7 @@ func TestVisitDataSource(t *testing.T) {
 					id: Int
 					name: String
 					surname: String
+					age: Int
 				}	
 			`,
 			Query: `
@@ -71,8 +72,29 @@ func TestVisitDataSource(t *testing.T) {
 				}
 			`,
 			DataSources: []DataSourceConfiguration{
+				/*
+					type Query {
+						user: User
+					}
+					type User @key(fields: "id") {
+						id: Int
+					}
+				*/
 				dsb().RootNode("Query", "user").RootNode("User", "id").DS(),
+				/*
+					type User @key(fields: "id") {
+						id: Int
+						name: String
+						surname: String
+					}
+				*/
 				dsb().RootNodeFields("User", "id", "name", "surname").DS(),
+				/*
+					type User @key(fields: "id") {
+						id: Int
+						age: Int
+					}
+				*/
 				dsb().RootNodeFields("User", "id", "age").DS(),
 			},
 			Expected: []expectedDataSource{
@@ -109,10 +131,45 @@ func TestVisitDataSource(t *testing.T) {
 				}
 			`,
 			DataSources: []DataSourceConfiguration{
+				/*
+					type Query {
+						user: User
+					}
+					type User @key(fields: "id") {
+						id: Int
+						age: Int
+					}
+				*/
 				dsb().RootNode("Query", "user").RootNodeFields("User", "id", "age").DS(),
+				/*
+					type User @key(fields: "id") {
+						id: Int
+						age: Int
+						name: String
+					}
+				*/
 				dsb().RootNodeFields("User", "id", "age", "name").DS(),
+				/*
+					type User @key(fields: "id") {
+						id: Int
+						name: String
+						surname: String
+					}
+				*/
 				dsb().RootNodeFields("User", "id", "name", "surname").DS(),
+				/*
+					type User @key(fields: "id") {
+						id: Int
+						age: Int
+					}
+				*/
 				dsb().RootNodeFields("User", "id", "age").DS(),
+				/*
+					type User @key(fields: "id") {
+						id: Int
+						name: String
+					}
+				*/
 				dsb().RootNodeFields("User", "id", "name").DS(),
 			},
 			Expected: []expectedDataSource{
@@ -171,10 +228,41 @@ func TestVisitDataSource(t *testing.T) {
 					`,
 			DataSources: []DataSourceConfiguration{
 				// sub1
+				/*
+					type Query {
+						user: User
+					}
+					type User @key(fields: "id") {
+						id: Int
+						name: String
+					}
+				*/
 				dsb().
 					RootNode("Query", "user").
 					RootNodeFields("User", "id", "name").DS(),
 				// sub2
+				/*
+					type Query {
+						user: User
+					}
+					type User @key(fields: "id") {
+						id: Int
+						details: Details
+						name: String
+					}
+					type Details {
+						age: Int
+						address: Address
+					}
+					type Address @key(fields: "id") {
+						id: Int
+						name: String
+						lines: Lines
+					}
+					type Lines @key(fields: "id") {
+						id: Int
+					}
+				*/
 				dsb().
 					RootNode("Query", "user").
 					RootNodeFields("User", "id", "details", "name").
@@ -183,11 +271,28 @@ func TestVisitDataSource(t *testing.T) {
 					RootNodeFields("Lines", "id").
 					DS(),
 				// sub3
+				/*
+					type Address @key(fields: "id") {
+						id: Int
+						lines: Lines
+					}
+					type Lines @key(fields: "id") {
+						id: Int
+						line1: String
+					}
+				*/
 				dsb().
 					RootNodeFields("Address", "id", "lines").
 					RootNodeFields("Lines", "id", "line1").
 					DS(),
 				// sub4
+				/*
+					type Lines @key(fields: "id") {
+						id: Int
+						line1: String
+						line2: String
+					}
+				*/
 				dsb().
 					RootNodeFields("Lines", "id", "line1", "line2").
 					DS(),
@@ -238,11 +343,32 @@ func TestVisitDataSource(t *testing.T) {
 				}
 			`,
 			DataSources: []DataSourceConfiguration{
+				/*
+					type Query {
+						me: User
+					}
+					type User @key(fields: "id") {
+						id: Int
+						details: Details
+					}
+					type Details {
+						name: String
+					}
+				*/
 				dsb().
 					RootNode("Query", "me").
 					RootNodeFields("User", "id", "details").
 					ChildNode("Details", "name").
 					DS(),
+				/*
+					type User @key(fields: "id") {
+						id: Int
+						details: Details
+					}
+					type Details {
+						surname: String
+					}
+				*/
 				dsb().
 					RootNodeFields("User", "id", "details").
 					ChildNode("Details", "surname").
