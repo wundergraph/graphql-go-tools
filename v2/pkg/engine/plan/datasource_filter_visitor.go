@@ -60,6 +60,8 @@ type NodeSuggestion struct {
 	FieldName      string
 	DataSourceHash DSHash
 	Path           string
+	Preserve       bool
+	IsRootNode     bool
 }
 
 type NodeSuggestions []NodeSuggestion
@@ -77,8 +79,36 @@ func (f NodeSuggestions) HasNode(typeName, fieldName string) (dsHash DSHash, ok 
 	return 0, false
 }
 
+func (f NodeSuggestions) IsNodeUniq(typeName, fieldName string, except int) bool {
+	for i := range f {
+		if i == except {
+			continue
+		}
+		if typeName == f[i].TypeName && fieldName == f[i].FieldName {
+			return false
+		}
+	}
+	return true
+}
+
+func (f NodeSuggestions) hasPathPrefixFor(path string, dsHash DSHash, except int) bool {
+	for i := range f {
+		if i == except {
+			continue
+		}
+		if strings.HasPrefix(f[i].Path, path) && f[i].DataSourceHash == dsHash {
+			return true
+		}
+	}
+	return false
+}
+
 func (f NodeSuggestions) DataSourceCount() int {
 	return len(f.UniqueDataSourceHashes())
+}
+
+func (f NodeSuggestions) Count() int {
+	return len(f)
 }
 
 func (f NodeSuggestions) UniqueDataSourceHashes() map[DSHash]struct{} {
@@ -109,19 +139,15 @@ type nodesResolvableVisitor struct {
 	definition *ast.Document
 	walker     *astvisitor.Walker
 
-	rootNodes  NodeSuggestions
-	childNodes NodeSuggestions
-	err        error
+	nodes NodeSuggestions
+	err   error
 }
 
 func (f *nodesResolvableVisitor) EnterField(ref int) {
 	typeName := f.walker.EnclosingTypeDefinition.NameString(f.definition)
 	fieldName := f.operation.FieldNameUnsafeString(ref)
 
-	_, found := f.rootNodes.HasNode(typeName, fieldName)
-	if !found {
-		_, found = f.childNodes.HasNode(typeName, fieldName)
-	}
+	_, found := f.nodes.HasNode(typeName, fieldName)
 
 	if !found {
 		f.walker.Stop()
@@ -129,14 +155,13 @@ func (f *nodesResolvableVisitor) EnterField(ref int) {
 	}
 }
 
-func isResolvable(operation, definition *ast.Document, rootNodes, childNodes []NodeSuggestion) bool {
+func isResolvable(operation, definition *ast.Document, nodes []NodeSuggestion) bool {
 	walker := astvisitor.NewWalker(32)
 	visitor := &nodesResolvableVisitor{
 		operation:  operation,
 		definition: definition,
 		walker:     &walker,
-		rootNodes:  rootNodes,
-		childNodes: childNodes,
+		nodes:      nodes,
 	}
 	walker.RegisterEnterFieldVisitor(visitor)
 	report := &operationreport.Report{}
@@ -151,13 +176,11 @@ type collectNodesVisitor struct {
 
 	dataSources []DataSourceConfiguration
 
-	rootNodes  []NodeSuggestion
-	childNodes []NodeSuggestion
+	nodes []NodeSuggestion
 }
 
 func (f *collectNodesVisitor) EnterDocument(_, _ *ast.Document) {
-	f.rootNodes = make([]NodeSuggestion, 0)
-	f.childNodes = make([]NodeSuggestion, 0)
+	f.nodes = make([]NodeSuggestion, 0)
 }
 
 func (f *collectNodesVisitor) EnterField(ref int) {
@@ -166,15 +189,16 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 	currentPath := f.walker.Path.DotDelimitedString() + "." + fieldName
 	for _, v := range f.dataSources {
 		if v.HasRootNode(typeName, fieldName) {
-			f.rootNodes = append(f.rootNodes, NodeSuggestion{
+			f.nodes = append(f.nodes, NodeSuggestion{
 				TypeName:       typeName,
 				FieldName:      fieldName,
 				DataSourceHash: v.Hash(),
 				Path:           currentPath,
+				IsRootNode:     true,
 			})
 		}
 		if v.HasChildNode(typeName, fieldName) {
-			f.childNodes = append(f.childNodes, NodeSuggestion{
+			f.nodes = append(f.nodes, NodeSuggestion{
 				TypeName:       typeName,
 				FieldName:      fieldName,
 				DataSourceHash: v.Hash(),
@@ -184,7 +208,7 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 	}
 }
 
-func collectNodes(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) (rootNodes, childNodes []NodeSuggestion) {
+func collectNodes(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) (nodes NodeSuggestions) {
 	walker := astvisitor.NewWalker(32)
 	visitor := &collectNodesVisitor{
 		operation:   operation,
@@ -195,7 +219,7 @@ func collectNodes(operation, definition *ast.Document, report *operationreport.R
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterEnterFieldVisitor(visitor)
 	walker.Walk(operation, definition, report)
-	return visitor.rootNodes, visitor.childNodes
+	return visitor.nodes
 }
 
 type errOperationFieldNotResolved struct {
@@ -207,47 +231,51 @@ func (e *errOperationFieldNotResolved) Error() string {
 	return fmt.Sprintf("could not find datasource to resolve %s.%s", e.TypeName, e.FieldName)
 }
 
+func findBestNodes(operation, definition *ast.Document, nodes NodeSuggestions) NodeSuggestions {
+	current := nodes
+	currentDsCount := nodes.DataSourceCount()
+	currentNodeCount := nodes.Count()
+	for excluded := range nodes {
+		// path := rootNodes[excluded].Path
+		// dsHash := rootNodes[excluded].DataSourceHash
+		//
+		// shouldPreserve := hasPrefixFor(childNodes, path, dsHash)
+		// if shouldPreserve {
+		// 	continue
+		// }
+
+		if nodes[excluded].Preserve {
+			continue
+		}
+
+		subset := nodesSubset(nodes, excluded)
+		if !isResolvable(operation, definition, subset) {
+			continue
+		}
+
+		resultNodes := findBestNodes(operation, definition, subset)
+		resultDsCount := resultNodes.DataSourceCount()
+		resultNodeCount := resultNodes.Count()
+
+		if resultNodeCount < currentNodeCount && resultDsCount <= currentDsCount {
+			current = resultNodes
+			currentDsCount = resultDsCount
+			currentNodeCount = resultNodeCount
+		}
+	}
+
+	return current
+}
+
 func findBestDataSourceSet(operation *ast.Document, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) ([]*UsedDataSourceConfiguration, error) {
-	rootNodes, childNodes := collectNodes(operation, definition, report, dataSources)
+	nodes := collectNodes(operation, definition, report, dataSources)
 	if report.HasErrors() {
 		return nil, nil
 	}
 
-	filteredChildNodes := make([]NodeSuggestion, 0, len(childNodes))
-	for excluded := range childNodes {
-		subset := nodesSubset(childNodes, excluded)
-		if !isResolvable(operation, definition, rootNodes, subset) {
-			filteredChildNodes = append(filteredChildNodes, childNodes[excluded])
-		}
-	}
-
-	filteredRootNodes := make([]NodeSuggestion, 0, len(rootNodes))
-	for excluded, node := range rootNodes {
-		n := fmt.Sprint(node.TypeName, node.FieldName)
-		fmt.Println(n)
-		subset := nodesSubset(rootNodes, excluded)
-		if isResolvable(operation, definition, subset, filteredChildNodes) {
-			path := rootNodes[excluded].Path
-			dsHash := rootNodes[excluded].DataSourceHash
-
-			preserve := false
-			for i := range filteredChildNodes {
-				if strings.HasPrefix(filteredChildNodes[i].Path, path) && filteredChildNodes[i].DataSourceHash == dsHash {
-					preserve = true
-					break
-				}
-			}
-			if preserve {
-				filteredRootNodes = append(filteredRootNodes, rootNodes[excluded])
-			}
-		} else {
-			filteredRootNodes = append(filteredRootNodes, rootNodes[excluded])
-		}
-	}
-
-	nodes := make(NodeSuggestions, 0, len(filteredRootNodes)+len(filteredChildNodes))
-	nodes = append(nodes, filteredRootNodes...)
-	nodes = append(nodes, filteredChildNodes...)
+	nodes = preserveMandatoryNodes(nodes)
+	nodes = setNodesPriority(nodes)
+	nodes = findBestNodes(operation, definition, nodes)
 
 	used := make([]*UsedDataSourceConfiguration, 0, len(dataSources))
 	for hash := range nodes.UniqueDataSourceHashes() {
@@ -285,4 +313,22 @@ func nodesSubset(suggestions []NodeSuggestion, exclude int) []NodeSuggestion {
 	subset = append(subset, suggestions[:exclude]...)
 	subset = append(subset, suggestions[exclude+1:]...)
 	return subset
+}
+
+func preserveMandatoryNodes(nodes NodeSuggestions) []NodeSuggestion {
+	for i := range nodes {
+		if nodes.IsNodeUniq(nodes[i].TypeName, nodes[i].FieldName, i) {
+			nodes[i].Preserve = true
+		}
+	}
+	return nodes
+}
+
+func setNodesPriority(nodes NodeSuggestions) []NodeSuggestion {
+	for i := range nodes {
+		if nodes.hasPathPrefixFor(nodes[i].Path, nodes[i].DataSourceHash, i) {
+			nodes[i].Preserve = true
+		}
+	}
+	return nodes
 }
