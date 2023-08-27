@@ -355,7 +355,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 }
 
 func (c *configurationVisitor) findSuggestedDataSourceConfiguration(typeName, fieldName, currentPath string) *DataSourceConfiguration {
-	dsHash, ok := c.dataSourceSuggestions.HasSuggestion(typeName, fieldName)
+	dsHash, ok := c.dataSourceSuggestions.HasNode(typeName, fieldName)
 	if !ok {
 		return nil
 	}
@@ -489,7 +489,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 
 func (c *configurationVisitor) handleMissingPath(typeName string, fieldName string, currentPath string) {
 	// if we're here, we didn't find a planner for the field
-	suggestedDataSourceHash, ok := c.dataSourceSuggestions.HasSuggestion(typeName, fieldName)
+	suggestedDataSourceHash, ok := c.dataSourceSuggestions.HasNode(typeName, fieldName)
 	if ok {
 		parentPath, found := c.findPreviousRootPath(currentPath)
 		if found {

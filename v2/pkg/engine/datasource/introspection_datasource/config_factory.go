@@ -86,8 +86,9 @@ func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() plan.Dat
 				FieldNames: []string{"__schema", "__type"},
 			},
 		},
-		Factory: NewFactory(f.introspectionData),
-		Custom:  json.RawMessage{},
+		Factory:         NewFactory(f.introspectionData),
+		Custom:          json.RawMessage{},
+		IsIntrospection: true,
 	}
 }
 
@@ -99,8 +100,9 @@ func (f *IntrospectionConfigFactory) buildFieldsConfiguration() plan.DataSourceC
 				FieldNames: []string{"fields"},
 			},
 		},
-		Factory: NewFactory(f.introspectionData),
-		Custom:  json.RawMessage{},
+		Factory:         NewFactory(f.introspectionData),
+		Custom:          json.RawMessage{},
+		IsIntrospection: true,
 	}
 }
 
@@ -112,8 +114,9 @@ func (f *IntrospectionConfigFactory) buildEnumsConfiguration() plan.DataSourceCo
 				FieldNames: []string{"enumValues"},
 			},
 		},
-		Factory: NewFactory(f.introspectionData),
-		Custom:  json.RawMessage{},
+		Factory:         NewFactory(f.introspectionData),
+		Custom:          json.RawMessage{},
+		IsIntrospection: true,
 	}
 }
 

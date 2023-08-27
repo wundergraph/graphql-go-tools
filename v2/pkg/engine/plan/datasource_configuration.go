@@ -29,10 +29,11 @@ type DataSourceConfiguration struct {
 	// ChildNodes - describes additional fields which will be requested along with fields which has a datasources
 	// They are always required for the Graphql datasources cause each field could have its own datasource
 	// For any single point datasource like HTTP/REST or GRPC we could not request fewer fields, as we always get a full response
-	ChildNodes TypeFields
-	Directives DirectiveConfigurations
-	Factory    PlannerFactory
-	Custom     json.RawMessage
+	ChildNodes      TypeFields
+	Directives      DirectiveConfigurations
+	Factory         PlannerFactory
+	Custom          json.RawMessage
+	IsIntrospection bool
 
 	FederationMetaData FederationMetaData
 	ParentInfo         DataSourceParentInfo
