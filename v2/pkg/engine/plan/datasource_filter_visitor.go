@@ -2,7 +2,6 @@ package plan
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -60,8 +59,16 @@ type NodeSuggestion struct {
 	FieldName      string
 	DataSourceHash DSHash
 	Path           string
-	Preserve       bool
-	IsRootNode     bool
+	ParentPath     string
+
+	Preserve   bool
+	IsRootNode bool
+
+	whyWasChosen []string
+}
+
+func (n *NodeSuggestion) WhyWasChosen(reason string) {
+	n.whyWasChosen = append(n.whyWasChosen, reason)
 }
 
 type NodeSuggestions []NodeSuggestion
@@ -79,28 +86,77 @@ func (f NodeSuggestions) HasNode(typeName, fieldName string) (dsHash DSHash, ok 
 	return 0, false
 }
 
-func (f NodeSuggestions) IsNodeUniq(typeName, fieldName string, except int) bool {
+func (f NodeSuggestions) IsNodeUniq(idx int) bool {
 	for i := range f {
-		if i == except {
+		if i == idx {
 			continue
 		}
-		if typeName == f[i].TypeName && fieldName == f[i].FieldName {
+		if f[idx].TypeName == f[i].TypeName && f[idx].FieldName == f[i].FieldName {
 			return false
 		}
 	}
 	return true
 }
 
-func (f NodeSuggestions) hasPathPrefixFor(path string, dsHash DSHash, except int) bool {
+func (f NodeSuggestions) IsNotPreservedOnOtherSource(idx int) bool {
 	for i := range f {
-		if i == except {
+		if i == idx {
 			continue
 		}
-		if strings.HasPrefix(f[i].Path, path) && f[i].DataSourceHash == dsHash {
-			return true
+		if f[idx].TypeName == f[i].TypeName && f[idx].FieldName == f[i].FieldName &&
+			f[i].DataSourceHash != f[idx].DataSourceHash && f[i].Preserve {
+			return false
 		}
 	}
-	return false
+	return true
+}
+
+func (f NodeSuggestions) ChildNodesOnSameSource(idx int) (out []int) {
+	for i := range f {
+		if i == idx {
+			continue
+		}
+		if f[i].DataSourceHash == f[idx].DataSourceHash && f[i].ParentPath == f[idx].Path {
+			out = append(out, i)
+		}
+	}
+	return
+}
+
+func (f NodeSuggestions) SiblingNodesOnSameSource(idx int) (out []int) {
+	for i := range f {
+		if i == idx {
+			continue
+		}
+		if f[i].DataSourceHash == f[idx].DataSourceHash && f[i].ParentPath == f[idx].ParentPath {
+			out = append(out, i)
+		}
+	}
+	return
+}
+
+func (f NodeSuggestions) IsLeaf(idx int) bool {
+	for i := range f {
+		if i == idx {
+			continue
+		}
+		if f[i].ParentPath == f[idx].Path {
+			return false
+		}
+	}
+	return true
+}
+
+func (f NodeSuggestions) ParentNodeOnSameSource(idx int) (parentIdx int, ok bool) {
+	for i := range f {
+		if i == idx {
+			continue
+		}
+		if f[i].DataSourceHash == f[idx].DataSourceHash && f[i].Path == f[idx].ParentPath {
+			return i, true
+		}
+	}
+	return -1, false
 }
 
 func (f NodeSuggestions) DataSourceCount() int {
@@ -186,7 +242,8 @@ func (f *collectNodesVisitor) EnterDocument(_, _ *ast.Document) {
 func (f *collectNodesVisitor) EnterField(ref int) {
 	typeName := f.walker.EnclosingTypeDefinition.NameString(f.definition)
 	fieldName := f.operation.FieldNameUnsafeString(ref)
-	currentPath := f.walker.Path.DotDelimitedString() + "." + fieldName
+	parentPath := f.walker.Path.DotDelimitedString()
+	currentPath := parentPath + "." + fieldName
 	for _, v := range f.dataSources {
 		if v.HasRootNode(typeName, fieldName) {
 			f.nodes = append(f.nodes, NodeSuggestion{
@@ -195,6 +252,7 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 				DataSourceHash: v.Hash(),
 				Path:           currentPath,
 				IsRootNode:     true,
+				ParentPath:     parentPath,
 			})
 		}
 		if v.HasChildNode(typeName, fieldName) {
@@ -203,6 +261,7 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 				FieldName:      fieldName,
 				DataSourceHash: v.Hash(),
 				Path:           currentPath,
+				ParentPath:     parentPath,
 			})
 		}
 	}
@@ -274,7 +333,6 @@ func findBestDataSourceSet(operation *ast.Document, definition *ast.Document, re
 	}
 
 	nodes = preserveMandatoryNodes(nodes)
-	nodes = setNodesPriority(nodes)
 	nodes = findBestNodes(operation, definition, nodes)
 
 	used := make([]*UsedDataSourceConfiguration, 0, len(dataSources))
@@ -316,19 +374,50 @@ func nodesSubset(suggestions []NodeSuggestion, exclude int) []NodeSuggestion {
 }
 
 func preserveMandatoryNodes(nodes NodeSuggestions) []NodeSuggestion {
-	for i := range nodes {
-		if nodes.IsNodeUniq(nodes[i].TypeName, nodes[i].FieldName, i) {
-			nodes[i].Preserve = true
+	for i, n := range nodes {
+		_ = n
+		if nodes[i].Preserve {
+			continue
 		}
-	}
-	return nodes
-}
 
-func setNodesPriority(nodes NodeSuggestions) []NodeSuggestion {
-	for i := range nodes {
-		if nodes.hasPathPrefixFor(nodes[i].Path, nodes[i].DataSourceHash, i) {
-			nodes[i].Preserve = true
+		isNodeUniq := nodes.IsNodeUniq(i)
+		if !isNodeUniq {
+			continue
 		}
+
+		// uniq nodes are always preserved
+		nodes[i].Preserve = true
+		nodes[i].WhyWasChosen("uniq")
+
+		// if node parent of the uniq node is on the same source, preserve it too
+		parentIdx, ok := nodes.ParentNodeOnSameSource(i)
+		if ok {
+			nodes[parentIdx].Preserve = true
+			nodes[parentIdx].WhyWasChosen("same source parent of uniq node")
+		}
+
+		// if node has leaf childs on the same source, preserve them too
+		childs := nodes.ChildNodesOnSameSource(i)
+		for _, child := range childs {
+			if nodes.IsLeaf(child) {
+				if nodes.IsNodeUniq(child) || nodes.IsNotPreservedOnOtherSource(child) {
+					nodes[child].Preserve = true
+					nodes[child].WhyWasChosen("same source leaf child of uniq node")
+				}
+			}
+		}
+
+		// preserve leaf siblings of the node on the same source
+		siblings := nodes.SiblingNodesOnSameSource(i)
+		for _, sibling := range siblings {
+			if nodes.IsLeaf(sibling) {
+				if nodes.IsNodeUniq(sibling) || nodes.IsNotPreservedOnOtherSource(sibling) {
+					nodes[sibling].Preserve = true
+					nodes[sibling].WhyWasChosen("same source leaf sibling of uniq node")
+				}
+			}
+		}
+
 	}
 	return nodes
 }
