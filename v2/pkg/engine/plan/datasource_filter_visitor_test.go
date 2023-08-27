@@ -389,6 +389,14 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(tc.Definition)
 			operation := unsafeparser.ParseGraphqlDocumentString(tc.Query)
 
+			var expected []*UsedDataSourceConfiguration
+			for _, exp := range tc.Expected {
+				expected = append(expected, &UsedDataSourceConfiguration{
+					DataSource: tc.DataSources[exp.Index],
+					UsedNodes:  exp.UsedNodes,
+				})
+			}
+
 			report := operationreport.Report{}
 			planned, err := findBestDataSourceSet(&operation, &definition, &report, shuffleDS(tc.DataSources))
 			if err != nil {
@@ -397,14 +405,8 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			if report.HasErrors() {
 				t.Fatal(report.Error())
 			}
-			var expected []*UsedDataSourceConfiguration
-			for _, exp := range tc.Expected {
-				expected = append(expected, &UsedDataSourceConfiguration{
-					DataSource: tc.DataSources[exp.Index],
-					UsedNodes:  exp.UsedNodes,
-				})
-			}
-			assert.Equal(t, expected, planned)
+
+			assert.ElementsMatch(t, expected, planned)
 		})
 	}
 }
