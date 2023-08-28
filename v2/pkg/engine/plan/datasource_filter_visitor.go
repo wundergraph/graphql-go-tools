@@ -11,44 +11,29 @@ import (
 type DsMap map[DSHash]DataSourceConfiguration
 
 func FilterDataSources(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) (used, unused DsMap, suggestions NodeSuggestions) {
-	usedDataSources := make([]*UsedDataSourceConfiguration, 0, len(dataSources))
-	// usedDataSources, err := findBestDataSourceSet(operation, definition, report, dataSources, true)
-	// if report.HasErrors() {
-	// 	return nil, nil, nil
-	// }
-	// if err != nil {
-	// 	report.AddInternalError(err)
-	// 	return nil, nil, nil
-	// }
+	suggestions = findBestDataSourceSet(operation, definition, report, dataSources)
+	if report.HasErrors() {
+		return
+	}
 
-	used = make(DsMap, len(usedDataSources))
-	suggestions = make(NodeSuggestions, 0, len(usedDataSources))
-	// for _, ds := range usedDataSources {
-	// 	used[ds.DataSource.Hash()] = ds.DataSource
-	// 	for _, node := range ds.UsedNodes {
-	// 		suggestions = append(suggestions, NodeSuggestion{
-	// 			TypeName:       node.TypeName,
-	// 			FieldName:      node.FieldName,
-	// 			DataSourceHash: ds.DataSource.Hash(),
-	// 		})
-	// 	}
-	// }
+	dsInUse := suggestions.UniqueDataSourceHashes()
 
-	unused = make(DsMap, len(dataSources)-len(usedDataSources))
+	used = make(DsMap, len(dsInUse)+3 /*3 for introspection*/)
+	unused = make(DsMap, len(dataSources)-len(dsInUse))
+
 	for i := range dataSources {
-		_, found := used[dataSources[i].Hash()]
-		if found {
-			continue
-		}
-
 		// preserve introspection datasource
 		if dataSources[i].IsIntrospection {
 			used[dataSources[i].Hash()] = dataSources[i]
 			continue
 		}
 
-		unused[dataSources[i].Hash()] = dataSources[i]
-
+		_, inUse := dsInUse[dataSources[i].Hash()]
+		if inUse {
+			used[dataSources[i].Hash()] = dataSources[i]
+		} else {
+			unused[dataSources[i].Hash()] = dataSources[i]
+		}
 	}
 
 	return used, unused, suggestions
@@ -60,9 +45,9 @@ type NodeSuggestion struct {
 	DataSourceHash DSHash
 	Path           string
 	ParentPath     string
+	IsRootNode     bool
 
-	Preserve     bool
-	IsRootNode   bool
+	preserve     bool
 	whyWasChosen []string
 }
 
@@ -72,10 +57,10 @@ func (n *NodeSuggestion) WhyWasChosen(reason string) {
 }
 
 func (n *NodeSuggestion) PreserveWithReason(reason string) {
-	if n.Preserve {
+	if n.preserve {
 		return
 	}
-	n.Preserve = true
+	n.preserve = true
 	// n.WhyWasChosen(reason)
 }
 
@@ -112,7 +97,7 @@ func (f NodeSuggestions) IsPreservedOnOtherSource(idx int) bool {
 			continue
 		}
 		if f[idx].TypeName == f[i].TypeName && f[idx].FieldName == f[i].FieldName &&
-			f[idx].DataSourceHash != f[i].DataSourceHash && f[i].Preserve {
+			f[idx].DataSourceHash != f[i].DataSourceHash && f[i].preserve {
 			return true
 		}
 	}
@@ -198,16 +183,6 @@ func (f NodeSuggestions) UniqueDataSourceHashes() map[DSHash]struct{} {
 	}
 
 	return unique
-}
-
-type UsedNode struct {
-	TypeName  string
-	FieldName string
-}
-
-type UsedDataSourceConfiguration struct {
-	DataSource DataSourceConfiguration
-	UsedNodes  []*UsedNode
 }
 
 type nodesResolvableVisitor struct {
@@ -315,15 +290,7 @@ func findBestNodes(operation, definition *ast.Document, nodes NodeSuggestions) N
 	currentDsCount := nodes.DataSourceCount()
 	currentNodeCount := nodes.Count()
 	for excluded := range nodes {
-		// path := rootNodes[excluded].Path
-		// dsHash := rootNodes[excluded].DataSourceHash
-		//
-		// shouldPreserve := hasPrefixFor(childNodes, path, dsHash)
-		// if shouldPreserve {
-		// 	continue
-		// }
-
-		if nodes[excluded].Preserve {
+		if nodes[excluded].preserve {
 			continue
 		}
 
@@ -346,45 +313,17 @@ func findBestNodes(operation, definition *ast.Document, nodes NodeSuggestions) N
 	return current
 }
 
-func findBestDataSourceSet(operation *ast.Document, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) ([]*UsedDataSourceConfiguration, error) {
+func findBestDataSourceSet(operation *ast.Document, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) NodeSuggestions {
 	nodes := collectNodes(operation, definition, report, dataSources)
 	if report.HasErrors() {
-		return nil, nil
+		return nil
 	}
 
 	nodes = preserveUniqNodes(nodes)
 	nodes = preserveDuplicateNodes(nodes)
 	nodes = findBestNodes(operation, definition, nodes)
 
-	used := make([]*UsedDataSourceConfiguration, 0, len(dataSources))
-	for hash := range nodes.UniqueDataSourceHashes() {
-		var ds DataSourceConfiguration
-		for i := range dataSources {
-			if dataSources[i].Hash() == hash {
-				ds = dataSources[i]
-				break
-			}
-		}
-
-		usedNodes := make([]*UsedNode, 0, len(nodes))
-		for i := range nodes {
-			if nodes[i].DataSourceHash == hash {
-				usedNodes = append(usedNodes, &UsedNode{
-					TypeName:  nodes[i].TypeName,
-					FieldName: nodes[i].FieldName,
-				})
-			}
-		}
-
-		usedDs := &UsedDataSourceConfiguration{
-			DataSource: ds,
-			UsedNodes:  usedNodes,
-		}
-
-		used = append(used, usedDs)
-	}
-
-	return used, nil
+	return nodes
 }
 
 func nodesSubset(suggestions []NodeSuggestion, exclude int) []NodeSuggestion {
@@ -407,7 +346,7 @@ const (
 
 func preserveUniqNodes(nodes NodeSuggestions) []NodeSuggestion {
 	for i := range nodes {
-		if nodes[i].Preserve {
+		if nodes[i].preserve {
 			continue
 		}
 
@@ -446,7 +385,7 @@ func preserveUniqNodes(nodes NodeSuggestions) []NodeSuggestion {
 
 func preserveDuplicateNodes(nodes NodeSuggestions) []NodeSuggestion {
 	for i := range nodes {
-		if nodes[i].Preserve {
+		if nodes[i].preserve {
 			continue
 		}
 
@@ -456,7 +395,7 @@ func preserveDuplicateNodes(nodes NodeSuggestions) []NodeSuggestion {
 
 		// if node parent on the same source as the current node
 		parentIdx, ok := nodes.ParentNodeOnSameSource(i)
-		if ok && nodes[parentIdx].Preserve {
+		if ok && nodes[parentIdx].preserve {
 			nodes[i].PreserveWithReason(PreserveReasonStage2SameSourceNodeOfPreservedParent)
 			continue
 		}
@@ -466,7 +405,7 @@ func preserveDuplicateNodes(nodes NodeSuggestions) []NodeSuggestion {
 		priorityIsSet := false
 		for _, duplicate := range nodeDuplicates {
 			parentIdx, ok := nodes.ParentNodeOnSameSource(duplicate)
-			if ok && nodes[parentIdx].Preserve {
+			if ok && nodes[parentIdx].preserve {
 				nodes[duplicate].PreserveWithReason(PreserveReasonStage2SameSourceDuplicateNodeOfPreservedParent)
 				priorityIsSet = true
 				break
@@ -478,7 +417,7 @@ func preserveDuplicateNodes(nodes NodeSuggestions) []NodeSuggestion {
 
 		siblings := nodes.SiblingNodesOnSameSource(i)
 		for _, sibling := range siblings {
-			if nodes[sibling].Preserve {
+			if nodes[sibling].preserve {
 				nodes[i].PreserveWithReason(PreserveReasonStage2SameSourceNodeOfPreservedSibling)
 				break
 			}

@@ -1,7 +1,6 @@
 package plan
 
 import (
-	"fmt"
 	"math/rand"
 	"testing"
 	"time"
@@ -13,10 +12,10 @@ import (
 )
 
 type dsBuilder struct {
-	ds DataSourceConfiguration
+	ds *DataSourceConfiguration
 }
 
-func dsb() *dsBuilder { return &dsBuilder{} }
+func dsb() *dsBuilder { return &dsBuilder{ds: &DataSourceConfiguration{}} }
 
 func (b *dsBuilder) RootNodeFields(typeName string, fieldNames ...string) *dsBuilder {
 	b.ds.RootNodes = append(b.ds.RootNodes, TypeField{TypeName: typeName, FieldNames: fieldNames})
@@ -41,17 +40,17 @@ func (b *dsBuilder) Schema(schema string) *dsBuilder {
 	return b
 }
 
+func (b *dsBuilder) Hash(hash DSHash) *dsBuilder {
+	b.ds.hash = hash
+	return b
+}
+
 func (b *dsBuilder) DS() DataSourceConfiguration {
 	if len(b.ds.Custom) == 0 {
 		panic("schema not set")
 	}
 	b.ds.Hash()
-	return b.ds
-}
-
-type expectedDataSource struct {
-	Index     int
-	UsedNodes []*UsedNode
+	return *b.ds
 }
 
 func TestFindBestDataSourceSet(t *testing.T) {
@@ -59,7 +58,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 		Definition  string
 		Query       string
 		DataSources []DataSourceConfiguration
-		Expected    []expectedDataSource
+		Expected    NodeSuggestions
 	}{
 		// Remove the 3rd data source, we don't use it
 		{
@@ -84,7 +83,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				}
 			`,
 			DataSources: []DataSourceConfiguration{
-				dsb().Schema(`
+				dsb().Hash(11).Schema(`
 					type Query {
 						user: User
 					}
@@ -92,29 +91,25 @@ func TestFindBestDataSourceSet(t *testing.T) {
 						id: Int
 					}
 				`).RootNode("Query", "user").RootNode("User", "id").DS(),
-				dsb().Schema(`
+				dsb().Hash(22).Schema(`
 					type User @key(fields: "id") {
 						id: Int
 						name: String
 						surname: String
 					}
 				`).RootNodeFields("User", "id", "name", "surname").DS(),
-				dsb().Schema(`
+				dsb().Hash(33).Schema(`
 					type User @key(fields: "id") {
 						id: Int
 						age: Int
 					}
 				`).RootNodeFields("User", "id", "age").DS(),
 			},
-			Expected: []expectedDataSource{
-				{
-					Index:     0,
-					UsedNodes: []*UsedNode{{"Query", "user"}, {"User", "id"}},
-				},
-				{
-					Index:     1,
-					UsedNodes: []*UsedNode{{"User", "name"}, {"User", "surname"}},
-				},
+			Expected: NodeSuggestions{
+				{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, preserve: true},
+				{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user", IsRootNode: true, preserve: true},
+				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.user.name", ParentPath: "query.user", IsRootNode: true, preserve: true},
+				{TypeName: "User", FieldName: "surname", DataSourceHash: 22, Path: "query.user.surname", ParentPath: "query.user", IsRootNode: true, preserve: true},
 			},
 		},
 		// Pick the first and the third data sources, ignore the ones that result in more queries
@@ -140,7 +135,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				}
 			`,
 			DataSources: []DataSourceConfiguration{
-				dsb().Schema(`
+				dsb().Hash(11).Schema(`
 					type Query {
 						user: User
 					}
@@ -149,42 +144,38 @@ func TestFindBestDataSourceSet(t *testing.T) {
 						age: Int
 					}
 				`).RootNode("Query", "user").RootNodeFields("User", "id", "age").DS(),
-				dsb().Schema(`
+				dsb().Hash(22).Schema(`
 					type User @key(fields: "id") {
 						id: Int
 						age: Int
 						name: String
 					}
 				`).RootNodeFields("User", "id", "age", "name").DS(),
-				dsb().Schema(`
+				dsb().Hash(33).Schema(`
 					type User @key(fields: "id") {
 						id: Int
 						name: String
 						surname: String
 					}
 				`).RootNodeFields("User", "id", "name", "surname").DS(),
-				dsb().Schema(`
+				dsb().Hash(44).Schema(`
 					type User @key(fields: "id") {
 						id: Int
 						age: Int
 					}
 				`).RootNodeFields("User", "id", "age").DS(),
-				dsb().Schema(`
+				dsb().Hash(55).Schema(`
 					type User @key(fields: "id") {
 						id: Int
 						name: String
 					}
 				`).RootNodeFields("User", "id", "name").DS(),
 			},
-			Expected: []expectedDataSource{
-				{
-					Index:     0,
-					UsedNodes: []*UsedNode{{"Query", "user"}, {"User", "age"}},
-				},
-				{
-					Index:     2,
-					UsedNodes: []*UsedNode{{"User", "name"}, {"User", "surname"}},
-				},
+			Expected: NodeSuggestions{
+				{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, preserve: true},
+				{TypeName: "User", FieldName: "age", DataSourceHash: 11, Path: "query.user.age", ParentPath: "query.user", IsRootNode: true, preserve: true},
+				{TypeName: "User", FieldName: "name", DataSourceHash: 33, Path: "query.user.name", ParentPath: "query.user", IsRootNode: true, preserve: true},
+				{TypeName: "User", FieldName: "surname", DataSourceHash: 33, Path: "query.user.surname", ParentPath: "query.user", IsRootNode: true, preserve: true},
 			},
 		},
 		// Entities: User, Address, Lines
@@ -234,7 +225,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 						}
 					`,
 			DataSources: []DataSourceConfiguration{
-				dsb().Schema(`
+				dsb().Hash(11).Schema(`
 					# sub1
 					type Query {
 						user: User
@@ -246,7 +237,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				`).
 					RootNode("Query", "user").
 					RootNodeFields("User", "id", "name").DS(),
-				dsb().Schema(`
+				dsb().Hash(22).Schema(`
 					# sub2
 					type Query {
 						user: User
@@ -275,7 +266,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					RootNodeFields("Address", "id", "name", "lines").
 					RootNodeFields("Lines", "id").
 					DS(),
-				dsb().Schema(`
+				dsb().Hash(33).Schema(`
 					# sub3
 					type Address @key(fields: "id") {
 						id: Int
@@ -289,7 +280,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					RootNodeFields("Address", "id", "lines").
 					RootNodeFields("Lines", "id", "line1").
 					DS(),
-				dsb().Schema(`
+				dsb().Hash(44).Schema(`
 					# sub4
 					type Lines @key(fields: "id") {
 						id: Int
@@ -300,27 +291,17 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					RootNodeFields("Lines", "id", "line1", "line2").
 					DS(),
 			},
-			Expected: []expectedDataSource{
-				{
-					Index: 1,
-					UsedNodes: []*UsedNode{
-						{"Query", "user"},
-						{"User", "name"},
-						{"User", "details"},
-						{"Details", "age"},
-						{"Details", "address"},
-						{"Address", "name"},
-						{"Address", "lines"},
-						{"Lines", "id"},
-					},
-				},
-				{
-					Index: 3,
-					UsedNodes: []*UsedNode{
-						{"Lines", "line1"},
-						{"Lines", "line2"},
-					},
-				},
+			Expected: NodeSuggestions{
+				{TypeName: "Query", FieldName: "user", DataSourceHash: 22, Path: "query.user", ParentPath: "query", IsRootNode: true, preserve: true},
+				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.user.name", ParentPath: "query.user", IsRootNode: true, preserve: true},
+				{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.user.details", ParentPath: "query.user", IsRootNode: true, preserve: true},
+				{TypeName: "Details", FieldName: "age", DataSourceHash: 22, Path: "query.user.details.age", ParentPath: "query.user.details", IsRootNode: false, preserve: true},
+				{TypeName: "Details", FieldName: "address", DataSourceHash: 22, Path: "query.user.details.address", ParentPath: "query.user.details", IsRootNode: false, preserve: true},
+				{TypeName: "Address", FieldName: "name", DataSourceHash: 22, Path: "query.user.details.address.name", ParentPath: "query.user.details.address", IsRootNode: true, preserve: true},
+				{TypeName: "Address", FieldName: "lines", DataSourceHash: 22, Path: "query.user.details.address.lines", ParentPath: "query.user.details.address", IsRootNode: true, preserve: true},
+				{TypeName: "Lines", FieldName: "id", DataSourceHash: 22, Path: "query.user.details.address.lines.id", ParentPath: "query.user.details.address.lines", IsRootNode: true, preserve: true},
+				{TypeName: "Lines", FieldName: "line1", DataSourceHash: 44, Path: "query.user.details.address.lines.line1", ParentPath: "query.user.details.address.lines", IsRootNode: true, preserve: true},
+				{TypeName: "Lines", FieldName: "line2", DataSourceHash: 44, Path: "query.user.details.address.lines.line2", ParentPath: "query.user.details.address.lines", IsRootNode: true, preserve: true},
 			},
 		},
 		{
@@ -347,7 +328,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				}
 			`,
 			DataSources: []DataSourceConfiguration{
-				dsb().Schema(`
+				dsb().Hash(11).Schema(`
 					type Query {
 						me: User
 					}
@@ -363,7 +344,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					RootNodeFields("User", "id", "details").
 					ChildNode("Details", "name").
 					DS(),
-				dsb().Schema(`
+				dsb().Hash(22).Schema(`
 					type User @key(fields: "id") {
 						id: Int
 						details: Details
@@ -376,15 +357,10 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					ChildNode("Details", "surname").
 					DS(),
 			},
-			Expected: []expectedDataSource{
-				{
-					Index:     0,
-					UsedNodes: []*UsedNode{{"Query", "me"}},
-				},
-				{
-					Index:     1,
-					UsedNodes: []*UsedNode{{"User", "details"}, {"Details", "surname"}},
-				},
+			Expected: NodeSuggestions{
+				{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, preserve: true},
+				{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, preserve: true},
+				{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, preserve: true},
 			},
 		},
 	}
@@ -394,26 +370,13 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(tc.Definition)
 			operation := unsafeparser.ParseGraphqlDocumentString(tc.Query)
 
-			var expected []*UsedDataSourceConfiguration
-			for _, exp := range tc.Expected {
-				expected = append(expected, &UsedDataSourceConfiguration{
-					DataSource: tc.DataSources[exp.Index],
-					UsedNodes:  exp.UsedNodes,
-				})
-			}
-
 			report := operationreport.Report{}
-			planned, err := findBestDataSourceSet(&operation, &definition, &report, shuffleDS(tc.DataSources))
-			if err != nil {
-				t.Fatal(err)
-			}
+			planned := findBestDataSourceSet(&operation, &definition, &report, shuffleDS(tc.DataSources))
 			if report.HasErrors() {
 				t.Fatal(report.Error())
 			}
 
-			if !assert.ElementsMatch(t, expected, planned) {
-				fmt.Println("expected:")
-			}
+			assert.ElementsMatch(t, tc.Expected, planned)
 		})
 	}
 }
