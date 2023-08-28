@@ -67,7 +67,7 @@ type NodeSuggestion struct {
 }
 
 func (n *NodeSuggestion) WhyWasChosen(reason string) {
-	fmt.Println("ds:", n.DataSourceHash, fmt.Sprintf("%s.%s", n.TypeName, n.FieldName), "reason:", reason)
+	// fmt.Println("ds:", n.DataSourceHash, fmt.Sprintf("%s.%s", n.TypeName, n.FieldName), "reason:", reason)
 	n.whyWasChosen = append(n.whyWasChosen, reason)
 }
 
@@ -76,7 +76,7 @@ func (n *NodeSuggestion) PreserveWithReason(reason string) {
 		return
 	}
 	n.Preserve = true
-	n.WhyWasChosen(reason)
+	// n.WhyWasChosen(reason)
 }
 
 type NodeSuggestions []NodeSuggestion
@@ -394,6 +394,17 @@ func nodesSubset(suggestions []NodeSuggestion, exclude int) []NodeSuggestion {
 	return subset
 }
 
+const (
+	PreserveReasonStage1Uniq                  = "stage1: uniq"
+	PreserveReasonStage1SameSourceParent      = "stage1: same source parent of uniq node"
+	PreserveReasonStage1SameSourceLeafChild   = "stage1: same source leaf child of uniq node"
+	PreserveReasonStage1SameSourceLeafSibling = "stage1: same source leaf sibling of uniq node"
+
+	PreserveReasonStage2SameSourceNodeOfPreservedParent          = "stage2: node on the same source as preserved parent"
+	PreserveReasonStage2SameSourceDuplicateNodeOfPreservedParent = "stage2: duplicate node on the same source as preserved parent"
+	PreserveReasonStage2SameSourceNodeOfPreservedSibling         = "stage2: node on the same source as preserved sibling"
+)
+
 func preserveUniqNodes(nodes NodeSuggestions) []NodeSuggestion {
 	for i := range nodes {
 		if nodes[i].Preserve {
@@ -406,31 +417,27 @@ func preserveUniqNodes(nodes NodeSuggestions) []NodeSuggestion {
 		}
 
 		// uniq nodes are always preserved
-		nodes[i].PreserveWithReason("stage1: uniq")
+		nodes[i].PreserveWithReason(PreserveReasonStage1Uniq)
 
 		// if node parent of the uniq node is on the same source, preserve it too
 		parentIdx, ok := nodes.ParentNodeOnSameSource(i)
 		if ok {
-			nodes[parentIdx].PreserveWithReason("stage1: same source parent of uniq node")
+			nodes[parentIdx].PreserveWithReason(PreserveReasonStage1SameSourceParent)
 		}
 
 		// if node has leaf childs on the same source, preserve them too
 		childs := nodes.ChildNodesOnSameSource(i)
 		for _, child := range childs {
-			if nodes.IsLeaf(child) {
-				if nodes.IsNodeUniq(child) {
-					nodes[child].PreserveWithReason("stage1: same source leaf child of uniq node")
-				}
+			if nodes.IsLeaf(child) && nodes.IsNodeUniq(child) {
+				nodes[child].PreserveWithReason(PreserveReasonStage1SameSourceLeafChild)
 			}
 		}
 
 		// preserve leaf siblings of the node on the same source
 		siblings := nodes.SiblingNodesOnSameSource(i)
 		for _, sibling := range siblings {
-			if nodes.IsLeaf(sibling) {
-				if nodes.IsNodeUniq(sibling) {
-					nodes[sibling].PreserveWithReason("stage1: same source leaf sibling of uniq node")
-				}
+			if nodes.IsLeaf(sibling) && nodes.IsNodeUniq(sibling) {
+				nodes[sibling].PreserveWithReason(PreserveReasonStage1SameSourceLeafSibling)
 			}
 		}
 	}
@@ -450,7 +457,7 @@ func preserveDuplicateNodes(nodes NodeSuggestions) []NodeSuggestion {
 		// if node parent on the same source as the current node
 		parentIdx, ok := nodes.ParentNodeOnSameSource(i)
 		if ok && nodes[parentIdx].Preserve {
-			nodes[i].PreserveWithReason("stage2: node on the same source as preserved parent")
+			nodes[i].PreserveWithReason(PreserveReasonStage2SameSourceNodeOfPreservedParent)
 			continue
 		}
 
@@ -460,7 +467,7 @@ func preserveDuplicateNodes(nodes NodeSuggestions) []NodeSuggestion {
 		for _, duplicate := range nodeDuplicates {
 			parentIdx, ok := nodes.ParentNodeOnSameSource(duplicate)
 			if ok && nodes[parentIdx].Preserve {
-				nodes[duplicate].PreserveWithReason("stage2: duplicate node on the same source as preserved parent")
+				nodes[duplicate].PreserveWithReason(PreserveReasonStage2SameSourceDuplicateNodeOfPreservedParent)
 				priorityIsSet = true
 				break
 			}
@@ -472,7 +479,7 @@ func preserveDuplicateNodes(nodes NodeSuggestions) []NodeSuggestion {
 		siblings := nodes.SiblingNodesOnSameSource(i)
 		for _, sibling := range siblings {
 			if nodes[sibling].Preserve {
-				nodes[i].PreserveWithReason("stage2: node on the same source as preserved sibling")
+				nodes[i].PreserveWithReason(PreserveReasonStage2SameSourceNodeOfPreservedSibling)
 				break
 			}
 		}
