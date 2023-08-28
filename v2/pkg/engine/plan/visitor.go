@@ -314,24 +314,16 @@ func (v *Visitor) EnterField(ref int) {
 }
 
 func (v *Visitor) linkFetchConfiguration(fieldRef int) {
-	var (
-		hasFetchConfig bool
-		i              int
-	)
-	for i = range v.fetchConfigurations {
+	for i := range v.fetchConfigurations {
 		if fieldRef == v.fetchConfigurations[i].fieldRef {
-			hasFetchConfig = true
-			break
-		}
-	}
-	if hasFetchConfig {
-		if v.fetchConfigurations[i].isSubscription {
-			plan, ok := v.plan.(*SubscriptionResponsePlan)
-			if ok {
-				v.fetchConfigurations[i].trigger = &plan.Response.Trigger
+			if v.fetchConfigurations[i].isSubscription {
+				plan, ok := v.plan.(*SubscriptionResponsePlan)
+				if ok {
+					v.fetchConfigurations[i].trigger = &plan.Response.Trigger
+				}
+			} else {
+				v.fetchConfigurations[i].object = v.objects[len(v.objects)-1]
 			}
-		} else {
-			v.fetchConfigurations[i].object = v.objects[len(v.objects)-1]
 		}
 	}
 }
