@@ -282,7 +282,13 @@ func (c *configurationVisitor) EnterField(ref int) {
 }
 
 func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, fieldName, currentPath, parentPath, precedingParentPath string) (planned bool) {
+	dsHash, hasSuggestion := c.dataSourceSuggestions.HasNode(typeName, fieldName)
+
 	for i, plannerConfig := range c.planners {
+		if hasSuggestion && plannerConfig.dataSourceConfiguration.Hash() != dsHash {
+			continue
+		}
+
 		hasRootNode := plannerConfig.dataSourceConfiguration.HasRootNode(typeName, fieldName)
 		hasChildNode := plannerConfig.dataSourceConfiguration.HasChildNode(typeName, fieldName)
 
