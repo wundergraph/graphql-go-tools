@@ -8,9 +8,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-type DsMap map[DSHash]DataSourceConfiguration
-
-func FilterDataSources(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) (used, unused DsMap, suggestions NodeSuggestions) {
+func FilterDataSources(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) (used, unused []DataSourceConfiguration, suggestions NodeSuggestions) {
 	suggestions = findBestDataSourceSet(operation, definition, report, dataSources)
 	if report.HasErrors() {
 		return
@@ -18,21 +16,21 @@ func FilterDataSources(operation, definition *ast.Document, report *operationrep
 
 	dsInUse := suggestions.UniqueDataSourceHashes()
 
-	used = make(DsMap, len(dsInUse)+3 /*3 for introspection*/)
-	unused = make(DsMap, len(dataSources)-len(dsInUse))
+	used = make([]DataSourceConfiguration, len(dsInUse)+3 /*3 for introspection*/)
+	unused = make([]DataSourceConfiguration, len(dataSources)-len(dsInUse))
 
 	for i := range dataSources {
 		// hasPriority introspection datasource
 		if dataSources[i].IsIntrospection {
-			used[dataSources[i].Hash()] = dataSources[i]
+			used = append(used, dataSources[i])
 			continue
 		}
 
 		_, inUse := dsInUse[dataSources[i].Hash()]
 		if inUse {
-			used[dataSources[i].Hash()] = dataSources[i]
+			used = append(used, dataSources[i])
 		} else {
-			unused[dataSources[i].Hash()] = dataSources[i]
+			unused = append(unused, dataSources[i])
 		}
 	}
 

@@ -16,8 +16,8 @@ type configurationVisitor struct {
 	operationName         string
 	operation, definition *ast.Document
 	walker                *astvisitor.Walker
-	usedDataSources       DsMap
-	unusedDataSources     DsMap
+	usedDataSources       []DataSourceConfiguration
+	unusedDataSources     []DataSourceConfiguration
 	planners              []plannerConfiguration
 	fetches               []objectFetchConfiguration
 	dataSourceSuggestions NodeSuggestions
@@ -365,8 +365,14 @@ func (c *configurationVisitor) findSuggestedDataSourceConfiguration(typeName, fi
 	if !ok {
 		return nil
 	}
-	cfg := c.usedDataSources[dsHash]
-	return &cfg
+
+	for _, dsCfg := range c.usedDataSources {
+		if dsCfg.Hash() == dsHash {
+			return &dsCfg
+		}
+	}
+
+	return nil
 }
 
 func (c *configurationVisitor) findAlternativeDataSourceConfiguration(typeName, fieldName, currentPath string) *DataSourceConfiguration {
