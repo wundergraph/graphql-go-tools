@@ -16,16 +16,10 @@ func FilterDataSources(operation, definition *ast.Document, report *operationrep
 
 	dsInUse := suggestions.UniqueDataSourceHashes()
 
-	used = make([]DataSourceConfiguration, len(dsInUse)+3 /*3 for introspection*/)
-	unused = make([]DataSourceConfiguration, len(dataSources)-len(dsInUse))
+	used = make([]DataSourceConfiguration, 0, len(dsInUse))
+	unused = make([]DataSourceConfiguration, 0, len(dataSources)-len(dsInUse))
 
 	for i := range dataSources {
-		// hasPriority introspection datasource
-		if dataSources[i].IsIntrospection {
-			used = append(used, dataSources[i])
-			continue
-		}
-
 		_, inUse := dsInUse[dataSources[i].Hash()]
 		if inUse {
 			used = append(used, dataSources[i])
