@@ -22,7 +22,7 @@ func FilterDataSources(operation, definition *ast.Document, report *operationrep
 	unused = make(DsMap, len(dataSources)-len(dsInUse))
 
 	for i := range dataSources {
-		// preserve introspection datasource
+		// hasPriority introspection datasource
 		if dataSources[i].IsIntrospection {
 			used[dataSources[i].Hash()] = dataSources[i]
 			continue
@@ -47,21 +47,21 @@ type NodeSuggestion struct {
 	ParentPath     string
 	IsRootNode     bool
 
-	preserve     bool
+	hasPriority  bool
 	whyWasChosen []string
 }
 
 func (n *NodeSuggestion) WhyWasChosen(reason string) {
-	// fmt.Println("ds:", n.DataSourceHash, fmt.Sprintf("%s.%s", n.TypeName, n.FieldName), "reason:", reason)
+	// fmt.Println("ds:", n.DataSourceHash, fmt.Sprintf("%s.%s", n.TypeName, n.FieldName), "reason:", reason) // NOTE: debug do not remove
 	n.whyWasChosen = append(n.whyWasChosen, reason)
 }
 
-func (n *NodeSuggestion) PreserveWithReason(reason string) {
-	if n.preserve {
+func (n *NodeSuggestion) SetPriorityWithReason(reason string) {
+	if n.hasPriority {
 		return
 	}
-	n.preserve = true
-	// n.WhyWasChosen(reason)
+	n.hasPriority = true
+	// n.WhyWasChosen(reason) // NOTE: debug do not remove
 }
 
 type NodeSuggestions []NodeSuggestion
@@ -91,13 +91,13 @@ func (f NodeSuggestions) IsNodeUniq(idx int) bool {
 	return true
 }
 
-func (f NodeSuggestions) IsPreservedOnOtherSource(idx int) bool {
+func (f NodeSuggestions) HasPriorityOnOtherSource(idx int) bool {
 	for i := range f {
 		if i == idx {
 			continue
 		}
 		if f[idx].TypeName == f[i].TypeName && f[idx].FieldName == f[i].FieldName &&
-			f[idx].DataSourceHash != f[i].DataSourceHash && f[i].preserve {
+			f[idx].DataSourceHash != f[i].DataSourceHash && f[i].hasPriority {
 			return true
 		}
 	}
@@ -191,7 +191,6 @@ type nodesResolvableVisitor struct {
 	walker     *astvisitor.Walker
 
 	nodes NodeSuggestions
-	err   error
 }
 
 func (f *nodesResolvableVisitor) EnterField(ref int) {
@@ -201,12 +200,11 @@ func (f *nodesResolvableVisitor) EnterField(ref int) {
 	_, found := f.nodes.HasNode(typeName, fieldName)
 
 	if !found {
-		f.walker.Stop()
-		f.err = &errOperationFieldNotResolved{TypeName: typeName, FieldName: fieldName}
+		f.walker.StopWithInternalErr(&errOperationFieldNotResolved{TypeName: typeName, FieldName: fieldName})
 	}
 }
 
-func isResolvable(operation, definition *ast.Document, nodes []NodeSuggestion) bool {
+func isResolvable(operation, definition *ast.Document, report *operationreport.Report, nodes []NodeSuggestion) {
 	walker := astvisitor.NewWalker(32)
 	visitor := &nodesResolvableVisitor{
 		operation:  operation,
@@ -215,9 +213,7 @@ func isResolvable(operation, definition *ast.Document, nodes []NodeSuggestion) b
 		nodes:      nodes,
 	}
 	walker.RegisterEnterFieldVisitor(visitor)
-	report := &operationreport.Report{}
 	walker.Walk(operation, definition, report)
-	return visitor.err == nil
 }
 
 type collectNodesVisitor struct {
@@ -285,33 +281,33 @@ func (e *errOperationFieldNotResolved) Error() string {
 	return fmt.Sprintf("could not find datasource to resolve %s.%s", e.TypeName, e.FieldName)
 }
 
-func findBestNodes(operation, definition *ast.Document, nodes NodeSuggestions) NodeSuggestions {
-	current := nodes
-	currentDsCount := nodes.DataSourceCount()
-	currentNodeCount := nodes.Count()
-	for excluded := range nodes {
-		if nodes[excluded].preserve {
-			continue
-		}
-
-		subset := nodesSubset(nodes, excluded)
-		if !isResolvable(operation, definition, subset) {
-			continue
-		}
-
-		resultNodes := findBestNodes(operation, definition, subset)
-		resultDsCount := resultNodes.DataSourceCount()
-		resultNodeCount := resultNodes.Count()
-
-		if resultNodeCount < currentNodeCount && resultDsCount <= currentDsCount {
-			current = resultNodes
-			currentDsCount = resultDsCount
-			currentNodeCount = resultNodeCount
-		}
-	}
-
-	return current
-}
+// func findBestNodes(operation, definition *ast.Document, nodes NodeSuggestions) NodeSuggestions {
+// 	current := nodes
+// 	currentDsCount := nodes.DataSourceCount()
+// 	currentNodeCount := nodes.Count()
+// 	for excluded := range nodes {
+// 		if nodes[excluded].hasPriority {
+// 			continue
+// 		}
+//
+// 		subset := nodesSubset(nodes, excluded)
+// 		if !isResolvable(operation, definition, subset) {
+// 			continue
+// 		}
+//
+// 		resultNodes := findBestNodes(operation, definition, subset)
+// 		resultDsCount := resultNodes.DataSourceCount()
+// 		resultNodeCount := resultNodes.Count()
+//
+// 		if resultNodeCount < currentNodeCount && resultDsCount <= currentDsCount {
+// 			current = resultNodes
+// 			currentDsCount = resultDsCount
+// 			currentNodeCount = resultNodeCount
+// 		}
+// 	}
+//
+// 	return current
+// }
 
 func findBestDataSourceSet(operation *ast.Document, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) NodeSuggestions {
 	nodes := collectNodes(operation, definition, report, dataSources)
@@ -320,8 +316,16 @@ func findBestDataSourceSet(operation *ast.Document, definition *ast.Document, re
 	}
 
 	nodes = preserveUniqNodes(nodes)
-	nodes = preserveDuplicateNodes(nodes)
-	nodes = findBestNodes(operation, definition, nodes)
+	nodes = preserveDuplicateNodes(nodes, false)
+	nodes = preserveDuplicateNodes(nodes, true)
+
+	// nodes = findBestNodes(operation, definition, nodes)
+
+	nodes = nodesWithPriority(nodes)
+	isResolvable(operation, definition, report, nodes)
+	if report.HasErrors() {
+		return nil
+	}
 
 	return nodes
 }
@@ -334,19 +338,22 @@ func nodesSubset(suggestions []NodeSuggestion, exclude int) []NodeSuggestion {
 }
 
 const (
-	PreserveReasonStage1Uniq                  = "stage1: uniq"
-	PreserveReasonStage1SameSourceParent      = "stage1: same source parent of uniq node"
-	PreserveReasonStage1SameSourceLeafChild   = "stage1: same source leaf child of uniq node"
-	PreserveReasonStage1SameSourceLeafSibling = "stage1: same source leaf sibling of uniq node"
+	ReasonStage1Uniq                  = "stage1: uniq"
+	ReasonStage1SameSourceParent      = "stage1: same source parent of uniq node"
+	ReasonStage1SameSourceLeafChild   = "stage1: same source leaf child of uniq node"
+	ReasonStage1SameSourceLeafSibling = "stage1: same source leaf sibling of uniq node"
 
-	PreserveReasonStage2SameSourceNodeOfPreservedParent          = "stage2: node on the same source as preserved parent"
-	PreserveReasonStage2SameSourceDuplicateNodeOfPreservedParent = "stage2: duplicate node on the same source as preserved parent"
-	PreserveReasonStage2SameSourceNodeOfPreservedSibling         = "stage2: node on the same source as preserved sibling"
+	ReasonStage2SameSourceNodeOfPreservedParent          = "stage2: node on the same source as preserved parent"
+	ReasonStage2SameSourceDuplicateNodeOfPreservedParent = "stage2: duplicate node on the same source as preserved parent"
+	ReasonStage2SameSourceNodeOfPreservedChild           = "stage2: node on the same source as preserved child"
+	ReasonStage2SameSourceNodeOfPreservedSibling         = "stage2: node on the same source as preserved sibling"
+
+	PreserveReasonStage3ChooseAvailableNode = "stage3: choose first available node"
 )
 
 func preserveUniqNodes(nodes NodeSuggestions) []NodeSuggestion {
 	for i := range nodes {
-		if nodes[i].preserve {
+		if nodes[i].hasPriority {
 			continue
 		}
 
@@ -356,57 +363,70 @@ func preserveUniqNodes(nodes NodeSuggestions) []NodeSuggestion {
 		}
 
 		// uniq nodes are always preserved
-		nodes[i].PreserveWithReason(PreserveReasonStage1Uniq)
+		nodes[i].SetPriorityWithReason(ReasonStage1Uniq)
 
-		// if node parent of the uniq node is on the same source, preserve it too
+		// if node parent of the uniq node is on the same source, hasPriority it too
 		parentIdx, ok := nodes.ParentNodeOnSameSource(i)
 		if ok {
-			nodes[parentIdx].PreserveWithReason(PreserveReasonStage1SameSourceParent)
+			nodes[parentIdx].SetPriorityWithReason(ReasonStage1SameSourceParent)
 		}
 
-		// if node has leaf childs on the same source, preserve them too
+		// if node has leaf childs on the same source, hasPriority them too
 		childs := nodes.ChildNodesOnSameSource(i)
 		for _, child := range childs {
 			if nodes.IsLeaf(child) && nodes.IsNodeUniq(child) {
-				nodes[child].PreserveWithReason(PreserveReasonStage1SameSourceLeafChild)
+				nodes[child].SetPriorityWithReason(ReasonStage1SameSourceLeafChild)
 			}
 		}
 
-		// preserve leaf siblings of the node on the same source
+		// hasPriority leaf siblings of the node on the same source
 		siblings := nodes.SiblingNodesOnSameSource(i)
 		for _, sibling := range siblings {
 			if nodes.IsLeaf(sibling) && nodes.IsNodeUniq(sibling) {
-				nodes[sibling].PreserveWithReason(PreserveReasonStage1SameSourceLeafSibling)
+				nodes[sibling].SetPriorityWithReason(ReasonStage1SameSourceLeafSibling)
 			}
 		}
 	}
 	return nodes
 }
 
-func preserveDuplicateNodes(nodes NodeSuggestions) []NodeSuggestion {
+func preserveDuplicateNodes(nodes NodeSuggestions, secondRun bool) []NodeSuggestion {
 	for i := range nodes {
-		if nodes[i].preserve {
+		if nodes[i].hasPriority {
 			continue
 		}
 
-		if nodes.IsPreservedOnOtherSource(i) {
+		if nodes.HasPriorityOnOtherSource(i) {
 			continue
 		}
 
 		// if node parent on the same source as the current node
 		parentIdx, ok := nodes.ParentNodeOnSameSource(i)
-		if ok && nodes[parentIdx].preserve {
-			nodes[i].PreserveWithReason(PreserveReasonStage2SameSourceNodeOfPreservedParent)
+		if ok && nodes[parentIdx].hasPriority {
+			nodes[i].SetPriorityWithReason(ReasonStage2SameSourceNodeOfPreservedParent)
 			continue
 		}
 
+		priorityIsSet := false
+
 		// check if duplicates are on the same source as parent node
 		nodeDuplicates := nodes.DuplicatesOf(i)
-		priorityIsSet := false
 		for _, duplicate := range nodeDuplicates {
 			parentIdx, ok := nodes.ParentNodeOnSameSource(duplicate)
-			if ok && nodes[parentIdx].preserve {
-				nodes[duplicate].PreserveWithReason(PreserveReasonStage2SameSourceDuplicateNodeOfPreservedParent)
+			if ok && nodes[parentIdx].hasPriority {
+				nodes[duplicate].SetPriorityWithReason(ReasonStage2SameSourceDuplicateNodeOfPreservedParent)
+				priorityIsSet = true
+				break
+			}
+		}
+		if priorityIsSet {
+			continue
+		}
+
+		childs := nodes.ChildNodesOnSameSource(i)
+		for _, child := range childs {
+			if nodes[child].hasPriority {
+				nodes[i].SetPriorityWithReason(ReasonStage2SameSourceNodeOfPreservedChild)
 				priorityIsSet = true
 				break
 			}
@@ -417,11 +437,28 @@ func preserveDuplicateNodes(nodes NodeSuggestions) []NodeSuggestion {
 
 		siblings := nodes.SiblingNodesOnSameSource(i)
 		for _, sibling := range siblings {
-			if nodes[sibling].preserve {
-				nodes[i].PreserveWithReason(PreserveReasonStage2SameSourceNodeOfPreservedSibling)
+			if nodes[sibling].hasPriority {
+				nodes[i].SetPriorityWithReason(ReasonStage2SameSourceNodeOfPreservedSibling)
+				priorityIsSet = true
 				break
 			}
 		}
+		if priorityIsSet {
+			continue
+		}
+
+		if secondRun {
+			nodes[i].SetPriorityWithReason(PreserveReasonStage3ChooseAvailableNode)
+		}
 	}
 	return nodes
+}
+
+func nodesWithPriority(nodes NodeSuggestions) (out NodeSuggestions) {
+	for i := range nodes {
+		if nodes[i].hasPriority {
+			out = append(out, nodes[i])
+		}
+	}
+	return
 }
