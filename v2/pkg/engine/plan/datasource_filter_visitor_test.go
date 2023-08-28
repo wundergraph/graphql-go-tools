@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
 	"time"
@@ -221,6 +222,9 @@ func TestFindBestDataSourceSet(t *testing.T) {
 									address {
 										name
 										lines {
+											# TODO: added key id to make test results predictable
+											# revisit if it is not enough rules to help planner
+											id 
 											line1
 											line2
 										}
@@ -307,6 +311,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 						{"Details", "address"},
 						{"Address", "name"},
 						{"Address", "lines"},
+						{"Lines", "id"},
 					},
 				},
 				{
@@ -406,7 +411,9 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				t.Fatal(report.Error())
 			}
 
-			assert.ElementsMatch(t, expected, planned)
+			if !assert.ElementsMatch(t, expected, planned) {
+				fmt.Println("expected:")
+			}
 		})
 	}
 }
