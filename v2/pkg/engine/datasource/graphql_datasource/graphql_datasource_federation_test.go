@@ -1026,7 +1026,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					definition,
 					query,
 					"basic",
-					expectedResponse(`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename}}}"}}`),
+					expectedResponse(`{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename}}}"}}`),
 					plan.Configuration{
 						DataSources: []plan.DataSourceConfiguration{
 							firstDatasourceConfiguration,
@@ -1041,7 +1041,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					definition,
 					query,
 					"basic",
-					expectedResponse(`{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename}}}"}}`),
+					expectedResponse(`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename}}}"}}`),
 					plan.Configuration{
 						DataSources: []plan.DataSourceConfiguration{
 							secondDatasourceConfiguration,
@@ -1067,12 +1067,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					DataSources:                  dataSources,
 					DisableResolveFieldPositions: true,
 					Debug: plan.DebugConfiguration{
-						PrintOperationWithRequiredFields: true,
-						PrintPlanningPaths:               true,
-						PrintQueryPlans:                  true,
-						ConfigurationVisitor:             true,
-						PlanningVisitor:                  true,
-						DatasourceVisitor:                true,
+						PrintQueryPlans: true,
 					},
 				}
 
@@ -1155,7 +1150,98 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					`,
 					"basic",
 					&plan.SynchronousResponsePlan{
-						Response: &resolve.GraphQLResponse{},
+						Response: &resolve.GraphQLResponse{
+							Data: &resolve.Object{
+								Fetch: &resolve.SingleFetch{
+									BufferId: 0,
+									Input:    `{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname} __typename id}}"}}`,
+									ProcessResponseConfig: resolve.ProcessResponseConfig{
+										ExtractGraphqlResponse: true,
+									},
+									DataSource:           &Source{},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								},
+								Fields: []*resolve.Field{
+									{
+										HasBuffer: true,
+										BufferID:  0,
+										Name:      []byte("me"),
+										Value: &resolve.Object{
+											Path:     []string{"me"},
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													HasBuffer: true,
+													BufferID:  1,
+													Name:      []byte("details"),
+													Value: &resolve.Object{
+														Path: []string{"details"},
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("forename"),
+																Value: &resolve.String{
+																	Path: []string{"forename"},
+																},
+															},
+															{
+																Name: []byte("surname"),
+																Value: &resolve.String{
+																	Path: []string{"surname"},
+																},
+															},
+															{
+																Name: []byte("middlename"),
+																Value: &resolve.String{
+																	Path: []string{"middlename"},
+																},
+															},
+														},
+													},
+												},
+											},
+											Fetch: &resolve.BatchFetch{
+												BatchFactory: batchFactory,
+												Fetch: &resolve.SingleFetch{
+													BufferId:                              1,
+													Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {middlename}}}}","variables":{"representations":$$0$$}}}`,
+													SetTemplateOutputToNullOnVariableNull: true,
+													ProcessResponseConfig: resolve.ProcessResponseConfig{
+														ExtractGraphqlResponse:    true,
+														ExtractFederationEntities: true,
+													},
+													DataSource:           &Source{},
+													DataSourceIdentifier: []byte("graphql_datasource.Source"),
+													Variables: []resolve.Variable{
+														&resolve.ListVariable{
+															Variables: []resolve.Variable{
+																&resolve.ResolvableObjectVariable{
+																	Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																		Fields: []*resolve.Field{
+																			{
+																				Name: []byte("__typename"),
+																				Value: &resolve.String{
+																					Path: []string{"__typename"},
+																				},
+																			},
+																			{
+																				Name: []byte("id"),
+																				Value: &resolve.String{
+																					Path: []string{"id"},
+																				},
+																			},
+																		},
+																	}),
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
 					},
 					planConfiguration,
 				))
@@ -1173,7 +1259,52 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					`,
 					"basic",
 					&plan.SynchronousResponsePlan{
-						Response: &resolve.GraphQLResponse{},
+						// Response: &resolve.GraphQLResponse{
+						// 	Data: &resolve.Object{
+						// 		Fetch: &resolve.SingleFetch{
+						// 			BufferId: 0,
+						// 			Input:    `{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname}}}"}}`,
+						// 			ProcessResponseConfig: resolve.ProcessResponseConfig{
+						// 				ExtractGraphqlResponse: true,
+						// 			},
+						// 			DataSource:           &Source{},
+						// 			DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						// 		},
+						// 		Fields: []*resolve.Field{
+						// 			{
+						// 				HasBuffer: true,
+						// 				BufferID:  0,
+						// 				Name:      []byte("me"),
+						// 				Value: &resolve.Object{
+						// 					Path:     []string{"me"},
+						// 					Nullable: true,
+						// 					Fields: []*resolve.Field{
+						// 						{
+						// 							Name: []byte("details"),
+						// 							Value: &resolve.Object{
+						// 								Path: []string{"details"},
+						// 								Fields: []*resolve.Field{
+						// 									{
+						// 										Name: []byte("forename"),
+						// 										Value: &resolve.String{
+						// 											Path: []string{"forename"},
+						// 										},
+						// 									},
+						// 									{
+						// 										Name: []byte("surname"),
+						// 										Value: &resolve.String{
+						// 											Path: []string{"surname"},
+						// 										},
+						// 									},
+						// 								},
+						// 							},
+						// 						},
+						// 					},
+						// 				},
+						// 			},
+						// 		},
+						// 	},
+						// },
 					},
 					planConfiguration,
 				))
@@ -1194,7 +1325,52 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					`,
 					"basic",
 					&plan.SynchronousResponsePlan{
-						Response: &resolve.GraphQLResponse{},
+						// Response: &resolve.GraphQLResponse{
+						// 	Data: &resolve.Object{
+						// 		Fetch: &resolve.SingleFetch{
+						// 			BufferId: 0,
+						// 			Input:    `{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname}}}"}}`,
+						// 			ProcessResponseConfig: resolve.ProcessResponseConfig{
+						// 				ExtractGraphqlResponse: true,
+						// 			},
+						// 			DataSource:           &Source{},
+						// 			DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						// 		},
+						// 		Fields: []*resolve.Field{
+						// 			{
+						// 				HasBuffer: true,
+						// 				BufferID:  0,
+						// 				Name:      []byte("me"),
+						// 				Value: &resolve.Object{
+						// 					Path:     []string{"me"},
+						// 					Nullable: true,
+						// 					Fields: []*resolve.Field{
+						// 						{
+						// 							Name: []byte("details"),
+						// 							Value: &resolve.Object{
+						// 								Path: []string{"details"},
+						// 								Fields: []*resolve.Field{
+						// 									{
+						// 										Name: []byte("forename"),
+						// 										Value: &resolve.String{
+						// 											Path: []string{"forename"},
+						// 										},
+						// 									},
+						// 									{
+						// 										Name: []byte("surname"),
+						// 										Value: &resolve.String{
+						// 											Path: []string{"surname"},
+						// 										},
+						// 									},
+						// 								},
+						// 							},
+						// 						},
+						// 					},
+						// 				},
+						// 			},
+						// 		},
+						// 	},
+						// },
 					},
 					planConfiguration,
 				))
