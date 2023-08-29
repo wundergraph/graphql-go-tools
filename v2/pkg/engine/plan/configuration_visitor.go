@@ -282,7 +282,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 }
 
 func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, fieldName, currentPath, parentPath, precedingParentPath string) (planned bool) {
-	dsHash, hasSuggestion := c.dataSourceSuggestions.HasNode(typeName, fieldName)
+	dsHash, hasSuggestion := c.dataSourceSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
 
 	for i, plannerConfig := range c.planners {
 		if hasSuggestion && plannerConfig.dataSourceConfiguration.Hash() != dsHash {
@@ -361,7 +361,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 }
 
 func (c *configurationVisitor) findSuggestedDataSourceConfiguration(typeName, fieldName, currentPath string) *DataSourceConfiguration {
-	dsHash, ok := c.dataSourceSuggestions.HasNode(typeName, fieldName)
+	dsHash, ok := c.dataSourceSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
 	if !ok {
 		return nil
 	}
@@ -501,7 +501,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 
 func (c *configurationVisitor) handleMissingPath(typeName string, fieldName string, currentPath string) {
 	// if we're here, we didn't find a planner for the field
-	suggestedDataSourceHash, ok := c.dataSourceSuggestions.HasNode(typeName, fieldName)
+	suggestedDataSourceHash, ok := c.dataSourceSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
 	if ok {
 		parentPath, found := c.findPreviousRootPath(currentPath)
 		if found {
@@ -509,8 +509,10 @@ func (c *configurationVisitor) handleMissingPath(typeName string, fieldName stri
 		}
 	} else {
 		// TODO: could happen when we have filtered datasource which has required fields
-		// re-add datasource which has the given field
+		// 1) re-add datasource which has the given field
 		// and add a suggestion for that field
+		// or
+		// 2) best approach will be to regenerate suggestions for the newly added fields
 
 		c.walker.StopWithInternalErr(fmt.Errorf("could not find a data source for field %s.%s with path %s", typeName, fieldName, currentPath))
 	}

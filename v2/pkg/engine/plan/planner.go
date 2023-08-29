@@ -142,6 +142,8 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 }
 
 func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) {
+
+	// TODO: for required fields - we could rebuild suggestions for the newly added fields
 	used, unused, suggestions := FilterDataSources(operation, definition, report, p.config.DataSources)
 	if report.HasErrors() {
 		return
