@@ -76,7 +76,7 @@ func (f NodeSuggestions) IsNodeUniq(idx int) bool {
 		if i == idx {
 			continue
 		}
-		if f[idx].TypeName == f[i].TypeName && f[idx].FieldName == f[i].FieldName {
+		if f[idx].TypeName == f[i].TypeName && f[idx].FieldName == f[i].FieldName && f[idx].Path == f[i].Path {
 			return false
 		}
 	}
@@ -88,8 +88,12 @@ func (f NodeSuggestions) HasPriorityOnOtherSource(idx int) bool {
 		if i == idx {
 			continue
 		}
-		if f[idx].TypeName == f[i].TypeName && f[idx].FieldName == f[i].FieldName &&
-			f[idx].DataSourceHash != f[i].DataSourceHash && f[i].hasPriority {
+		if f[idx].TypeName == f[i].TypeName &&
+			f[idx].FieldName == f[i].FieldName &&
+			f[idx].Path == f[i].Path &&
+			f[idx].DataSourceHash != f[i].DataSourceHash &&
+			f[i].hasPriority {
+
 			return true
 		}
 	}
@@ -101,7 +105,9 @@ func (f NodeSuggestions) DuplicatesOf(idx int) (out []int) {
 		if i == idx {
 			continue
 		}
-		if f[idx].TypeName == f[i].TypeName && f[idx].FieldName == f[i].FieldName {
+		if f[idx].TypeName == f[i].TypeName &&
+			f[idx].FieldName == f[i].FieldName &&
+			f[idx].Path == f[i].Path {
 			out = append(out, i)
 		}
 	}
@@ -361,16 +367,16 @@ func preserveUniqNodes(nodes NodeSuggestions) []NodeSuggestion {
 			continue
 		}
 
-		// uniq nodes are always preserved
+		// uniq nodes are always has priority
 		nodes[i].SetPriorityWithReason(ReasonStage1Uniq)
 
-		// if node parent of the uniq node is on the same source, hasPriority it too
+		// if node parent of the uniq node is on the same source, prioritize it too
 		parentIdx, ok := nodes.ParentNodeOnSameSource(i)
 		if ok {
 			nodes[parentIdx].SetPriorityWithReason(ReasonStage1SameSourceParent)
 		}
 
-		// if node has leaf childs on the same source, hasPriority them too
+		// if node has leaf childs on the same source, prioritize them too
 		childs := nodes.ChildNodesOnSameSource(i)
 		for _, child := range childs {
 			if nodes.IsLeaf(child) && nodes.IsNodeUniq(child) {
@@ -378,7 +384,7 @@ func preserveUniqNodes(nodes NodeSuggestions) []NodeSuggestion {
 			}
 		}
 
-		// hasPriority leaf siblings of the node on the same source
+		// prioritize leaf siblings of the node on the same source
 		siblings := nodes.SiblingNodesOnSameSource(i)
 		for _, sibling := range siblings {
 			if nodes.IsLeaf(sibling) && nodes.IsNodeUniq(sibling) {
