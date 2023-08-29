@@ -1,8 +1,6 @@
 package introspection_datasource
 
 import (
-	"encoding/json"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/introspection"
@@ -86,8 +84,26 @@ func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() plan.Dat
 				FieldNames: []string{"__schema", "__type"},
 			},
 		},
+		ChildNodes: []plan.TypeField{
+			{
+				TypeName:   "__Schema",
+				FieldNames: []string{"queryType", "mutationType", "subscriptionType", "types", "directives"},
+			},
+			{
+				TypeName:   "__Type",
+				FieldNames: []string{"kind", "name", "description", "interfaces", "possibleTypes", "inputFields", "ofType"},
+			},
+			{
+				TypeName:   "__Field",
+				FieldNames: []string{"name", "description", "args", "type", "isDeprecated", "deprecationReason"},
+			},
+			{
+				TypeName:   "__InputValue",
+				FieldNames: []string{"name", "description", "type", "defaultValue"},
+			},
+		},
 		Factory:         NewFactory(f.introspectionData),
-		Custom:          json.RawMessage{},
+		Custom:          []byte("__schema __type"),
 		IsIntrospection: true,
 	}
 }
@@ -100,8 +116,22 @@ func (f *IntrospectionConfigFactory) buildFieldsConfiguration() plan.DataSourceC
 				FieldNames: []string{"fields"},
 			},
 		},
+		ChildNodes: []plan.TypeField{
+			{
+				TypeName:   "__Type",
+				FieldNames: []string{"kind", "name", "description", "interfaces", "possibleTypes", "inputFields", "ofType"},
+			},
+			{
+				TypeName:   "__Field",
+				FieldNames: []string{"name", "description", "args", "type", "isDeprecated", "deprecationReason"},
+			},
+			{
+				TypeName:   "__InputValue",
+				FieldNames: []string{"name", "description", "type", "defaultValue"},
+			},
+		},
 		Factory:         NewFactory(f.introspectionData),
-		Custom:          json.RawMessage{},
+		Custom:          []byte("__Type.fields`"),
 		IsIntrospection: true,
 	}
 }
@@ -114,8 +144,14 @@ func (f *IntrospectionConfigFactory) buildEnumsConfiguration() plan.DataSourceCo
 				FieldNames: []string{"enumValues"},
 			},
 		},
+		ChildNodes: []plan.TypeField{
+			{
+				TypeName:   "__EnumValue",
+				FieldNames: []string{"name", "description", "isDeprecated", "deprecationReason"},
+			},
+		},
 		Factory:         NewFactory(f.introspectionData),
-		Custom:          json.RawMessage{},
+		Custom:          []byte("__Type.enumValues`"),
 		IsIntrospection: true,
 	}
 }
