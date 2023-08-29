@@ -29,19 +29,21 @@ type schemaBuilder struct {
 // BuildFederationSchema takes a baseSchema plus the service sdl and turns it into a fully compliant federation schema
 func (s *schemaBuilder) buildFederationSchema(baseSchema, serviceSDL string) (string, error) {
 	unionTypes := s.entityUnionTypes(serviceSDL)
-	if len(unionTypes) == 0 {
-		return baseSchema, nil
+	hasEntities := len(unionTypes) != 0
+
+	federatedSchema := federationTemplate
+	if hasEntities {
+		allUnionTypes := strings.Join(unionTypes, " | ")
+		federatedSchema += fmt.Sprintf("\nunion _Entity = %s", allUnionTypes)
 	}
-	allUnionTypes := strings.Join(unionTypes, " | ")
-	federationExtension := fmt.Sprintf(federationTemplate, allUnionTypes)
 
-	baseSchema = s.extendQueryTypeWithFederationFields(baseSchema)
+	baseSchemaWithFederationFields := s.extendQueryTypeWithFederationFields(baseSchema, hasEntities)
+	federatedSchema += "\n" + baseSchemaWithFederationFields
 
-	federatedSchema := baseSchema + federationExtension
 	return federatedSchema, nil
 }
 
-func (s *schemaBuilder) extendQueryTypeWithFederationFields(schema string) string {
+func (s *schemaBuilder) extendQueryTypeWithFederationFields(schema string, hasEntities bool) string {
 	doc := ast.NewDocument()
 	doc.Input.ResetInputString(schema)
 	parser := astparser.NewParser()
@@ -62,7 +64,7 @@ func (s *schemaBuilder) extendQueryTypeWithFederationFields(schema string) strin
 	for i := range doc.ObjectTypeDefinitions {
 		name := doc.ObjectTypeDefinitionNameString(i)
 		if name == queryTypeName {
-			s.extendQueryType(doc, i)
+			s.extendQueryType(doc, i, hasEntities)
 			out, err := astprinter.PrintStringIndent(doc, nil, "  ")
 			if err != nil {
 				return schema
@@ -73,7 +75,7 @@ func (s *schemaBuilder) extendQueryTypeWithFederationFields(schema string) strin
 	return schema
 }
 
-func (s *schemaBuilder) extendQueryType(doc *ast.Document, ref int) {
+func (s *schemaBuilder) extendQueryType(doc *ast.Document, ref int, hasEntities bool) {
 	serviceType := doc.AddNonNullNamedType([]byte("_Service"))
 
 	serviceFieldDefRef := doc.ImportFieldDefinition(
@@ -86,6 +88,10 @@ func (s *schemaBuilder) extendQueryType(doc *ast.Document, ref int) {
 
 	doc.ObjectTypeDefinitions[ref].HasFieldDefinitions = true
 	doc.ObjectTypeDefinitions[ref].FieldsDefinition.Refs = append(doc.ObjectTypeDefinitions[ref].FieldsDefinition.Refs, serviceFieldDefRef)
+
+	if !hasEntities {
+		return
+	}
 
 	anyType := doc.AddNonNullNamedType([]byte("_Any"))
 	entityType := doc.AddNamedType([]byte("_Entity"))
@@ -170,11 +176,8 @@ func (s *schemaBuilderVisitor) EnterObjectTypeDefinition(ref int) {
 }
 
 const federationTemplate = `
-
 scalar _Any
 scalar _FieldSet
-
-union _Entity = %s
 
 type _Service {
   sdl: String
