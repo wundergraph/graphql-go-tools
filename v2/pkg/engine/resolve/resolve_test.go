@@ -128,14 +128,12 @@ func TestResolver_ResolveNode(t *testing.T) {
 		r := newResolver(rCtx, enableSingleFlight, enableDataLoader)
 		node, ctx, expectedOutput := fn(t, ctrl)
 		return func(t *testing.T) {
-			buf := &BufPair{
-				Data:   fastbuffer.New(),
-				Errors: fastbuffer.New(),
-			}
-			err := r.resolveNode(&ctx, node, nil, buf)
-			assert.Equal(t, buf.Errors.String(), "", "want error buf to be empty")
+			buf := &bytes.Buffer{}
+			err := r.ResolveGraphQLResponse(&ctx, &GraphQLResponse{
+				Data: node,
+			}, nil, buf)
 			assert.NoError(t, err)
-			assert.Equal(t, expectedOutput, buf.Data.String())
+			assert.Equal(t, expectedOutput, buf.String())
 			ctrl.Finish()
 		}
 	}
@@ -150,12 +148,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 		node, ctx, expectedErr := fn(t, r, ctrl)
 		return func(t *testing.T) {
 			t.Helper()
-
-			buf := &BufPair{
-				Data:   fastbuffer.New(),
-				Errors: fastbuffer.New(),
-			}
-			err := r.resolveNode(&ctx, node, nil, buf)
+			buf := &bytes.Buffer{}
+			err := r.ResolveGraphQLResponse(&ctx, &GraphQLResponse{
+				Data: node,
+			}, nil, buf)
 			assert.EqualError(t, err, expectedErr)
 			ctrl.Finish()
 		}
@@ -164,10 +160,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("Nullable empty object", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Nullable: true,
-		}, Context{ctx: context.Background()}, `null`
+		}, Context{ctx: context.Background()}, `{"data":null}`
 	}))
 	t.Run("empty object", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
-		return &EmptyObject{}, Context{ctx: context.Background()}, `{}`
+		return &EmptyObject{}, Context{ctx: context.Background()}, `{"data":{}}`
 	}))
 	t.Run("BigInt", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -204,7 +200,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"n":12345,"ns_small":"12346","ns_big":"1152921504606846976"}`
+		}, Context{ctx: context.Background()}, `{"data":{"n":12345,"ns_small":"12346","ns_big":"1152921504606846976"}}`
 	}))
 	t.Run("object with null field", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -214,79 +210,70 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Value: &Null{},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"foo":null}`
+		}, Context{ctx: context.Background()}, `{"data":{"foo":null}}`
 	}))
 	t.Run("default graphql object", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fields: []*Field{
 				{
-					Name: []byte("data"),
-					Value: &Object{
-						Nullable: true,
-					},
+					Name:  []byte("data"),
+					Value: &Null{},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":null}`
+		}, Context{ctx: context.Background()}, `{"data":{"data":null}}`
 	}))
 	t.Run("graphql object with simple data source", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fields: []*Field{
 				{
-					Name: []byte("data"),
+					Name: []byte("user"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferId:   0,
+							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+						},
 						Fields: []*Field{
 							{
-								Name: []byte("user"),
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("id"),
+								Value: &String{
+									Path: []string{"id"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("name"),
+								Value: &String{
+									Path: []string{"name"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("registered"),
+								Value: &Boolean{
+									Path: []string{"registered"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("pet"),
 								Value: &Object{
-									Fetch: &SingleFetch{
-										BufferId:   0,
-										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
-									},
+									Path: []string{"pet"},
 									Fields: []*Field{
 										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("id"),
-											Value: &String{
-												Path: []string{"id"},
-											},
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("name"),
+											Name: []byte("name"),
 											Value: &String{
 												Path: []string{"name"},
 											},
 										},
 										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("registered"),
-											Value: &Boolean{
-												Path: []string{"registered"},
-											},
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("pet"),
-											Value: &Object{
-												Path: []string{"pet"},
-												Fields: []*Field{
-													{
-														Name: []byte("name"),
-														Value: &String{
-															Path: []string{"name"},
-														},
-													},
-													{
-														Name: []byte("kind"),
-														Value: &String{
-															Path: []string{"kind"},
-														},
-													},
-												},
+											Name: []byte("kind"),
+											Value: &String{
+												Path: []string{"kind"},
 											},
 										},
 									},
@@ -302,29 +289,22 @@ func TestResolver_ResolveNode(t *testing.T) {
 		return &Object{
 			Fields: []*Field{
 				{
-					Name: []byte("data"),
+					Name: []byte("user"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferId:   0,
+							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+						},
 						Fields: []*Field{
 							{
-								Name: []byte("user"),
-								Value: &Object{
-									Fetch: &SingleFetch{
-										BufferId:   0,
-										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
-									},
-									Fields: []*Field{
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("id"),
-											Value: &String{
-												Path: []string{"id"},
-											},
-											SkipDirectiveDefined: true,
-											SkipVariableName:     "skip",
-										},
-									},
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("id"),
+								Value: &String{
+									Path: []string{"id"},
 								},
+								SkipDirectiveDefined: true,
+								SkipVariableName:     "skip",
 							},
 						},
 					},
@@ -336,39 +316,32 @@ func TestResolver_ResolveNode(t *testing.T) {
 		return &Object{
 			Fields: []*Field{
 				{
-					Name: []byte("data"),
+					Name: []byte("user"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferId:   0,
+							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+						},
 						Fields: []*Field{
 							{
-								Name: []byte("user"),
-								Value: &Object{
-									Fetch: &SingleFetch{
-										BufferId:   0,
-										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
-									},
-									Fields: []*Field{
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("id"),
-											Value: &String{
-												Path: []string{"id"},
-											},
-											SkipDirectiveDefined: true,
-											SkipVariableName:     "skip",
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("name"),
-											Value: &String{
-												Path: []string{"name"},
-											},
-											SkipDirectiveDefined: true,
-											SkipVariableName:     "skip",
-										},
-									},
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("id"),
+								Value: &String{
+									Path: []string{"id"},
 								},
+								SkipDirectiveDefined: true,
+								SkipVariableName:     "skip",
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("name"),
+								Value: &String{
+									Path: []string{"name"},
+								},
+								SkipDirectiveDefined: true,
+								SkipVariableName:     "skip",
 							},
 						},
 					},
@@ -380,37 +353,30 @@ func TestResolver_ResolveNode(t *testing.T) {
 		return &Object{
 			Fields: []*Field{
 				{
-					Name: []byte("data"),
+					Name: []byte("user"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferId:   0,
+							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+						},
 						Fields: []*Field{
 							{
-								Name: []byte("user"),
-								Value: &Object{
-									Fetch: &SingleFetch{
-										BufferId:   0,
-										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
-									},
-									Fields: []*Field{
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("id"),
-											Value: &String{
-												Path: []string{"id"},
-											},
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("__typename"),
-											Value: &String{
-												Path: []string{"__typename"},
-											},
-											SkipDirectiveDefined: true,
-											SkipVariableName:     "skip",
-										},
-									},
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("id"),
+								Value: &String{
+									Path: []string{"id"},
 								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("__typename"),
+								Value: &String{
+									Path: []string{"__typename"},
+								},
+								SkipDirectiveDefined: true,
+								SkipVariableName:     "skip",
 							},
 						},
 					},
@@ -422,37 +388,30 @@ func TestResolver_ResolveNode(t *testing.T) {
 		return &Object{
 			Fields: []*Field{
 				{
-					Name: []byte("data"),
+					Name: []byte("user"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferId:   0,
+							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"},"__typename":"User"}`),
+						},
 						Fields: []*Field{
 							{
-								Name: []byte("user"),
-								Value: &Object{
-									Fetch: &SingleFetch{
-										BufferId:   0,
-										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"},"__typename":"User"}`),
-									},
-									Fields: []*Field{
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("id"),
-											Value: &String{
-												Path: []string{"id"},
-											},
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("__typename"),
-											Value: &String{
-												Path: []string{"__typename"},
-											},
-											IncludeDirectiveDefined: true,
-											IncludeVariableName:     "include",
-										},
-									},
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("id"),
+								Value: &String{
+									Path: []string{"id"},
 								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("__typename"),
+								Value: &String{
+									Path: []string{"__typename"},
+								},
+								IncludeDirectiveDefined: true,
+								IncludeVariableName:     "include",
 							},
 						},
 					},
@@ -464,37 +423,30 @@ func TestResolver_ResolveNode(t *testing.T) {
 		return &Object{
 			Fields: []*Field{
 				{
-					Name: []byte("data"),
+					Name: []byte("user"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferId:   0,
+							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"},"__typename":"User"}`),
+						},
 						Fields: []*Field{
 							{
-								Name: []byte("user"),
-								Value: &Object{
-									Fetch: &SingleFetch{
-										BufferId:   0,
-										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"},"__typename":"User"}`),
-									},
-									Fields: []*Field{
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("id"),
-											Value: &String{
-												Path: []string{"id"},
-											},
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("__typename"),
-											Value: &String{
-												Path: []string{"__typename"},
-											},
-											IncludeDirectiveDefined: true,
-											IncludeVariableName:     "include",
-										},
-									},
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("id"),
+								Value: &String{
+									Path: []string{"id"},
 								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("__typename"),
+								Value: &String{
+									Path: []string{"__typename"},
+								},
+								IncludeDirectiveDefined: true,
+								IncludeVariableName:     "include",
 							},
 						},
 					},
@@ -506,64 +458,57 @@ func TestResolver_ResolveNode(t *testing.T) {
 		return &Object{
 			Fields: []*Field{
 				{
-					Name: []byte("data"),
+					Name: []byte("user"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferId:   0,
+							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+						},
 						Fields: []*Field{
 							{
-								Name: []byte("user"),
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("id"),
+								Value: &String{
+									Path: []string{"id"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("name"),
+								Value: &String{
+									Path: []string{"name"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("registered"),
+								Value: &Boolean{
+									Path: []string{"registered"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("pet"),
 								Value: &Object{
-									Fetch: &SingleFetch{
-										BufferId:   0,
-										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
-									},
+									Path: []string{"pet"},
 									Fields: []*Field{
 										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("id"),
-											Value: &String{
-												Path: []string{"id"},
-											},
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("name"),
+											Name: []byte("name"),
 											Value: &String{
 												Path: []string{"name"},
 											},
 										},
 										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("registered"),
-											Value: &Boolean{
-												Path: []string{"registered"},
+											Name: []byte("kind"),
+											Value: &String{
+												Path: []string{"kind"},
 											},
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("pet"),
-											Value: &Object{
-												Path: []string{"pet"},
-												Fields: []*Field{
-													{
-														Name: []byte("name"),
-														Value: &String{
-															Path: []string{"name"},
-														},
-													},
-													{
-														Name: []byte("kind"),
-														Value: &String{
-															Path: []string{"kind"},
-														},
-														SkipDirectiveDefined: true,
-														SkipVariableName:     "skip",
-													},
-												},
-											},
+											SkipDirectiveDefined: true,
+											SkipVariableName:     "skip",
 										},
 									},
 								},
@@ -578,64 +523,57 @@ func TestResolver_ResolveNode(t *testing.T) {
 		return &Object{
 			Fields: []*Field{
 				{
-					Name: []byte("data"),
+					Name: []byte("user"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferId:   0,
+							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+						},
 						Fields: []*Field{
 							{
-								Name: []byte("user"),
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("id"),
+								Value: &String{
+									Path: []string{"id"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("name"),
+								Value: &String{
+									Path: []string{"name"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("registered"),
+								Value: &Boolean{
+									Path: []string{"registered"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("pet"),
 								Value: &Object{
-									Fetch: &SingleFetch{
-										BufferId:   0,
-										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
-									},
+									Path: []string{"pet"},
 									Fields: []*Field{
 										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("id"),
-											Value: &String{
-												Path: []string{"id"},
-											},
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("name"),
+											Name: []byte("name"),
 											Value: &String{
 												Path: []string{"name"},
 											},
 										},
 										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("registered"),
-											Value: &Boolean{
-												Path: []string{"registered"},
+											Name: []byte("kind"),
+											Value: &String{
+												Path: []string{"kind"},
 											},
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("pet"),
-											Value: &Object{
-												Path: []string{"pet"},
-												Fields: []*Field{
-													{
-														Name: []byte("name"),
-														Value: &String{
-															Path: []string{"name"},
-														},
-													},
-													{
-														Name: []byte("kind"),
-														Value: &String{
-															Path: []string{"kind"},
-														},
-														SkipDirectiveDefined: true,
-														SkipVariableName:     "skip",
-													},
-												},
-											},
+											SkipDirectiveDefined: true,
+											SkipVariableName:     "skip",
 										},
 									},
 								},
@@ -650,64 +588,57 @@ func TestResolver_ResolveNode(t *testing.T) {
 		return &Object{
 			Fields: []*Field{
 				{
-					Name: []byte("data"),
+					Name: []byte("user"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferId:   0,
+							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+						},
 						Fields: []*Field{
 							{
-								Name: []byte("user"),
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("id"),
+								Value: &String{
+									Path: []string{"id"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("name"),
+								Value: &String{
+									Path: []string{"name"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("registered"),
+								Value: &Boolean{
+									Path: []string{"registered"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("pet"),
 								Value: &Object{
-									Fetch: &SingleFetch{
-										BufferId:   0,
-										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
-									},
+									Path: []string{"pet"},
 									Fields: []*Field{
 										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("id"),
-											Value: &String{
-												Path: []string{"id"},
-											},
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("name"),
+											Name: []byte("name"),
 											Value: &String{
 												Path: []string{"name"},
 											},
 										},
 										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("registered"),
-											Value: &Boolean{
-												Path: []string{"registered"},
+											Name: []byte("kind"),
+											Value: &String{
+												Path: []string{"kind"},
 											},
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("pet"),
-											Value: &Object{
-												Path: []string{"pet"},
-												Fields: []*Field{
-													{
-														Name: []byte("name"),
-														Value: &String{
-															Path: []string{"name"},
-														},
-													},
-													{
-														Name: []byte("kind"),
-														Value: &String{
-															Path: []string{"kind"},
-														},
-														SkipDirectiveDefined: true,
-														SkipVariableName:     "skip",
-													},
-												},
-											},
+											SkipDirectiveDefined: true,
+											SkipVariableName:     "skip",
 										},
 									},
 								},
@@ -722,64 +653,57 @@ func TestResolver_ResolveNode(t *testing.T) {
 		return &Object{
 			Fields: []*Field{
 				{
-					Name: []byte("data"),
+					Name: []byte("user"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferId:   0,
+							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+						},
 						Fields: []*Field{
 							{
-								Name: []byte("user"),
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("id"),
+								Value: &String{
+									Path: []string{"id"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("name"),
+								Value: &String{
+									Path: []string{"name"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("registered"),
+								Value: &Boolean{
+									Path: []string{"registered"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("pet"),
 								Value: &Object{
-									Fetch: &SingleFetch{
-										BufferId:   0,
-										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
-									},
+									Path: []string{"pet"},
 									Fields: []*Field{
 										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("id"),
-											Value: &String{
-												Path: []string{"id"},
-											},
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("name"),
+											Name: []byte("name"),
 											Value: &String{
 												Path: []string{"name"},
 											},
 										},
 										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("registered"),
-											Value: &Boolean{
-												Path: []string{"registered"},
+											Name: []byte("kind"),
+											Value: &String{
+												Path: []string{"kind"},
 											},
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("pet"),
-											Value: &Object{
-												Path: []string{"pet"},
-												Fields: []*Field{
-													{
-														Name: []byte("name"),
-														Value: &String{
-															Path: []string{"name"},
-														},
-													},
-													{
-														Name: []byte("kind"),
-														Value: &String{
-															Path: []string{"kind"},
-														},
-														IncludeDirectiveDefined: true,
-														IncludeVariableName:     "include",
-													},
-												},
-											},
+											IncludeDirectiveDefined: true,
+											IncludeVariableName:     "include",
 										},
 									},
 								},
@@ -794,64 +718,57 @@ func TestResolver_ResolveNode(t *testing.T) {
 		return &Object{
 			Fields: []*Field{
 				{
-					Name: []byte("data"),
+					Name: []byte("user"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferId:   0,
+							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+						},
 						Fields: []*Field{
 							{
-								Name: []byte("user"),
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("id"),
+								Value: &String{
+									Path: []string{"id"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("name"),
+								Value: &String{
+									Path: []string{"name"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("registered"),
+								Value: &Boolean{
+									Path: []string{"registered"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("pet"),
 								Value: &Object{
-									Fetch: &SingleFetch{
-										BufferId:   0,
-										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
-									},
+									Path: []string{"pet"},
 									Fields: []*Field{
 										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("id"),
-											Value: &String{
-												Path: []string{"id"},
-											},
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("name"),
+											Name: []byte("name"),
 											Value: &String{
 												Path: []string{"name"},
 											},
 										},
 										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("registered"),
-											Value: &Boolean{
-												Path: []string{"registered"},
+											Name: []byte("kind"),
+											Value: &String{
+												Path: []string{"kind"},
 											},
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("pet"),
-											Value: &Object{
-												Path: []string{"pet"},
-												Fields: []*Field{
-													{
-														Name: []byte("name"),
-														Value: &String{
-															Path: []string{"name"},
-														},
-													},
-													{
-														Name: []byte("kind"),
-														Value: &String{
-															Path: []string{"kind"},
-														},
-														IncludeDirectiveDefined: true,
-														IncludeVariableName:     "include",
-													},
-												},
-											},
+											IncludeDirectiveDefined: true,
+											IncludeVariableName:     "include",
 										},
 									},
 								},
@@ -866,64 +783,57 @@ func TestResolver_ResolveNode(t *testing.T) {
 		return &Object{
 			Fields: []*Field{
 				{
-					Name: []byte("data"),
+					Name: []byte("user"),
 					Value: &Object{
+						Fetch: &SingleFetch{
+							BufferId:   0,
+							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+						},
 						Fields: []*Field{
 							{
-								Name: []byte("user"),
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("id"),
+								Value: &String{
+									Path: []string{"id"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("name"),
+								Value: &String{
+									Path: []string{"name"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("registered"),
+								Value: &Boolean{
+									Path: []string{"registered"},
+								},
+							},
+							{
+								BufferID:  0,
+								HasBuffer: true,
+								Name:      []byte("pet"),
 								Value: &Object{
-									Fetch: &SingleFetch{
-										BufferId:   0,
-										DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
-									},
+									Path: []string{"pet"},
 									Fields: []*Field{
 										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("id"),
-											Value: &String{
-												Path: []string{"id"},
-											},
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("name"),
+											Name: []byte("name"),
 											Value: &String{
 												Path: []string{"name"},
 											},
 										},
 										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("registered"),
-											Value: &Boolean{
-												Path: []string{"registered"},
+											Name: []byte("kind"),
+											Value: &String{
+												Path: []string{"kind"},
 											},
-										},
-										{
-											BufferID:  0,
-											HasBuffer: true,
-											Name:      []byte("pet"),
-											Value: &Object{
-												Path: []string{"pet"},
-												Fields: []*Field{
-													{
-														Name: []byte("name"),
-														Value: &String{
-															Path: []string{"name"},
-														},
-													},
-													{
-														Name: []byte("kind"),
-														Value: &String{
-															Path: []string{"kind"},
-														},
-														IncludeDirectiveDefined: true,
-														IncludeVariableName:     "include",
-													},
-												},
-											},
+											IncludeDirectiveDefined: true,
+											IncludeVariableName:     "include",
 										},
 									},
 								},
@@ -937,8 +847,8 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("fetch with context variable resolver", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), []byte(`{"id":1}`), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+			Load(gomock.Any(), []byte(`{"id":1}`), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+			Do(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
 				_, err = w.Write([]byte(`{"name":"Jens"}`))
 				return
 			}).
@@ -980,7 +890,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: []byte(`{"id":1}`)}, `{"name":"Jens"}`
+		}, Context{ctx: context.Background(), Variables: []byte(`{"id":1}`)}, `{"data":{"name":"Jens"}}`
 	}))
 	t.Run("resolve array of strings", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -1001,7 +911,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"strings":["Alex","true","123"]}`
+		}, Context{ctx: context.Background()}, `{"data":{"strings":["Alex","true","123"]}}`
 	}))
 	t.Run("resolve array of mixed scalar types", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
 		return &Object{
@@ -1030,7 +940,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				return &Object{
 					Fetch: &SingleFetch{
 						BufferId:   0,
-						DataSource: FakeDataSource(`{"jsonList":["{"field":"value"}"]}`),
+						DataSource: FakeDataSource(`{"jsonList":["{\"field\":\"value\"}"]}`),
 					},
 					Fields: []*Field{
 						{
@@ -1046,7 +956,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							},
 						},
 					},
-				}, Context{ctx: context.Background()}, `{"jsonList":[{"field":"value"}]}`
+				}, Context{ctx: context.Background()}, `{"data":{"jsonList":[{"field":"value"}]}}`
 			}))
 			t.Run("json input", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
@@ -1068,7 +978,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							},
 						},
 					},
-				}, Context{ctx: context.Background()}, `{"jsonList":[{"field":"value"}]}`
+				}, Context{ctx: context.Background()}, `{"data":{"jsonList":[{"field":"value"}]}}`
 			}))
 		})
 		t.Run("with unescape json disabled", func(t *testing.T) {
@@ -1076,7 +986,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				return &Object{
 					Fetch: &SingleFetch{
 						BufferId:   0,
-						DataSource: FakeDataSource(`{"jsonList":["{"field":"value"}"]}`),
+						DataSource: FakeDataSource(`{"jsonList":["{\"field\":\"value\"}"]}`),
 					},
 					Fields: []*Field{
 						{
@@ -1092,7 +1002,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							},
 						},
 					},
-				}, Context{ctx: context.Background()}, `{"jsonList":["{"field":"value"}"]}`
+				}, Context{ctx: context.Background()}, `{"data":{"jsonList":["{\"field\":\"value\"}"]}}`
 			}))
 			t.Run("json input", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
 				return &Object{
@@ -1241,7 +1151,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"synchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"asynchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"nullableFriends":null,"strings":["foo","bar","baz"],"integers":[123,456,789],"floats":[1.2,3.4,5.6],"booleans":[true,false,true]}`
+		}, Context{ctx: context.Background()}, `{"data":{"synchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"asynchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"nullableFriends":null,"strings":["foo","bar","baz"],"integers":[123,456,789],"floats":[1.2,3.4,5.6],"booleans":[true,false,true]}}`
 	}))
 	t.Run("array response from data source", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -1272,7 +1182,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			}, Context{ctx: context.Background()},
-			`{"pets":[{"name":"Woofie"},{}]}`
+			`{"data":{"pets":[{"name":"Woofie"},{}]}}`
 	}))
 	t.Run("non null object with field condition can be null", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -1300,69 +1210,58 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			}, Context{ctx: context.Background()},
-			`{"cat":{}}`
+			`{"data":{"cat":{}}}`
 	}))
 	t.Run("object with multiple type conditions", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
 					BufferId:   0,
-					DataSource: FakeDataSource(`{"data":{"namespaceCreate":{"__typename":"Error","code":"UserAlreadyHasPersonalNamespace","message":""}}}`),
+					DataSource: FakeDataSource(`{"namespaceCreate":{"__typename":"Error","code":"UserAlreadyHasPersonalNamespace","message":""}}`),
 				},
 				Fields: []*Field{
 					{
-						BufferID:  0,
-						HasBuffer: true,
-						Name:      []byte("data"),
+						Name: []byte("namespaceCreate"),
 						Value: &Object{
-							Nullable: false,
-							Path:     []string{"data"},
+							Path: []string{"namespaceCreate"},
 							Fields: []*Field{
 								{
-									Name: []byte("namespaceCreate"),
+									Name:        []byte("namespace"),
+									OnTypeNames: [][]byte{[]byte("NamespaceCreated")},
 									Value: &Object{
-										Path: []string{"namespaceCreate"},
+										Path:     []string{"namespace"},
+										Nullable: false,
 										Fields: []*Field{
 											{
-												Name:        []byte("namespace"),
-												OnTypeNames: [][]byte{[]byte("NamespaceCreated")},
-												Value: &Object{
-													Path:     []string{"namespace"},
+												Name: []byte("id"),
+												Value: &String{
 													Nullable: false,
-													Fields: []*Field{
-														{
-															Name: []byte("id"),
-															Value: &String{
-																Nullable: false,
-																Path:     []string{"id"},
-															},
-														},
-														{
-															Name: []byte("name"),
-															Value: &String{
-																Nullable: false,
-																Path:     []string{"name"},
-															},
-														},
-													},
+													Path:     []string{"id"},
 												},
 											},
 											{
-												Name:        []byte("code"),
-												OnTypeNames: [][]byte{[]byte("Error")},
+												Name: []byte("name"),
 												Value: &String{
 													Nullable: false,
-													Path:     []string{"code"},
-												},
-											},
-											{
-												Name:        []byte("message"),
-												OnTypeNames: [][]byte{[]byte("Error")},
-												Value: &String{
-													Nullable: false,
-													Path:     []string{"message"},
+													Path:     []string{"name"},
 												},
 											},
 										},
+									},
+								},
+								{
+									Name:        []byte("code"),
+									OnTypeNames: [][]byte{[]byte("Error")},
+									Value: &String{
+										Nullable: false,
+										Path:     []string{"code"},
+									},
+								},
+								{
+									Name:        []byte("message"),
+									OnTypeNames: [][]byte{[]byte("Error")},
+									Value: &String{
+										Nullable: false,
+										Path:     []string{"message"},
 									},
 								},
 							},
@@ -1402,7 +1301,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			}, Context{ctx: context.Background()},
-			`{"pets":[{"name":"Woofie"},{}]}`
+			`{"data":{"pets":[{"name":"Woofie"},{}]}}`
 	}))
 
 	t.Run("resolve fieldsets based on __typename when field is Nullable", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
@@ -1452,7 +1351,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			}, Context{ctx: context.Background()},
-			`{"pet":{"id":"1","detail":null}}`
+			`{"data":{"pet":{"id":"1","detail":null}}}`
 	}))
 
 	t.Run("resolve fieldsets asynchronous based on __typename", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
@@ -1486,84 +1385,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			}, Context{ctx: context.Background()},
-			`{"pets":[{"name":"Woofie"},{}]}`
-	}))
-	t.Run("parent object variables", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
-		mockDataSource := NewMockDataSource(ctrl)
-		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.GotFormatterAdapter(gotBytesFormatter{}, matchBytes(`{"id":1}`)), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
-				_, err = w.Write([]byte(`{"name":"Woofie"}`))
-				return
-			}).
-			Return(nil)
-		return &Object{
-			Fetch: &SingleFetch{
-				BufferId:   0,
-				DataSource: FakeDataSource(`{"id":1,"name":"Jens"}`),
-			},
-			Fields: []*Field{
-				{
-					HasBuffer: true,
-					BufferID:  0,
-					Name:      []byte("id"),
-					Value: &Integer{
-						Path: []string{"id"},
-					},
-				},
-				{
-					HasBuffer: true,
-					BufferID:  0,
-					Name:      []byte("name"),
-					Value: &String{
-						Path: []string{"name"},
-					},
-				},
-				{
-					HasBuffer: true,
-					BufferID:  0,
-					Name:      []byte("pet"),
-					Value: &Object{
-						Fetch: &SingleFetch{
-							BufferId:   0,
-							DataSource: mockDataSource,
-							Input:      `{"id":$$0$$}`,
-							InputTemplate: InputTemplate{
-								Segments: []TemplateSegment{
-									{
-										SegmentType: StaticSegmentType,
-										Data:        []byte(`{"id":`),
-									},
-									{
-										SegmentType:        VariableSegmentType,
-										VariableKind:       ObjectVariableKind,
-										VariableSourcePath: []string{"id"},
-										Renderer:           NewGraphQLVariableRenderer(`{"type":"number"}`),
-									},
-									{
-										SegmentType: StaticSegmentType,
-										Data:        []byte(`}`),
-									},
-								},
-							},
-							Variables: NewVariables(&ObjectVariable{
-								Path: []string{"id"},
-							}),
-						},
-						Fields: []*Field{
-							{
-								BufferID:  0,
-								HasBuffer: true,
-								Name:      []byte("name"),
-								Value: &String{
-									Path: []string{"name"},
-								},
-							},
-						},
-					},
-				},
-			},
-		}, Context{ctx: context.Background()}, `{"id":1,"name":"Jens","pet":{"name":"Woofie"}}`
+			`{"data":{"pets":[{"name":"Woofie"},{}]}}`
 	}))
 	t.Run("with unescape json enabled", func(t *testing.T) {
 		t.Run("json object within a string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
@@ -1571,7 +1393,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				Fetch: &SingleFetch{
 					BufferId: 0,
 					// Datasource returns a JSON object within a string
-					DataSource: FakeDataSource(`{"data":"{ "hello": "world", "numberAsString": "1", "number": 1, "bool": true, "null": null, "array": [1,2,3], "object": {"key": "value"} }"}`),
+					DataSource: FakeDataSource(`{"data":"{"hello":"world","numberAsString":"1","number":1,"bool":true,"null":null,"array":[1,2,3],"object":{"key":"value"}}"}`),
 				},
 				Nullable: false,
 				Fields: []*Field{
@@ -1592,14 +1414,14 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				// expected output is a JSON object
-			}, Context{ctx: context.Background()}, `{"data":{ "hello": "world", "numberAsString": "1", "number": 1, "bool": true, "null": null, "array": [1,2,3], "object": {"key": "value"} }}`
+			}, Context{ctx: context.Background()}, `{"data":{"hello":"world","numberAsString":"1","number":1,"bool":true,"null":null,"array":[1,2,3],"object":{"key":"value"}}}`
 		}))
 		t.Run("json array within a string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 			return &Object{
 				Fetch: &SingleFetch{
 					BufferId: 0,
 					// Datasource returns a JSON array within a string
-					DataSource: FakeDataSource(`{"data": "[1, 2, 3]"}`),
+					DataSource: FakeDataSource(`{"data":"[1,2,3]"}`),
 				},
 				Nullable: false,
 				Fields: []*Field{
@@ -1620,7 +1442,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				// expected output is a JSON array
-			}, Context{ctx: context.Background()}, `{"data":[1, 2, 3]}`
+			}, Context{ctx: context.Background()}, `{"data":{"data":[1,2,3]}}`
 		}))
 		t.Run("string with array and objects brackets", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 			return &Object{
@@ -1648,7 +1470,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				// expected output is a string
-			}, Context{ctx: context.Background()}, `{"data":"hi[1beep{2}]"}`
+			}, Context{ctx: context.Background()}, `{"data":{"data":"hi[1beep{2}]"}}`
 		}))
 		t.Run("plain scalar values within a string", func(t *testing.T) {
 			t.Run("boolean", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
@@ -1673,7 +1495,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 					// expected output is a string
-				}, Context{ctx: context.Background()}, `{"data":"true"}`
+				}, Context{ctx: context.Background()}, `{"data":{"data":"true"}}`
 			}))
 			t.Run("int", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
@@ -1701,7 +1523,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 					// expected output is a string
-				}, Context{ctx: context.Background()}, `{"data":"1"}`
+				}, Context{ctx: context.Background()}, `{"data":{"data":"1"}}`
 			}))
 			t.Run("float", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
@@ -1729,7 +1551,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 					// expected output is a string
-				}, Context{ctx: context.Background()}, `{"data":"2.0"}`
+				}, Context{ctx: context.Background()}, `{"data":{"data":"2.0"}}`
 			}))
 			t.Run("null", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
@@ -1757,7 +1579,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 					// expected output is a string
-				}, Context{ctx: context.Background()}, `{"data":"null"}`
+				}, Context{ctx: context.Background()}, `{"data":{"data":"null"}}`
 			}))
 			t.Run("string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
@@ -1784,7 +1606,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 					// expect data value to be valid JSON string
-				}, Context{ctx: context.Background()}, `{"data":"hello world"}`
+				}, Context{ctx: context.Background()}, `{"data":{"data":"hello world"}}`
 			}))
 		})
 		t.Run("plain scalar values as is", func(t *testing.T) {
@@ -1810,7 +1632,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 					// expected output is a JSON boolean
-				}, Context{ctx: context.Background()}, `{"data":true}`
+				}, Context{ctx: context.Background()}, `{"data":{"data":true}}`
 			}))
 			t.Run("int", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
@@ -1838,7 +1660,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 					// expected output is a JSON boolean
-				}, Context{ctx: context.Background()}, `{"data":1}`
+				}, Context{ctx: context.Background()}, `{"data":{"data":1}}`
 			}))
 			t.Run("float", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
@@ -1866,7 +1688,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 					// expected output is a JSON boolean
-				}, Context{ctx: context.Background()}, `{"data":2.0}`
+				}, Context{ctx: context.Background()}, `{"data":{"data":2.0}}`
 			}))
 			t.Run("null", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
@@ -1893,7 +1715,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 					// expect data value to be valid JSON string
-				}, Context{ctx: context.Background()}, `{"data":null}`
+				}, Context{ctx: context.Background()}, `{"data":{"data":null}}`
 			}))
 		})
 	})
@@ -1915,7 +1737,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"id":1}`
+		}, Context{ctx: context.Background()}, `{"data":{"id":1}}`
 	}))
 	t.Run("custom nullable", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
 		return &Object{
@@ -3220,202 +3042,196 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 													},
 													Fetch: &SerialFetch{
 														Fetches: []Fetch{
-															&EntityFetch{
-																Fetch: &SingleFetch{
-																	BufferId:              3,
-																	Input:                 `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":$$0$$}}}`,
-																	DataSource:            addressEnricher,
-																	DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-																	ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
-																	InputTemplate: InputTemplate{
-																		Segments: []TemplateSegment{
-																			{
-																				SegmentType: StaticSegmentType,
-																				Data:        []byte(`{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":`),
-																			},
-																			{
-																				SegmentType: ListSegmentType,
-																				Segments: []TemplateSegment{
-																					{
-																						SegmentType: StaticSegmentType,
-																						Data:        []byte(`[`),
-																					},
-																					{
-																						SegmentType:  VariableSegmentType,
-																						VariableKind: ResolvableObjectVariableKind,
-																						Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																							Fields: []*Field{
-																								{
-																									Name: []byte("__typename"),
-																									Value: &String{
-																										Path: []string{"__typename"},
-																									},
-																								},
-																								{
-																									Name: []byte("id"),
-																									Value: &String{
-																										Path: []string{"id"},
-																									},
+															&SingleFetch{
+																BufferId:              3,
+																Input:                 `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":$$0$$}}}`,
+																DataSource:            addressEnricher,
+																DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+																ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
+																InputTemplate: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			SegmentType: StaticSegmentType,
+																			Data:        []byte(`{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":`),
+																		},
+																		{
+																			SegmentType: ListSegmentType,
+																			Segments: []TemplateSegment{
+																				{
+																					SegmentType: StaticSegmentType,
+																					Data:        []byte(`[`),
+																				},
+																				{
+																					SegmentType:  VariableSegmentType,
+																					VariableKind: ResolvableObjectVariableKind,
+																					Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																						Fields: []*Field{
+																							{
+																								Name: []byte("__typename"),
+																								Value: &String{
+																									Path: []string{"__typename"},
 																								},
 																							},
-																						}),
-																					},
-																					{
-																						SegmentType: StaticSegmentType,
-																						Data:        []byte(`]`),
-																					},
+																							{
+																								Name: []byte("id"),
+																								Value: &String{
+																									Path: []string{"id"},
+																								},
+																							},
+																						},
+																					}),
+																				},
+																				{
+																					SegmentType: StaticSegmentType,
+																					Data:        []byte(`]`),
 																				},
 																			},
-																			{
-																				SegmentType: StaticSegmentType,
-																				Data:        []byte(`}}}`),
-																			},
+																		},
+																		{
+																			SegmentType: StaticSegmentType,
+																			Data:        []byte(`}}}`),
 																		},
 																	},
 																},
 															},
-															&EntityFetch{
-																Fetch: &SingleFetch{
-																	BufferId:               2,
-																	DissallowParallelFetch: true,
-																	Input:                  `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":$$0$$}}}`,
-																	DataSource:             address,
-																	DataSourceIdentifier:   []byte("graphql_datasource.Source"),
-																	ProcessResponseConfig:  ProcessResponseConfig{ExtractGraphqlResponse: true},
-																	InputTemplate: InputTemplate{
-																		Segments: []TemplateSegment{
-																			{
-																				SegmentType: StaticSegmentType,
-																				Data:        []byte(`{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":`),
-																			},
-																			{
-																				SegmentType: ListSegmentType,
-																				Segments: []TemplateSegment{
-																					{
-																						SegmentType: StaticSegmentType,
-																						Data:        []byte(`[`),
-																					},
-																					{
-																						SegmentType:  VariableSegmentType,
-																						VariableKind: ResolvableObjectVariableKind,
-																						Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																							Fields: []*Field{
-																								{
-																									Name: []byte("__typename"),
-																									Value: &String{
-																										Path: []string{"__typename"},
-																									},
-																								},
-																								{
-																									Name: []byte("id"),
-																									Value: &String{
-																										Path: []string{"id"},
-																									},
-																								},
-																								{
-																									Name: []byte("country"),
-																									Value: &String{
-																										Path: []string{"country"},
-																									},
-																								},
-																								{
-																									Name: []byte("city"),
-																									Value: &String{
-																										Path: []string{"city"},
-																									},
+															&SingleFetch{
+																BufferId:               2,
+																DissallowParallelFetch: true,
+																Input:                  `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":$$0$$}}}`,
+																DataSource:             address,
+																DataSourceIdentifier:   []byte("graphql_datasource.Source"),
+																ProcessResponseConfig:  ProcessResponseConfig{ExtractGraphqlResponse: true},
+																InputTemplate: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			SegmentType: StaticSegmentType,
+																			Data:        []byte(`{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":`),
+																		},
+																		{
+																			SegmentType: ListSegmentType,
+																			Segments: []TemplateSegment{
+																				{
+																					SegmentType: StaticSegmentType,
+																					Data:        []byte(`[`),
+																				},
+																				{
+																					SegmentType:  VariableSegmentType,
+																					VariableKind: ResolvableObjectVariableKind,
+																					Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																						Fields: []*Field{
+																							{
+																								Name: []byte("__typename"),
+																								Value: &String{
+																									Path: []string{"__typename"},
 																								},
 																							},
-																						}),
-																					},
-																					{
-																						SegmentType: StaticSegmentType,
-																						Data:        []byte(`]`),
-																					},
+																							{
+																								Name: []byte("id"),
+																								Value: &String{
+																									Path: []string{"id"},
+																								},
+																							},
+																							{
+																								Name: []byte("country"),
+																								Value: &String{
+																									Path: []string{"country"},
+																								},
+																							},
+																							{
+																								Name: []byte("city"),
+																								Value: &String{
+																									Path: []string{"city"},
+																								},
+																							},
+																						},
+																					}),
+																				},
+																				{
+																					SegmentType: StaticSegmentType,
+																					Data:        []byte(`]`),
 																				},
 																			},
-																			{
-																				SegmentType: StaticSegmentType,
-																				Data:        []byte(`}}}`),
-																			},
+																		},
+																		{
+																			SegmentType: StaticSegmentType,
+																			Data:        []byte(`}}}`),
 																		},
 																	},
 																},
 															},
-															&EntityFetch{
-																Fetch: &SingleFetch{
-																	BufferId:               1,
-																	DissallowParallelFetch: true,
-																	Input:                  `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":$$0$$}}}`,
-																	DataSource:             account,
-																	DataSourceIdentifier:   []byte("graphql_datasource.Source"),
-																	ProcessResponseConfig:  ProcessResponseConfig{ExtractGraphqlResponse: true},
-																	InputTemplate: InputTemplate{
-																		Segments: []TemplateSegment{
-																			{
-																				SegmentType: StaticSegmentType,
-																				Data:        []byte(`{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":`),
-																			},
-																			{
-																				SegmentType: ListSegmentType,
-																				Segments: []TemplateSegment{
-																					{
-																						SegmentType: StaticSegmentType,
-																						Data:        []byte(`[`),
-																					},
-																					{
-																						SegmentType:  VariableSegmentType,
-																						VariableKind: ResolvableObjectVariableKind,
-																						Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																							Fields: []*Field{
-																								{
-																									Name: []byte("__typename"),
-																									Value: &String{
-																										Path: []string{"__typename"},
-																									},
-																								},
-																								{
-																									Name: []byte("id"),
-																									Value: &String{
-																										Path: []string{"id"},
-																									},
-																								},
-																								{
-																									Name: []byte("line1"),
-																									Value: &String{
-																										Path: []string{"line1"},
-																									},
-																								},
-																								{
-																									Name: []byte("line2"),
-																									Value: &String{
-																										Path: []string{"line2"},
-																									},
-																								},
-																								{
-																									Name: []byte("line3"),
-																									Value: &String{
-																										Path: []string{"line3"},
-																									},
-																								},
-																								{
-																									Name: []byte("zip"),
-																									Value: &String{
-																										Path: []string{"zip"},
-																									},
+															&SingleFetch{
+																BufferId:               1,
+																DissallowParallelFetch: true,
+																Input:                  `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":$$0$$}}}`,
+																DataSource:             account,
+																DataSourceIdentifier:   []byte("graphql_datasource.Source"),
+																ProcessResponseConfig:  ProcessResponseConfig{ExtractGraphqlResponse: true},
+																InputTemplate: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			SegmentType: StaticSegmentType,
+																			Data:        []byte(`{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":`),
+																		},
+																		{
+																			SegmentType: ListSegmentType,
+																			Segments: []TemplateSegment{
+																				{
+																					SegmentType: StaticSegmentType,
+																					Data:        []byte(`[`),
+																				},
+																				{
+																					SegmentType:  VariableSegmentType,
+																					VariableKind: ResolvableObjectVariableKind,
+																					Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																						Fields: []*Field{
+																							{
+																								Name: []byte("__typename"),
+																								Value: &String{
+																									Path: []string{"__typename"},
 																								},
 																							},
-																						}),
-																					},
-																					{
-																						SegmentType: StaticSegmentType,
-																						Data:        []byte(`]`),
-																					},
+																							{
+																								Name: []byte("id"),
+																								Value: &String{
+																									Path: []string{"id"},
+																								},
+																							},
+																							{
+																								Name: []byte("line1"),
+																								Value: &String{
+																									Path: []string{"line1"},
+																								},
+																							},
+																							{
+																								Name: []byte("line2"),
+																								Value: &String{
+																									Path: []string{"line2"},
+																								},
+																							},
+																							{
+																								Name: []byte("line3"),
+																								Value: &String{
+																									Path: []string{"line3"},
+																								},
+																							},
+																							{
+																								Name: []byte("zip"),
+																								Value: &String{
+																									Path: []string{"zip"},
+																								},
+																							},
+																						},
+																					}),
+																				},
+																				{
+																					SegmentType: StaticSegmentType,
+																					Data:        []byte(`]`),
 																				},
 																			},
-																			{
-																				SegmentType: StaticSegmentType,
-																				Data:        []byte(`}}}`),
-																			},
+																		},
+																		{
+																			SegmentType: StaticSegmentType,
+																			Data:        []byte(`}}}`),
 																		},
 																	},
 																},
@@ -3435,8 +3251,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		}, Context{ctx: context.Background()}, `{"data":{"user":{"account":{"address":{"fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1"}}}}}`
 	}))
 	t.Run("federation", func(t *testing.T) {
-		t.Skip("FIXME")
-
 		t.Run("simple", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 			userService := NewMockDataSource(ctrl)
@@ -3630,60 +3444,37 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		t.Run("federation with enabled dataloader", testFn(true, true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
-				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-				DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				DoAndReturn(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 					assert.Equal(t, expected, actual)
 					pair := NewBufPair()
-					pair.Data.WriteString(`{"me": {"id": "1234","username": "Me","__typename": "User"}}`)
+					pair.Data.WriteString(`{"me":{"id":"1234","username":"Me","__typename": "User"}}`)
 					return writeGraphqlResponse(pair, w, false)
 				})
 
-			reviewBatchFactory := NewMockDataSourceBatchFactory(ctrl)
-			reviewBatchFactory.EXPECT().
-				CreateBatch([][]byte{
-					[]byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`),
-				}).
-				Return(NewFakeDataSourceBatch(
-					`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`,
-					[]resultedBufPair{
-						{data: `{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`},
-					}), nil)
 			reviewsService := NewMockDataSource(ctrl)
 			reviewsService.EXPECT().
-				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-				DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				DoAndReturn(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
 					actual := string(input)
-					expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`
+					expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"__typename":"User","id":"1234"}]}}}`
 					assert.Equal(t, expected, actual)
 					pair := NewBufPair()
-					pair.Data.WriteString(`{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`)
+					pair.Data.WriteString(`{"_entities": [{"__typename":"User","reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}]}`)
 					return writeGraphqlResponse(pair, w, false)
 				})
 
-			productBatchFactory := NewMockDataSourceBatchFactory(ctrl)
-			productBatchFactory.EXPECT().
-				CreateBatch(
-					[][]byte{
-						[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}}`),
-						[]byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}}}`),
-					},
-				).Return(NewFakeDataSourceBatch(
-				`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}}}`,
-				[]resultedBufPair{
-					{data: `{"name": "Trilby"}`},
-					{data: `{"name": "Fedora"}`},
-				}), nil)
 			productService := NewMockDataSource(ctrl)
 			productService.EXPECT().
-				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-				DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				DoAndReturn(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
 					actual := string(input)
-					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}}}`
+					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"__typename":"Product","upc":"top-1"},{"__typename":"Product","upc":"top-2"}]}}}`
 					assert.Equal(t, expected, actual)
 					pair := NewBufPair()
-					pair.Data.WriteString(`[{"name": "Trilby"},{"name": "Fedora"}]`)
+					pair.Data.WriteString(`{"_entities": [{"name": "Trilby"},{"name": "Fedora"}]}`)
 					return writeGraphqlResponse(pair, w, false)
 				})
 
@@ -3710,33 +3501,58 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							BufferID:  0,
 							Name:      []byte("me"),
 							Value: &Object{
-								Fetch: &BatchFetch{
-									Fetch: &SingleFetch{
-										BufferId: 1,
-										InputTemplate: InputTemplate{
-											Segments: []TemplateSegment{
-												{
-													Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":`),
-													SegmentType: StaticSegmentType,
-												},
-												{
-													SegmentType:        VariableSegmentType,
-													VariableKind:       ObjectVariableKind,
-													VariableSourcePath: []string{"id"},
-													Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
-												},
-												{
-													Data:        []byte(`,"__typename":"User"}]}}}`),
-													SegmentType: StaticSegmentType,
+								Fetch: &SingleFetch{
+									BufferId: 1,
+									InputTemplate: InputTemplate{
+										Segments: []TemplateSegment{
+											{
+												Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":`),
+												SegmentType: StaticSegmentType,
+											},
+											{
+												SegmentType: ListSegmentType,
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`[`),
+														SegmentType: StaticSegmentType,
+													},
+													{
+														SegmentType:  VariableSegmentType,
+														VariableKind: ResolvableObjectVariableKind,
+														Renderer: NewGraphQLVariableResolveRenderer(&Object{
+															Fields: []*Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &String{
+																		Path: []string{"__typename"},
+																	},
+																},
+																{
+																	Name: []byte("id"),
+																	Value: &String{
+																		Path: []string{"id"},
+																	},
+																},
+															},
+														}),
+													},
+													{
+														Data:        []byte(`]`),
+														SegmentType: StaticSegmentType,
+													},
 												},
 											},
-										},
-										DataSource: reviewsService,
-										ProcessResponseConfig: ProcessResponseConfig{
-											ExtractGraphqlResponse: true,
+											{
+												Data:        []byte(`}}}`),
+												SegmentType: StaticSegmentType,
+											},
 										},
 									},
-									BatchFactory: reviewBatchFactory,
+									DataSource: reviewsService,
+									ProcessResponseConfig: ProcessResponseConfig{
+										ExtractGraphqlResponse:    true,
+										ExtractFederationEntities: true,
+									},
 								},
 								Path:     []string{"me"},
 								Nullable: true,
@@ -3754,7 +3570,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										},
 									},
 									{
-
 										HasBuffer: true,
 										BufferID:  1,
 										Name:      []byte("reviews"),
@@ -3774,33 +3589,47 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 														Name: []byte("product"),
 														Value: &Object{
 															Path: []string{"product"},
-															Fetch: &BatchFetch{
-																Fetch: &SingleFetch{
-																	BufferId:   2,
-																	DataSource: productService,
-																	InputTemplate: InputTemplate{
-																		Segments: []TemplateSegment{
-																			{
-																				Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":`),
-																				SegmentType: StaticSegmentType,
-																			},
-																			{
-																				SegmentType:        VariableSegmentType,
-																				VariableKind:       ObjectVariableKind,
-																				VariableSourcePath: []string{"upc"},
-																				Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
-																			},
-																			{
-																				Data:        []byte(`,"__typename":"Product"}]}}}`),
-																				SegmentType: StaticSegmentType,
-																			},
+															Fetch: &SingleFetch{
+																BufferId:   2,
+																DataSource: productService,
+																InputTemplate: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":`),
+																			SegmentType: StaticSegmentType,
+																		},
+																		{
+																			SegmentType:  VariableSegmentType,
+																			VariableKind: ResolvableObjectVariableKind,
+																			Renderer: NewGraphQLVariableResolveRenderer(&Array{
+																				Item: &Object{
+																					Fields: []*Field{
+																						{
+																							Name: []byte("__typename"),
+																							Value: &String{
+																								Path: []string{"__typename"},
+																							},
+																						},
+																						{
+																							Name: []byte("upc"),
+																							Value: &String{
+																								Path: []string{"upc"},
+																							},
+																						},
+																					},
+																				},
+																			}),
+																		},
+																		{
+																			Data:        []byte(`}}}`),
+																			SegmentType: StaticSegmentType,
 																		},
 																	},
-																	ProcessResponseConfig: ProcessResponseConfig{
-																		ExtractGraphqlResponse: true,
-																	},
 																},
-																BatchFactory: productBatchFactory,
+																ProcessResponseConfig: ProcessResponseConfig{
+																	ExtractGraphqlResponse:    true,
+																	ExtractFederationEntities: true,
+																},
 															},
 															Fields: []*Field{
 																{
@@ -3829,7 +3658,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 				},
-			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`
+			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}}{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`
 		}))
 		t.Run("federation with null response", testFn(true, true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			userService := NewMockDataSource(ctrl)

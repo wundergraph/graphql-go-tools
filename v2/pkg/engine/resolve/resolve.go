@@ -134,7 +134,6 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 
 	loader := &Loader{}
 	err = loader.LoadGraphQLResponseData(ctx, response, data, dataBuf)
-	defer loader.Free()
 	if err != nil {
 		return
 	}
@@ -160,8 +159,7 @@ func (r *Resolver) resolveGraphQLSubscriptionResponse(ctx *Context, response *Gr
 	defer r.freeBufPair(buf)
 
 	if subscriptionData.HasData() {
-		ctx.lastFetchID = ctx.lastFetchID[:0]
-		ctx.lastFetchID = append(ctx.lastFetchID, initialValueID)
+		ctx.lastFetchID = initialValueID
 	}
 
 	if r.dataLoaderEnabled {
@@ -430,11 +428,10 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 
 func (r *Resolver) resolveArraySynchronous(ctx *Context, array *Array, arrayItems *[][]byte, arrayBuf *BufPair) (err error) {
 	arrayBuf.Data.WriteBytes(lBrack)
-	hasPreviousItem := false
 	start := arrayBuf.Data.Len()
 	for i := range *arrayItems {
 		ctx.addIntegerPathElement(i)
-		if hasPreviousItem {
+		if arrayBuf.Data.Len() > start {
 			arrayBuf.Data.WriteBytes(comma)
 		}
 		err = r.resolveNode(ctx, array.Item, (*arrayItems)[i], arrayBuf)
@@ -449,7 +446,6 @@ func (r *Resolver) resolveArraySynchronous(ctx *Context, array *Array, arrayItem
 				err = nil
 				continue
 			}
-			hasPreviousItem = arrayBuf.Data.Len() > start
 			return
 		}
 	}

@@ -17,7 +17,7 @@ type Context struct {
 	Request          Request
 	pathElements     [][]byte
 	responseElements []string
-	lastFetchID      []int
+	lastFetchID      int
 	patches          []patch
 	usedBuffers      []*bytes.Buffer
 	currentPatch     int
