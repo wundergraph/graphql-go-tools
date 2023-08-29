@@ -55,6 +55,16 @@ func (d *Document) ObjectTypeDefinitionHasField(ref int, fieldName []byte) bool 
 	return false
 }
 
+func (d *Document) ObjectTypeDefinitionFieldWithName(ref int, fieldName []byte) (fieldDefRef int, ok bool) {
+	for _, fieldDefinitionRef := range d.ObjectTypeDefinitions[ref].FieldsDefinition.Refs {
+		currentFieldName := d.FieldDefinitionNameBytes(fieldDefinitionRef)
+		if currentFieldName.Equals(fieldName) {
+			return fieldDefinitionRef, true
+		}
+	}
+	return InvalidRef, false
+}
+
 func (d *Document) ObjectTypeDefinitionImplementsInterface(definitionRef int, interfaceName ByteSlice) bool {
 	for _, iRef := range d.ObjectTypeDefinitions[definitionRef].ImplementsInterfaces.Refs {
 		implements := d.ResolveTypeNameBytes(iRef)
