@@ -58,13 +58,13 @@ func (n *NodeSuggestion) SetPriorityWithReason(reason string) {
 
 type NodeSuggestions []NodeSuggestion
 
-func (f NodeSuggestions) HasNode(typeName, fieldName string) (dsHash DSHash, ok bool) {
+func (f NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string) (dsHash DSHash, ok bool) {
 	if len(f) == 0 {
 		return 0, false
 	}
 
 	for i := range f {
-		if typeName == f[i].TypeName && fieldName == f[i].FieldName {
+		if typeName == f[i].TypeName && fieldName == f[i].FieldName && path == f[i].Path {
 			return f[i].DataSourceHash, true
 		}
 	}
@@ -188,11 +188,14 @@ type nodesResolvableVisitor struct {
 func (f *nodesResolvableVisitor) EnterField(ref int) {
 	typeName := f.walker.EnclosingTypeDefinition.NameString(f.definition)
 	fieldName := f.operation.FieldNameUnsafeString(ref)
+	fieldAliasOrName := f.operation.FieldAliasOrNameString(ref)
 
-	_, found := f.nodes.HasNode(typeName, fieldName)
+	parentPath := f.walker.Path.DotDelimitedString()
+	currentPath := parentPath + "." + fieldAliasOrName
 
+	_, found := f.nodes.HasSuggestionForPath(typeName, fieldName, currentPath)
 	if !found {
-		f.walker.StopWithInternalErr(&errOperationFieldNotResolved{TypeName: typeName, FieldName: fieldName})
+		f.walker.StopWithInternalErr(&errOperationFieldNotResolved{TypeName: typeName, FieldName: fieldName, Path: currentPath})
 	}
 }
 
@@ -225,8 +228,11 @@ func (f *collectNodesVisitor) EnterDocument(_, _ *ast.Document) {
 func (f *collectNodesVisitor) EnterField(ref int) {
 	typeName := f.walker.EnclosingTypeDefinition.NameString(f.definition)
 	fieldName := f.operation.FieldNameUnsafeString(ref)
+	fieldAliasOrName := f.operation.FieldAliasOrNameString(ref)
+
 	parentPath := f.walker.Path.DotDelimitedString()
-	currentPath := parentPath + "." + fieldName
+	currentPath := parentPath + "." + fieldAliasOrName
+
 	for _, v := range f.dataSources {
 		if v.HasRootNode(typeName, fieldName) {
 			f.nodes = append(f.nodes, NodeSuggestion{
@@ -267,10 +273,11 @@ func collectNodes(operation, definition *ast.Document, report *operationreport.R
 type errOperationFieldNotResolved struct {
 	TypeName  string
 	FieldName string
+	Path      string
 }
 
 func (e *errOperationFieldNotResolved) Error() string {
-	return fmt.Sprintf("could not find datasource to resolve %s.%s", e.TypeName, e.FieldName)
+	return fmt.Sprintf("could not find datasource to resolve %s.%s on a path %s", e.TypeName, e.FieldName, e.Path)
 }
 
 // func findBestNodes(operation, definition *ast.Document, nodes NodeSuggestions) NodeSuggestions {
