@@ -263,6 +263,9 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 
 	currentPath := parentPath + "." + fieldAliasOrName
+
+	c.handleProvidesSuggestions(typeName, fieldName, currentPath)
+
 	root := c.walker.Ancestors[0]
 	if root.Kind != ast.NodeKindOperationDefinition {
 		return
@@ -279,6 +282,53 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 
 	c.handleMissingPath(typeName, fieldName, currentPath)
+}
+
+func (c *configurationVisitor) handleProvidesSuggestions(typeName, fieldName, currentPath string) {
+	dsHash, ok := c.dataSourceSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
+	if !ok {
+		return
+	}
+
+	var providesCfg *FederationFieldConfiguration
+	for _, ds := range c.usedDataSources {
+		if ds.Hash() == dsHash {
+			found := false
+			for _, provide := range ds.FederationMetaData.Provides {
+				if provide.TypeName == typeName && provide.FieldName == fieldName {
+					providesCfg = &provide
+					found = true
+					break
+				}
+			}
+			if found {
+				break
+			}
+		}
+	}
+
+	if providesCfg == nil {
+		return
+	}
+
+	key, report := RequiredFieldsFragment(typeName, providesCfg.SelectionSet, false)
+	if report.HasErrors() {
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse provides fields for %s", typeName))
+	}
+
+	input := &providesInput{
+		key:        key,
+		definition: c.definition,
+		report:     report,
+		parentPath: currentPath,
+		DSHash:     dsHash,
+	}
+	suggestions := providesSuggestions(input)
+	if report.HasErrors() {
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to get provides suggestions for %s", typeName))
+	}
+
+	c.dataSourceSuggestions = append(c.dataSourceSuggestions, suggestions...)
 }
 
 func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, fieldName, currentPath, parentPath, precedingParentPath string) (planned bool) {
