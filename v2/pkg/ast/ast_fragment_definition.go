@@ -45,6 +45,10 @@ func (d *Document) FragmentDefinitionTypeName(ref int) ByteSlice {
 	return d.ResolveTypeNameBytes(d.FragmentDefinitions[ref].TypeCondition.Type)
 }
 
+func (d *Document) FragmentDefinitionTypeNameString(ref int) string {
+	return unsafebytes.BytesToString(d.ResolveTypeNameBytes(d.FragmentDefinitions[ref].TypeCondition.Type))
+}
+
 func (d *Document) FragmentDefinitionNameBytes(ref int) ByteSlice {
 	return d.Input.ByteSlice(d.FragmentDefinitions[ref].Name)
 }
