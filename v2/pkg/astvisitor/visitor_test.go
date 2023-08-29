@@ -1,4 +1,4 @@
-package astvisitor
+package astvisitor_test
 
 import (
 	"bytes"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/goldie"
 )
@@ -27,7 +28,7 @@ func TestVisitOperation(t *testing.T) {
 	operation := unsafeparser.ParseGraphqlDocumentString(testOperation)
 	report := operationreport.Report{}
 
-	walker := NewWalker(48)
+	walker := astvisitor.NewWalker(48)
 	buff := &bytes.Buffer{}
 	visitor := &printingVisitor{
 		Walker:     &walker,
@@ -90,7 +91,7 @@ func TestVisitWithTypeName(t *testing.T) {
 		scalar String
 	`
 
-	walker := NewWalker(8)
+	walker := astvisitor.NewWalker(8)
 	op := unsafeparser.ParseGraphqlDocumentString(operation)
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
 	var report operationreport.Report
@@ -104,7 +105,7 @@ func TestVisitSchemaDefinition(t *testing.T) {
 
 	operation := unsafeparser.ParseGraphqlDocumentString(testDefinitions)
 	report := operationreport.Report{}
-	walker := NewWalker(48)
+	walker := astvisitor.NewWalker(48)
 	buff := &bytes.Buffer{}
 	visitor := &printingVisitor{
 		Walker:    &walker,
@@ -162,7 +163,7 @@ func TestWalker_Path(t *testing.T) {
 			}
 		}`)
 
-	walker := NewWalker(48)
+	walker := astvisitor.NewWalker(48)
 	buff := &bytes.Buffer{}
 	report := operationreport.Report{}
 	pathVisitor := pathVisitor{
@@ -194,7 +195,7 @@ func TestWalker_Path(t *testing.T) {
 }
 
 type pathVisitor struct {
-	*Walker
+	*astvisitor.Walker
 	out     *bytes.Buffer
 	op, def *ast.Document
 }
@@ -222,7 +223,7 @@ func TestVisitWithSkip(t *testing.T) {
 			}
 		}`)
 
-	walker := NewWalker(48)
+	walker := astvisitor.NewWalker(48)
 	buff := &bytes.Buffer{}
 	visitor := &printingVisitor{
 		Walker:     &walker,
@@ -257,7 +258,7 @@ func TestVisitWithSkip(t *testing.T) {
 }
 
 type skipUserVisitor struct {
-	*Walker
+	*astvisitor.Walker
 	operation, definition *ast.Document
 }
 
@@ -279,7 +280,7 @@ func BenchmarkVisitor(b *testing.B) {
 
 	visitor := &dummyVisitor{}
 
-	walker := NewWalker(48)
+	walker := astvisitor.NewWalker(48)
 	walker.RegisterAllNodesVisitor(visitor)
 	report := operationreport.Report{}
 
@@ -299,7 +300,7 @@ func BenchmarkMinimalVisitor(b *testing.B) {
 
 	visitor := &minimalVisitor{}
 
-	walker := NewWalker(48)
+	walker := astvisitor.NewWalker(48)
 	walker.RegisterEnterFieldVisitor(visitor)
 	walker.SetVisitorFilter(visitor)
 	report := operationreport.Report{}
@@ -316,7 +317,7 @@ func BenchmarkMinimalVisitor(b *testing.B) {
 type minimalVisitor struct {
 }
 
-func (m *minimalVisitor) AllowVisitor(kind VisitorKind, ref int, visitor interface{}, ancestorSkip SkipVisitors) bool {
+func (m *minimalVisitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor interface{}, ancestorSkip astvisitor.SkipVisitors) bool {
 	return visitor == m
 }
 
@@ -576,7 +577,7 @@ func (d *dummyVisitor) LeaveFragmentDefinition(ref int) {
 }
 
 type printingVisitor struct {
-	*Walker
+	*astvisitor.Walker
 	out                   io.Writer
 	operation, definition *ast.Document
 	indentation           int

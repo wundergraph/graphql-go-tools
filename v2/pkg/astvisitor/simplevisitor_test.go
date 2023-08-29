@@ -1,9 +1,10 @@
-package astvisitor
+package astvisitor_test
 
 import (
 	"testing"
 
 	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
 
 func BenchmarkSimpleVisitor(b *testing.B) {
@@ -13,7 +14,7 @@ func BenchmarkSimpleVisitor(b *testing.B) {
 
 	visitor := &dummyVisitor{}
 
-	walker := NewSimpleWalker(48)
+	walker := astvisitor.NewSimpleWalker(48)
 	walker.SetVisitor(visitor)
 
 	b.ResetTimer()
