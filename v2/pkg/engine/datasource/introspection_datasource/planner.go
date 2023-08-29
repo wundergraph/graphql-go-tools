@@ -1,6 +1,9 @@
 package introspection_datasource
 
 import (
+	"errors"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/introspection"
 )
@@ -13,6 +16,7 @@ type Planner struct {
 
 func (p *Planner) Register(visitor *plan.Visitor, _ plan.DataSourceConfiguration, _ bool) error {
 	p.v = visitor
+	p.rootField = ast.InvalidRef
 	visitor.Walker.RegisterEnterFieldVisitor(p)
 	return nil
 }
@@ -30,7 +34,11 @@ func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 }
 
 func (p *Planner) EnterField(ref int) {
-	p.rootField = ref
+	fieldName := p.v.Operation.FieldNameString(ref)
+	switch fieldName {
+	case typeFieldName, fieldsFieldName, enumValuesFieldName, schemaFieldName:
+		p.rootField = ref
+	}
 }
 
 func (p *Planner) configureInput() string {
@@ -40,6 +48,10 @@ func (p *Planner) configureInput() string {
 }
 
 func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
+	if p.rootField == ast.InvalidRef {
+		p.v.Walker.StopWithInternalErr(errors.New("introspection root field is not set"))
+	}
+
 	return plan.FetchConfiguration{
 		Input: p.configureInput(),
 		DataSource: &Source{

@@ -80,12 +80,8 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		p.config.DataSources[i].Hash()
 	}
 
-	err := p.findPlanningPaths(operation, definition, report)
+	p.findPlanningPaths(operation, definition, report)
 	if report.HasErrors() {
-		return nil
-	}
-
-	if err != nil {
 		return nil
 	}
 
@@ -145,7 +141,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	return p.planningVisitor.plan
 }
 
-func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) (err error) {
+func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) {
 	used, unused, suggestions := FilterDataSources(operation, definition, report, p.config.DataSources)
 	if report.HasErrors() {
 		return
@@ -163,7 +159,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 	p.configurationVisitor.secondaryRun = false
 	p.configurationWalker.Walk(operation, definition, report)
 	if report.HasErrors() {
-		return report
+		return
 	}
 
 	if p.config.Debug.PrintOperationWithRequiredFields {
@@ -183,7 +179,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 
 		p.configurationWalker.Walk(operation, definition, report)
 		if report.HasErrors() {
-			return report
+			return
 		}
 
 		if p.config.Debug.PrintOperationWithRequiredFields {
@@ -196,9 +192,12 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 			p.printPlanningPaths()
 		}
 		i++
-	}
 
-	return nil
+		if i > 100 {
+			report.AddInternalError(fmt.Errorf("bad datasource configuration - could not plan an operation"))
+			return
+		}
+	}
 }
 
 func (p *Planner) selectOperation(operation *ast.Document, operationName string, report *operationreport.Report) {
