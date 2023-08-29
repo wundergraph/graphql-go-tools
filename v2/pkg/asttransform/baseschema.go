@@ -167,25 +167,6 @@ directive @deprecated(
 ) on FIELD_DEFINITION | ENUM_VALUE
 
 """
-The @removeNullVariables directive allows you to remove variables with null value from your GraphQL Query or Mutation Operations.
-
-A potential use-case could be that you have a graphql upstream which is not accepting null values for variables.
-By enabling this directive all variables with null values will be removed from upstream query.
-
-query ($say: String, $name: String) @removeNullVariables {
-	hello(say: $say, name: $name)
-}
-
-Directive will transform variables json and remove top level null values.
-{ "say": null, "name": "world" }
-
-So upstream will receive the following variables:
-
-{ "name": "world" }
-"""
-directive @removeNullVariables on QUERY | MUTATION
-
-"""
 A Directive provides a way to describe alternate runtime execution and type validation behavior in a GraphQL document.
 In some cases, you need to provide options to alter GraphQL's execution behavior
 in ways field arguments will not suffice, such as conditionally including or
