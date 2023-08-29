@@ -264,7 +264,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 
 	currentPath := parentPath + "." + fieldAliasOrName
 
-	c.handleProvidesSuggestions(typeName, fieldName, currentPath)
+	c.handleProvidesSuggestions(ref, typeName, fieldName, currentPath)
 
 	root := c.walker.Ancestors[0]
 	if root.Kind != ast.NodeKindOperationDefinition {
@@ -284,7 +284,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 	c.handleMissingPath(typeName, fieldName, currentPath)
 }
 
-func (c *configurationVisitor) handleProvidesSuggestions(typeName, fieldName, currentPath string) {
+func (c *configurationVisitor) handleProvidesSuggestions(ref int, typeName, fieldName, currentPath string) {
 	dsHash, ok := c.dataSourceSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
 	if !ok {
 		return
@@ -311,7 +311,17 @@ func (c *configurationVisitor) handleProvidesSuggestions(typeName, fieldName, cu
 		return
 	}
 
-	key, report := RequiredFieldsFragment(typeName, providesCfg.SelectionSet, false)
+	if c.walker.EnclosingTypeDefinition.Kind != ast.NodeKindObjectTypeDefinition {
+		return
+	}
+
+	fieldDefRef, ok := c.definition.ObjectTypeDefinitionFieldWithName(c.walker.EnclosingTypeDefinition.Ref, c.operation.FieldNameBytes(ref))
+	if !ok {
+		return
+	}
+	fieldTypeName := c.definition.FieldDefinitionTypeNameString(fieldDefRef)
+
+	key, report := RequiredFieldsFragment(fieldTypeName, providesCfg.SelectionSet, false)
 	if report.HasErrors() {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse provides fields for %s", typeName))
 	}
@@ -328,7 +338,16 @@ func (c *configurationVisitor) handleProvidesSuggestions(typeName, fieldName, cu
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to get provides suggestions for %s", typeName))
 	}
 
-	c.dataSourceSuggestions = append(c.dataSourceSuggestions, suggestions...)
+	for i := 0; i < len(c.dataSourceSuggestions); i++ {
+		for j := 0; j < len(suggestions); j++ {
+			if c.dataSourceSuggestions[i].FieldName == suggestions[j].FieldName &&
+				c.dataSourceSuggestions[i].TypeName == suggestions[j].TypeName &&
+				c.dataSourceSuggestions[i].Path == suggestions[j].Path {
+				c.dataSourceSuggestions[i] = suggestions[j]
+				break
+			}
+		}
+	}
 }
 
 func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, fieldName, currentPath, parentPath, precedingParentPath string) (planned bool) {
@@ -339,6 +358,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 			continue
 		}
 
+		// TODO: ds will not have node in case it is provides
 		hasRootNode := plannerConfig.dataSourceConfiguration.HasRootNode(typeName, fieldName)
 		hasChildNode := plannerConfig.dataSourceConfiguration.HasChildNode(typeName, fieldName)
 

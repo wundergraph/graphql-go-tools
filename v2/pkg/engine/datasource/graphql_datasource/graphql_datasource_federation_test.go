@@ -143,6 +143,13 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				},
+				Provides: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						FieldName:    "oldAccount",
+						SelectionSet: `name shippingInfo {zip}`,
+					},
+				},
 			},
 		}
 
