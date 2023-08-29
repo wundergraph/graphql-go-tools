@@ -38,6 +38,7 @@ type NodeSuggestion struct {
 	Path           string
 	ParentPath     string
 	IsRootNode     bool
+	IsProvided     bool
 
 	hasPriority  bool
 	whyWasChosen []string
@@ -58,16 +59,25 @@ func (n *NodeSuggestion) SetPriorityWithReason(reason string) {
 
 type NodeSuggestions []NodeSuggestion
 
-func (f NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string) (dsHash DSHash, ok bool) {
+func (f NodeSuggestions) SuggestionForPath(typeName, fieldName, path string) (suggestion NodeSuggestion, ok bool) {
 	if len(f) == 0 {
-		return 0, false
+		return NodeSuggestion{}, false
 	}
 
 	for i := range f {
 		if typeName == f[i].TypeName && fieldName == f[i].FieldName && path == f[i].Path {
-			return f[i].DataSourceHash, true
+			return f[i], true
 		}
 	}
+	return NodeSuggestion{}, false
+}
+
+func (f NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string) (dsHash DSHash, ok bool) {
+	suggestion, ok := f.SuggestionForPath(typeName, fieldName, path)
+	if ok {
+		return suggestion.DataSourceHash, true
+	}
+
 	return 0, false
 }
 
