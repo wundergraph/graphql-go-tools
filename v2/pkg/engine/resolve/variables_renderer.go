@@ -488,10 +488,10 @@ func extractStringWithQuotes(rootValueType JsonRootType, data []byte) ([]byte, j
 
 type GraphQLVariableResolveRenderer struct {
 	Kind string
-	Node *Object
+	Node Node
 }
 
-func NewGraphQLVariableResolveRenderer(node *Object) *GraphQLVariableResolveRenderer {
+func NewGraphQLVariableResolveRenderer(node Node) *GraphQLVariableResolveRenderer {
 	return &GraphQLVariableResolveRenderer{
 		Kind: VariableRendererKindGraphqlResolve,
 		Node: node,

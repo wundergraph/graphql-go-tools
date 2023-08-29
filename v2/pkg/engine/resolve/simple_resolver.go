@@ -145,6 +145,9 @@ func (r *SimpleResolver) resolveArray(array *Array, data []byte, resolveBuf *fas
 
 	arrayBuf.WriteBytes(lBrack)
 	for i := range arrayItems {
+		if hasPreviousItem {
+			arrayBuf.WriteBytes(comma)
+		}
 		err = r.resolveNode(array.Item, arrayItems[i], arrayBuf)
 		if err != nil {
 			if errors.Is(err, errNonNullableFieldValueIsNull) {

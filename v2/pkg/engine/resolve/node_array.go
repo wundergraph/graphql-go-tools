@@ -8,6 +8,22 @@ type Array struct {
 	Stream              Stream
 }
 
+func (a *Array) HasChildFetches() bool {
+	switch t := a.Item.(type) {
+	case *Object:
+		if t.Fetch != nil {
+			return true
+		}
+	case *Array:
+		if t.HasChildFetches() {
+			return true
+		}
+	default:
+		return false
+	}
+	return false
+}
+
 type Stream struct {
 	Enabled          bool
 	InitialBatchSize int

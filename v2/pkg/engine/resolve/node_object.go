@@ -8,6 +8,27 @@ type Object struct {
 	UnescapeResponseJson bool `json:"unescape_response_json,omitempty"`
 }
 
+func (o *Object) HasChildFetches() bool {
+	for i := range o.Fields {
+		switch t := o.Fields[i].Value.(type) {
+		case *Object:
+			if t.Fetch != nil {
+				return true
+			}
+			if t.HasChildFetches() {
+				return true
+			}
+		case *Array:
+			if t.HasChildFetches() {
+				return true
+			}
+		default:
+			continue
+		}
+	}
+	return false
+}
+
 func (_ *Object) NodeKind() NodeKind {
 	return NodeKindObject
 }
