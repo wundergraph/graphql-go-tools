@@ -5,13 +5,13 @@ on:
       - master
     paths:
       - 'v2/**'
-      - '.github/workflows/v2.yml'  
+#      - '.github/workflows/v2.yml'
   push:
     branches:
       - master
     paths:
       - 'v2/**'
-      - '.github/workflows/v2.yml'
+#      - '.github/workflows/v2.yml'
 jobs:
   test:
     name: Build and test (go ${{ matrix.go }} / ${{ matrix.os }})
