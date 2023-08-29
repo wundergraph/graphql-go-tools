@@ -691,7 +691,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 		})
 
 		t.Run("provides", func(t *testing.T) {
-			t.Skip("NOT IMPLEMENTED YET")
+			// t.Skip("NOT IMPLEMENTED YET")
 			t.Run("only fields with provides", RunTest(
 				definition,
 				`
@@ -706,7 +706,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					}
 				}
 			`,
-				"ComposedKeys",
+				"Provides",
 				&plan.SynchronousResponsePlan{
 					Response: &resolve.GraphQLResponse{
 						Data: &resolve.Object{
