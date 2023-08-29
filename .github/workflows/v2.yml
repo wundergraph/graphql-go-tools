@@ -3,6 +3,7 @@ on:
   pull_request:
     branches:
       - master
+      - v2-alfa
     paths:
       - 'v2/**'
       - '.github/workflows/v2.yml'
