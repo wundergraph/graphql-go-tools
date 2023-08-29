@@ -60,5 +60,6 @@ func (v *providesVisitor) EnterField(ref int) {
 		Path:           currentPath,
 		ParentPath:     parentPath,
 		hasPriority:    true,
+		IsProvided:     true,
 	})
 }

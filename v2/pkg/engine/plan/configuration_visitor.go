@@ -351,14 +351,21 @@ func (c *configurationVisitor) handleProvidesSuggestions(ref int, typeName, fiel
 }
 
 func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, fieldName, currentPath, parentPath, precedingParentPath string) (planned bool) {
-	dsHash, hasSuggestion := c.dataSourceSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
+	var (
+		dsHash     DSHash
+		isProvided bool
+	)
+	suggestion, hasSuggestion := c.dataSourceSuggestions.SuggestionForPath(typeName, fieldName, currentPath)
+	if hasSuggestion {
+		dsHash = suggestion.DataSourceHash
+		isProvided = suggestion.IsProvided
+	}
 
 	for i, plannerConfig := range c.planners {
 		if hasSuggestion && plannerConfig.dataSourceConfiguration.Hash() != dsHash {
 			continue
 		}
 
-		// TODO: ds will not have node in case it is provides
 		hasRootNode := plannerConfig.dataSourceConfiguration.HasRootNode(typeName, fieldName)
 		hasChildNode := plannerConfig.dataSourceConfiguration.HasChildNode(typeName, fieldName)
 
@@ -401,7 +408,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 				return true
 			}
 
-			if hasChildNode || (hasRootNode && planningBehaviour.MergeAliasedRootNodes) {
+			if isProvided || hasChildNode || (hasRootNode && planningBehaviour.MergeAliasedRootNodes) {
 
 				// has parent path + has child node = child
 				c.addPath(i, pathConfiguration{
