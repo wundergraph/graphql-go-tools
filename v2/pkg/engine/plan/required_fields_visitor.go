@@ -44,7 +44,7 @@ func addRequiredFields(input *addRequiredFieldsInput) {
 		importer: importer,
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
-	walker.RegisterEnterFieldVisitor(visitor)
+	walker.RegisterFieldVisitor(visitor)
 	walker.RegisterEnterSelectionSetVisitor(visitor)
 
 	walker.Walk(input.key, input.definition, input.report)
