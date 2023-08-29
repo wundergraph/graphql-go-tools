@@ -101,6 +101,10 @@ func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() plan.Dat
 				TypeName:   "__InputValue",
 				FieldNames: []string{"name", "description", "type", "defaultValue"},
 			},
+			{
+				TypeName:   "__Directive",
+				FieldNames: []string{"name", "description", "locations", "args", "isRepeatable"},
+			},
 		},
 		Factory:         NewFactory(f.introspectionData),
 		Custom:          []byte("__schema __type"),
