@@ -106,9 +106,8 @@ func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() plan.Dat
 				FieldNames: []string{"name", "description", "locations", "args", "isRepeatable"},
 			},
 		},
-		Factory:         NewFactory(f.introspectionData),
-		Custom:          []byte("__schema __type"),
-		IsIntrospection: true,
+		Factory: NewFactory(f.introspectionData),
+		Custom:  []byte("__schema __type"),
 	}
 }
 
@@ -134,9 +133,8 @@ func (f *IntrospectionConfigFactory) buildFieldsConfiguration() plan.DataSourceC
 				FieldNames: []string{"name", "description", "type", "defaultValue"},
 			},
 		},
-		Factory:         NewFactory(f.introspectionData),
-		Custom:          []byte("__Type.fields`"),
-		IsIntrospection: true,
+		Factory: NewFactory(f.introspectionData),
+		Custom:  []byte("__Type.fields`"),
 	}
 }
 
@@ -154,9 +152,8 @@ func (f *IntrospectionConfigFactory) buildEnumsConfiguration() plan.DataSourceCo
 				FieldNames: []string{"name", "description", "isDeprecated", "deprecationReason"},
 			},
 		},
-		Factory:         NewFactory(f.introspectionData),
-		Custom:          []byte("__Type.enumValues`"),
-		IsIntrospection: true,
+		Factory: NewFactory(f.introspectionData),
+		Custom:  []byte("__Type.enumValues`"),
 	}
 }
 
