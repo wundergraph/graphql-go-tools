@@ -19,11 +19,19 @@ func (o *Object) HasChildFetches() bool {
 				return true
 			}
 		case *Array:
-			if t.HasChildFetches() {
-				return true
+			switch at := t.Item.(type) {
+			case *Object:
+				if at.Fetch != nil {
+					return true
+				}
+				if at.HasChildFetches() {
+					return true
+				}
+			case *Array:
+				if at.HasChildFetches() {
+					return true
+				}
 			}
-		default:
-			continue
 		}
 	}
 	return false

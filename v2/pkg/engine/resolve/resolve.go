@@ -133,13 +133,18 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	defer pool.FastBuffer.Put(dataBuf)
 
 	loader := &Loader{}
-	err = loader.LoadGraphQLResponseData(ctx, response, data, dataBuf)
+	hasErrors, err := loader.LoadGraphQLResponseData(ctx, response, data, dataBuf)
 	if err != nil {
 		return
 	}
 
 	buf := r.getBufPair()
 	defer r.freeBufPair(buf)
+
+	if hasErrors {
+		_, err = writer.Write(dataBuf.Bytes())
+		return
+	}
 
 	ignoreData := false
 	err = r.resolveNode(ctx, response.Data, dataBuf.Bytes(), buf)

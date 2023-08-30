@@ -14,12 +14,13 @@ func (a *Array) HasChildFetches() bool {
 		if t.Fetch != nil {
 			return true
 		}
+		if t.HasChildFetches() {
+			return true
+		}
 	case *Array:
 		if t.HasChildFetches() {
 			return true
 		}
-	default:
-		return false
 	}
 	return false
 }
