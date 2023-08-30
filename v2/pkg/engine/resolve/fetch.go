@@ -7,6 +7,7 @@ const (
 	FetchKindParallel
 	FetchKindBatch
 	FetchKindSerial
+	FetchKindParallelListItem
 )
 
 type Fetch interface {
@@ -68,4 +69,15 @@ type BatchFetch struct {
 
 func (_ *BatchFetch) FetchKind() FetchKind {
 	return FetchKindBatch
+}
+
+// The ParallelListItemFetch can be used to make nested parallel fetches within a list
+// Usually, you want to batch fetches within a list, which is the default behavior of SingleFetch
+// However, if the data source does not support batching, you can use this fetch to make parallel fetches within a list
+type ParallelListItemFetch struct {
+	Fetch *SingleFetch
+}
+
+func (_ *ParallelListItemFetch) FetchKind() FetchKind {
+	return FetchKindParallelListItem
 }
