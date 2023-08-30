@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 
@@ -12,11 +13,17 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+var (
+	ErrOriginResponseError = errors.New("origin response error")
+)
+
 type Loader struct {
 	parallelFetch bool
 	parallelMu    sync.Mutex
 
 	layers []*layer
+
+	errors []byte
 }
 
 type layer struct {
@@ -47,9 +54,15 @@ func (l *Loader) inputData(layer *layer, out *fastbuffer.FastBuffer) []byte {
 		return layer.data
 	}
 	_, _ = out.Write([]byte(`[`))
+	addCommaSeparator := false
 	for i := range layer.items {
-		if i != 0 {
+		if layer.items[i] == nil {
+			continue
+		}
+		if addCommaSeparator {
 			_, _ = out.Write([]byte(`,`))
+		} else {
+			addCommaSeparator = true
 		}
 		_, _ = out.Write(layer.items[i])
 	}
@@ -57,17 +70,25 @@ func (l *Loader) inputData(layer *layer, out *fastbuffer.FastBuffer) []byte {
 	return out.Bytes()
 }
 
-func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, data []byte, out io.Writer) (err error) {
+func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, data []byte, out io.Writer) (hasErrors bool, err error) {
+	l.layers = l.layers[:0]
+	l.errors = l.errors[:0]
 	l.layers = append(l.layers, &layer{
 		data: data,
 		kind: layerKindObject,
 	})
 	err = l.resolveNode(ctx, response.Data)
 	if err != nil {
-		return err
+		if errors.Is(err, ErrOriginResponseError) {
+			_, err = out.Write([]byte(`{"errors":`))
+			_, err = out.Write(l.errors)
+			_, err = out.Write([]byte(`}`))
+			return true, err
+		}
+		return false, err
 	}
 	_, err = out.Write(l.layers[0].data)
-	return err
+	return false, err
 }
 
 func (l *Loader) getBuffer() *fastbuffer.FastBuffer {
@@ -134,10 +155,8 @@ func (l *Loader) resolveLayerData(path []string, isArray bool) (data []byte, ite
 		return nil, items, err
 	}
 	for i := range current.items {
-		data, _, _, err = jsonparser.Get(current.items[i], path...)
-		if err != nil {
-			return
-		}
+		data, _, _, _ = jsonparser.Get(current.items[i], path...)
+		// we explicitly ignore the error and just append a nil slice
 		items = append(items, data)
 	}
 	return nil, items, nil
@@ -233,9 +252,15 @@ func (l *Loader) mergeLayerIntoParent() (err error) {
 	if parent.kind == layerKindObject && child.kind == layerKindArray {
 		buf := l.getBuffer()
 		_, _ = buf.Write([]byte(`[`))
+		addCommaSeparator := false
 		for i := range child.items {
-			if i != 0 {
+			if child.items[i] == nil {
+				continue
+			}
+			if addCommaSeparator {
 				_, _ = buf.Write([]byte(`,`))
+			} else {
+				addCommaSeparator = true
 			}
 			_, _ = buf.Write(child.items[i])
 		}
@@ -244,6 +269,9 @@ func (l *Loader) mergeLayerIntoParent() (err error) {
 		return err
 	}
 	for i := range parent.items {
+		if child.items[i] == nil {
+			continue
+		}
 		existing, _, _, _ := jsonparser.Get(parent.items[i], child.path...)
 		combined, err := jsonpatch.MergePatch(existing, child.items[i])
 		if err != nil {
@@ -265,21 +293,80 @@ func (l *Loader) resolveFetch(ctx *Context, fetch Fetch) (err error) {
 		return l.resolveSerialFetch(ctx, f)
 	case *ParallelFetch:
 		return l.resolveParallelFetch(ctx, f)
+	case *ParallelListItemFetch:
+		return l.resolveParallelListItemFetch(ctx, f)
 	}
 	return nil
 }
 
-func (l *Loader) resolveParallelFetch(ctx *Context, fetch *ParallelFetch) (err error) {
+func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListItemFetch) (err error) {
+	if !l.insideArray() {
+		return fmt.Errorf("parallel_list_item_fetch must be inside an array")
+	}
+	layer := l.currentLayer()
+	group, groupContext := errgroup.WithContext(ctx.ctx)
 	l.parallelFetch = true
-	g, gCtx := errgroup.WithContext(ctx.ctx)
-	ctx.WithContext(gCtx)
-	for i := range fetch.Fetches {
-		f := fetch.Fetches[i]
-		g.Go(func() error {
-			return l.resolveFetch(ctx, f)
+	defer func() {
+		l.parallelFetch = false
+	}()
+	for i := range layer.items {
+		i := i
+		group.Go(func() error {
+			input := pool.FastBuffer.Get()
+			defer pool.FastBuffer.Put(input)
+			err = fetch.Fetch.InputTemplate.Render(ctx, layer.items[i], input)
+			if err != nil {
+				return err
+			}
+			out := l.getBuffer()
+			err = fetch.Fetch.DataSource.Load(groupContext, input.Bytes(), out)
+			if err != nil {
+				return err
+			}
+			data := out.Bytes()
+			responseErrors, _, _, _ := jsonparser.Get(data, "errors")
+			if responseErrors != nil {
+				if l.parallelFetch {
+					l.parallelMu.Lock()
+				}
+				l.errors = responseErrors
+				if l.parallelFetch {
+					l.parallelMu.Unlock()
+				}
+				return ErrOriginResponseError
+			}
+			if fetch.Fetch.ProcessResponseConfig.ExtractGraphqlResponse {
+				data, _, _, err = jsonparser.Get(data, "data")
+				if err != nil {
+					return err
+				}
+			}
+			if fetch.Fetch.ProcessResponseConfig.ExtractFederationEntities {
+				data, _, _, err = jsonparser.Get(data, "_entities")
+				if err != nil {
+					return err
+				}
+				data = data[1 : len(data)-1] // remove outer [] because we only have one entity, this is not a batch
+			}
+			layer.items[i], err = jsonpatch.MergePatch(layer.items[i], data)
+			return err
 		})
 	}
-	err = g.Wait()
+	err = group.Wait()
+	return err
+}
+
+func (l *Loader) resolveParallelFetch(ctx *Context, fetch *ParallelFetch) (err error) {
+	l.parallelFetch = true
+	group, grouptContext := errgroup.WithContext(ctx.ctx)
+	groupCtx := ctx.WithContext(grouptContext)
+	for i := range fetch.Fetches {
+		f := fetch.Fetches[i]
+		group.Go(func() error {
+			return l.resolveFetch(groupCtx, f)
+		})
+	}
+	err = group.Wait()
 	l.parallelFetch = false
 	return err
 }
@@ -299,6 +386,17 @@ func (l *Loader) resolveSingleFetch(ctx *Context, fetch *SingleFetch) (err error
 		return err
 	}
 	data := out.Bytes()
+	responseErrors, _, _, _ := jsonparser.Get(data, "errors")
+	if responseErrors != nil {
+		if l.parallelFetch {
+			l.parallelMu.Lock()
+		}
+		l.errors = responseErrors
+		if l.parallelFetch {
+			l.parallelMu.Unlock()
+		}
+		return ErrOriginResponseError
+	}
 	if fetch.ProcessResponseConfig.ExtractGraphqlResponse {
 		data, _, _, err = jsonparser.Get(data, "data")
 		if err != nil {
@@ -357,8 +455,13 @@ func (l *Loader) mergeDataIntoLayer(layer *layer, data []byte) (err error) {
 	if err != nil {
 		return err
 	}
+	skipped := 0
 	for i := 0; i < len(layer.items); i++ {
-		layer.items[i], err = jsonpatch.MergePatch(layer.items[i], dataItems[i])
+		if layer.items[i] == nil {
+			skipped++
+			continue
+		}
+		layer.items[i], err = jsonpatch.MergePatch(layer.items[i], dataItems[i-skipped])
 		if err != nil {
 			return err
 		}
