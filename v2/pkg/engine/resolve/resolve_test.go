@@ -3193,17 +3193,31 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									InputTemplate: InputTemplate{
 										Segments: []TemplateSegment{
 											{
-												Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":`),
+												Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[`),
 												SegmentType: StaticSegmentType,
 											},
 											{
-												SegmentType:        VariableSegmentType,
-												VariableKind:       ObjectVariableKind,
-												VariableSourcePath: []string{"id"},
-												Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+												SegmentType:  VariableSegmentType,
+												VariableKind: ResolvableObjectVariableKind,
+												Renderer: NewGraphQLVariableResolveRenderer(&Object{
+													Fields: []*Field{
+														{
+															Name: []byte("id"),
+															Value: &String{
+																Path: []string{"id"},
+															},
+														},
+														{
+															Name: []byte("__typename"),
+															Value: &String{
+																Path: []string{"__typename"},
+															},
+														},
+													},
+												}),
 											},
 											{
-												Data:        []byte(`,"__typename":"User"}]}}}`),
+												Data:        []byte(`]}}}`),
 												SegmentType: StaticSegmentType,
 											},
 										},
@@ -3256,17 +3270,31 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	InputTemplate: InputTemplate{
 																		Segments: []TemplateSegment{
 																			{
-																				Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":`),
+																				Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[`),
 																				SegmentType: StaticSegmentType,
 																			},
 																			{
-																				SegmentType:        VariableSegmentType,
-																				VariableKind:       ObjectVariableKind,
-																				VariableSourcePath: []string{"upc"},
-																				Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+																				SegmentType:  VariableSegmentType,
+																				VariableKind: ResolvableObjectVariableKind,
+																				Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																					Fields: []*Field{
+																						{
+																							Name: []byte("upc"),
+																							Value: &String{
+																								Path: []string{"upc"},
+																							},
+																						},
+																						{
+																							Name: []byte("__typename"),
+																							Value: &String{
+																								Path: []string{"__typename"},
+																							},
+																						},
+																					},
+																				}),
 																			},
 																			{
-																				Data:        []byte(`,"__typename":"Product"}]}}}`),
+																				Data:        []byte(`]}}}`),
 																				SegmentType: StaticSegmentType,
 																			},
 																		},
