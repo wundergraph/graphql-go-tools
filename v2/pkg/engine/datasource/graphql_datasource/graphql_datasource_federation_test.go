@@ -698,7 +698,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 		})
 
 		t.Run("provides", func(t *testing.T) {
-			// t.Skip("NOT IMPLEMENTED YET")
 			t.Run("only fields with provides", RunTest(
 				definition,
 				`
@@ -717,16 +716,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				&plan.SynchronousResponsePlan{
 					Response: &resolve.GraphQLResponse{
 						Data: &resolve.Object{
-							Fetch: &resolve.ParallelFetch{
-								Fetches: []resolve.Fetch{
-									&resolve.SingleFetch{
-										BufferId:              0,
-										Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"query{user{oldAccount{name ShippingInfo{zip}}}}"}}`,
-										DataSource:            &Source{},
-										DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-										ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
-									},
-								},
+							Fetch: &resolve.SingleFetch{
+								BufferId:              0,
+								Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {oldAccount {name shippingInfo {zip}}}}"}}`,
+								DataSource:            &Source{},
+								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+								ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 							},
 							Fields: []*resolve.Field{
 								{
@@ -738,9 +733,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										Nullable: true,
 										Fields: []*resolve.Field{
 											{
-												HasBuffer: true,
-												BufferID:  1,
-												Name:      []byte("oldAccount"),
+												Name: []byte("oldAccount"),
 												Value: &resolve.Object{
 													Path:     []string{"oldAccount"},
 													Nullable: true,
