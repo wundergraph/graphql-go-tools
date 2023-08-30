@@ -772,29 +772,175 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				planConfiguration,
 			))
 
-			// TODO: more complex example both provides and not provides
-			// `query ComposedKeys {
-			// 	user {
-			// 		account {
-			// 			name
-			// 			shippingInfo {
-			// 				zip
-			// 			}
-			// 			address {
-			// 				line1
-			// 			}
-			// 		}
-			// 		oldAccount {
-			// 			name
-			// 			shippingInfo {
-			// 				zip
-			// 			}
-			// 			address {
-			// 				line1
-			// 			}
-			// 		}
-			// 	}
-			// }`
+			t.Run("both provided and not provided", RunTest(
+				definition,
+				`
+				query Provides {
+					user {
+						account {
+							name
+							shippingInfo {
+								zip
+							}
+						}
+						oldAccount {
+							name
+							shippingInfo {
+								zip
+							}
+						}
+					}
+				}
+			`,
+				"Provides",
+				&plan.SynchronousResponsePlan{
+					Response: &resolve.GraphQLResponse{
+						Data: &resolve.Object{
+							Fetch: &resolve.SingleFetch{
+								BufferId:              0,
+								Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}} oldAccount {name shippingInfo {zip}}}}"}}`,
+								DataSource:            &Source{},
+								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+								ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+							},
+							Fields: []*resolve.Field{
+								{
+									HasBuffer: true,
+									BufferID:  0,
+									Name:      []byte("user"),
+									Value: &resolve.Object{
+										Path:     []string{"user"},
+										Nullable: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("account"),
+												Value: &resolve.Object{
+													Path:     []string{"account"},
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name:      []byte("name"),
+															HasBuffer: true,
+															BufferID:  1,
+															Value: &resolve.String{
+																Path: []string{"name"},
+															},
+														},
+														{
+															Name:      []byte("shippingInfo"),
+															HasBuffer: true,
+															BufferID:  1,
+															Value: &resolve.Object{
+																Path:     []string{"shippingInfo"},
+																Nullable: true,
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("zip"),
+																		Value: &resolve.String{
+																			Path: []string{"zip"},
+																		},
+																	},
+																},
+															},
+														},
+													},
+													Fetch: &resolve.BatchFetch{
+														BatchFactory: batchFactory,
+														Fetch: &resolve.SingleFetch{
+															BufferId:                              1,
+															Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":$$0$$}}}`,
+															DataSource:                            &Source{},
+															DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+															ProcessResponseConfig:                 resolve.ProcessResponseConfig{ExtractGraphqlResponse: true, ExtractFederationEntities: true},
+															SetTemplateOutputToNullOnVariableNull: true,
+															Variables: []resolve.Variable{
+																&resolve.ListVariable{
+																	Variables: []resolve.Variable{
+																		&resolve.ResolvableObjectVariable{
+																			Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																				Fields: []*resolve.Field{
+																					{
+																						Name: []byte("__typename"),
+																						Value: &resolve.String{
+																							Path: []string{"__typename"},
+																						},
+																					},
+																					{
+																						Name: []byte("id"),
+																						Value: &resolve.String{
+																							Path: []string{"id"},
+																						},
+																					},
+																					{
+																						Name: []byte("info"),
+																						Value: &resolve.Object{
+																							Path:     []string{"info"},
+																							Nullable: true,
+																							Fields: []*resolve.Field{
+																								{
+																									Name: []byte("a"),
+																									Value: &resolve.String{
+																										Path: []string{"a"},
+																									},
+																								},
+																								{
+																									Name: []byte("b"),
+																									Value: &resolve.String{
+																										Path: []string{"b"},
+																									},
+																								},
+																							},
+																						},
+																					},
+																				},
+																			}),
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+											{
+												Name: []byte("oldAccount"),
+												Value: &resolve.Object{
+													Path:     []string{"oldAccount"},
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("name"),
+															Value: &resolve.String{
+																Path: []string{"name"},
+															},
+														},
+														{
+															Name: []byte("shippingInfo"),
+															Value: &resolve.Object{
+																Path:     []string{"shippingInfo"},
+																Nullable: true,
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("zip"),
+																		Value: &resolve.String{
+																			Path: []string{"zip"},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				planConfiguration,
+			))
 		})
 	})
 
