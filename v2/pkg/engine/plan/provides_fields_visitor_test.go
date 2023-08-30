@@ -42,8 +42,6 @@ func TestProvidesSuggestions(t *testing.T) {
 			DataSourceHash: 2023,
 			Path:           "query.me.name",
 			ParentPath:     "query.me",
-			hasPriority:    true,
-			IsProvided:     true,
 		},
 		{
 			TypeName:       "User",
@@ -51,8 +49,6 @@ func TestProvidesSuggestions(t *testing.T) {
 			DataSourceHash: 2023,
 			Path:           "query.me.info",
 			ParentPath:     "query.me",
-			hasPriority:    true,
-			IsProvided:     true,
 		},
 		{
 			TypeName:       "Info",
@@ -60,8 +56,6 @@ func TestProvidesSuggestions(t *testing.T) {
 			DataSourceHash: 2023,
 			Path:           "query.me.info.age",
 			ParentPath:     "query.me.info",
-			hasPriority:    true,
-			IsProvided:     true,
 		},
 	}, suggestions)
 }

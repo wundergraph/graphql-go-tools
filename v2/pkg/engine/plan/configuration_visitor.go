@@ -292,19 +292,22 @@ func (c *configurationVisitor) handleProvidesSuggestions(ref int, typeName, fiel
 
 	var providesCfg *FederationFieldConfiguration
 	for _, ds := range c.usedDataSources {
-		if ds.Hash() == dsHash {
-			found := false
-			for _, provide := range ds.FederationMetaData.Provides {
-				if provide.TypeName == typeName && provide.FieldName == fieldName {
-					providesCfg = &provide
-					found = true
-					break
-				}
-			}
-			if found {
+		if ds.Hash() != dsHash {
+			continue
+		}
+
+		found := false
+		for _, provide := range ds.FederationMetaData.Provides {
+			if provide.TypeName == typeName && provide.FieldName == fieldName {
+				providesCfg = &provide
+				found = true
 				break
 			}
 		}
+		if found {
+			break
+		}
+
 	}
 
 	if providesCfg == nil {
@@ -338,31 +341,21 @@ func (c *configurationVisitor) handleProvidesSuggestions(ref int, typeName, fiel
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to get provides suggestions for %s", typeName))
 	}
 
-	for i := 0; i < len(c.dataSourceSuggestions); i++ {
-		for j := 0; j < len(suggestions); j++ {
-			if c.dataSourceSuggestions[i].FieldName == suggestions[j].FieldName &&
-				c.dataSourceSuggestions[i].TypeName == suggestions[j].TypeName &&
-				c.dataSourceSuggestions[i].Path == suggestions[j].Path {
-				c.dataSourceSuggestions[i] = suggestions[j]
-				break
-			}
+	for i := range c.planners {
+		if c.planners[i].dataSourceConfiguration.Hash() == dsHash {
+			c.planners[i].dataSourceConfiguration.ProvidedFields = append(c.planners[i].dataSourceConfiguration.ProvidedFields, suggestions...)
+			break
 		}
 	}
 }
 
 func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, fieldName, currentPath, parentPath, precedingParentPath string) (planned bool) {
-	var (
-		dsHash     DSHash
-		isProvided bool
-	)
-	suggestion, hasSuggestion := c.dataSourceSuggestions.SuggestionForPath(typeName, fieldName, currentPath)
-	if hasSuggestion {
-		dsHash = suggestion.DataSourceHash
-		isProvided = suggestion.IsProvided
-	}
+	dsHash, hasSuggestion := c.dataSourceSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
 
 	for i, plannerConfig := range c.planners {
-		if hasSuggestion && plannerConfig.dataSourceConfiguration.Hash() != dsHash {
+		_, isProvided := plannerConfig.dataSourceConfiguration.ProvidedFields.HasSuggestionForPath(typeName, fieldName, currentPath)
+
+		if !isProvided && hasSuggestion && plannerConfig.dataSourceConfiguration.Hash() != dsHash {
 			continue
 		}
 

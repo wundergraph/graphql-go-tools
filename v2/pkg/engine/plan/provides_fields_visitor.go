@@ -59,7 +59,5 @@ func (v *providesVisitor) EnterField(ref int) {
 		DataSourceHash: v.input.DSHash,
 		Path:           currentPath,
 		ParentPath:     parentPath,
-		hasPriority:    true,
-		IsProvided:     true,
 	})
 }

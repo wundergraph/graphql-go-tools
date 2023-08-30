@@ -38,7 +38,6 @@ type NodeSuggestion struct {
 	Path           string
 	ParentPath     string
 	IsRootNode     bool
-	IsProvided     bool
 
 	hasPriority  bool
 	whyWasChosen []string

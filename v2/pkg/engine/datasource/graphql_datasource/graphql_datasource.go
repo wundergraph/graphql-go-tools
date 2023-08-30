@@ -551,6 +551,8 @@ func (p *Planner) LeaveInlineFragment(ref int) {
 func (p *Planner) EnterField(ref int) {
 	p.debugPrintOperationOnEnter(ast.NodeKindField, ref)
 
+	p.lastFieldEnclosingTypeName = p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+
 	if !p.allowField(ref) {
 		return
 	}
@@ -560,7 +562,6 @@ func (p *Planner) EnterField(ref int) {
 	}
 
 	fieldName := p.visitor.Operation.FieldNameString(ref)
-	p.lastFieldEnclosingTypeName = p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
 	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(p.lastFieldEnclosingTypeName, fieldName)
 
 	for i := range p.config.CustomScalarTypeFields {
@@ -638,18 +639,25 @@ func (p *Planner) allowField(ref int) bool {
 	// but we don't need to add it to the query as we are in the nested request
 	currentPath := fmt.Sprintf("%s.%s", p.visitor.Walker.Path.DotDelimitedString(), p.visitor.Operation.FieldNameString(ref))
 	if p.dataSourceConfig.ParentInfo.Path != "query" && p.dataSourceConfig.ParentInfo.Path == currentPath {
+		p.debugPrint("allowField: false path:", currentPath, "is equal to parent path", p.dataSourceConfig.ParentInfo.Path)
 		return false
 	}
 
-	fieldName := p.visitor.Operation.FieldNameString(ref)
-
+	fieldName := p.visitor.Operation.FieldAliasOrNameString(ref)
 	if fieldName == "__typename" {
+		p.debugPrint("allowField: true path:", currentPath, `"__typename" is always allowed`)
 		return true
 	}
 
+	_, hasProvidedNode := p.dataSourceConfig.ProvidedFields.HasSuggestionForPath(p.lastFieldEnclosingTypeName, fieldName, currentPath)
 	enclosingTypeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
-	return p.dataSourceConfig.HasRootNode(enclosingTypeName, fieldName) ||
+	allow := hasProvidedNode ||
+		p.dataSourceConfig.HasRootNode(enclosingTypeName, fieldName) ||
 		p.dataSourceConfig.HasChildNode(enclosingTypeName, fieldName)
+
+	p.debugPrint("allowField:", allow, "path:", currentPath, "has root/child/provided check")
+
+	return allow
 }
 
 func (p *Planner) EnterArgument(_ int) {
