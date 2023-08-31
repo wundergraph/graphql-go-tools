@@ -17,7 +17,6 @@ type SegmentType int
 const (
 	StaticSegmentType SegmentType = iota + 1
 	VariableSegmentType
-	ListSegmentType
 )
 
 type TemplateSegment struct {
@@ -60,8 +59,6 @@ func (i *InputTemplate) renderSegments(ctx *Context, data []byte, segments []Tem
 		switch segment.SegmentType {
 		case StaticSegmentType:
 			preparedInput.WriteBytes(segment.Data)
-		case ListSegmentType:
-			err = i.renderSegments(ctx, data, segment.Segments, preparedInput, undefinedVariables)
 		case VariableSegmentType:
 			switch segment.VariableKind {
 			case ObjectVariableKind:
