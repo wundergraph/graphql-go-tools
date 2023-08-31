@@ -64,7 +64,7 @@ func (f *Fetcher) Fetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuf
 
 	if !f.EnableSingleFlightLoader || fetch.DisallowSingleFlight {
 		err = fetch.DataSource.Load(ctx.Context(), preparedInput.Bytes(), dataBuf)
-		extractResponse(dataBuf.Bytes(), buf, fetch.ProcessResponseConfig)
+		extractResponse(dataBuf.Bytes(), buf, fetch.PostProcessing)
 
 		if ctx.afterFetchHook != nil {
 			if buf.HasData() {
@@ -111,7 +111,7 @@ func (f *Fetcher) Fetch(ctx *Context, fetch *SingleFetch, preparedInput *fastbuf
 	f.inflightFetchMu.Unlock()
 
 	err = fetch.DataSource.Load(ctx.Context(), preparedInput.Bytes(), dataBuf)
-	extractResponse(dataBuf.Bytes(), &inflight.bufPair, fetch.ProcessResponseConfig)
+	extractResponse(dataBuf.Bytes(), &inflight.bufPair, fetch.PostProcessing)
 	inflight.err = err
 
 	if inflight.bufPair.HasData() {
