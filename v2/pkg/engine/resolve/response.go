@@ -100,42 +100,45 @@ func extractResponse(responseData []byte, bufPair *BufPair, cfg PostProcessingCo
 	if len(responseData) == 0 {
 		return
 	}
-
-	if !cfg.ExtractGraphqlResponse {
+	switch {
+	case cfg.SelectResponseDataPath == nil && cfg.SelectResponseErrorsPath == nil:
 		bufPair.Data.WriteBytes(responseData)
 		return
-	}
-
-	jsonparser.EachKey(responseData, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
-		switch i {
-		case rootErrorsPathIndex:
-			_, _ = jsonparser.ArrayEach(bytes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-				var (
-					message, locations, path, extensions []byte
-				)
-				jsonparser.EachKey(value, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
-					switch i {
-					case errorsMessagePathIndex:
-						message = bytes
-					case errorsLocationsPathIndex:
-						locations = bytes
-					case errorsPathPathIndex:
-						path = bytes
-					case errorsExtensionsPathIndex:
-						extensions = bytes
-					}
-				}, errorPaths...)
-				if message != nil {
+	case cfg.SelectResponseDataPath != nil && cfg.SelectResponseErrorsPath == nil:
+		data, _, _, _ := jsonparser.Get(responseData, cfg.SelectResponseDataPath...)
+		bufPair.Data.WriteBytes(data)
+		return
+	case cfg.SelectResponseDataPath == nil && cfg.SelectResponseErrorsPath != nil:
+		errors, _, _, _ := jsonparser.Get(responseData, cfg.SelectResponseErrorsPath...)
+		bufPair.Errors.WriteBytes(errors)
+	case cfg.SelectResponseDataPath != nil && cfg.SelectResponseErrorsPath != nil:
+		jsonparser.EachKey(responseData, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
+			switch i {
+			case 0:
+				bufPair.Data.WriteBytes(bytes)
+			case 1:
+				_, err := jsonparser.ArrayEach(bytes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+					var (
+						message, locations, path, extensions []byte
+					)
+					jsonparser.EachKey(value, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
+						switch i {
+						case 0:
+							message = bytes
+						case 1:
+							locations = bytes
+						case 2:
+							path = bytes
+						case 3:
+							extensions = bytes
+						}
+					}, errorPaths...)
 					bufPair.WriteErr(message, locations, path, extensions)
+				})
+				if err != nil {
+					bufPair.WriteErr([]byte(err.Error()), nil, nil, nil)
 				}
-			})
-		case rootDataPathIndex:
-			if cfg.ExtractFederationEntities {
-				data, _, _, _ := jsonparser.Get(bytes, entitiesPath...)
-				bufPair.Data.WriteBytes(data)
-				return
 			}
-			bufPair.Data.WriteBytes(bytes)
-		}
-	}, responsePaths...)
+		}, cfg.SelectResponseDataPath, cfg.SelectResponseErrorsPath)
+	}
 }
