@@ -2035,9 +2035,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				Fetch: &SingleFetch{
 					BufferId:   0,
 					DataSource: mockDataSource,
-					ProcessResponseConfig: ProcessResponseConfig{
-						ExtractGraphqlResponse: true,
-					},
 				},
 				Fields: []*Field{
 					{
@@ -2069,9 +2066,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				Fetch: &SingleFetch{
 					BufferId:   0,
 					DataSource: mockDataSource,
-					ProcessResponseConfig: ProcessResponseConfig{
-						ExtractGraphqlResponse: true,
-					},
 				},
 				Fields: []*Field{
 					{
@@ -2134,11 +2128,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				return &GraphQLResponse{
 					Data: &Object{
 						Fetch: &SingleFetch{
-							DataSource:            FakeDataSource(fakeData),
-							BufferId:              0,
-							Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{thing {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
-							DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-							ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
+							DataSource:           FakeDataSource(fakeData),
+							BufferId:             0,
+							Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{thing {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
 						Fields: []*Field{
 							{
@@ -2181,13 +2174,13 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			}
 
 			t.Run("interface response with matching type", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
-				return obj(`{"data":{"thing":{"id":"1","abstractThing":{"__typename":"ConcreteOne","name":"foo"}}}}`),
+				return obj(`{"thing":{"id":"1","abstractThing":{"__typename":"ConcreteOne","name":"foo"}}}`),
 					Context{ctx: context.Background()},
 					`{"data":{"thing":{"id":"1","abstractThing":{"name":"foo"}}}}`
 			}))
 
 			t.Run("interface response with not matching type", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
-				return obj(`{"data":{"thing":{"id":"1","abstractThing":{"__typename":"ConcreteTwo"}}}}`),
+				return obj(`{"thing":{"id":"1","abstractThing":{"__typename":"ConcreteTwo"}}}`),
 					Context{ctx: context.Background()},
 					`{"data":{"thing":{"id":"1","abstractThing":{}}}}`
 			}))
@@ -2198,11 +2191,13 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				return &GraphQLResponse{
 					Data: &Object{
 						Fetch: &SingleFetch{
-							DataSource:            FakeDataSource(fakeData),
-							BufferId:              0,
-							Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{things {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
-							DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-							ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
+							DataSource:           FakeDataSource(fakeData),
+							BufferId:             0,
+							Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{things {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponsePath: []string{"data"},
+							},
 						},
 						Fields: []*Field{
 							{
@@ -2473,9 +2468,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Data: &Object{
 				Nullable: false,
 				Fetch: &SingleFetch{
-					BufferId:              0,
-					DataSource:            FakeDataSource(`{"data":null}`),
-					ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
+					BufferId:   0,
+					DataSource: FakeDataSource(`{"data":null}`),
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponsePath: []string{"data"},
+					},
 				},
 				Fields: []*Field{
 					{
@@ -2528,7 +2525,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					BufferId: 0,
 					DataSource: FakeDataSource(
 						`{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos",0,"name"]}],"data":null}`),
-					ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
 				Fields: []*Field{
 					{
@@ -2640,8 +2636,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									Path: []string{"thirdArg"},
 								},
 							),
-							ProcessResponseConfig: ProcessResponseConfig{
-								ExtractGraphqlResponse: true,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponsePath: []string{"data"},
 							},
 						},
 						&SingleFetch{
@@ -2684,8 +2680,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									Path: []string{"fourthArg"},
 								},
 							),
-							ProcessResponseConfig: ProcessResponseConfig{
-								ExtractGraphqlResponse: true,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponsePath: []string{"data"},
 							},
 						},
 					},
@@ -2726,8 +2722,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 								DataSource: nestedServiceOne,
 								Variables:  Variables{},
-								ProcessResponseConfig: ProcessResponseConfig{
-									ExtractGraphqlResponse: true,
+								PostProcessing: PostProcessingConfiguration{
+									SelectResponsePath: []string{"data"},
 								},
 							},
 							Fields: []*Field{
@@ -2870,9 +2866,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							},
 						},
 					},
-					DataSource:            user,
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSource:           user,
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponsePath: []string{"data"},
+					},
 				},
 				Fields: []*Field{
 					{
@@ -2907,11 +2905,13 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 													Fetch: &SerialFetch{
 														Fetches: []Fetch{
 															&SingleFetch{
-																BufferId:              3,
-																Input:                 `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":$$0$$}}}`,
-																DataSource:            addressEnricher,
-																DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-																ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
+																BufferId:             3,
+																Input:                `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":$$0$$}}}`,
+																DataSource:           addressEnricher,
+																DataSourceIdentifier: []byte("graphql_datasource.Source"),
+																PostProcessing: PostProcessingConfiguration{
+																	SelectResponsePath: []string{"data"},
+																},
 																InputTemplate: InputTemplate{
 																	Segments: []TemplateSegment{
 																		{
@@ -2964,7 +2964,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																Input:                  `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":$$0$$}}}`,
 																DataSource:             address,
 																DataSourceIdentifier:   []byte("graphql_datasource.Source"),
-																ProcessResponseConfig:  ProcessResponseConfig{ExtractGraphqlResponse: true},
+																PostProcessing: PostProcessingConfiguration{
+																	SelectResponsePath: []string{"data"},
+																},
 																InputTemplate: InputTemplate{
 																	Segments: []TemplateSegment{
 																		{
@@ -3029,7 +3031,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																Input:                  `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":$$0$$}}}`,
 																DataSource:             account,
 																DataSourceIdentifier:   []byte("graphql_datasource.Source"),
-																ProcessResponseConfig:  ProcessResponseConfig{ExtractGraphqlResponse: true},
+																PostProcessing: PostProcessingConfiguration{
+																	SelectResponsePath: []string{"data"},
+																},
 																InputTemplate: InputTemplate{
 																	Segments: []TemplateSegment{
 																		{
@@ -3125,7 +3129,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 					assert.Equal(t, expected, actual)
 					pair := NewBufPair()
-					pair.Data.WriteString(`{"me": {"id": "1234","username": "Me","__typename": "User"}}`)
+					pair.Data.WriteString(`{"me":{"id":"1234","username":"Me","__typename":"User"}}`)
 					return writeGraphqlResponse(pair, w, false)
 				})
 
@@ -3137,7 +3141,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`
 					assert.Equal(t, expected, actual)
 					pair := NewBufPair()
-					pair.Data.WriteString(`{"reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`)
+					pair.Data.WriteString(`{"_entities":[{"reviews":[{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}]}`)
 					return writeGraphqlResponse(pair, w, false)
 				})
 
@@ -3152,11 +3156,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					switch actual {
 					case `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}}`:
 						pair := NewBufPair()
-						pair.Data.WriteString(`{"_entities": [{"name": "Furby"}]}`)
+						pair.Data.WriteString(`{"_entities":[{"name": "Furby"}]}`)
 						return writeGraphqlResponse(pair, w, false)
 					case `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-2","__typename":"Product"}]}}}`:
 						pair := NewBufPair()
-						pair.Data.WriteString(`{"_entities": [{"name": "Trilby"}]}`)
+						pair.Data.WriteString(`{"_entities":[{"name": "Trilby"}]}`)
 						return writeGraphqlResponse(pair, w, false)
 					default:
 						t.Fatalf("unexpected request: %s", actual)
@@ -3178,8 +3182,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							},
 						},
 						DataSource: userService,
-						ProcessResponseConfig: ProcessResponseConfig{
-							ExtractGraphqlResponse: true,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponsePath: []string{"data"},
 						},
 					},
 					Fields: []*Field{
@@ -3223,8 +3227,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										},
 									},
 									DataSource: reviewsService,
-									ProcessResponseConfig: ProcessResponseConfig{
-										ExtractGraphqlResponse: true,
+									PostProcessing: PostProcessingConfiguration{
+										SelectResponsePath: []string{"data", "_entities", "[0]"},
 									},
 								},
 								Path:     []string{"me"},
@@ -3299,9 +3303,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																			},
 																		},
 																	},
-																	ProcessResponseConfig: ProcessResponseConfig{
-																		ExtractGraphqlResponse:    true,
-																		ExtractFederationEntities: true,
+																	PostProcessing: PostProcessingConfiguration{
+																		SelectResponsePath: []string{"data", "_entities", "[0]"},
 																	},
 																},
 															},
@@ -3333,6 +3336,201 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Furby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Trilby"}}]}}}`
+		}))
+		t.Run("multiple entities with response renderer", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+
+			userService := NewMockDataSource(ctrl)
+			userService.EXPECT().
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+					actual := string(input)
+					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{ user { name info {id __typename} address {id __typename} } }"}}`
+					assert.Equal(t, expected, actual)
+					pair := NewBufPair()
+					pair.Data.WriteString(`{"user":{"name":"Bill","info":{"id":11,"__typename":"Info"},"address":{"id": 55,"__typename":"Address"}}`)
+					return writeGraphqlResponse(pair, w, false)
+				})
+
+			infoService := NewMockDataSource(ctrl)
+			infoService.EXPECT().
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+					actual := string(input)
+					expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age } ... on Address { line1 }}}}}","variables":{"representations":[{"id":11,"__typename":"Info"},{"id":55,"__typename":"Address"}]}}}`
+					assert.Equal(t, expected, actual)
+					pair := NewBufPair()
+					pair.Data.WriteString(`{"_entities":[{"age":21,"__typename":"Info"},{"line1":"Munich","__typename":"Address"}]}`)
+					return writeGraphqlResponse(pair, w, false)
+				})
+
+			return &GraphQLResponse{
+				Data: &Object{
+					Fetch: &SingleFetch{
+						BufferId: 0,
+						InputTemplate: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"{ user { name info {id __typename} address {id __typename} } }"}}`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						DataSource: userService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponsePath: []string{"data"},
+						},
+					},
+					Fields: []*Field{
+						{
+							HasBuffer: true,
+							BufferID:  0,
+							Name:      []byte("user"),
+							Value: &Object{
+								Path: []string{"user"},
+								Fetch: &SingleFetch{
+									BufferId: 0,
+									InputTemplate: InputTemplate{
+										Segments: []TemplateSegment{
+											{
+												Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age } ... on Address { line1 }}}}}","variables":{"representations":[`),
+												SegmentType: StaticSegmentType,
+											},
+											{
+												SegmentType:  VariableSegmentType,
+												VariableKind: ResolvableObjectVariableKind,
+												Renderer: NewGraphQLVariableResolveRenderer(&Object{
+													Path: []string{"info"},
+													Fields: []*Field{
+														{
+															Name: []byte("id"),
+															Value: &Integer{
+																Path: []string{"id"},
+															},
+														},
+														{
+															Name: []byte("__typename"),
+															Value: &String{
+																Path: []string{"__typename"},
+															},
+														},
+													},
+												}),
+											},
+											{
+												Data:        []byte(`,`),
+												SegmentType: StaticSegmentType,
+											},
+											{
+												SegmentType:  VariableSegmentType,
+												VariableKind: ResolvableObjectVariableKind,
+												Renderer: NewGraphQLVariableResolveRenderer(&Object{
+													Path: []string{"address"},
+													Fields: []*Field{
+														{
+															Name: []byte("id"),
+															Value: &Integer{
+																Path: []string{"id"},
+															},
+														},
+														{
+															Name: []byte("__typename"),
+															Value: &String{
+																Path: []string{"__typename"},
+															},
+														},
+													},
+												}),
+											},
+											{
+												Data:        []byte(`]}}}`),
+												SegmentType: StaticSegmentType,
+											},
+										},
+									},
+									DataSource: infoService,
+									PostProcessing: PostProcessingConfiguration{
+										SelectResponsePath: []string{"data", "_entities"},
+										ResponseTemplate: &InputTemplate{
+											Segments: []TemplateSegment{
+												{
+													SegmentType:  VariableSegmentType,
+													VariableKind: ResolvableObjectVariableKind,
+													Renderer: NewGraphQLVariableResolveRenderer(&Object{
+														Fields: []*Field{
+															{
+																Name: []byte("info"),
+																Value: &Object{
+																	Fields: []*Field{
+																		{
+																			Name: []byte("age"),
+																			Value: &Integer{
+																				Path: []string{"[0]", "age"},
+																			},
+																		},
+																	},
+																},
+															},
+															{
+																Name: []byte("address"),
+																Value: &Object{
+																	Fields: []*Field{
+																		{
+																			Name: []byte("line1"),
+																			Value: &String{
+																				Path: []string{"[1]", "line1"},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													}),
+												},
+											},
+										},
+									},
+								},
+								Fields: []*Field{
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
+										},
+									},
+									{
+										Name: []byte("info"),
+										Value: &Object{
+											Path: []string{"info"},
+											Fields: []*Field{
+												{
+													Name: []byte("age"),
+													Value: &Integer{
+														Path: []string{"age"},
+													},
+												},
+											},
+										},
+									},
+									{
+										Name: []byte("address"),
+										Value: &Object{
+											Path: []string{"address"},
+											Fields: []*Field{
+												{
+													Name: []byte("line1"),
+													Value: &String{
+														Path: []string{"line1"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"user":{"name":"Bill","info":{"age":21},"address":{"line1":"Munich"}}}}`
 		}))
 		t.Run("federation with enabled dataloader", testFn(true, true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			userService := NewMockDataSource(ctrl)
@@ -3384,8 +3582,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							},
 						},
 						DataSource: userService,
-						ProcessResponseConfig: ProcessResponseConfig{
-							ExtractGraphqlResponse: true,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponsePath: []string{"data"},
 						},
 					},
 					Fields: []*Field{
@@ -3442,9 +3640,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										},
 									},
 									DataSource: reviewsService,
-									ProcessResponseConfig: ProcessResponseConfig{
-										ExtractGraphqlResponse:    true,
-										ExtractFederationEntities: true,
+									PostProcessing: PostProcessingConfiguration{
+										SelectResponsePath: []string{"data", "_entities", "[0]"},
 									},
 								},
 								Path:     []string{"me"},
@@ -3519,9 +3716,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																		},
 																	},
 																},
-																ProcessResponseConfig: ProcessResponseConfig{
-																	ExtractGraphqlResponse:    true,
-																	ExtractFederationEntities: true,
+																PostProcessing: PostProcessingConfiguration{
+																	SelectResponsePath: []string{"data", "_entities"},
 																},
 															},
 															Fields: []*Field{
@@ -3593,10 +3789,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			return &GraphQLResponse{
 				Data: &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
-						ProcessResponseConfig: ProcessResponseConfig{
-							ExtractGraphqlResponse: true,
-						},
+						BufferId:             0,
 						DataSource:           firstService,
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						InputTemplate: InputTemplate{
@@ -3606,6 +3799,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									Data:        []byte(`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename middlename} __typename id}}"}}`),
 								},
 							},
+						},
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponsePath: []string{"data"},
 						},
 					},
 					Fields: []*Field{
@@ -3657,12 +3853,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										&SingleFetch{
 											BufferId:                              1,
 											SetTemplateOutputToNullOnVariableNull: true,
-											ProcessResponseConfig: ProcessResponseConfig{
-												ExtractGraphqlResponse:    true,
-												ExtractFederationEntities: true,
-											},
-											DataSource:           secondService,
-											DataSourceIdentifier: []byte("graphql_datasource.Source"),
+											DataSource:                            secondService,
+											DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
 											InputTemplate: InputTemplate{
 												Segments: []TemplateSegment{
 													{
@@ -3695,16 +3887,15 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 													},
 												},
 											},
+											PostProcessing: PostProcessingConfiguration{
+												SelectResponsePath: []string{"data", "_entities", "[0]"},
+											},
 										},
 										&SingleFetch{
 											BufferId:                              2,
 											SetTemplateOutputToNullOnVariableNull: true,
-											ProcessResponseConfig: ProcessResponseConfig{
-												ExtractGraphqlResponse:    true,
-												ExtractFederationEntities: true,
-											},
-											DataSource:           thirdService,
-											DataSourceIdentifier: []byte("graphql_datasource.Source"),
+											DataSource:                            thirdService,
+											DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
 											InputTemplate: InputTemplate{
 												Segments: []TemplateSegment{
 													{
@@ -3736,6 +3927,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 														Data:        []byte(`]}}}`),
 													},
 												},
+											},
+											PostProcessing: PostProcessingConfiguration{
+												SelectResponsePath: []string{"data", "_entities", "[0]"},
 											},
 										},
 									},
@@ -3804,8 +3998,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							},
 						},
 						DataSource: userService,
-						ProcessResponseConfig: ProcessResponseConfig{
-							ExtractGraphqlResponse: true,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponsePath: []string{"data"},
 						},
 					},
 					Fields: []*Field{
@@ -3850,9 +4044,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										SetTemplateOutputToNullOnVariableNull: true,
 									},
 									DataSource: reviewsService,
-									ProcessResponseConfig: ProcessResponseConfig{
-										ExtractGraphqlResponse:    true,
-										ExtractFederationEntities: true,
+									PostProcessing: PostProcessingConfiguration{
+										SelectResponsePath: []string{"data", "_entities", "[0]"},
 									},
 								},
 								Path:     []string{"me"},
@@ -3930,9 +4123,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	},
 																	SetTemplateOutputToNullOnVariableNull: true,
 																},
-																ProcessResponseConfig: ProcessResponseConfig{
-																	ExtractGraphqlResponse:    true,
-																	ExtractFederationEntities: true,
+																PostProcessing: PostProcessingConfiguration{
+																	SelectResponsePath: []string{"data", "_entities"},
 																},
 															},
 															Fields: []*Field{
@@ -4015,8 +4207,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							},
 						},
 						DataSource: userService,
-						ProcessResponseConfig: ProcessResponseConfig{
-							ExtractGraphqlResponse: true,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponsePath: []string{"data"},
 						},
 					},
 					Fields: []*Field{
@@ -4046,9 +4238,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										},
 									},
 									DataSource: reviewsService,
-									ProcessResponseConfig: ProcessResponseConfig{
-										ExtractGraphqlResponse:    true,
-										ExtractFederationEntities: true,
+									PostProcessing: PostProcessingConfiguration{
+										SelectResponsePath: []string{"data", "_entities", "[0]"},
 									},
 								},
 								Path:     []string{"me"},
@@ -4125,9 +4316,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																		},
 																	},
 																},
-																ProcessResponseConfig: ProcessResponseConfig{
-																	ExtractGraphqlResponse:    true,
-																	ExtractFederationEntities: true,
+																PostProcessing: PostProcessingConfiguration{
+																	SelectResponsePath: []string{"data", "_entities"},
 																},
 															},
 															Fields: []*Field{
@@ -4209,8 +4399,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							},
 						},
 						DataSource: userService,
-						ProcessResponseConfig: ProcessResponseConfig{
-							ExtractGraphqlResponse: true,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponsePath: []string{"data"},
 						},
 					},
 					Fields: []*Field{
@@ -4312,9 +4502,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 													SetTemplateOutputToNullOnVariableNull: true,
 												},
 												DataSource: timeService,
-												ProcessResponseConfig: ProcessResponseConfig{
-													ExtractGraphqlResponse:    true,
-													ExtractFederationEntities: true,
+												PostProcessing: PostProcessingConfiguration{
+													SelectResponsePath: []string{"data", "_entities", "[0]"},
 												},
 											},
 										},
@@ -4354,9 +4543,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										SetTemplateOutputToNullOnVariableNull: true,
 									},
 									DataSource: employeeService,
-									ProcessResponseConfig: ProcessResponseConfig{
-										ExtractGraphqlResponse:    true,
-										ExtractFederationEntities: true,
+									PostProcessing: PostProcessingConfiguration{
+										SelectResponsePath: []string{"data", "_entities", "[0]"},
 									},
 								},
 							},
@@ -4401,9 +4589,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							`{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
 							`{"user":{"account":{"__typename":"Account","id":"1234","info":{"a":"foo","b":"bar"}}}}`,
 						),
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
-						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
 						InputTemplate: InputTemplate{
 							Segments: []TemplateSegment{
 								{
@@ -4411,6 +4598,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									SegmentType: StaticSegmentType,
 								},
 							},
+						},
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponsePath: []string{"data"},
 						},
 					},
 					Fields: []*Field{
@@ -4528,55 +4718,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 														},
 													},
 												},
-												Variables: []Variable{
-													&ListVariable{
-														Variables: []Variable{
-															&ResolvableObjectVariable{
-																Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																	Fields: []*Field{
-																		{
-																			Name: []byte("__typename"),
-																			Value: &String{
-																				Path: []string{"__typename"},
-																			},
-																		},
-																		{
-																			Name: []byte("id"),
-																			Value: &String{
-																				Path: []string{"id"},
-																			},
-																		},
-																		{
-																			Name: []byte("info"),
-																			Value: &Object{
-																				Path:     []string{"info"},
-																				Nullable: true,
-																				Fields: []*Field{
-																					{
-																						Name: []byte("a"),
-																						Value: &String{
-																							Path: []string{"a"},
-																						},
-																					},
-																					{
-																						Name: []byte("b"),
-																						Value: &String{
-																							Path: []string{"b"},
-																						},
-																					},
-																				},
-																			},
-																		},
-																	},
-																}),
-															},
-														},
-													},
-												},
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
-												ProcessResponseConfig: ProcessResponseConfig{
-													ExtractGraphqlResponse:    true,
-													ExtractFederationEntities: true,
+												PostProcessing: PostProcessingConfiguration{
+													SelectResponsePath: []string{"data", "_entities", "[0]"},
 												},
 											},
 										},
@@ -4714,8 +4858,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	setup := func(ctx context.Context, stream SubscriptionDataSource) (*Resolver, *GraphQLSubscription, *TestFlushWriter) {
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
-				Source:                stream,
-				ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
+				Source: stream,
 			},
 			Response: &GraphQLResponse{
 				Data: &Object{

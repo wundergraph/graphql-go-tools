@@ -18,7 +18,7 @@ type GraphQLSubscriptionTrigger struct {
 	InputTemplate         InputTemplate
 	Variables             Variables
 	Source                SubscriptionDataSource
-	ProcessResponseConfig ProcessResponseConfig
+	ProcessResponseConfig PostProcessingConfiguration
 }
 
 type GraphQLResponse struct {
@@ -96,7 +96,7 @@ func writeAndFlush(writer FlushWriter, msg []byte) error {
 	return nil
 }
 
-func extractResponse(responseData []byte, bufPair *BufPair, cfg ProcessResponseConfig) {
+func extractResponse(responseData []byte, bufPair *BufPair, cfg PostProcessingConfiguration) {
 	if len(responseData) == 0 {
 		return
 	}
