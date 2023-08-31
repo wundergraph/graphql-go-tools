@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
+	"github.com/IBM/sarama"
 	"os"
 	"sort"
 	"strconv"
@@ -13,7 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
+
 	"github.com/go-zookeeper/zk"
 	"github.com/ory/dockertest"
 	"github.com/ory/dockertest/docker"

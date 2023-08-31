@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/plan"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
@@ -246,7 +246,7 @@ func TestKafkaDataSource_Subscription_Start(t *testing.T) {
 		groupID := "graphql-go-tools.test.groupid"
 		source := newSubscriptionSource(resolverLifecycle)
 
-		fr := &sarama.FetchResponse{Version: 11}
+		fr := sarama.NewMockFetchResponse(t, 1)
 		mockBroker := newMockKafkaBroker(t, topic, groupID, fr)
 		defer mockBroker.Close()
 
@@ -268,7 +268,7 @@ func TestKafkaDataSource_Subscription_Start(t *testing.T) {
 		testMessageValue := sarama.StringEncoder(`{"stock":[{"name":"Trilby","price":293,"inStock":2}]}`)
 
 		// Add a message to the topic. The consumer group will fetch that message and trigger ConsumeClaim method.
-		fr.AddMessage(topic, defaultPartition, testMessageKey, testMessageValue, 0)
+		fr.SetMessageWithKey(topic, defaultPartition, 0, testMessageKey, testMessageValue)
 
 		nextBytes := <-next
 		assert.Equal(t, `{"data":{"stock":[{"name":"Trilby","price":293,"inStock":2}]}}`, string(nextBytes))
@@ -287,12 +287,12 @@ func TestKafkaConsumerGroupBridge_Subscribe(t *testing.T) {
 		consumerGroup    = "consumer.group"
 	)
 
-	fr := &sarama.FetchResponse{Version: 11}
+	fr := sarama.NewMockFetchResponse(t, 1)
 	mockBroker := newMockKafkaBroker(t, topic, consumerGroup, fr)
 	defer mockBroker.Close()
 
 	// Add a message to the topic. The consumer group will fetch that message and trigger ConsumeClaim method.
-	fr.AddMessage(topic, defaultPartition, testMessageKey, testMessageValue, 0)
+	fr.SetMessageWithKey(topic, defaultPartition, 0, testMessageKey, testMessageValue)
 
 	ctx := resolve.NewContext(context.Background())
 	defer ctx.Context().Done()

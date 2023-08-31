@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/buger/jsonparser"
 	log "github.com/jensneuse/abstractlogger"
 )
@@ -228,11 +228,11 @@ func (c *KafkaConsumerGroupBridge) prepareSaramaConfig(options *GraphQLSubscript
 	// Sanitize function doesn't allow an empty BalanceStrategy parameter.
 	switch options.BalanceStrategy {
 	case BalanceStrategyRange:
-		sc.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
+		sc.Consumer.Group.Rebalance.Strategy = sarama.NewBalanceStrategyRange()
 	case BalanceStrategySticky:
-		sc.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
+		sc.Consumer.Group.Rebalance.Strategy = sarama.NewBalanceStrategySticky()
 	case BalanceStrategyRoundRobin:
-		sc.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
+		sc.Consumer.Group.Rebalance.Strategy = sarama.NewBalanceStrategyRoundRobin()
 	}
 
 	if options.StartConsumingLatest {
