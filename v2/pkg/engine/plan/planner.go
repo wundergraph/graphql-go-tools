@@ -232,6 +232,7 @@ func (p *Planner) printOperation(operation *ast.Document) {
 func (p *Planner) printPlanningPaths() {
 	p.debugMessage("Planning paths:")
 	for _, planner := range p.configurationVisitor.planners {
+		fmt.Print("\n\n")
 		fmt.Println("Paths for planner", planner.dataSourceConfiguration.hash)
 		fmt.Println("Planner parent path", planner.parentPath)
 		for _, path := range planner.paths {

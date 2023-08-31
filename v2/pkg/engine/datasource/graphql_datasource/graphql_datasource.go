@@ -639,13 +639,13 @@ func (p *Planner) allowField(ref int) bool {
 	// but we don't need to add it to the query as we are in the nested request
 	currentPath := fmt.Sprintf("%s.%s", p.visitor.Walker.Path.DotDelimitedString(), p.visitor.Operation.FieldNameString(ref))
 	if p.dataSourceConfig.ParentInfo.Path != "query" && p.dataSourceConfig.ParentInfo.Path == currentPath {
-		p.debugPrint("allowField: false path:", currentPath, "is equal to parent path", p.dataSourceConfig.ParentInfo.Path)
+		p.DebugPrint("allowField: false path:", currentPath, "is equal to parent path", p.dataSourceConfig.ParentInfo.Path)
 		return false
 	}
 
 	fieldName := p.visitor.Operation.FieldAliasOrNameString(ref)
 	if fieldName == "__typename" {
-		p.debugPrint("allowField: true path:", currentPath, `"__typename" is always allowed`)
+		p.DebugPrint("allowField: true path:", currentPath, `"__typename" is always allowed`)
 		return true
 	}
 
@@ -655,7 +655,7 @@ func (p *Planner) allowField(ref int) bool {
 		p.dataSourceConfig.HasRootNode(enclosingTypeName, fieldName) ||
 		p.dataSourceConfig.HasChildNode(enclosingTypeName, fieldName)
 
-	p.debugPrint("allowField:", allow, "path:", currentPath, "has root/child/provided check")
+	p.DebugPrint("allowField:", allow, "path:", currentPath, "has root/child/provided check")
 
 	return allow
 }
@@ -1222,10 +1222,10 @@ func (p *Planner) DebugPrint(args ...interface{}) {
 		return
 	}
 
-	p.debugPrint(args...)
+	p.debugPrintln(args...)
 }
 
-func (p *Planner) debugPrint(args ...interface{}) {
+func (p *Planner) debugPrintln(args ...interface{}) {
 	allArgs := []interface{}{"[GraphqlDS]: ", p.config.Fetch.URL, ":", p.id, ":"}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
@@ -1271,7 +1271,7 @@ func (p *Planner) printQueryPlan(operation *ast.Document) {
 		"operation:\n",
 		printedOperation)
 
-	p.debugPrint(args...)
+	p.debugPrintln(args...)
 }
 
 // printOperation - prints normalized upstream operation

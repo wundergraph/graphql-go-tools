@@ -37,7 +37,8 @@ type configurationVisitor struct {
 	addedPathTracker          []pathConfiguration
 
 	handledRequires map[int]struct{}
-	handledKeys     map[string]struct{}
+	// TODO: track handled keys
+	handledKeys map[string]struct{}
 }
 
 type missingPath struct {
@@ -231,6 +232,7 @@ func (c *configurationVisitor) EnterSelectionSet(ref int) {
 			path := pathConfiguration{
 				path:             currentPath,
 				shouldWalkFields: true,
+				dsHash:           planner.dataSourceConfiguration.Hash(),
 			}
 
 			c.addPath(i, path)

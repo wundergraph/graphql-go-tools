@@ -107,7 +107,7 @@ func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() plan.Dat
 			},
 		},
 		Factory: NewFactory(f.introspectionData),
-		Custom:  []byte("__schema __type"),
+		Custom:  []byte("Introspection: __schema __type"),
 	}
 }
 
@@ -134,7 +134,7 @@ func (f *IntrospectionConfigFactory) buildFieldsConfiguration() plan.DataSourceC
 			},
 		},
 		Factory: NewFactory(f.introspectionData),
-		Custom:  []byte("__Type.fields`"),
+		Custom:  []byte("Introspection: __Type.fields"),
 	}
 }
 
@@ -153,7 +153,7 @@ func (f *IntrospectionConfigFactory) buildEnumsConfiguration() plan.DataSourceCo
 			},
 		},
 		Factory: NewFactory(f.introspectionData),
-		Custom:  []byte("__Type.enumValues`"),
+		Custom:  []byte("Introspection: __Type.enumValues"),
 	}
 }
 
