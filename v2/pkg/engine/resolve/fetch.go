@@ -38,14 +38,18 @@ type SingleFetch struct {
 }
 
 type PostProcessingConfiguration struct {
-	// SelectResponsePath used to make a jsonparser.Get call on the response data
-	SelectResponsePath []string
-	// ResponseTemplate is processed after the SelectResponsePath is applied
+	// SelectResponseDataPath used to make a jsonparser.Get call on the response data
+	SelectResponseDataPath []string
+	// SelectResponseErrorsPath is similar to SelectResponseDataPath, but for errors
+	// If this is set, the response will be considered an error if the jsonparser.Get call returns a non-empty value
+	// The value will be expected to be a GraphQL error object
+	SelectResponseErrorsPath []string
+	ResponseTemplate         *InputTemplate
+	// ResponseTemplate is processed after the SelectResponseDataPath is applied
 	// It can be used to "render" the response data into a different format
 	// E.g. when you're making a representations Request with two entities, you will get back an array of two objects
 	// However, you might want to render this into a single object with two properties
 	// This can be done with a ResponseTemplate
-	ResponseTemplate *InputTemplate
 }
 
 func (_ *SingleFetch) FetchKind() FetchKind {
