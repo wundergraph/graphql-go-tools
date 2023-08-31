@@ -489,43 +489,34 @@ func TestInputTemplate_Render(t *testing.T) {
 				Segments: []TemplateSegment{
 					{
 						SegmentType: StaticSegmentType,
-						Data:        []byte(`{"representations":`),
+						Data:        []byte(`{"representations":[`),
 					},
 					{
-						SegmentType: ListSegmentType,
-						Segments: []TemplateSegment{
-							{
-								SegmentType: StaticSegmentType,
-								Data:        []byte(`[`),
-							},
-							{
-								SegmentType:  VariableSegmentType,
-								VariableKind: ResolvableObjectVariableKind,
-								Renderer: &GraphQLVariableResolveRenderer{
-									Kind: VariableRendererKindGraphqlResolve,
-									Node: &Object{
-										Nullable: false,
-										Fields: []*Field{
-											{
-												Name: []byte("__typename"),
-												Value: &String{
-													Path:     []string{"__typename"},
-													Nullable: false,
-												},
-											},
-											{
-												Name: []byte("address"),
-												Value: &Object{
-													Path:     []string{"address"},
-													Nullable: false,
-													Fields: []*Field{
-														{
-															Name: []byte("zip"),
-															Value: &String{
-																Path:     []string{"zip"},
-																Nullable: false,
-															},
-														},
+						SegmentType:  VariableSegmentType,
+						VariableKind: ResolvableObjectVariableKind,
+						Renderer: &GraphQLVariableResolveRenderer{
+							Kind: VariableRendererKindGraphqlResolve,
+							Node: &Object{
+								Nullable: false,
+								Fields: []*Field{
+									{
+										Name: []byte("__typename"),
+										Value: &String{
+											Path:     []string{"__typename"},
+											Nullable: false,
+										},
+									},
+									{
+										Name: []byte("address"),
+										Value: &Object{
+											Path:     []string{"address"},
+											Nullable: false,
+											Fields: []*Field{
+												{
+													Name: []byte("zip"),
+													Value: &String{
+														Path:     []string{"zip"},
+														Nullable: false,
 													},
 												},
 											},
@@ -533,15 +524,11 @@ func TestInputTemplate_Render(t *testing.T) {
 									},
 								},
 							},
-							{
-								SegmentType: StaticSegmentType,
-								Data:        []byte(`]`),
-							},
 						},
 					},
 					{
 						SegmentType: StaticSegmentType,
-						Data:        []byte(`}`),
+						Data:        []byte(`]}`),
 					},
 				},
 			}

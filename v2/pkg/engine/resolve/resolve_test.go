@@ -2916,44 +2916,31 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	Segments: []TemplateSegment{
 																		{
 																			SegmentType: StaticSegmentType,
-																			Data:        []byte(`{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":`),
+																			Data:        []byte(`{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":[`),
 																		},
 																		{
-																			SegmentType: ListSegmentType,
-																			Segments: []TemplateSegment{
-																				{
-																					SegmentType: StaticSegmentType,
-																					Data:        []byte(`[`),
-																				},
-																				{
-																					SegmentType:  VariableSegmentType,
-																					VariableKind: ResolvableObjectVariableKind,
-																					Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																						Fields: []*Field{
-																							{
-																								Name: []byte("__typename"),
-																								Value: &String{
-																									Path: []string{"__typename"},
-																								},
-																							},
-																							{
-																								Name: []byte("id"),
-																								Value: &String{
-																									Path: []string{"id"},
-																								},
-																							},
+																			SegmentType:  VariableSegmentType,
+																			VariableKind: ResolvableObjectVariableKind,
+																			Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																				Fields: []*Field{
+																					{
+																						Name: []byte("__typename"),
+																						Value: &String{
+																							Path: []string{"__typename"},
 																						},
-																					}),
+																					},
+																					{
+																						Name: []byte("id"),
+																						Value: &String{
+																							Path: []string{"id"},
+																						},
+																					},
 																				},
-																				{
-																					SegmentType: StaticSegmentType,
-																					Data:        []byte(`]`),
-																				},
-																			},
+																			}),
 																		},
 																		{
 																			SegmentType: StaticSegmentType,
-																			Data:        []byte(`}}}`),
+																			Data:        []byte(`]}}}`),
 																		},
 																	},
 																},
@@ -2971,56 +2958,43 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	Segments: []TemplateSegment{
 																		{
 																			SegmentType: StaticSegmentType,
-																			Data:        []byte(`{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":`),
+																			Data:        []byte(`{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":[`),
 																		},
 																		{
-																			SegmentType: ListSegmentType,
-																			Segments: []TemplateSegment{
-																				{
-																					SegmentType: StaticSegmentType,
-																					Data:        []byte(`[`),
-																				},
-																				{
-																					SegmentType:  VariableSegmentType,
-																					VariableKind: ResolvableObjectVariableKind,
-																					Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																						Fields: []*Field{
-																							{
-																								Name: []byte("__typename"),
-																								Value: &String{
-																									Path: []string{"__typename"},
-																								},
-																							},
-																							{
-																								Name: []byte("id"),
-																								Value: &String{
-																									Path: []string{"id"},
-																								},
-																							},
-																							{
-																								Name: []byte("country"),
-																								Value: &String{
-																									Path: []string{"country"},
-																								},
-																							},
-																							{
-																								Name: []byte("city"),
-																								Value: &String{
-																									Path: []string{"city"},
-																								},
-																							},
+																			SegmentType:  VariableSegmentType,
+																			VariableKind: ResolvableObjectVariableKind,
+																			Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																				Fields: []*Field{
+																					{
+																						Name: []byte("__typename"),
+																						Value: &String{
+																							Path: []string{"__typename"},
 																						},
-																					}),
+																					},
+																					{
+																						Name: []byte("id"),
+																						Value: &String{
+																							Path: []string{"id"},
+																						},
+																					},
+																					{
+																						Name: []byte("country"),
+																						Value: &String{
+																							Path: []string{"country"},
+																						},
+																					},
+																					{
+																						Name: []byte("city"),
+																						Value: &String{
+																							Path: []string{"city"},
+																						},
+																					},
 																				},
-																				{
-																					SegmentType: StaticSegmentType,
-																					Data:        []byte(`]`),
-																				},
-																			},
+																			}),
 																		},
 																		{
 																			SegmentType: StaticSegmentType,
-																			Data:        []byte(`}}}`),
+																			Data:        []byte(`]}}}`),
 																		},
 																	},
 																},
@@ -3038,68 +3012,55 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	Segments: []TemplateSegment{
 																		{
 																			SegmentType: StaticSegmentType,
-																			Data:        []byte(`{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":`),
+																			Data:        []byte(`{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":[`),
 																		},
 																		{
-																			SegmentType: ListSegmentType,
-																			Segments: []TemplateSegment{
-																				{
-																					SegmentType: StaticSegmentType,
-																					Data:        []byte(`[`),
-																				},
-																				{
-																					SegmentType:  VariableSegmentType,
-																					VariableKind: ResolvableObjectVariableKind,
-																					Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																						Fields: []*Field{
-																							{
-																								Name: []byte("__typename"),
-																								Value: &String{
-																									Path: []string{"__typename"},
-																								},
-																							},
-																							{
-																								Name: []byte("id"),
-																								Value: &String{
-																									Path: []string{"id"},
-																								},
-																							},
-																							{
-																								Name: []byte("line1"),
-																								Value: &String{
-																									Path: []string{"line1"},
-																								},
-																							},
-																							{
-																								Name: []byte("line2"),
-																								Value: &String{
-																									Path: []string{"line2"},
-																								},
-																							},
-																							{
-																								Name: []byte("line3"),
-																								Value: &String{
-																									Path: []string{"line3"},
-																								},
-																							},
-																							{
-																								Name: []byte("zip"),
-																								Value: &String{
-																									Path: []string{"zip"},
-																								},
-																							},
+																			SegmentType:  VariableSegmentType,
+																			VariableKind: ResolvableObjectVariableKind,
+																			Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																				Fields: []*Field{
+																					{
+																						Name: []byte("__typename"),
+																						Value: &String{
+																							Path: []string{"__typename"},
 																						},
-																					}),
+																					},
+																					{
+																						Name: []byte("id"),
+																						Value: &String{
+																							Path: []string{"id"},
+																						},
+																					},
+																					{
+																						Name: []byte("line1"),
+																						Value: &String{
+																							Path: []string{"line1"},
+																						},
+																					},
+																					{
+																						Name: []byte("line2"),
+																						Value: &String{
+																							Path: []string{"line2"},
+																						},
+																					},
+																					{
+																						Name: []byte("line3"),
+																						Value: &String{
+																							Path: []string{"line3"},
+																						},
+																					},
+																					{
+																						Name: []byte("zip"),
+																						Value: &String{
+																							Path: []string{"zip"},
+																						},
+																					},
 																				},
-																				{
-																					SegmentType: StaticSegmentType,
-																					Data:        []byte(`]`),
-																				},
-																			},
+																			}),
 																		},
 																		{
 																			SegmentType: StaticSegmentType,
-																			Data:        []byte(`}}}`),
+																			Data:        []byte(`]}}}`),
 																		},
 																	},
 																},
@@ -3597,44 +3558,31 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									InputTemplate: InputTemplate{
 										Segments: []TemplateSegment{
 											{
-												Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":`),
+												Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[`),
 												SegmentType: StaticSegmentType,
 											},
 											{
-												SegmentType: ListSegmentType,
-												Segments: []TemplateSegment{
-													{
-														Data:        []byte(`[`),
-														SegmentType: StaticSegmentType,
-													},
-													{
-														SegmentType:  VariableSegmentType,
-														VariableKind: ResolvableObjectVariableKind,
-														Renderer: NewGraphQLVariableResolveRenderer(&Object{
-															Fields: []*Field{
-																{
-																	Name: []byte("__typename"),
-																	Value: &String{
-																		Path: []string{"__typename"},
-																	},
-																},
-																{
-																	Name: []byte("id"),
-																	Value: &String{
-																		Path: []string{"id"},
-																	},
-																},
+												SegmentType:  VariableSegmentType,
+												VariableKind: ResolvableObjectVariableKind,
+												Renderer: NewGraphQLVariableResolveRenderer(&Object{
+													Fields: []*Field{
+														{
+															Name: []byte("__typename"),
+															Value: &String{
+																Path: []string{"__typename"},
 															},
-														}),
+														},
+														{
+															Name: []byte("id"),
+															Value: &String{
+																Path: []string{"id"},
+															},
+														},
 													},
-													{
-														Data:        []byte(`]`),
-														SegmentType: StaticSegmentType,
-													},
-												},
+												}),
 											},
 											{
-												Data:        []byte(`}}}`),
+												Data:        []byte(`]}}}`),
 												SegmentType: StaticSegmentType,
 											},
 										},
@@ -4655,65 +4603,52 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 												InputTemplate: InputTemplate{
 													Segments: []TemplateSegment{
 														{
-															Data:        []byte(`{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":`),
+															Data:        []byte(`{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":[`),
 															SegmentType: StaticSegmentType,
 														},
 														{
-															SegmentType: ListSegmentType,
-															Segments: []TemplateSegment{
-																{
-																	Data:        []byte(`[`),
-																	SegmentType: StaticSegmentType,
-																},
-																{
-																	SegmentType:  VariableSegmentType,
-																	VariableKind: ResolvableObjectVariableKind,
-																	Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																		Fields: []*Field{
-																			{
-																				Name: []byte("__typename"),
-																				Value: &String{
-																					Path: []string{"__typename"},
+															SegmentType:  VariableSegmentType,
+															VariableKind: ResolvableObjectVariableKind,
+															Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																Fields: []*Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &String{
+																			Path: []string{"__typename"},
+																		},
+																	},
+																	{
+																		Name: []byte("id"),
+																		Value: &String{
+																			Path: []string{"id"},
+																		},
+																	},
+																	{
+																		Name: []byte("info"),
+																		Value: &Object{
+																			Path:     []string{"info"},
+																			Nullable: true,
+																			Fields: []*Field{
+																				{
+																					Name: []byte("a"),
+																					Value: &String{
+																						Path: []string{"a"},
+																					},
 																				},
-																			},
-																			{
-																				Name: []byte("id"),
-																				Value: &String{
-																					Path: []string{"id"},
-																				},
-																			},
-																			{
-																				Name: []byte("info"),
-																				Value: &Object{
-																					Path:     []string{"info"},
-																					Nullable: true,
-																					Fields: []*Field{
-																						{
-																							Name: []byte("a"),
-																							Value: &String{
-																								Path: []string{"a"},
-																							},
-																						},
-																						{
-																							Name: []byte("b"),
-																							Value: &String{
-																								Path: []string{"b"},
-																							},
-																						},
+																				{
+																					Name: []byte("b"),
+																					Value: &String{
+																						Path: []string{"b"},
 																					},
 																				},
 																			},
 																		},
-																	}),
+																	},
 																},
-																{
-																	Data:        []byte(`]`),
-																	SegmentType: StaticSegmentType,
-																},
-															},
+															}),
 														},
 														{
-															Data:        []byte(`}}}`),
+															Data:        []byte(`]}}}`),
 															SegmentType: StaticSegmentType,
 														},
 													},
