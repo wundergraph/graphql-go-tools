@@ -91,7 +91,9 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 	return false, err
 }
 
-func (l *Loader) getBuffer() *fastbuffer.FastBuffer {
+// getLayerBuffer returns a buffer that will live as long as the current layer
+// it won't be re-used before the current layer is popped
+func (l *Loader) getLayerBuffer() *fastbuffer.FastBuffer {
 	buf := pool.FastBuffer.Get()
 	if l.parallelFetch {
 		l.parallelMu.Lock()
@@ -132,7 +134,7 @@ func (l *Loader) setCurrentLayerData(data []byte) {
 func (l *Loader) resolveLayerData(path []string, isArray bool) (data []byte, items [][]byte, err error) {
 	current := l.currentLayer()
 	if !l.insideArray() && !isArray {
-		buf := l.getBuffer()
+		buf := l.getLayerBuffer()
 		_, _ = buf.Write(current.data)
 		data = buf.Bytes()
 		data, _, _, err = jsonparser.Get(data, path...)
@@ -250,7 +252,7 @@ func (l *Loader) mergeLayerIntoParent() (err error) {
 		return err
 	}
 	if parent.kind == layerKindObject && child.kind == layerKindArray {
-		buf := l.getBuffer()
+		buf := l.getLayerBuffer()
 		_, _ = buf.Write([]byte(`[`))
 		addCommaSeparator := false
 		for i := range child.items {
@@ -301,16 +303,22 @@ func (l *Loader) resolveFetch(ctx *Context, fetch Fetch) (err error) {
 
 func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListItemFetch) (err error) {
 	if !l.insideArray() {
-		return fmt.Errorf("parallel_list_item_fetch must be inside an array")
+		return fmt.Errorf("resolveParallelListItemFetch must be inside an array, this seems to be a bug in the planner")
 	}
 	layer := l.currentLayer()
-	group, groupContext := errgroup.WithContext(ctx.ctx)
+	group, gCtx := errgroup.WithContext(ctx.ctx)
 	l.parallelFetch = true
 	defer func() {
 		l.parallelFetch = false
 	}()
+	groupContext := ctx.WithContext(gCtx)
 	for i := range layer.items {
 		i := i
+		// get a buffer before we start the goroutines
+		// getLayerBuffer will append the buffer to the list of buffers of the current layer
+		// this will ensure that the buffer is not re-used before this layer is merged into the parent
+		// however, appending is not concurrency safe, so we need to do it before we start the goroutines
+		out := l.getLayerBuffer()
 		group.Go(func() error {
 			input := pool.FastBuffer.Get()
 			defer pool.FastBuffer.Put(input)
@@ -318,35 +326,9 @@ func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListI
 			if err != nil {
 				return err
 			}
-			out := l.getBuffer()
-			err = fetch.Fetch.DataSource.Load(groupContext, input.Bytes(), out)
+			data, err := l.loadAndPostProcess(groupContext, input, fetch.Fetch, out)
 			if err != nil {
 				return err
-			}
-			data := out.Bytes()
-			responseErrors, _, _, _ := jsonparser.Get(data, "errors")
-			if responseErrors != nil {
-				if l.parallelFetch {
-					l.parallelMu.Lock()
-				}
-				l.errors = responseErrors
-				if l.parallelFetch {
-					l.parallelMu.Unlock()
-				}
-				return ErrOriginResponseError
-			}
-			if fetch.Fetch.ProcessResponseConfig.ExtractGraphqlResponse {
-				data, _, _, err = jsonparser.Get(data, "data")
-				if err != nil {
-					return err
-				}
-			}
-			if fetch.Fetch.ProcessResponseConfig.ExtractFederationEntities {
-				data, _, _, err = jsonparser.Get(data, "_entities")
-				if err != nil {
-					return err
-				}
-				data = data[1 : len(data)-1] // remove outer [] because we only have one entity, this is not a batch
 			}
 			layer.items[i], err = jsonpatch.MergePatch(layer.items[i], data)
 			return err
@@ -372,48 +354,19 @@ func (l *Loader) resolveParallelFetch(ctx *Context, fetch *ParallelFetch) (err e
 }
 
 func (l *Loader) resolveSingleFetch(ctx *Context, fetch *SingleFetch) (err error) {
-	input := l.getBuffer()
+	input := pool.FastBuffer.Get()
+	defer pool.FastBuffer.Put(input)
 	inputBuf := pool.FastBuffer.Get()
 	defer pool.FastBuffer.Put(inputBuf)
+	out := l.getLayerBuffer()
 	inputData := l.inputData(l.currentLayer(), inputBuf)
 	err = fetch.InputTemplate.Render(ctx, inputData, input)
 	if err != nil {
 		return err
 	}
-	out := l.getBuffer()
-	err = fetch.DataSource.Load(ctx.ctx, input.Bytes(), out)
+	data, err := l.loadAndPostProcess(ctx, input, fetch, out)
 	if err != nil {
 		return err
-	}
-	data := out.Bytes()
-	responseErrors, _, _, _ := jsonparser.Get(data, "errors")
-	if responseErrors != nil {
-		if l.parallelFetch {
-			l.parallelMu.Lock()
-		}
-		l.errors = responseErrors
-		if l.parallelFetch {
-			l.parallelMu.Unlock()
-		}
-		return ErrOriginResponseError
-	}
-	if fetch.ProcessResponseConfig.ExtractGraphqlResponse {
-		data, _, _, err = jsonparser.Get(data, "data")
-		if err != nil {
-			return err
-		}
-	}
-	if fetch.ProcessResponseConfig.ExtractFederationEntities {
-		data, _, _, err = jsonparser.Get(data, "_entities")
-		if err != nil {
-			return err
-		}
-		if !l.insideArray() {
-			// _entities returns an array
-			// if we are not inside an array, we want to merge the entity response into the parent object
-			// if we are inside an array, we will merge the entity response into the array item
-			data = data[1 : len(data)-1]
-		}
 	}
 	if l.parallelFetch {
 		l.parallelMu.Lock()
@@ -429,6 +382,46 @@ func (l *Loader) resolveSingleFetch(ctx *Context, fetch *SingleFetch) (err error
 		return err
 	}
 	return
+}
+
+func (l *Loader) loadAndPostProcess(ctx *Context, input *fastbuffer.FastBuffer, fetch *SingleFetch, out *fastbuffer.FastBuffer) (data []byte, err error) {
+	err = fetch.DataSource.Load(ctx.ctx, input.Bytes(), out)
+	if err != nil {
+		return nil, err
+	}
+	data = out.Bytes()
+	responseErrors, _, _, _ := jsonparser.Get(data, "errors")
+	if responseErrors != nil {
+		if l.parallelFetch {
+			l.parallelMu.Lock()
+		}
+		l.errors = responseErrors
+		if l.parallelFetch {
+			l.parallelMu.Unlock()
+		}
+		return nil, ErrOriginResponseError
+	}
+	if fetch.PostProcessing.SelectResponsePath != nil {
+		data, _, _, err = jsonparser.Get(data, fetch.PostProcessing.SelectResponsePath...)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if fetch.PostProcessing.ResponseTemplate != nil {
+		intermediate := pool.FastBuffer.Get()
+		defer pool.FastBuffer.Put(intermediate)
+		_, err = intermediate.Write(data)
+		if err != nil {
+			return nil, err
+		}
+		out.Reset()
+		err = fetch.PostProcessing.ResponseTemplate.Render(ctx, intermediate.Bytes(), out)
+		if err != nil {
+			return nil, err
+		}
+		data = out.Bytes()
+	}
+	return data, nil
 }
 
 func (l *Loader) mergeDataIntoLayer(layer *layer, data []byte) (err error) {

@@ -30,16 +30,22 @@ type SingleFetch struct {
 	DissallowParallelFetch bool
 	InputTemplate          InputTemplate
 	DataSourceIdentifier   []byte
-	ProcessResponseConfig  ProcessResponseConfig
 	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
 	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
 	// Returning null in this case tells the batch implementation to skip this item
 	SetTemplateOutputToNullOnVariableNull bool
+	PostProcessing                        PostProcessingConfiguration
 }
 
-type ProcessResponseConfig struct {
-	ExtractGraphqlResponse    bool
-	ExtractFederationEntities bool
+type PostProcessingConfiguration struct {
+	// SelectResponsePath used to make a jsonparser.Get call on the response data
+	SelectResponsePath []string
+	// ResponseTemplate is processed after the SelectResponsePath is applied
+	// It can be used to "render" the response data into a different format
+	// E.g. when you're making a representations Request with two entities, you will get back an array of two objects
+	// However, you might want to render this into a single object with two properties
+	// This can be done with a ResponseTemplate
+	ResponseTemplate *InputTemplate
 }
 
 func (_ *SingleFetch) FetchKind() FetchKind {
