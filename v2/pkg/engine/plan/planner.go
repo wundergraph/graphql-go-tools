@@ -112,7 +112,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		isNested := p.planningVisitor.planners[key].isNestedPlanner()
 
 		if plannerWithId, ok := p.planningVisitor.planners[key].planner.(astvisitor.VisitorIdentifier); ok {
-			plannerWithId.SetID(uint64(config.Hash()))
+			plannerWithId.SetID(key + 1)
 		}
 		if plannerWithDebug, ok := p.planningVisitor.planners[key].planner.(DataSourceDebugger); ok {
 			if p.config.Debug.DatasourceVisitor {
@@ -231,9 +231,8 @@ func (p *Planner) printOperation(operation *ast.Document) {
 
 func (p *Planner) printPlanningPaths() {
 	p.debugMessage("Planning paths:")
-	for _, planner := range p.configurationVisitor.planners {
-		fmt.Print("\n\n")
-		fmt.Println("Paths for planner", planner.dataSourceConfiguration.hash)
+	for i, planner := range p.configurationVisitor.planners {
+		fmt.Println("Paths for planner", i+1)
 		fmt.Println("Planner parent path", planner.parentPath)
 		for _, path := range planner.paths {
 			fmt.Println(path.String())

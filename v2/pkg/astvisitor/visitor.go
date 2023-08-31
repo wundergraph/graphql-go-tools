@@ -14,35 +14,35 @@ var (
 	ErrDefinitionMustNotBeNil = fmt.Errorf("definition must not be nil when walking operations")
 )
 
-type SkipVisitors []uint64
+type SkipVisitors []int
 
 func (s SkipVisitors) Allow(planner interface{}) bool {
 	p, ok := planner.(VisitorIdentifier)
 	if !ok {
 		return true
 	}
-	j := p.ID()
+	currentID := p.ID()
 
-	for _, i := range s {
-		if i == j {
+	for _, skippedID := range s {
+		if skippedID == currentID {
 			return false
 		}
 	}
 	return true
 }
 
-func newSkipVisitors(skips []uint64, planner interface{}, allowedToVisit bool) SkipVisitors {
+func newSkipVisitors(skips []int, planner interface{}, allowedToVisit bool) SkipVisitors {
 	p, ok := planner.(VisitorIdentifier)
 	if !ok {
 		return skips
 	}
-	j := p.ID()
+	currentID := p.ID()
 
-	for k, i := range skips {
-		if i == j {
+	for k, skippedID := range skips {
+		if skippedID == currentID {
 			if allowedToVisit {
 				// if visiting was allowed explicitly we have to remove the skip for the nested nodes
-				newSkips := make([]uint64, 0, len(skips))
+				newSkips := make([]int, 0, len(skips))
 				newSkips = append(newSkips, skips[:k]...)
 				newSkips = append(newSkips, skips[k+1:]...)
 				return newSkips
@@ -54,9 +54,9 @@ func newSkipVisitors(skips []uint64, planner interface{}, allowedToVisit bool) S
 	if allowedToVisit {
 		return skips
 	}
-	newSkips := make([]uint64, 0, len(skips)+1)
+	newSkips := make([]int, 0, len(skips)+1)
 	newSkips = append(newSkips, skips...)
-	return append(newSkips, j) // add new skipped planner index
+	return append(newSkips, currentID) // add new skipped planner index
 }
 
 // Walker orchestrates the process of walking an AST and calling all registered callbacks
@@ -676,8 +676,8 @@ type (
 	}
 
 	VisitorIdentifier interface {
-		ID() uint64
-		SetID(id uint64)
+		ID() int
+		SetID(id int)
 	}
 )
 

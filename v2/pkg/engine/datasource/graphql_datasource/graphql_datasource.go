@@ -30,7 +30,7 @@ import (
 const removeNullVariablesDirectiveName = "removeNullVariables"
 
 type Planner struct {
-	id              uint64
+	id              int
 	debug           bool
 	printQueryPlans bool
 
@@ -71,11 +71,11 @@ type onTypeInlineFragment struct {
 	SelectionSet  int
 }
 
-func (p *Planner) SetID(id uint64) {
+func (p *Planner) SetID(id int) {
 	p.id = id
 }
 
-func (p *Planner) ID() (id uint64) {
+func (p *Planner) ID() (id int) {
 	return p.id
 }
 
@@ -1226,7 +1226,7 @@ func (p *Planner) DebugPrint(args ...interface{}) {
 }
 
 func (p *Planner) debugPrintln(args ...interface{}) {
-	allArgs := []interface{}{"[GraphqlDS]: ", p.config.Fetch.URL, ":", p.id, ":"}
+	allArgs := []interface{}{fmt.Sprintf("[id: %d] [ds_hash: %d url: %s] ", p.id, p.dataSourceConfig.Hash(), p.config.Fetch.URL)}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
 }
