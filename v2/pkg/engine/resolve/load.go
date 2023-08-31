@@ -401,8 +401,8 @@ func (l *Loader) loadAndPostProcess(ctx *Context, input *fastbuffer.FastBuffer, 
 		}
 		return nil, ErrOriginResponseError
 	}
-	if fetch.PostProcessing.SelectResponsePath != nil {
-		data, _, _, err = jsonparser.Get(data, fetch.PostProcessing.SelectResponsePath...)
+	if fetch.PostProcessing.SelectResponseDataPath != nil {
+		data, _, _, err = jsonparser.Get(data, fetch.PostProcessing.SelectResponseDataPath...)
 		if err != nil {
 			return nil, err
 		}
