@@ -75,7 +75,7 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 	require.Falsef(t, report.HasErrors(), "document parser report has errors")
 
 	batchFactory := graphqlDataSource.NewBatchFactory()
-	expectedRootNodes := []plan.TypeField{
+	expectedRootNodes := plan.TypeFields{
 		{
 			TypeName:   "Query",
 			FieldNames: []string{"me", "_entities"},
@@ -89,7 +89,7 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 			FieldNames: []string{"userCount"},
 		},
 	}
-	expectedChildNodes := []plan.TypeField{
+	expectedChildNodes := plan.TypeFields{
 		{
 			TypeName:   "User",
 			FieldNames: []string{"id", "name", "age", "language"},
