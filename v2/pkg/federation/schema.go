@@ -34,7 +34,7 @@ func (s *schemaBuilder) buildFederationSchema(baseSchema, serviceSDL string) (st
 	federatedSchema := federationTemplate
 	if hasEntities {
 		allUnionTypes := strings.Join(unionTypes, " | ")
-		federatedSchema += fmt.Sprintf("\nunion _Entity = %s", allUnionTypes)
+		federatedSchema += fmt.Sprintf("\nunion _Entity = %s\n", allUnionTypes)
 	}
 
 	baseSchemaWithFederationFields := s.extendQueryTypeWithFederationFields(baseSchema, hasEntities)
@@ -175,12 +175,11 @@ func (s *schemaBuilderVisitor) EnterObjectTypeDefinition(ref int) {
 	}
 }
 
-const federationTemplate = `
-scalar _Any
+const federationTemplate = `scalar _Any
 scalar _FieldSet
 
 type _Service {
-  sdl: String
+    sdl: String
 }
 
 directive @external on FIELD_DEFINITION
