@@ -7,10 +7,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
 
-type OperationDefinitionRemoval struct {
-	operationName string
-}
-
 func removeOperationDefinitions(walker *astvisitor.Walker) *removeOperationDefinitionsVisitor {
 	visitor := &removeOperationDefinitionsVisitor{
 		Walker: walker,
