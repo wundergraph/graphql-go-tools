@@ -80,10 +80,12 @@ type BatchFetch struct {
 }
 
 type BatchInput struct {
-	Header    InputTemplate
-	Items     []InputTemplate
-	Separator InputTemplate
-	Footer    InputTemplate
+	Header        InputTemplate
+	Items         []InputTemplate
+	SkipNullItems bool
+	SkipErrItems  bool
+	Separator     InputTemplate
+	Footer        InputTemplate
 }
 
 func (_ *BatchFetch) FetchKind() FetchKind {
