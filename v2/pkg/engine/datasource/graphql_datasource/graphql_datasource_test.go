@@ -51,8 +51,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 						},
 					),
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -131,8 +131,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							Path: []string{"Authorization"},
 						},
 					),
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -296,11 +296,11 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
-					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSource:           &Source{},
+					BufferId:             0,
+					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -397,11 +397,11 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						DataSource:            &Source{},
-						BufferId:              0,
-						Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{thing {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						DataSource:           &Source{},
+						BufferId:             0,
+						Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{thing {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -491,11 +491,11 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
-					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSource:           &Source{},
+					BufferId:             0,
+					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"skip"},
@@ -584,7 +584,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Path:     []string{"skip"},
 						Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
 					}),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					PostProcessing: DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -675,11 +675,11 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
-					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {... @skip(if: $skip){id displayName}}}","variables":{"skip":$$0$$}}}`,
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSource:           &Source{},
+					BufferId:             0,
+					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {... @skip(if: $skip){id displayName}}}","variables":{"skip":$$0$$}}}`,
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"skip"},
@@ -764,11 +764,11 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
-					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {... @include(if: $include){id displayName}}}","variables":{"include":$$0$$}}}`,
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSource:           &Source{},
+					BufferId:             0,
+					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {... @include(if: $include){id displayName}}}","variables":{"include":$$0$$}}}`,
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"include"},
@@ -851,11 +851,11 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
-					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSource:           &Source{},
+					BufferId:             0,
+					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -920,11 +920,11 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
-					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSource:           &Source{},
+					BufferId:             0,
+					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -995,11 +995,11 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
-					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {id displayName @include(if: $include)}}","variables":{"include":$$0$$}}}`,
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSource:           &Source{},
+					BufferId:             0,
+					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {id displayName @include(if: $include)}}","variables":{"include":$$0$$}}}`,
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"include"},
@@ -1078,11 +1078,11 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
-					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSource:           &Source{},
+					BufferId:             0,
+					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -1152,11 +1152,11 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
-					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSource:           &Source{},
+					BufferId:             0,
+					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -1224,11 +1224,11 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:            &Source{},
-					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName __typename ... on RegisteredUser {hasVerifiedEmail}}}"}}`,
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSource:           &Source{},
+					BufferId:             0,
+					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName __typename ... on RegisteredUser {hasVerifiedEmail}}}"}}`,
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -1314,8 +1314,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 						},
 					),
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -1410,9 +1410,9 @@ func TestGraphQLDataSource(t *testing.T) {
 								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 							},
 						),
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
-						DisableDataLoader:     true,
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
+						DisableDataLoader:    true,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -1541,8 +1541,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							Path: []string{"Authorization"},
 						},
 					),
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -1793,8 +1793,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							Path: []string{"Authorization"},
 						},
 					),
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -2106,8 +2106,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["array"],"items":{"type":["object"],"additionalProperties":true}}`),
 						},
 					),
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -2267,8 +2267,8 @@ func TestGraphQLDataSource(t *testing.T) {
 								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["array"],"items":{"type":["string","integer"]}}`),
 							},
 						),
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -2326,8 +2326,8 @@ func TestGraphQLDataSource(t *testing.T) {
 								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 							},
 						),
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -2379,8 +2379,8 @@ func TestGraphQLDataSource(t *testing.T) {
 								Renderer: resolve.NewJSONVariableRendererWithValidation(`{}`),
 							},
 						),
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -2430,9 +2430,9 @@ func TestGraphQLDataSource(t *testing.T) {
 								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 							},
 						),
-						DisallowSingleFlight:  true,
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						DisallowSingleFlight: true,
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -2533,9 +2533,9 @@ func TestGraphQLDataSource(t *testing.T) {
 								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 							},
 						),
-						DisallowSingleFlight:  false,
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						DisallowSingleFlight: false,
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -2639,9 +2639,9 @@ func TestGraphQLDataSource(t *testing.T) {
 								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 							},
 						),
-						DisallowSingleFlight:  false,
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						DisallowSingleFlight: false,
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -2765,9 +2765,9 @@ func TestGraphQLDataSource(t *testing.T) {
 								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 							},
 						),
-						DisallowSingleFlight:  false,
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						DisallowSingleFlight: false,
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -2927,8 +2927,8 @@ func TestGraphQLDataSource(t *testing.T) {
 										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["integer","null"]}`),
 									},
 								),
-								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-								ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								PostProcessing:       DefaultPostProcessingConfiguration,
 							},
 							&resolve.SingleFetch{
 								BufferId:   2,
@@ -2944,8 +2944,8 @@ func TestGraphQLDataSource(t *testing.T) {
 										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["number","null"]}`),
 									},
 								),
-								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-								ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								PostProcessing:       DefaultPostProcessingConfiguration,
 							},
 						},
 					},
@@ -2959,11 +2959,11 @@ func TestGraphQLDataSource(t *testing.T) {
 								Path:     []string{"serviceOne"},
 
 								Fetch: &resolve.SingleFetch{
-									BufferId:              1,
-									DataSource:            &Source{},
-									Input:                 `{"method":"POST","url":"https://country.service","body":{"query":"{countries {name}}"}}`,
-									DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-									ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+									BufferId:             1,
+									DataSource:           &Source{},
+									Input:                `{"method":"POST","url":"https://country.service","body":{"query":"{countries {name}}"}}`,
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+									PostProcessing:       DefaultPostProcessingConfiguration,
 								},
 
 								Fields: []*resolve.Field{
@@ -3011,8 +3011,8 @@ func TestGraphQLDataSource(t *testing.T) {
 											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 										},
 									),
-									DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-									ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+									PostProcessing:       DefaultPostProcessingConfiguration,
 								},
 								Fields: []*resolve.Field{
 									{
@@ -3274,9 +3274,9 @@ func TestGraphQLDataSource(t *testing.T) {
 								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 							},
 						),
-						DisallowSingleFlight:  true,
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						DisallowSingleFlight: true,
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -3418,9 +3418,9 @@ func TestGraphQLDataSource(t *testing.T) {
 								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 							},
 						),
-						DisallowSingleFlight:  true,
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						DisallowSingleFlight: true,
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -3545,9 +3545,9 @@ func TestGraphQLDataSource(t *testing.T) {
 								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
 							},
 						),
-						DisallowSingleFlight:  true,
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						DisallowSingleFlight: true,
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -3697,8 +3697,8 @@ func TestGraphQLDataSource(t *testing.T) {
 								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
 							},
 						),
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -3793,7 +3793,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Source: &SubscriptionSource{
 					NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
 				},
-				ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				PostProcessing: DefaultPostProcessingConfiguration,
 			},
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -3832,7 +3832,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Source: &SubscriptionSource{
 					client: NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
 				},
-				ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				PostProcessing: DefaultPostProcessingConfiguration,
 			},
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -3912,11 +3912,11 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:              0,
-						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{me {id username}}"}}`,
-						DataSource:            &Source{},
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						BufferId:             0,
+						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{me {id username}}"}}`,
+						DataSource:           &Source{},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -3934,12 +3934,9 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 											},
 										),
-										DataSource:           &Source{},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										ProcessResponseConfig: resolve.ProcessResponseConfig{
-											ExtractGraphqlResponse:    true,
-											ExtractFederationEntities: true,
-										},
+										DataSource:                            &Source{},
+										DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
 										SetTemplateOutputToNullOnVariableNull: true,
 									},
 									BatchFactory: batchFactory,
@@ -4010,11 +4007,8 @@ func TestGraphQLDataSource(t *testing.T) {
 																			Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 																		},
 																	),
-																	DataSourceIdentifier: []byte("graphql_datasource.Source"),
-																	ProcessResponseConfig: resolve.ProcessResponseConfig{
-																		ExtractGraphqlResponse:    true,
-																		ExtractFederationEntities: true,
-																	},
+																	DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+																	PostProcessing:                        EntitiesPostProcessingConfiguration,
 																	SetTemplateOutputToNullOnVariableNull: true,
 																},
 																BatchFactory: batchFactory,
@@ -4248,8 +4242,8 @@ func TestGraphQLDataSource(t *testing.T) {
 										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 									},
 								),
-								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-								ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								PostProcessing:       DefaultPostProcessingConfiguration,
 							},
 							&resolve.SingleFetch{
 								BufferId:   1,
@@ -4261,8 +4255,8 @@ func TestGraphQLDataSource(t *testing.T) {
 										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 									},
 								),
-								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-								ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								PostProcessing:       DefaultPostProcessingConfiguration,
 							},
 						},
 					},
@@ -4429,8 +4423,8 @@ func TestGraphQLDataSource(t *testing.T) {
 								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 							},
 						),
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -4448,12 +4442,9 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 											},
 										),
-										DataSource:           &Source{},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										ProcessResponseConfig: resolve.ProcessResponseConfig{
-											ExtractGraphqlResponse:    true,
-											ExtractFederationEntities: true,
-										},
+										DataSource:                            &Source{},
+										DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
 										SetTemplateOutputToNullOnVariableNull: true,
 									},
 									BatchFactory: batchFactory,
@@ -4746,8 +4737,8 @@ func TestGraphQLDataSource(t *testing.T) {
 								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 							},
 						),
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -4765,12 +4756,9 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 											},
 										),
-										DataSource:           &Source{},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										ProcessResponseConfig: resolve.ProcessResponseConfig{
-											ExtractGraphqlResponse:    true,
-											ExtractFederationEntities: true,
-										},
+										DataSource:                            &Source{},
+										DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
 										SetTemplateOutputToNullOnVariableNull: true,
 									},
 									BatchFactory: batchFactory,
@@ -5034,11 +5022,11 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:              0,
-						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{me {id}}"}}`,
-						DataSource:            &Source{},
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						BufferId:             0,
+						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{me {id}}"}}`,
+						DataSource:           &Source{},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -5064,12 +5052,9 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
 											},
 										),
-										DataSource:           &Source{},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										ProcessResponseConfig: resolve.ProcessResponseConfig{
-											ExtractGraphqlResponse:    true,
-											ExtractFederationEntities: true,
-										},
+										DataSource:                            &Source{},
+										DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
 										SetTemplateOutputToNullOnVariableNull: true,
 									},
 									BatchFactory: batchFactory,
@@ -5209,11 +5194,11 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:              0,
-						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{me {id}}"}}`,
-						DataSource:            &Source{},
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						BufferId:             0,
+						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{me {id}}"}}`,
+						DataSource:           &Source{},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -5239,12 +5224,9 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
 											},
 										),
-										DataSource:           &Source{},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										ProcessResponseConfig: resolve.ProcessResponseConfig{
-											ExtractGraphqlResponse:    true,
-											ExtractFederationEntities: true,
-										},
+										DataSource:                            &Source{},
+										DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
 										SetTemplateOutputToNullOnVariableNull: true,
 									},
 									BatchFactory: batchFactory,
@@ -5386,10 +5368,10 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						BufferId: 0,
 						// Should fetch the federation key as well as all the required fields.
-						Input:                 `{"method":"POST","url":"http://one.service","body":{"query":"{serviceOne {id serviceOneFieldOne serviceOneFieldTwo}}"}}`,
-						DataSource:            &Source{},
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						Input:                `{"method":"POST","url":"http://one.service","body":{"query":"{serviceOne {id serviceOneFieldOne serviceOneFieldTwo}}"}}`,
+						DataSource:           &Source{},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -5416,12 +5398,9 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 											},
 										),
-										DataSource:           &Source{},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										ProcessResponseConfig: resolve.ProcessResponseConfig{
-											ExtractGraphqlResponse:    true,
-											ExtractFederationEntities: true,
-										},
+										DataSource:                            &Source{},
+										DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
 										SetTemplateOutputToNullOnVariableNull: true,
 									},
 									BatchFactory: batchFactory,
@@ -5548,11 +5527,11 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:              0,
-						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{api_me: me {id username}}"}}`,
-						DataSource:            &Source{},
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						BufferId:             0,
+						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{api_me: me {id username}}"}}`,
+						DataSource:           &Source{},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -5570,12 +5549,9 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 											},
 										),
-										DataSource:           &Source{},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										ProcessResponseConfig: resolve.ProcessResponseConfig{
-											ExtractGraphqlResponse:    true,
-											ExtractFederationEntities: true,
-										},
+										DataSource:                            &Source{},
+										DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
 										SetTemplateOutputToNullOnVariableNull: true,
 									},
 									BatchFactory: batchFactory,
@@ -5646,11 +5622,8 @@ func TestGraphQLDataSource(t *testing.T) {
 																			Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 																		},
 																	),
-																	DataSourceIdentifier: []byte("graphql_datasource.Source"),
-																	ProcessResponseConfig: resolve.ProcessResponseConfig{
-																		ExtractGraphqlResponse:    true,
-																		ExtractFederationEntities: true,
-																	},
+																	DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+																	PostProcessing:                        EntitiesPostProcessingConfiguration,
 																	SetTemplateOutputToNullOnVariableNull: true,
 																},
 																BatchFactory: batchFactory,
@@ -5902,11 +5875,11 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:              0,
-						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{me {__typename id uid: id username}}"}}`,
-						DataSource:            &Source{},
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						BufferId:             0,
+						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{me {__typename id uid: id username}}"}}`,
+						DataSource:           &Source{},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -5924,12 +5897,9 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 											},
 										),
-										DataSource:           &Source{},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										ProcessResponseConfig: resolve.ProcessResponseConfig{
-											ExtractGraphqlResponse:    true,
-											ExtractFederationEntities: true,
-										},
+										DataSource:                            &Source{},
+										DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
 										SetTemplateOutputToNullOnVariableNull: true,
 									},
 									BatchFactory: batchFactory,
@@ -6085,11 +6055,11 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:              0,
-						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{self {id __typename ... on User {uid: id username}}}"}}`,
-						DataSource:            &Source{},
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						BufferId:             0,
+						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{self {id __typename ... on User {uid: id username}}}"}}`,
+						DataSource:           &Source{},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -6107,12 +6077,9 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 											},
 										),
-										DataSource:           &Source{},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										ProcessResponseConfig: resolve.ProcessResponseConfig{
-											ExtractGraphqlResponse:    true,
-											ExtractFederationEntities: true,
-										},
+										DataSource:                            &Source{},
+										DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
 										SetTemplateOutputToNullOnVariableNull: true,
 									},
 									BatchFactory: batchFactory,
@@ -6275,11 +6242,11 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:              0,
-						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{self {__typename ... on User {id}}}"}}`,
-						DataSource:            &Source{},
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						BufferId:             0,
+						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{self {__typename ... on User {id}}}"}}`,
+						DataSource:           &Source{},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -6297,12 +6264,9 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 											},
 										),
-										DataSource:           &Source{},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										ProcessResponseConfig: resolve.ProcessResponseConfig{
-											ExtractGraphqlResponse:    true,
-											ExtractFederationEntities: true,
-										},
+										DataSource:                            &Source{},
+										DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
 										SetTemplateOutputToNullOnVariableNull: true,
 									},
 									BatchFactory: batchFactory,
@@ -6493,11 +6457,11 @@ func TestGraphQLDataSource(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
-							BufferId:              0,
-							Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
-							DataSource:            &Source{},
-							DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-							ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+							BufferId:             0,
+							Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
+							DataSource:           &Source{},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							PostProcessing:       DefaultPostProcessingConfiguration,
 						},
 						Fields: []*resolve.Field{
 							{
@@ -6515,12 +6479,9 @@ func TestGraphQLDataSource(t *testing.T) {
 													Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 												},
 											),
-											DataSource:           &Source{},
-											DataSourceIdentifier: []byte("graphql_datasource.Source"),
-											ProcessResponseConfig: resolve.ProcessResponseConfig{
-												ExtractGraphqlResponse:    true,
-												ExtractFederationEntities: true,
-											},
+											DataSource:                            &Source{},
+											DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+											PostProcessing:                        EntitiesPostProcessingConfiguration,
 											SetTemplateOutputToNullOnVariableNull: true,
 										},
 										BatchFactory: batchFactory,
@@ -6739,11 +6700,11 @@ func TestGraphQLDataSource(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
-							BufferId:              0,
-							Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
-							DataSource:            &Source{},
-							DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-							ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+							BufferId:             0,
+							Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
+							DataSource:           &Source{},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							PostProcessing:       DefaultPostProcessingConfiguration,
 						},
 						Fields: []*resolve.Field{
 							{
@@ -6761,12 +6722,9 @@ func TestGraphQLDataSource(t *testing.T) {
 													Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 												},
 											),
-											DataSource:           &Source{},
-											DataSourceIdentifier: []byte("graphql_datasource.Source"),
-											ProcessResponseConfig: resolve.ProcessResponseConfig{
-												ExtractGraphqlResponse:    true,
-												ExtractFederationEntities: true,
-											},
+											DataSource:                            &Source{},
+											DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+											PostProcessing:                        EntitiesPostProcessingConfiguration,
 											SetTemplateOutputToNullOnVariableNull: true,
 										},
 										BatchFactory: batchFactory,
@@ -6985,11 +6943,11 @@ func TestGraphQLDataSource(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
-							BufferId:              0,
-							Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
-							DataSource:            &Source{},
-							DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-							ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+							BufferId:             0,
+							Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
+							DataSource:           &Source{},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							PostProcessing:       DefaultPostProcessingConfiguration,
 						},
 						Fields: []*resolve.Field{
 							{
@@ -7011,12 +6969,9 @@ func TestGraphQLDataSource(t *testing.T) {
 													Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 												},
 											),
-											DataSource:           &Source{},
-											DataSourceIdentifier: []byte("graphql_datasource.Source"),
-											ProcessResponseConfig: resolve.ProcessResponseConfig{
-												ExtractGraphqlResponse:    true,
-												ExtractFederationEntities: true,
-											},
+											DataSource:                            &Source{},
+											DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+											PostProcessing:                        EntitiesPostProcessingConfiguration,
 											SetTemplateOutputToNullOnVariableNull: true,
 										},
 										BatchFactory: batchFactory,
@@ -7248,11 +7203,11 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:              0,
-						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {username id}}"}}`,
-						DataSource:            &Source{},
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						BufferId:             0,
+						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {username id}}"}}`,
+						DataSource:           &Source{},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -7270,12 +7225,9 @@ func TestGraphQLDataSource(t *testing.T) {
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 											},
 										),
-										DataSource:           &Source{},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										ProcessResponseConfig: resolve.ProcessResponseConfig{
-											ExtractGraphqlResponse:    true,
-											ExtractFederationEntities: true,
-										},
+										DataSource:                            &Source{},
+										DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
 										SetTemplateOutputToNullOnVariableNull: true,
 									},
 									BatchFactory: batchFactory,
@@ -7461,11 +7413,11 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:              0,
-						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {username pets {__typename ... on Cat {id} ... on Dog {id}}}}"}}`,
-						DataSource:            &Source{},
-						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+						BufferId:             0,
+						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {username pets {__typename ... on Cat {id} ... on Dog {id}}}}"}}`,
+						DataSource:           &Source{},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -7502,12 +7454,9 @@ func TestGraphQLDataSource(t *testing.T) {
 																Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 															},
 														),
-														DataSource:           &Source{},
-														DataSourceIdentifier: []byte("graphql_datasource.Source"),
-														ProcessResponseConfig: resolve.ProcessResponseConfig{
-															ExtractGraphqlResponse:    true,
-															ExtractFederationEntities: true,
-														},
+														DataSource:                            &Source{},
+														DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+														PostProcessing:                        EntitiesPostProcessingConfiguration,
 														SetTemplateOutputToNullOnVariableNull: true,
 													},
 													BatchFactory: batchFactory,
@@ -7704,8 +7653,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							Path: []string{"Authorization"},
 						},
 					),
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -7865,8 +7814,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 						},
 					),
-					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -8511,10 +8460,8 @@ func BenchmarkFederationBatching(b *testing.B) {
 						},
 					},
 				},
-				DataSource: userService,
-				ProcessResponseConfig: resolve.ProcessResponseConfig{
-					ExtractGraphqlResponse: true,
-				},
+				DataSource:     userService,
+				PostProcessing: DefaultPostProcessingConfiguration,
 			},
 			Fields: []*resolve.Field{
 				{
@@ -8543,11 +8490,8 @@ func BenchmarkFederationBatching(b *testing.B) {
 										},
 									},
 								},
-								DataSource: reviewsService,
-								ProcessResponseConfig: resolve.ProcessResponseConfig{
-									ExtractGraphqlResponse:    true,
-									ExtractFederationEntities: true,
-								},
+								DataSource:     reviewsService,
+								PostProcessing: EntitiesPostProcessingConfiguration,
 							},
 							BatchFactory: reviewBatchFactory,
 						},
@@ -8609,10 +8553,7 @@ func BenchmarkFederationBatching(b *testing.B) {
 																	},
 																},
 															},
-															ProcessResponseConfig: resolve.ProcessResponseConfig{
-																ExtractGraphqlResponse:    true,
-																ExtractFederationEntities: true,
-															},
+															PostProcessing: EntitiesPostProcessingConfiguration,
 														},
 														BatchFactory: productBatchFactory,
 													},

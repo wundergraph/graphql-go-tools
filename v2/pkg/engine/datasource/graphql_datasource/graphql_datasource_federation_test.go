@@ -371,11 +371,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
-							BufferId:              0,
-							Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
-							DataSource:            &Source{},
-							DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-							ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+							BufferId:             0,
+							Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
+							DataSource:           &Source{},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							PostProcessing:       DefaultPostProcessingConfiguration,
 						},
 						Fields: []*resolve.Field{
 							{
@@ -471,10 +471,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															},
 														},
 														DataSourceIdentifier: []byte("graphql_datasource.Source"),
-														ProcessResponseConfig: resolve.ProcessResponseConfig{
-															ExtractGraphqlResponse:    true,
-															ExtractFederationEntities: true,
-														},
+														PostProcessing:       EntitiesPostProcessingConfiguration,
 													},
 												},
 											},
@@ -510,11 +507,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Response: &resolve.GraphQLResponse{
 						Data: &resolve.Object{
 							Fetch: &resolve.SingleFetch{
-								BufferId:              0,
-								Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {__typename id line1 line2}}}}"}}`,
-								DataSource:            &Source{},
-								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-								ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+								BufferId:             0,
+								Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {__typename id line1 line2}}}}"}}`,
+								DataSource:           &Source{},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								PostProcessing:       DefaultPostProcessingConfiguration,
 							},
 							Fields: []*resolve.Field{
 								{
@@ -554,7 +551,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			Input:                  `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":$$0$$}}}`,
 																			DataSource:             &Source{},
 																			DataSourceIdentifier:   []byte("graphql_datasource.Source"),
-																			ProcessResponseConfig:  resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+																			PostProcessing:         EntitiesPostProcessingConfiguration,
 																			Variables: []resolve.Variable{
 																				&resolve.ListVariable{
 																					Variables: []resolve.Variable{
@@ -610,7 +607,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			Input:                  `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":$$0$$}}}`,
 																			DataSource:             &Source{},
 																			DataSourceIdentifier:   []byte("graphql_datasource.Source"),
-																			ProcessResponseConfig:  resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+																			PostProcessing:         EntitiesPostProcessingConfiguration,
 																			Variables: []resolve.Variable{
 																				&resolve.ListVariable{
 																					Variables: []resolve.Variable{
@@ -649,11 +646,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			},
 																		},
 																		&resolve.SingleFetch{
-																			BufferId:              3,
-																			Input:                 `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":$$0$$}}}`,
-																			DataSource:            &Source{},
-																			DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-																			ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+																			BufferId:             3,
+																			Input:                `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":$$0$$}}}`,
+																			DataSource:           &Source{},
+																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
+																			PostProcessing:       DefaultPostProcessingConfiguration,
 																			Variables: []resolve.Variable{
 																				&resolve.ListVariable{
 																					Variables: []resolve.Variable{
@@ -717,11 +714,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Response: &resolve.GraphQLResponse{
 						Data: &resolve.Object{
 							Fetch: &resolve.SingleFetch{
-								BufferId:              0,
-								Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {oldAccount {name shippingInfo {zip}}}}"}}`,
-								DataSource:            &Source{},
-								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-								ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+								BufferId:             0,
+								Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {oldAccount {name shippingInfo {zip}}}}"}}`,
+								DataSource:           &Source{},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								PostProcessing:       DefaultPostProcessingConfiguration,
 							},
 							Fields: []*resolve.Field{
 								{
@@ -797,11 +794,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Response: &resolve.GraphQLResponse{
 						Data: &resolve.Object{
 							Fetch: &resolve.SingleFetch{
-								BufferId:              0,
-								Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}} oldAccount {name shippingInfo {zip}}}}"}}`,
-								DataSource:            &Source{},
-								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
-								ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+								BufferId:             0,
+								Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}} oldAccount {name shippingInfo {zip}}}}"}}`,
+								DataSource:           &Source{},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								PostProcessing:       DefaultPostProcessingConfiguration,
 							},
 							Fields: []*resolve.Field{
 								{
@@ -851,7 +848,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":$$0$$}}}`,
 															DataSource:                            &Source{},
 															DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-															ProcessResponseConfig:                 resolve.ProcessResponseConfig{ExtractGraphqlResponse: true, ExtractFederationEntities: true},
+															PostProcessing:                        EntitiesPostProcessingConfiguration,
 															SetTemplateOutputToNullOnVariableNull: true,
 															Variables: []resolve.Variable{
 																&resolve.ListVariable{
@@ -1142,11 +1139,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Data: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									BufferId: 0,
-									Input:    input,
-									ProcessResponseConfig: resolve.ProcessResponseConfig{
-										ExtractGraphqlResponse: true,
-									},
+									BufferId:             0,
+									Input:                input,
+									PostProcessing:       DefaultPostProcessingConfiguration,
 									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
@@ -1238,11 +1233,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Data: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									BufferId: 0,
-									Input:    `{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname}}}"}}`,
-									ProcessResponseConfig: resolve.ProcessResponseConfig{
-										ExtractGraphqlResponse: true,
-									},
+									BufferId:             0,
+									Input:                `{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname}}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
 									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
@@ -1291,11 +1284,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Data: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
-										BufferId: 0,
-										Input:    input1,
-										ProcessResponseConfig: resolve.ProcessResponseConfig{
-											ExtractGraphqlResponse: true,
-										},
+										BufferId:             0,
+										Input:                input1,
+										PostProcessing:       DefaultPostProcessingConfiguration,
 										DataSource:           &Source{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
@@ -1343,12 +1334,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														BufferId:                              1,
 														Input:                                 input2,
 														SetTemplateOutputToNullOnVariableNull: true,
-														ProcessResponseConfig: resolve.ProcessResponseConfig{
-															ExtractGraphqlResponse:    true,
-															ExtractFederationEntities: true,
-														},
-														DataSource:           &Source{},
-														DataSourceIdentifier: []byte("graphql_datasource.Source"),
+														PostProcessing:                        EntitiesPostProcessingConfiguration,
+														DataSource:                            &Source{},
+														DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
 														Variables: []resolve.Variable{
 															&resolve.ListVariable{
 																Variables: []resolve.Variable{
@@ -1450,11 +1438,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Data: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
-										BufferId: 0,
-										Input:    input1,
-										ProcessResponseConfig: resolve.ProcessResponseConfig{
-											ExtractGraphqlResponse: true,
-										},
+										BufferId:             0,
+										Input:                input1,
+										PostProcessing:       DefaultPostProcessingConfiguration,
 										DataSource:           &Source{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
@@ -1490,12 +1476,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														BufferId:                              1,
 														Input:                                 input2,
 														SetTemplateOutputToNullOnVariableNull: true,
-														ProcessResponseConfig: resolve.ProcessResponseConfig{
-															ExtractGraphqlResponse:    true,
-															ExtractFederationEntities: true,
-														},
-														DataSource:           &Source{},
-														DataSourceIdentifier: []byte("graphql_datasource.Source"),
+														PostProcessing:                        EntitiesPostProcessingConfiguration,
+														DataSource:                            &Source{},
+														DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
 														Variables: []resolve.Variable{
 															&resolve.ListVariable{
 																Variables: []resolve.Variable{
@@ -1609,11 +1592,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Data: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
-										BufferId: 0,
-										Input:    input1,
-										ProcessResponseConfig: resolve.ProcessResponseConfig{
-											ExtractGraphqlResponse: true,
-										},
+										BufferId:             0,
+										Input:                input1,
+										PostProcessing:       DefaultPostProcessingConfiguration,
 										DataSource:           &Source{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
@@ -1669,12 +1650,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																BufferId:                              1,
 																Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":$$0$$}}}`,
 																SetTemplateOutputToNullOnVariableNull: true,
-																ProcessResponseConfig: resolve.ProcessResponseConfig{
-																	ExtractGraphqlResponse:    true,
-																	ExtractFederationEntities: true,
-																},
-																DataSource:           &Source{},
-																DataSourceIdentifier: []byte("graphql_datasource.Source"),
+																PostProcessing:                        EntitiesPostProcessingConfiguration,
+																DataSource:                            &Source{},
+																DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
 																Variables: []resolve.Variable{
 																	&resolve.ListVariable{
 																		Variables: []resolve.Variable{
@@ -1707,12 +1685,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																BufferId:                              2,
 																Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":$$0$$}}}`,
 																SetTemplateOutputToNullOnVariableNull: true,
-																ProcessResponseConfig: resolve.ProcessResponseConfig{
-																	ExtractGraphqlResponse:    true,
-																	ExtractFederationEntities: true,
-																},
-																DataSource:           &Source{},
-																DataSourceIdentifier: []byte("graphql_datasource.Source"),
+																PostProcessing:                        EntitiesPostProcessingConfiguration,
+																DataSource:                            &Source{},
+																DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
 																Variables: []resolve.Variable{
 																	&resolve.ListVariable{
 																		Variables: []resolve.Variable{
