@@ -53,8 +53,6 @@ type Field struct {
 	Position                Position
 	Defer                   *DeferField
 	Stream                  *StreamField
-	HasBuffer               bool
-	BufferID                int
 	OnTypeNames             [][]byte
 	SkipDirectiveDefined    bool
 	SkipVariableName        string
