@@ -328,13 +328,6 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 		if lr.items[i] == nil {
 			continue
 		}
-		if addSeparator {
-			err = fetch.Input.Separator.Render(ctx, nil, input)
-			if err != nil {
-				return err
-			}
-		}
-		addSeparator = false
 		for j := range fetch.Input.Items {
 			if addSeparator {
 				err = fetch.Input.Separator.Render(ctx, nil, input)
@@ -348,12 +341,14 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 				if fetch.Input.SkipErrItems {
 					err = nil
 					batchStats[i] = append(batchStats[i], -1)
+					addSeparator = false
 					continue
 				}
 				return err
 			}
 			if fetch.Input.SkipNullItems && itemBuf.Len() == 4 && bytes.Equal(itemBuf.Bytes(), null) {
 				batchStats[i] = append(batchStats[i], -1)
+				addSeparator = false
 				continue
 			}
 			input.WriteBytes(itemBuf.Bytes())
@@ -362,9 +357,6 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 			if !addSeparator {
 				addSeparator = true
 			}
-		}
-		if !addSeparator {
-			addSeparator = true
 		}
 	}
 	err = fetch.Input.Footer.Render(ctx, nil, input)
