@@ -5,6 +5,7 @@ type Array struct {
 	Nullable            bool
 	ResolveAsynchronous bool
 	Item                Node
+	Items               []Node
 	Stream              Stream
 }
 

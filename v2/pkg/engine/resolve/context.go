@@ -23,7 +23,6 @@ type Context struct {
 	currentPatch     int
 	maxPatch         int
 	pathPrefix       []byte
-	dataLoader       *dataLoader
 	beforeFetchHook  BeforeFetchHook
 	afterFetchHook   AfterFetchHook
 	position         Position
@@ -48,7 +47,6 @@ func NewContext(ctx context.Context) *Context {
 		currentPatch: -1,
 		maxPatch:     -1,
 		position:     Position{},
-		dataLoader:   nil,
 	}
 }
 
@@ -119,7 +117,6 @@ func (c *Context) Free() {
 	c.afterFetchHook = nil
 	c.Request.Header = nil
 	c.position = Position{}
-	c.dataLoader = nil
 	c.RenameTypeNames = nil
 }
 
@@ -141,14 +138,13 @@ func (c *Context) addResponseElements(elements []string) {
 
 func (c *Context) addResponseArrayElements(elements []string) {
 	c.responseElements = append(c.responseElements, elements...)
-	c.responseElements = append(c.responseElements, arrayElementKey)
 }
 
 func (c *Context) removeResponseLastElements(elements []string) {
 	c.responseElements = c.responseElements[:len(c.responseElements)-len(elements)]
 }
 func (c *Context) removeResponseArrayLastElements(elements []string) {
-	c.responseElements = c.responseElements[:len(c.responseElements)-(len(elements)+1)]
+	c.responseElements = c.responseElements[:len(c.responseElements)-(len(elements))]
 }
 
 func (c *Context) resetResponsePathElements() {

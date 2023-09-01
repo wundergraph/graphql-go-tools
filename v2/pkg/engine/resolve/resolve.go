@@ -30,7 +30,6 @@ type Resolver struct {
 	bufPairSlicePool  sync.Pool
 	errChanPool       sync.Pool
 	hash64Pool        sync.Pool
-	dataloaderFactory *dataLoaderFactory
 	fetcher           *Fetcher
 }
 
@@ -81,7 +80,6 @@ func New(ctx context.Context, fetcher *Fetcher, enableDataLoader bool) *Resolver
 				return xxhash.New()
 			},
 		},
-		dataloaderFactory: newDataloaderFactory(fetcher),
 		fetcher:           fetcher,
 		dataLoaderEnabled: enableDataLoader,
 	}
@@ -161,18 +159,6 @@ func (r *Resolver) resolveGraphQLSubscriptionResponse(ctx *Context, response *Gr
 
 	buf := r.getBufPair()
 	defer r.freeBufPair(buf)
-
-	if subscriptionData.HasData() {
-		ctx.lastFetchID = initialValueID
-	}
-
-	if r.dataLoaderEnabled {
-		ctx.dataLoader = r.dataloaderFactory.newDataLoader(subscriptionData.Data.Bytes())
-		defer func() {
-			r.dataloaderFactory.freeDataLoader(ctx.dataLoader)
-			ctx.dataLoader = nil
-		}()
-	}
 
 	ignoreData := false
 	err = r.resolveNode(ctx, response.Data, subscriptionData.Data.Bytes(), buf)
