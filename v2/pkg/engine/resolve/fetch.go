@@ -35,6 +35,7 @@ type SingleFetch struct {
 	// Returning null in this case tells the batch implementation to skip this item
 	SetTemplateOutputToNullOnVariableNull bool
 	PostProcessing                        PostProcessingConfiguration
+	EnableBatchMultiPlexing               bool
 }
 
 type PostProcessingConfiguration struct {
@@ -73,8 +74,16 @@ func (_ *SerialFetch) FetchKind() FetchKind {
 }
 
 type BatchFetch struct {
-	Fetch        *SingleFetch
-	BatchFactory DataSourceBatchFactory
+	Input          BatchInput
+	DataSource     DataSource
+	PostProcessing PostProcessingConfiguration
+}
+
+type BatchInput struct {
+	Header    InputTemplate
+	Items     []InputTemplate
+	Separator InputTemplate
+	Footer    InputTemplate
 }
 
 func (_ *BatchFetch) FetchKind() FetchKind {

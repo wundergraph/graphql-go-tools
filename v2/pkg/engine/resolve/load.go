@@ -298,8 +298,127 @@ func (l *Loader) resolveFetch(ctx *Context, fetch Fetch) (err error) {
 		return l.resolveParallelFetch(ctx, f)
 	case *ParallelListItemFetch:
 		return l.resolveParallelListItemFetch(ctx, f)
+	case *BatchFetch:
+		return l.resolveBatchFetch(ctx, f)
 	}
 	return nil
+}
+
+func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) {
+	input := pool.FastBuffer.Get()
+	defer pool.FastBuffer.Put(input)
+	inputBuf := pool.FastBuffer.Get()
+	defer pool.FastBuffer.Put(inputBuf)
+	out := l.getLayerBuffer()
+
+	lr := l.currentLayer()
+	err = fetch.Input.Header.Render(ctx, nil, input)
+	if err != nil {
+		return err
+	}
+	addSeparator := false
+	batchStats := make([][]int, len(lr.items))
+	batchItemIndex := 0
+	for i := range lr.items {
+		if lr.items[i] == nil {
+			continue
+		}
+		if addSeparator {
+			err = fetch.Input.Separator.Render(ctx, nil, input)
+			if err != nil {
+				return err
+			}
+		}
+		addSeparator = false
+		for j := range fetch.Input.Items {
+			if addSeparator {
+				err = fetch.Input.Separator.Render(ctx, nil, input)
+				if err != nil {
+					return err
+				}
+			}
+			err = fetch.Input.Items[j].Render(ctx, lr.items[i], input)
+			if err != nil {
+				return err
+			}
+			batchStats[i] = append(batchStats[i], batchItemIndex)
+			batchItemIndex++
+			if !addSeparator {
+				addSeparator = true
+			}
+		}
+		if !addSeparator {
+			addSeparator = true
+		}
+	}
+	err = fetch.Input.Footer.Render(ctx, nil, input)
+	if err != nil {
+		return err
+	}
+	err = fetch.DataSource.Load(ctx.ctx, input.Bytes(), out)
+	if err != nil {
+		return err
+	}
+	data := out.Bytes()
+	responseErrors, _, _, _ := jsonparser.Get(data, "errors")
+	if responseErrors != nil {
+		l.errors = responseErrors
+		return ErrOriginResponseError
+	}
+	if fetch.PostProcessing.SelectResponseDataPath != nil {
+		data, _, _, err = jsonparser.Get(data, fetch.PostProcessing.SelectResponseDataPath...)
+		if err != nil {
+			return err
+		}
+	}
+	var (
+		batchResponseItems [][]byte
+	)
+	_, err = jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		batchResponseItems = append(batchResponseItems, value)
+	})
+	if err != nil {
+		return err
+	}
+	itemsData := make([][]byte, len(lr.items))
+	for i, stats := range batchStats {
+		buf := l.getLayerBuffer()
+		buf.WriteBytes(lBrack)
+		addCommaSeparator := false
+		for j := range stats {
+			if addCommaSeparator {
+				buf.WriteBytes(comma)
+			} else {
+				addCommaSeparator = true
+			}
+			_, err = buf.Write(batchResponseItems[stats[j]])
+			if err != nil {
+				return err
+			}
+		}
+		buf.WriteBytes(rBrack)
+		itemsData[i] = buf.Bytes()
+	}
+	if fetch.PostProcessing.ResponseTemplate != nil {
+		for i := range itemsData {
+			out := l.getLayerBuffer()
+			err = fetch.PostProcessing.ResponseTemplate.Render(ctx, itemsData[i], out)
+			if err != nil {
+				return err
+			}
+			itemsData[i] = out.Bytes()
+		}
+	}
+	for i := range lr.items {
+		if lr.items[i] == nil {
+			continue
+		}
+		lr.items[i], err = jsonpatch.MergePatch(lr.items[i], itemsData[i])
+		if err != nil {
+			return err
+		}
+	}
+	return
 }
 
 func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListItemFetch) (err error) {
