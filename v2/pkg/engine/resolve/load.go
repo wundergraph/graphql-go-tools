@@ -317,46 +317,58 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 	if err != nil {
 		return err
 	}
-	addSeparator := false
 	batchStats := make([][]int, len(lr.items))
 	batchItemIndex := 0
 
 	itemBuf := pool.FastBuffer.Get()
 	defer pool.FastBuffer.Put(itemBuf)
 
+	hash := pool.Hash64.Get()
+	defer pool.Hash64.Put(hash)
+
+	itemHashes := make([]uint64, 0, len(lr.items)*len(fetch.Input.Items))
+	addSeparator := false
+
 	for i := range lr.items {
 		if lr.items[i] == nil {
 			continue
 		}
+	WithNext:
 		for j := range fetch.Input.Items {
-			if addSeparator {
-				err = fetch.Input.Separator.Render(ctx, nil, input)
-				if err != nil {
-					return err
-				}
-			}
 			itemBuf.Reset()
 			err = fetch.Input.Items[j].Render(ctx, lr.items[i], itemBuf)
 			if err != nil {
 				if fetch.Input.SkipErrItems {
 					err = nil
 					batchStats[i] = append(batchStats[i], -1)
-					addSeparator = false
 					continue
 				}
 				return err
 			}
 			if fetch.Input.SkipNullItems && itemBuf.Len() == 4 && bytes.Equal(itemBuf.Bytes(), null) {
 				batchStats[i] = append(batchStats[i], -1)
-				addSeparator = false
 				continue
+			}
+			hash.Reset()
+			_, _ = hash.Write(itemBuf.Bytes())
+			itemHash := hash.Sum64()
+			for k := range itemHashes {
+				if itemHashes[k] == itemHash {
+					batchStats[i] = append(batchStats[i], k)
+					continue WithNext
+				}
+			}
+			itemHashes = append(itemHashes, itemHash)
+			if addSeparator {
+				err = fetch.Input.Separator.Render(ctx, nil, input)
+				if err != nil {
+					return err
+				}
 			}
 			input.WriteBytes(itemBuf.Bytes())
 			batchStats[i] = append(batchStats[i], batchItemIndex)
 			batchItemIndex++
-			if !addSeparator {
-				addSeparator = true
-			}
+			addSeparator = true
 		}
 	}
 	err = fetch.Input.Footer.Render(ctx, nil, input)
