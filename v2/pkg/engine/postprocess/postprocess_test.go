@@ -215,9 +215,9 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 										Path: []string{"id"},
 									},
 								),
-								ProcessResponseConfig: resolve.ProcessResponseConfig{
-									ExtractGraphqlResponse:    true,
-									ExtractFederationEntities: true,
+								PostProcessing: resolve.PostProcessingConfiguration{
+									SelectResponseDataPath:   []string{"data", "_entities"},
+									SelectResponseErrorsPath: []string{"errors"},
 								},
 							},
 							Path:     []string{"me"},
@@ -264,9 +264,9 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 																	Path: []string{"upc"},
 																},
 															),
-															ProcessResponseConfig: resolve.ProcessResponseConfig{
-																ExtractGraphqlResponse:    true,
-																ExtractFederationEntities: true,
+															PostProcessing: resolve.PostProcessingConfiguration{
+																SelectResponseDataPath:   []string{"data", "_entities"},
+																SelectResponseErrorsPath: []string{"errors"},
 															},
 														},
 														Fields: []*resolve.Field{
@@ -365,9 +365,9 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 								},
 							},
 						},
-						ProcessResponseConfig: resolve.ProcessResponseConfig{
-							ExtractGraphqlResponse:    true,
-							ExtractFederationEntities: true,
+						PostProcessing: resolve.PostProcessingConfiguration{
+							SelectResponseDataPath:   []string{"data", "_entities"},
+							SelectResponseErrorsPath: []string{"errors"},
 						},
 					},
 					Operation: literal.REPLACE,
@@ -406,9 +406,9 @@ func TestDefaultProcessor_Federation(t *testing.T) {
 													},
 												},
 											},
-											ProcessResponseConfig: resolve.ProcessResponseConfig{
-												ExtractGraphqlResponse:    true,
-												ExtractFederationEntities: true,
+											PostProcessing: resolve.PostProcessingConfiguration{
+												SelectResponseDataPath:   []string{"data", "_entities"},
+												SelectResponseErrorsPath: []string{"errors"},
 											},
 										},
 										Fields: []*resolve.Field{
