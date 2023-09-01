@@ -29,6 +29,17 @@ import (
 
 const removeNullVariablesDirectiveName = "removeNullVariables"
 
+var (
+	DefaultPostProcessingConfiguration = resolve.PostProcessingConfiguration{
+		SelectResponseDataPath:   []string{"data"},
+		SelectResponseErrorsPath: []string{"errors"},
+	}
+	EntitiesPostProcessingConfiguration = resolve.PostProcessingConfiguration{
+		SelectResponseDataPath:   []string{"data", "__entities"},
+		SelectResponseErrorsPath: []string{"errors"},
+	}
+)
+
 type Planner struct {
 	id              int
 	debug           bool
@@ -329,18 +340,20 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		}
 	}
 
+	postProcessing := DefaultPostProcessingConfiguration
+	if p.extractEntities {
+		postProcessing = EntitiesPostProcessingConfiguration
+	}
+
 	return plan.FetchConfiguration{
 		Input: string(input),
 		DataSource: &Source{
 			httpClient: p.fetchClient,
 		},
-		Variables:             p.variables,
-		DisallowSingleFlight:  p.disallowSingleFlight,
-		DisallowParallelFetch: p.disallowParallelFetch(),
-		ProcessResponseConfig: resolve.ProcessResponseConfig{
-			ExtractGraphqlResponse:    true,
-			ExtractFederationEntities: p.extractEntities,
-		},
+		Variables:                             p.variables,
+		DisallowSingleFlight:                  p.disallowSingleFlight,
+		DisallowParallelFetch:                 p.disallowParallelFetch(),
+		PostProcessing:                        postProcessing,
 		BatchConfig:                           batchConfig,
 		SetTemplateOutputToNullOnVariableNull: batchConfig.AllowBatch,
 	}
@@ -382,11 +395,8 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 		DataSource: &SubscriptionSource{
 			client: p.subscriptionClient,
 		},
-		Variables: p.variables,
-		ProcessResponseConfig: resolve.ProcessResponseConfig{
-			ExtractGraphqlResponse:    true,
-			ExtractFederationEntities: false,
-		},
+		Variables:      p.variables,
+		PostProcessing: DefaultPostProcessingConfiguration,
 	}
 }
 

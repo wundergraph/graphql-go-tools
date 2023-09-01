@@ -167,10 +167,10 @@ type DataSourcePlanner interface {
 }
 
 type SubscriptionConfiguration struct {
-	Input                 string
-	Variables             resolve.Variables
-	DataSource            resolve.SubscriptionDataSource
-	ProcessResponseConfig resolve.ProcessResponseConfig
+	Input          string
+	Variables      resolve.Variables
+	DataSource     resolve.SubscriptionDataSource
+	PostProcessing resolve.PostProcessingConfiguration
 }
 
 type FetchConfiguration struct {
@@ -183,7 +183,7 @@ type FetchConfiguration struct {
 	// e.g. if a field depends on an exported variable which doesn't work with DataLoader
 	DisableDataLoader     bool
 	DisallowParallelFetch bool
-	ProcessResponseConfig resolve.ProcessResponseConfig
+	PostProcessing        resolve.PostProcessingConfiguration
 	BatchConfig           BatchConfig
 	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
 	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item

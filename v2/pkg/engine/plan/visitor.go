@@ -937,7 +937,7 @@ func (v *Visitor) configureSubscription(config objectFetchConfiguration) {
 	subscription := config.planner.ConfigureSubscription()
 	config.trigger.Variables = subscription.Variables
 	config.trigger.Source = subscription.DataSource
-	config.trigger.ProcessResponseConfig = subscription.ProcessResponseConfig
+	config.trigger.PostProcessing = subscription.PostProcessing
 	v.resolveInputTemplates(config, &subscription.Input, &config.trigger.Variables)
 	config.trigger.Input = []byte(subscription.Input)
 }
@@ -999,7 +999,7 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external Fet
 		DisallowSingleFlight:                  external.DisallowSingleFlight,
 		DissallowParallelFetch:                external.DisallowParallelFetch,
 		DataSourceIdentifier:                  []byte(dataSourceType),
-		ProcessResponseConfig:                 external.ProcessResponseConfig,
+		PostProcessing:                        external.PostProcessing,
 		DisableDataLoader:                     external.DisableDataLoader,
 		SetTemplateOutputToNullOnVariableNull: external.SetTemplateOutputToNullOnVariableNull,
 	}
