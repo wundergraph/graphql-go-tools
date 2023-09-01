@@ -30,18 +30,6 @@ type RenameTypeName struct {
 	From, To []byte
 }
 
-type GraphQLStreamingResponse struct {
-	InitialResponse *GraphQLResponse
-	Patches         []*GraphQLResponsePatch
-	FlushInterval   int64
-}
-
-type GraphQLResponsePatch struct {
-	Value     Node
-	Fetch     Fetch
-	Operation []byte
-}
-
 type FlushWriter interface {
 	io.Writer
 	Flush()
