@@ -41,7 +41,7 @@ func (d *ProcessDataSource) traverseFetch(fetch resolve.Fetch) {
 	case *resolve.SingleFetch:
 		d.traverseSingleFetch(f)
 	case *resolve.BatchFetch:
-		d.traverseSingleFetch(f.Fetch)
+		panic("implement me")
 	case *resolve.ParallelFetch:
 		for i := range f.Fetches {
 			d.traverseFetch(f.Fetches[i])

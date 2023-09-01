@@ -17,7 +17,6 @@ type Fetch interface {
 type Fetches []Fetch
 
 type SingleFetch struct {
-	BufferId   int
 	Input      string
 	DataSource DataSource
 	Variables  Variables
