@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -319,6 +320,10 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 	addSeparator := false
 	batchStats := make([][]int, len(lr.items))
 	batchItemIndex := 0
+
+	itemBuf := pool.FastBuffer.Get()
+	defer pool.FastBuffer.Put(itemBuf)
+
 	for i := range lr.items {
 		if lr.items[i] == nil {
 			continue
@@ -337,10 +342,21 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 					return err
 				}
 			}
-			err = fetch.Input.Items[j].Render(ctx, lr.items[i], input)
+			itemBuf.Reset()
+			err = fetch.Input.Items[j].Render(ctx, lr.items[i], itemBuf)
 			if err != nil {
+				if fetch.Input.SkipErrItems {
+					err = nil
+					batchStats[i] = append(batchStats[i], -1)
+					continue
+				}
 				return err
 			}
+			if fetch.Input.SkipNullItems && itemBuf.Len() == 4 && bytes.Equal(itemBuf.Bytes(), null) {
+				batchStats[i] = append(batchStats[i], -1)
+				continue
+			}
+			input.WriteBytes(itemBuf.Bytes())
 			batchStats[i] = append(batchStats[i], batchItemIndex)
 			batchItemIndex++
 			if !addSeparator {
@@ -390,6 +406,10 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 				buf.WriteBytes(comma)
 			} else {
 				addCommaSeparator = true
+			}
+			if stats[j] == -1 {
+				buf.WriteBytes(null)
+				continue
 			}
 			_, err = buf.Write(batchResponseItems[stats[j]])
 			if err != nil {
