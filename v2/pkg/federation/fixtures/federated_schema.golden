@@ -1,3 +1,18 @@
+scalar _Any
+scalar _FieldSet
+
+type _Service {
+    sdl: String
+}
+
+directive @external on FIELD_DEFINITION
+directive @requires(fields: _FieldSet!) on FIELD_DEFINITION
+directive @provides(fields: _FieldSet!) on FIELD_DEFINITION
+directive @key(fields: _FieldSet!) on OBJECT | INTERFACE
+directive @extends on OBJECT | INTERFACE
+
+union _Entity = Product | User
+
 scalar String
 
 scalar Int
@@ -238,18 +253,3 @@ enum __TypeKind {
     "Indicates this type is a non-null. 'ofType' is a valid field."
     NON_NULL
 }
-
-scalar _Any
-scalar _FieldSet
-
-union _Entity = Product | User
-
-type _Service {
-  sdl: String
-}
-
-directive @external on FIELD_DEFINITION
-directive @requires(fields: _FieldSet!) on FIELD_DEFINITION
-directive @provides(fields: _FieldSet!) on FIELD_DEFINITION
-directive @key(fields: _FieldSet!) on OBJECT | INTERFACE
-directive @extends on OBJECT | INTERFACE
