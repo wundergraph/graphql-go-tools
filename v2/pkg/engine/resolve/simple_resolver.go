@@ -148,16 +148,39 @@ func (r *SimpleResolver) resolveArray(array *Array, data []byte, resolveBuf *fas
 		if hasPreviousItem {
 			arrayBuf.WriteBytes(comma)
 		}
-		err = r.resolveNode(array.Item, arrayItems[i], arrayBuf)
-		if err != nil {
-			if errors.Is(err, errNonNullableFieldValueIsNull) {
-				if !array.Nullable {
+		if array.Items != nil {
+			hasPreviousItem = false
+			for j := range array.Items {
+				if hasPreviousItem {
+					arrayBuf.WriteBytes(comma)
+				}
+				err = r.resolveNode(array.Items[j], arrayItems[i], arrayBuf)
+				if err != nil {
+					if errors.Is(err, errNonNullableFieldValueIsNull) {
+						if !array.Nullable {
+							return err
+						}
+						r.resolveNull(resolveBuf)
+						return nil
+					}
 					return err
 				}
-				r.resolveNull(resolveBuf)
-				return nil
+				if !hasPreviousItem {
+					hasPreviousItem = true
+				}
 			}
-			return err
+		} else {
+			err = r.resolveNode(array.Item, arrayItems[i], arrayBuf)
+			if err != nil {
+				if errors.Is(err, errNonNullableFieldValueIsNull) {
+					if !array.Nullable {
+						return err
+					}
+					r.resolveNull(resolveBuf)
+					return nil
+				}
+				return err
+			}
 		}
 		if !hasPreviousItem {
 			hasPreviousItem = true
