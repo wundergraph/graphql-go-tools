@@ -14,12 +14,6 @@ func (d *ProcessDataSource) Process(pre plan.Plan) plan.Plan {
 	switch t := pre.(type) {
 	case *plan.SynchronousResponsePlan:
 		d.traverseNode(t.Response.Data)
-	case *plan.StreamingResponsePlan:
-		d.traverseNode(t.Response.InitialResponse.Data)
-		for i := range t.Response.Patches {
-			d.traverseFetch(t.Response.Patches[i].Fetch)
-			d.traverseNode(t.Response.Patches[i].Value)
-		}
 	case *plan.SubscriptionResponsePlan:
 		d.traverseTrigger(&t.Response.Trigger)
 		d.traverseNode(t.Response.Response.Data)

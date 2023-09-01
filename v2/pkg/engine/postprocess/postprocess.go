@@ -15,8 +15,6 @@ type Processor struct {
 func DefaultProcessor() *Processor {
 	return &Processor{
 		[]PostProcessor{
-			&ProcessDefer{},
-			&ProcessStream{},
 			&ProcessDataSource{},
 		},
 	}
