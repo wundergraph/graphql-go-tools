@@ -62,9 +62,9 @@ func TestDataSourceInput_Process(t *testing.T) {
 									},
 								),
 								DataSource: nil,
-								ProcessResponseConfig: resolve.ProcessResponseConfig{
-									ExtractGraphqlResponse:    true,
-									ExtractFederationEntities: true,
+								PostProcessing: resolve.PostProcessingConfiguration{
+									SelectResponseDataPath:   []string{"data", "_entities"},
+									SelectResponseErrorsPath: []string{"errors"},
 								},
 								SetTemplateOutputToNullOnVariableNull: true,
 							},
@@ -134,10 +134,9 @@ func TestDataSourceInput_Process(t *testing.T) {
 																	),
 																},
 															),
-
-															ProcessResponseConfig: resolve.ProcessResponseConfig{
-																ExtractGraphqlResponse:    true,
-																ExtractFederationEntities: true,
+															PostProcessing: resolve.PostProcessingConfiguration{
+																SelectResponseDataPath:   []string{"data", "_entities"},
+																SelectResponseErrorsPath: []string{"errors"},
 															},
 															SetTemplateOutputToNullOnVariableNull: true,
 														},
@@ -250,9 +249,9 @@ func TestDataSourceInput_Process(t *testing.T) {
 									SetTemplateOutputToNullOnVariableNull: true,
 								},
 								DataSource: nil,
-								ProcessResponseConfig: resolve.ProcessResponseConfig{
-									ExtractGraphqlResponse:    true,
-									ExtractFederationEntities: true,
+								PostProcessing: resolve.PostProcessingConfiguration{
+									SelectResponseDataPath:   []string{"data", "_entities"},
+									SelectResponseErrorsPath: []string{"errors"},
 								},
 							},
 							Path:     []string{"me"},
@@ -344,9 +343,9 @@ func TestDataSourceInput_Process(t *testing.T) {
 																},
 																SetTemplateOutputToNullOnVariableNull: true,
 															},
-															ProcessResponseConfig: resolve.ProcessResponseConfig{
-																ExtractGraphqlResponse:    true,
-																ExtractFederationEntities: true,
+															PostProcessing: resolve.PostProcessingConfiguration{
+																SelectResponseDataPath:   []string{"data", "_entities"},
+																SelectResponseErrorsPath: []string{"errors"},
 															},
 														},
 														Fields: []*resolve.Field{
