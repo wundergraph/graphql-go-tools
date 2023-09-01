@@ -8,9 +8,10 @@ import (
 
 	"github.com/buger/jsonparser"
 	jsonpatch "github.com/evanphx/json-patch/v5"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastbuffer"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
-	"golang.org/x/sync/errgroup"
 )
 
 var (

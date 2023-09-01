@@ -234,7 +234,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 				return nil
 			}
 			responseBuf.Reset()
-			extractResponse(data, responseBuf, subscription.Trigger.ProcessResponseConfig)
+			extractResponse(data, responseBuf, subscription.Trigger.PostProcessing)
 			err = r.resolveGraphQLSubscriptionResponse(ctx, subscription.Response, responseBuf, writer)
 			if err != nil {
 				return err
@@ -730,7 +730,7 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			}
 			if errors.Is(err, errNonNullableFieldValueIsNull) {
 				objectBuf.Data.Reset()
-				//r.MergeBufPairErrors(fieldBuf, objectBuf)
+				// r.MergeBufPairErrors(fieldBuf, objectBuf)
 
 				if object.Nullable {
 					r.resolveNull(objectBuf.Data)
@@ -745,7 +745,7 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 
 			return
 		}
-		//r.MergeBufPairs(fieldBuf, objectBuf, false)
+		// r.MergeBufPairs(fieldBuf, objectBuf, false)
 	}
 	allSkipped := len(object.Fields) != 0 && len(object.Fields) == skipCount
 	if allSkipped {

@@ -15,6 +15,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastbuffer"
 )
 
@@ -4859,7 +4860,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
 				Source: stream,
-				ProcessResponseConfig: PostProcessingConfiguration{
+				PostProcessing: PostProcessingConfiguration{
 					SelectResponseDataPath:   []string{"data"},
 					SelectResponseErrorsPath: []string{"errors"},
 				},
