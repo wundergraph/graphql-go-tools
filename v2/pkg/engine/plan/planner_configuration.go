@@ -12,7 +12,6 @@ type plannerConfiguration struct {
 	planner                 DataSourcePlanner
 	paths                   []pathConfiguration
 	dataSourceConfiguration DataSourceConfiguration
-	bufferID                int
 }
 
 func (p *plannerConfiguration) addPath(configuration pathConfiguration) {

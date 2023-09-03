@@ -127,7 +127,6 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:             0,
 						Input:                `{"request_type":2,"type_name":"$$0$$"}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: dataSourceIdentifier,
@@ -140,8 +139,6 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							BufferID:  0,
-							HasBuffer: true,
 							Name:      []byte("__type"),
 							Position: resolve.Position{
 								Line:   3,
@@ -185,15 +182,12 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:             0,
 						Input:                `{"request_type":1}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: dataSourceIdentifier,
 					},
 					Fields: []*resolve.Field{
 						{
-							BufferID:  0,
-							HasBuffer: true,
 							Name:      []byte("__schema"),
 							Position: resolve.Position{
 								Line:   3,
@@ -238,15 +232,12 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:             0,
 						Input:                `{"request_type":1}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: dataSourceIdentifier,
 					},
 					Fields: []*resolve.Field{
 						{
-							BufferID:  0,
-							HasBuffer: true,
 							Name:      []byte("__schema"),
 							Position: resolve.Position{
 								Line:   3,
@@ -339,7 +330,6 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:             0,
 						Input:                `{"request_type":2,"type_name":"$$0$$"}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: dataSourceIdentifier,
@@ -352,8 +342,6 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							BufferID:  0,
-							HasBuffer: true,
 							Name:      []byte("__type"),
 							Position: resolve.Position{
 								Line:   3,
@@ -364,7 +352,6 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 								Fetch: &resolve.ParallelFetch{
 									Fetches: []resolve.Fetch{
 										&resolve.SingleFetch{
-											BufferId:   1,
 											Input:      `{"request_type":3,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
 											DataSource: &Source{},
 											Variables: resolve.NewVariables(
@@ -380,7 +367,6 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 											DataSourceIdentifier: dataSourceIdentifier,
 										},
 										&resolve.SingleFetch{
-											BufferId:   2,
 											Input:      `{"request_type":4,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
 											DataSource: &Source{},
 											Variables: resolve.NewVariables(
@@ -399,8 +385,6 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 								},
 								Fields: []*resolve.Field{
 									{
-										BufferID:  1,
-										HasBuffer: true,
 										Name:      []byte("fields"),
 										Value: &resolve.Array{
 											Nullable: true,
@@ -424,8 +408,6 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 										},
 									},
 									{
-										BufferID:  2,
-										HasBuffer: true,
 										Name:      []byte("enumValues"),
 										Value: &resolve.Array{
 											Nullable: true,

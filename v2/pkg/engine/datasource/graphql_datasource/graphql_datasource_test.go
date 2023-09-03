@@ -45,7 +45,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
-					BufferId:   0,
 					Input:      `{"method":"POST","url":"https://swapi.com/graphql","unnull_variables":true,"body":{"query":"query($a: String){hero(a: $a)}","variables":{"a":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
@@ -58,8 +57,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("hero"),
 						Value: &resolve.String{
 							Path:     []string{"hero"},
@@ -122,7 +119,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
-					BufferId:   0,
 					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
@@ -138,8 +134,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("droid"),
 						Value: &resolve.Object{
 							Path:     []string{"droid"},
@@ -185,8 +179,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("hero"),
 						Value: &resolve.Object{
 							Path:     []string{"hero"},
@@ -202,8 +194,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("stringList"),
 						Value: &resolve.Array{
 							Nullable: true,
@@ -213,8 +203,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("nestedStringList"),
 						Value: &resolve.Array{
 							Nullable: true,
@@ -299,15 +287,12 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource:           &Source{},
-					BufferId:             0,
 					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("user"),
 						Value: &resolve.Object{
 							Path:     []string{"user"},
@@ -400,15 +385,12 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						DataSource:           &Source{},
-						BufferId:             0,
 						Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{thing {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("thing"),
 							Value: &resolve.Object{
 								Path:     []string{"thing"},
@@ -494,7 +476,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource:           &Source{},
-					BufferId:             0,
 					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					PostProcessing:       DefaultPostProcessingConfiguration,
@@ -507,8 +488,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("user"),
 						Value: &resolve.Object{
 							Path:     []string{"user"},
@@ -579,7 +558,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource:           &Source{},
-					BufferId:             0,
 					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName __typename @skip(if: $skip) tn2: __typename @include(if: $skip)}}","variables":{"skip":$$0$$}}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					Variables: resolve.NewVariables(&resolve.ContextVariable{
@@ -590,8 +568,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("user"),
 						Value: &resolve.Object{
 							Path:     []string{"user"},
@@ -678,7 +654,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource:           &Source{},
-					BufferId:             0,
 					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {... @skip(if: $skip){id displayName}}}","variables":{"skip":$$0$$}}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					PostProcessing:       DefaultPostProcessingConfiguration,
@@ -691,8 +666,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("user"),
 						Value: &resolve.Object{
 							Path:     []string{"user"},
@@ -767,7 +740,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource:           &Source{},
-					BufferId:             0,
 					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {... @include(if: $include){id displayName}}}","variables":{"include":$$0$$}}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					PostProcessing:       DefaultPostProcessingConfiguration,
@@ -780,8 +752,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("user"),
 						Value: &resolve.Object{
 							Path:     []string{"user"},
@@ -854,15 +824,12 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource:           &Source{},
-					BufferId:             0,
 					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("user"),
 						Value: &resolve.Object{
 							Path:     []string{"user"},
@@ -923,15 +890,12 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource:           &Source{},
-					BufferId:             0,
 					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("user"),
 						Value: &resolve.Object{
 							Path:     []string{"user"},
@@ -998,7 +962,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource:           &Source{},
-					BufferId:             0,
 					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {id displayName @include(if: $include)}}","variables":{"include":$$0$$}}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					PostProcessing:       DefaultPostProcessingConfiguration,
@@ -1011,8 +974,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("user"),
 						Value: &resolve.Object{
 							Path:     []string{"user"},
@@ -1081,15 +1042,12 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource:           &Source{},
-					BufferId:             0,
 					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("user"),
 						Value: &resolve.Object{
 							Path:     []string{"user"},
@@ -1155,15 +1113,12 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource:           &Source{},
-					BufferId:             0,
 					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("user"),
 						Value: &resolve.Object{
 							Path:     []string{"user"},
@@ -1227,15 +1182,12 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource:           &Source{},
-					BufferId:             0,
 					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName __typename ... on RegisteredUser {hasVerifiedEmail}}}"}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("user"),
 						Value: &resolve.Object{
 							Path:     []string{"user"},
@@ -1308,7 +1260,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
-					BufferId:   0,
 					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($name: String!){user(name: $name){normalized(data: {name: $name})}}","variables":{"name":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
@@ -1321,8 +1272,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("user"),
 						Value: &resolve.Object{
 							Path:     []string{"user"},
@@ -1404,7 +1353,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						DataSource: &Source{},
-						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($heroId: ID!){droid(id: $heroId){name} hero {id}}","variables":{"heroId":$$0$$}}}`,
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
@@ -1418,8 +1366,6 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("droid"),
 							Value: &resolve.Object{
 								Path:     []string{"droid"},
@@ -1435,8 +1381,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("hero"),
 							Value: &resolve.Object{
 								Path:     []string{"hero"},
@@ -1528,7 +1472,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
-					BufferId:   0,
 					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $heroName: String!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} search(name: $heroName){__typename ... on Droid {primaryFunction}} stringList nestedStringList}","variables":{"heroName":$$1$$,"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
@@ -1548,8 +1491,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("droid"),
 						Value: &resolve.Object{
 							Path:     []string{"droid"},
@@ -1595,8 +1536,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("hero"),
 						Value: &resolve.Object{
 							Path:     []string{"hero"},
@@ -1616,8 +1555,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("search"),
 						Value: &resolve.Object{
 							Nullable: true,
@@ -1634,8 +1571,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("stringList"),
 						Value: &resolve.Array{
 							Nullable: true,
@@ -1645,8 +1580,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("nestedStringList"),
 						Value: &resolve.Array{
 							Nullable: true,
@@ -1772,7 +1705,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
-					BufferId:   0,
 					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$4$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $a: String! @onVariable, $input: SearchInput!, $options: JSON)@onOperation {api_droid: droid(id: $id){name @format aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search(name: $a){__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}} withOptions: searchWithInput(input: {options: $options}){__typename ... on Droid {primaryFunction}}}","variables":{"options":$$3$$,"input":$$2$$,"a":$$1$$,"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
@@ -1800,8 +1732,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("api_droid"),
 						Value: &resolve.Object{
 							Path:     []string{"api_droid"},
@@ -1847,8 +1777,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("api_hero"),
 						Value: &resolve.Object{
 							Path:     []string{"api_hero"},
@@ -1871,8 +1799,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("api_stringList"),
 						Value: &resolve.Array{
 							Nullable: true,
@@ -1883,8 +1809,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("renamed"),
 						Value: &resolve.Array{
 							Nullable: true,
@@ -1895,8 +1819,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("api_search"),
 						Value: &resolve.Object{
 							Nullable: true,
@@ -1913,8 +1835,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("api_searchWithInput"),
 						Value: &resolve.Object{
 							Nullable: true,
@@ -1931,8 +1851,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("withOptions"),
 						Value: &resolve.Object{
 							Nullable: true,
@@ -2100,7 +2018,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
-					BufferId:   0,
 					Input:      `{"method":"POST","url":"https://subgraph-reviews/query","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {username id}}}}}","variables":{"representations":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
@@ -2113,8 +2030,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("_entities"),
 						Value: &resolve.Array{
 							Path:     []string{"_entities"},
@@ -2260,7 +2175,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidIDs: [ID!]!){droids(ids: $droidIDs){name primaryFunction}}","variables":{"droidIDs":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
@@ -2300,8 +2214,6 @@ func TestGraphQLDataSource(t *testing.T) {
 								},
 								Stream: resolve.Stream{},
 							},
-							HasBuffer: true,
-							BufferID:  0,
 						},
 					},
 				},
@@ -2319,7 +2231,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidID: ID!){droid(id: $droidID){name primaryFunction}}","variables":{"droidID":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
@@ -2354,8 +2265,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 								},
 							},
-							HasBuffer: true,
-							BufferID:  0,
 						},
 					},
 				},
@@ -2372,7 +2281,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($birthdate: Date!){heroByBirthdate(birthdate: $birthdate){name}}","variables":{"birthdate":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
@@ -2400,8 +2308,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 								},
 							},
-							HasBuffer: true,
-							BufferID:  0,
 						},
 					},
 				},
@@ -2423,7 +2329,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://service.one","body":{"query":"mutation($name: String!){addFriend(name: $name){id name}}","variables":{"name":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
@@ -2438,8 +2343,6 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							BufferID:  0,
-							HasBuffer: true,
 							Name:      []byte("addFriend"),
 							Value: &resolve.Object{
 								Fields: []*resolve.Field{
@@ -2522,7 +2425,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://foo.service","body":{"query":"query($a: String, $b: String){foo(bar: $a){bar(bal: $b)}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
@@ -2541,8 +2443,6 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							BufferID:  0,
-							HasBuffer: true,
 							Name:      []byte("foo"),
 							Value: &resolve.Object{
 								Nullable: true,
@@ -2628,7 +2528,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://countries.service","body":{"query":"query($a: ID!, $b: ID!){country(code: $a){name} alias: country(code: $b){name}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
@@ -2647,8 +2546,6 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							BufferID:  0,
-							HasBuffer: true,
 							Name:      []byte("country"),
 							Value: &resolve.Object{
 								Nullable: true,
@@ -2665,8 +2562,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 						{
-							BufferID:  0,
-							HasBuffer: true,
 							Name:      []byte("alias"),
 							Value: &resolve.Object{
 								Nullable: true,
@@ -2754,7 +2649,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://countries.service","body":{"query":"query($a: ID!, $b: ID!){country(code: $a){name} countryAlias: country(code: $b){name}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
@@ -2773,8 +2667,6 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							BufferID:  0,
-							HasBuffer: true,
 							Name:      []byte("country"),
 							Value: &resolve.Object{
 								Nullable: true,
@@ -2791,8 +2683,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 						{
-							BufferID:  0,
-							HasBuffer: true,
 							Name:      []byte("countryAlias"),
 							Value: &resolve.Object{
 								Nullable: true,
@@ -2916,7 +2806,6 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.ParallelFetch{
 						Fetches: []resolve.Fetch{
 							&resolve.SingleFetch{
-								BufferId:   0,
 								Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
@@ -2933,7 +2822,6 @@ func TestGraphQLDataSource(t *testing.T) {
 								PostProcessing:       DefaultPostProcessingConfiguration,
 							},
 							&resolve.SingleFetch{
-								BufferId:   2,
 								Input:      `{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
@@ -2953,15 +2841,12 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							BufferID:  0,
-							HasBuffer: true,
 							Name:      []byte("serviceOne"),
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"serviceOne"},
 
 								Fetch: &resolve.SingleFetch{
-									BufferId:             1,
 									DataSource:           &Source{},
 									Input:                `{"method":"POST","url":"https://country.service","body":{"query":"{countries {name}}"}}`,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -2977,8 +2862,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									{
 										Name:      []byte("countries"),
-										HasBuffer: true,
-										BufferID:  1,
 										Value: &resolve.Array{
 											Path: []string{"countries"},
 											Item: &resolve.Object{
@@ -2997,14 +2880,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 						{
-							HasBuffer: true,
-							BufferID:  2,
 							Name:      []byte("serviceTwo"),
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"serviceTwo"},
 								Fetch: &resolve.SingleFetch{
-									BufferId:   3,
 									DataSource: &Source{},
 									Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOneResponse: serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":$$0$$}}}`,
 									Variables: resolve.NewVariables(
@@ -3025,8 +2905,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										},
 									},
 									{
-										HasBuffer: true,
-										BufferID:  3,
 										Name:      []byte("serviceOneResponse"),
 										Value: &resolve.Object{
 											Nullable: true,
@@ -3045,8 +2923,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("anotherServiceOne"),
 							Value: &resolve.Object{
 								Nullable: true,
@@ -3062,8 +2938,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 						{
-							BufferID:  2,
-							HasBuffer: true,
 							Name:      []byte("secondServiceTwo"),
 							Value: &resolve.Object{
 								Nullable: true,
@@ -3087,8 +2961,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 						{
-							BufferID:  0,
-							HasBuffer: true,
 							Name:      []byte("reusingServiceOne"),
 							Value: &resolve.Object{
 								Nullable: true,
@@ -3259,7 +3131,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://graphql.service","body":{"query":"mutation($title: String!, $completed: Boolean!, $name: String!){addTask(input: [{titleSets: [[$title]],completed: $completed,user: {name: $name}}]){task {id title completed}}}","variables":{"name":$$2$$,"completed":$$1$$,"title":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
@@ -3282,8 +3153,6 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("addTask"),
 							Value: &resolve.Object{
 								Path:     []string{"addTask"},
@@ -3407,7 +3276,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:   0,
 						Input:      `{"method":"POST","url":"https://user.service","body":{"query":"mutation($id: String, $name: String){createUser(input: {user: {id: $id,username: $name}}){user {id username createdDate}}}","variables":{"name":$$1$$,"id":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
@@ -3426,8 +3294,6 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							BufferID:  0,
-							HasBuffer: true,
 							Name:      []byte("createUser"),
 							Value: &resolve.Object{
 								Nullable: true,
@@ -3534,7 +3400,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:   0,
 						Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){__typename namespaceCreate(input: {name: $name,personal: $personal}){__typename ... on NamespaceCreated {namespace {id name}} ... on Error {code message}}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
@@ -3562,8 +3427,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						{
 							Name:      []byte("namespaceCreate"),
-							HasBuffer: true,
-							BufferID:  0,
 							Value: &resolve.Object{
 								Path: []string{"namespaceCreate"},
 								Fields: []*resolve.Field{
@@ -3685,7 +3548,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:             0,
 						Input:                `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){namespaceCreate(input: {name: $name,personal: $personal}){__typename}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
 						DataSource:           &Source{},
 						DisallowSingleFlight: true,
@@ -3705,8 +3567,6 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fields: []*resolve.Field{
 						{
 							Name:      []byte("namespaceCreate"),
-							HasBuffer: true,
-							BufferID:  0,
 							Value: &resolve.Object{
 								Path: []string{"namespaceCreate"},
 								Fields: []*resolve.Field{
@@ -3914,7 +3774,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:             0,
 						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{me {id username}}"}}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -3922,13 +3781,10 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("me"),
 							Value: &resolve.Object{
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
-										BufferId: 1,
 										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body author {id username} product {reviews {body author {id username}} upc}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
@@ -3959,8 +3815,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										},
 									},
 									{
-										HasBuffer: true,
-										BufferID:  1,
 										Name:      []byte("reviews"),
 										Value: &resolve.Array{
 											Path:     []string{"reviews"},
@@ -4000,7 +3854,6 @@ func TestGraphQLDataSource(t *testing.T) {
 															Path: []string{"product"},
 															Fetch: &resolve.BatchFetch{
 																Fetch: &resolve.SingleFetch{
-																	BufferId:   2,
 																	Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
 																	DataSource: &Source{},
 																	Variables: resolve.NewVariables(
@@ -4017,24 +3870,18 @@ func TestGraphQLDataSource(t *testing.T) {
 															},
 															Fields: []*resolve.Field{
 																{
-																	HasBuffer: true,
-																	BufferID:  2,
 																	Name:      []byte("name"),
 																	Value: &resolve.String{
 																		Path: []string{"name"},
 																	},
 																},
 																{
-																	HasBuffer: true,
-																	BufferID:  2,
 																	Name:      []byte("price"),
 																	Value: &resolve.Integer{
 																		Path: []string{"price"},
 																	},
 																},
 																{
-																	HasBuffer: false,
-																	BufferID:  0,
 																	Name:      []byte("reviews"),
 																	Value: &resolve.Array{
 																		Nullable: true,
@@ -4235,7 +4082,6 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.ParallelFetch{
 						Fetches: []resolve.Fetch{
 							&resolve.SingleFetch{
-								BufferId:   0,
 								Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){username}}","variables":{"a":$$0$$}}}`,
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
@@ -4248,7 +4094,6 @@ func TestGraphQLDataSource(t *testing.T) {
 								PostProcessing:       DefaultPostProcessingConfiguration,
 							},
 							&resolve.SingleFetch{
-								BufferId:   1,
 								Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($b: String!){vehicle(id: $b){description}}","variables":{"b":$$0$$}}}`,
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
@@ -4264,8 +4109,6 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("user"),
 							Value: &resolve.Object{
 								Path:     []string{"user"},
@@ -4282,8 +4125,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 						{
-							HasBuffer: true,
-							BufferID:  1,
 							Name:      []byte("vehicle"),
 							Value: &resolve.Object{
 								Path:     []string{"vehicle"},
@@ -4416,7 +4257,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:   0,
 						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate account {__typename ... on PasswordAccount {email} ... on SMSAccount {number}} metadata {name address description} ssn}}","variables":{"a":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
@@ -4430,13 +4270,10 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("user"),
 							Value: &resolve.Object{
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
-										BufferId: 1,
 										Input:    `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price __typename}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
@@ -4499,8 +4336,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									{
 										Name:      []byte("vehicle"),
-										HasBuffer: true,
-										BufferID:  1,
 										Value: &resolve.Object{
 											Path:     []string{"vehicle"},
 											Nullable: true,
@@ -4730,7 +4565,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:   0,
 						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate account {__typename ... on PasswordAccount {email} ... on SMSAccount {number}} metadata {name address description} ssn}}","variables":{"a":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
@@ -4744,13 +4578,10 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("user"),
 							Value: &resolve.Object{
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
-										BufferId: 1,
 										Input:    `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price __typename}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
@@ -4870,8 +4701,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									{
 										Name:      []byte("vehicle"),
-										HasBuffer: true,
-										BufferID:  1,
 										Value: &resolve.Object{
 											Path:     []string{"vehicle"},
 											Nullable: true,
@@ -5024,7 +4853,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:             0,
 						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{me {id}}"}}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -5032,13 +4860,10 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("me"),
 							Value: &resolve.Object{
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
-										BufferId: 1,
 										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: Boolean!){_entities(representations: $representations){__typename ... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"publicOnly":$$2$$,"someSkipCondition":$$1$$,"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
@@ -5065,8 +4890,6 @@ func TestGraphQLDataSource(t *testing.T) {
 								Nullable: true,
 								Fields: []*resolve.Field{
 									{
-										HasBuffer: true,
-										BufferID:  1,
 										Name:      []byte("reviews"),
 										Value: &resolve.Array{
 											Path:     []string{"reviews"},
@@ -5196,7 +5019,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:             0,
 						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{me {id}}"}}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -5204,13 +5026,10 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("me"),
 							Value: &resolve.Object{
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
-										BufferId: 1,
 										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: XBoolean!){_entities(representations: $representations){__typename ... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"publicOnly":$$2$$,"someSkipCondition":$$1$$,"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
@@ -5237,8 +5056,6 @@ func TestGraphQLDataSource(t *testing.T) {
 								Nullable: true,
 								Fields: []*resolve.Field{
 									{
-										HasBuffer: true,
-										BufferID:  1,
 										Name:      []byte("reviews"),
 										Value: &resolve.Array{
 											Path:     []string{"reviews"},
@@ -5368,7 +5185,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId: 0,
 						// Should fetch the federation key as well as all the required fields.
 						Input:                `{"method":"POST","url":"http://one.service","body":{"query":"{serviceOne {id serviceOneFieldOne serviceOneFieldTwo}}"}}`,
 						DataSource:           &Source{},
@@ -5377,13 +5193,10 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("serviceOne"),
 							Value: &resolve.Object{
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
-										BufferId: 1,
 										// The required fields are present in the representations.
 										Input: `{"method":"POST","url":"http://two.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on ServiceOneType {serviceTwoFieldOne serviceTwoFieldTwo}}}","variables":{"representations":[{"serviceOneFieldTwo":$$2$$,"serviceOneFieldOne":$$1$$,"id":$$0$$,"__typename":"ServiceOneType"}]}}}`,
 										Variables: resolve.NewVariables(
@@ -5411,16 +5224,12 @@ func TestGraphQLDataSource(t *testing.T) {
 								Nullable: true,
 								Fields: []*resolve.Field{
 									{
-										HasBuffer: true,
-										BufferID:  1,
 										Name:      []byte("serviceTwoFieldOne"),
 										Value: &resolve.String{
 											Path: []string{"serviceTwoFieldOne"},
 										},
 									},
 									{
-										HasBuffer: true,
-										BufferID:  1,
 										Name:      []byte("serviceTwoFieldTwo"),
 										Value: &resolve.String{
 											Path: []string{"serviceTwoFieldTwo"},
@@ -5529,7 +5338,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:             0,
 						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{api_me: me {id username}}"}}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -5537,13 +5345,10 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("api_me"),
 							Value: &resolve.Object{
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
-										BufferId: 1,
 										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body author {id username} product {reviews {body author {id username}} upc}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
@@ -5574,8 +5379,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										},
 									},
 									{
-										HasBuffer: true,
-										BufferID:  1,
 										Name:      []byte("reviews"),
 										Value: &resolve.Array{
 											Path:     []string{"reviews"},
@@ -5615,7 +5418,6 @@ func TestGraphQLDataSource(t *testing.T) {
 															Path: []string{"product"},
 															Fetch: &resolve.BatchFetch{
 																Fetch: &resolve.SingleFetch{
-																	BufferId:   2,
 																	Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
 																	DataSource: &Source{},
 																	Variables: resolve.NewVariables(
@@ -5632,24 +5434,18 @@ func TestGraphQLDataSource(t *testing.T) {
 															},
 															Fields: []*resolve.Field{
 																{
-																	HasBuffer: true,
-																	BufferID:  2,
 																	Name:      []byte("name"),
 																	Value: &resolve.String{
 																		Path: []string{"name"},
 																	},
 																},
 																{
-																	HasBuffer: true,
-																	BufferID:  2,
 																	Name:      []byte("price"),
 																	Value: &resolve.Integer{
 																		Path: []string{"price"},
 																	},
 																},
 																{
-																	HasBuffer: false,
-																	BufferID:  0,
 																	Name:      []byte("reviews"),
 																	Value: &resolve.Array{
 																		Nullable: true,
@@ -5877,7 +5673,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:             0,
 						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{me {__typename id uid: id username}}"}}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -5885,13 +5680,10 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("me"),
 							Value: &resolve.Object{
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
-										BufferId: 1,
 										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body id}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
@@ -5936,8 +5728,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										},
 									},
 									{
-										HasBuffer: true,
-										BufferID:  1,
 										Name:      []byte("reviews"),
 										Value: &resolve.Array{
 											Path:     []string{"reviews"},
@@ -6057,7 +5847,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:             0,
 						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{self {id __typename ... on User {uid: id username}}}"}}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -6065,13 +5854,10 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("self"),
 							Value: &resolve.Object{
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
-										BufferId: 1,
 										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body id}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
@@ -6118,8 +5904,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										OnTypeNames: [][]byte{[]byte("User")},
 									},
 									{
-										HasBuffer: true,
-										BufferID:  1,
 										Name:      []byte("reviews"),
 										Value: &resolve.Array{
 											Path:     []string{"reviews"},
@@ -6244,7 +6028,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:             0,
 						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{self {__typename ... on User {id}}}"}}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -6252,13 +6035,10 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("self"),
 							Value: &resolve.Object{
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
-										BufferId: 1,
 										Input:    `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body attachment {__typename ... on Image {extension} ... on Video {length}} id}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
@@ -6277,8 +6057,6 @@ func TestGraphQLDataSource(t *testing.T) {
 								Nullable: true,
 								Fields: []*resolve.Field{
 									{
-										HasBuffer: true,
-										BufferID:  1,
 										Name:      []byte("reviews"),
 										Value: &resolve.Array{
 											Path:     []string{"reviews"},
@@ -6459,7 +6237,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
-							BufferId:             0,
 							Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
 							DataSource:           &Source{},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -6467,13 +6244,10 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Fields: []*resolve.Field{
 							{
-								HasBuffer: true,
-								BufferID:  0,
 								Name:      []byte("user"),
 								Value: &resolve.Object{
 									Fetch: &resolve.BatchFetch{
 										Fetch: &resolve.SingleFetch{
-											BufferId: 1,
 											Input:    `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {name __typename ... on Cat {catField details {age}} ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
@@ -6499,8 +6273,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										},
 										{
 											Name:      []byte("pets"),
-											HasBuffer: true,
-											BufferID:  1,
 											Value: &resolve.Array{
 												Path:     []string{"pets"},
 												Nullable: false,
@@ -6702,7 +6474,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
-							BufferId:             0,
 							Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
 							DataSource:           &Source{},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -6710,13 +6481,10 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Fields: []*resolve.Field{
 							{
-								HasBuffer: true,
-								BufferID:  0,
 								Name:      []byte("user"),
 								Value: &resolve.Object{
 									Fetch: &resolve.BatchFetch{
 										Fetch: &resolve.SingleFetch{
-											BufferId: 1,
 											Input:    `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {catField details {age}} name ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
@@ -6742,8 +6510,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										},
 										{
 											Name:      []byte("pets"),
-											HasBuffer: true,
-											BufferID:  1,
 											Value: &resolve.Array{
 												Path:     []string{"pets"},
 												Nullable: false,
@@ -6945,7 +6711,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
-							BufferId:             0,
 							Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
 							DataSource:           &Source{},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -6953,13 +6718,10 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 						Fields: []*resolve.Field{
 							{
-								HasBuffer: true,
-								BufferID:  0,
 								Name:      []byte("user"),
 								Value: &resolve.Object{
 									Fetch: &resolve.BatchFetch{
 										Fetch: &resolve.SingleFetch{
-											BufferId: 1,
 											// Note: __typename is included in the Cat and Dog inline fragments
 											// because the field were originally themselves in inline fragments
 											// that were inlined. The additional __typename selections are
@@ -6989,8 +6751,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										},
 										{
 											Name:      []byte("pets"),
-											HasBuffer: true,
-											BufferID:  1,
 											Value: &resolve.Array{
 												Path:     []string{"pets"},
 												Nullable: false,
@@ -7205,7 +6965,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:             0,
 						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {username id}}"}}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -7213,13 +6972,10 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("user"),
 							Value: &resolve.Object{
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
-										BufferId: 1,
 										Input:    `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {name catField} ... on Dog {name dogField}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
@@ -7245,8 +7001,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									{
 										Name:      []byte("pets"),
-										HasBuffer: true,
-										BufferID:  1,
 										Value: &resolve.Array{
 											Path:     []string{"pets"},
 											Nullable: false,
@@ -7415,7 +7169,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						BufferId:             0,
 						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {username pets {__typename ... on Cat {id} ... on Dog {id}}}}"}}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -7423,8 +7176,6 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("user"),
 							Value: &resolve.Object{
 								Path:     []string{"user"},
@@ -7444,7 +7195,6 @@ func TestGraphQLDataSource(t *testing.T) {
 											Item: &resolve.Object{
 												Fetch: &resolve.BatchFetch{
 													Fetch: &resolve.SingleFetch{
-														BufferId: 1,
 														Input:    `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Cat {name catField} ... on Dog {name dogField}}}","variables":{"representations":[{"id":$$1$$,"__typename":$$0$$}]}}}`,
 														Variables: resolve.NewVariables(
 															&resolve.ObjectVariable{
@@ -7466,8 +7216,6 @@ func TestGraphQLDataSource(t *testing.T) {
 												Nullable: false,
 												Fields: []*resolve.Field{
 													{
-														HasBuffer: true,
-														BufferID:  1,
 														Name:      []byte("name"),
 														Value: &resolve.String{
 															Path: []string{"name"},
@@ -7475,8 +7223,6 @@ func TestGraphQLDataSource(t *testing.T) {
 														OnTypeNames: [][]byte{[]byte("Cat")},
 													},
 													{
-														HasBuffer: true,
-														BufferID:  1,
 														Name:      []byte("catField"),
 														Value: &resolve.String{
 															Path: []string{"catField"},
@@ -7484,8 +7230,6 @@ func TestGraphQLDataSource(t *testing.T) {
 														OnTypeNames: [][]byte{[]byte("Cat")},
 													},
 													{
-														HasBuffer: true,
-														BufferID:  1,
 														Name:      []byte("name"),
 														Value: &resolve.String{
 															Path: []string{"name"},
@@ -7493,8 +7237,6 @@ func TestGraphQLDataSource(t *testing.T) {
 														OnTypeNames: [][]byte{[]byte("Dog")},
 													},
 													{
-														HasBuffer: true,
-														BufferID:  1,
 														Name:      []byte("dogField"),
 														Value: &resolve.String{
 															Path: []string{"dogField"},
@@ -7640,7 +7382,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
-					BufferId:   0,
 					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($droidId: ID!, $reviewId: ReviewID!){droid(id: $droidId){name aliased: name friends {name} primaryFunction} review(id: $reviewId){stars}}","variables":{"reviewId":$$1$$,"droidId":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
@@ -7660,8 +7401,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("droid"),
 						Value: &resolve.Object{
 							Path:     []string{"droid"},
@@ -7707,8 +7446,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("review"),
 						Value: &resolve.Object{
 							Path:     []string{"review"},
@@ -7808,7 +7545,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
-					BufferId:   0,
 					Input:      `{"method":"POST","url":"http://localhost:8084/query","body":{"query":"query($id: ID!){custom_user: user(id: $id){id name tier meta}}","variables":{"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
@@ -7821,8 +7557,6 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("custom_user"),
 						Value: &resolve.Object{
 							Path:     []string{"custom_user"},
@@ -8453,7 +8187,6 @@ func BenchmarkFederationBatching(b *testing.B) {
 	preparedPlan := &resolve.GraphQLResponse{
 		Data: &resolve.Object{
 			Fetch: &resolve.SingleFetch{
-				BufferId: 0,
 				InputTemplate: resolve.InputTemplate{
 					Segments: []resolve.TemplateSegment{
 						{
@@ -8467,13 +8200,10 @@ func BenchmarkFederationBatching(b *testing.B) {
 			},
 			Fields: []*resolve.Field{
 				{
-					HasBuffer: true,
-					BufferID:  0,
 					Name:      []byte("me"),
 					Value: &resolve.Object{
 						Fetch: &resolve.BatchFetch{
 							Fetch: &resolve.SingleFetch{
-								BufferId: 1,
 								InputTemplate: resolve.InputTemplate{
 									Segments: []resolve.TemplateSegment{
 										{
@@ -8514,8 +8244,6 @@ func BenchmarkFederationBatching(b *testing.B) {
 							},
 							{
 
-								HasBuffer: true,
-								BufferID:  1,
 								Name:      []byte("reviews"),
 								Value: &resolve.Array{
 									Path:     []string{"reviews"},
@@ -8535,7 +8263,6 @@ func BenchmarkFederationBatching(b *testing.B) {
 													Path: []string{"product"},
 													Fetch: &resolve.BatchFetch{
 														Fetch: &resolve.SingleFetch{
-															BufferId:   2,
 															DataSource: productsService,
 															InputTemplate: resolve.InputTemplate{
 																Segments: []resolve.TemplateSegment{
@@ -8567,8 +8294,6 @@ func BenchmarkFederationBatching(b *testing.B) {
 															},
 														},
 														{
-															HasBuffer: true,
-															BufferID:  2,
 															Name:      []byte("name"),
 															Value: &resolve.String{
 																Path: []string{"name"},

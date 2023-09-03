@@ -34,7 +34,6 @@ type Visitor struct {
 	currentField                 *resolve.Field
 	planners                     []plannerConfiguration
 	fetchConfigurations          []objectFetchConfiguration
-	fieldBuffers                 map[int]int
 	skipFieldsRefs               []int
 	fieldConfigs                 map[int]*FieldConfiguration
 	exportedVariables            map[string]struct{}
@@ -287,13 +286,10 @@ func (v *Visitor) EnterField(ref int) {
 
 	path := v.resolveFieldPath(ref)
 	fieldDefinitionType := v.Definition.FieldDefinitionType(fieldDefinition)
-	bufferID, hasBuffer := v.fieldBuffers[ref]
 
 	v.currentField = &resolve.Field{
 		Name:                    fieldAliasOrName,
 		Value:                   v.resolveFieldValue(ref, fieldDefinitionType, true, path),
-		HasBuffer:               hasBuffer,
-		BufferID:                bufferID,
 		OnTypeNames:             v.resolveOnTypeNames(),
 		Position:                v.resolveFieldPosition(ref),
 		SkipDirectiveDefined:    skip,
@@ -992,7 +988,6 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external Fet
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 
 	singleFetch := &resolve.SingleFetch{
-		BufferId:                              internal.bufferID,
 		Input:                                 external.Input,
 		DataSource:                            external.DataSource,
 		Variables:                             external.Variables,
