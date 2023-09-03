@@ -189,13 +189,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("BigInt", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fetch: &SingleFetch{
-				BufferId:   0,
 				DataSource: FakeDataSource(`{"n": 12345, "ns_small": "12346", "ns_big": "1152921504606846976"`),
 			},
 			Fields: []*Field{
 				{
-					BufferID:  0,
-					HasBuffer: true,
 					Name:      []byte("n"),
 					Value: &BigInt{
 						Path:     []string{"n"},
@@ -203,8 +200,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				{
-					BufferID:  0,
-					HasBuffer: true,
 					Name:      []byte("ns_small"),
 					Value: &BigInt{
 						Path:     []string{"ns_small"},
@@ -212,8 +207,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				{
-					BufferID:  0,
-					HasBuffer: true,
 					Name:      []byte("ns_big"),
 					Value: &BigInt{
 						Path:     []string{"ns_big"},
@@ -250,37 +243,28 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							BufferId:   0,
 							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
 						},
 						Fields: []*Field{
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("name"),
 								Value: &String{
 									Path: []string{"name"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("registered"),
 								Value: &Boolean{
 									Path: []string{"registered"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("pet"),
 								Value: &Object{
 									Path: []string{"pet"},
@@ -313,13 +297,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							BufferId:   0,
 							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
 						},
 						Fields: []*Field{
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
@@ -340,13 +321,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							BufferId:   0,
 							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
 						},
 						Fields: []*Field{
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
@@ -355,8 +333,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 								SkipVariableName:     "skip",
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("name"),
 								Value: &String{
 									Path: []string{"name"},
@@ -377,21 +353,16 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							BufferId:   0,
 							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
 						},
 						Fields: []*Field{
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("__typename"),
 								Value: &String{
 									Path: []string{"__typename"},
@@ -412,21 +383,16 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							BufferId:   0,
 							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"},"__typename":"User"}`),
 						},
 						Fields: []*Field{
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("__typename"),
 								Value: &String{
 									Path: []string{"__typename"},
@@ -447,21 +413,16 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							BufferId:   0,
 							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"},"__typename":"User"}`),
 						},
 						Fields: []*Field{
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("__typename"),
 								Value: &String{
 									Path: []string{"__typename"},
@@ -482,37 +443,28 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							BufferId:   0,
 							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
 						},
 						Fields: []*Field{
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("name"),
 								Value: &String{
 									Path: []string{"name"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("registered"),
 								Value: &Boolean{
 									Path: []string{"registered"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("pet"),
 								Value: &Object{
 									Path: []string{"pet"},
@@ -547,37 +499,28 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							BufferId:   0,
 							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
 						},
 						Fields: []*Field{
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("name"),
 								Value: &String{
 									Path: []string{"name"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("registered"),
 								Value: &Boolean{
 									Path: []string{"registered"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("pet"),
 								Value: &Object{
 									Path: []string{"pet"},
@@ -612,37 +555,28 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							BufferId:   0,
 							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
 						},
 						Fields: []*Field{
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("name"),
 								Value: &String{
 									Path: []string{"name"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("registered"),
 								Value: &Boolean{
 									Path: []string{"registered"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("pet"),
 								Value: &Object{
 									Path: []string{"pet"},
@@ -677,37 +611,28 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							BufferId:   0,
 							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
 						},
 						Fields: []*Field{
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("name"),
 								Value: &String{
 									Path: []string{"name"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("registered"),
 								Value: &Boolean{
 									Path: []string{"registered"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("pet"),
 								Value: &Object{
 									Path: []string{"pet"},
@@ -742,37 +667,28 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							BufferId:   0,
 							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
 						},
 						Fields: []*Field{
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("name"),
 								Value: &String{
 									Path: []string{"name"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("registered"),
 								Value: &Boolean{
 									Path: []string{"registered"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("pet"),
 								Value: &Object{
 									Path: []string{"pet"},
@@ -807,37 +723,28 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							BufferId:   0,
 							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
 						},
 						Fields: []*Field{
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("name"),
 								Value: &String{
 									Path: []string{"name"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("registered"),
 								Value: &Boolean{
 									Path: []string{"registered"},
 								},
 							},
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("pet"),
 								Value: &Object{
 									Path: []string{"pet"},
@@ -876,7 +783,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 			Return(nil)
 		return &Object{
 			Fetch: &SingleFetch{
-				BufferId:   0,
 				DataSource: mockDataSource,
 				Input:      `{"id":$$0$$}`,
 				InputTemplate: InputTemplate{
@@ -903,8 +809,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 			Fields: []*Field{
 				{
-					HasBuffer: true,
-					BufferID:  0,
 					Name:      []byte("name"),
 					Value: &String{
 						Path: []string{"name"},
@@ -916,13 +820,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve array of strings", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fetch: &SingleFetch{
-				BufferId:   0,
 				DataSource: FakeDataSource(`{"strings": ["Alex", "true", "123"]}`),
 			},
 			Fields: []*Field{
 				{
-					BufferID:  0,
-					HasBuffer: true,
 					Name:      []byte("strings"),
 					Value: &Array{
 						Path: []string{"strings"},
@@ -937,13 +838,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve array of mixed scalar types", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
 		return &Object{
 			Fetch: &SingleFetch{
-				BufferId:   0,
 				DataSource: FakeDataSource(`{"strings": ["Alex", "true", 123]}`),
 			},
 			Fields: []*Field{
 				{
-					BufferID:  0,
-					HasBuffer: true,
 					Name:      []byte("strings"),
 					Value: &Array{
 						Path: []string{"strings"},
@@ -960,13 +858,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("json encoded input", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
 					Fetch: &SingleFetch{
-						BufferId:   0,
 						DataSource: FakeDataSource(`{"jsonList":["{\"field\":\"value\"}"]}`),
 					},
 					Fields: []*Field{
 						{
-							BufferID:  0,
-							HasBuffer: true,
 							Name:      []byte("jsonList"),
 							Value: &Array{
 								Path: []string{"jsonList"},
@@ -982,13 +877,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("json input", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
 					Fetch: &SingleFetch{
-						BufferId:   0,
 						DataSource: FakeDataSource(`{"jsonList":[{"field":"value"}]}`),
 					},
 					Fields: []*Field{
 						{
-							BufferID:  0,
-							HasBuffer: true,
 							Name:      []byte("jsonList"),
 							Value: &Array{
 								Path: []string{"jsonList"},
@@ -1006,13 +898,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("json encoded input", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
 					Fetch: &SingleFetch{
-						BufferId:   0,
 						DataSource: FakeDataSource(`{"jsonList":["{\"field\":\"value\"}"]}`),
 					},
 					Fields: []*Field{
 						{
-							BufferID:  0,
-							HasBuffer: true,
 							Name:      []byte("jsonList"),
 							Value: &Array{
 								Path: []string{"jsonList"},
@@ -1028,13 +917,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("json input", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
 				return &Object{
 						Fetch: &SingleFetch{
-							BufferId:   0,
 							DataSource: FakeDataSource(`{"jsonList":[{"field":"value"}]}`),
 						},
 						Fields: []*Field{
 							{
-								BufferID:  0,
-								HasBuffer: true,
 								Name:      []byte("jsonList"),
 								Value: &Array{
 									Path: []string{"jsonList"},
@@ -1053,13 +939,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve arrays", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fetch: &SingleFetch{
-				BufferId:   0,
 				DataSource: FakeDataSource(`{"friends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"strings":["foo","bar","baz"],"integers":[123,456,789],"floats":[1.2,3.4,5.6],"booleans":[true,false,true]}`),
 			},
 			Fields: []*Field{
 				{
-					BufferID:  0,
-					HasBuffer: true,
 					Name:      []byte("synchronousFriends"),
 					Value: &Array{
 						Path:                []string{"friends"},
@@ -1084,8 +967,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				{
-					BufferID:  0,
-					HasBuffer: true,
 					Name:      []byte("asynchronousFriends"),
 					Value: &Array{
 						Path:                []string{"friends"},
@@ -1110,8 +991,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				{
-					BufferID:  0,
-					HasBuffer: true,
 					Name:      []byte("nullableFriends"),
 					Value: &Array{
 						Path:     []string{"nonExistingField"},
@@ -1120,8 +999,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				{
-					BufferID:  0,
-					HasBuffer: true,
 					Name:      []byte("strings"),
 					Value: &Array{
 						Path:                []string{"strings"},
@@ -1133,8 +1010,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				{
-					BufferID:  0,
-					HasBuffer: true,
 					Name:      []byte("integers"),
 					Value: &Array{
 						Path:                []string{"integers"},
@@ -1146,8 +1021,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				{
-					BufferID:  0,
-					HasBuffer: true,
 					Name:      []byte("floats"),
 					Value: &Array{
 						Path:                []string{"floats"},
@@ -1159,8 +1032,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				{
-					BufferID:  0,
-					HasBuffer: true,
 					Name:      []byte("booleans"),
 					Value: &Array{
 						Path:                []string{"booleans"},
@@ -1177,20 +1048,15 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("array response from data source", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
-					BufferId:   0,
 					DataSource: FakeDataSource(`[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]`),
 				},
 				Fields: []*Field{
 					{
-						BufferID:  0,
-						HasBuffer: true,
 						Name:      []byte("pets"),
 						Value: &Array{
 							Item: &Object{
 								Fields: []*Field{
 									{
-										BufferID:    0,
-										HasBuffer:   true,
 										OnTypeNames: [][]byte{[]byte("Dog")},
 										Name:        []byte("name"),
 										Value: &String{
@@ -1208,13 +1074,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("non null object with field condition can be null", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
-					BufferId:   0,
 					DataSource: FakeDataSource(`{"__typename":"Dog","name":"Woofie"}`),
 				},
 				Fields: []*Field{
 					{
-						BufferID:  0,
-						HasBuffer: true,
 						Name:      []byte("cat"),
 						Value: &Object{
 							Nullable: false,
@@ -1236,7 +1099,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("object with multiple type conditions", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
-					BufferId:   0,
 					DataSource: FakeDataSource(`{"namespaceCreate":{"__typename":"Error","code":"UserAlreadyHasPersonalNamespace","message":""}}`),
 				},
 				Fields: []*Field{
@@ -1295,21 +1157,16 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve fieldsets based on __typename", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
-					BufferId:   0,
 					DataSource: FakeDataSource(`{"pets":[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]}`),
 				},
 				Fields: []*Field{
 					{
-						BufferID:  0,
-						HasBuffer: true,
 						Name:      []byte("pets"),
 						Value: &Array{
 							Path: []string{"pets"},
 							Item: &Object{
 								Fields: []*Field{
 									{
-										BufferID:    0,
-										HasBuffer:   true,
 										OnTypeNames: [][]byte{[]byte("Dog")},
 										Name:        []byte("name"),
 										Value: &String{
@@ -1328,36 +1185,27 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve fieldsets based on __typename when field is Nullable", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
-					BufferId:   0,
 					DataSource: FakeDataSource(`{"pet":{"id": "1", "detail": null}}`),
 				},
 				Fields: []*Field{
 					{
-						BufferID:  0,
-						HasBuffer: true,
 						Name:      []byte("pet"),
 						Value: &Object{
 							Path: []string{"pet"},
 							Fields: []*Field{
 								{
-									BufferID:  0,
-									HasBuffer: false,
 									Name:      []byte("id"),
 									Value: &String{
 										Path: []string{"id"},
 									},
 								},
 								{
-									BufferID:  0,
-									HasBuffer: false,
 									Name:      []byte("detail"),
 									Value: &Object{
 										Path:     []string{"detail"},
 										Nullable: true,
 										Fields: []*Field{
 											{
-												BufferID:    0,
-												HasBuffer:   false,
 												OnTypeNames: [][]byte{[]byte("Dog")},
 												Name:        []byte("name"),
 												Value: &String{
@@ -1378,13 +1226,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve fieldsets asynchronous based on __typename", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
-					BufferId:   0,
 					DataSource: FakeDataSource(`{"pets":[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]}`),
 				},
 				Fields: []*Field{
 					{
-						BufferID:  0,
-						HasBuffer: true,
 						Name:      []byte("pets"),
 						Value: &Array{
 							ResolveAsynchronous: true,
@@ -1392,8 +1237,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 							Item: &Object{
 								Fields: []*Field{
 									{
-										BufferID:    0,
-										HasBuffer:   true,
 										OnTypeNames: [][]byte{[]byte("Dog")},
 										Name:        []byte("name"),
 										Value: &String{
@@ -1412,7 +1255,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 		t.Run("json object within a string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 			return &Object{
 				Fetch: &SingleFetch{
-					BufferId: 0,
 					// Datasource returns a JSON object within a string
 					DataSource: FakeDataSource(`{"data":"{\"hello\":\"world\",\"numberAsString\":\"1\",\"number\":1,\"bool\":true,\"null\":null,\"array\":[1,2,3],\"object\":{\"key\":\"value\"}}"}`),
 				},
@@ -1431,7 +1273,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 							Line:   2,
 							Column: 3,
 						},
-						HasBuffer: true,
 					},
 				},
 				// expected output is a JSON object
@@ -1440,7 +1281,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 		t.Run("json array within a string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 			return &Object{
 				Fetch: &SingleFetch{
-					BufferId: 0,
 					// Datasource returns a JSON array within a string
 					DataSource: FakeDataSource(`{"data":"[1,2,3]"}`),
 				},
@@ -1459,7 +1299,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 							Line:   2,
 							Column: 3,
 						},
-						HasBuffer: true,
 					},
 				},
 				// expected output is a JSON array
@@ -1468,7 +1307,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 		t.Run("string with array and objects brackets", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 			return &Object{
 				Fetch: &SingleFetch{
-					BufferId: 0,
 					// Datasource returns a string with array and object brackets
 					DataSource: FakeDataSource(`{"data":"hi[1beep{2}]"}`),
 				},
@@ -1487,7 +1325,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 							Line:   2,
 							Column: 3,
 						},
-						HasBuffer: true,
 					},
 				},
 				// expected output is a string
@@ -1497,7 +1334,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("boolean", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						// Datasource returns a JSON boolean within a string
 						DataSource: FakeDataSource(`{"data": "true"}`),
 					},
@@ -1512,7 +1348,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 								UnescapeResponseJson: true,
 								IsTypeName:           false,
 							},
-							HasBuffer: true,
 						},
 					},
 					// expected output is a string
@@ -1521,7 +1356,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("int", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						// Datasource returns a JSON number within a string
 						DataSource: FakeDataSource(`{"data": "1"}`),
 					},
@@ -1540,7 +1374,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 								Line:   2,
 								Column: 3,
 							},
-							HasBuffer: true,
 						},
 					},
 					// expected output is a string
@@ -1549,7 +1382,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("float", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						// Datasource returns a JSON number within a string
 						DataSource: FakeDataSource(`{"data": "2.0"}`),
 					},
@@ -1568,7 +1400,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 								Line:   2,
 								Column: 3,
 							},
-							HasBuffer: true,
 						},
 					},
 					// expected output is a string
@@ -1577,7 +1408,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("null", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						// Datasource returns a JSON number within a string
 						DataSource: FakeDataSource(`{"data": "null"}`),
 					},
@@ -1596,7 +1426,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 								Line:   2,
 								Column: 3,
 							},
-							HasBuffer: true,
 						},
 					},
 					// expected output is a string
@@ -1605,7 +1434,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
 					Fetch: &SingleFetch{
-						BufferId:   0,
 						DataSource: FakeDataSource(`{"data": "hello world"}`),
 					},
 					Nullable: false,
@@ -1623,7 +1451,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 								Line:   2,
 								Column: 3,
 							},
-							HasBuffer: true,
 						},
 					},
 					// expect data value to be valid JSON string
@@ -1634,7 +1461,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("boolean", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						// Datasource returns a JSON boolean within a string
 						DataSource: FakeDataSource(`{"data": true}`),
 					},
@@ -1649,7 +1475,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 								UnescapeResponseJson: true,
 								IsTypeName:           false,
 							},
-							HasBuffer: true,
 						},
 					},
 					// expected output is a JSON boolean
@@ -1658,7 +1483,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("int", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						// Datasource returns a JSON number within a string
 						DataSource: FakeDataSource(`{"data": 1}`),
 					},
@@ -1677,7 +1501,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 								Line:   2,
 								Column: 3,
 							},
-							HasBuffer: true,
 						},
 					},
 					// expected output is a JSON boolean
@@ -1686,7 +1509,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("float", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						// Datasource returns a JSON number within a string
 						DataSource: FakeDataSource(`{"data": 2.0}`),
 					},
@@ -1705,7 +1527,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 								Line:   2,
 								Column: 3,
 							},
-							HasBuffer: true,
 						},
 					},
 					// expected output is a JSON boolean
@@ -1714,7 +1535,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("null", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
 					Fetch: &SingleFetch{
-						BufferId:   0,
 						DataSource: FakeDataSource(`{"data": null}`),
 					},
 					Nullable: false,
@@ -1732,7 +1552,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 								Line:   2,
 								Column: 3,
 							},
-							HasBuffer: true,
 						},
 					},
 					// expect data value to be valid JSON string
@@ -1744,13 +1563,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("custom", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fetch: &SingleFetch{
-				BufferId:   0,
 				DataSource: FakeDataSource(`{"id": "1"}`),
 			},
 			Fields: []*Field{
 				{
-					BufferID:  0,
-					HasBuffer: true,
 					Name:      []byte("id"),
 					Value: &CustomNode{
 						CustomResolve: customResolver{},
@@ -1763,13 +1579,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("custom nullable", testGraphQLErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
 		return &Object{
 			Fetch: &SingleFetch{
-				BufferId:   0,
 				DataSource: FakeDataSource(`{"id": null}`),
 			},
 			Fields: []*Field{
 				{
-					BufferID:  0,
-					HasBuffer: true,
 					Name:      []byte("id"),
 					Value: &CustomNode{
 						CustomResolve: customErrResolve{},
@@ -1783,13 +1596,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("custom error", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
 		return &Object{
 			Fetch: &SingleFetch{
-				BufferId:   0,
 				DataSource: FakeDataSource(`{"id": "1"}`),
 			},
 			Fields: []*Field{
 				{
-					BufferID:  0,
-					HasBuffer: true,
 					Name:      []byte("id"),
 					Value: &CustomNode{
 						CustomResolve: customErrResolve{},
@@ -1852,14 +1662,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						Name: []byte("user"),
 						Value: &Object{
 							Fetch: &SingleFetch{
-								BufferId:   0,
 								DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User","rewritten":"User"}`),
 							},
 							Fields: []*Field{
 								{
 									Name:      []byte("id"),
-									HasBuffer: true,
-									BufferID:  0,
 									Value: &Integer{
 										Path:     []string{"id"},
 										Nullable: false,
@@ -1867,8 +1674,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 								{
 									Name:      []byte("name"),
-									HasBuffer: true,
-									BufferID:  0,
 									Value: &String{
 										Path:     []string{"name"},
 										Nullable: false,
@@ -1876,8 +1681,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 								{
 									Name:      []byte("__typename"),
-									HasBuffer: true,
-									BufferID:  0,
 									Value: &String{
 										Path:       []string{"__typename"},
 										Nullable:   false,
@@ -1886,8 +1689,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 								{
 									Name:      []byte("aliased"),
-									HasBuffer: true,
-									BufferID:  0,
 									Value: &String{
 										Path:       []string{"__typename"},
 										Nullable:   false,
@@ -1896,8 +1697,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 								{
 									Name:      []byte("rewritten"),
-									HasBuffer: true,
-									BufferID:  0,
 									Value: &String{
 										Path:       []string{"rewritten"},
 										Nullable:   false,
@@ -1919,14 +1718,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							Name: []byte("user"),
 							Value: &Object{
 								Fetch: &SingleFetch{
-									BufferId:   0,
 									DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User","rewritten":"User"}`),
 								},
 								Fields: []*Field{
 									{
 										Name:      []byte("id"),
-										HasBuffer: true,
-										BufferID:  0,
 										Value: &Integer{
 											Path:     []string{"id"},
 											Nullable: false,
@@ -1934,8 +1730,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 									{
 										Name:      []byte("name"),
-										HasBuffer: true,
-										BufferID:  0,
 										Value: &String{
 											Path:     []string{"name"},
 											Nullable: false,
@@ -1943,8 +1737,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 									{
 										Name:      []byte("__typename"),
-										HasBuffer: true,
-										BufferID:  0,
 										Value: &String{
 											Path:       []string{"__typename"},
 											Nullable:   false,
@@ -1953,8 +1745,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 									{
 										Name:      []byte("aliased"),
-										HasBuffer: true,
-										BufferID:  0,
 										Value: &String{
 											Path:       []string{"__typename"},
 											Nullable:   false,
@@ -1963,8 +1753,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 									{
 										Name:      []byte("rewritten"),
-										HasBuffer: true,
-										BufferID:  0,
 										Value: &String{
 											Path:       []string{"rewritten"},
 											Nullable:   false,
@@ -1992,8 +1780,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				Nullable: false,
 				Fields: []*Field{
 					{
-						BufferID:  0,
-						HasBuffer: true,
 						Name:      []byte("country"),
 						Position: Position{
 							Line:   3,
@@ -2034,13 +1820,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Data: &Object{
 				Nullable: false,
 				Fetch: &SingleFetch{
-					BufferId:   0,
 					DataSource: mockDataSource,
 				},
 				Fields: []*Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("name"),
 						Value: &String{
 							Path:     []string{"name"},
@@ -2065,13 +1848,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Fetch: &SingleFetch{
-					BufferId:   0,
 					DataSource: mockDataSource,
 				},
 				Fields: []*Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("name"),
 						Value: &String{
 							Path:     []string{"name"},
@@ -2087,13 +1867,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Data: &Object{
 				Nullable: false,
 				Fetch: &SingleFetch{
-					BufferId:   0,
 					DataSource: FakeDataSource(`{"nullable_field": null}`),
 				},
 				Fields: []*Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("nullableField"),
 						Value: &Object{
 							Nullable: true,
@@ -2130,14 +1907,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					Data: &Object{
 						Fetch: &SingleFetch{
 							DataSource:           FakeDataSource(fakeData),
-							BufferId:             0,
 							Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{thing {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
 						Fields: []*Field{
 							{
-								HasBuffer: true,
-								BufferID:  0,
 								Name:      []byte("thing"),
 								Value: &Object{
 									Path:     []string{"thing"},
@@ -2193,7 +1967,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					Data: &Object{
 						Fetch: &SingleFetch{
 							DataSource:           FakeDataSource(fakeData),
-							BufferId:             0,
 							Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{things {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							PostProcessing: PostProcessingConfiguration{
@@ -2202,8 +1975,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 						Fields: []*Field{
 							{
-								HasBuffer: true,
-								BufferID:  0,
 								Name:      []byte("things"),
 								Value: &Array{
 									Path: []string{"things"},
@@ -2258,13 +2029,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Data: &Object{
 				Nullable: true,
 				Fetch: &SingleFetch{
-					BufferId:   0,
 					DataSource: FakeDataSource(`[{"id":1},{"id":2},{"id":3}]`),
 				},
 				Fields: []*Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("stringObject"),
 						Value: &Object{
 							Nullable: true,
@@ -2279,8 +2047,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("integerObject"),
 						Value: &Object{
 							Nullable: true,
@@ -2295,8 +2061,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("floatObject"),
 						Value: &Object{
 							Nullable: true,
@@ -2311,8 +2075,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("booleanObject"),
 						Value: &Object{
 							Nullable: true,
@@ -2327,8 +2089,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("objectObject"),
 						Value: &Object{
 							Nullable: true,
@@ -2343,8 +2103,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("arrayObject"),
 						Value: &Object{
 							Nullable: true,
@@ -2363,8 +2121,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("asynchronousArrayObject"),
 						Value: &Object{
 							Nullable: true,
@@ -2384,8 +2140,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("nullableArray"),
 						Value: &Array{
 							Nullable: true,
@@ -2404,13 +2158,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Data: &Object{
 				Nullable: true,
 				Fetch: &SingleFetch{
-					BufferId:   0,
 					DataSource: FakeDataSource(`[]`),
 				},
 				Fields: []*Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("nullableArray"),
 						Value: &Array{
 							Nullable: true,
@@ -2436,13 +2187,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Data: &Object{
 				Nullable: false,
 				Fetch: &SingleFetch{
-					BufferId:   0,
 					DataSource: FakeDataSource(`{"some_path": []}`),
 				},
 				Fields: []*Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("notNullableArray"),
 						Value: &Array{
 							Path:     []string{"some_path"},
@@ -2469,7 +2217,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Data: &Object{
 				Nullable: false,
 				Fetch: &SingleFetch{
-					BufferId:   0,
 					DataSource: FakeDataSource(`{"data":null}`),
 					PostProcessing: PostProcessingConfiguration{
 						SelectResponseDataPath: []string{"data"},
@@ -2477,8 +2224,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("nonNullArray"),
 						Value: &Array{
 							Nullable: false,
@@ -2496,8 +2241,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("nullableArray"),
 						Value: &Array{
 							Nullable: true,
@@ -2523,14 +2266,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Data: &Object{
 				Nullable: false,
 				Fetch: &SingleFetch{
-					BufferId: 0,
 					DataSource: FakeDataSource(
 						`{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos",0,"name"]}],"data":null}`),
 				},
 				Fields: []*Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("todos"),
 						Value: &Array{
 							Nullable: false,
@@ -2598,7 +2338,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				Fetch: &ParallelFetch{
 					Fetches: []Fetch{
 						&SingleFetch{
-							BufferId: 0,
 							Input:    `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
 							InputTemplate: InputTemplate{
 								Segments: []TemplateSegment{
@@ -2642,7 +2381,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							},
 						},
 						&SingleFetch{
-							BufferId: 1,
 							Input:    `{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
 							InputTemplate: InputTemplate{
 								Segments: []TemplateSegment{
@@ -2689,8 +2427,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						BufferID:  0,
-						HasBuffer: true,
 						Name:      []byte("serviceOne"),
 						Value: &Object{
 							Path: []string{"serviceOne"},
@@ -2705,13 +2441,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						BufferID:  1,
-						HasBuffer: true,
 						Name:      []byte("serviceTwo"),
 						Value: &Object{
 							Path: []string{"serviceTwo"},
 							Fetch: &SingleFetch{
-								BufferId: 2,
 								Input:    `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`,
 								InputTemplate: InputTemplate{
 									Segments: []TemplateSegment{
@@ -2735,8 +2468,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 								},
 								{
-									BufferID:  2,
-									HasBuffer: true,
 									Name:      []byte("serviceOneResponse"),
 									Value: &Object{
 										Path: []string{"serviceOne"},
@@ -2754,8 +2485,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						BufferID:  0,
-						HasBuffer: true,
 						Name:      []byte("anotherServiceOne"),
 						Value: &Object{
 							Path: []string{"anotherServiceOne"},
@@ -2770,8 +2499,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						BufferID:  1,
-						HasBuffer: true,
 						Name:      []byte("secondServiceTwo"),
 						Value: &Object{
 							Path: []string{"secondServiceTwo"},
@@ -2786,8 +2513,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						BufferID:  0,
-						HasBuffer: true,
 						Name:      []byte("reusingServiceOne"),
 						Value: &Object{
 							Path: []string{"reusingServiceOne"},
@@ -2858,7 +2583,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Fetch: &SingleFetch{
-					BufferId: 0,
 					InputTemplate: InputTemplate{
 						Segments: []TemplateSegment{
 							{
@@ -2875,8 +2599,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("user"),
 						Value: &Object{
 							Path:     []string{"user"},
@@ -2895,8 +2617,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 													Nullable: true,
 													Fields: []*Field{
 														{
-															HasBuffer: true,
-															BufferID:  1,
 															Name:      []byte("fullAddress"),
 															Value: &String{
 																Path: []string{"fullAddress"},
@@ -2906,7 +2626,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 													Fetch: &SerialFetch{
 														Fetches: []Fetch{
 															&SingleFetch{
-																BufferId:             3,
 																Input:                `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":$$0$$}}}`,
 																DataSource:           addressEnricher,
 																DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -2947,7 +2666,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																},
 															},
 															&SingleFetch{
-																BufferId:               2,
 																DissallowParallelFetch: true,
 																Input:                  `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":$$0$$}}}`,
 																DataSource:             address,
@@ -3001,7 +2719,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																},
 															},
 															&SingleFetch{
-																BufferId:               1,
 																DissallowParallelFetch: true,
 																Input:                  `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":$$0$$}}}`,
 																DataSource:             account,
@@ -3134,7 +2851,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			return &GraphQLResponse{
 				Data: &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						InputTemplate: InputTemplate{
 							Segments: []TemplateSegment{
 								{
@@ -3150,12 +2866,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("me"),
 							Value: &Object{
 								Fetch: &SingleFetch{
-									BufferId: 1,
 									InputTemplate: InputTemplate{
 										Segments: []TemplateSegment{
 											{
@@ -3210,8 +2923,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 									{
 
-										HasBuffer: true,
-										BufferID:  1,
 										Name:      []byte("reviews"),
 										Value: &Array{
 											Path:     []string{"reviews"},
@@ -3231,7 +2942,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 															Path: []string{"product"},
 															Fetch: &ParallelListItemFetch{
 																Fetch: &SingleFetch{
-																	BufferId:   2,
 																	DataSource: productService,
 																	InputTemplate: InputTemplate{
 																		Segments: []TemplateSegment{
@@ -3278,8 +2988,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	},
 																},
 																{
-																	HasBuffer: true,
-																	BufferID:  2,
 																	Name:      []byte("name"),
 																	Value: &String{
 																		Path: []string{"name"},
@@ -3328,7 +3036,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			return &GraphQLResponse{
 				Data: &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						InputTemplate: InputTemplate{
 							Segments: []TemplateSegment{
 								{
@@ -3344,13 +3051,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("user"),
 							Value: &Object{
 								Path: []string{"user"},
 								Fetch: &SingleFetch{
-									BufferId: 0,
 									InputTemplate: InputTemplate{
 										Segments: []TemplateSegment{
 											{
@@ -3523,7 +3227,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			return &GraphQLResponse{
 				Data: &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						InputTemplate: InputTemplate{
 							Segments: []TemplateSegment{
 								{
@@ -3539,8 +3242,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("users"),
 							Value: &Array{
 								Path: []string{"users"},
@@ -3739,7 +3440,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			return &GraphQLResponse{
 				Data: &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						InputTemplate: InputTemplate{
 							Segments: []TemplateSegment{
 								{
@@ -3755,8 +3455,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("users"),
 							Value: &Array{
 								Path: []string{"users"},
@@ -3955,7 +3653,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			return &GraphQLResponse{
 				Data: &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						InputTemplate: InputTemplate{
 							Segments: []TemplateSegment{
 								{
@@ -3971,8 +3668,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("users"),
 							Value: &Array{
 								Path: []string{"users"},
@@ -4178,7 +3873,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			return &GraphQLResponse{
 				Data: &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						InputTemplate: InputTemplate{
 							Segments: []TemplateSegment{
 								{
@@ -4194,8 +3888,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("users"),
 							Value: &Array{
 								Path: []string{"users"},
@@ -4410,7 +4102,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			return &GraphQLResponse{
 				Data: &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						InputTemplate: InputTemplate{
 							Segments: []TemplateSegment{
 								{
@@ -4426,12 +4117,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("me"),
 							Value: &Object{
 								Fetch: &SingleFetch{
-									BufferId: 1,
 									InputTemplate: InputTemplate{
 										Segments: []TemplateSegment{
 											{
@@ -4485,8 +4173,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										},
 									},
 									{
-										HasBuffer: true,
-										BufferID:  1,
 										Name:      []byte("reviews"),
 										Value: &Array{
 											Path:     []string{"reviews"},
@@ -4505,7 +4191,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 														Value: &Object{
 															Path: []string{"product"},
 															Fetch: &SingleFetch{
-																BufferId:   2,
 																DataSource: productService,
 																InputTemplate: InputTemplate{
 																	Segments: []TemplateSegment{
@@ -4553,8 +4238,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	},
 																},
 																{
-																	HasBuffer: true,
-																	BufferID:  2,
 																	Name:      []byte("name"),
 																	Value: &String{
 																		Path: []string{"name"},
@@ -4614,7 +4297,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			return &GraphQLResponse{
 				Data: &Object{
 					Fetch: &SingleFetch{
-						BufferId:             0,
 						DataSource:           firstService,
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						InputTemplate: InputTemplate{
@@ -4631,16 +4313,12 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("me"),
 							Value: &Object{
 								Path:     []string{"me"},
 								Nullable: true,
 								Fields: []*Field{
 									{
-										HasBuffer: true,
-										BufferID:  2,
 										Name:      []byte("details"),
 										Value: &Object{
 											Path: []string{"details"},
@@ -4676,7 +4354,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								Fetch: &ParallelFetch{
 									Fetches: []Fetch{
 										&SingleFetch{
-											BufferId:                              1,
 											SetTemplateOutputToNullOnVariableNull: true,
 											DataSource:                            secondService,
 											DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
@@ -4717,7 +4394,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 											},
 										},
 										&SingleFetch{
-											BufferId:                              2,
 											SetTemplateOutputToNullOnVariableNull: true,
 											DataSource:                            thirdService,
 											DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
@@ -4813,7 +4489,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			return &GraphQLResponse{
 				Data: &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						InputTemplate: InputTemplate{
 							Segments: []TemplateSegment{
 								{
@@ -4829,12 +4504,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("me"),
 							Value: &Object{
 								Fetch: &SingleFetch{
-									BufferId: 1,
 									InputTemplate: InputTemplate{
 										Segments: []TemplateSegment{
 											{
@@ -4890,8 +4562,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 									{
 
-										HasBuffer: true,
-										BufferID:  1,
 										Name:      []byte("reviews"),
 										Value: &Array{
 											Path:     []string{"reviews"},
@@ -4911,7 +4581,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 															Nullable: true,
 															Path:     []string{"product"},
 															Fetch: &SingleFetch{
-																BufferId:   2,
 																DataSource: productService,
 																InputTemplate: InputTemplate{
 																	Segments: []TemplateSegment{
@@ -4960,8 +4629,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	},
 																},
 																{
-																	HasBuffer: true,
-																	BufferID:  2,
 																	Name:      []byte("name"),
 																	Value: &String{
 																		Path: []string{"name"},
@@ -5022,7 +4689,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			return &GraphQLResponse{
 				Data: &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						InputTemplate: InputTemplate{
 							Segments: []TemplateSegment{
 								{
@@ -5038,12 +4704,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("me"),
 							Value: &Object{
 								Fetch: &SingleFetch{
-									BufferId: 1,
 									InputTemplate: InputTemplate{
 										Segments: []TemplateSegment{
 											{
@@ -5084,8 +4747,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 									{
 
-										HasBuffer: true,
-										BufferID:  1,
 										Name:      []byte("reviews"),
 										Value: &Array{
 											Path:     []string{"reviews"},
@@ -5104,7 +4765,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 														Value: &Object{
 															Path: []string{"product"},
 															Fetch: &SingleFetch{
-																BufferId:   2,
 																DataSource: productService,
 																InputTemplate: InputTemplate{
 																	Segments: []TemplateSegment{
@@ -5153,8 +4813,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	},
 																},
 																{
-																	HasBuffer: true,
-																	BufferID:  2,
 																	Name:      []byte("name"),
 																	Value: &String{
 																		Path: []string{"name"},
@@ -5214,7 +4872,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			return &GraphQLResponse{
 				Data: &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						InputTemplate: InputTemplate{
 							Segments: []TemplateSegment{
 								{
@@ -5291,12 +4948,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 															Enabled: false,
 														},
 													},
-													HasBuffer: true,
-													BufferID:  2,
 												},
 											},
 											Fetch: &SingleFetch{
-												BufferId: 2,
 												InputTemplate: InputTemplate{
 													Segments: []TemplateSegment{
 														{
@@ -5332,12 +4986,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 												},
 											},
 										},
-										HasBuffer: true,
-										BufferID:  1,
 									},
 								},
 								Fetch: &SingleFetch{
-									BufferId: 1,
 									InputTemplate: InputTemplate{
 										Segments: []TemplateSegment{
 											{
@@ -5373,8 +5024,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 								},
 							},
-							HasBuffer: true,
-							BufferID:  0,
 						},
 					},
 				},
@@ -5408,7 +5057,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			return &GraphQLResponse{
 				Data: &Object{
 					Fetch: &SingleFetch{
-						BufferId: 0,
 						DataSource: mockedDS(
 							ctrl,
 							`{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
@@ -5430,8 +5078,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							HasBuffer: true,
-							BufferID:  0,
 							Name:      []byte("user"),
 							Value: &Object{
 								Path:     []string{"user"},
@@ -5444,16 +5090,12 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 											Nullable: true,
 											Fields: []*Field{
 												{
-													HasBuffer: true,
-													BufferID:  1,
 													Name:      []byte("name"),
 													Value: &String{
 														Path: []string{"name"},
 													},
 												},
 												{
-													HasBuffer: true,
-													BufferID:  1,
 													Name:      []byte("shippingInfo"),
 													Value: &Object{
 														Path:     []string{"shippingInfo"},
@@ -5470,7 +5112,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 												},
 											},
 											Fetch: &SingleFetch{
-												BufferId: 1,
 												DataSource: mockedDS(
 													ctrl,
 													expectedAccountsQuery,
@@ -5587,7 +5228,6 @@ func TestResolver_WithHeader(t *testing.T) {
 			res := &GraphQLResponse{
 				Data: &Object{
 					Fetch: &SingleFetch{
-						BufferId:   0,
 						DataSource: fakeService,
 						InputTemplate: InputTemplate{
 							Segments: []TemplateSegment{
@@ -5605,8 +5245,6 @@ func TestResolver_WithHeader(t *testing.T) {
 							Value: &String{
 								Path: []string{"bar"},
 							},
-							HasBuffer: true,
-							BufferID:  0,
 						},
 					},
 				},
