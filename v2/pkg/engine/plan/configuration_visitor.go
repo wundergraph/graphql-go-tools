@@ -51,7 +51,6 @@ type objectFetchConfiguration struct {
 	object             *resolve.Object
 	trigger            *resolve.GraphQLSubscriptionTrigger
 	planner            DataSourcePlanner
-	bufferID           int
 	isSubscription     bool
 	fieldRef           int
 	fieldDefinitionRef int
@@ -549,7 +548,6 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 	}
 
 	c.planners = append(c.planners, plannerConfiguration{
-		bufferID:                bufferID,
 		parentPath:              plannerPath,
 		planner:                 planner,
 		paths:                   paths,
@@ -560,7 +558,6 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		return false
 	}
 	c.fetches = append(c.fetches, objectFetchConfiguration{
-		bufferID:           bufferID,
 		planner:            planner,
 		isSubscription:     isSubscription,
 		fieldRef:           ref,

@@ -16,7 +16,6 @@ func TestDataSourceInput_Process(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					BufferId:   0,
 					Input:      `{"method":"POST","url":"http://localhost:4001/$$0$$","body":{"query":"{me {id username __typename}}"}}`,
 					DataSource: nil,
 					Variables: []resolve.Variable{
@@ -27,12 +26,9 @@ func TestDataSourceInput_Process(t *testing.T) {
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("me"),
 						Value: &resolve.Object{
 							Fetch: &resolve.SingleFetch{
-								BufferId: 1,
 								Input:    `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":$$0$$}}}`,
 								Variables: resolve.NewVariables(
 									&resolve.ListVariable{
@@ -84,8 +80,6 @@ func TestDataSourceInput_Process(t *testing.T) {
 									},
 								},
 								{
-									HasBuffer: true,
-									BufferID:  1,
 									Name:      []byte("reviews"),
 									Value: &resolve.Array{
 										Path:     []string{"reviews"},
@@ -104,7 +98,6 @@ func TestDataSourceInput_Process(t *testing.T) {
 													Value: &resolve.Object{
 														Path: []string{"product"},
 														Fetch: &resolve.SingleFetch{
-															BufferId:   2,
 															Input:      `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":$$0$$}}}`,
 															DataSource: nil,
 															Variables: resolve.NewVariables(
@@ -142,8 +135,6 @@ func TestDataSourceInput_Process(t *testing.T) {
 														},
 														Fields: []*resolve.Field{
 															{
-																HasBuffer: true,
-																BufferID:  2,
 																Name:      []byte("name"),
 																Value: &resolve.String{
 																	Path: []string{"name"},
@@ -168,7 +159,6 @@ func TestDataSourceInput_Process(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					BufferId: 0,
 					InputTemplate: resolve.InputTemplate{
 						Segments: []resolve.TemplateSegment{
 							{
@@ -190,12 +180,9 @@ func TestDataSourceInput_Process(t *testing.T) {
 				},
 				Fields: []*resolve.Field{
 					{
-						HasBuffer: true,
-						BufferID:  0,
 						Name:      []byte("me"),
 						Value: &resolve.Object{
 							Fetch: &resolve.SingleFetch{
-								BufferId: 1,
 								InputTemplate: resolve.InputTemplate{
 									Segments: []resolve.TemplateSegment{
 										{
@@ -270,8 +257,6 @@ func TestDataSourceInput_Process(t *testing.T) {
 									},
 								},
 								{
-									HasBuffer: true,
-									BufferID:  1,
 									Name:      []byte("reviews"),
 									Value: &resolve.Array{
 										Path:     []string{"reviews"},
@@ -290,7 +275,6 @@ func TestDataSourceInput_Process(t *testing.T) {
 													Value: &resolve.Object{
 														Path: []string{"product"},
 														Fetch: &resolve.SingleFetch{
-															BufferId: 2,
 															InputTemplate: resolve.InputTemplate{
 																Segments: []resolve.TemplateSegment{
 																	{
@@ -350,8 +334,6 @@ func TestDataSourceInput_Process(t *testing.T) {
 														},
 														Fields: []*resolve.Field{
 															{
-																HasBuffer: true,
-																BufferID:  2,
 																Name:      []byte("name"),
 																Value: &resolve.String{
 																	Path: []string{"name"},

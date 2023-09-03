@@ -20,8 +20,6 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 				Data: &resolve.Object{
 					Fields: []*resolve.Field{
 						{
-							BufferID:  0,
-							HasBuffer: true,
 							Name:      []byte("hello"),
 							Value: &resolve.String{
 								Nullable: true,
@@ -29,7 +27,6 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 						},
 					},
 					Fetch: &resolve.SingleFetch{
-						BufferId:             0,
 						Input:                "world",
 						DataSource:           Source{},
 						DataSourceIdentifier: []byte("staticdatasource.Source"),
