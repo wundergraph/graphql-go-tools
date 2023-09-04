@@ -657,7 +657,16 @@ var (
 )
 
 func (l *Loader) mergeJSON(left, right []byte) ([]byte, error) {
-	fmt.Println("mergeJSON", string(left), string(right))
+	leftIsNull := bytes.Equal(left, null)
+	rightIsNull := bytes.Equal(right, null)
+	switch {
+	case leftIsNull && rightIsNull:
+		return left, nil
+	case !leftIsNull && rightIsNull:
+		return left, nil
+	case leftIsNull && !rightIsNull:
+		return right, nil
+	}
 	ctx := fastJsonPool.Get().(*fastJsonContext)
 	defer func() {
 		ctx.keys = ctx.keys[:0]

@@ -288,6 +288,10 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 func (r *Resolver) resolveArraySynchronous(ctx *Context, array *Array, arrayItems *[][]byte, arrayBuf *BufPair) (err error) {
 	arrayBuf.Data.WriteBytes(lBrack)
 	start := arrayBuf.Data.Len()
+
+	itemBuf := r.getBufPair()
+	defer r.freeBufPair(itemBuf)
+
 	for i := range *arrayItems {
 		ctx.addIntegerPathElement(i)
 		if arrayBuf.Data.Len() > start {
@@ -509,16 +513,16 @@ func (r *Resolver) addResolveError(ctx *Context, objectBuf *BufPair) {
 	objectBuf.WriteErr(unableToResolveMsg, locations.Bytes(), pathBytes, nil)
 }
 
-func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, objectBuf *BufPair) (err error) {
+func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, parentBuf *BufPair) (err error) {
 	if len(object.Path) != 0 {
 		data, _, _, _ = jsonparser.Get(data, object.Path...)
 		if len(data) == 0 || bytes.Equal(data, literal.NULL) {
 			if object.Nullable {
-				r.resolveNull(objectBuf.Data)
+				r.resolveNull(parentBuf.Data)
 				return
 			}
 
-			r.addResolveError(ctx, objectBuf)
+			r.addResolveError(ctx, parentBuf)
 			return errNonNullableFieldValueIsNull
 		}
 	}
@@ -526,6 +530,9 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 	if object.UnescapeResponseJson {
 		data = bytes.ReplaceAll(data, []byte(`\"`), []byte(`"`))
 	}
+
+	fieldBuf := r.getBufPair()
+	defer r.freeBufPair(fieldBuf)
 
 	typeNameSkip := false
 	first := true
@@ -563,64 +570,69 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 		}
 
 		if first {
-			objectBuf.Data.WriteBytes(lBrace)
+			fieldBuf.Data.WriteBytes(lBrace)
 			first = false
 		} else {
-			objectBuf.Data.WriteBytes(comma)
+			fieldBuf.Data.WriteBytes(comma)
 		}
-		objectBuf.Data.WriteBytes(quote)
-		objectBuf.Data.WriteBytes(object.Fields[i].Name)
-		objectBuf.Data.WriteBytes(quote)
-		objectBuf.Data.WriteBytes(colon)
+		fieldBuf.Data.WriteBytes(quote)
+		fieldBuf.Data.WriteBytes(object.Fields[i].Name)
+		fieldBuf.Data.WriteBytes(quote)
+		fieldBuf.Data.WriteBytes(colon)
 		ctx.addPathElement(object.Fields[i].Name)
 		ctx.setPosition(object.Fields[i].Position)
-		err = r.resolveNode(ctx, object.Fields[i].Value, data, objectBuf)
+		err = r.resolveNode(ctx, object.Fields[i].Value, data, fieldBuf)
 		ctx.removeLastPathElement()
 		if err != nil {
 			if errors.Is(err, errTypeNameSkipped) {
-				objectBuf.Data.Reset()
-				r.resolveEmptyObject(objectBuf.Data)
+				fieldBuf.Data.Reset()
+				r.resolveEmptyObject(parentBuf.Data)
 				return nil
 			}
 			if errors.Is(err, errNonNullableFieldValueIsNull) {
-				objectBuf.Data.Reset()
-				// r.MergeBufPairErrors(fieldBuf, objectBuf)
+				fieldBuf.Data.Reset()
+				r.MergeBufPairErrors(fieldBuf, parentBuf)
 
 				if object.Nullable {
-					r.resolveNull(objectBuf.Data)
+					r.resolveNull(parentBuf.Data)
 					return nil
 				}
 
 				// if fied is of object type than we should not add resolve error here
 				if _, ok := object.Fields[i].Value.(*Object); !ok {
-					r.addResolveError(ctx, objectBuf)
+					r.addResolveError(ctx, parentBuf)
 				}
 			}
 
 			return
 		}
-		// r.MergeBufPairs(fieldBuf, objectBuf, false)
+		r.MergeBufPairs(fieldBuf, parentBuf, false)
 	}
 	allSkipped := len(object.Fields) != 0 && len(object.Fields) == skipCount
 	if allSkipped {
 		// return empty object if all fields have been skipped
-		r.resolveEmptyObject(objectBuf.Data)
+		r.resolveEmptyObject(parentBuf.Data)
 		return
 	}
 	if first {
 		if typeNameSkip {
-			r.resolveEmptyObject(objectBuf.Data)
+			r.resolveEmptyObject(parentBuf.Data)
 			return
 		}
 		if !object.Nullable {
-			r.addResolveError(ctx, objectBuf)
+			r.addResolveError(ctx, parentBuf)
 			return errNonNullableFieldValueIsNull
 		}
-		r.resolveNull(objectBuf.Data)
+		r.resolveNull(parentBuf.Data)
 		return
 	}
-	objectBuf.Data.WriteBytes(rBrace)
+	parentBuf.Data.WriteBytes(rBrace)
 	return
+}
+
+func (r *Resolver) MergeBufPairs(from, to *BufPair, prefixDataWithComma bool) {
+	r.MergeBufPairData(from, to, prefixDataWithComma)
+	r.MergeBufPairErrors(from, to)
 }
 
 func (r *Resolver) MergeBufPairData(from, to *BufPair, prefixDataWithComma bool) {
