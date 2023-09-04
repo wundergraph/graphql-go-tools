@@ -117,13 +117,14 @@ func (l *Loader) getLayerBuffer() *fastbuffer.FastBuffer {
 
 func (l *Loader) getRootBuffer() *fastbuffer.FastBuffer {
 	buf := pool.FastBuffer.Get()
-	if l.parallelFetch {
-		l.parallelMu.Lock()
-	}
+
+	// if l.parallelFetch {
+	// 	l.parallelMu.Lock()
+	// }
 	l.layers[0].buffers = append(l.layers[0].buffers, buf)
-	if l.parallelFetch {
-		l.parallelMu.Unlock()
-	}
+	// if l.parallelFetch {
+	// 	l.parallelMu.Unlock()
+	// }
 	return buf
 }
 
@@ -656,6 +657,7 @@ var (
 )
 
 func (l *Loader) mergeJSON(left, right []byte) ([]byte, error) {
+	fmt.Println("mergeJSON", string(left), string(right))
 	ctx := fastJsonPool.Get().(*fastJsonContext)
 	defer func() {
 		ctx.keys = ctx.keys[:0]
