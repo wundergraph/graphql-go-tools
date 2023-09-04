@@ -174,24 +174,14 @@ type SubscriptionConfiguration struct {
 }
 
 type FetchConfiguration struct {
-	Input                string
-	Variables            resolve.Variables
-	DataSource           resolve.DataSource
-	DisallowSingleFlight bool
-	// DisableDataLoader will configure the Resolver to not use DataLoader
-	// If this is set to false, the planner might still decide to override it,
-	// e.g. if a field depends on an exported variable which doesn't work with DataLoader
-	DisableDataLoader     bool
+	Input                 string
+	Variables             resolve.Variables
+	DataSource            resolve.DataSource
+	DisallowSingleFlight  bool
 	DisallowParallelFetch bool
 	PostProcessing        resolve.PostProcessingConfiguration
-	BatchConfig           BatchConfig
 	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
 	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
 	// Returning null in this case tells the batch implementation to skip this item
 	SetTemplateOutputToNullOnVariableNull bool
-}
-
-type BatchConfig struct {
-	AllowBatch   bool
-	BatchFactory resolve.DataSourceBatchFactory
 }

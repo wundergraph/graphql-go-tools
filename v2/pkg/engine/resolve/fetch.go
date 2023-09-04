@@ -17,6 +17,7 @@ type Fetch interface {
 type Fetches []Fetch
 
 type SingleFetch struct {
+	SerialID   int
 	Input      string
 	DataSource DataSource
 	Variables  Variables
@@ -25,7 +26,6 @@ type SingleFetch struct {
 	// If the resolver allows SingleFlight it's up to each individual DataSource Planner to decide whether an Operation
 	// should be allowed to use SingleFlight
 	DisallowSingleFlight   bool
-	DisableDataLoader      bool
 	DissallowParallelFetch bool
 	InputTemplate          InputTemplate
 	DataSourceIdentifier   []byte
