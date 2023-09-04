@@ -61,7 +61,6 @@ type Planner struct {
 	rootFieldName                      string // rootFieldName - holds name of root type field
 	rootFieldRef                       int    // rootFieldRef - holds ref of root type field
 	argTypeRef                         int    // argTypeRef - holds current argument type ref from the definition
-	batchFactory                       resolve.DataSourceBatchFactory
 	upstreamDefinition                 *ast.Document
 	currentVariableDefinition          int
 	addDirectivesToVariableDefinitions map[int][]int
@@ -331,15 +330,6 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	input = httpclient.SetInputURL(input, []byte(p.config.Fetch.URL))
 	input = httpclient.SetInputMethod(input, []byte(p.config.Fetch.Method))
 
-	var batchConfig plan.BatchConfig
-	// Allow batch query for fetching entities.
-	if p.extractEntities && p.batchFactory != nil {
-		batchConfig = plan.BatchConfig{
-			AllowBatch:   p.extractEntities, // Allow batch query for fetching entities.
-			BatchFactory: p.batchFactory,
-		}
-	}
-
 	postProcessing := DefaultPostProcessingConfiguration
 	if p.extractEntities {
 		postProcessing = EntitiesPostProcessingConfiguration
@@ -354,8 +344,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		DisallowSingleFlight:                  p.disallowSingleFlight,
 		DisallowParallelFetch:                 p.disallowParallelFetch(),
 		PostProcessing:                        postProcessing,
-		BatchConfig:                           batchConfig,
-		SetTemplateOutputToNullOnVariableNull: batchConfig.AllowBatch,
+		SetTemplateOutputToNullOnVariableNull: p.extractEntities,
 	}
 }
 
@@ -1545,7 +1534,6 @@ func (p *Planner) addField(ref int) (upstreamFieldRef int) {
 type OnWsConnectionInitCallback func(ctx context.Context, url string, header http.Header) (json.RawMessage, error)
 
 type Factory struct {
-	BatchFactory               resolve.DataSourceBatchFactory
 	HTTPClient                 *http.Client
 	StreamingClient            *http.Client
 	OnWsConnectionInitCallback *OnWsConnectionInitCallback
@@ -1564,7 +1552,6 @@ func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 		f.SubscriptionClient.engineCtx = ctx
 	}
 	return &Planner{
-		batchFactory:       f.BatchFactory,
 		fetchClient:        f.HTTPClient,
 		subscriptionClient: f.SubscriptionClient,
 	}

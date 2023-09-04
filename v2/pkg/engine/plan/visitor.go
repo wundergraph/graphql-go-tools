@@ -949,8 +949,6 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 	switch f := fetch.(type) {
 	case *resolve.SingleFetch:
 		v.resolveInputTemplates(config, &f.Input, &f.Variables)
-	case *resolve.BatchFetch:
-		v.resolveInputTemplates(config, &f.Fetch.Input, &f.Fetch.Variables)
 	}
 	if config.object.Fetch == nil {
 		config.object.Fetch = fetch
@@ -995,25 +993,9 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external Fet
 		DissallowParallelFetch:                external.DisallowParallelFetch,
 		DataSourceIdentifier:                  []byte(dataSourceType),
 		PostProcessing:                        external.PostProcessing,
-		DisableDataLoader:                     external.DisableDataLoader,
 		SetTemplateOutputToNullOnVariableNull: external.SetTemplateOutputToNullOnVariableNull,
+		SerialID:                              internal.fetchID,
 	}
 
-	// if a field depends on an exported variable, data loader needs to be disabled
-	// this is because the data loader will render all input templates before all fields are evaluated
-	// exporting field values into a variable depends on the field being evaluated first
-	// for that reason, if a field depends on an exported variable, data loader needs to be disabled
-	disableDataLoader := v.fieldRequiresExportedVariable(internal.fieldRef)
-	if disableDataLoader {
-		singleFetch.DisableDataLoader = true
-	}
-
-	if !external.BatchConfig.AllowBatch {
-		return singleFetch
-	}
-
-	return &resolve.BatchFetch{
-		Fetch:        singleFetch,
-		BatchFactory: external.BatchConfig.BatchFactory,
-	}
+	return singleFetch
 }
