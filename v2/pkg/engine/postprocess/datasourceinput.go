@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -47,8 +49,14 @@ func (d *ProcessDataSource) traverseFetch(fetch resolve.Fetch) {
 			d.traverseFetch(f.Fetches[i])
 		}
 	case *resolve.SerialFetch:
-		// TODO: sort fetches based on buffer id and then traverse
-		panic("implement me")
+		slices.SortFunc(f.Fetches, func(a, b resolve.Fetch) bool {
+			// serial fetch always has a single fetch as child
+			// sort descending by serial id
+			return a.(*resolve.SingleFetch).SerialID > b.(*resolve.SingleFetch).SerialID
+		})
+		for i := range f.Fetches {
+			d.traverseFetch(f.Fetches[i])
+		}
 	}
 }
 
