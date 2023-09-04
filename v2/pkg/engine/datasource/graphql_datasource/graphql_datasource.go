@@ -719,31 +719,29 @@ func (p *Planner) addRepresentationsVariable() {
 	}
 
 	variable, _ := p.variables.AddVariable(p.buildRepresentationsVariable())
-	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", []byte(variable))
+
+	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", []byte(fmt.Sprintf("[%s]", variable)))
 	p.extractEntities = true
 }
 
 func (p *Planner) buildRepresentationsVariable() resolve.Variable {
-	variables := resolve.NewVariables()
-	for _, cfg := range p.dataSourceConfig.ParentInfo.RequiredFields {
-		key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, false)
-		if report.HasErrors() {
-			p.visitor.Walker.StopWithInternalErr(report)
-			return nil
-		}
-		node, err := BuildRepresentationVariableNode(key, p.visitor.Definition)
-		if err != nil {
-			p.visitor.Walker.StopWithInternalErr(err)
-			return nil
-		}
+	// as required fields are merged for the nested ds we should have a single variable
+	cfg := p.dataSourceConfig.ParentInfo.RequiredFields[0]
 
-		variables.AddVariable(resolve.NewResolvableObjectVariable(
-			node,
-		))
+	key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, false)
+	if report.HasErrors() {
+		p.visitor.Walker.StopWithInternalErr(report)
+		return nil
+	}
+	node, err := BuildRepresentationVariableNode(key, p.visitor.Definition)
+	if err != nil {
+		p.visitor.Walker.StopWithInternalErr(err)
+		return nil
 	}
 
-	representationsVariable := resolve.NewListVariable(variables)
-	return representationsVariable
+	return resolve.NewResolvableObjectVariable(
+		node,
+	)
 }
 
 func (p *Planner) addRepresentationsQuery() {
