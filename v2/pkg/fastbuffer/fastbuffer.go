@@ -24,6 +24,10 @@ func (f *FastBuffer) Reset() {
 	f.b = f.b[:0]
 }
 
+func (f *FastBuffer) Reslice(start, end int) {
+	f.b = f.b[start:end]
+}
+
 func (f *FastBuffer) WriteBytes(b []byte) {
 	f.b = append(f.b, b...)
 }
