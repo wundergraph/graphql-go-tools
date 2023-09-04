@@ -193,21 +193,21 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 			Fields: []*Field{
 				{
-					Name:      []byte("n"),
+					Name: []byte("n"),
 					Value: &BigInt{
 						Path:     []string{"n"},
 						Nullable: false,
 					},
 				},
 				{
-					Name:      []byte("ns_small"),
+					Name: []byte("ns_small"),
 					Value: &BigInt{
 						Path:     []string{"ns_small"},
 						Nullable: false,
 					},
 				},
 				{
-					Name:      []byte("ns_big"),
+					Name: []byte("ns_big"),
 					Value: &BigInt{
 						Path:     []string{"ns_big"},
 						Nullable: false,
@@ -247,25 +247,25 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						Fields: []*Field{
 							{
-								Name:      []byte("id"),
+								Name: []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								Name:      []byte("name"),
+								Name: []byte("name"),
 								Value: &String{
 									Path: []string{"name"},
 								},
 							},
 							{
-								Name:      []byte("registered"),
+								Name: []byte("registered"),
 								Value: &Boolean{
 									Path: []string{"registered"},
 								},
 							},
 							{
-								Name:      []byte("pet"),
+								Name: []byte("pet"),
 								Value: &Object{
 									Path: []string{"pet"},
 									Fields: []*Field{
@@ -301,7 +301,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						Fields: []*Field{
 							{
-								Name:      []byte("id"),
+								Name: []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
@@ -325,7 +325,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						Fields: []*Field{
 							{
-								Name:      []byte("id"),
+								Name: []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
@@ -333,7 +333,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 								SkipVariableName:     "skip",
 							},
 							{
-								Name:      []byte("name"),
+								Name: []byte("name"),
 								Value: &String{
 									Path: []string{"name"},
 								},
@@ -357,13 +357,13 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						Fields: []*Field{
 							{
-								Name:      []byte("id"),
+								Name: []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								Name:      []byte("__typename"),
+								Name: []byte("__typename"),
 								Value: &String{
 									Path: []string{"__typename"},
 								},
@@ -387,13 +387,13 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						Fields: []*Field{
 							{
-								Name:      []byte("id"),
+								Name: []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								Name:      []byte("__typename"),
+								Name: []byte("__typename"),
 								Value: &String{
 									Path: []string{"__typename"},
 								},
@@ -417,13 +417,13 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						Fields: []*Field{
 							{
-								Name:      []byte("id"),
+								Name: []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								Name:      []byte("__typename"),
+								Name: []byte("__typename"),
 								Value: &String{
 									Path: []string{"__typename"},
 								},
@@ -447,25 +447,25 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						Fields: []*Field{
 							{
-								Name:      []byte("id"),
+								Name: []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								Name:      []byte("name"),
+								Name: []byte("name"),
 								Value: &String{
 									Path: []string{"name"},
 								},
 							},
 							{
-								Name:      []byte("registered"),
+								Name: []byte("registered"),
 								Value: &Boolean{
 									Path: []string{"registered"},
 								},
 							},
 							{
-								Name:      []byte("pet"),
+								Name: []byte("pet"),
 								Value: &Object{
 									Path: []string{"pet"},
 									Fields: []*Field{
@@ -503,25 +503,25 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						Fields: []*Field{
 							{
-								Name:      []byte("id"),
+								Name: []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								Name:      []byte("name"),
+								Name: []byte("name"),
 								Value: &String{
 									Path: []string{"name"},
 								},
 							},
 							{
-								Name:      []byte("registered"),
+								Name: []byte("registered"),
 								Value: &Boolean{
 									Path: []string{"registered"},
 								},
 							},
 							{
-								Name:      []byte("pet"),
+								Name: []byte("pet"),
 								Value: &Object{
 									Path: []string{"pet"},
 									Fields: []*Field{
@@ -559,25 +559,25 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						Fields: []*Field{
 							{
-								Name:      []byte("id"),
+								Name: []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								Name:      []byte("name"),
+								Name: []byte("name"),
 								Value: &String{
 									Path: []string{"name"},
 								},
 							},
 							{
-								Name:      []byte("registered"),
+								Name: []byte("registered"),
 								Value: &Boolean{
 									Path: []string{"registered"},
 								},
 							},
 							{
-								Name:      []byte("pet"),
+								Name: []byte("pet"),
 								Value: &Object{
 									Path: []string{"pet"},
 									Fields: []*Field{
@@ -615,25 +615,25 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						Fields: []*Field{
 							{
-								Name:      []byte("id"),
+								Name: []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								Name:      []byte("name"),
+								Name: []byte("name"),
 								Value: &String{
 									Path: []string{"name"},
 								},
 							},
 							{
-								Name:      []byte("registered"),
+								Name: []byte("registered"),
 								Value: &Boolean{
 									Path: []string{"registered"},
 								},
 							},
 							{
-								Name:      []byte("pet"),
+								Name: []byte("pet"),
 								Value: &Object{
 									Path: []string{"pet"},
 									Fields: []*Field{
@@ -671,25 +671,25 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						Fields: []*Field{
 							{
-								Name:      []byte("id"),
+								Name: []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								Name:      []byte("name"),
+								Name: []byte("name"),
 								Value: &String{
 									Path: []string{"name"},
 								},
 							},
 							{
-								Name:      []byte("registered"),
+								Name: []byte("registered"),
 								Value: &Boolean{
 									Path: []string{"registered"},
 								},
 							},
 							{
-								Name:      []byte("pet"),
+								Name: []byte("pet"),
 								Value: &Object{
 									Path: []string{"pet"},
 									Fields: []*Field{
@@ -727,25 +727,25 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						Fields: []*Field{
 							{
-								Name:      []byte("id"),
+								Name: []byte("id"),
 								Value: &String{
 									Path: []string{"id"},
 								},
 							},
 							{
-								Name:      []byte("name"),
+								Name: []byte("name"),
 								Value: &String{
 									Path: []string{"name"},
 								},
 							},
 							{
-								Name:      []byte("registered"),
+								Name: []byte("registered"),
 								Value: &Boolean{
 									Path: []string{"registered"},
 								},
 							},
 							{
-								Name:      []byte("pet"),
+								Name: []byte("pet"),
 								Value: &Object{
 									Path: []string{"pet"},
 									Fields: []*Field{
@@ -809,7 +809,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 			Fields: []*Field{
 				{
-					Name:      []byte("name"),
+					Name: []byte("name"),
 					Value: &String{
 						Path: []string{"name"},
 					},
@@ -824,7 +824,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 			Fields: []*Field{
 				{
-					Name:      []byte("strings"),
+					Name: []byte("strings"),
 					Value: &Array{
 						Path: []string{"strings"},
 						Item: &String{
@@ -842,7 +842,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 			Fields: []*Field{
 				{
-					Name:      []byte("strings"),
+					Name: []byte("strings"),
 					Value: &Array{
 						Path: []string{"strings"},
 						Item: &String{
@@ -862,7 +862,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							Name:      []byte("jsonList"),
+							Name: []byte("jsonList"),
 							Value: &Array{
 								Path: []string{"jsonList"},
 								Item: &String{
@@ -881,7 +881,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							Name:      []byte("jsonList"),
+							Name: []byte("jsonList"),
 							Value: &Array{
 								Path: []string{"jsonList"},
 								Item: &String{
@@ -902,7 +902,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							Name:      []byte("jsonList"),
+							Name: []byte("jsonList"),
 							Value: &Array{
 								Path: []string{"jsonList"},
 								Item: &String{
@@ -921,7 +921,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 						Fields: []*Field{
 							{
-								Name:      []byte("jsonList"),
+								Name: []byte("jsonList"),
 								Value: &Array{
 									Path: []string{"jsonList"},
 									Item: &String{
@@ -943,7 +943,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 			Fields: []*Field{
 				{
-					Name:      []byte("synchronousFriends"),
+					Name: []byte("synchronousFriends"),
 					Value: &Array{
 						Path:                []string{"friends"},
 						ResolveAsynchronous: false,
@@ -967,7 +967,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				{
-					Name:      []byte("asynchronousFriends"),
+					Name: []byte("asynchronousFriends"),
 					Value: &Array{
 						Path:                []string{"friends"},
 						ResolveAsynchronous: true,
@@ -991,7 +991,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				{
-					Name:      []byte("nullableFriends"),
+					Name: []byte("nullableFriends"),
 					Value: &Array{
 						Path:     []string{"nonExistingField"},
 						Nullable: true,
@@ -999,7 +999,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				{
-					Name:      []byte("strings"),
+					Name: []byte("strings"),
 					Value: &Array{
 						Path:                []string{"strings"},
 						ResolveAsynchronous: false,
@@ -1010,7 +1010,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				{
-					Name:      []byte("integers"),
+					Name: []byte("integers"),
 					Value: &Array{
 						Path:                []string{"integers"},
 						ResolveAsynchronous: false,
@@ -1021,7 +1021,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				{
-					Name:      []byte("floats"),
+					Name: []byte("floats"),
 					Value: &Array{
 						Path:                []string{"floats"},
 						ResolveAsynchronous: false,
@@ -1032,7 +1032,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				{
-					Name:      []byte("booleans"),
+					Name: []byte("booleans"),
 					Value: &Array{
 						Path:                []string{"booleans"},
 						ResolveAsynchronous: false,
@@ -1052,7 +1052,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						Name:      []byte("pets"),
+						Name: []byte("pets"),
 						Value: &Array{
 							Item: &Object{
 								Fields: []*Field{
@@ -1078,7 +1078,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						Name:      []byte("cat"),
+						Name: []byte("cat"),
 						Value: &Object{
 							Nullable: false,
 							Fields: []*Field{
@@ -1161,7 +1161,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						Name:      []byte("pets"),
+						Name: []byte("pets"),
 						Value: &Array{
 							Path: []string{"pets"},
 							Item: &Object{
@@ -1189,18 +1189,18 @@ func TestResolver_ResolveNode(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						Name:      []byte("pet"),
+						Name: []byte("pet"),
 						Value: &Object{
 							Path: []string{"pet"},
 							Fields: []*Field{
 								{
-									Name:      []byte("id"),
+									Name: []byte("id"),
 									Value: &String{
 										Path: []string{"id"},
 									},
 								},
 								{
-									Name:      []byte("detail"),
+									Name: []byte("detail"),
 									Value: &Object{
 										Path:     []string{"detail"},
 										Nullable: true,
@@ -1230,7 +1230,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						Name:      []byte("pets"),
+						Name: []byte("pets"),
 						Value: &Array{
 							ResolveAsynchronous: true,
 							Path:                []string{"pets"},
@@ -1567,7 +1567,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 			Fields: []*Field{
 				{
-					Name:      []byte("id"),
+					Name: []byte("id"),
 					Value: &CustomNode{
 						CustomResolve: customResolver{},
 						Path:          []string{"id"},
@@ -1583,7 +1583,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 			Fields: []*Field{
 				{
-					Name:      []byte("id"),
+					Name: []byte("id"),
 					Value: &CustomNode{
 						CustomResolve: customErrResolve{},
 						Path:          []string{"id"},
@@ -1600,7 +1600,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 			Fields: []*Field{
 				{
-					Name:      []byte("id"),
+					Name: []byte("id"),
 					Value: &CustomNode{
 						CustomResolve: customErrResolve{},
 						Path:          []string{"id"},
@@ -1666,21 +1666,21 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							},
 							Fields: []*Field{
 								{
-									Name:      []byte("id"),
+									Name: []byte("id"),
 									Value: &Integer{
 										Path:     []string{"id"},
 										Nullable: false,
 									},
 								},
 								{
-									Name:      []byte("name"),
+									Name: []byte("name"),
 									Value: &String{
 										Path:     []string{"name"},
 										Nullable: false,
 									},
 								},
 								{
-									Name:      []byte("__typename"),
+									Name: []byte("__typename"),
 									Value: &String{
 										Path:       []string{"__typename"},
 										Nullable:   false,
@@ -1688,7 +1688,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 								},
 								{
-									Name:      []byte("aliased"),
+									Name: []byte("aliased"),
 									Value: &String{
 										Path:       []string{"__typename"},
 										Nullable:   false,
@@ -1696,7 +1696,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 								},
 								{
-									Name:      []byte("rewritten"),
+									Name: []byte("rewritten"),
 									Value: &String{
 										Path:       []string{"rewritten"},
 										Nullable:   false,
@@ -1722,21 +1722,21 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 								Fields: []*Field{
 									{
-										Name:      []byte("id"),
+										Name: []byte("id"),
 										Value: &Integer{
 											Path:     []string{"id"},
 											Nullable: false,
 										},
 									},
 									{
-										Name:      []byte("name"),
+										Name: []byte("name"),
 										Value: &String{
 											Path:     []string{"name"},
 											Nullable: false,
 										},
 									},
 									{
-										Name:      []byte("__typename"),
+										Name: []byte("__typename"),
 										Value: &String{
 											Path:       []string{"__typename"},
 											Nullable:   false,
@@ -1744,7 +1744,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										},
 									},
 									{
-										Name:      []byte("aliased"),
+										Name: []byte("aliased"),
 										Value: &String{
 											Path:       []string{"__typename"},
 											Nullable:   false,
@@ -1752,7 +1752,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										},
 									},
 									{
-										Name:      []byte("rewritten"),
+										Name: []byte("rewritten"),
 										Value: &String{
 											Path:       []string{"rewritten"},
 											Nullable:   false,
@@ -1780,7 +1780,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				Nullable: false,
 				Fields: []*Field{
 					{
-						Name:      []byte("country"),
+						Name: []byte("country"),
 						Position: Position{
 							Line:   3,
 							Column: 4,
@@ -1824,7 +1824,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						Name:      []byte("name"),
+						Name: []byte("name"),
 						Value: &String{
 							Path:     []string{"name"},
 							Nullable: true,
@@ -1852,7 +1852,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						Name:      []byte("name"),
+						Name: []byte("name"),
 						Value: &String{
 							Path:     []string{"name"},
 							Nullable: true,
@@ -1871,7 +1871,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						Name:      []byte("nullableField"),
+						Name: []byte("nullableField"),
 						Value: &Object{
 							Nullable: true,
 							Path:     []string{"nullable_field"},
@@ -1912,7 +1912,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 						Fields: []*Field{
 							{
-								Name:      []byte("thing"),
+								Name: []byte("thing"),
 								Value: &Object{
 									Path:     []string{"thing"},
 									Nullable: true,
@@ -1975,7 +1975,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 						Fields: []*Field{
 							{
-								Name:      []byte("things"),
+								Name: []byte("things"),
 								Value: &Array{
 									Path: []string{"things"},
 									Item: &Object{
@@ -2033,7 +2033,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						Name:      []byte("stringObject"),
+						Name: []byte("stringObject"),
 						Value: &Object{
 							Nullable: true,
 							Fields: []*Field{
@@ -2047,7 +2047,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						Name:      []byte("integerObject"),
+						Name: []byte("integerObject"),
 						Value: &Object{
 							Nullable: true,
 							Fields: []*Field{
@@ -2061,7 +2061,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						Name:      []byte("floatObject"),
+						Name: []byte("floatObject"),
 						Value: &Object{
 							Nullable: true,
 							Fields: []*Field{
@@ -2075,7 +2075,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						Name:      []byte("booleanObject"),
+						Name: []byte("booleanObject"),
 						Value: &Object{
 							Nullable: true,
 							Fields: []*Field{
@@ -2089,7 +2089,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						Name:      []byte("objectObject"),
+						Name: []byte("objectObject"),
 						Value: &Object{
 							Nullable: true,
 							Fields: []*Field{
@@ -2103,7 +2103,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						Name:      []byte("arrayObject"),
+						Name: []byte("arrayObject"),
 						Value: &Object{
 							Nullable: true,
 							Fields: []*Field{
@@ -2121,7 +2121,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						Name:      []byte("asynchronousArrayObject"),
+						Name: []byte("asynchronousArrayObject"),
 						Value: &Object{
 							Nullable: true,
 							Fields: []*Field{
@@ -2140,7 +2140,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						Name:      []byte("nullableArray"),
+						Name: []byte("nullableArray"),
 						Value: &Array{
 							Nullable: true,
 							Item: &String{
@@ -2162,7 +2162,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						Name:      []byte("nullableArray"),
+						Name: []byte("nullableArray"),
 						Value: &Array{
 							Nullable: true,
 							Item: &Object{
@@ -2191,7 +2191,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						Name:      []byte("notNullableArray"),
+						Name: []byte("notNullableArray"),
 						Value: &Array{
 							Path:     []string{"some_path"},
 							Nullable: false,
@@ -2224,7 +2224,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						Name:      []byte("nonNullArray"),
+						Name: []byte("nonNullArray"),
 						Value: &Array{
 							Nullable: false,
 							Item: &Object{
@@ -2241,7 +2241,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						Name:      []byte("nullableArray"),
+						Name: []byte("nullableArray"),
 						Value: &Array{
 							Nullable: true,
 							Item: &Object{
@@ -2271,7 +2271,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						Name:      []byte("todos"),
+						Name: []byte("todos"),
 						Value: &Array{
 							Nullable: false,
 							Item: &Object{
@@ -2338,7 +2338,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				Fetch: &ParallelFetch{
 					Fetches: []Fetch{
 						&SingleFetch{
-							Input:    `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
+							Input: `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
 							InputTemplate: InputTemplate{
 								Segments: []TemplateSegment{
 									{
@@ -2381,7 +2381,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							},
 						},
 						&SingleFetch{
-							Input:    `{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
+							Input: `{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
 							InputTemplate: InputTemplate{
 								Segments: []TemplateSegment{
 									{
@@ -2427,7 +2427,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						Name:      []byte("serviceOne"),
+						Name: []byte("serviceOne"),
 						Value: &Object{
 							Path: []string{"serviceOne"},
 							Fields: []*Field{
@@ -2441,11 +2441,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						Name:      []byte("serviceTwo"),
+						Name: []byte("serviceTwo"),
 						Value: &Object{
 							Path: []string{"serviceTwo"},
 							Fetch: &SingleFetch{
-								Input:    `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`,
+								Input: `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`,
 								InputTemplate: InputTemplate{
 									Segments: []TemplateSegment{
 										{
@@ -2468,7 +2468,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 								},
 								{
-									Name:      []byte("serviceOneResponse"),
+									Name: []byte("serviceOneResponse"),
 									Value: &Object{
 										Path: []string{"serviceOne"},
 										Fields: []*Field{
@@ -2485,7 +2485,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						Name:      []byte("anotherServiceOne"),
+						Name: []byte("anotherServiceOne"),
 						Value: &Object{
 							Path: []string{"anotherServiceOne"},
 							Fields: []*Field{
@@ -2499,7 +2499,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						Name:      []byte("secondServiceTwo"),
+						Name: []byte("secondServiceTwo"),
 						Value: &Object{
 							Path: []string{"secondServiceTwo"},
 							Fields: []*Field{
@@ -2513,7 +2513,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 					{
-						Name:      []byte("reusingServiceOne"),
+						Name: []byte("reusingServiceOne"),
 						Value: &Object{
 							Path: []string{"reusingServiceOne"},
 							Fields: []*Field{
@@ -2599,7 +2599,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 				Fields: []*Field{
 					{
-						Name:      []byte("user"),
+						Name: []byte("user"),
 						Value: &Object{
 							Path:     []string{"user"},
 							Nullable: true,
@@ -2617,7 +2617,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 													Nullable: true,
 													Fields: []*Field{
 														{
-															Name:      []byte("fullAddress"),
+															Name: []byte("fullAddress"),
 															Value: &String{
 																Path: []string{"fullAddress"},
 															},
@@ -2866,7 +2866,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							Name:      []byte("me"),
+							Name: []byte("me"),
 							Value: &Object{
 								Fetch: &SingleFetch{
 									InputTemplate: InputTemplate{
@@ -2923,7 +2923,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 									{
 
-										Name:      []byte("reviews"),
+										Name: []byte("reviews"),
 										Value: &Array{
 											Path:     []string{"reviews"},
 											Nullable: true,
@@ -2988,7 +2988,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	},
 																},
 																{
-																	Name:      []byte("name"),
+																	Name: []byte("name"),
 																	Value: &String{
 																		Path: []string{"name"},
 																	},
@@ -3051,7 +3051,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							Name:      []byte("user"),
+							Name: []byte("user"),
 							Value: &Object{
 								Path: []string{"user"},
 								Fetch: &SingleFetch{
@@ -3242,7 +3242,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							Name:      []byte("users"),
+							Name: []byte("users"),
 							Value: &Array{
 								Path: []string{"users"},
 								Item: &Object{
@@ -3455,7 +3455,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							Name:      []byte("users"),
+							Name: []byte("users"),
 							Value: &Array{
 								Path: []string{"users"},
 								Item: &Object{
@@ -3668,7 +3668,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							Name:      []byte("users"),
+							Name: []byte("users"),
 							Value: &Array{
 								Path: []string{"users"},
 								Item: &Object{
@@ -3888,7 +3888,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							Name:      []byte("users"),
+							Name: []byte("users"),
 							Value: &Array{
 								Path: []string{"users"},
 								Item: &Object{
@@ -4117,7 +4117,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							Name:      []byte("me"),
+							Name: []byte("me"),
 							Value: &Object{
 								Fetch: &SingleFetch{
 									InputTemplate: InputTemplate{
@@ -4173,7 +4173,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										},
 									},
 									{
-										Name:      []byte("reviews"),
+										Name: []byte("reviews"),
 										Value: &Array{
 											Path:     []string{"reviews"},
 											Nullable: true,
@@ -4238,7 +4238,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	},
 																},
 																{
-																	Name:      []byte("name"),
+																	Name: []byte("name"),
 																	Value: &String{
 																		Path: []string{"name"},
 																	},
@@ -4313,13 +4313,13 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							Name:      []byte("me"),
+							Name: []byte("me"),
 							Value: &Object{
 								Path:     []string{"me"},
 								Nullable: true,
 								Fields: []*Field{
 									{
-										Name:      []byte("details"),
+										Name: []byte("details"),
 										Value: &Object{
 											Path: []string{"details"},
 											Fields: []*Field{
@@ -4504,7 +4504,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							Name:      []byte("me"),
+							Name: []byte("me"),
 							Value: &Object{
 								Fetch: &SingleFetch{
 									InputTemplate: InputTemplate{
@@ -4562,7 +4562,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 									{
 
-										Name:      []byte("reviews"),
+										Name: []byte("reviews"),
 										Value: &Array{
 											Path:     []string{"reviews"},
 											Nullable: true,
@@ -4629,7 +4629,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	},
 																},
 																{
-																	Name:      []byte("name"),
+																	Name: []byte("name"),
 																	Value: &String{
 																		Path: []string{"name"},
 																	},
@@ -4704,7 +4704,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							Name:      []byte("me"),
+							Name: []byte("me"),
 							Value: &Object{
 								Fetch: &SingleFetch{
 									InputTemplate: InputTemplate{
@@ -4747,7 +4747,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 									{
 
-										Name:      []byte("reviews"),
+										Name: []byte("reviews"),
 										Value: &Array{
 											Path:     []string{"reviews"},
 											Nullable: true,
@@ -4813,7 +4813,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	},
 																},
 																{
-																	Name:      []byte("name"),
+																	Name: []byte("name"),
 																	Value: &String{
 																		Path: []string{"name"},
 																	},
@@ -5078,7 +5078,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 					Fields: []*Field{
 						{
-							Name:      []byte("user"),
+							Name: []byte("user"),
 							Value: &Object{
 								Path:     []string{"user"},
 								Nullable: true,
@@ -5090,13 +5090,13 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 											Nullable: true,
 											Fields: []*Field{
 												{
-													Name:      []byte("name"),
+													Name: []byte("name"),
 													Value: &String{
 														Path: []string{"name"},
 													},
 												},
 												{
-													Name:      []byte("shippingInfo"),
+													Name: []byte("shippingInfo"),
 													Value: &Object{
 														Path:     []string{"shippingInfo"},
 														Nullable: true,
@@ -5518,7 +5518,6 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 	plan := &GraphQLResponse{
 		Data: &Object{
 			Fetch: &SingleFetch{
-				BufferId: 0,
 				InputTemplate: InputTemplate{
 					Segments: []TemplateSegment{
 						{
@@ -5534,9 +5533,7 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 			},
 			Fields: []*Field{
 				{
-					HasBuffer: true,
-					BufferID:  0,
-					Name:      []byte("users"),
+					Name: []byte("users"),
 					Value: &Array{
 						Path: []string{"users"},
 						Item: &Object{
