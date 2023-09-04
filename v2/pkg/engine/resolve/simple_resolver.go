@@ -8,7 +8,6 @@ import (
 	"github.com/buger/jsonparser"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastbuffer"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
@@ -51,7 +50,7 @@ func (r *SimpleResolver) resolveObject(object *Object, data []byte, resolveBuf *
 	if len(object.Path) != 0 {
 		data, _, _, _ = jsonparser.Get(data, object.Path...)
 
-		if len(data) == 0 || bytes.Equal(data, literal.NULL) {
+		if len(data) == 0 || bytes.Equal(data, null) {
 			if object.Nullable {
 				// write empty object to resolve buffer
 				r.resolveNull(resolveBuf)
