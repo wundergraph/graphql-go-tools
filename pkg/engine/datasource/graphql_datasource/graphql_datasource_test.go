@@ -8448,7 +8448,7 @@ func BenchmarkFederationBatching(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			// _ = resolver.ResolveGraphQLResponse(ctx, plan, nil, ioutil.Discard)
+			// _ = resolver.ResolveGraphQLResponse(ctx, plan, nil, io.Discard)
 			ctx := ctxPool.Get().(*resolve.Context)
 			buf := pool.Get().(*bytes.Buffer)
 			err = resolver.ResolveGraphQLResponse(ctx, preparedPlan, nil, buf)

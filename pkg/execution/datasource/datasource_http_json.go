@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 
@@ -336,9 +335,9 @@ func (r *HttpJsonDataSource) Resolve(ctx context.Context, args ResolverArgs, out
 		return
 	}
 
-	data, err := ioutil.ReadAll(res.Body)
+	data, err := io.ReadAll(res.Body)
 	if err != nil {
-		r.Log.Error("HttpJsonDataSource.Resolve.ioutil.ReadAll",
+		r.Log.Error("HttpJsonDataSource.Resolve.io.ReadAll",
 			log.Error(err),
 		)
 		return

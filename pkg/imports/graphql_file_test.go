@@ -2,7 +2,7 @@ package imports
 
 import (
 	"bytes"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/jensneuse/diffview"
@@ -26,7 +26,7 @@ func TestGraphQLFile_Render(t *testing.T) {
 
 	goldie.Assert(t, "render_result", dump)
 	if t.Failed() {
-		fixture, err := ioutil.ReadFile("./fixtures/render_result.golden")
+		fixture, err := os.ReadFile("./fixtures/render_result.golden")
 		if err != nil {
 			t.Fatal(err)
 		}

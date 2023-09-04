@@ -6,7 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"sync"
@@ -96,7 +96,7 @@ func (e *EngineResultWriter) AsHTTPResponse(status int, headers http.Header) *ht
 	}
 
 	res := &http.Response{}
-	res.Body = ioutil.NopCloser(b)
+	res.Body = io.NopCloser(b)
 	res.Header = headers
 	res.StatusCode = status
 	res.ContentLength = int64(b.Len())

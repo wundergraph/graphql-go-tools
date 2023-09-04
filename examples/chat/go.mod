@@ -1,7 +1,6 @@
 module github.com/TykTechnologies/graphql-go-tools/examples/chat
 
-go 1.16
-
+go 1.19
 require (
 	github.com/99designs/gqlgen v0.17.20
 	github.com/gorilla/websocket v1.5.0
