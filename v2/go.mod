@@ -8,7 +8,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.2
 	github.com/dave/jennifer v1.4.0
 	github.com/davecgh/go-spew v1.1.1
-	github.com/evanphx/json-patch/v5 v5.1.0
 	github.com/gobwas/ws v1.0.4
 	github.com/golang/mock v1.4.1
 	github.com/google/go-cmp v0.5.8
