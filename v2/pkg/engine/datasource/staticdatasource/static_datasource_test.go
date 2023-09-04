@@ -20,7 +20,7 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 				Data: &resolve.Object{
 					Fields: []*resolve.Field{
 						{
-							Name:      []byte("hello"),
+							Name: []byte("hello"),
 							Value: &resolve.String{
 								Nullable: true,
 							},
@@ -30,7 +30,6 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 						Input:                "world",
 						DataSource:           Source{},
 						DataSourceIdentifier: []byte("staticdatasource.Source"),
-						DisableDataLoader:    true,
 						DisallowSingleFlight: true,
 					},
 				},

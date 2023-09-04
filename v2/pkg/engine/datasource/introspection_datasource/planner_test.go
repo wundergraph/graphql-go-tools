@@ -139,7 +139,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							Name:      []byte("__type"),
+							Name: []byte("__type"),
 							Position: resolve.Position{
 								Line:   3,
 								Column: 4,
@@ -188,7 +188,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							Name:      []byte("__schema"),
+							Name: []byte("__schema"),
 							Position: resolve.Position{
 								Line:   3,
 								Column: 4,
@@ -238,7 +238,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							Name:      []byte("__schema"),
+							Name: []byte("__schema"),
 							Position: resolve.Position{
 								Line:   3,
 								Column: 4,
@@ -342,7 +342,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 					},
 					Fields: []*resolve.Field{
 						{
-							Name:      []byte("__type"),
+							Name: []byte("__type"),
 							Position: resolve.Position{
 								Line:   3,
 								Column: 4,
@@ -352,6 +352,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 								Fetch: &resolve.ParallelFetch{
 									Fetches: []resolve.Fetch{
 										&resolve.SingleFetch{
+											SerialID:   1,
 											Input:      `{"request_type":3,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
 											DataSource: &Source{},
 											Variables: resolve.NewVariables(
@@ -367,6 +368,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 											DataSourceIdentifier: dataSourceIdentifier,
 										},
 										&resolve.SingleFetch{
+											SerialID:   2,
 											Input:      `{"request_type":4,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
 											DataSource: &Source{},
 											Variables: resolve.NewVariables(
@@ -385,7 +387,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 								},
 								Fields: []*resolve.Field{
 									{
-										Name:      []byte("fields"),
+										Name: []byte("fields"),
 										Value: &resolve.Array{
 											Nullable: true,
 											Item: &resolve.Object{
@@ -408,7 +410,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 										},
 									},
 									{
-										Name:      []byte("enumValues"),
+										Name: []byte("enumValues"),
 										Value: &resolve.Array{
 											Nullable: true,
 											Item: &resolve.Object{

@@ -47,7 +47,6 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	return plan.FetchConfiguration{
 		Input:                p.config.Data,
 		DataSource:           Source{},
-		DisableDataLoader:    true,
 		DisallowSingleFlight: true,
 	}
 }
