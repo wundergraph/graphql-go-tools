@@ -370,6 +370,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
+							SerialID:             0,
 							Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
 							DataSource:           &Source{},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -411,52 +412,49 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 												},
 												Fetch: &resolve.SingleFetch{
-													Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":$$0$$}}}`,
+													SerialID:                              1,
+													Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
 													DataSource:                            &Source{},
 													SetTemplateOutputToNullOnVariableNull: true,
 													Variables: []resolve.Variable{
-														&resolve.ListVariable{
-															Variables: []resolve.Variable{
-																&resolve.ResolvableObjectVariable{
-																	Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																		Fields: []*resolve.Field{
-																			{
-																				Name: []byte("__typename"),
-																				Value: &resolve.String{
-																					Path: []string{"__typename"},
+														&resolve.ResolvableObjectVariable{
+															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &resolve.String{
+																			Path: []string{"__typename"},
+																		},
+																	},
+																	{
+																		Name: []byte("id"),
+																		Value: &resolve.String{
+																			Path: []string{"id"},
+																		},
+																	},
+																	{
+																		Name: []byte("info"),
+																		Value: &resolve.Object{
+																			Path:     []string{"info"},
+																			Nullable: true,
+																			Fields: []*resolve.Field{
+																				{
+																					Name: []byte("a"),
+																					Value: &resolve.String{
+																						Path: []string{"a"},
+																					},
 																				},
-																			},
-																			{
-																				Name: []byte("id"),
-																				Value: &resolve.String{
-																					Path: []string{"id"},
-																				},
-																			},
-																			{
-																				Name: []byte("info"),
-																				Value: &resolve.Object{
-																					Path:     []string{"info"},
-																					Nullable: true,
-																					Fields: []*resolve.Field{
-																						{
-																							Name: []byte("a"),
-																							Value: &resolve.String{
-																								Path: []string{"a"},
-																							},
-																						},
-																						{
-																							Name: []byte("b"),
-																							Value: &resolve.String{
-																								Path: []string{"b"},
-																							},
-																						},
+																				{
+																					Name: []byte("b"),
+																					Value: &resolve.String{
+																						Path: []string{"b"},
 																					},
 																				},
 																			},
 																		},
-																	}),
+																	},
 																},
-															},
+															}),
 														},
 													},
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -475,7 +473,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 		))
 
 		t.Run("requires fields", func(t *testing.T) {
-			t.Skip("serial fetch is not supported yet")
+			t.Skip("FIXME")
 
 			t.Run("from 3 subgraphs: parent and siblings", RunTest(
 				definition,
@@ -495,6 +493,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Response: &resolve.GraphQLResponse{
 						Data: &resolve.Object{
 							Fetch: &resolve.SingleFetch{
+								SerialID:             0,
 								Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {__typename id line1 line2}}}}"}}`,
 								DataSource:           &Source{},
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -529,130 +528,121 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																Fetch: &resolve.SerialFetch{
 																	Fetches: []resolve.Fetch{
 																		&resolve.SingleFetch{
+																			SerialID:               3,
 																			DissallowParallelFetch: true,
-																			Input:                  `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":$$0$$}}}`,
+																			Input:                  `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":[$$0$$]}}}`,
 																			DataSource:             &Source{},
 																			DataSourceIdentifier:   []byte("graphql_datasource.Source"),
 																			PostProcessing:         EntitiesPostProcessingConfiguration,
 																			Variables: []resolve.Variable{
-																				&resolve.ListVariable{
-																					Variables: []resolve.Variable{
-																						&resolve.ResolvableObjectVariable{
-																							Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																								Fields: []*resolve.Field{
-																									{
-																										Name: []byte("__typename"),
-																										Value: &resolve.String{
-																											Path: []string{"__typename"},
-																										},
-																									},
-																									{
-																										Name: []byte("id"),
-																										Value: &resolve.String{
-																											Path: []string{"id"},
-																										},
-																									},
-																									{
-																										Name: []byte("line1"),
-																										Value: &resolve.String{
-																											Path: []string{"line1"},
-																										},
-																									},
-																									{
-																										Name: []byte("line2"),
-																										Value: &resolve.String{
-																											Path: []string{"line2"},
-																										},
-																									},
-																									{
-																										Name: []byte("line3"),
-																										Value: &resolve.String{
-																											Path: []string{"line3"},
-																										},
-																									},
-																									{
-																										Name: []byte("zip"),
-																										Value: &resolve.String{
-																											Path: []string{"zip"},
-																										},
-																									},
+																				&resolve.ResolvableObjectVariable{
+																					Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																						Fields: []*resolve.Field{
+																							{
+																								Name: []byte("__typename"),
+																								Value: &resolve.String{
+																									Path: []string{"__typename"},
 																								},
-																							}),
+																							},
+																							{
+																								Name: []byte("id"),
+																								Value: &resolve.String{
+																									Path: []string{"id"},
+																								},
+																							},
+																							{
+																								Name: []byte("line1"),
+																								Value: &resolve.String{
+																									Path: []string{"line1"},
+																								},
+																							},
+																							{
+																								Name: []byte("line2"),
+																								Value: &resolve.String{
+																									Path: []string{"line2"},
+																								},
+																							},
+																							{
+																								Name: []byte("line3"),
+																								Value: &resolve.String{
+																									Path: []string{"line3"},
+																								},
+																							},
+																							{
+																								Name: []byte("zip"),
+																								Value: &resolve.String{
+																									Path: []string{"zip"},
+																								},
+																							},
 																						},
-																					},
+																					}),
 																				},
 																			},
 																		},
 																		&resolve.SingleFetch{
+																			SerialID:               2,
 																			DissallowParallelFetch: true,
-																			Input:                  `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":$$0$$}}}`,
+																			Input:                  `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":[$$0$$]}}}`,
 																			DataSource:             &Source{},
 																			DataSourceIdentifier:   []byte("graphql_datasource.Source"),
 																			PostProcessing:         EntitiesPostProcessingConfiguration,
 																			Variables: []resolve.Variable{
-																				&resolve.ListVariable{
-																					Variables: []resolve.Variable{
-																						&resolve.ResolvableObjectVariable{
-																							Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																								Fields: []*resolve.Field{
-																									{
-																										Name: []byte("__typename"),
-																										Value: &resolve.String{
-																											Path: []string{"__typename"},
-																										},
-																									},
-																									{
-																										Name: []byte("id"),
-																										Value: &resolve.String{
-																											Path: []string{"id"},
-																										},
-																									},
-																									{
-																										Name: []byte("country"),
-																										Value: &resolve.String{
-																											Path: []string{"country"},
-																										},
-																									},
-																									{
-																										Name: []byte("city"),
-																										Value: &resolve.String{
-																											Path: []string{"city"},
-																										},
-																									},
+																				&resolve.ResolvableObjectVariable{
+																					Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																						Fields: []*resolve.Field{
+																							{
+																								Name: []byte("__typename"),
+																								Value: &resolve.String{
+																									Path: []string{"__typename"},
 																								},
-																							}),
+																							},
+																							{
+																								Name: []byte("id"),
+																								Value: &resolve.String{
+																									Path: []string{"id"},
+																								},
+																							},
+																							{
+																								Name: []byte("country"),
+																								Value: &resolve.String{
+																									Path: []string{"country"},
+																								},
+																							},
+																							{
+																								Name: []byte("city"),
+																								Value: &resolve.String{
+																									Path: []string{"city"},
+																								},
+																							},
 																						},
-																					},
+																					}),
 																				},
 																			},
 																		},
 																		&resolve.SingleFetch{
-																			Input:                `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":$$0$$}}}`,
+																			SerialID:             1,
+																			Input:                `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":[$$0$$]}}}`,
 																			DataSource:           &Source{},
 																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																			PostProcessing:       DefaultPostProcessingConfiguration,
 																			Variables: []resolve.Variable{
-																				&resolve.ListVariable{
-																					Variables: []resolve.Variable{
-																						&resolve.ResolvableObjectVariable{
-																							Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																								Fields: []*resolve.Field{
-																									{
-																										Name: []byte("__typename"),
-																										Value: &resolve.String{
-																											Path: []string{"__typename"},
-																										},
-																									},
-																									{
-																										Name: []byte("id"),
-																										Value: &resolve.String{
-																											Path: []string{"id"},
-																										},
-																									},
+																				&resolve.ResolvableObjectVariable{
+																					Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																						Fields: []*resolve.Field{
+																							{
+																								Name: []byte("__typename"),
+																								Value: &resolve.String{
+																									Path: []string{"__typename"},
 																								},
-																							}),
+																							},
+																							{
+																								Name: []byte("id"),
+																								Value: &resolve.String{
+																									Path: []string{"id"},
+																								},
+																							},
 																						},
-																					},
+																					}),
 																				},
 																			},
 																		},
@@ -694,6 +684,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Response: &resolve.GraphQLResponse{
 						Data: &resolve.Object{
 							Fetch: &resolve.SingleFetch{
+								SerialID:             0,
 								Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {oldAccount {name shippingInfo {zip}}}}"}}`,
 								DataSource:           &Source{},
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -771,6 +762,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Response: &resolve.GraphQLResponse{
 						Data: &resolve.Object{
 							Fetch: &resolve.SingleFetch{
+								SerialID:             0,
 								Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}} oldAccount {name shippingInfo {zip}}}}"}}`,
 								DataSource:           &Source{},
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -812,54 +804,51 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														},
 													},
 													Fetch: &resolve.SingleFetch{
-														Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":$$0$$}}}`,
+														SerialID:                              1,
+														Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
 														DataSource:                            &Source{},
 														DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
 														PostProcessing:                        EntitiesPostProcessingConfiguration,
 														SetTemplateOutputToNullOnVariableNull: true,
 														Variables: []resolve.Variable{
-															&resolve.ListVariable{
-																Variables: []resolve.Variable{
-																	&resolve.ResolvableObjectVariable{
-																		Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																			Fields: []*resolve.Field{
-																				{
-																					Name: []byte("__typename"),
-																					Value: &resolve.String{
-																						Path: []string{"__typename"},
+															&resolve.ResolvableObjectVariable{
+																Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																	Fields: []*resolve.Field{
+																		{
+																			Name: []byte("__typename"),
+																			Value: &resolve.String{
+																				Path: []string{"__typename"},
+																			},
+																		},
+																		{
+																			Name: []byte("id"),
+																			Value: &resolve.String{
+																				Path: []string{"id"},
+																			},
+																		},
+																		{
+																			Name: []byte("info"),
+																			Value: &resolve.Object{
+																				Path:     []string{"info"},
+																				Nullable: true,
+																				Fields: []*resolve.Field{
+																					{
+																						Name: []byte("a"),
+																						Value: &resolve.String{
+																							Path: []string{"a"},
+																						},
 																					},
-																				},
-																				{
-																					Name: []byte("id"),
-																					Value: &resolve.String{
-																						Path: []string{"id"},
-																					},
-																				},
-																				{
-																					Name: []byte("info"),
-																					Value: &resolve.Object{
-																						Path:     []string{"info"},
-																						Nullable: true,
-																						Fields: []*resolve.Field{
-																							{
-																								Name: []byte("a"),
-																								Value: &resolve.String{
-																									Path: []string{"a"},
-																								},
-																							},
-																							{
-																								Name: []byte("b"),
-																								Value: &resolve.String{
-																									Path: []string{"b"},
-																								},
-																							},
+																					{
+																						Name: []byte("b"),
+																						Value: &resolve.String{
+																							Path: []string{"b"},
 																						},
 																					},
 																				},
 																			},
-																		}),
+																		},
 																	},
-																},
+																}),
 															},
 														},
 													},
@@ -1196,6 +1185,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Data: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
+									SerialID:             0,
 									Input:                `{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname}}}"}}`,
 									PostProcessing:       DefaultPostProcessingConfiguration,
 									DataSource:           &Source{},
@@ -1244,6 +1234,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Data: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
+										SerialID:             0,
 										Input:                input1,
 										PostProcessing:       DefaultPostProcessingConfiguration,
 										DataSource:           &Source{},
@@ -1284,33 +1275,30 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 												},
 												Fetch: &resolve.SingleFetch{
+													SerialID:                              1,
 													Input:                                 input2,
 													SetTemplateOutputToNullOnVariableNull: true,
 													PostProcessing:                        EntitiesPostProcessingConfiguration,
 													DataSource:                            &Source{},
 													DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
 													Variables: []resolve.Variable{
-														&resolve.ListVariable{
-															Variables: []resolve.Variable{
-																&resolve.ResolvableObjectVariable{
-																	Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																		Fields: []*resolve.Field{
-																			{
-																				Name: []byte("__typename"),
-																				Value: &resolve.String{
-																					Path: []string{"__typename"},
-																				},
-																			},
-																			{
-																				Name: []byte("id"),
-																				Value: &resolve.String{
-																					Path: []string{"id"},
-																				},
-																			},
+														&resolve.ResolvableObjectVariable{
+															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &resolve.String{
+																			Path: []string{"__typename"},
 																		},
-																	}),
+																	},
+																	{
+																		Name: []byte("id"),
+																		Value: &resolve.String{
+																			Path: []string{"id"},
+																		},
+																	},
 																},
-															},
+															}),
 														},
 													},
 												},
@@ -1338,7 +1326,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						"basic",
 						expectedPlan(
 							`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename middlename} __typename id}}"}}`,
-							`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":$$0$$}}}`),
+							`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":[$$0$$]}}}`),
 						plan.Configuration{
 							DataSources: []plan.DataSourceConfiguration{
 								firstDatasourceConfiguration,
@@ -1368,7 +1356,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						"basic",
 						expectedPlan(
 							`{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname} __typename id}}"}}`,
-							`{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {middlename}}}}","variables":{"representations":$$0$$}}}`),
+							`{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {middlename}}}}","variables":{"representations":[$$0$$]}}}`),
 						plan.Configuration{
 							DataSources: []plan.DataSourceConfiguration{
 								secondDatasourceConfiguration,
@@ -1389,6 +1377,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Data: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
+										SerialID:             0,
 										Input:                input1,
 										PostProcessing:       DefaultPostProcessingConfiguration,
 										DataSource:           &Source{},
@@ -1417,33 +1406,30 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 												},
 												Fetch: &resolve.SingleFetch{
+													SerialID:                              1,
 													Input:                                 input2,
 													SetTemplateOutputToNullOnVariableNull: true,
 													PostProcessing:                        EntitiesPostProcessingConfiguration,
 													DataSource:                            &Source{},
 													DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
 													Variables: []resolve.Variable{
-														&resolve.ListVariable{
-															Variables: []resolve.Variable{
-																&resolve.ResolvableObjectVariable{
-																	Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																		Fields: []*resolve.Field{
-																			{
-																				Name: []byte("__typename"),
-																				Value: &resolve.String{
-																					Path: []string{"__typename"},
-																				},
-																			},
-																			{
-																				Name: []byte("id"),
-																				Value: &resolve.String{
-																					Path: []string{"id"},
-																				},
-																			},
+														&resolve.ResolvableObjectVariable{
+															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &resolve.String{
+																			Path: []string{"__typename"},
 																		},
-																	}),
+																	},
+																	{
+																		Name: []byte("id"),
+																		Value: &resolve.String{
+																			Path: []string{"id"},
+																		},
+																	},
 																},
-															},
+															}),
 														},
 													},
 												},
@@ -1469,7 +1455,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						"basic",
 						expectedPlan(
 							`{"method":"POST","url":"http://first.service","body":{"query":"{me {__typename id}}"}}`,
-							`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":$$0$$}}}`,
+							`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
 						),
 						plan.Configuration{
 							DataSources: []plan.DataSourceConfiguration{
@@ -1498,7 +1484,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						"basic",
 						expectedPlan(
 							`{"method":"POST","url":"http://second.service","body":{"query":"{me {__typename id}}"}}`,
-							`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":$$0$$}}}`,
+							`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
 						),
 						plan.Configuration{
 							DataSources: []plan.DataSourceConfiguration{
@@ -1534,6 +1520,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Data: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
+										SerialID:             0,
 										Input:                input1,
 										PostProcessing:       DefaultPostProcessingConfiguration,
 										DataSource:           &Source{},
@@ -1582,64 +1569,58 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												Fetch: &resolve.ParallelFetch{
 													Fetches: []resolve.Fetch{
 														&resolve.SingleFetch{
-															Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":$$0$$}}}`,
+															SerialID:                              1,
+															Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":[$$0$$]}}}`,
 															SetTemplateOutputToNullOnVariableNull: true,
 															PostProcessing:                        EntitiesPostProcessingConfiguration,
 															DataSource:                            &Source{},
 															DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
 															Variables: []resolve.Variable{
-																&resolve.ListVariable{
-																	Variables: []resolve.Variable{
-																		&resolve.ResolvableObjectVariable{
-																			Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																				Fields: []*resolve.Field{
-																					{
-																						Name: []byte("__typename"),
-																						Value: &resolve.String{
-																							Path: []string{"__typename"},
-																						},
-																					},
-																					{
-																						Name: []byte("id"),
-																						Value: &resolve.String{
-																							Path: []string{"id"},
-																						},
-																					},
+																&resolve.ResolvableObjectVariable{
+																	Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																		Fields: []*resolve.Field{
+																			{
+																				Name: []byte("__typename"),
+																				Value: &resolve.String{
+																					Path: []string{"__typename"},
 																				},
-																			}),
+																			},
+																			{
+																				Name: []byte("id"),
+																				Value: &resolve.String{
+																					Path: []string{"id"},
+																				},
+																			},
 																		},
-																	},
+																	}),
 																},
 															},
 														},
 														&resolve.SingleFetch{
-															Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":$$0$$}}}`,
+															SerialID:                              2,
+															Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
 															SetTemplateOutputToNullOnVariableNull: true,
 															PostProcessing:                        EntitiesPostProcessingConfiguration,
 															DataSource:                            &Source{},
 															DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
 															Variables: []resolve.Variable{
-																&resolve.ListVariable{
-																	Variables: []resolve.Variable{
-																		&resolve.ResolvableObjectVariable{
-																			Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																				Fields: []*resolve.Field{
-																					{
-																						Name: []byte("__typename"),
-																						Value: &resolve.String{
-																							Path: []string{"__typename"},
-																						},
-																					},
-																					{
-																						Name: []byte("id"),
-																						Value: &resolve.String{
-																							Path: []string{"id"},
-																						},
-																					},
+																&resolve.ResolvableObjectVariable{
+																	Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																		Fields: []*resolve.Field{
+																			{
+																				Name: []byte("__typename"),
+																				Value: &resolve.String{
+																					Path: []string{"__typename"},
 																				},
-																			}),
+																			},
+																			{
+																				Name: []byte("id"),
+																				Value: &resolve.String{
+																					Path: []string{"id"},
+																				},
+																			},
 																		},
-																	},
+																	}),
 																},
 															},
 														},
