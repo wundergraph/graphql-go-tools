@@ -245,7 +245,7 @@ func (r *Resolver) resolveEmptyObject(b *fastbuffer.FastBuffer) {
 	b.WriteBytes(rBrace)
 }
 
-func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBuf *BufPair) (err error) {
+func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBuf *BufPair) (parentErr error) {
 	if len(array.Path) != 0 {
 		data, _, _, _ = jsonparser.Get(data, array.Path...)
 	}
@@ -255,33 +255,57 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 		return
 	}
 
-	arrayItems := r.byteSlicesPool.Get().(*[][]byte)
-	defer func() {
-		*arrayItems = (*arrayItems)[:0]
-		r.byteSlicesPool.Put(arrayItems)
-	}()
+	itemBuf := r.getBufPair()
+	defer r.freeBufPair(itemBuf)
 
-	_, _ = jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+	reset := arrayBuf.Data.Len()
+	i := 0
+	hasData := false
+	resolveArrayAsNull := false
+
+	_, err := jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+		if parentErr != nil {
+			return
+		}
 		if err == nil && dataType == jsonparser.String {
 			value = data[offset-2 : offset+len(value)] // add quotes to string values
 		}
-
-		*arrayItems = append(*arrayItems, value)
-	})
-
-	if len(*arrayItems) == 0 {
-		if !array.Nullable {
-			r.resolveEmptyArray(arrayBuf.Data)
-			return errNonNullableFieldValueIsNull
+		itemBuf.Reset()
+		ctx.addIntegerPathElement(i)
+		err = r.resolveNode(ctx, array.Item, value, itemBuf)
+		ctx.removeLastPathElement()
+		if err != nil {
+			if errors.Is(err, errNonNullableFieldValueIsNull) && array.Nullable {
+				resolveArrayAsNull = true
+				return
+			}
+			parentErr = err
+			return
 		}
+		if !hasData {
+			arrayBuf.Data.WriteBytes(lBrack)
+		}
+		r.MergeBufPairs(itemBuf, arrayBuf, hasData)
+		hasData = true
+		i++
+	})
+	if err != nil {
+		if array.Nullable {
+			arrayBuf.Data.Reslice(0, reset)
+			r.resolveNull(arrayBuf.Data)
+			return nil
+		}
+		return errNonNullableFieldValueIsNull
+	}
+	if resolveArrayAsNull {
+		arrayBuf.Data.Reslice(0, reset)
 		r.resolveNull(arrayBuf.Data)
 		return nil
 	}
-
-	ctx.addResponseArrayElements(array.Path)
-	defer func() { ctx.removeResponseArrayLastElements(array.Path) }()
-
-	return r.resolveArraySynchronous(ctx, array, arrayItems, arrayBuf)
+	if hasData {
+		arrayBuf.Data.WriteBytes(rBrack)
+	}
+	return
 }
 
 func (r *Resolver) resolveArraySynchronous(ctx *Context, array *Array, arrayItems *[][]byte, arrayBuf *BufPair) (err error) {
