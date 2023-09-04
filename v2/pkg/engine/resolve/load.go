@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
+	"reflect"
 	"sync"
+	"unsafe"
 
 	"github.com/buger/jsonparser"
-	jsonpatch "github.com/evanphx/json-patch/v5"
+	"github.com/cespare/xxhash/v2"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastbuffer"
@@ -22,6 +25,8 @@ var (
 type Loader struct {
 	parallelFetch bool
 	parallelMu    sync.Mutex
+
+	hash hash.Hash64
 
 	layers []*layer
 
@@ -73,6 +78,9 @@ func (l *Loader) inputData(layer *layer, out *fastbuffer.FastBuffer) []byte {
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, data []byte, out io.Writer) (hasErrors bool, err error) {
+	if l.hash == nil {
+		l.hash = xxhash.New()
+	}
 	l.layers = l.layers[:0]
 	l.errors = l.errors[:0]
 	l.layers = append(l.layers, &layer{
@@ -101,6 +109,18 @@ func (l *Loader) getLayerBuffer() *fastbuffer.FastBuffer {
 		l.parallelMu.Lock()
 	}
 	l.currentLayer().buffers = append(l.currentLayer().buffers, buf)
+	if l.parallelFetch {
+		l.parallelMu.Unlock()
+	}
+	return buf
+}
+
+func (l *Loader) getRootBuffer() *fastbuffer.FastBuffer {
+	buf := pool.FastBuffer.Get()
+	if l.parallelFetch {
+		l.parallelMu.Lock()
+	}
+	l.layers[0].buffers = append(l.layers[0].buffers, buf)
 	if l.parallelFetch {
 		l.parallelMu.Unlock()
 	}
@@ -246,7 +266,7 @@ func (l *Loader) mergeLayerIntoParent() (err error) {
 	child := l.layers[len(l.layers)-1]
 	parent := l.layers[len(l.layers)-2]
 	if parent.kind == layerKindObject && child.kind == layerKindObject {
-		patch, err := jsonpatch.MergePatch(parent.data, child.data)
+		patch, err := l.mergeJSON(parent.data, child.data)
 		if err != nil {
 			return err
 		}
@@ -277,7 +297,7 @@ func (l *Loader) mergeLayerIntoParent() (err error) {
 			continue
 		}
 		existing, _, _, _ := jsonparser.Get(parent.items[i], child.path...)
-		combined, err := jsonpatch.MergePatch(existing, child.items[i])
+		combined, err := l.mergeJSON(existing, child.items[i])
 		if err != nil {
 			return err
 		}
@@ -323,9 +343,6 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 	itemBuf := pool.FastBuffer.Get()
 	defer pool.FastBuffer.Put(itemBuf)
 
-	hash := pool.Hash64.Get()
-	defer pool.Hash64.Put(hash)
-
 	itemHashes := make([]uint64, 0, len(lr.items)*len(fetch.Input.Items))
 	addSeparator := false
 
@@ -349,9 +366,9 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 				batchStats[i] = append(batchStats[i], -1)
 				continue
 			}
-			hash.Reset()
-			_, _ = hash.Write(itemBuf.Bytes())
-			itemHash := hash.Sum64()
+			l.hash.Reset()
+			_, _ = l.hash.Write(itemBuf.Bytes())
+			itemHash := l.hash.Sum64()
 			for k := range itemHashes {
 				if itemHashes[k] == itemHash {
 					batchStats[i] = append(batchStats[i], k)
@@ -437,7 +454,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 		if lr.items[i] == nil {
 			continue
 		}
-		lr.items[i], err = jsonpatch.MergePatch(lr.items[i], itemsData[i])
+		lr.items[i], err = l.mergeJSON(lr.items[i], itemsData[i])
 		if err != nil {
 			return err
 		}
@@ -474,7 +491,7 @@ func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListI
 			if err != nil {
 				return err
 			}
-			layer.items[i], err = jsonpatch.MergePatch(layer.items[i], data)
+			layer.items[i], err = l.mergeJSON(layer.items[i], data)
 			return err
 		})
 	}
@@ -574,7 +591,7 @@ func (l *Loader) mergeDataIntoLayer(layer *layer, data []byte) (err error) {
 			layer.data = data
 			return nil
 		}
-		layer.data, err = jsonpatch.MergePatch(layer.data, data)
+		layer.data, err = l.mergeJSON(layer.data, data)
 		return err
 	}
 	var (
@@ -598,7 +615,7 @@ func (l *Loader) mergeDataIntoLayer(layer *layer, data []byte) (err error) {
 			skipped++
 			continue
 		}
-		layer.items[i], err = jsonpatch.MergePatch(layer.items[i], dataItems[i-skipped])
+		layer.items[i], err = l.mergeJSON(layer.items[i], dataItems[i-skipped])
 		if err != nil {
 			return err
 		}
@@ -614,4 +631,125 @@ func (l *Loader) resolveSerialFetch(ctx *Context, fetch *SerialFetch) (err error
 		}
 	}
 	return nil
+}
+
+type fastJsonContext struct {
+	keys, values               [][]byte
+	types                      []jsonparser.ValueType
+	missingKeys, missingValues [][]byte
+	missingTypes               []jsonparser.ValueType
+}
+
+var (
+	fastJsonPool = sync.Pool{
+		New: func() interface{} {
+			ctx := &fastJsonContext{}
+			ctx.keys = make([][]byte, 0, 4)
+			ctx.values = make([][]byte, 0, 4)
+			ctx.types = make([]jsonparser.ValueType, 0, 4)
+			ctx.missingKeys = make([][]byte, 0, 4)
+			ctx.missingValues = make([][]byte, 0, 4)
+			ctx.missingTypes = make([]jsonparser.ValueType, 0, 4)
+			return ctx
+		},
+	}
+)
+
+func (l *Loader) mergeJSON(left, right []byte) ([]byte, error) {
+	ctx := fastJsonPool.Get().(*fastJsonContext)
+	defer func() {
+		ctx.keys = ctx.keys[:0]
+		ctx.values = ctx.values[:0]
+		ctx.types = ctx.types[:0]
+		ctx.missingKeys = ctx.missingKeys[:0]
+		ctx.missingValues = ctx.missingValues[:0]
+		ctx.missingTypes = ctx.missingTypes[:0]
+		fastJsonPool.Put(ctx)
+	}()
+	err := jsonparser.ObjectEach(left, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+		ctx.keys = append(ctx.keys, key)
+		ctx.values = append(ctx.values, value)
+		ctx.types = append(ctx.types, dataType)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = jsonparser.ObjectEach(right, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+		if i, exists := l.byteSliceContainsKey(ctx.keys, key); exists {
+			if bytes.Equal(ctx.values[i], value) {
+				return nil
+			}
+			switch ctx.types[i] {
+			case jsonparser.Object:
+				merged, err := l.mergeJSON(ctx.values[i], value)
+				if err != nil {
+					return err
+				}
+				left, err = jsonparser.Set(left, merged, l.unsafeBytesToString(key))
+				if err != nil {
+					return err
+				}
+			case jsonparser.String:
+				update := right[offset-len(value)-2 : offset]
+				left, err = jsonparser.Set(left, update, l.unsafeBytesToString(key))
+				if err != nil {
+					return err
+				}
+			default:
+				left, err = jsonparser.Set(left, value, l.unsafeBytesToString(key))
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		ctx.missingKeys = append(ctx.missingKeys, key)
+		ctx.missingValues = append(ctx.missingValues, value)
+		ctx.missingTypes = append(ctx.missingTypes, dataType)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(ctx.missingKeys) == 0 {
+		return left, nil
+	}
+	buf := l.getRootBuffer()
+	buf.Reset()
+	buf.WriteBytes(lBrace)
+	for i := range ctx.missingKeys {
+		buf.WriteBytes(quote)
+		buf.WriteBytes(ctx.missingKeys[i])
+		buf.WriteBytes(quote)
+		buf.WriteBytes(colon)
+		if ctx.missingTypes[i] == jsonparser.String {
+			buf.WriteBytes(quote)
+		}
+		buf.WriteBytes(ctx.missingValues[i])
+		if ctx.missingTypes[i] == jsonparser.String {
+			buf.WriteBytes(quote)
+		}
+		buf.WriteBytes(comma)
+	}
+	start := bytes.Index(left, lBrace)
+	buf.WriteBytes(left[start+1:])
+	combined := buf.Bytes()
+	return combined, nil
+}
+
+func (l *Loader) byteSliceContainsKey(slice [][]byte, key []byte) (int, bool) {
+	for i := range slice {
+		if bytes.Equal(slice[i], key) {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
+// unsafeBytesToString is a helper function to convert a byte slice to a string without copying the underlying data
+func (l *Loader) unsafeBytesToString(bytes []byte) string {
+	sliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&bytes))
+	stringHeader := reflect.StringHeader{Data: sliceHeader.Data, Len: sliceHeader.Len}
+	return *(*string)(unsafe.Pointer(&stringHeader)) // nolint: govet
 }

@@ -5756,206 +5756,308 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 }
 
+func TestResolver_mergeJSON(t *testing.T) {
+	setup := func() *Loader {
+		loader := &Loader{
+			layers: []*layer{
+				{
+					buffers: []*fastbuffer.FastBuffer{},
+				},
+			},
+		}
+		return loader
+	}
+	t.Run("a", func(t *testing.T) {
+		loader := setup()
+		left := `{"name":"Bill","info":{"id":11,"__typename":"Info"},"address":{"id": 55,"__typename":"Address"}}`
+		right := `{"info":{"age":21},"address":{"line1":"Munich"}}`
+		expected := `{"address":{"__typename":"Address","id":55,"line1":"Munich"},"info":{"__typename":"Info","age":21,"id":11},"name":"Bill"}`
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		assert.NoError(t, err)
+		assert.JSONEq(t, expected, string(out))
+	})
+
+	t.Run("b", func(t *testing.T) {
+		loader := setup()
+		left := `{"id":"1234","username":"Me","__typename":"User"}`
+		right := `{"reviews":[{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`
+		expected := `{"__typename":"User","id":"1234","reviews":[{"body":"A highly effective form of birth control.","product":{"__typename":"Product","upc":"top-1"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"__typename":"Product","upc":"top-2"}}],"username":"Me"}`
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		assert.NoError(t, err)
+		assert.JSONEq(t, expected, string(out))
+	})
+
+	t.Run("c", func(t *testing.T) {
+		loader := setup()
+		left := `{"__typename":"Product","upc":"top-1"}`
+		right := `{"name": "Trilby"}`
+		expected := `{"__typename":"Product","name":"Trilby","upc":"top-1"}`
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		assert.NoError(t, err)
+		assert.JSONEq(t, expected, string(out))
+	})
+
+	t.Run("d", func(t *testing.T) {
+		loader := setup()
+		left := `{"__typename":"Product","upc":"top-1"}`
+		right := `{"__typename":"Product","name":"Trilby","upc":"top-1"}`
+		expected := `{"__typename":"Product","name":"Trilby","upc":"top-1"}`
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		assert.NoError(t, err)
+		assert.JSONEq(t, expected, string(out))
+	})
+
+	t.Run("e", func(t *testing.T) {
+		loader := setup()
+		left := `{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}`
+		right := `{"__typename":"Address","country":"country-1","city":"city-1"}`
+		expected := `{"__typename":"Address","city":"city-1","country":"country-1","id":"address-1","line1":"line1","line2":"line2"}`
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		assert.NoError(t, err)
+		assert.JSONEq(t, expected, string(out))
+	})
+
+	t.Run("f", func(t *testing.T) {
+		loader := setup()
+		left := `{"__typename":"Address","city":"city-1","country":"country-1","id":"address-1","line1":"line1","line2":"line2"}`
+		right := `{"__typename": "Address", "line3": "line3-1", "zip": "zip-1"}`
+		expected := `{"__typename":"Address","city":"city-1","country":"country-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		assert.NoError(t, err)
+		assert.JSONEq(t, expected, string(out))
+	})
+
+	t.Run("g", func(t *testing.T) {
+		loader := setup()
+		left := `{"__typename":"Address","city":"city-1","country":"country-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
+		right := `{"__typename":"Address","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1"}`
+		expected := `{"__typename":"Address","city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		assert.NoError(t, err)
+		assert.JSONEq(t, expected, string(out))
+	})
+
+	t.Run("h", func(t *testing.T) {
+		loader := setup()
+		left := `{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}`
+		right := `{"__typename":"Address","city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
+		expected := `{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		assert.NoError(t, err)
+		assert.JSONEq(t, expected, string(out))
+	})
+
+	t.Run("i", func(t *testing.T) {
+		loader := setup()
+		left := `{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}}`
+		right := `{"address":{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}}`
+		expected := `{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}},"address":{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}}`
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		assert.NoError(t, err)
+		assert.JSONEq(t, expected, string(out))
+	})
+
+	t.Run("j", func(t *testing.T) {
+		loader := setup()
+		left := `{"user":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}}}`
+		right := `{"account":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}},"address":{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}}}`
+		expected := `{"account":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}},"address":{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}},"user":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}}}`
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		assert.NoError(t, err)
+		assert.JSONEq(t, expected, string(out))
+	})
+}
+
 func BenchmarkResolver_ResolveNode(b *testing.B) {
 	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	resolver := newResolver(rCtx, true, false)
 
-	serviceOneDS := FakeDataSource(`{"serviceOne":{"fieldOne":"fieldOneValue"},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}`)
-	serviceTwoDS := FakeDataSource(`{"serviceTwo":{"fieldTwo":"fieldTwoValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"}}`)
-	nestedServiceOneDS := FakeDataSource(`{"serviceOne":{"fieldOne":"fieldOneValue"}}`)
+	userService := FakeDataSource(`{"data":{"users":[{"name":"Bill","info":{"id":11,"__typename":"Info"},"address":{"id": 55,"__typename":"Address"}},{"name":"John","info":{"id":12,"__typename":"Info"},"address":{"id": 55,"__typename":"Address"}},{"name":"Jane","info":{"id":13,"__typename":"Info"},"address":{"id": 55,"__typename":"Address"}}]}}`)
+	infoService := FakeDataSource(`{"data":{"_entities":[{"age":21,"__typename":"Info"},{"line1":"Munich","__typename":"Address"},{"age":22,"__typename":"Info"},{"age":23,"__typename":"Info"}]}}`)
 
 	plan := &GraphQLResponse{
 		Data: &Object{
-			Fetch: &ParallelFetch{
-				Fetches: []Fetch{
-					&SingleFetch{
-						BufferId: 0,
-						Input:    `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
-						InputTemplate: InputTemplate{
-							Segments: []TemplateSegment{
-								{
-									SegmentType: StaticSegmentType,
-									Data:        []byte(`{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":`),
-								},
-								{
-									SegmentType:        VariableSegmentType,
-									VariableKind:       ContextVariableKind,
-									VariableSourcePath: []string{"thirdArg"},
-								},
-								{
-									SegmentType: StaticSegmentType,
-									Data:        []byte(`,"firstArg":`),
-								},
-								{
-									SegmentType:        VariableSegmentType,
-									VariableKind:       ContextVariableKind,
-									VariableSourcePath: []string{"firstArg"},
-								},
-								{
-									SegmentType: StaticSegmentType,
-									Data:        []byte(`}}}`),
-								},
-							},
+			Fetch: &SingleFetch{
+				BufferId: 0,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"{ users { name info {id __typename} address {id __typename} } }"}}`),
+							SegmentType: StaticSegmentType,
 						},
-						DataSource: serviceOneDS,
-						Variables: NewVariables(
-							&ContextVariable{
-								Path: []string{"firstArg"},
-							},
-							&ContextVariable{
-								Path: []string{"thirdArg"},
-							},
-						),
 					},
-					&SingleFetch{
-						BufferId: 1,
-						Input:    `{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
-						InputTemplate: InputTemplate{
-							Segments: []TemplateSegment{
-								{
-									SegmentType: StaticSegmentType,
-									Data:        []byte(`{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":`),
-								},
-								{
-									SegmentType:        VariableSegmentType,
-									VariableKind:       ContextVariableKind,
-									VariableSourcePath: []string{"fourthArg"},
-								},
-								{
-									SegmentType: StaticSegmentType,
-									Data:        []byte(`,"secondArg":`),
-								},
-								{
-									SegmentType:        VariableSegmentType,
-									VariableKind:       ContextVariableKind,
-									VariableSourcePath: []string{"secondArg"},
-								},
-								{
-									SegmentType: StaticSegmentType,
-									Data:        []byte(`}}}`),
-								},
-							},
-						},
-						DataSource: serviceTwoDS,
-						Variables: NewVariables(
-							&ContextVariable{
-								Path: []string{"secondArg"},
-							},
-							&ContextVariable{
-								Path: []string{"fourthArg"},
-							},
-						),
-					},
+				},
+				DataSource: userService,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
 				},
 			},
 			Fields: []*Field{
 				{
+					HasBuffer: true,
 					BufferID:  0,
-					HasBuffer: true,
-					Name:      []byte("serviceOne"),
-					Value: &Object{
-						Path: []string{"serviceOne"},
-						Fields: []*Field{
-							{
-								Name: []byte("fieldOne"),
-								Value: &String{
-									Path: []string{"fieldOne"},
-								},
-							},
-						},
-					},
-				},
-				{
-					BufferID:  1,
-					HasBuffer: true,
-					Name:      []byte("serviceTwo"),
-					Value: &Object{
-						Path: []string{"serviceTwo"},
-						Fetch: &SingleFetch{
-							BufferId: 2,
-							Input:    `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`,
-							InputTemplate: InputTemplate{
-								Segments: []TemplateSegment{
-									{
-										SegmentType: StaticSegmentType,
-										Data:        []byte(`{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`),
+					Name:      []byte("users"),
+					Value: &Array{
+						Path: []string{"users"},
+						Item: &Object{
+							Fetch: &BatchFetch{
+								Input: BatchInput{
+									Header: InputTemplate{
+										Segments: []TemplateSegment{
+											{
+												Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age } ... on Address { line1 }}}}}","variables":{"representations":[`),
+												SegmentType: StaticSegmentType,
+											},
+										},
+									},
+									Items: []InputTemplate{
+										{
+											Segments: []TemplateSegment{
+												{
+													SegmentType:  VariableSegmentType,
+													VariableKind: ResolvableObjectVariableKind,
+													Renderer: NewGraphQLVariableResolveRenderer(&Object{
+														Path: []string{"info"},
+														Fields: []*Field{
+															{
+																Name: []byte("id"),
+																Value: &Integer{
+																	Path: []string{"id"},
+																},
+															},
+															{
+																Name: []byte("__typename"),
+																Value: &String{
+																	Path: []string{"__typename"},
+																},
+															},
+														},
+													}),
+												},
+											},
+										},
+										{
+											Segments: []TemplateSegment{
+												{
+													SegmentType:  VariableSegmentType,
+													VariableKind: ResolvableObjectVariableKind,
+													Renderer: NewGraphQLVariableResolveRenderer(&Object{
+														Path: []string{"address"},
+														Fields: []*Field{
+															{
+																Name: []byte("id"),
+																Value: &Integer{
+																	Path: []string{"id"},
+																},
+															},
+															{
+																Name: []byte("__typename"),
+																Value: &String{
+																	Path: []string{"__typename"},
+																},
+															},
+														},
+													}),
+												},
+											},
+										},
+									},
+									Separator: InputTemplate{
+										Segments: []TemplateSegment{
+											{
+												Data:        []byte(`,`),
+												SegmentType: StaticSegmentType,
+											},
+										},
+									},
+									Footer: InputTemplate{
+										Segments: []TemplateSegment{
+											{
+												Data:        []byte(`]}}}`),
+												SegmentType: StaticSegmentType,
+											},
+										},
 									},
 								},
-							},
-							DataSource: nestedServiceOneDS,
-							Variables:  Variables{},
-						},
-						Fields: []*Field{
-							{
-								Name: []byte("fieldTwo"),
-								Value: &String{
-									Path: []string{"fieldTwo"},
-								},
-							},
-							{
-								BufferID:  2,
-								HasBuffer: true,
-								Name:      []byte("serviceOneResponse"),
-								Value: &Object{
-									Path: []string{"serviceOne"},
-									Fields: []*Field{
-										{
-											Name: []byte("fieldOne"),
-											Value: &String{
-												Path: []string{"fieldOne"},
+								DataSource: infoService,
+								PostProcessing: PostProcessingConfiguration{
+									SelectResponseDataPath: []string{"data", "_entities"},
+									ResponseTemplate: &InputTemplate{
+										Segments: []TemplateSegment{
+											{
+												SegmentType:  VariableSegmentType,
+												VariableKind: ResolvableObjectVariableKind,
+												Renderer: NewGraphQLVariableResolveRenderer(&Object{
+													Fields: []*Field{
+														{
+															Name: []byte("info"),
+															Value: &Object{
+																Fields: []*Field{
+																	{
+																		Name: []byte("age"),
+																		Value: &Integer{
+																			Path: []string{"[0]", "age"},
+																		},
+																	},
+																},
+															},
+														},
+														{
+															Name: []byte("address"),
+															Value: &Object{
+																Fields: []*Field{
+																	{
+																		Name: []byte("line1"),
+																		Value: &String{
+																			Path: []string{"[1]", "line1"},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												}),
 											},
 										},
 									},
 								},
 							},
-						},
-					},
-				},
-				{
-					BufferID:  0,
-					HasBuffer: true,
-					Name:      []byte("anotherServiceOne"),
-					Value: &Object{
-						Path: []string{"anotherServiceOne"},
-						Fields: []*Field{
-							{
-								Name: []byte("fieldOne"),
-								Value: &String{
-									Path: []string{"fieldOne"},
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
+									},
 								},
-							},
-						},
-					},
-				},
-				{
-					BufferID:  1,
-					HasBuffer: true,
-					Name:      []byte("secondServiceTwo"),
-					Value: &Object{
-						Path: []string{"secondServiceTwo"},
-						Fields: []*Field{
-							{
-								Name: []byte("fieldTwo"),
-								Value: &String{
-									Path: []string{"fieldTwo"},
+								{
+									Name: []byte("info"),
+									Value: &Object{
+										Path: []string{"info"},
+										Fields: []*Field{
+											{
+												Name: []byte("age"),
+												Value: &Integer{
+													Path: []string{"age"},
+												},
+											},
+										},
+									},
 								},
-							},
-						},
-					},
-				},
-				{
-					BufferID:  0,
-					HasBuffer: true,
-					Name:      []byte("reusingServiceOne"),
-					Value: &Object{
-						Path: []string{"reusingServiceOne"},
-						Fields: []*Field{
-							{
-								Name: []byte("fieldOne"),
-								Value: &String{
-									Path: []string{"fieldOne"},
+								{
+									Name: []byte("address"),
+									Value: &Object{
+										Path: []string{"address"},
+										Fields: []*Field{
+											{
+												Name: []byte("line1"),
+												Value: &String{
+													Path: []string{"line1"},
+												},
+											},
+										},
+									},
 								},
 							},
 						},
@@ -5966,7 +6068,7 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 	}
 
 	var err error
-	expected := []byte(`{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"serviceTwo":{"fieldTwo":"fieldTwoValue","serviceOneResponse":{"fieldOne":"fieldOneValue"}},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}}`)
+	expected := []byte(`{"data":{"users":[{"name":"Bill","info":{"age":21},"address":{"line1":"Munich"}},{"name":"John","info":{"age":22},"address":{"line1":"Munich"}},{"name":"Jane","info":{"age":23},"address":{"line1":"Munich"}}]}}`)
 
 	pool := sync.Pool{
 		New: func() interface{} {
@@ -5974,47 +6076,35 @@ func BenchmarkResolver_ResolveNode(b *testing.B) {
 		},
 	}
 
-	variables := []byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`)
-
 	ctxPool := sync.Pool{
 		New: func() interface{} {
 			return NewContext(context.Background())
 		},
 	}
 
-	runBench := func(b *testing.B) {
-		b.ReportAllocs()
-		b.SetBytes(int64(len(expected)))
-		b.ResetTimer()
+	b.ReportAllocs()
+	b.SetBytes(int64(len(expected)))
+	b.ResetTimer()
 
-		b.RunParallel(func(pb *testing.PB) {
-			for pb.Next() {
-				// _ = resolver.ResolveGraphQLResponse(ctx, plan, nil, ioutil.Discard)
-				ctx := ctxPool.Get().(*Context)
-				ctx.Variables = variables
-				buf := pool.Get().(*bytes.Buffer)
-				err = resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
-				if err != nil {
-					b.Fatal(err)
-				}
-				if !bytes.Equal(expected, buf.Bytes()) {
-					b.Fatalf("want:\n%s\ngot:\n%s\n", string(expected), buf.String())
-				}
-
-				buf.Reset()
-				pool.Put(buf)
-
-				ctx.Free()
-				ctxPool.Put(ctx)
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			// _ = resolver.ResolveGraphQLResponse(ctx, plan, nil, ioutil.Discard)
+			ctx := ctxPool.Get().(*Context)
+			buf := pool.Get().(*bytes.Buffer)
+			err = resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
+			if err != nil {
+				b.Fatal(err)
 			}
-		})
-	}
+			if !bytes.Equal(expected, buf.Bytes()) {
+				b.Fatalf("want:\n%s\ngot:\n%s\n", string(expected), buf.String())
+			}
 
-	b.Run("singleflight enabled (latency 0)", func(b *testing.B) {
-		serviceOneDS.artificialLatency = 0
-		serviceTwoDS.artificialLatency = 0
-		nestedServiceOneDS.artificialLatency = 0
-		runBench(b)
+			buf.Reset()
+			pool.Put(buf)
+
+			ctx.Free()
+			ctxPool.Put(ctx)
+		}
 	})
 }
 

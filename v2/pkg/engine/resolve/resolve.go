@@ -31,6 +31,8 @@ type Resolver struct {
 	errChanPool       sync.Pool
 	hash64Pool        sync.Pool
 	fetcher           *Fetcher
+
+	loaders sync.Pool
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -78,6 +80,11 @@ func New(ctx context.Context, fetcher *Fetcher, enableDataLoader bool) *Resolver
 		hash64Pool: sync.Pool{
 			New: func() interface{} {
 				return xxhash.New()
+			},
+		},
+		loaders: sync.Pool{
+			New: func() interface{} {
+				return &Loader{}
 			},
 		},
 		fetcher:           fetcher,
@@ -129,7 +136,9 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	dataBuf := pool.FastBuffer.Get()
 	defer pool.FastBuffer.Put(dataBuf)
 
-	loader := &Loader{}
+	loader := r.loaders.Get().(*Loader)
+	defer r.loaders.Put(loader)
+
 	hasErrors, err := loader.LoadGraphQLResponseData(ctx, response, data, dataBuf)
 	if err != nil {
 		return
