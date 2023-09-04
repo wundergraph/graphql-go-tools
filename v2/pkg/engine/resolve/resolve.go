@@ -16,7 +16,6 @@ import (
 	errors "golang.org/x/xerrors"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastbuffer"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
@@ -322,7 +321,7 @@ func (r *Resolver) exportField(ctx *Context, export *FieldExport, value []byte) 
 		return
 	}
 	if export.AsString {
-		value = append(literal.QUOTE, append(value, literal.QUOTE...)...)
+		value = append(quote, append(value, quote...)...)
 	}
 	ctx.Variables, _ = jsonparser.Set(ctx.Variables, value, export.Path...)
 }
@@ -444,7 +443,7 @@ func (r *Resolver) resolveString(ctx *Context, str *String, data []byte, stringB
 		// which is not string anymore, so we need to quote it again
 		if !(bytes.ContainsAny(value, `{}[]`) && gjson.ValidBytes(value)) {
 			// wrap value in quotes to make it valid json
-			value = append(literal.QUOTE, append(value, literal.QUOTE...)...)
+			value = append(quote, append(value, quote...)...)
 		}
 
 		stringBuf.Data.WriteBytes(value)
@@ -516,7 +515,7 @@ func (r *Resolver) addResolveError(ctx *Context, objectBuf *BufPair) {
 func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, parentBuf *BufPair) (err error) {
 	if len(object.Path) != 0 {
 		data, _, _, _ = jsonparser.Get(data, object.Path...)
-		if len(data) == 0 || bytes.Equal(data, literal.NULL) {
+		if len(data) == 0 || bytes.Equal(data, null) {
 			if object.Nullable {
 				r.resolveNull(parentBuf.Data)
 				return
