@@ -21,22 +21,21 @@ import (
 )
 
 type Resolver struct {
-	ctx               context.Context
-	dataLoaderEnabled bool
-	resultSetPool     sync.Pool
-	byteSlicesPool    sync.Pool
-	waitGroupPool     sync.Pool
-	bufPairPool       sync.Pool
-	bufPairSlicePool  sync.Pool
-	errChanPool       sync.Pool
-	hash64Pool        sync.Pool
-	fetcher           *Fetcher
+	ctx              context.Context
+	resultSetPool    sync.Pool
+	byteSlicesPool   sync.Pool
+	waitGroupPool    sync.Pool
+	bufPairPool      sync.Pool
+	bufPairSlicePool sync.Pool
+	errChanPool      sync.Pool
+	hash64Pool       sync.Pool
+	fetcher          *Fetcher
 
 	loaders sync.Pool
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
-func New(ctx context.Context, fetcher *Fetcher, enableDataLoader bool) *Resolver {
+func New(ctx context.Context, fetcher *Fetcher) *Resolver {
 	return &Resolver{
 		ctx: ctx,
 		resultSetPool: sync.Pool{
@@ -87,8 +86,7 @@ func New(ctx context.Context, fetcher *Fetcher, enableDataLoader bool) *Resolver
 				return &Loader{}
 			},
 		},
-		fetcher:           fetcher,
-		dataLoaderEnabled: enableDataLoader,
+		fetcher: fetcher,
 	}
 }
 
