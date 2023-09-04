@@ -21,8 +21,7 @@ type configurationVisitor struct {
 	planners              []plannerConfiguration
 	fetches               []objectFetchConfiguration
 	dataSourceSuggestions NodeSuggestions
-	currentBufferId       int
-	fieldBuffers          map[int]int
+	currentFetchID        int
 
 	parentTypeNodes []ast.Node
 
@@ -54,6 +53,7 @@ type objectFetchConfiguration struct {
 	isSubscription     bool
 	fieldRef           int
 	fieldDefinitionRef int
+	fetchID            int
 }
 
 func (c *configurationVisitor) currentSelectionSet() int {
@@ -160,7 +160,7 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 	}
 
 	c.operation, c.definition = operation, definition
-	c.currentBufferId = -1
+	c.currentFetchID = -1
 	c.parentTypeNodes = c.parentTypeNodes[:0]
 	if c.planners == nil {
 		c.planners = make([]plannerConfiguration, 0, 8)
@@ -171,13 +171,6 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 		c.fetches = []objectFetchConfiguration{}
 	} else {
 		c.fetches = c.fetches[:0]
-	}
-	if c.fieldBuffers == nil {
-		c.fieldBuffers = map[int]int{}
-	} else {
-		for i := range c.fieldBuffers {
-			delete(c.fieldBuffers, i)
-		}
 	}
 	if c.skipFieldsRefs == nil {
 		c.skipFieldsRefs = make([]int, 0, 8)
@@ -393,7 +386,6 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 				dsHash:           plannerConfig.dataSourceConfiguration.Hash(),
 				isRootNode:       true,
 			})
-			c.fieldBuffers[ref] = plannerConfig.bufferID
 
 			return true
 		}
@@ -479,13 +471,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 	// add required fields for field and type (@requires)
 	c.handleFieldRequiredByRequires(config, currentPath, typeName, fieldName, ref)
 
-	var (
-		bufferID int
-	)
-	if !isSubscription {
-		bufferID = c.nextBufferID()
-		c.fieldBuffers[ref] = bufferID
-	}
+	fetchID := c.nextFetchID()
 	planner := config.Factory.Planner(c.ctx)
 	isParentAbstract := c.isParentTypeNodeAbstractType()
 
@@ -562,6 +548,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		isSubscription:     isSubscription,
 		fieldRef:           ref,
 		fieldDefinitionRef: fieldDefinition,
+		fetchID:            fetchID,
 	})
 
 	c.saveAddedPath(currentPathConfiguration)
@@ -718,9 +705,9 @@ func (c *configurationVisitor) isSubscription(root int, path string) bool {
 	return strings.Count(path, ".") == 1
 }
 
-func (c *configurationVisitor) nextBufferID() int {
-	c.currentBufferId++
-	return c.currentBufferId
+func (c *configurationVisitor) nextFetchID() int {
+	c.currentFetchID++
+	return c.currentFetchID
 }
 
 func (c *configurationVisitor) handleFieldRequiredByRequires(config *DataSourceConfiguration, currentPath string, typeName, fieldName string, fieldRef int) {
