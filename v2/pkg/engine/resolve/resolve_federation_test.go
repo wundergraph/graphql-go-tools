@@ -1418,53 +1418,21 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 
 	t.Run("serial fetch", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
-		user := NewMockDataSource(ctrl)
-		user.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
-				actual := string(input)
-				expected := `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {__typename id line1 line2}}}}"}}`
-				assert.Equal(t, expected, actual)
-				pair := NewBufPair()
-				pair.Data.WriteString(`{"user":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}}}`)
-				return writeGraphqlResponse(pair, w, false)
-			})
+		user := mockedDS(t, ctrl,
+			`{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {__typename id line1 line2}}}}"}}`,
+			`{"user":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}}}`)
 
-		addressEnricher := NewMockDataSource(ctrl)
-		addressEnricher.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
-				actual := string(input)
-				expected := `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":[{"__typename":"Address","id":"address-1"}]}}}`
-				assert.Equal(t, expected, actual)
-				pair := NewBufPair()
-				pair.Data.WriteString(`{"__typename":"Address","country":"country-1","city":"city-1"}`)
-				return writeGraphqlResponse(pair, w, false)
-			})
+		addressEnricher := mockedDS(t, ctrl,
+			`{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":[{"__typename":"Address","id":"address-1"}]}}}`,
+			`{"__typename":"Address","country":"country-1","city":"city-1"}`)
 
-		address := NewMockDataSource(ctrl)
-		address.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
-				actual := string(input)
-				expected := `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":[{"__typename":"Address","id":"address-1","country":"country-1","city":"city-1"}]}}}`
-				assert.Equal(t, expected, actual)
-				pair := NewBufPair()
-				pair.Data.WriteString(`{"__typename": "Address", "line3": "line3-1", "zip": "zip-1"}`)
-				return writeGraphqlResponse(pair, w, false)
-			})
+		address := mockedDS(t, ctrl,
+			`{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":[{"__typename":"Address","id":"address-1","country":"country-1","city":"city-1"}]}}}`,
+			`{"__typename": "Address", "line3": "line3-1", "zip": "zip-1"}`)
 
-		account := NewMockDataSource(ctrl)
-		account.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
-				actual := string(input)
-				expected := `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":[{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}]}}}`
-				assert.Equal(t, expected, actual)
-				pair := NewBufPair()
-				pair.Data.WriteString(`{"__typename":"Address","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1"}`)
-				return writeGraphqlResponse(pair, w, false)
-			})
+		account := mockedDS(t, ctrl,
+			`{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":[{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}]}}}`,
+			`{"__typename":"Address","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1"}`)
 
 		return &GraphQLResponse{
 			Data: &Object{
