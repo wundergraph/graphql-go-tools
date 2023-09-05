@@ -108,6 +108,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	for key := range p.planningVisitor.planners {
 		config := p.planningVisitor.planners[key].dataSourceConfiguration
 		config.ParentInfo.Path = p.planningVisitor.planners[key].parentPath
+		config.ParentInfo.InsideArray = p.planningVisitor.planners[key].insideArray
 		isNested := p.planningVisitor.planners[key].isNestedPlanner()
 
 		if plannerWithId, ok := p.planningVisitor.planners[key].planner.(astvisitor.VisitorIdentifier); ok {
@@ -176,7 +177,6 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 	// secondary runs to add path for the new required fields
 	for p.configurationVisitor.hasNewFields || p.configurationVisitor.hasMissingPaths() {
 		p.configurationVisitor.secondaryRun = true
-		p.configurationVisitor.hasNewFields = false
 
 		// update suggestions for the new required fields
 		p.configurationVisitor.dataSources, p.configurationVisitor.nodeSuggestions =

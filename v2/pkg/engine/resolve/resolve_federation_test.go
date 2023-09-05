@@ -1520,10 +1520,9 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 																},
 															},
 															&SingleFetch{
-																DissallowParallelFetch: true,
-																Input:                  `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":$$0$$}}}`,
-																DataSource:             address,
-																DataSourceIdentifier:   []byte("graphql_datasource.Source"),
+																Input:                `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":$$0$$}}}`,
+																DataSource:           address,
+																DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																PostProcessing: PostProcessingConfiguration{
 																	SelectResponseDataPath: []string{"data"},
 																},
@@ -1573,10 +1572,9 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 																},
 															},
 															&SingleFetch{
-																DissallowParallelFetch: true,
-																Input:                  `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":$$0$$}}}`,
-																DataSource:             account,
-																DataSourceIdentifier:   []byte("graphql_datasource.Source"),
+																Input:                `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":$$0$$}}}`,
+																DataSource:           account,
+																DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																PostProcessing: PostProcessingConfiguration{
 																	SelectResponseDataPath: []string{"data"},
 																},

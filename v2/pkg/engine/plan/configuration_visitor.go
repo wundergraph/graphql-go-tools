@@ -11,32 +11,33 @@ import (
 )
 
 type configurationVisitor struct {
+	ctx   context.Context
 	debug bool
 
 	operationName         string
 	operation, definition *ast.Document
 	walker                *astvisitor.Walker
-	dataSources           []DataSourceConfiguration
-	planners              []plannerConfiguration
-	fetches               []objectFetchConfiguration
-	nodeSuggestions       NodeSuggestions
-	currentFetchID        int
 
-	parentTypeNodes []ast.Node
+	dataSources []DataSourceConfiguration
+	planners    []plannerConfiguration
+	fetches     []objectFetchConfiguration
 
-	ctx context.Context
+	nodeSuggestions    NodeSuggestions        // nodeSuggestions holds information about suggested data sources for each field
+	currentFetchID     int                    // currentFetchID is used to generate serial fetch IDs for each fetch
+	parentTypeNodes    []ast.Node             // parentTypeNodes is a stack of parent type nodes - used to determine if the parent is abstract
+	arrayFields        []int                  // arrayFields is a stack of array fields - used to plan nested queries
+	selectionSetRefs   []int                  // selectionSetRefs is a stack of selection set refs - used to add a required fields
+	skipFieldsRefs     []int                  // skipFieldsRefs holds required field refs which should not be added to user response
+	missingPathTracker map[string]missingPath // missingPathTracker is a map of paths which will be added on secondary runs
+	addedPathTracker   []pathConfiguration    // addedPathTracker is a list of paths which were added
 
-	selectionSetRefs          []int
-	pendingTypeConfigurations map[int]map[string]string
-	secondaryRun              bool
-	skipFieldsRefs            []int
-	hasNewFields              bool
-	missingPathTracker        map[string]missingPath
-	addedPathTracker          []pathConfiguration
-
-	handledRequires map[int]struct{}
+	pendingRequiredFields map[int]map[string]string // pendingRequiredFields is a map[selectionSetRef]map[UniqueId]RequiredFieldsSelectionSet
+	handledRequires       map[int]struct{}          // handledRequires is a map of field refs that were handled by @requires
 	// TODO: track handled keys
 	handledKeys map[string]struct{}
+
+	secondaryRun bool // secondaryRun is a flag to indicate that we're running the planner not the first time
+	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 }
 
 type missingPath struct {
@@ -61,6 +62,50 @@ func (c *configurationVisitor) currentSelectionSet() int {
 	}
 
 	return c.selectionSetRefs[len(c.selectionSetRefs)-1]
+}
+
+func (c *configurationVisitor) insideArray() bool {
+	if len(c.arrayFields) == 0 {
+		return false
+	}
+
+	return true
+}
+
+func (c *configurationVisitor) addArrayField(fieldRef int) {
+	var (
+		fieldDefRef int
+		ok          bool
+	)
+
+	switch c.walker.EnclosingTypeDefinition.Kind {
+	case ast.NodeKindObjectTypeDefinition:
+		fieldDefRef, ok = c.definition.ObjectTypeDefinitionFieldWithName(c.walker.EnclosingTypeDefinition.Ref, c.operation.FieldNameBytes(fieldRef))
+		if !ok {
+			return
+		}
+	case ast.NodeKindInterfaceTypeDefinition:
+		fieldDefRef, ok = c.definition.InterfaceTypeDefinitionFieldWithName(c.walker.EnclosingTypeDefinition.Ref, c.operation.FieldNameBytes(fieldRef))
+		if !ok {
+			return
+		}
+	default:
+		return
+	}
+
+	if c.definition.TypeIsList(c.definition.FieldDefinitionType(fieldDefRef)) {
+		c.arrayFields = append(c.arrayFields, fieldRef)
+	}
+}
+
+func (c *configurationVisitor) removeArrayField(fieldRef int) {
+	if len(c.arrayFields) == 0 {
+		return
+	}
+
+	if c.arrayFields[len(c.arrayFields)-1] == fieldRef {
+		c.arrayFields = c.arrayFields[:len(c.arrayFields)-1]
+	}
 }
 
 func (c *configurationVisitor) addPath(i int, configuration pathConfiguration) {
@@ -154,6 +199,12 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 		c.selectionSetRefs = c.selectionSetRefs[:0]
 	}
 
+	if c.arrayFields == nil {
+		c.arrayFields = make([]int, 0, 4)
+	} else {
+		c.arrayFields = c.arrayFields[:0]
+	}
+
 	if c.secondaryRun {
 		return
 	}
@@ -177,7 +228,7 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 		c.skipFieldsRefs = c.skipFieldsRefs[:0]
 	}
 
-	c.pendingTypeConfigurations = make(map[int]map[string]string)
+	c.pendingRequiredFields = make(map[int]map[string]string)
 	c.missingPathTracker = make(map[string]missingPath)
 	c.addedPathTracker = make([]pathConfiguration, 0, 8)
 
@@ -239,6 +290,8 @@ func (c *configurationVisitor) LeaveSelectionSet(ref int) {
 }
 
 func (c *configurationVisitor) EnterField(ref int) {
+	c.addArrayField(ref)
+
 	fieldName := c.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
@@ -537,6 +590,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		planner:                 planner,
 		paths:                   paths,
 		dataSourceConfiguration: *config,
+		insideArray:             c.insideArray(),
 	})
 	fieldDefinition, ok := c.walker.FieldDefinition(ref)
 	if !ok {
@@ -569,6 +623,8 @@ func (c *configurationVisitor) handleMissingPath(typeName string, fieldName stri
 }
 
 func (c *configurationVisitor) LeaveField(ref int) {
+	c.removeArrayField(ref)
+
 	fieldName := c.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
@@ -751,19 +807,19 @@ func (c *configurationVisitor) planAddingRequiredFields(currentPath string, fiel
 
 	currentSelectionSet := c.currentSelectionSet()
 
-	configs, hasSelectionSet := c.pendingTypeConfigurations[currentSelectionSet]
+	configs, hasSelectionSet := c.pendingRequiredFields[currentSelectionSet]
 	if !hasSelectionSet {
 		configs = make(map[string]string)
 	}
 
 	if _, exists := configs[key]; !exists {
 		configs[key] = fieldConfiguration.SelectionSet
-		c.pendingTypeConfigurations[currentSelectionSet] = configs
+		c.pendingRequiredFields[currentSelectionSet] = configs
 	}
 }
 
 func (c *configurationVisitor) processPendingRequiredFields(selectionSetRef int) {
-	configs, hasSelectionSet := c.pendingTypeConfigurations[selectionSetRef]
+	configs, hasSelectionSet := c.pendingRequiredFields[selectionSetRef]
 	if !hasSelectionSet {
 		return
 	}
@@ -772,7 +828,7 @@ func (c *configurationVisitor) processPendingRequiredFields(selectionSetRef int)
 		c.addRequiredFields(selectionSetRef, requiredFields)
 	}
 
-	delete(c.pendingTypeConfigurations, selectionSetRef)
+	delete(c.pendingRequiredFields, selectionSetRef)
 }
 
 func (c *configurationVisitor) addRequiredFields(selectionSetRef int, requiredFields string) {

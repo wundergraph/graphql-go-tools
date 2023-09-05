@@ -149,3 +149,13 @@ func (d *Document) ImportInterfaceTypeDefinitionWithDirectives(name, description
 
 	return
 }
+
+func (d *Document) InterfaceTypeDefinitionFieldWithName(ref int, fieldName []byte) (fieldDefRef int, ok bool) {
+	for _, fieldDefinitionRef := range d.InterfaceTypeDefinitions[ref].FieldsDefinition.Refs {
+		currentFieldName := d.FieldDefinitionNameBytes(fieldDefinitionRef)
+		if currentFieldName.Equals(fieldName) {
+			return fieldDefinitionRef, true
+		}
+	}
+	return InvalidRef, false
+}
