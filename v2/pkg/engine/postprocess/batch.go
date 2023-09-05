@@ -94,10 +94,7 @@ func (d *ProcessDataSourceBatch) traverseSingleFetch(fetch *resolve.SingleFetch)
 				SetTemplateOutputToNullOnVariableNull: fetch.InputTemplate.SetTemplateOutputToNullOnVariableNull,
 			},
 		},
-		DataSource: fetch.DataSource,
-		PostProcessing: resolve.PostProcessingConfiguration{
-			SelectResponseDataPath:   []string{"data", "__entities"},
-			SelectResponseErrorsPath: []string{"errors"},
-		},
+		DataSource:     fetch.DataSource,
+		PostProcessing: fetch.PostProcessing,
 	}
 }
