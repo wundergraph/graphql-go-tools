@@ -329,14 +329,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 		planConfiguration := plan.Configuration{
 			DataSources:                  ShuffleDS(dataSources),
 			DisableResolveFieldPositions: true,
-			Debug: plan.DebugConfiguration{
-				PrintOperationWithRequiredFields: true,
-				PrintPlanningPaths:               true,
-				PrintQueryPlans:                  true,
-				ConfigurationVisitor:             false,
-				PlanningVisitor:                  false,
-				DatasourceVisitor:                false,
-			},
 			Fields: plan.FieldConfigurations{
 				{
 					TypeName:  "Address",
@@ -1074,9 +1066,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			planConfiguration := plan.Configuration{
 				DataSources:                  ShuffleDS(dataSources),
 				DisableResolveFieldPositions: true,
-				Debug: plan.DebugConfiguration{
-					PrintQueryPlans: true,
-				},
 			}
 
 			t.Run("only shared field", func(t *testing.T) {
@@ -1143,9 +1132,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							thirdDatasourceConfiguration,
 						},
 						DisableResolveFieldPositions: true,
-						Debug: plan.DebugConfiguration{
-							PrintQueryPlans: true,
-						},
 					},
 				))
 
@@ -1161,9 +1147,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							thirdDatasourceConfiguration,
 						},
 						DisableResolveFieldPositions: true,
-						Debug: plan.DebugConfiguration{
-							PrintQueryPlans: true,
-						},
 					},
 				))
 			})
@@ -1335,9 +1318,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								thirdDatasourceConfiguration,
 							},
 							DisableResolveFieldPositions: true,
-							Debug: plan.DebugConfiguration{
-								PrintQueryPlans: true,
-							},
 						},
 					))
 
@@ -1365,9 +1345,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								thirdDatasourceConfiguration,
 							},
 							DisableResolveFieldPositions: true,
-							Debug: plan.DebugConfiguration{
-								PrintQueryPlans: true,
-							},
 						},
 					))
 				})
@@ -1465,9 +1442,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								thirdDatasourceConfiguration,
 							},
 							DisableResolveFieldPositions: true,
-							Debug: plan.DebugConfiguration{
-								PrintQueryPlans: true,
-							},
 						},
 					))
 
@@ -1494,9 +1468,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								thirdDatasourceConfiguration,
 							},
 							DisableResolveFieldPositions: true,
-							Debug: plan.DebugConfiguration{
-								PrintQueryPlans: true,
-							},
 						},
 					))
 				})
@@ -1509,11 +1480,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							thirdDatasourceConfiguration,
 						},
 						DisableResolveFieldPositions: true,
-						Debug: plan.DebugConfiguration{
-							PrintQueryPlans: true,
-							// DatasourceVisitor: true,
-							// PlanningVisitor: true,
-						},
 					}
 
 					expectedPlan := func(input1 string) *plan.SynchronousResponsePlan {

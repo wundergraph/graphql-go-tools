@@ -561,10 +561,11 @@ func (c *configurationVisitor) handleMissingPath(typeName string, fieldName stri
 		parentPath, found := c.findPreviousRootPath(currentPath)
 		if found {
 			c.addMissingPath(currentPath, parentPath, suggestedDataSourceHash)
+			return
 		}
-	} else {
-		c.walker.StopWithInternalErr(fmt.Errorf("could not find a data source for field %s.%s with path %s", typeName, fieldName, currentPath))
 	}
+
+	c.walker.StopWithInternalErr(fmt.Errorf("could not find a data source for field %s.%s with path %s", typeName, fieldName, currentPath))
 }
 
 func (c *configurationVisitor) LeaveField(ref int) {
