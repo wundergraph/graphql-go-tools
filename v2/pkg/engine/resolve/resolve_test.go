@@ -3,6 +3,7 @@ package resolve
 // go:generate mockgen -package resolve -destination resolve_mock_test.go . DataSource,BeforeFetchHook,AfterFetchHook,DataSourceBatch,DataSourceBatchFactory
 
 import (
+	"arena"
 	"bytes"
 	"context"
 	"errors"
@@ -38,8 +39,8 @@ func FakeDataSource(data string) *_fakeDataSource {
 	}
 }
 
-func newResolver(ctx context.Context, enableSingleFlight bool) *Resolver {
-	return New(ctx, NewFetcher(enableSingleFlight))
+func newResolver(ctx context.Context) *Resolver {
+	return New(ctx)
 }
 
 type customResolver struct{}
@@ -59,7 +60,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		rCtx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		r := newResolver(rCtx, enableSingleFlight)
+		r := newResolver(rCtx)
 		node, ctx, expectedOutput := fn(t, ctrl)
 		if t.Skipped() {
 			return func(t *testing.T) {}
@@ -67,6 +68,8 @@ func TestResolver_ResolveNode(t *testing.T) {
 
 		return func(t *testing.T) {
 			buf := &bytes.Buffer{}
+			ctx.mem = arena.NewArena()
+			defer ctx.Free()
 			err := r.ResolveGraphQLResponse(&ctx, &GraphQLResponse{
 				Data: node,
 			}, nil, buf)
@@ -82,11 +85,13 @@ func TestResolver_ResolveNode(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		r := newResolver(c, false)
+		r := newResolver(c)
 		node, ctx, expectedErr := fn(t, r, ctrl)
 		return func(t *testing.T) {
 			t.Helper()
 			buf := &bytes.Buffer{}
+			ctx.mem = arena.NewArena()
+			defer ctx.Free()
 			err := r.ResolveGraphQLResponse(&ctx, &GraphQLResponse{
 				Data: node,
 			}, nil, buf)
@@ -101,11 +106,13 @@ func TestResolver_ResolveNode(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		r := newResolver(c, false)
+		r := newResolver(c)
 		node, ctx, expectedErr := fn(t, r, ctrl)
 		return func(t *testing.T) {
 			t.Helper()
 			buf := &bytes.Buffer{}
+			ctx.mem = arena.NewArena()
+			defer ctx.Free()
 			err := r.ResolveGraphQLResponse(&ctx, &GraphQLResponse{
 				Data: node,
 			}, nil, buf)
@@ -1555,12 +1562,13 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		rCtx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		r := newResolver(rCtx, enableSingleFlight)
+		r := newResolver(rCtx)
 		node, ctx, expectedOutput := fn(t, ctrl)
 		return func(t *testing.T) {
 			t.Helper()
-
 			buf := &bytes.Buffer{}
+			ctx.mem = arena.NewArena()
+			defer ctx.Free()
 			err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
 			assert.NoError(t, err)
 			assert.Equal(t, expectedOutput, buf.String())
@@ -1573,12 +1581,13 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		rCtx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		r := newResolver(rCtx, enableSingleFlight)
+		r := newResolver(rCtx)
 		node, ctx, expectedOutput := fn(t, ctrl)
 		return func(t *testing.T) {
 			t.Helper()
-
 			buf := &bytes.Buffer{}
+			ctx.mem = arena.NewArena()
+			defer ctx.Free()
 			err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
 			assert.Error(t, err, expectedOutput)
 			ctrl.Finish()
@@ -5174,8 +5183,7 @@ func TestResolver_WithHeader(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			rCtx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			resolver := newResolver(rCtx, false)
-
+			resolver := newResolver(rCtx)
 			header := make(http.Header)
 			header.Set(tc.header, "foo")
 			ctx := &Context{
@@ -5184,7 +5192,8 @@ func TestResolver_WithHeader(t *testing.T) {
 					Header: header,
 				},
 			}
-
+			ctx.mem = arena.NewArena()
+			defer ctx.Free()
 			ctrl := gomock.NewController(t)
 			fakeService := NewMockDataSource(ctrl)
 			fakeService.EXPECT().
@@ -5305,7 +5314,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			buf: bytes.Buffer{},
 		}
 
-		return newResolver(ctx, false), plan, out
+		return newResolver(ctx), plan, out
 	}
 
 	t.Run("should return errors if the upstream data has errors", func(t *testing.T) {
@@ -5321,6 +5330,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		ctx := Context{
 			ctx: c,
 		}
+		ctx.mem = arena.NewArena()
+		defer ctx.Free()
 
 		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
 		assert.NoError(t, err)
@@ -5337,6 +5348,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		ctx := Context{
 			ctx: c,
 		}
+		ctx.mem = arena.NewArena()
+		defer ctx.Free()
 
 		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
 		assert.NoError(t, err)
@@ -5357,6 +5370,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		ctx := Context{
 			ctx: c,
 		}
+		ctx.mem = arena.NewArena()
+		defer ctx.Free()
 
 		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
 		assert.NoError(t, err)
@@ -5368,112 +5383,121 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 }
 
 func TestResolver_mergeJSON(t *testing.T) {
-	setup := func() *Loader {
+	setup := func() (*Loader, *Context) {
 		loader := &Loader{
-			layers: []*layer{
-				{
-					buffers: []*fastbuffer.FastBuffer{},
-				},
-			},
+			layers: []*layer{},
 		}
-		return loader
+		ctx := &Context{
+			mem: arena.NewArena(),
+		}
+		return loader, ctx
 	}
 	t.Run("a", func(t *testing.T) {
-		loader := setup()
+		loader, ctx := setup()
+		defer ctx.Free()
 		left := `{"name":"Bill","info":{"id":11,"__typename":"Info"},"address":{"id": 55,"__typename":"Address"}}`
 		right := `{"info":{"age":21},"address":{"line1":"Munich"}}`
 		expected := `{"address":{"__typename":"Address","id":55,"line1":"Munich"},"info":{"__typename":"Info","age":21,"id":11},"name":"Bill"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON(ctx, []byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
 
 	t.Run("b", func(t *testing.T) {
-		loader := setup()
+		loader, ctx := setup()
+		defer ctx.Free()
 		left := `{"id":"1234","username":"Me","__typename":"User"}`
 		right := `{"reviews":[{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`
 		expected := `{"__typename":"User","id":"1234","reviews":[{"body":"A highly effective form of birth control.","product":{"__typename":"Product","upc":"top-1"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"__typename":"Product","upc":"top-2"}}],"username":"Me"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON(ctx, []byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
 
 	t.Run("c", func(t *testing.T) {
-		loader := setup()
+		loader, ctx := setup()
+		defer ctx.Free()
 		left := `{"__typename":"Product","upc":"top-1"}`
 		right := `{"name": "Trilby"}`
 		expected := `{"__typename":"Product","name":"Trilby","upc":"top-1"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON(ctx, []byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
 
 	t.Run("d", func(t *testing.T) {
-		loader := setup()
+		loader, ctx := setup()
+		defer ctx.Free()
 		left := `{"__typename":"Product","upc":"top-1"}`
 		right := `{"__typename":"Product","name":"Trilby","upc":"top-1"}`
 		expected := `{"__typename":"Product","name":"Trilby","upc":"top-1"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON(ctx, []byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
 
 	t.Run("e", func(t *testing.T) {
-		loader := setup()
+		loader, ctx := setup()
+		defer ctx.Free()
 		left := `{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}`
 		right := `{"__typename":"Address","country":"country-1","city":"city-1"}`
 		expected := `{"__typename":"Address","city":"city-1","country":"country-1","id":"address-1","line1":"line1","line2":"line2"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON(ctx, []byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
 
 	t.Run("f", func(t *testing.T) {
-		loader := setup()
+		loader, ctx := setup()
+		defer ctx.Free()
 		left := `{"__typename":"Address","city":"city-1","country":"country-1","id":"address-1","line1":"line1","line2":"line2"}`
 		right := `{"__typename": "Address", "line3": "line3-1", "zip": "zip-1"}`
 		expected := `{"__typename":"Address","city":"city-1","country":"country-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON(ctx, []byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
 
 	t.Run("g", func(t *testing.T) {
-		loader := setup()
+		loader, ctx := setup()
+		defer ctx.Free()
 		left := `{"__typename":"Address","city":"city-1","country":"country-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
 		right := `{"__typename":"Address","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1"}`
 		expected := `{"__typename":"Address","city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON(ctx, []byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
 
 	t.Run("h", func(t *testing.T) {
-		loader := setup()
+		loader, ctx := setup()
+		defer ctx.Free()
 		left := `{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}`
 		right := `{"__typename":"Address","city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
 		expected := `{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON(ctx, []byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
 
 	t.Run("i", func(t *testing.T) {
-		loader := setup()
+		loader, ctx := setup()
+		defer ctx.Free()
 		left := `{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}}`
 		right := `{"address":{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}}`
 		expected := `{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}},"address":{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON(ctx, []byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
 
 	t.Run("j", func(t *testing.T) {
-		loader := setup()
+		loader, ctx := setup()
+		defer ctx.Free()
 		left := `{"user":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}}}`
 		right := `{"account":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}},"address":{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}}}`
 		expected := `{"account":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}},"address":{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}},"user":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}}}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON(ctx, []byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -5483,7 +5507,7 @@ func Benchmark_ResolveGraphQLResponse(b *testing.B) {
 	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := newResolver(rCtx, true)
+	resolver := newResolver(rCtx)
 
 	userService := FakeDataSource(`{"data":{"users":[{"name":"Bill","info":{"id":11,"__typename":"Info"},"address":{"id":55,"__typename":"Address"}},{"name":"John","info":{"id":12,"__typename":"Info"},"address":{"id":55,"__typename":"Address"}},{"name":"Jane","info":{"id":13,"__typename":"Info"},"address":{"id":55,"__typename":"Address"}}]}}`)
 	infoService := FakeDataSource(`{"data":{"_entities":[{"age":21,"__typename":"Info"},{"line1":"Munich","__typename":"Address"},{"age":22,"__typename":"Info"},{"age":23,"__typename":"Info"}]}}`)
@@ -5699,6 +5723,7 @@ func Benchmark_ResolveGraphQLResponse(b *testing.B) {
 			// _ = resolver.ResolveGraphQLResponse(ctx, plan, nil, ioutil.Discard)
 			ctx := ctxPool.Get().(*Context)
 			buf := pool.Get().(*bytes.Buffer)
+			ctx.mem = arena.NewArena()
 			err = resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
 			if err != nil {
 				b.Fatal(err)
@@ -5714,17 +5739,4 @@ func Benchmark_ResolveGraphQLResponse(b *testing.B) {
 			ctxPool.Put(ctx)
 		}
 	})
-}
-
-type hookContextPathMatcher struct {
-	path string
-}
-
-func (h hookContextPathMatcher) Matches(x interface{}) bool {
-	path := string(x.(HookContext).CurrentPath)
-	return path == h.path
-}
-
-func (h hookContextPathMatcher) String() string {
-	return fmt.Sprintf("is equal to %s", h.path)
 }
