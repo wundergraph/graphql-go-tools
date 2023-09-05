@@ -3075,7 +3075,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	},
 																},
 																PostProcessing: PostProcessingConfiguration{
-																	SelectResponseDataPath: []string{"data", "_entities"},
+																	SelectResponseDataPath:   []string{"data", "_entities"},
+																	SelectResponseErrorsPath: []string{"errors"},
 																},
 															},
 															Fields: []*Field{
