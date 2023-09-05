@@ -532,10 +532,11 @@ func TestFindBestDataSourceSet(t *testing.T) {
 		t.Run(tc.Description, func(t *testing.T) {
 			definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(tc.Definition)
 			operation := unsafeparser.ParseGraphqlDocumentString(tc.Query)
-
 			report := operationreport.Report{}
 
-			planned := findBestDataSourceSet(&operation, &definition, &report, shuffleDS(tc.DataSources))
+			dsFilter := NewDataSourceFilter(&operation, &definition, &report)
+
+			planned := dsFilter.findBestDataSourceSet(shuffleDS(tc.DataSources), nil)
 			if report.HasErrors() {
 				t.Fatal(report.Error())
 			}

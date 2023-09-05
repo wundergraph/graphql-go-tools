@@ -16,11 +16,10 @@ type configurationVisitor struct {
 	operationName         string
 	operation, definition *ast.Document
 	walker                *astvisitor.Walker
-	usedDataSources       []DataSourceConfiguration
-	unusedDataSources     []DataSourceConfiguration
+	dataSources           []DataSourceConfiguration
 	planners              []plannerConfiguration
 	fetches               []objectFetchConfiguration
-	dataSourceSuggestions NodeSuggestions
+	nodeSuggestions       NodeSuggestions
 	currentFetchID        int
 
 	parentTypeNodes []ast.Node
@@ -279,13 +278,13 @@ func (c *configurationVisitor) EnterField(ref int) {
 }
 
 func (c *configurationVisitor) handleProvidesSuggestions(ref int, typeName, fieldName, currentPath string) {
-	dsHash, ok := c.dataSourceSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
+	dsHash, ok := c.nodeSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
 	if !ok {
 		return
 	}
 
 	var providesCfg *FederationFieldConfiguration
-	for _, ds := range c.usedDataSources {
+	for _, ds := range c.dataSources {
 		if ds.Hash() != dsHash {
 			continue
 		}
@@ -344,7 +343,7 @@ func (c *configurationVisitor) handleProvidesSuggestions(ref int, typeName, fiel
 }
 
 func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, fieldName, currentPath, parentPath, precedingParentPath string) (planned bool) {
-	dsHash, hasSuggestion := c.dataSourceSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
+	dsHash, hasSuggestion := c.nodeSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
 
 	for i, plannerConfig := range c.planners {
 		_, isProvided := plannerConfig.dataSourceConfiguration.ProvidedFields.HasSuggestionForPath(typeName, fieldName, currentPath)
@@ -424,12 +423,12 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 }
 
 func (c *configurationVisitor) findSuggestedDataSourceConfiguration(typeName, fieldName, currentPath string) *DataSourceConfiguration {
-	dsHash, ok := c.dataSourceSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
+	dsHash, ok := c.nodeSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
 	if !ok {
 		return nil
 	}
 
-	for _, dsCfg := range c.usedDataSources {
+	for _, dsCfg := range c.dataSources {
 		if dsCfg.Hash() == dsHash {
 			return &dsCfg
 		}
@@ -439,7 +438,7 @@ func (c *configurationVisitor) findSuggestedDataSourceConfiguration(typeName, fi
 }
 
 func (c *configurationVisitor) findAlternativeDataSourceConfiguration(typeName, fieldName, currentPath string) *DataSourceConfiguration {
-	for _, dsCfg := range c.usedDataSources {
+	for _, dsCfg := range c.dataSources {
 		if dsCfg.HasRootNode(typeName, fieldName) && !c.isPathAddedFor(currentPath, dsCfg.Hash()) {
 			return &dsCfg
 		}
@@ -555,21 +554,15 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 	return true
 }
 
+// handleMissingPath - records missing path for the case when we don't yet have a planner for the field
 func (c *configurationVisitor) handleMissingPath(typeName string, fieldName string, currentPath string) {
-	// if we're here, we didn't find a planner for the field
-	suggestedDataSourceHash, ok := c.dataSourceSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
+	suggestedDataSourceHash, ok := c.nodeSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
 	if ok {
 		parentPath, found := c.findPreviousRootPath(currentPath)
 		if found {
 			c.addMissingPath(currentPath, parentPath, suggestedDataSourceHash)
 		}
 	} else {
-		// TODO: could happen when we have filtered datasource which has required fields
-		// 1) re-add datasource which has the given field
-		// and add a suggestion for that field
-		// or
-		// 2) best approach will be to regenerate suggestions for the newly added fields
-
 		c.walker.StopWithInternalErr(fmt.Errorf("could not find a data source for field %s.%s with path %s", typeName, fieldName, currentPath))
 	}
 }
@@ -643,7 +636,7 @@ func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
 
 	// If the field is a root node in any of the data sources, the path shouldn't be handled here
 	// NOTE: previously we were checking all ds, not sure if we need now
-	for _, d := range c.usedDataSources {
+	for _, d := range c.dataSources {
 		if d.HasRootNode(typeName, fieldName) {
 			return false
 		}
