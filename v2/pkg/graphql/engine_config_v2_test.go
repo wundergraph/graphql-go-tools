@@ -74,7 +74,6 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 	doc, report := astparser.ParseGraphqlDocumentString(graphqlGeneratorSchema)
 	require.Falsef(t, report.HasErrors(), "document parser report has errors")
 
-	batchFactory := graphqlDataSource.NewBatchFactory()
 	expectedRootNodes := plan.TypeFields{
 		{
 			TypeName:   "Query",
@@ -112,7 +111,6 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 		}
 
 		expectedDataSourceFactory := &graphqlDataSource.Factory{
-			BatchFactory:       batchFactory,
 			HTTPClient:         client,
 			StreamingClient:    streamingClient,
 			SubscriptionClient: mockSubscriptionClient,
@@ -120,7 +118,6 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 
 		dataSource, err := newGraphQLDataSourceV2Generator(&doc).Generate(
 			dataSourceConfig,
-			batchFactory,
 			client,
 			WithDataSourceV2GeneratorSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
 		)
@@ -146,7 +143,6 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 		}
 
 		expectedDataSourceFactory := &graphqlDataSource.Factory{
-			BatchFactory:       batchFactory,
 			HTTPClient:         client,
 			StreamingClient:    streamingClient,
 			SubscriptionClient: mockSubscriptionClient,
@@ -154,7 +150,6 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 
 		dataSource, err := newGraphQLDataSourceV2Generator(&doc).Generate(
 			dataSourceConfig,
-			batchFactory,
 			client,
 			WithDataSourceV2GeneratorSubscriptionConfiguration(streamingClient, SubscriptionTypeSSE),
 			WithDataSourceV2GeneratorSubscriptionClientFactory(&MockSubscriptionClientFactory{}),

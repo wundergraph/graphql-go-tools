@@ -1522,7 +1522,7 @@ func newFederationSetup() *federationSetup {
 	}
 }
 
-func newFederationEngine(ctx context.Context, setup *federationSetup, enableDataLoader bool) (engine *ExecutionEngineV2, schema *Schema, err error) {
+func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *ExecutionEngineV2, schema *Schema, err error) {
 	accountsSDL, err := federationtesting.LoadTestingSubgraphSDL(federationtesting.UpstreamAccounts)
 	if err != nil {
 		return
@@ -1807,7 +1807,6 @@ func newFederationEngine(ctx context.Context, setup *federationSetup, enableData
 	engineConfig.AddDataSource(productsDataSource)
 	engineConfig.AddDataSource(reviewsDataSource)
 	engineConfig.SetFieldConfigurations(fieldConfigs)
-	engineConfig.EnableDataLoader(enableDataLoader)
 
 	engineConfig.plannerConfig.Debug = plan.DebugConfiguration{
 		PrintOperationWithRequiredFields: true,

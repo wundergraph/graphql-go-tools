@@ -6,7 +6,6 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 type proxyEngineConfigFactoryOptions struct {
@@ -49,11 +48,10 @@ type ProxyEngineConfigFactory struct {
 	streamingClient           *http.Client
 	schema                    *Schema
 	proxyUpstreamConfig       ProxyUpstreamConfig
-	batchFactory              resolve.DataSourceBatchFactory
 	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
 }
 
-func NewProxyEngineConfigFactory(schema *Schema, proxyUpstreamConfig ProxyUpstreamConfig, batchFactory resolve.DataSourceBatchFactory, opts ...ProxyEngineConfigFactoryOption) *ProxyEngineConfigFactory {
+func NewProxyEngineConfigFactory(schema *Schema, proxyUpstreamConfig ProxyUpstreamConfig, opts ...ProxyEngineConfigFactoryOption) *ProxyEngineConfigFactory {
 	options := proxyEngineConfigFactoryOptions{
 		httpClient: &http.Client{
 			Timeout: time.Second * 10,
@@ -77,7 +75,6 @@ func NewProxyEngineConfigFactory(schema *Schema, proxyUpstreamConfig ProxyUpstre
 		streamingClient:           options.streamingClient,
 		schema:                    schema,
 		proxyUpstreamConfig:       proxyUpstreamConfig,
-		batchFactory:              batchFactory,
 		subscriptionClientFactory: options.subscriptionClientFactory,
 	}
 }
@@ -104,7 +101,6 @@ func (p *ProxyEngineConfigFactory) EngineV2Configuration() (EngineV2Configuratio
 
 	dataSource, err := newGraphQLDataSourceV2Generator(&rawDoc).Generate(
 		dataSourceConfig,
-		p.batchFactory,
 		p.httpClient,
 		WithDataSourceV2GeneratorSubscriptionConfiguration(p.streamingClient, p.proxyUpstreamConfig.SubscriptionType),
 		WithDataSourceV2GeneratorSubscriptionClientFactory(p.subscriptionClientFactory),

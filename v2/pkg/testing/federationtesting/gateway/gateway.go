@@ -74,7 +74,6 @@ func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphqlDataSource.Con
 	ctx := context.Background()
 	engineConfigFactory := graphql.NewFederationEngineConfigFactory(
 		newDataSourcesConfig,
-		graphqlDataSource.NewBatchFactory(),
 		graphql.WithFederationHttpClient(g.httpClient),
 	)
 

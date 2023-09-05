@@ -11,7 +11,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
@@ -19,7 +18,6 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 		t *testing.T,
 		httpClient *http.Client,
 		streamingClient *http.Client,
-		batchFactory resolve.DataSourceBatchFactory,
 		dataSourceConfigs []graphqlDataSource.Configuration,
 		baseSchema string,
 		expectedConfigFactory func(t *testing.T, baseSchema string) EngineV2Configuration,
@@ -33,7 +31,6 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 
 		engineConfigV2Factory := NewFederationEngineConfigFactory(
 			dataSourceConfigs,
-			batchFactory,
 			WithFederationHttpClient(httpClient),
 			WithFederationStreamingClient(streamingClient),
 			WithFederationSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
@@ -45,10 +42,9 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 
 	httpClient := &http.Client{}
 	streamingClient := &http.Client{}
-	batchFactory := graphqlDataSource.NewBatchFactory()
 
 	t.Run("should create engine V2 configuration", func(t *testing.T) {
-		runWithoutError(t, httpClient, streamingClient, batchFactory, []graphqlDataSource.Configuration{
+		runWithoutError(t, httpClient, streamingClient, []graphqlDataSource.Configuration{
 			{
 				Fetch: graphqlDataSource.FetchConfiguration{
 					URL: "http://user.service",
@@ -152,7 +148,6 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 					Factory: &graphqlDataSource.Factory{
 						HTTPClient:         httpClient,
 						StreamingClient:    streamingClient,
-						BatchFactory:       batchFactory,
 						SubscriptionClient: mockSubscriptionClient,
 					},
 				},
@@ -185,7 +180,6 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 					Factory: &graphqlDataSource.Factory{
 						HTTPClient:         httpClient,
 						StreamingClient:    streamingClient,
-						BatchFactory:       batchFactory,
 						SubscriptionClient: mockSubscriptionClient,
 					},
 				},
@@ -217,7 +211,6 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 					Factory: &graphqlDataSource.Factory{
 						HTTPClient:         httpClient,
 						StreamingClient:    streamingClient,
-						BatchFactory:       batchFactory,
 						SubscriptionClient: mockSubscriptionClient,
 					},
 					Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{

@@ -32,14 +32,12 @@ func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
 		},
 		dataLoaderConfig: dataLoaderConfig{
 			EnableSingleFlightLoader: false,
-			EnableDataLoader:         false,
 		},
 	}
 }
 
 type dataLoaderConfig struct {
 	EnableSingleFlightLoader bool
-	EnableDataLoader         bool
 }
 
 func (e *EngineV2Configuration) SetCustomResolveMap(customResolveMap map[string]resolve.CustomResolve) {
@@ -68,10 +66,6 @@ func (e *EngineV2Configuration) DataSources() []plan.DataSourceConfiguration {
 
 func (e *EngineV2Configuration) FieldConfigurations() plan.FieldConfigurations {
 	return e.plannerConfig.Fields
-}
-
-func (e *EngineV2Configuration) EnableDataLoader(enable bool) {
-	e.dataLoaderConfig.EnableDataLoader = enable
 }
 
 func (e *EngineV2Configuration) EnableSingleFlight(enable bool) {
@@ -114,7 +108,7 @@ func newGraphQLDataSourceV2Generator(document *ast.Document) *graphqlDataSourceV
 	}
 }
 
-func (d *graphqlDataSourceV2Generator) Generate(config graphqlDataSource.Configuration, batchFactory resolve.DataSourceBatchFactory, httpClient *http.Client, options ...DataSourceV2GeneratorOption) (plan.DataSourceConfiguration, error) {
+func (d *graphqlDataSourceV2Generator) Generate(config graphqlDataSource.Configuration, httpClient *http.Client, options ...DataSourceV2GeneratorOption) (plan.DataSourceConfiguration, error) {
 	var planDataSource plan.DataSourceConfiguration
 	extractor := federationdata.NewLocalTypeFieldExtractor(d.document)
 	planDataSource.RootNodes, planDataSource.ChildNodes = extractor.GetAllNodes()
@@ -132,7 +126,6 @@ func (d *graphqlDataSourceV2Generator) Generate(config graphqlDataSource.Configu
 	factory := &graphqlDataSource.Factory{
 		HTTPClient:      httpClient,
 		StreamingClient: definedOptions.streamingClient,
-		BatchFactory:    batchFactory,
 	}
 
 	subscriptionClient, err := d.generateSubscriptionClient(httpClient, definedOptions)

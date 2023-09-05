@@ -53,7 +53,7 @@ func WithFederationSubscriptionType(subscriptionType SubscriptionType) Federatio
 	}
 }
 
-func NewFederationEngineConfigFactory(dataSourceConfigs []graphqlDataSource.Configuration, batchFactory resolve.DataSourceBatchFactory, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
+func NewFederationEngineConfigFactory(dataSourceConfigs []graphqlDataSource.Configuration, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
 	options := federationEngineConfigFactoryOptions{
 		httpClient: &http.Client{
 			Timeout: time.Second * 10,
@@ -77,7 +77,6 @@ func NewFederationEngineConfigFactory(dataSourceConfigs []graphqlDataSource.Conf
 		httpClient:                options.httpClient,
 		streamingClient:           options.streamingClient,
 		dataSourceConfigs:         dataSourceConfigs,
-		batchFactory:              batchFactory,
 		subscriptionClientFactory: options.subscriptionClientFactory,
 		subscriptionType:          options.subscriptionType,
 		customResolveMap:          options.customResolveMap,
@@ -90,7 +89,6 @@ type FederationEngineConfigFactory struct {
 	streamingClient           *http.Client
 	dataSourceConfigs         []graphqlDataSource.Configuration
 	schema                    *Schema
-	batchFactory              resolve.DataSourceBatchFactory
 	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
 	subscriptionType          SubscriptionType
 	customResolveMap          map[string]resolve.CustomResolve
@@ -179,7 +177,6 @@ func (f *FederationEngineConfigFactory) engineConfigDataSources() (planDataSourc
 
 		planDataSource, err := newGraphQLDataSourceV2Generator(&doc).Generate(
 			dataSourceConfig,
-			f.batchFactory,
 			f.httpClient,
 			WithDataSourceV2GeneratorSubscriptionConfiguration(f.streamingClient, f.subscriptionType),
 			WithDataSourceV2GeneratorSubscriptionClientFactory(f.subscriptionClientFactory),
