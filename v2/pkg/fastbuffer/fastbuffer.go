@@ -11,12 +11,6 @@ func New() *FastBuffer {
 	}
 }
 
-func NewWithSlice(slice []byte) *FastBuffer {
-	return &FastBuffer{
-		b: slice,
-	}
-}
-
 type FastBuffer struct {
 	b []byte
 }

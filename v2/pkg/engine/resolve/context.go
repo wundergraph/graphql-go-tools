@@ -1,14 +1,12 @@
 package resolve
 
 import (
-	"arena"
 	"bytes"
 	"context"
 	"net/http"
 	"strconv"
 
 	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafebytes"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastbuffer"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
@@ -19,11 +17,16 @@ type Context struct {
 	Request          Request
 	pathElements     [][]byte
 	responseElements []string
+	lastFetchID      int
+	patches          []patch
+	usedBuffers      []*bytes.Buffer
+	currentPatch     int
+	maxPatch         int
 	pathPrefix       []byte
+	beforeFetchHook  BeforeFetchHook
+	afterFetchHook   AfterFetchHook
 	position         Position
 	RenameTypeNames  []RenameTypeName
-
-	mem *arena.Arena
 }
 
 type Request struct {
@@ -35,8 +38,15 @@ func NewContext(ctx context.Context) *Context {
 		panic("nil context.Context")
 	}
 	return &Context{
-		ctx:      ctx,
-		position: Position{},
+		ctx:          ctx,
+		Variables:    make([]byte, 0, 4096),
+		pathPrefix:   make([]byte, 0, 4096),
+		pathElements: make([][]byte, 0, 16),
+		patches:      make([]patch, 0, 48),
+		usedBuffers:  make([]*bytes.Buffer, 0, 48),
+		currentPatch: -1,
+		maxPatch:     -1,
+		position:     Position{},
 	}
 }
 
@@ -63,13 +73,31 @@ func (c *Context) clone() Context {
 		pathElements[i] = make([]byte, len(c.pathElements[i]))
 		copy(pathElements[i], c.pathElements[i])
 	}
+	patches := make([]patch, len(c.patches))
+	for i := range patches {
+		patches[i] = patch{
+			path:      make([]byte, len(c.patches[i].path)),
+			extraPath: make([]byte, len(c.patches[i].extraPath)),
+			data:      make([]byte, len(c.patches[i].data)),
+			index:     c.patches[i].index,
+		}
+		copy(patches[i].path, c.patches[i].path)
+		copy(patches[i].extraPath, c.patches[i].extraPath)
+		copy(patches[i].data, c.patches[i].data)
+	}
 	return Context{
-		ctx:          c.ctx,
-		Variables:    variables,
-		Request:      c.Request,
-		pathElements: pathElements,
-		pathPrefix:   pathPrefix,
-		position:     c.position,
+		ctx:             c.ctx,
+		Variables:       variables,
+		Request:         c.Request,
+		pathElements:    pathElements,
+		patches:         patches,
+		usedBuffers:     make([]*bytes.Buffer, 0, 48),
+		currentPatch:    c.currentPatch,
+		maxPatch:        c.maxPatch,
+		pathPrefix:      pathPrefix,
+		beforeFetchHook: c.beforeFetchHook,
+		afterFetchHook:  c.afterFetchHook,
+		position:        c.position,
 	}
 }
 
@@ -78,11 +106,26 @@ func (c *Context) Free() {
 	c.Variables = c.Variables[:0]
 	c.pathPrefix = c.pathPrefix[:0]
 	c.pathElements = c.pathElements[:0]
+	c.patches = c.patches[:0]
+	for i := range c.usedBuffers {
+		pool.BytesBuffer.Put(c.usedBuffers[i])
+	}
+	c.usedBuffers = c.usedBuffers[:0]
+	c.currentPatch = -1
+	c.maxPatch = -1
+	c.beforeFetchHook = nil
+	c.afterFetchHook = nil
 	c.Request.Header = nil
 	c.position = Position{}
 	c.RenameTypeNames = nil
-	c.mem.Free()
-	c.mem = nil
+}
+
+func (c *Context) SetBeforeFetchHook(hook BeforeFetchHook) {
+	c.beforeFetchHook = hook
+}
+
+func (c *Context) SetAfterFetchHook(hook AfterFetchHook) {
+	c.afterFetchHook = hook
 }
 
 func (c *Context) setPosition(position Position) {
@@ -123,6 +166,7 @@ func (c *Context) removeLastPathElement() {
 
 func (c *Context) path() []byte {
 	buf := pool.BytesBuffer.Get()
+	c.usedBuffers = append(c.usedBuffers, buf)
 	if len(c.pathPrefix) != 0 {
 		buf.Write(c.pathPrefix)
 	} else {
@@ -139,16 +183,34 @@ func (c *Context) path() []byte {
 	return buf.Bytes()
 }
 
-func (c *Context) BufPair() *BufPair {
-	data := arena.MakeSlice[byte](c.mem, 0, 1024)
-	errors := arena.MakeSlice[byte](c.mem, 0, 256)
-	return &BufPair{
-		Data:   fastbuffer.NewWithSlice(data),
-		Errors: fastbuffer.NewWithSlice(errors),
-	}
+func (c *Context) addPatch(index int, path, extraPath, data []byte) {
+	next := patch{path: path, extraPath: extraPath, data: data, index: index}
+	c.patches = append(c.patches, next)
+	c.maxPatch++
 }
 
-func (c *Context) FastBuffer(capacity int) *fastbuffer.FastBuffer {
-	data := arena.MakeSlice[byte](c.mem, 0, capacity)
-	return fastbuffer.NewWithSlice(data)
+func (c *Context) popNextPatch() (patch patch, ok bool) {
+	c.currentPatch++
+	if c.currentPatch > c.maxPatch {
+		return patch, false
+	}
+	return c.patches[c.currentPatch], true
+}
+
+type patch struct {
+	path, extraPath, data []byte
+	index                 int
+}
+
+type HookContext struct {
+	CurrentPath []byte
+}
+
+type BeforeFetchHook interface {
+	OnBeforeFetch(ctx HookContext, input []byte)
+}
+
+type AfterFetchHook interface {
+	OnData(ctx HookContext, output []byte, singleFlight bool)
+	OnError(ctx HookContext, output []byte, singleFlight bool)
 }
