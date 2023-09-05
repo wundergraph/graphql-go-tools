@@ -35,7 +35,7 @@ var (
 		SelectResponseErrorsPath: []string{"errors"},
 	}
 	EntitiesPostProcessingConfiguration = resolve.PostProcessingConfiguration{
-		SelectResponseDataPath:   []string{"data", "__entities"},
+		SelectResponseDataPath:   []string{"data", "_entities"},
 		SelectResponseErrorsPath: []string{"errors"},
 	}
 )
