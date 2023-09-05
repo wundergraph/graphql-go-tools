@@ -141,12 +141,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 }
 
 func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) {
-
-	// TODO: for required fields - we could rebuild suggestions for the newly added fields
-	used, unused, suggestions := FilterDataSources(operation, definition, report, p.config.DataSources)
-	if report.HasErrors() {
-		return
-	}
+	dsFilter := NewDataSourceFilter(operation, definition, report)
 
 	if p.config.Debug.PrintOperationWithRequiredFields {
 		p.debugMessage("Initial operation:")
@@ -154,9 +149,14 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 	}
 
 	p.configurationVisitor.debug = p.config.Debug.ConfigurationVisitor
-	p.configurationVisitor.usedDataSources = used
-	p.configurationVisitor.unusedDataSources = unused
-	p.configurationVisitor.dataSourceSuggestions = suggestions
+
+	// set initial suggestions and used data sources
+	p.configurationVisitor.dataSources, p.configurationVisitor.nodeSuggestions =
+		dsFilter.FilterDataSources(p.config.DataSources, nil)
+	if report.HasErrors() {
+		return
+	}
+
 	p.configurationVisitor.secondaryRun = false
 	p.configurationWalker.Walk(operation, definition, report)
 	if report.HasErrors() {
@@ -177,6 +177,13 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 	for p.configurationVisitor.hasNewFields || p.configurationVisitor.hasMissingPaths() {
 		p.configurationVisitor.secondaryRun = true
 		p.configurationVisitor.hasNewFields = false
+
+		// update suggestions for the new required fields
+		p.configurationVisitor.dataSources, p.configurationVisitor.nodeSuggestions =
+			dsFilter.FilterDataSources(p.config.DataSources, p.configurationVisitor.nodeSuggestions)
+		if report.HasErrors() {
+			return
+		}
 
 		p.configurationWalker.Walk(operation, definition, report)
 		if report.HasErrors() {

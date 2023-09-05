@@ -473,8 +473,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 		))
 
 		t.Run("requires fields", func(t *testing.T) {
-			t.Skip("FIXME")
-
 			t.Run("from 3 subgraphs: parent and siblings", RunTest(
 				definition,
 				`
@@ -528,7 +526,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																Fetch: &resolve.SerialFetch{
 																	Fetches: []resolve.Fetch{
 																		&resolve.SingleFetch{
-																			SerialID:               3,
+																			SerialID:               1,
 																			DissallowParallelFetch: true,
 																			Input:                  `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":[$$0$$]}}}`,
 																			DataSource:             &Source{},
@@ -578,6 +576,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					}),
 																				},
 																			},
+																			SetTemplateOutputToNullOnVariableNull: true,
 																		},
 																		&resolve.SingleFetch{
 																			SerialID:               2,
@@ -618,13 +617,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					}),
 																				},
 																			},
+																			SetTemplateOutputToNullOnVariableNull: true,
 																		},
 																		&resolve.SingleFetch{
-																			SerialID:             1,
+																			SerialID:             3,
 																			Input:                `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":[$$0$$]}}}`,
 																			DataSource:           &Source{},
 																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
-																			PostProcessing:       DefaultPostProcessingConfiguration,
+																			PostProcessing:       EntitiesPostProcessingConfiguration,
 																			Variables: []resolve.Variable{
 																				&resolve.ResolvableObjectVariable{
 																					Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -645,6 +645,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					}),
 																				},
 																			},
+																			SetTemplateOutputToNullOnVariableNull: true,
 																		},
 																	},
 																},

@@ -8,27 +8,88 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-func FilterDataSources(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) (used, unused []DataSourceConfiguration, suggestions NodeSuggestions) {
-	suggestions = findBestDataSourceSet(operation, definition, report, dataSources)
-	if report.HasErrors() {
+type DataSourceFilter struct {
+	operation  *ast.Document
+	definition *ast.Document
+	report     *operationreport.Report
+}
+
+func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report) *DataSourceFilter {
+	return &DataSourceFilter{
+		operation:  operation,
+		definition: definition,
+		report:     report,
+	}
+}
+
+func (f *DataSourceFilter) FilterDataSources(dataSources []DataSourceConfiguration, existingNodes NodeSuggestions) (used []DataSourceConfiguration, suggestions NodeSuggestions) {
+	suggestions = f.findBestDataSourceSet(dataSources, existingNodes)
+	if f.report.HasErrors() {
 		return
 	}
 
 	dsInUse := suggestions.UniqueDataSourceHashes()
 
 	used = make([]DataSourceConfiguration, 0, len(dsInUse))
-	unused = make([]DataSourceConfiguration, 0, len(dataSources)-len(dsInUse))
 
 	for i := range dataSources {
 		_, inUse := dsInUse[dataSources[i].Hash()]
 		if inUse {
 			used = append(used, dataSources[i])
-		} else {
-			unused = append(unused, dataSources[i])
 		}
 	}
 
-	return used, unused, suggestions
+	return used, suggestions
+}
+
+func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSourceConfiguration, existingNodes NodeSuggestions) NodeSuggestions {
+	nodes := f.collectNodes(dataSources, existingNodes)
+	if f.report.HasErrors() {
+		return nil
+	}
+
+	nodes = preserveUniqNodes(nodes)
+	nodes = preserveDuplicateNodes(nodes, false)
+	nodes = preserveDuplicateNodes(nodes, true)
+
+	nodes = nodesWithPriority(nodes)
+
+	f.isResolvable(nodes)
+	if f.report.HasErrors() {
+		return nil
+	}
+
+	return nodes
+}
+
+func (f *DataSourceFilter) collectNodes(dataSources []DataSourceConfiguration, existingNodes NodeSuggestions) (nodes NodeSuggestions) {
+	secondaryRun := existingNodes != nil
+
+	walker := astvisitor.NewWalker(32)
+	visitor := &collectNodesVisitor{
+		operation:    f.operation,
+		definition:   f.definition,
+		walker:       &walker,
+		dataSources:  dataSources,
+		nodes:        existingNodes,
+		secondaryRun: secondaryRun,
+	}
+	walker.RegisterEnterDocumentVisitor(visitor)
+	walker.RegisterEnterFieldVisitor(visitor)
+	walker.Walk(f.operation, f.definition, f.report)
+	return visitor.nodes
+}
+
+func (f *DataSourceFilter) isResolvable(nodes []NodeSuggestion) {
+	walker := astvisitor.NewWalker(32)
+	visitor := &nodesResolvableVisitor{
+		operation:  f.operation,
+		definition: f.definition,
+		walker:     &walker,
+		nodes:      nodes,
+	}
+	walker.RegisterEnterFieldVisitor(visitor)
+	walker.Walk(f.operation, f.definition, f.report)
 }
 
 type NodeSuggestion struct {
@@ -57,6 +118,18 @@ func (n *NodeSuggestion) SetPriorityWithReason(reason string) {
 }
 
 type NodeSuggestions []NodeSuggestion
+
+func appendSuggestionWithPrecenseCheck(nodes NodeSuggestions, node NodeSuggestion) NodeSuggestions {
+	for i := range nodes {
+		if nodes[i].TypeName == node.TypeName &&
+			nodes[i].FieldName == node.FieldName &&
+			nodes[i].Path == node.Path &&
+			nodes[i].DataSourceHash == node.DataSourceHash {
+			return nodes
+		}
+	}
+	return append(nodes, node)
+}
 
 func (f NodeSuggestions) SuggestionForPath(typeName, fieldName, path string) (suggestion NodeSuggestion, ok bool) {
 	if len(f) == 0 {
@@ -214,30 +287,25 @@ func (f *nodesResolvableVisitor) EnterField(ref int) {
 	}
 }
 
-func isResolvable(operation, definition *ast.Document, report *operationreport.Report, nodes []NodeSuggestion) {
-	walker := astvisitor.NewWalker(32)
-	visitor := &nodesResolvableVisitor{
-		operation:  operation,
-		definition: definition,
-		walker:     &walker,
-		nodes:      nodes,
-	}
-	walker.RegisterEnterFieldVisitor(visitor)
-	walker.Walk(operation, definition, report)
-}
-
 type collectNodesVisitor struct {
 	operation  *ast.Document
 	definition *ast.Document
 	walker     *astvisitor.Walker
 
-	dataSources []DataSourceConfiguration
-
-	nodes []NodeSuggestion
+	dataSources  []DataSourceConfiguration
+	nodes        NodeSuggestions
+	secondaryRun bool
 }
 
 func (f *collectNodesVisitor) EnterDocument(_, _ *ast.Document) {
-	f.nodes = make([]NodeSuggestion, 0)
+	if !f.secondaryRun {
+		f.nodes = make([]NodeSuggestion, 0, 32)
+		return
+	}
+
+	if f.nodes == nil {
+		panic("nodes should not be nil")
+	}
 }
 
 func (f *collectNodesVisitor) EnterField(ref int) {
@@ -245,44 +313,32 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 	fieldName := f.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := f.operation.FieldAliasOrNameString(ref)
 
+	isTypeName := fieldName == "__typename"
+
 	parentPath := f.walker.Path.DotDelimitedString()
 	currentPath := parentPath + "." + fieldAliasOrName
 
 	for _, v := range f.dataSources {
-		if v.HasRootNode(typeName, fieldName) {
-			f.nodes = append(f.nodes, NodeSuggestion{
-				TypeName:       typeName,
-				FieldName:      fieldName,
-				DataSourceHash: v.Hash(),
-				Path:           currentPath,
-				IsRootNode:     true,
-				ParentPath:     parentPath,
-			})
-		}
-		if v.HasChildNode(typeName, fieldName) {
-			f.nodes = append(f.nodes, NodeSuggestion{
-				TypeName:       typeName,
-				FieldName:      fieldName,
-				DataSourceHash: v.Hash(),
-				Path:           currentPath,
-				ParentPath:     parentPath,
-			})
-		}
-	}
-}
+		hasRootNode := v.HasRootNode(typeName, fieldName)
+		hasChildNode := v.HasChildNode(typeName, fieldName)
 
-func collectNodes(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) (nodes NodeSuggestions) {
-	walker := astvisitor.NewWalker(32)
-	visitor := &collectNodesVisitor{
-		operation:   operation,
-		definition:  definition,
-		walker:      &walker,
-		dataSources: dataSources,
+		if hasRootNode || hasChildNode || isTypeName {
+			node := NodeSuggestion{
+				TypeName:       typeName,
+				FieldName:      fieldName,
+				DataSourceHash: v.Hash(),
+				Path:           currentPath,
+				ParentPath:     parentPath,
+				IsRootNode:     hasRootNode,
+			}
+
+			if f.secondaryRun {
+				f.nodes = appendSuggestionWithPrecenseCheck(f.nodes, node)
+			} else {
+				f.nodes = append(f.nodes, node)
+			}
+		}
 	}
-	walker.RegisterEnterDocumentVisitor(visitor)
-	walker.RegisterEnterFieldVisitor(visitor)
-	walker.Walk(operation, definition, report)
-	return visitor.nodes
 }
 
 type errOperationFieldNotResolved struct {
@@ -293,62 +349,6 @@ type errOperationFieldNotResolved struct {
 
 func (e *errOperationFieldNotResolved) Error() string {
 	return fmt.Sprintf("could not find datasource to resolve %s.%s on a path %s", e.TypeName, e.FieldName, e.Path)
-}
-
-// func findBestNodes(operation, definition *ast.Document, nodes NodeSuggestions) NodeSuggestions {
-// 	current := nodes
-// 	currentDsCount := nodes.DataSourceCount()
-// 	currentNodeCount := nodes.Count()
-// 	for excluded := range nodes {
-// 		if nodes[excluded].hasPriority {
-// 			continue
-// 		}
-//
-// 		subset := nodesSubset(nodes, excluded)
-// 		if !isResolvable(operation, definition, subset) {
-// 			continue
-// 		}
-//
-// 		resultNodes := findBestNodes(operation, definition, subset)
-// 		resultDsCount := resultNodes.DataSourceCount()
-// 		resultNodeCount := resultNodes.Count()
-//
-// 		if resultNodeCount < currentNodeCount && resultDsCount <= currentDsCount {
-// 			current = resultNodes
-// 			currentDsCount = resultDsCount
-// 			currentNodeCount = resultNodeCount
-// 		}
-// 	}
-//
-// 	return current
-// }
-
-func findBestDataSourceSet(operation *ast.Document, definition *ast.Document, report *operationreport.Report, dataSources []DataSourceConfiguration) NodeSuggestions {
-	nodes := collectNodes(operation, definition, report, dataSources)
-	if report.HasErrors() {
-		return nil
-	}
-
-	nodes = preserveUniqNodes(nodes)
-	nodes = preserveDuplicateNodes(nodes, false)
-	nodes = preserveDuplicateNodes(nodes, true)
-
-	// nodes = findBestNodes(operation, definition, nodes)
-
-	nodes = nodesWithPriority(nodes)
-	isResolvable(operation, definition, report, nodes)
-	if report.HasErrors() {
-		return nil
-	}
-
-	return nodes
-}
-
-func nodesSubset(suggestions []NodeSuggestion, exclude int) []NodeSuggestion {
-	subset := make([]NodeSuggestion, 0, len(suggestions)-1)
-	subset = append(subset, suggestions[:exclude]...)
-	subset = append(subset, suggestions[exclude+1:]...)
-	return subset
 }
 
 const (
