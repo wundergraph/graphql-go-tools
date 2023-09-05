@@ -502,8 +502,8 @@ func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListI
 
 func (l *Loader) resolveParallelFetch(ctx *Context, fetch *ParallelFetch) (err error) {
 	l.parallelFetch = true
-	group, grouptContext := errgroup.WithContext(ctx.ctx)
-	groupCtx := ctx.WithContext(grouptContext)
+	group, groupContext := errgroup.WithContext(ctx.ctx)
+	groupCtx := ctx.WithContext(groupContext)
 	for i := range fetch.Fetches {
 		f := fetch.Fetches[i]
 		group.Go(func() error {
