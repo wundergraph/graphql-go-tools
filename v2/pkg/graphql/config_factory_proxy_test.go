@@ -18,7 +18,6 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 
 	client := &http.Client{}
 	streamingClient := &http.Client{}
-	batchFactory := graphqlDataSource.NewBatchFactory()
 
 	expectedFieldConfigs := plan.FieldConfigurations{
 		{
@@ -63,7 +62,6 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 		configFactory := NewProxyEngineConfigFactory(
 			schema,
 			upstreamConfig,
-			batchFactory,
 			WithProxyHttpClient(client),
 			WithProxyStreamingClient(streamingClient),
 			WithProxySubscriptionClientFactory(&MockSubscriptionClientFactory{}),
@@ -101,7 +99,6 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 			Factory: &graphqlDataSource.Factory{
 				HTTPClient:         client,
 				StreamingClient:    streamingClient,
-				BatchFactory:       batchFactory,
 				SubscriptionClient: mockSubscriptionClient,
 			},
 			Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{
@@ -140,7 +137,6 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 		configFactory := NewProxyEngineConfigFactory(
 			schema,
 			upstreamConfig,
-			batchFactory,
 			WithProxyHttpClient(client),
 			WithProxyStreamingClient(streamingClient),
 			WithProxySubscriptionClientFactory(&MockSubscriptionClientFactory{}),
@@ -178,7 +174,6 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 			Factory: &graphqlDataSource.Factory{
 				HTTPClient:         client,
 				StreamingClient:    streamingClient,
-				BatchFactory:       batchFactory,
 				SubscriptionClient: mockSubscriptionClient,
 			},
 			Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{
@@ -217,7 +212,6 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 		configFactory := NewProxyEngineConfigFactory(
 			schema,
 			upstreamConfig,
-			batchFactory,
 			WithProxyHttpClient(client),
 			WithProxyStreamingClient(streamingClient),
 			WithProxySubscriptionClientFactory(&MockSubscriptionClientFactory{}),
@@ -255,7 +249,6 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 			Factory: &graphqlDataSource.Factory{
 				HTTPClient:         client,
 				StreamingClient:    streamingClient,
-				BatchFactory:       batchFactory,
 				SubscriptionClient: mockSubscriptionClient,
 			},
 			Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{

@@ -71,7 +71,7 @@ func (g *Gateway) Ready() {
 
 func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphqlDataSource.Configuration) {
 	ctx := context.Background()
-	engineConfigFactory := graphql.NewFederationEngineConfigFactory(newDataSourcesConfig, graphqlDataSource.NewBatchFactory(), graphql.WithFederationHttpClient(g.httpClient))
+	engineConfigFactory := graphql.NewFederationEngineConfigFactory(newDataSourcesConfig, graphql.WithFederationHttpClient(g.httpClient))
 
 	schema, err := engineConfigFactory.MergedSchema()
 	if err != nil {
@@ -84,8 +84,6 @@ func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphqlDataSource.Con
 		g.logger.Error("get engine config: %v", log.Error(err))
 		return
 	}
-
-	datasourceConfig.EnableDataLoader(true)
 
 	engine, err := graphql.NewExecutionEngineV2(ctx, g.logger, datasourceConfig)
 	if err != nil {

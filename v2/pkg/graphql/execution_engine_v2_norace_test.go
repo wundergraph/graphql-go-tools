@@ -24,7 +24,7 @@ func TestExecutionEngineV2_FederationAndSubscription_IntegrationTest(t *testing.
 		t.Skip("skip on windows - test is timing dependendent")
 	}
 
-	runIntegration := func(t *testing.T, enableDataLoader bool, secondRun bool) {
+	runIntegration := func(t *testing.T, secondRun bool) {
 		t.Helper()
 		ctx, cancelFn := context.WithCancel(context.Background())
 		setup := newFederationSetup()
@@ -36,7 +36,7 @@ func TestExecutionEngineV2_FederationAndSubscription_IntegrationTest(t *testing.
 			setup.pollingUpstreamServer.Close()
 		})
 
-		engine, schema, err := newFederationEngine(ctx, setup, enableDataLoader)
+		engine, schema, err := newFederationEngine(ctx, setup)
 		require.NoError(t, err)
 
 		t.Run("should successfully execute a federation operation", func(t *testing.T) {
@@ -164,10 +164,6 @@ subscription UpdatedPrice {
 	}
 
 	t.Run("federation", func(t *testing.T) {
-		runIntegration(t, false, false)
-	})
-
-	t.Run("federation with data loader enabled", func(t *testing.T) {
-		runIntegration(t, true, true)
+		runIntegration(t, false)
 	})
 }
