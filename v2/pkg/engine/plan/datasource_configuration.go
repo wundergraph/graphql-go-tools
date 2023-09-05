@@ -52,6 +52,7 @@ func (d *DataSourceConfiguration) Hash() DSHash {
 type DataSourceParentInfo struct {
 	RequiredFields FederationFieldConfigurations
 	Path           string
+	InsideArray    bool
 }
 
 func (d *DataSourceConfiguration) HasRootNode(typeName, fieldName string) bool {
@@ -174,12 +175,13 @@ type SubscriptionConfiguration struct {
 }
 
 type FetchConfiguration struct {
-	Input                 string
-	Variables             resolve.Variables
-	DataSource            resolve.DataSource
-	DisallowSingleFlight  bool
-	DisallowParallelFetch bool
-	PostProcessing        resolve.PostProcessingConfiguration
+	Input                string
+	Variables            resolve.Variables
+	DataSource           resolve.DataSource
+	DisallowSingleFlight bool
+	RequiresSerialFetch  bool
+	RequiresBatchFetch   bool
+	PostProcessing       resolve.PostProcessingConfiguration
 	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
 	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
 	// Returning null in this case tells the batch implementation to skip this item

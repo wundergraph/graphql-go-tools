@@ -518,12 +518,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																Fetch: &resolve.SerialFetch{
 																	Fetches: []resolve.Fetch{
 																		&resolve.SingleFetch{
-																			SerialID:               1,
-																			DissallowParallelFetch: true,
-																			Input:                  `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":[$$0$$]}}}`,
-																			DataSource:             &Source{},
-																			DataSourceIdentifier:   []byte("graphql_datasource.Source"),
-																			PostProcessing:         EntitiesPostProcessingConfiguration,
+																			SerialID:             1,
+																			RequiresSerialFetch:  true,
+																			Input:                `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":[$$0$$]}}}`,
+																			DataSource:           &Source{},
+																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
+																			PostProcessing:       EntitiesPostProcessingConfiguration,
 																			Variables: []resolve.Variable{
 																				&resolve.ResolvableObjectVariable{
 																					Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -571,12 +571,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			SetTemplateOutputToNullOnVariableNull: true,
 																		},
 																		&resolve.SingleFetch{
-																			SerialID:               2,
-																			DissallowParallelFetch: true,
-																			Input:                  `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":[$$0$$]}}}`,
-																			DataSource:             &Source{},
-																			DataSourceIdentifier:   []byte("graphql_datasource.Source"),
-																			PostProcessing:         EntitiesPostProcessingConfiguration,
+																			SerialID:             2,
+																			RequiresSerialFetch:  true,
+																			Input:                `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":[$$0$$]}}}`,
+																			DataSource:           &Source{},
+																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
+																			PostProcessing:       EntitiesPostProcessingConfiguration,
 																			Variables: []resolve.Variable{
 																				&resolve.ResolvableObjectVariable{
 																					Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{

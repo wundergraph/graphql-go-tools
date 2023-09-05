@@ -957,7 +957,7 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 	switch existing := config.object.Fetch.(type) {
 	case *resolve.SingleFetch:
 		copyOfExisting := *existing
-		if copyOfExisting.DissallowParallelFetch {
+		if copyOfExisting.RequiresSerialFetch {
 			serial := &resolve.SerialFetch{
 				Fetches: []resolve.Fetch{&copyOfExisting, fetch},
 			}
@@ -968,12 +968,6 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 			}
 			config.object.Fetch = parallel
 		}
-	case *resolve.BatchFetch:
-		copyOfExisting := *existing
-		parallel := &resolve.ParallelFetch{
-			Fetches: []resolve.Fetch{&copyOfExisting, fetch},
-		}
-		config.object.Fetch = parallel
 	case *resolve.ParallelFetch:
 		existing.Fetches = append(existing.Fetches, fetch)
 	case *resolve.SerialFetch:
@@ -990,7 +984,8 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external Fet
 		DataSource:                            external.DataSource,
 		Variables:                             external.Variables,
 		DisallowSingleFlight:                  external.DisallowSingleFlight,
-		DissallowParallelFetch:                external.DisallowParallelFetch,
+		RequiresSerialFetch:                   external.RequiresSerialFetch,
+		RequiresBatchFetch:                    external.RequiresBatchFetch,
 		DataSourceIdentifier:                  []byte(dataSourceType),
 		PostProcessing:                        external.PostProcessing,
 		SetTemplateOutputToNullOnVariableNull: external.SetTemplateOutputToNullOnVariableNull,
