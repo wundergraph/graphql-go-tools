@@ -6,7 +6,6 @@ type Array struct {
 	ResolveAsynchronous bool
 	Item                Node
 	Items               []Node
-	Stream              Stream
 }
 
 func (a *Array) HasChildFetches() bool {
@@ -24,12 +23,6 @@ func (a *Array) HasChildFetches() bool {
 		}
 	}
 	return false
-}
-
-type Stream struct {
-	Enabled          bool
-	InitialBatchSize int
-	PatchIndex       int
 }
 
 func (_ *Array) NodeKind() NodeKind {

@@ -56,6 +56,8 @@ func (_ *SingleFetch) FetchKind() FetchKind {
 	return FetchKindSingle
 }
 
+// ParallelFetch - TODO: document better
+// should be used only for object fields which could be fetched parallel
 type ParallelFetch struct {
 	Fetches []Fetch
 }
@@ -64,6 +66,8 @@ func (_ *ParallelFetch) FetchKind() FetchKind {
 	return FetchKindParallel
 }
 
+// SerialFetch - TODO: document better
+// should be used only for object fields which should be fetched serial
 type SerialFetch struct {
 	Fetches []Fetch
 }
@@ -72,6 +76,8 @@ func (_ *SerialFetch) FetchKind() FetchKind {
 	return FetchKindSerial
 }
 
+// BatchFetch - TODO: document better
+// allows to join nested fetches to the same subgraph into a single fetch
 type BatchFetch struct {
 	Input          BatchInput
 	DataSource     DataSource

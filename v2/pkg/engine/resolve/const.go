@@ -34,23 +34,15 @@ var (
 )
 
 var (
-	responsePaths = [][]string{
-		{"errors"},
-		{"data"},
-	}
 	errorPaths = [][]string{
 		{"message"},
 		{"locations"},
 		{"path"},
 		{"extensions"},
 	}
-	entitiesPath = []string{"_entities"}
 )
 
 const (
-	rootErrorsPathIndex = 0
-	rootDataPathIndex   = 1
-
 	errorsMessagePathIndex    = 0
 	errorsLocationsPathIndex  = 1
 	errorsPathPathIndex       = 2

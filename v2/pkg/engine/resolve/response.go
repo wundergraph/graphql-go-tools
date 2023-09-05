@@ -111,13 +111,13 @@ func extractResponse(responseData []byte, bufPair *BufPair, cfg PostProcessingCo
 					)
 					jsonparser.EachKey(value, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
 						switch i {
-						case 0:
+						case errorsMessagePathIndex:
 							message = bytes
-						case 1:
+						case errorsLocationsPathIndex:
 							locations = bytes
-						case 2:
+						case errorsPathPathIndex:
 							path = bytes
-						case 3:
+						case errorsExtensionsPathIndex:
 							extensions = bytes
 						}
 					}, errorPaths...)
