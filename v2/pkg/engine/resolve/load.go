@@ -419,29 +419,29 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 		return err
 	}
 	itemsData := make([][]byte, len(lr.items))
-	for i, stats := range batchStats {
-		buf := l.getLayerBuffer()
-		buf.WriteBytes(lBrack)
-		addCommaSeparator := false
-		for j := range stats {
-			if addCommaSeparator {
-				buf.WriteBytes(comma)
-			} else {
-				addCommaSeparator = true
-			}
-			if stats[j] == -1 {
-				buf.WriteBytes(null)
-				continue
-			}
-			_, err = buf.Write(batchResponseItems[stats[j]])
-			if err != nil {
-				return err
-			}
-		}
-		buf.WriteBytes(rBrack)
-		itemsData[i] = buf.Bytes()
-	}
 	if fetch.PostProcessing.ResponseTemplate != nil {
+		for i, stats := range batchStats {
+			buf := l.getLayerBuffer()
+			buf.WriteBytes(lBrack)
+			addCommaSeparator := false
+			for j := range stats {
+				if addCommaSeparator {
+					buf.WriteBytes(comma)
+				} else {
+					addCommaSeparator = true
+				}
+				if stats[j] == -1 {
+					buf.WriteBytes(null)
+					continue
+				}
+				_, err = buf.Write(batchResponseItems[stats[j]])
+				if err != nil {
+					return err
+				}
+			}
+			buf.WriteBytes(rBrack)
+			itemsData[i] = buf.Bytes()
+		}
 		for i := range itemsData {
 			out := l.getLayerBuffer()
 			err = fetch.PostProcessing.ResponseTemplate.Render(ctx, itemsData[i], out)
@@ -449,6 +449,22 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 				return err
 			}
 			itemsData[i] = out.Bytes()
+		}
+	} else {
+		for i, stats := range batchStats {
+			for j := range stats {
+				if stats[j] == -1 {
+					continue
+				}
+				if itemsData[i] == nil {
+					itemsData[i] = batchResponseItems[stats[j]]
+					continue
+				}
+				itemsData[i], err = l.mergeJSON(itemsData[i], batchResponseItems[stats[j]])
+				if err != nil {
+					return err
+				}
+			}
 		}
 	}
 	for i := range lr.items {
