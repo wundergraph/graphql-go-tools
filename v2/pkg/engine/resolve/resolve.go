@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
 	errors "golang.org/x/xerrors"
 
@@ -19,19 +20,72 @@ import (
 )
 
 type Resolver struct {
-	ctx     context.Context
+	ctx              context.Context
+	resultSetPool    sync.Pool
+	byteSlicesPool   sync.Pool
+	waitGroupPool    sync.Pool
+	bufPairPool      sync.Pool
+	bufPairSlicePool sync.Pool
+	errChanPool      sync.Pool
+	hash64Pool       sync.Pool
+	fetcher          *Fetcher
+
 	loaders sync.Pool
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
-func New(ctx context.Context) *Resolver {
+func New(ctx context.Context, fetcher *Fetcher) *Resolver {
 	return &Resolver{
 		ctx: ctx,
+		resultSetPool: sync.Pool{
+			New: func() interface{} {
+				return &resultSet{
+					buffers: make(map[int]*BufPair, 8),
+				}
+			},
+		},
+		byteSlicesPool: sync.Pool{
+			New: func() interface{} {
+				slice := make([][]byte, 0, 24)
+				return &slice
+			},
+		},
+		waitGroupPool: sync.Pool{
+			New: func() interface{} {
+				return &sync.WaitGroup{}
+			},
+		},
+		bufPairPool: sync.Pool{
+			New: func() interface{} {
+				pair := BufPair{
+					Data:   fastbuffer.New(),
+					Errors: fastbuffer.New(),
+				}
+				return &pair
+			},
+		},
+		bufPairSlicePool: sync.Pool{
+			New: func() interface{} {
+				slice := make([]*BufPair, 0, 24)
+				return &slice
+			},
+		},
+		errChanPool: sync.Pool{
+			New: func() interface{} {
+				return make(chan error, 1)
+			},
+		},
+		hash64Pool: sync.Pool{
+			New: func() interface{} {
+				return xxhash.New()
+			},
+		},
 		loaders: sync.Pool{
 			New: func() interface{} {
 				return &Loader{}
 			},
 		},
+		fetcher: fetcher,
 	}
 }
 
@@ -67,6 +121,13 @@ func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *Bu
 	}
 }
 
+func (r *Resolver) validateContext(ctx *Context) (err error) {
+	if ctx.maxPatch != -1 || ctx.currentPatch != -1 {
+		return fmt.Errorf("context must be resetted using Free() before re-using it")
+	}
+	return nil
+}
+
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
 
 	dataBuf := pool.FastBuffer.Get()
@@ -80,7 +141,8 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		return
 	}
 
-	buf := ctx.BufPair()
+	buf := r.getBufPair()
+	defer r.freeBufPair(buf)
 
 	if hasErrors {
 		_, err = writer.Write(dataBuf.Bytes())
@@ -101,7 +163,8 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 
 func (r *Resolver) resolveGraphQLSubscriptionResponse(ctx *Context, response *GraphQLResponse, subscriptionData *BufPair, writer io.Writer) (err error) {
 
-	buf := ctx.BufPair()
+	buf := r.getBufPair()
+	defer r.freeBufPair(buf)
 
 	ignoreData := false
 	err = r.resolveNode(ctx, response.Data, subscriptionData.Data.Bytes(), buf)
@@ -120,7 +183,7 @@ func (r *Resolver) resolveGraphQLSubscriptionResponse(ctx *Context, response *Gr
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer FlushWriter) (err error) {
 
-	buf := ctx.BufPair()
+	buf := r.getBufPair()
 	err = subscription.Trigger.InputTemplate.Render(ctx, nil, buf.Data)
 	if err != nil {
 		return
@@ -128,6 +191,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	rendered := buf.Data.Bytes()
 	subscriptionInput := make([]byte, len(rendered))
 	copy(subscriptionInput, rendered)
+	r.freeBufPair(buf)
 
 	c, cancel := context.WithCancel(ctx.Context())
 	defer cancel()
@@ -148,7 +212,8 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return err
 	}
 
-	responseBuf := ctx.BufPair()
+	responseBuf := r.getBufPair()
+	defer r.freeBufPair(responseBuf)
 
 	for {
 		select {
@@ -190,7 +255,8 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 		return
 	}
 
-	itemBuf := ctx.BufPair()
+	itemBuf := r.getBufPair()
+	defer r.freeBufPair(itemBuf)
 
 	reset := arrayBuf.Data.Len()
 	i := 0
@@ -245,6 +311,9 @@ func (r *Resolver) resolveArray(ctx *Context, array *Array, data []byte, arrayBu
 func (r *Resolver) resolveArraySynchronous(ctx *Context, array *Array, arrayItems *[][]byte, arrayBuf *BufPair) (err error) {
 	arrayBuf.Data.WriteBytes(lBrack)
 	start := arrayBuf.Data.Len()
+
+	itemBuf := r.getBufPair()
+	defer r.freeBufPair(itemBuf)
 
 	for i := range *arrayItems {
 		ctx.addIntegerPathElement(i)
@@ -485,7 +554,8 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, pare
 		data = bytes.ReplaceAll(data, []byte(`\"`), []byte(`"`))
 	}
 
-	fieldBuf := ctx.BufPair()
+	fieldBuf := r.getBufPair()
+	defer r.freeBufPair(fieldBuf)
 
 	typeNameSkip := false
 	first := true
@@ -608,4 +678,55 @@ func (r *Resolver) MergeBufPairErrors(from, to *BufPair) {
 	}
 	to.Errors.WriteBytes(from.Errors.Bytes())
 	from.Errors.Reset()
+}
+
+func (r *Resolver) getResultSet() *resultSet {
+	return r.resultSetPool.Get().(*resultSet)
+}
+
+func (r *Resolver) freeResultSet(set *resultSet) {
+	for i := range set.buffers {
+		set.buffers[i].Reset()
+		r.bufPairPool.Put(set.buffers[i])
+		delete(set.buffers, i)
+	}
+	r.resultSetPool.Put(set)
+}
+
+func (r *Resolver) getBufPair() *BufPair {
+	return r.bufPairPool.Get().(*BufPair)
+}
+
+func (r *Resolver) freeBufPair(pair *BufPair) {
+	pair.Data.Reset()
+	pair.Errors.Reset()
+	r.bufPairPool.Put(pair)
+}
+
+func (r *Resolver) getBufPairSlice() *[]*BufPair {
+	return r.bufPairSlicePool.Get().(*[]*BufPair)
+}
+
+func (r *Resolver) freeBufPairSlice(slice *[]*BufPair) {
+	for i := range *slice {
+		r.freeBufPair((*slice)[i])
+	}
+	*slice = (*slice)[:0]
+	r.bufPairSlicePool.Put(slice)
+}
+
+func (r *Resolver) getErrChan() chan error {
+	return r.errChanPool.Get().(chan error)
+}
+
+func (r *Resolver) freeErrChan(ch chan error) {
+	r.errChanPool.Put(ch)
+}
+
+func (r *Resolver) getWaitGroup() *sync.WaitGroup {
+	return r.waitGroupPool.Get().(*sync.WaitGroup)
+}
+
+func (r *Resolver) freeWaitGroup(wg *sync.WaitGroup) {
+	r.waitGroupPool.Put(wg)
 }
