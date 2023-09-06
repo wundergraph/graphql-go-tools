@@ -28,14 +28,12 @@ func NewIntrospectionConfigFactory(schema *ast.Document) (*IntrospectionConfigFa
 func (f *IntrospectionConfigFactory) BuildFieldConfigurations() (planFields plan.FieldConfigurations) {
 	return plan.FieldConfigurations{
 		{
-			TypeName:              f.dataSourceConfigQueryTypeName(),
-			FieldName:             "__schema",
-			DisableDefaultMapping: true,
+			TypeName:  f.dataSourceConfigQueryTypeName(),
+			FieldName: "__schema",
 		},
 		{
-			TypeName:              f.dataSourceConfigQueryTypeName(),
-			FieldName:             "__type",
-			DisableDefaultMapping: true,
+			TypeName:  f.dataSourceConfigQueryTypeName(),
+			FieldName: "__type",
 			Arguments: plan.ArgumentsConfigurations{
 				{
 					Name:       "name",
@@ -44,9 +42,8 @@ func (f *IntrospectionConfigFactory) BuildFieldConfigurations() (planFields plan
 			},
 		},
 		{
-			TypeName:              "__Type",
-			FieldName:             "fields",
-			DisableDefaultMapping: true,
+			TypeName:  "__Type",
+			FieldName: "fields",
 			Arguments: plan.ArgumentsConfigurations{
 				{
 					Name:       "includeDeprecated",
@@ -55,9 +52,8 @@ func (f *IntrospectionConfigFactory) BuildFieldConfigurations() (planFields plan
 			},
 		},
 		{
-			TypeName:              "__Type",
-			FieldName:             "enumValues",
-			DisableDefaultMapping: true,
+			TypeName:  "__Type",
+			FieldName: "enumValues",
 			Arguments: plan.ArgumentsConfigurations{
 				{
 					Name:       "includeDeprecated",
