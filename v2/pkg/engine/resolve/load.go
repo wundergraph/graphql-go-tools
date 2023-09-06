@@ -665,9 +665,6 @@ func (l *Loader) mergeJSONWithMergePath(left, right []byte, mergePath []string) 
 	if mergePath == nil || len(mergePath) == 0 {
 		return l.mergeJSON(left, right)
 	}
-	if right == nil || bytes.Equal(right, null) {
-		return left, nil
-	}
 	element := mergePath[len(mergePath)-1]
 	mergePath = mergePath[:len(mergePath)-1]
 	buf := l.getRootBuffer()
