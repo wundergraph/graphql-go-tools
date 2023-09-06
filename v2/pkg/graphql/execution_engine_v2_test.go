@@ -157,7 +157,7 @@ type ExecutionEngineV2TestCase struct {
 }
 
 func TestExecutionEngineV2_Execute(t *testing.T) {
-	t.Skip("FIXME")
+	// t.Skip("FIXME")
 
 	run := func(testCase ExecutionEngineV2TestCase, withError bool, expectedErrorMessage string) func(t *testing.T) {
 		t.Helper()
@@ -181,6 +181,11 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			engineConf.SetDataSources(testCase.dataSources)
 			engineConf.SetFieldConfigurations(testCase.fields)
 			engineConf.SetCustomResolveMap(testCase.customResolveMap)
+
+			engineConf.plannerConfig.Debug = plan.DebugConfiguration{
+				PrintPlanningPaths: true,
+			}
+
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			engine, err := NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConf)
