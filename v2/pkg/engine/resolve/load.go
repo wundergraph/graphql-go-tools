@@ -117,14 +117,7 @@ func (l *Loader) getLayerBuffer() *fastbuffer.FastBuffer {
 
 func (l *Loader) getRootBuffer() *fastbuffer.FastBuffer {
 	buf := pool.FastBuffer.Get()
-
-	// if l.parallelFetch {
-	// 	l.parallelMu.Lock()
-	// }
 	l.layers[0].buffers = append(l.layers[0].buffers, buf)
-	// if l.parallelFetch {
-	// 	l.parallelMu.Unlock()
-	// }
 	return buf
 }
 
@@ -467,7 +460,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 		if lr.items[i] == nil {
 			continue
 		}
-		lr.items[i], err = l.mergeJSON(lr.items[i], itemsData[i])
+		lr.items[i], err = l.mergeJSONWithMergePath(lr.items[i], itemsData[i], fetch.PostProcessing.MergePath)
 		if err != nil {
 			return err
 		}
@@ -504,7 +497,7 @@ func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListI
 			if err != nil {
 				return err
 			}
-			layer.items[i], err = l.mergeJSON(layer.items[i], data)
+			layer.items[i], err = l.mergeJSONWithMergePath(layer.items[i], data, fetch.Fetch.PostProcessing.MergePath)
 			return err
 		})
 	}
@@ -545,7 +538,7 @@ func (l *Loader) resolveSingleFetch(ctx *Context, fetch *SingleFetch) (err error
 	if l.parallelFetch {
 		l.parallelMu.Lock()
 	}
-	err = l.mergeDataIntoLayer(l.currentLayer(), data)
+	err = l.mergeDataIntoLayer(l.currentLayer(), data, fetch.PostProcessing.MergePath)
 	if err != nil {
 		return err
 	}
@@ -598,13 +591,13 @@ func (l *Loader) loadAndPostProcess(ctx *Context, input *fastbuffer.FastBuffer, 
 	return data, nil
 }
 
-func (l *Loader) mergeDataIntoLayer(layer *layer, data []byte) (err error) {
+func (l *Loader) mergeDataIntoLayer(layer *layer, data []byte, mergePath []string) (err error) {
 	if layer.kind == layerKindObject {
 		if layer.data == nil {
 			layer.data = data
 			return nil
 		}
-		layer.data, err = l.mergeJSON(layer.data, data)
+		layer.data, err = l.mergeJSONWithMergePath(layer.data, data, mergePath)
 		return err
 	}
 	var (
@@ -628,7 +621,7 @@ func (l *Loader) mergeDataIntoLayer(layer *layer, data []byte) (err error) {
 			skipped++
 			continue
 		}
-		layer.items[i], err = l.mergeJSON(layer.items[i], dataItems[i-skipped])
+		layer.items[i], err = l.mergeJSONWithMergePath(layer.items[i], dataItems[i-skipped], mergePath)
 		if err != nil {
 			return err
 		}
@@ -667,6 +660,26 @@ var (
 		},
 	}
 )
+
+func (l *Loader) mergeJSONWithMergePath(left, right []byte, mergePath []string) ([]byte, error) {
+	if mergePath == nil || len(mergePath) == 0 {
+		return l.mergeJSON(left, right)
+	}
+	if right == nil || bytes.Equal(right, null) {
+		return left, nil
+	}
+	element := mergePath[len(mergePath)-1]
+	mergePath = mergePath[:len(mergePath)-1]
+	buf := l.getRootBuffer()
+	buf.WriteBytes(lBrace)
+	buf.WriteBytes(quote)
+	buf.WriteBytes([]byte(element))
+	buf.WriteBytes(quote)
+	buf.WriteBytes(colon)
+	buf.WriteBytes(right)
+	buf.WriteBytes(rBrace)
+	return l.mergeJSONWithMergePath(left, buf.Bytes(), mergePath)
+}
 
 func (l *Loader) mergeJSON(left, right []byte) ([]byte, error) {
 	if left == nil {

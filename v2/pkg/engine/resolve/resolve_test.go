@@ -2685,7 +2685,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Furby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Trilby"}}]}}}`
 		}))
-		t.Run("federation", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		t.Run("federation with batch", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
 				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
@@ -2864,6 +2864,202 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	Name: []byte("name"),
 																	Value: &String{
 																		Path: []string{"name"},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`
+		}))
+		t.Run("federation with merge paths", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+			userService := NewMockDataSource(ctrl)
+			userService.EXPECT().
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				DoAndReturn(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
+					actual := string(input)
+					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
+					assert.Equal(t, expected, actual)
+					pair := NewBufPair()
+					pair.Data.WriteString(`{"me":{"id":"1234","username":"Me","__typename": "User"}}`)
+					return writeGraphqlResponse(pair, w, false)
+				})
+
+			reviewsService := NewMockDataSource(ctrl)
+			reviewsService.EXPECT().
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				DoAndReturn(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
+					actual := string(input)
+					expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"__typename":"User","id":"1234"}]}}}`
+					assert.Equal(t, expected, actual)
+					pair := NewBufPair()
+					pair.Data.WriteString(`{"_entities": [{"__typename":"User","reviews": [{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}]}`)
+					return writeGraphqlResponse(pair, w, false)
+				})
+
+			productService := NewMockDataSource(ctrl)
+			productService.EXPECT().
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				DoAndReturn(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
+					actual := string(input)
+					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"__typename":"Product","upc":"top-1"},{"__typename":"Product","upc":"top-2"}]}}}`
+					assert.Equal(t, expected, actual)
+					pair := NewBufPair()
+					pair.Data.WriteString(`{"_entities": [{"name": "Trilby"},{"name": "Fedora"}]}`)
+					return writeGraphqlResponse(pair, w, false)
+				})
+
+			return &GraphQLResponse{
+				Data: &Object{
+					Fetch: &SingleFetch{
+						InputTemplate: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						DataSource: userService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
+						},
+					},
+					Fields: []*Field{
+						{
+							Name: []byte("me"),
+							Value: &Object{
+								Fetch: &SingleFetch{
+									InputTemplate: InputTemplate{
+										Segments: []TemplateSegment{
+											{
+												Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[`),
+												SegmentType: StaticSegmentType,
+											},
+											{
+												SegmentType:  VariableSegmentType,
+												VariableKind: ResolvableObjectVariableKind,
+												Renderer: NewGraphQLVariableResolveRenderer(&Object{
+													Fields: []*Field{
+														{
+															Name: []byte("__typename"),
+															Value: &String{
+																Path: []string{"__typename"},
+															},
+														},
+														{
+															Name: []byte("id"),
+															Value: &String{
+																Path: []string{"id"},
+															},
+														},
+													},
+												}),
+											},
+											{
+												Data:        []byte(`]}}}`),
+												SegmentType: StaticSegmentType,
+											},
+										},
+									},
+									DataSource: reviewsService,
+									PostProcessing: PostProcessingConfiguration{
+										SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+									},
+								},
+								Path:     []string{"me"},
+								Nullable: true,
+								Fields: []*Field{
+									{
+										Name: []byte("id"),
+										Value: &String{
+											Path: []string{"id"},
+										},
+									},
+									{
+										Name: []byte("username"),
+										Value: &String{
+											Path: []string{"username"},
+										},
+									},
+									{
+										Name: []byte("reviews"),
+										Value: &Array{
+											Path:     []string{"reviews"},
+											Nullable: true,
+											Item: &Object{
+												Nullable: true,
+												Fields: []*Field{
+													{
+														Name: []byte("body"),
+														Value: &String{
+															Path: []string{"body"},
+														},
+													},
+													{
+														Name: []byte("product"),
+														Value: &Object{
+															Path: []string{"product"},
+															Fetch: &SingleFetch{
+																DataSource: productService,
+																InputTemplate: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":`),
+																			SegmentType: StaticSegmentType,
+																		},
+																		{
+																			SegmentType:  VariableSegmentType,
+																			VariableKind: ResolvableObjectVariableKind,
+																			Renderer: NewGraphQLVariableResolveRenderer(&Array{
+																				Item: &Object{
+																					Fields: []*Field{
+																						{
+																							Name: []byte("__typename"),
+																							Value: &String{
+																								Path: []string{"__typename"},
+																							},
+																						},
+																						{
+																							Name: []byte("upc"),
+																							Value: &String{
+																								Path: []string{"upc"},
+																							},
+																						},
+																					},
+																				},
+																			}),
+																		},
+																		{
+																			Data:        []byte(`}}}`),
+																			SegmentType: StaticSegmentType,
+																		},
+																	},
+																},
+																PostProcessing: PostProcessingConfiguration{
+																	SelectResponseDataPath: []string{"data", "_entities"},
+																	MergePath:              []string{"data"},
+																},
+															},
+															Fields: []*Field{
+																{
+																	Name: []byte("upc"),
+																	Value: &String{
+																		Path: []string{"upc"},
+																	},
+																},
+																{
+																	Name: []byte("name"),
+																	Value: &String{
+																		Path: []string{"data", "name"},
 																	},
 																},
 															},
