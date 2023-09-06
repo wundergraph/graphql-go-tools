@@ -456,10 +456,6 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 				if stats[j] == -1 {
 					continue
 				}
-				if itemsData[i] == nil {
-					itemsData[i] = batchResponseItems[stats[j]]
-					continue
-				}
 				itemsData[i], err = l.mergeJSON(itemsData[i], batchResponseItems[stats[j]])
 				if err != nil {
 					return err
@@ -673,6 +669,15 @@ var (
 )
 
 func (l *Loader) mergeJSON(left, right []byte) ([]byte, error) {
+	if left == nil {
+		return right, nil
+	}
+	if right == nil {
+		return left, nil
+	}
+	if left == nil && right == nil {
+		return nil, nil
+	}
 	leftIsNull := bytes.Equal(left, null)
 	rightIsNull := bytes.Equal(right, null)
 	switch {
