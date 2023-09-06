@@ -508,6 +508,8 @@ func (l *Loader) resolveParallelFetch(ctx *Context, fetch *ParallelFetch) (err e
 	for i := range fetch.Fetches {
 		f := fetch.Fetches[i]
 		group.Go(func() error {
+			parentFetch := fetch
+			_ = parentFetch
 			return l.resolveFetch(groupCtx, f)
 		})
 	}
@@ -535,9 +537,6 @@ func (l *Loader) resolveSingleFetch(ctx *Context, fetch *SingleFetch) (err error
 		l.parallelMu.Lock()
 	}
 	err = l.mergeDataIntoLayer(l.currentLayer(), data, fetch.PostProcessing.MergePath)
-	if err != nil {
-		return err
-	}
 	if l.parallelFetch {
 		l.parallelMu.Unlock()
 	}
