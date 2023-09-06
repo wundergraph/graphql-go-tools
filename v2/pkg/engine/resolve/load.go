@@ -260,11 +260,7 @@ func (l *Loader) mergeLayerIntoParent() (err error) {
 	child := l.layers[len(l.layers)-1]
 	parent := l.layers[len(l.layers)-2]
 	if parent.kind == layerKindObject && child.kind == layerKindObject {
-		patch, err := l.mergeJSON(parent.data, child.data)
-		if err != nil {
-			return err
-		}
-		parent.data, err = jsonparser.Set(parent.data, patch, child.path...)
+		parent.data, err = l.mergeJSONWithMergePath(parent.data, child.data, child.path)
 		return err
 	}
 	if parent.kind == layerKindObject && child.kind == layerKindArray {
