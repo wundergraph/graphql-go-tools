@@ -48,13 +48,13 @@ type FullType struct {
 	Name        string     `json:"name"`
 	Description string     `json:"description"`
 	// not empty for __TypeKind OBJECT and INTERFACE only
-	Fields []Field `json:"fields"`
+	Fields []Field `json:"fields,omitempty"`
 	// not empty for __TypeKind INPUT_OBJECT only
 	InputFields []InputValue `json:"inputFields"`
 	// not empty for __TypeKind OBJECT only
 	Interfaces []TypeRef `json:"interfaces"`
 	// not empty for __TypeKind ENUM only
-	EnumValues []EnumValue `json:"enumValues"`
+	EnumValues []EnumValue `json:"enumValues,omitempty"`
 	// not empty for __TypeKind INTERFACE and UNION only
 	PossibleTypes []TypeRef `json:"possibleTypes"`
 }
