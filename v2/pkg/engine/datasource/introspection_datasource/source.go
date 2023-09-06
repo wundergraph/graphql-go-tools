@@ -31,7 +31,23 @@ func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error
 		return s.fieldsForType(w, req.OnTypeName, req.IncludeDeprecated)
 	}
 
-	return json.NewEncoder(w).Encode(s.introspectionData.Schema)
+	return json.NewEncoder(w).Encode(s.schemaWithoutTypeInfo())
+}
+
+func (s *Source) schemaWithoutTypeInfo() introspection.Schema {
+	types := make([]introspection.FullType, 0, len(s.introspectionData.Schema.Types))
+
+	for i := range s.introspectionData.Schema.Types {
+		types = append(types, s.typeWithoutFieldAndEnumValues(&s.introspectionData.Schema.Types[i]))
+	}
+
+	return introspection.Schema{
+		QueryType:        s.introspectionData.Schema.QueryType,
+		MutationType:     s.introspectionData.Schema.MutationType,
+		SubscriptionType: s.introspectionData.Schema.SubscriptionType,
+		Types:            types,
+		Directives:       s.introspectionData.Schema.Directives,
+	}
 }
 
 func (s *Source) typeInfo(typeName *string) *introspection.FullType {
@@ -58,7 +74,15 @@ func (s *Source) singleType(w io.Writer, typeName *string) error {
 		return s.writeNull(w)
 	}
 
-	return json.NewEncoder(w).Encode(typeInfo)
+	return json.NewEncoder(w).Encode(s.typeWithoutFieldAndEnumValues(typeInfo))
+}
+
+func (s *Source) typeWithoutFieldAndEnumValues(typeInfo *introspection.FullType) introspection.FullType {
+	typeInfoCopy := *typeInfo
+	typeInfoCopy.Fields = nil
+	typeInfoCopy.EnumValues = nil
+
+	return typeInfoCopy
 }
 
 func (s *Source) fieldsForType(w io.Writer, typeName *string, includeDeprecated bool) error {

@@ -29,7 +29,7 @@ func (p *Planner) DownstreamResponseFieldAlias(_ int) (alias string, exists bool
 func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 	return plan.DataSourcePlanningBehavior{
 		MergeAliasedRootNodes:      false,
-		OverrideFieldPathFromAlias: false,
+		OverrideFieldPathFromAlias: true,
 	}
 }
 
