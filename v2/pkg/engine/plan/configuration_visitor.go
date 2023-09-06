@@ -54,6 +54,7 @@ type objectFetchConfiguration struct {
 	fieldRef           int
 	fieldDefinitionRef int
 	fetchID            int
+	targetPath         string
 }
 
 func (c *configurationVisitor) currentSelectionSet() int {
@@ -596,12 +597,15 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 	if !ok {
 		return false
 	}
+
+	targetPath := c.operation.FieldAliasOrNameString(ref)
 	c.fetches = append(c.fetches, objectFetchConfiguration{
 		planner:            planner,
 		isSubscription:     isSubscription,
 		fieldRef:           ref,
 		fieldDefinitionRef: fieldDefinition,
 		fetchID:            fetchID,
+		targetPath:         targetPath,
 	})
 
 	c.saveAddedPath(currentPathConfiguration)
