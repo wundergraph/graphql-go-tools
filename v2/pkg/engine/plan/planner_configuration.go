@@ -12,6 +12,7 @@ type plannerConfiguration struct {
 	planner                 DataSourcePlanner
 	paths                   []pathConfiguration
 	dataSourceConfiguration DataSourceConfiguration
+	insideArray             bool
 }
 
 func (p *plannerConfiguration) addPath(configuration pathConfiguration) {

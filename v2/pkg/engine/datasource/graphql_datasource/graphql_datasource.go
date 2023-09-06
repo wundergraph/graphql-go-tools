@@ -35,7 +35,7 @@ var (
 		SelectResponseErrorsPath: []string{"errors"},
 	}
 	EntitiesPostProcessingConfiguration = resolve.PostProcessingConfiguration{
-		SelectResponseDataPath:   []string{"data", "__entities"},
+		SelectResponseDataPath:   []string{"data", "_entities"},
 		SelectResponseErrorsPath: []string{"errors"},
 	}
 )
@@ -342,13 +342,14 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		},
 		Variables:                             p.variables,
 		DisallowSingleFlight:                  p.disallowSingleFlight,
-		DisallowParallelFetch:                 p.disallowParallelFetch(),
+		RequiresSerialFetch:                   p.requiresSerialFetch(),
+		RequiresBatchFetch:                    p.requiresBatchFetch(),
 		PostProcessing:                        postProcessing,
 		SetTemplateOutputToNullOnVariableNull: p.extractEntities,
 	}
 }
 
-func (p *Planner) disallowParallelFetch() bool {
+func (p *Planner) requiresSerialFetch() bool {
 	if !p.dataSourceConfig.HasRequiredFieldsFromParentPlanner() {
 		return false
 	}
@@ -361,6 +362,14 @@ func (p *Planner) disallowParallelFetch() bool {
 	}
 
 	return false
+}
+
+func (p *Planner) requiresBatchFetch() bool {
+	if !p.dataSourceConfig.HasRequiredFieldsFromParentPlanner() {
+		return false
+	}
+
+	return p.dataSourceConfig.ParentInfo.InsideArray
 }
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
