@@ -333,6 +333,10 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	postProcessing := DefaultPostProcessingConfiguration
 	if p.extractEntities {
 		postProcessing = EntitiesPostProcessingConfiguration
+
+		if p.shouldSelectSingleEntity() {
+			postProcessing.SelectResponseDataPath = append(postProcessing.SelectResponseDataPath, "[0]")
+		}
 	}
 
 	return plan.FetchConfiguration{
@@ -347,6 +351,11 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		PostProcessing:                        postProcessing,
 		SetTemplateOutputToNullOnVariableNull: p.extractEntities,
 	}
+}
+
+func (p *Planner) shouldSelectSingleEntity() bool {
+	return p.dataSourceConfig.HasRequiredFieldsFromParentPlanner() &&
+		!p.dataSourceConfig.ParentInfo.InsideArray
 }
 
 func (p *Planner) requiresSerialFetch() bool {
