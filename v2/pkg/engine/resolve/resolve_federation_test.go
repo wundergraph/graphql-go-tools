@@ -1654,14 +1654,14 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 
 		productsService := mockedDS(t, ctrl,
 			`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`,
-			`{"topProducts":[{"name":"table","__typename":"Product","upc":"upc-1"},{"name":"spoon","__typename":"Product","upc":"upc-2"}]}`)
+			`{"topProducts":[{"name":"Table","__typename":"Product","upc":"1"},{"name":"Couch","__typename":"Product","upc":"2"},{"name":"Chair","__typename":"Product","upc":"3"}]}`)
 
 		reviewsService := mockedDS(t, ctrl,
-			`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[{"__typename":"Product","upc":"upc-1"},{"__typename":"Product","upc":"upc-2"}]}}}`,
-			`{"_entities":[{"reviews":[{"body":"table-review","author":{"__typename":"User","id":"author-1"}}]},{"reviews":[{"body":"spoon-review","author":{"__typename":"User","id":"author-2"}}]}]}`)
+			`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"2"},{"__typename":"Product","upc":"3"}]}}}`,
+			`{"_entities":[{"__typename":"Product","reviews":[{"body":"Love it!","author":{"__typename":"User","id":"1"}},{"body":"Prefer something else.","author":{"__typename":"User","id":"2"}}]},{"__typename":"Product","reviews":[{"body":"Too expensive.","author":{"__typename":"User","id":"1"}}]},{"__typename":"Product","reviews":[{"body":"Could be better.","author":{"__typename":"User","id":"2"}}]}]}`)
 
 		usersService := mockedDS(t, ctrl,
-			`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[{"__typename":"User","id":"author-1"},{"__typename":"User","id":"author-2"}]}}}`,
+			`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[{"__typename":"User","id":"author-1"},{"__typename":"User","id":"author-2"},{"__typename":"User","id":"author-3"},{"__typename":"User","id":"author-4"}]}}}`,
 			`{"_entities":[{"name":"user-1"},{"name":"user-2"}]}`)
 
 		return &GraphQLResponse{
