@@ -183,7 +183,12 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			engineConf.SetCustomResolveMap(testCase.customResolveMap)
 
 			engineConf.plannerConfig.Debug = plan.DebugConfiguration{
-				PrintPlanningPaths: true,
+				// PrintOperationWithRequiredFields: true,
+				// PrintPlanningPaths:               true,
+				// PrintQueryPlans:                  true,
+				// ConfigurationVisitor:             true,
+				// PlanningVisitor:                  true,
+				// DatasourceVisitor:                true,
 			}
 
 			ctx, cancel := context.WithCancel(context.Background())
