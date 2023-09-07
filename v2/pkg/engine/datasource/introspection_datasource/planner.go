@@ -5,6 +5,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/introspection"
 )
 
@@ -13,6 +14,7 @@ type Planner struct {
 	v                       *plan.Visitor
 	rootField               int
 	rootFieldName           string
+	rootFielPath            string
 	dataSourceConfiguration plan.DataSourceConfiguration
 }
 
@@ -38,10 +40,12 @@ func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 
 func (p *Planner) EnterField(ref int) {
 	fieldName := p.v.Operation.FieldNameString(ref)
+	fieldAliasOrName := p.v.Operation.FieldAliasOrNameString(ref)
 	switch fieldName {
 	case typeFieldName, fieldsFieldName, enumValuesFieldName, schemaFieldName:
 		p.rootField = ref
 		p.rootFieldName = fieldName
+		p.rootFielPath = fieldAliasOrName
 	}
 }
 
@@ -54,10 +58,15 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		p.v.Walker.StopWithInternalErr(errors.New("introspection root field is not set"))
 	}
 
+	insideArray := p.dataSourceConfiguration.ParentInfo.InsideArray
+	postProcessing := resolve.PostProcessingConfiguration{
+		MergePath: []string{p.rootFielPath},
+	}
+
 	requiresParallelListItemFetch := false
 	switch p.rootFieldName {
 	case fieldsFieldName, enumValuesFieldName:
-		requiresParallelListItemFetch = p.dataSourceConfiguration.ParentInfo.InsideArray
+		requiresParallelListItemFetch = insideArray
 	}
 
 	return plan.FetchConfiguration{
@@ -66,6 +75,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		DataSource: &Source{
 			introspectionData: p.introspectionData,
 		},
+		PostProcessing: postProcessing,
 	}
 }
 
