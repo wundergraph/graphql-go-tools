@@ -25,7 +25,7 @@ type configurationVisitor struct {
 	nodeSuggestions    NodeSuggestions        // nodeSuggestions holds information about suggested data sources for each field
 	currentFetchID     int                    // currentFetchID is used to generate serial fetch IDs for each fetch
 	parentTypeNodes    []ast.Node             // parentTypeNodes is a stack of parent type nodes - used to determine if the parent is abstract
-	arrayFields        []int                  // arrayFields is a stack of array fields - used to plan nested queries
+	arrayFields        []arrayField           // arrayFields is a stack of array fields - used to plan nested queries
 	selectionSetRefs   []int                  // selectionSetRefs is a stack of selection set refs - used to add a required fields
 	skipFieldsRefs     []int                  // skipFieldsRefs holds required field refs which should not be added to user response
 	missingPathTracker map[string]missingPath // missingPathTracker is a map of paths which will be added on secondary runs
@@ -38,6 +38,11 @@ type configurationVisitor struct {
 
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the planner not the first time
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
+}
+
+type arrayField struct {
+	fieldRef  int
+	fieldPath string
 }
 
 type missingPath struct {
@@ -65,15 +70,22 @@ func (c *configurationVisitor) currentSelectionSet() int {
 	return c.selectionSetRefs[len(c.selectionSetRefs)-1]
 }
 
-func (c *configurationVisitor) insideArray() bool {
+func (c *configurationVisitor) insideArray(path string) bool {
 	if len(c.arrayFields) == 0 {
 		return false
 	}
 
-	return true
+	for i := len(c.arrayFields) - 1; i >= 0; i-- {
+		arrayPath := c.arrayFields[i].fieldPath
+		if strings.HasPrefix(path, arrayPath) {
+			return true
+		}
+	}
+
+	return false
 }
 
-func (c *configurationVisitor) addArrayField(fieldRef int) {
+func (c *configurationVisitor) addArrayField(fieldRef int, currentPath string) {
 	var (
 		fieldDefRef int
 		ok          bool
@@ -95,7 +107,10 @@ func (c *configurationVisitor) addArrayField(fieldRef int) {
 	}
 
 	if c.definition.TypeIsList(c.definition.FieldDefinitionType(fieldDefRef)) {
-		c.arrayFields = append(c.arrayFields, fieldRef)
+		c.arrayFields = append(c.arrayFields, arrayField{
+			fieldRef:  fieldRef,
+			fieldPath: currentPath,
+		})
 	}
 }
 
@@ -104,7 +119,7 @@ func (c *configurationVisitor) removeArrayField(fieldRef int) {
 		return
 	}
 
-	if c.arrayFields[len(c.arrayFields)-1] == fieldRef {
+	if c.arrayFields[len(c.arrayFields)-1].fieldRef == fieldRef {
 		c.arrayFields = c.arrayFields[:len(c.arrayFields)-1]
 	}
 }
@@ -201,7 +216,7 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 	}
 
 	if c.arrayFields == nil {
-		c.arrayFields = make([]int, 0, 4)
+		c.arrayFields = make([]arrayField, 0, 4)
 	} else {
 		c.arrayFields = c.arrayFields[:0]
 	}
@@ -291,8 +306,6 @@ func (c *configurationVisitor) LeaveSelectionSet(ref int) {
 }
 
 func (c *configurationVisitor) EnterField(ref int) {
-	c.addArrayField(ref)
-
 	fieldName := c.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
@@ -311,6 +324,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 
 	currentPath := parentPath + "." + fieldAliasOrName
 
+	c.addArrayField(ref, currentPath)
 	c.handleProvidesSuggestions(ref, typeName, fieldName, currentPath)
 
 	root := c.walker.Ancestors[0]
@@ -591,7 +605,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		planner:                 planner,
 		paths:                   paths,
 		dataSourceConfiguration: *config,
-		insideArray:             c.insideArray(),
+		insideArray:             c.insideArray(parentPath),
 	})
 	fieldDefinition, ok := c.walker.FieldDefinition(ref)
 	if !ok {
