@@ -87,7 +87,7 @@ func (s *Source) typeWithoutFieldAndEnumValues(typeInfo *introspection.FullType)
 
 func (s *Source) fieldsForType(w io.Writer, typeName *string, includeDeprecated bool) error {
 	typeInfo := s.typeInfo(typeName)
-	if typeInfo == nil {
+	if typeInfo == nil || len(typeInfo.Fields) == 0 {
 		return s.writeNull(w)
 	}
 
@@ -107,7 +107,7 @@ func (s *Source) fieldsForType(w io.Writer, typeName *string, includeDeprecated 
 
 func (s *Source) enumValuesForType(w io.Writer, typeName *string, includeDeprecated bool) error {
 	typeInfo := s.typeInfo(typeName)
-	if typeInfo == nil {
+	if typeInfo == nil || len(typeInfo.EnumValues) == 0 {
 		return s.writeNull(w)
 	}
 
