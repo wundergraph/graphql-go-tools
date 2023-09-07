@@ -16,7 +16,7 @@ func DefaultProcessor() *Processor {
 	return &Processor{
 		[]PostProcessor{
 			&ProcessDataSource{},
-			&ProcessDataSourceBatch{},
+			&DataSourceFetch{},
 		},
 	}
 }

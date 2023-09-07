@@ -991,6 +991,7 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external Fet
 		DisallowSingleFlight:                  external.DisallowSingleFlight,
 		RequiresSerialFetch:                   external.RequiresSerialFetch,
 		RequiresBatchFetch:                    external.RequiresBatchFetch,
+		RequiresParallelListItemFetch:         external.RequiresParallelListItemFetch,
 		DataSourceIdentifier:                  []byte(dataSourceType),
 		PostProcessing:                        postProcessConfig,
 		SetTemplateOutputToNullOnVariableNull: external.SetTemplateOutputToNullOnVariableNull,
