@@ -587,6 +587,10 @@ func (l *Loader) loadAndPostProcess(ctx *Context, input *fastbuffer.FastBuffer, 
 }
 
 func (l *Loader) mergeDataIntoLayer(layer *layer, data []byte, mergePath []string) (err error) {
+	if bytes.Equal(data, null) {
+		return
+	}
+
 	if layer.kind == layerKindObject {
 		layer.data, err = l.mergeJSONWithMergePath(layer.data, data, mergePath)
 		return err
