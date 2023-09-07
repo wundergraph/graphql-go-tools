@@ -1649,4 +1649,202 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"data":{"user":{"account":{"address":{"fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1"}}}}}`
 	}))
+
+	t.Run("nested batching", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+
+		productsService := mockedDS(t, ctrl,
+			`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`,
+			`{"topProducts":[{"name":"table","__typename":"Product","upc":"upc-1"},{"name":"spoon","__typename":"Product","upc":"upc-2"}]}`)
+
+		reviewsService := mockedDS(t, ctrl,
+			`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[{"__typename":"Product","upc":"upc-1"},{"__typename":"Product","upc":"upc-2"}]}}}`,
+			`{"_entities":[{"reviews":[{"body":"table-review","author":{"__typename":"User","id":"author-1"}}]},{"reviews":[{"body":"spoon-review","author":{"__typename":"User","id":"author-2"}}]}]}`)
+
+		usersService := mockedDS(t, ctrl,
+			`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[{"__typename":"User","id":"author-1"},{"__typename":"User","id":"author-2"}]}}}`,
+			`{"_entities":[{"name":"user-1"},{"name":"user-2"}]}`)
+
+		return &GraphQLResponse{
+			Data: &Object{
+				Fetch: &SingleFetch{
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+					DataSource: productsService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
+					},
+				},
+				Fields: []*Field{
+					{
+						Name: []byte("topProducts"),
+						Value: &Array{
+							Path: []string{"topProducts"},
+							Item: &Object{
+								Fetch: &BatchFetch{
+									Input: BatchInput{
+										Header: InputTemplate{
+											Segments: []TemplateSegment{
+												{
+													Data:        []byte(`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[`),
+													SegmentType: StaticSegmentType,
+												},
+											},
+										},
+										Items: []InputTemplate{
+											{
+												Segments: []TemplateSegment{
+													{
+														SegmentType:  VariableSegmentType,
+														VariableKind: ResolvableObjectVariableKind,
+														Renderer: NewGraphQLVariableResolveRenderer(&Object{
+															Fields: []*Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &String{
+																		Path: []string{"__typename"},
+																	},
+																},
+																{
+																	Name: []byte("upc"),
+																	Value: &String{
+																		Path: []string{"upc"},
+																	},
+																},
+															},
+														}),
+													},
+												},
+											},
+										},
+										Separator: InputTemplate{
+											Segments: []TemplateSegment{
+												{
+													Data:        []byte(`,`),
+													SegmentType: StaticSegmentType,
+												},
+											},
+										},
+										Footer: InputTemplate{
+											Segments: []TemplateSegment{
+												{
+													Data:        []byte(`]}}}`),
+													SegmentType: StaticSegmentType,
+												},
+											},
+										},
+									},
+									DataSource: reviewsService,
+									PostProcessing: PostProcessingConfiguration{
+										SelectResponseDataPath: []string{"data", "_entities"},
+									},
+								},
+								Fields: []*Field{
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
+										},
+									},
+									{
+										Name: []byte("reviews"),
+										Value: &Array{
+											Path: []string{"reviews"},
+											Item: &Object{
+												Fields: []*Field{
+													{
+														Name: []byte("body"),
+														Value: &String{
+															Path: []string{"body"},
+														},
+													},
+													{
+														Name: []byte("author"),
+														Value: &Object{
+															Fetch: &BatchFetch{
+																Input: BatchInput{
+																	Header: InputTemplate{
+																		Segments: []TemplateSegment{
+																			{
+																				Data:        []byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[`),
+																				SegmentType: StaticSegmentType,
+																			},
+																		},
+																	},
+																	Items: []InputTemplate{
+																		{
+																			Segments: []TemplateSegment{
+																				{
+																					SegmentType:  VariableSegmentType,
+																					VariableKind: ResolvableObjectVariableKind,
+																					Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																						Fields: []*Field{
+																							{
+																								Name: []byte("__typename"),
+																								Value: &String{
+																									Path: []string{"__typename"},
+																								},
+																							},
+																							{
+																								Name: []byte("id"),
+																								Value: &String{
+																									Path: []string{"id"},
+																								},
+																							},
+																						},
+																					}),
+																				},
+																			},
+																		},
+																	},
+																	Separator: InputTemplate{
+																		Segments: []TemplateSegment{
+																			{
+																				Data:        []byte(`,`),
+																				SegmentType: StaticSegmentType,
+																			},
+																		},
+																	},
+																	Footer: InputTemplate{
+																		Segments: []TemplateSegment{
+																			{
+																				Data:        []byte(`]}}}`),
+																				SegmentType: StaticSegmentType,
+																			},
+																		},
+																	},
+																},
+																DataSource: usersService,
+																PostProcessing: PostProcessingConfiguration{
+																	SelectResponseDataPath: []string{"data", "_entities"},
+																},
+															},
+															Fields: []*Field{
+																{
+																	Name: []byte("name"),
+																	Value: &String{
+																		Path: []string{"name"},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"users":[{"name":"Bill","info":{"age":21},"address":{"line1":"Munich"}},{"name":"John","info":{"age":22},"address":{"line1":"Berlin"}},{"name":"Jane","info":{"age":23},"address":{"line1":"Hamburg"}}]}}`
+	}))
+
 }
