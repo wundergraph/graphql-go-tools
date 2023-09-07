@@ -59,7 +59,6 @@ type objectFetchConfiguration struct {
 	fieldRef           int
 	fieldDefinitionRef int
 	fetchID            int
-	targetPath         string
 }
 
 func (c *configurationVisitor) currentSelectionSet() int {
@@ -566,6 +565,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 				path:             parentPath,
 				shouldWalkFields: false,
 				dsHash:           config.Hash(),
+				fieldRef:         ast.InvalidRef,
 			},
 		}, paths...)
 	} else {
@@ -576,6 +576,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 				path:             parentPath,
 				shouldWalkFields: true,
 				dsHash:           config.Hash(),
+				fieldRef:         ast.InvalidRef,
 			},
 		}, paths...)
 	}
@@ -592,6 +593,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 				path:             precedingFragmentPath,
 				shouldWalkFields: false,
 				dsHash:           config.Hash(),
+				fieldRef:         ast.InvalidRef,
 			},
 		}, paths...)
 
@@ -612,14 +614,12 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		return false
 	}
 
-	targetPath := c.operation.FieldAliasOrNameString(ref)
 	c.fetches = append(c.fetches, objectFetchConfiguration{
 		planner:            planner,
 		isSubscription:     isSubscription,
 		fieldRef:           ref,
 		fieldDefinitionRef: fieldDefinition,
 		fetchID:            fetchID,
-		targetPath:         targetPath,
 	})
 
 	c.saveAddedPath(currentPathConfiguration)

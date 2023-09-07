@@ -979,11 +979,6 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external Fet
 	dataSourceType := reflect.TypeOf(external.DataSource).String()
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 
-	postProcessConfig := external.PostProcessing
-	if internal.targetPath != "" {
-		postProcessConfig.MergePath = []string{internal.targetPath}
-	}
-
 	singleFetch := &resolve.SingleFetch{
 		Input:                                 external.Input,
 		DataSource:                            external.DataSource,
@@ -993,7 +988,7 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external Fet
 		RequiresBatchFetch:                    external.RequiresBatchFetch,
 		RequiresParallelListItemFetch:         external.RequiresParallelListItemFetch,
 		DataSourceIdentifier:                  []byte(dataSourceType),
-		PostProcessing:                        postProcessConfig,
+		PostProcessing:                        external.PostProcessing,
 		SetTemplateOutputToNullOnVariableNull: external.SetTemplateOutputToNullOnVariableNull,
 		SerialID:                              internal.fetchID,
 	}
