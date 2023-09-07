@@ -13,6 +13,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
+	"golang.org/x/sync/singleflight"
 	errors "golang.org/x/xerrors"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastbuffer"
@@ -31,6 +32,8 @@ type Resolver struct {
 	fetcher          *Fetcher
 
 	loaders sync.Pool
+
+	sf *singleflight.Group
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -86,6 +89,7 @@ func New(ctx context.Context, fetcher *Fetcher) *Resolver {
 			},
 		},
 		fetcher: fetcher,
+		sf:      &singleflight.Group{},
 	}
 }
 
@@ -135,6 +139,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 
 	loader := r.loaders.Get().(*Loader)
 	defer r.loaders.Put(loader)
+	loader.sf = r.sf
 
 	hasErrors, err := loader.LoadGraphQLResponseData(ctx, response, data, dataBuf)
 	if err != nil {

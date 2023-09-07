@@ -88,9 +88,10 @@ func (_ *SerialFetch) FetchKind() FetchKind {
 // BatchFetch - TODO: document better
 // allows to join nested fetches to the same subgraph into a single fetch
 type BatchFetch struct {
-	Input          BatchInput
-	DataSource     DataSource
-	PostProcessing PostProcessingConfiguration
+	Input                BatchInput
+	DataSource           DataSource
+	PostProcessing       PostProcessingConfiguration
+	DataSourceIdentifier []byte
 }
 
 type BatchInput struct {
