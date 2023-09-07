@@ -9,14 +9,17 @@ import (
 )
 
 type Planner struct {
-	introspectionData *introspection.Data
-	v                 *plan.Visitor
-	rootField         int
+	introspectionData       *introspection.Data
+	v                       *plan.Visitor
+	rootField               int
+	rootFieldName           string
+	dataSourceConfiguration plan.DataSourceConfiguration
 }
 
-func (p *Planner) Register(visitor *plan.Visitor, _ plan.DataSourceConfiguration, _ bool) error {
+func (p *Planner) Register(visitor *plan.Visitor, dataSourceConfiguration plan.DataSourceConfiguration, _ bool) error {
 	p.v = visitor
 	p.rootField = ast.InvalidRef
+	p.dataSourceConfiguration = dataSourceConfiguration
 	visitor.Walker.RegisterEnterFieldVisitor(p)
 	return nil
 }
@@ -38,13 +41,12 @@ func (p *Planner) EnterField(ref int) {
 	switch fieldName {
 	case typeFieldName, fieldsFieldName, enumValuesFieldName, schemaFieldName:
 		p.rootField = ref
+		p.rootFieldName = fieldName
 	}
 }
 
 func (p *Planner) configureInput() string {
-	fieldName := p.v.Operation.FieldNameString(p.rootField)
-
-	return buildInput(fieldName)
+	return buildInput(p.rootFieldName)
 }
 
 func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
@@ -52,8 +54,15 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		p.v.Walker.StopWithInternalErr(errors.New("introspection root field is not set"))
 	}
 
+	requiresParallelListItemFetch := false
+	switch p.rootFieldName {
+	case fieldsFieldName, enumValuesFieldName:
+		requiresParallelListItemFetch = p.dataSourceConfiguration.ParentInfo.InsideArray
+	}
+
 	return plan.FetchConfiguration{
-		Input: p.configureInput(),
+		Input:                         p.configureInput(),
+		RequiresParallelListItemFetch: requiresParallelListItemFetch,
 		DataSource: &Source{
 			introspectionData: p.introspectionData,
 		},
