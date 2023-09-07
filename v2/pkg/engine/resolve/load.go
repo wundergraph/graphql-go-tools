@@ -13,6 +13,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastbuffer"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
@@ -31,6 +32,8 @@ type Loader struct {
 	layers []*layer
 
 	errors []byte
+
+	sf *singleflight.Group
 }
 
 type layer struct {
@@ -349,7 +352,6 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 	defer pool.FastBuffer.Put(input)
 	inputBuf := pool.FastBuffer.Get()
 	defer pool.FastBuffer.Put(inputBuf)
-	out := l.getLayerBuffer()
 
 	lr := l.currentLayer()
 	err = fetch.Input.Header.Render(ctx, nil, input)
@@ -411,11 +413,10 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 	if err != nil {
 		return err
 	}
-	err = fetch.DataSource.Load(ctx.ctx, input.Bytes(), out)
+	data, err := l.loadWithSingleFlight(ctx, fetch.DataSource, fetch.DataSourceIdentifier, input.Bytes())
 	if err != nil {
 		return err
 	}
-	data := out.Bytes()
 	responseErrors, _, _, _ := jsonparser.Get(data, "errors")
 	if responseErrors != nil {
 		l.errors = responseErrors
@@ -590,12 +591,37 @@ func (l *Loader) resolveSingleFetch(ctx *Context, fetch *SingleFetch) (err error
 	return
 }
 
-func (l *Loader) loadAndPostProcess(ctx *Context, input *fastbuffer.FastBuffer, fetch *SingleFetch, out *fastbuffer.FastBuffer) (data []byte, err error) {
-	err = fetch.DataSource.Load(ctx.ctx, input.Bytes(), out)
+func (l *Loader) loadWithSingleFlight(ctx *Context, source DataSource, identifier, input []byte) ([]byte, error) {
+	keyGen := pool.Hash64.Get()
+	defer pool.Hash64.Put(keyGen)
+	_, _ = keyGen.Write(identifier)
+	_, _ = keyGen.Write(input)
+	key := fmt.Sprintf("%d", keyGen.Sum64())
+	maybeData, err, shared := l.sf.Do(key, func() (interface{}, error) {
+		out := fastbuffer.New()
+		err := source.Load(ctx.ctx, input, out)
+		if err != nil {
+			return nil, err
+		}
+		return out.Bytes(), nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	data = out.Bytes()
+	data := maybeData.([]byte)
+	if shared {
+		out := l.getLayerBuffer()
+		out.WriteBytes(data)
+		return out.Bytes(), nil
+	}
+	return data, nil
+}
+
+func (l *Loader) loadAndPostProcess(ctx *Context, input *fastbuffer.FastBuffer, fetch *SingleFetch, out *fastbuffer.FastBuffer) (data []byte, err error) {
+	data, err = l.loadWithSingleFlight(ctx, fetch.DataSource, fetch.DataSourceIdentifier, input.Bytes())
+	if err != nil {
+		return nil, err
+	}
 	responseErrors, _, _, _ := jsonparser.Get(data, "errors")
 	if responseErrors != nil {
 		if l.parallelFetch {
