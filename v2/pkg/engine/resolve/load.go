@@ -34,11 +34,21 @@ type Loader struct {
 }
 
 type layer struct {
-	path    []string
-	data    []byte
-	items   [][]byte
-	kind    layerKind
-	buffers []*fastbuffer.FastBuffer
+	path            []string
+	data            []byte
+	items           [][]byte
+	kind            layerKind
+	buffers         []*fastbuffer.FastBuffer
+	hasFetches      bool
+	hasResolvedData bool
+}
+
+func (l *layer) itemsSize() int {
+	size := 0
+	for i := range l.items {
+		size += len(l.items[i])
+	}
+	return size
 }
 
 type layerKind int
@@ -212,8 +222,7 @@ func (l *Loader) resolveArray(ctx *Context, array *Array) (err error) {
 }
 
 func (l *Loader) resolveObject(ctx *Context, object *Object) (err error) {
-	hasChildFetches := object.HasChildFetches()
-	if object.Fetch == nil && !hasChildFetches {
+	if l.shouldSkipObject(object) {
 		return nil
 	}
 	if len(object.Path) != 0 {
@@ -238,7 +247,7 @@ func (l *Loader) resolveObject(ctx *Context, object *Object) (err error) {
 			return err
 		}
 	}
-	if hasChildFetches {
+	if l.shouldTraverseObjectChildren(object) {
 		for i := range object.Fields {
 			err = l.resolveNode(ctx, object.Fields[i].Value)
 			if err != nil {
@@ -254,6 +263,24 @@ func (l *Loader) resolveObject(ctx *Context, object *Object) (err error) {
 		l.popLayer()
 	}
 	return nil
+}
+
+func (l *Loader) shouldSkipObject(object *Object) bool {
+	if object.Fetch == nil && !object.HasChildFetches() {
+		return true
+	}
+	return false
+}
+
+func (l *Loader) shouldTraverseObjectChildren(object *Object) bool {
+	if !object.HasChildFetches() {
+		return false
+	}
+	lr := l.currentLayer()
+	if lr.hasFetches {
+		return lr.hasResolvedData
+	}
+	return true
 }
 
 func (l *Loader) mergeLayerIntoParent() (err error) {
@@ -300,6 +327,8 @@ func (l *Loader) mergeLayerIntoParent() (err error) {
 }
 
 func (l *Loader) resolveFetch(ctx *Context, fetch Fetch) (err error) {
+	lr := l.currentLayer()
+	lr.hasFetches = true
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		return l.resolveSingleFetch(ctx, f)
@@ -452,6 +481,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 			}
 		}
 	}
+	before := lr.itemsSize()
 	for i := range lr.items {
 		if lr.items[i] == nil {
 			continue
@@ -460,6 +490,10 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 		if err != nil {
 			return err
 		}
+	}
+	after := lr.itemsSize()
+	if after > before {
+		lr.hasResolvedData = true
 	}
 	return
 }
@@ -475,6 +509,7 @@ func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListI
 		l.parallelFetch = false
 	}()
 	groupContext := ctx.WithContext(gCtx)
+	beforeSize := layer.itemsSize()
 	for i := range layer.items {
 		i := i
 		// get a buffer before we start the goroutines
@@ -498,7 +533,14 @@ func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListI
 		})
 	}
 	err = group.Wait()
-	return err
+	if err != nil {
+		return err
+	}
+	afterSize := layer.itemsSize()
+	if afterSize > beforeSize {
+		layer.hasResolvedData = true
+	}
+	return nil
 }
 
 func (l *Loader) resolveParallelFetch(ctx *Context, fetch *ParallelFetch) (err error) {
@@ -590,7 +632,7 @@ func (l *Loader) mergeDataIntoLayer(layer *layer, data []byte, mergePath []strin
 	if bytes.Equal(data, null) {
 		return
 	}
-
+	layer.hasResolvedData = true
 	if layer.kind == layerKindObject {
 		layer.data, err = l.mergeJSONWithMergePath(layer.data, data, mergePath)
 		return err
