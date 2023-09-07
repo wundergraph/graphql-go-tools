@@ -5,9 +5,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-type ProcessDataSourceBatch struct{}
+type DataSourceFetch struct{}
 
-func (d *ProcessDataSourceBatch) Process(pre plan.Plan) plan.Plan {
+func (d *DataSourceFetch) Process(pre plan.Plan) plan.Plan {
 	switch t := pre.(type) {
 	case *plan.SynchronousResponsePlan:
 		d.traverseNode(t.Response.Data)
@@ -17,7 +17,7 @@ func (d *ProcessDataSourceBatch) Process(pre plan.Plan) plan.Plan {
 	return pre
 }
 
-func (d *ProcessDataSourceBatch) traverseNode(node resolve.Node) {
+func (d *DataSourceFetch) traverseNode(node resolve.Node) {
 	switch n := node.(type) {
 	case *resolve.Object:
 		n.Fetch = d.traverseFetch(n.Fetch)
@@ -29,7 +29,7 @@ func (d *ProcessDataSourceBatch) traverseNode(node resolve.Node) {
 	}
 }
 
-func (d *ProcessDataSourceBatch) traverseFetch(fetch resolve.Fetch) resolve.Fetch {
+func (d *DataSourceFetch) traverseFetch(fetch resolve.Fetch) resolve.Fetch {
 	if fetch == nil {
 		return nil
 	}
@@ -53,11 +53,24 @@ func (d *ProcessDataSourceBatch) traverseFetch(fetch resolve.Fetch) resolve.Fetc
 	return fetch
 }
 
-func (d *ProcessDataSourceBatch) traverseSingleFetch(fetch *resolve.SingleFetch) resolve.Fetch {
-	if !fetch.RequiresBatchFetch {
+func (d *DataSourceFetch) traverseSingleFetch(fetch *resolve.SingleFetch) resolve.Fetch {
+	switch {
+	case fetch.RequiresBatchFetch:
+		return d.createBatchFetch(fetch)
+	case fetch.RequiresParallelListItemFetch:
+		return d.createParallelListItemFetch(fetch)
+	default:
 		return fetch
 	}
+}
 
+func (d *DataSourceFetch) createParallelListItemFetch(fetch *resolve.SingleFetch) resolve.Fetch {
+	return &resolve.ParallelListItemFetch{
+		Fetch: fetch,
+	}
+}
+
+func (d *DataSourceFetch) createBatchFetch(fetch *resolve.SingleFetch) resolve.Fetch {
 	representationsVariableIndex := -1
 	for i, segment := range fetch.InputTemplate.Segments {
 		if segment.SegmentType == resolve.VariableSegmentType &&
