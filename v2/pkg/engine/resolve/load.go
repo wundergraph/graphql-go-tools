@@ -547,8 +547,12 @@ func (l *Loader) resolveParallelFetch(ctx *Context, fetch *ParallelFetch) (err e
 	l.parallelFetch = true
 	group, groupContext := errgroup.WithContext(ctx.ctx)
 	groupCtx := ctx.WithContext(groupContext)
+	isArray := l.insideArray()
 	for i := range fetch.Fetches {
 		f := fetch.Fetches[i]
+		if isArray && f.FetchKind() == FetchKindSingle {
+			return fmt.Errorf("parallel fetches inside an array must not be of kind FetchKindSingle - this seems to be a bug in the planner")
+		}
 		group.Go(func() error {
 			return l.resolveFetch(groupCtx, f)
 		})
