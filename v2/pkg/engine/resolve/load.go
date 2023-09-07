@@ -550,8 +550,6 @@ func (l *Loader) resolveParallelFetch(ctx *Context, fetch *ParallelFetch) (err e
 	for i := range fetch.Fetches {
 		f := fetch.Fetches[i]
 		group.Go(func() error {
-			parentFetch := fetch
-			_ = parentFetch
 			return l.resolveFetch(groupCtx, f)
 		})
 	}
