@@ -12,9 +12,9 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
+	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 	"golang.org/x/sync/singleflight"
-	errors "golang.org/x/xerrors"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastbuffer"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
@@ -143,7 +143,9 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 
 	hasErrors, err := loader.LoadGraphQLResponseData(ctx, response, data, dataBuf)
 	if err != nil {
-		return
+		fmt.Printf("%+v", err)
+
+		return err
 	}
 
 	buf := r.getBufPair()

@@ -2,7 +2,6 @@ package resolve
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"hash"
 	"io"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
+	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 
@@ -183,7 +183,7 @@ func (l *Loader) resolveLayerData(path []string, isArray bool) (data []byte, ite
 				items = append(items, value)
 			}
 		}, path...)
-		return nil, items, err
+		return nil, items, errors.WithStack(err)
 	}
 	for i := range current.items {
 		data, _, _, _ = jsonparser.Get(current.items[i], path...)
@@ -200,7 +200,7 @@ func (l *Loader) resolveArray(ctx *Context, array *Array) (err error) {
 	if len(array.Path) != 0 {
 		data, items, err := l.resolveLayerData(array.Path, true)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		next := &layer{
 			path:  array.Path,
@@ -212,12 +212,12 @@ func (l *Loader) resolveArray(ctx *Context, array *Array) (err error) {
 	}
 	err = l.resolveNode(ctx, array.Item)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	if len(array.Path) != 0 {
 		err = l.mergeLayerIntoParent()
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		l.popLayer()
 	}
@@ -231,7 +231,7 @@ func (l *Loader) resolveObject(ctx *Context, object *Object) (err error) {
 	if len(object.Path) != 0 {
 		data, items, err := l.resolveLayerData(object.Path, false)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		next := &layer{
 			path:  object.Path,
@@ -247,21 +247,21 @@ func (l *Loader) resolveObject(ctx *Context, object *Object) (err error) {
 	if object.Fetch != nil {
 		err = l.resolveFetch(ctx, object.Fetch)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 	if l.shouldTraverseObjectChildren(object) {
 		for i := range object.Fields {
 			err = l.resolveNode(ctx, object.Fields[i].Value)
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 		}
 	}
 	if len(object.Path) != 0 {
 		err = l.mergeLayerIntoParent()
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		l.popLayer()
 	}
@@ -291,7 +291,7 @@ func (l *Loader) mergeLayerIntoParent() (err error) {
 	parent := l.layers[len(l.layers)-2]
 	if parent.kind == layerKindObject && child.kind == layerKindObject {
 		parent.data, err = l.mergeJSONWithMergePath(parent.data, child.data, child.path)
-		return err
+		return errors.WithStack(err)
 	}
 	if parent.kind == layerKindObject && child.kind == layerKindArray {
 		buf := l.getLayerBuffer()
@@ -310,7 +310,7 @@ func (l *Loader) mergeLayerIntoParent() (err error) {
 		}
 		_, _ = buf.Write([]byte(`]`))
 		parent.data, err = jsonparser.Set(parent.data, buf.Bytes(), child.path...)
-		return err
+		return errors.WithStack(err)
 	}
 	for i := range parent.items {
 		if child.items[i] == nil {
@@ -319,11 +319,11 @@ func (l *Loader) mergeLayerIntoParent() (err error) {
 		existing, _, _, _ := jsonparser.Get(parent.items[i], child.path...)
 		combined, err := l.mergeJSON(existing, child.items[i])
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		parent.items[i], err = jsonparser.Set(parent.items[i], combined, child.path...)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 	return nil
@@ -356,7 +356,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 	lr := l.currentLayer()
 	err = fetch.Input.Header.Render(ctx, nil, input)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	batchStats := make([][]int, len(lr.items))
 	batchItemIndex := 0
@@ -381,7 +381,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 					batchStats[i] = append(batchStats[i], -1)
 					continue
 				}
-				return err
+				return errors.WithStack(err)
 			}
 			if fetch.Input.SkipNullItems && itemBuf.Len() == 4 && bytes.Equal(itemBuf.Bytes(), null) {
 				batchStats[i] = append(batchStats[i], -1)
@@ -400,7 +400,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 			if addSeparator {
 				err = fetch.Input.Separator.Render(ctx, nil, input)
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 			}
 			input.WriteBytes(itemBuf.Bytes())
@@ -411,21 +411,21 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 	}
 	err = fetch.Input.Footer.Render(ctx, nil, input)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	data, err := l.loadWithSingleFlight(ctx, fetch.DataSource, fetch.DataSourceIdentifier, input.Bytes())
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	responseErrors, _, _, _ := jsonparser.Get(data, "errors")
 	if responseErrors != nil {
 		l.errors = responseErrors
-		return ErrOriginResponseError
+		return errors.WithStack(ErrOriginResponseError)
 	}
 	if fetch.PostProcessing.SelectResponseDataPath != nil {
 		data, _, _, err = jsonparser.Get(data, fetch.PostProcessing.SelectResponseDataPath...)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 	var (
@@ -435,7 +435,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 		batchResponseItems = append(batchResponseItems, value)
 	})
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	itemsData := make([][]byte, len(lr.items))
 	if fetch.PostProcessing.ResponseTemplate != nil {
@@ -455,7 +455,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 				}
 				_, err = buf.Write(batchResponseItems[stats[j]])
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 			}
 			buf.WriteBytes(rBrack)
@@ -465,7 +465,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 			out := l.getLayerBuffer()
 			err = fetch.PostProcessing.ResponseTemplate.Render(ctx, itemsData[i], out)
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 			itemsData[i] = out.Bytes()
 		}
@@ -477,7 +477,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 				}
 				itemsData[i], err = l.mergeJSON(itemsData[i], batchResponseItems[stats[j]])
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 			}
 		}
@@ -489,7 +489,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 		}
 		lr.items[i], err = l.mergeJSONWithMergePath(lr.items[i], itemsData[i], fetch.PostProcessing.MergePath)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 	after := lr.itemsSize()
@@ -501,7 +501,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 
 func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListItemFetch) (err error) {
 	if !l.insideArray() {
-		return fmt.Errorf("resolveParallelListItemFetch must be inside an array, this seems to be a bug in the planner")
+		return errors.WithStack(fmt.Errorf("resolveParallelListItemFetch must be inside an array, this seems to be a bug in the planner"))
 	}
 	layer := l.currentLayer()
 	group, gCtx := errgroup.WithContext(ctx.ctx)
@@ -523,19 +523,19 @@ func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListI
 			defer pool.FastBuffer.Put(input)
 			err = fetch.Fetch.InputTemplate.Render(ctx, layer.items[i], input)
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 			data, err := l.loadAndPostProcess(groupContext, input, fetch.Fetch, out)
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 			layer.items[i], err = l.mergeJSONWithMergePath(layer.items[i], data, fetch.Fetch.PostProcessing.MergePath)
-			return err
+			return errors.WithStack(err)
 		})
 	}
 	err = group.Wait()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	afterSize := layer.itemsSize()
 	if afterSize > beforeSize {
@@ -560,7 +560,7 @@ func (l *Loader) resolveParallelFetch(ctx *Context, fetch *ParallelFetch) (err e
 	}
 	err = group.Wait()
 	l.parallelFetch = false
-	return err
+	return errors.WithStack(err)
 }
 
 func (l *Loader) resolveSingleFetch(ctx *Context, fetch *SingleFetch) (err error) {
@@ -572,11 +572,11 @@ func (l *Loader) resolveSingleFetch(ctx *Context, fetch *SingleFetch) (err error
 	inputData := l.inputData(l.currentLayer(), inputBuf)
 	err = fetch.InputTemplate.Render(ctx, inputData, input)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	data, err := l.loadAndPostProcess(ctx, input, fetch, out)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	if l.parallelFetch {
 		l.parallelMu.Lock()
@@ -586,7 +586,7 @@ func (l *Loader) resolveSingleFetch(ctx *Context, fetch *SingleFetch) (err error
 		l.parallelMu.Unlock()
 	}
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	return
 }
@@ -620,7 +620,7 @@ func (l *Loader) loadWithSingleFlight(ctx *Context, source DataSource, identifie
 func (l *Loader) loadAndPostProcess(ctx *Context, input *fastbuffer.FastBuffer, fetch *SingleFetch, out *fastbuffer.FastBuffer) (data []byte, err error) {
 	data, err = l.loadWithSingleFlight(ctx, fetch.DataSource, fetch.DataSourceIdentifier, input.Bytes())
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	responseErrors, _, _, _ := jsonparser.Get(data, "errors")
 	if responseErrors != nil {
@@ -636,7 +636,7 @@ func (l *Loader) loadAndPostProcess(ctx *Context, input *fastbuffer.FastBuffer, 
 	if fetch.PostProcessing.SelectResponseDataPath != nil {
 		data, _, _, err = jsonparser.Get(data, fetch.PostProcessing.SelectResponseDataPath...)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 	}
 	if fetch.PostProcessing.ResponseTemplate != nil {
@@ -644,12 +644,12 @@ func (l *Loader) loadAndPostProcess(ctx *Context, input *fastbuffer.FastBuffer, 
 		defer pool.FastBuffer.Put(intermediate)
 		_, err = intermediate.Write(data)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		out.Reset()
 		err = fetch.PostProcessing.ResponseTemplate.Render(ctx, intermediate.Bytes(), out)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		data = out.Bytes()
 	}
@@ -663,7 +663,7 @@ func (l *Loader) mergeDataIntoLayer(layer *layer, data []byte, mergePath []strin
 	layer.hasResolvedData = true
 	if layer.kind == layerKindObject {
 		layer.data, err = l.mergeJSONWithMergePath(layer.data, data, mergePath)
-		return err
+		return errors.WithStack(err)
 	}
 	var (
 		dataItems [][]byte
@@ -678,7 +678,7 @@ func (l *Loader) mergeDataIntoLayer(layer *layer, data []byte, mergePath []strin
 		}
 	})
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	skipped := 0
 	for i := 0; i < len(layer.items); i++ {
@@ -688,7 +688,7 @@ func (l *Loader) mergeDataIntoLayer(layer *layer, data []byte, mergePath []strin
 		}
 		layer.items[i], err = l.mergeJSONWithMergePath(layer.items[i], dataItems[i-skipped], mergePath)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 	return nil
@@ -698,7 +698,7 @@ func (l *Loader) resolveSerialFetch(ctx *Context, fetch *SerialFetch) (err error
 	for i := range fetch.Fetches {
 		err = l.resolveFetch(ctx, fetch.Fetches[i])
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 	return nil
@@ -780,7 +780,7 @@ func (l *Loader) mergeJSON(left, right []byte) ([]byte, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	err = jsonparser.ObjectEach(right, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		if i, exists := l.byteSliceContainsKey(ctx.keys, key); exists {
@@ -791,22 +791,22 @@ func (l *Loader) mergeJSON(left, right []byte) ([]byte, error) {
 			case jsonparser.Object:
 				merged, err := l.mergeJSON(ctx.values[i], value)
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 				left, err = jsonparser.Set(left, merged, l.unsafeBytesToString(key))
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 			case jsonparser.String:
 				update := right[offset-len(value)-2 : offset]
 				left, err = jsonparser.Set(left, update, l.unsafeBytesToString(key))
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 			default:
 				left, err = jsonparser.Set(left, value, l.unsafeBytesToString(key))
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 			}
 			return nil
@@ -817,7 +817,7 @@ func (l *Loader) mergeJSON(left, right []byte) ([]byte, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	if len(ctx.missingKeys) == 0 {
 		return left, nil
