@@ -3,6 +3,7 @@ package ast
 import "github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
 
 type SchemaDefinition struct {
+	Description                  Description       // optional
 	SchemaLiteral                position.Position // schema
 	HasDirectives                bool
 	Directives                   DirectiveList                   // optional, e.g. @foo

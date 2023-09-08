@@ -195,6 +195,41 @@ func TestParser_Parse(t *testing.T) {
 					}
 				})
 		})
+
+		t.Run("with description", func(t *testing.T) {
+			run(`
+					"this is a schema"
+					schema {
+						query: Query 
+					}`, parse,
+				false,
+				func(doc *ast.Document, extra interface{}) {
+					definition := doc.RootNodes[0]
+					if definition.Ref != 0 {
+						panic("want 0")
+					}
+					if definition.Kind != ast.NodeKindSchemaDefinition {
+						panic("want NodeKindSchemaDefinition")
+					}
+					schema := doc.SchemaDefinitions[0]
+					if !schema.Description.IsDefined {
+						panic("want schema description to be defined")
+					}
+					description := doc.Input.ByteSliceString(schema.Description.Content)
+					if description != "this is a schema" {
+						panic(fmt.Errorf("want 'this is a schema', got '%s'", description))
+					}
+					query := doc.RootOperationTypeDefinitions[schema.RootOperationTypeDefinitions.Refs[0]]
+					if query.OperationType != ast.OperationTypeQuery {
+						panic("want OperationTypeQuery")
+					}
+					name := doc.Input.ByteSliceString(query.NamedType.Name)
+					if name != "Query" {
+						panic(fmt.Errorf("want 'Query', got '%s'", name))
+					}
+				})
+		})
+
 		t.Run("with directives", func(t *testing.T) {
 			run(`schema @foo @bar(baz: "bal") {
 						query: Query 

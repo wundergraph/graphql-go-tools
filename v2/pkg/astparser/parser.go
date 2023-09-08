@@ -103,7 +103,7 @@ func (p *Parser) parse() {
 			case identkeyword.EXTEND:
 				p.parseExtension()
 			case identkeyword.SCHEMA:
-				p.parseSchemaDefinition()
+				p.parseSchemaDefinition(nil)
 			case identkeyword.SCALAR:
 				p.parseScalarTypeDefinition(nil)
 			case identkeyword.FRAGMENT:
@@ -227,13 +227,15 @@ func (p *Parser) errUnexpectedToken(unexpected token.Token, expectedKeywords ...
 	})
 }
 
-func (p *Parser) parseSchemaDefinition() {
+func (p *Parser) parseSchemaDefinition(description *ast.Description) {
+	var schemaDefinition ast.SchemaDefinition
+
+	if description != nil {
+		schemaDefinition.Description = *description
+	}
 
 	schemaLiteral := p.read()
-
-	schemaDefinition := ast.SchemaDefinition{
-		SchemaLiteral: schemaLiteral.TextPosition,
-	}
+	schemaDefinition.SchemaLiteral = schemaLiteral.TextPosition
 
 	if p.peekEquals(keyword.AT) {
 		schemaDefinition.Directives = p.parseDirectiveList()
@@ -717,6 +719,8 @@ func (p *Parser) parseRootDescription() {
 		p.parseDirectiveDefinition(&description)
 	case identkeyword.EXTEND:
 		p.parseExtension()
+	case identkeyword.SCHEMA:
+		p.parseSchemaDefinition(&description)
 	default:
 		p.errUnexpectedIdentKey(p.read(), next, identkeyword.TYPE, identkeyword.INPUT, identkeyword.SCALAR, identkeyword.INTERFACE, identkeyword.UNION, identkeyword.ENUM, identkeyword.DIRECTIVE)
 	}
