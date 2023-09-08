@@ -4239,9 +4239,8 @@ func Benchmark_NestedBatching(b *testing.B) {
 	resolver := newResolver(rCtx, true)
 
 	productsService := FakeDataSource(`{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1"},{"name":"Couch","__typename":"Product","upc":"2"},{"name":"Chair","__typename":"Product","upc":"3"}]}}`)
-
-	reviewsService := FakeDataSource(`{"data":{"_entities":[{"__typename":"Product","reviews":[{"body":"Love it!","author":{"__typename":"User","id":"1"}},{"body":"Prefer something else.","author":{"__typename":"User","id":"2"}}]},{"__typename":"Product","reviews":[{"body":"Too expensive.","author":{"__typename":"User","id":"1"}}]},{"__typename":"Product","reviews":[{"body":"Could be better.","author":{"__typename":"User","id":"2"}}]}]}}`)
-
+	stockService := FakeDataSource(`{"data":{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}}`)
+	reviewsService := FakeDataSource(`{"data":{"_entities":[{"__typename":"Product","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2"}}]},{"__typename":"Product","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1"}}]},{"__typename":"Product","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2"}}]}]}}`)
 	usersService := FakeDataSource(`{"data":{"_entities":[{"name":"user-1"},{"name":"user-2"}]}}`)
 
 	plan := &GraphQLResponse{
@@ -4266,62 +4265,124 @@ func Benchmark_NestedBatching(b *testing.B) {
 					Value: &Array{
 						Path: []string{"topProducts"},
 						Item: &Object{
-							Fetch: &BatchFetch{
-								Input: BatchInput{
-									Header: InputTemplate{
-										Segments: []TemplateSegment{
-											{
-												Data:        []byte(`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[`),
-												SegmentType: StaticSegmentType,
+							Fetch: &ParallelFetch{
+								Fetches: []Fetch{
+									&BatchFetch{
+										Input: BatchInput{
+											Header: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[`),
+														SegmentType: StaticSegmentType,
+													},
+												},
 											},
-										},
-									},
-									Items: []InputTemplate{
-										{
-											Segments: []TemplateSegment{
+											Items: []InputTemplate{
 												{
-													SegmentType:  VariableSegmentType,
-													VariableKind: ResolvableObjectVariableKind,
-													Renderer: NewGraphQLVariableResolveRenderer(&Object{
-														Fields: []*Field{
-															{
-																Name: []byte("__typename"),
-																Value: &String{
-																	Path: []string{"__typename"},
+													Segments: []TemplateSegment{
+														{
+															SegmentType:  VariableSegmentType,
+															VariableKind: ResolvableObjectVariableKind,
+															Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																Fields: []*Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &String{
+																			Path: []string{"__typename"},
+																		},
+																	},
+																	{
+																		Name: []byte("upc"),
+																		Value: &String{
+																			Path: []string{"upc"},
+																		},
+																	},
 																},
-															},
-															{
-																Name: []byte("upc"),
-																Value: &String{
-																	Path: []string{"upc"},
-																},
-															},
+															}),
 														},
-													}),
+													},
+												},
+											},
+											Separator: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`,`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+											Footer: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`]}}}`),
+														SegmentType: StaticSegmentType,
+													},
 												},
 											},
 										},
-									},
-									Separator: InputTemplate{
-										Segments: []TemplateSegment{
-											{
-												Data:        []byte(`,`),
-												SegmentType: StaticSegmentType,
-											},
+										DataSource: reviewsService,
+										PostProcessing: PostProcessingConfiguration{
+											SelectResponseDataPath: []string{"data", "_entities"},
 										},
 									},
-									Footer: InputTemplate{
-										Segments: []TemplateSegment{
-											{
-												Data:        []byte(`]}}}`),
-												SegmentType: StaticSegmentType,
+									&BatchFetch{
+										Input: BatchInput{
+											Header: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`{"method":"POST","url":"http://stock","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {stock}}}","variables":{"representations":[`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+											Items: []InputTemplate{
+												{
+													Segments: []TemplateSegment{
+														{
+															SegmentType:  VariableSegmentType,
+															VariableKind: ResolvableObjectVariableKind,
+															Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																Fields: []*Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &String{
+																			Path: []string{"__typename"},
+																		},
+																	},
+																	{
+																		Name: []byte("upc"),
+																		Value: &String{
+																			Path: []string{"upc"},
+																		},
+																	},
+																},
+															}),
+														},
+													},
+												},
+											},
+											Separator: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`,`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+											Footer: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`]}}}`),
+														SegmentType: StaticSegmentType,
+													},
+												},
 											},
 										},
+										DataSource: stockService,
+										PostProcessing: PostProcessingConfiguration{
+											SelectResponseDataPath: []string{"data", "_entities"},
+										},
 									},
-								},
-								DataSource: reviewsService,
-								PostProcessing: PostProcessingConfiguration{
-									SelectResponseDataPath: []string{"data", "_entities"},
 								},
 							},
 							Fields: []*Field{
@@ -4329,6 +4390,12 @@ func Benchmark_NestedBatching(b *testing.B) {
 									Name: []byte("name"),
 									Value: &String{
 										Path: []string{"name"},
+									},
+								},
+								{
+									Name: []byte("stock"),
+									Value: &Integer{
+										Path: []string{"stock"},
 									},
 								},
 								{
@@ -4428,7 +4495,7 @@ func Benchmark_NestedBatching(b *testing.B) {
 	}
 
 	var err error
-	expected := []byte(`{"data":{"topProducts":[{"name":"Table","reviews":[{"body":"Love it!","author":{"name":"user-1"}},{"body":"Prefer something else.","author":{"name":"user-2"}}]},{"name":"Couch","reviews":[{"body":"Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","reviews":[{"body":"Could be better.","author":{"name":"user-2"}}]}]}}`)
+	expected := []byte(`{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`)
 
 	pool := sync.Pool{
 		New: func() interface{} {
@@ -4450,6 +4517,7 @@ func Benchmark_NestedBatching(b *testing.B) {
 		for pb.Next() {
 			ctx := ctxPool.Get().(*Context)
 			buf := pool.Get().(*bytes.Buffer)
+			ctx.ctx = context.Background()
 			err = resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
 			if err != nil {
 				b.Fatal(err)

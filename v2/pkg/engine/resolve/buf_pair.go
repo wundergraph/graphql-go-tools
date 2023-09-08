@@ -7,10 +7,6 @@ type BufPair struct {
 	Errors *fastbuffer.FastBuffer
 }
 
-type resultSet struct {
-	buffers map[int]*BufPair
-}
-
 func NewBufPair() *BufPair {
 	return &BufPair{
 		Data:   fastbuffer.New(),
