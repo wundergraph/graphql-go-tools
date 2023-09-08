@@ -1766,6 +1766,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 													{
 														Name: []byte("author"),
 														Value: &Object{
+															Path: []string{"author"},
 															Fetch: &BatchFetch{
 																Input: BatchInput{
 																	Header: InputTemplate{
@@ -1844,7 +1845,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"users":[{"name":"Bill","info":{"age":21},"address":{"line1":"Munich"}},{"name":"John","info":{"age":22},"address":{"line1":"Berlin"}},{"name":"Jane","info":{"age":23},"address":{"line1":"Hamburg"}}]}}`
+		}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"topProducts":[{"name":"table","reviews":[{"body":"table-review","author":{"name":"user-1"}}]},{"name":"spoon","reviews":[{"body":"spoon-review","author":{"name":"user-2"}}]}]}}`
 	}))
 
 }

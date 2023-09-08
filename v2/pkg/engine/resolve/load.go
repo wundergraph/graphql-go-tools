@@ -40,6 +40,7 @@ type layer struct {
 	path            []string
 	data            []byte
 	items           [][]byte
+	mapping         [][]int
 	kind            layerKind
 	buffers         []*fastbuffer.FastBuffer
 	hasFetches      bool
@@ -160,7 +161,7 @@ func (l *Loader) setCurrentLayerData(data []byte) {
 	l.layers[len(l.layers)-1].data = data
 }
 
-func (l *Loader) resolveLayerData(path []string, isArray bool) (data []byte, items [][]byte, err error) {
+func (l *Loader) resolveLayerData(path []string, isArray bool) (data []byte, items [][]byte, itemsMapping [][]int, err error) {
 	current := l.currentLayer()
 	if !l.insideArray() && !isArray {
 		buf := l.getLayerBuffer()
@@ -169,7 +170,7 @@ func (l *Loader) resolveLayerData(path []string, isArray bool) (data []byte, ite
 		data, _, _, err = jsonparser.Get(data, path...)
 		if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 			// we have no data for this path which is legit
-			return nil, nil, nil
+			return nil, nil, nil, nil
 		}
 		return
 	}
@@ -183,44 +184,59 @@ func (l *Loader) resolveLayerData(path []string, isArray bool) (data []byte, ite
 				items = append(items, value)
 			}
 		}, path...)
-		return nil, items, errors.WithStack(err)
+		return nil, items, nil, errors.WithStack(err)
+	}
+	if isArray {
+		itemsMapping = make([][]int, len(current.items))
+		count := 0
+		for i := range current.items {
+			_, _ = jsonparser.ArrayEach(current.items[i], func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+				switch dataType {
+				case jsonparser.String:
+					// jsonparser.ArrayEach does not return the quotes so we need to add them
+					items = append(items, current.items[i][offset-2:offset+len(value)])
+				default:
+					items = append(items, value)
+				}
+				itemsMapping[i] = append(itemsMapping[i], count)
+				count++
+			}, path...)
+		}
+		return nil, items, itemsMapping, nil
 	}
 	for i := range current.items {
 		data, _, _, _ = jsonparser.Get(current.items[i], path...)
 		// we explicitly ignore the error and just append a nil slice
 		items = append(items, data)
 	}
-	return nil, items, nil
+	return nil, items, itemsMapping, nil
 }
 
 func (l *Loader) resolveArray(ctx *Context, array *Array) (err error) {
 	if !array.HasChildFetches() {
 		return nil
 	}
-	if len(array.Path) != 0 {
-		data, items, err := l.resolveLayerData(array.Path, true)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		next := &layer{
-			path:  array.Path,
-			data:  data,
-			items: items,
-			kind:  layerKindArray,
-		}
-		l.layers = append(l.layers, next)
+	data, items, mapping, err := l.resolveLayerData(array.Path, true)
+	if err != nil {
+		return errors.WithStack(err)
 	}
+	next := &layer{
+		path:    array.Path,
+		data:    data,
+		items:   items,
+		mapping: mapping,
+		kind:    layerKindArray,
+	}
+	l.layers = append(l.layers, next)
 	err = l.resolveNode(ctx, array.Item)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	if len(array.Path) != 0 {
-		err = l.mergeLayerIntoParent()
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		l.popLayer()
+	err = l.mergeLayerIntoParent()
+	if err != nil {
+		return errors.WithStack(err)
 	}
+	l.popLayer()
 	return nil
 }
 
@@ -229,15 +245,16 @@ func (l *Loader) resolveObject(ctx *Context, object *Object) (err error) {
 		return nil
 	}
 	if len(object.Path) != 0 {
-		data, items, err := l.resolveLayerData(object.Path, false)
+		data, items, mapping, err := l.resolveLayerData(object.Path, false)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		next := &layer{
-			path:  object.Path,
-			data:  data,
-			items: items,
-			kind:  layerKindObject,
+			path:    object.Path,
+			data:    data,
+			items:   items,
+			mapping: mapping,
+			kind:    layerKindObject,
 		}
 		if l.insideArray() {
 			next.kind = layerKindArray
@@ -289,6 +306,24 @@ func (l *Loader) shouldTraverseObjectChildren(object *Object) bool {
 func (l *Loader) mergeLayerIntoParent() (err error) {
 	child := l.layers[len(l.layers)-1]
 	parent := l.layers[len(l.layers)-2]
+	if child.mapping != nil {
+		for i, indices := range child.mapping {
+			buf := l.getLayerBuffer()
+			_, _ = buf.Write([]byte(`[`))
+			for j := range indices {
+				if j != 0 {
+					_, _ = buf.Write([]byte(`,`))
+				}
+				_, _ = buf.Write(child.items[indices[j]])
+			}
+			_, _ = buf.Write([]byte(`]`))
+			parent.items[i], err = jsonparser.Set(parent.items[i], buf.Bytes(), child.path...)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+		}
+		return nil
+	}
 	if parent.kind == layerKindObject && child.kind == layerKindObject {
 		parent.data, err = l.mergeJSONWithMergePath(parent.data, child.data, child.path)
 		return errors.WithStack(err)
