@@ -18,6 +18,7 @@ require (
 	github.com/jensneuse/byte-template v0.0.0-20200214152254-4f3cf06e5c68
 	github.com/jensneuse/diffview v1.0.0
 	github.com/mitchellh/go-homedir v1.1.0
+	github.com/pkg/errors v0.9.1
 	github.com/r3labs/sse/v2 v2.8.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.0
 	github.com/sebdah/goldie/v2 v2.5.3
@@ -31,7 +32,6 @@ require (
 	go.uber.org/zap v1.18.1
 	golang.org/x/exp v0.0.0-20230203172020-98cc5a0785f9
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
-	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	gopkg.in/yaml.v2 v2.4.0
 	nhooyr.io/websocket v1.8.7
 )
@@ -51,7 +51,6 @@ require (
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pelletier/go-toml v1.6.0 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect

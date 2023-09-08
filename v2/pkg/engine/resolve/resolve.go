@@ -22,7 +22,6 @@ import (
 
 type Resolver struct {
 	ctx              context.Context
-	resultSetPool    sync.Pool
 	byteSlicesPool   sync.Pool
 	waitGroupPool    sync.Pool
 	bufPairPool      sync.Pool
@@ -40,13 +39,6 @@ type Resolver struct {
 func New(ctx context.Context, fetcher *Fetcher) *Resolver {
 	return &Resolver{
 		ctx: ctx,
-		resultSetPool: sync.Pool{
-			New: func() interface{} {
-				return &resultSet{
-					buffers: make(map[int]*BufPair, 8),
-				}
-			},
-		},
 		byteSlicesPool: sync.Pool{
 			New: func() interface{} {
 				slice := make([][]byte, 0, 24)
@@ -688,19 +680,6 @@ func (r *Resolver) MergeBufPairErrors(from, to *BufPair) {
 	}
 	to.Errors.WriteBytes(from.Errors.Bytes())
 	from.Errors.Reset()
-}
-
-func (r *Resolver) getResultSet() *resultSet {
-	return r.resultSetPool.Get().(*resultSet)
-}
-
-func (r *Resolver) freeResultSet(set *resultSet) {
-	for i := range set.buffers {
-		set.buffers[i].Reset()
-		r.bufPairPool.Put(set.buffers[i])
-		delete(set.buffers, i)
-	}
-	r.resultSetPool.Put(set)
 }
 
 func (r *Resolver) getBufPair() *BufPair {
