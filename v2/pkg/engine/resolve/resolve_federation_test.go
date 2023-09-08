@@ -1661,7 +1661,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 			`{"_entities":[{"__typename":"Product","reviews":[{"body":"Love it!","author":{"__typename":"User","id":"1"}},{"body":"Prefer something else.","author":{"__typename":"User","id":"2"}}]},{"__typename":"Product","reviews":[{"body":"Too expensive.","author":{"__typename":"User","id":"1"}}]},{"__typename":"Product","reviews":[{"body":"Could be better.","author":{"__typename":"User","id":"2"}}]}]}`)
 
 		usersService := mockedDS(t, ctrl,
-			`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[{"__typename":"User","id":"author-1"},{"__typename":"User","id":"author-2"},{"__typename":"User","id":"author-3"},{"__typename":"User","id":"author-4"}]}}}`,
+			`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"2"}]}}}`,
 			`{"_entities":[{"name":"user-1"},{"name":"user-2"}]}`)
 
 		return &GraphQLResponse{
@@ -1845,7 +1845,6 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"topProducts":[{"name":"table","reviews":[{"body":"table-review","author":{"name":"user-1"}}]},{"name":"spoon","reviews":[{"body":"spoon-review","author":{"name":"user-2"}}]}]}}`
+		}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"topProducts":[{"name":"Table","reviews":[{"body":"Love it!","author":{"name":"user-1"}},{"body":"Prefer something else.","author":{"name":"user-2"}}]},{"name":"Couch","reviews":[{"body":"Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","reviews":[{"body":"Could be better.","author":{"name":"user-2"}}]}]}}`
 	}))
-
 }
