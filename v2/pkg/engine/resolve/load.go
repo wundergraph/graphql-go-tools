@@ -35,13 +35,13 @@ type Loader struct {
 
 	sf *singleflight.Group
 
-	buffers   []*fastbuffer.FastBuffer
+	buffers   []*bytes.Buffer
 	buffersMu sync.Mutex
 }
 
 func (l *Loader) Free() {
 	for i := range l.buffers {
-		pool.FastBuffer.Put(l.buffers[i])
+		pool.BytesBuffer.Put(l.buffers[i])
 	}
 	l.buffers = l.buffers[:0]
 }
@@ -75,7 +75,7 @@ func (l *Loader) popLayer() {
 	l.layers = l.layers[:len(l.layers)-1]
 }
 
-func (l *Loader) inputData(layer *layer, out *fastbuffer.FastBuffer) []byte {
+func (l *Loader) inputData(layer *layer, out *bytes.Buffer) []byte {
 	if layer.data != nil || layer.kind == layerKindObject {
 		return layer.data
 	}
@@ -122,8 +122,8 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 
 // getLayerBuffer returns a buffer that will live as long as the current layer
 // it won't be re-used before the current layer is popped
-func (l *Loader) getBuffer() *fastbuffer.FastBuffer {
-	buf := pool.FastBuffer.Get()
+func (l *Loader) getBuffer() *bytes.Buffer {
+	buf := pool.BytesBuffer.Get()
 	if l.parallelFetch {
 		l.buffersMu.Lock()
 	}
@@ -382,11 +382,7 @@ func (l *Loader) resolveFetch(ctx *Context, fetch Fetch) (err error) {
 }
 
 func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) {
-	input := pool.FastBuffer.Get()
-	defer pool.FastBuffer.Put(input)
-	inputBuf := pool.FastBuffer.Get()
-	defer pool.FastBuffer.Put(inputBuf)
-
+	input := l.getBuffer()
 	lr := l.currentLayer()
 	err = fetch.Input.Header.Render(ctx, nil, input)
 	if err != nil {
@@ -395,8 +391,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 	batchStats := make([][]int, len(lr.items))
 	batchItemIndex := 0
 
-	itemBuf := pool.FastBuffer.Get()
-	defer pool.FastBuffer.Put(itemBuf)
+	itemBuf := l.getBuffer()
 
 	itemHashes := make([]uint64, 0, len(lr.items)*len(fetch.Input.Items))
 	addSeparator := false
@@ -437,7 +432,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 					return errors.WithStack(err)
 				}
 			}
-			input.WriteBytes(itemBuf.Bytes())
+			_, _ = input.Write(itemBuf.Bytes())
 			batchStats[i] = append(batchStats[i], batchItemIndex)
 			batchItemIndex++
 			addSeparator = true
@@ -475,16 +470,16 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 	if fetch.PostProcessing.ResponseTemplate != nil {
 		for i, stats := range batchStats {
 			buf := l.getBuffer()
-			buf.WriteBytes(lBrack)
+			_, _ = buf.Write(lBrack)
 			addCommaSeparator := false
 			for j := range stats {
 				if addCommaSeparator {
-					buf.WriteBytes(comma)
+					_, _ = buf.Write(comma)
 				} else {
 					addCommaSeparator = true
 				}
 				if stats[j] == -1 {
-					buf.WriteBytes(null)
+					_, _ = buf.Write(null)
 					continue
 				}
 				_, err = buf.Write(batchResponseItems[stats[j]])
@@ -492,7 +487,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 					return errors.WithStack(err)
 				}
 			}
-			buf.WriteBytes(rBrack)
+			_, _ = buf.Write(rBrack)
 			itemsData[i] = buf.Bytes()
 		}
 		for i := range itemsData {
@@ -553,8 +548,7 @@ func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListI
 		// however, appending is not concurrency safe, so we need to do it before we start the goroutines
 		out := l.getBuffer()
 		group.Go(func() error {
-			input := pool.FastBuffer.Get()
-			defer pool.FastBuffer.Put(input)
+			input := l.getBuffer()
 			err = fetch.Fetch.InputTemplate.Render(ctx, layer.items[i], input)
 			if err != nil {
 				return errors.WithStack(err)
@@ -598,10 +592,8 @@ func (l *Loader) resolveParallelFetch(ctx *Context, fetch *ParallelFetch) (err e
 }
 
 func (l *Loader) resolveSingleFetch(ctx *Context, fetch *SingleFetch) (err error) {
-	input := pool.FastBuffer.Get()
-	defer pool.FastBuffer.Put(input)
-	inputBuf := pool.FastBuffer.Get()
-	defer pool.FastBuffer.Put(inputBuf)
+	input := l.getBuffer()
+	inputBuf := l.getBuffer()
 	out := l.getBuffer()
 	inputData := l.inputData(l.currentLayer(), inputBuf)
 	err = fetch.InputTemplate.Render(ctx, inputData, input)
@@ -645,13 +637,13 @@ func (l *Loader) loadWithSingleFlight(ctx *Context, source DataSource, identifie
 	data := maybeData.([]byte)
 	if shared {
 		out := l.getBuffer()
-		out.WriteBytes(data)
+		_, _ = out.Write(data)
 		return out.Bytes(), nil
 	}
 	return data, nil
 }
 
-func (l *Loader) loadAndPostProcess(ctx *Context, input *fastbuffer.FastBuffer, fetch *SingleFetch, out *fastbuffer.FastBuffer) (data []byte, err error) {
+func (l *Loader) loadAndPostProcess(ctx *Context, input *bytes.Buffer, fetch *SingleFetch, out *bytes.Buffer) (data []byte, err error) {
 	data, err = l.loadWithSingleFlight(ctx, fetch.DataSource, fetch.DataSourceIdentifier, input.Bytes())
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -767,13 +759,13 @@ func (l *Loader) mergeJSONWithMergePath(left, right []byte, mergePath []string) 
 	element := mergePath[len(mergePath)-1]
 	mergePath = mergePath[:len(mergePath)-1]
 	buf := l.getBuffer()
-	buf.WriteBytes(lBrace)
-	buf.WriteBytes(quote)
-	buf.WriteBytes([]byte(element))
-	buf.WriteBytes(quote)
-	buf.WriteBytes(colon)
-	buf.WriteBytes(right)
-	buf.WriteBytes(rBrace)
+	_, _ = buf.Write(lBrace)
+	_, _ = buf.Write(quote)
+	_, _ = buf.Write([]byte(element))
+	_, _ = buf.Write(quote)
+	_, _ = buf.Write(colon)
+	_, _ = buf.Write(right)
+	_, _ = buf.Write(rBrace)
 	return l.mergeJSONWithMergePath(left, buf.Bytes(), mergePath)
 }
 
@@ -858,23 +850,23 @@ func (l *Loader) mergeJSON(left, right []byte) ([]byte, error) {
 	}
 	buf := l.getBuffer()
 	buf.Reset()
-	buf.WriteBytes(lBrace)
+	_, _ = buf.Write(lBrace)
 	for i := range ctx.missingKeys {
-		buf.WriteBytes(quote)
-		buf.WriteBytes(ctx.missingKeys[i])
-		buf.WriteBytes(quote)
-		buf.WriteBytes(colon)
+		_, _ = buf.Write(quote)
+		_, _ = buf.Write(ctx.missingKeys[i])
+		_, _ = buf.Write(quote)
+		_, _ = buf.Write(colon)
 		if ctx.missingTypes[i] == jsonparser.String {
-			buf.WriteBytes(quote)
+			_, _ = buf.Write(quote)
 		}
-		buf.WriteBytes(ctx.missingValues[i])
+		_, _ = buf.Write(ctx.missingValues[i])
 		if ctx.missingTypes[i] == jsonparser.String {
-			buf.WriteBytes(quote)
+			_, _ = buf.Write(quote)
 		}
-		buf.WriteBytes(comma)
+		_, _ = buf.Write(comma)
 	}
 	start := bytes.Index(left, lBrace)
-	buf.WriteBytes(left[start+1:])
+	_, _ = buf.Write(left[start+1:])
 	combined := buf.Bytes()
 	return combined, nil
 }

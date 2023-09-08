@@ -193,15 +193,15 @@ func (r *Resolver) resolveGraphQLSubscriptionResponse(ctx *Context, response *Gr
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer FlushWriter) (err error) {
 
-	buf := r.getBufPair()
-	err = subscription.Trigger.InputTemplate.Render(ctx, nil, buf.Data)
+	buf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(buf)
+	err = subscription.Trigger.InputTemplate.Render(ctx, nil, buf)
 	if err != nil {
 		return
 	}
-	rendered := buf.Data.Bytes()
+	rendered := buf.Bytes()
 	subscriptionInput := make([]byte, len(rendered))
 	copy(subscriptionInput, rendered)
-	r.freeBufPair(buf)
 
 	c, cancel := context.WithCancel(ctx.Context())
 	defer cancel()

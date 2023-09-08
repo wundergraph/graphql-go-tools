@@ -1,14 +1,13 @@
 package resolve
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"testing"
 
 	"github.com/buger/jsonparser"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastbuffer"
 )
 
 func TestInputTemplate_Render(t *testing.T) {
@@ -28,7 +27,7 @@ func TestInputTemplate_Render(t *testing.T) {
 		ctx := &Context{
 			Variables: []byte(variables),
 		}
-		buf := fastbuffer.New()
+		buf := &bytes.Buffer{}
 		err := template.Render(ctx, nil, buf)
 		if expectErr {
 			assert.Error(t, err)
@@ -149,7 +148,7 @@ func TestInputTemplate_Render(t *testing.T) {
 		ctx := &Context{
 			Variables: []byte(`{"a":["foo","bar"]}`),
 		}
-		buf := fastbuffer.New()
+		buf := &bytes.Buffer{}
 		err := template.Render(ctx, nil, buf)
 		assert.NoError(t, err)
 		out := buf.String()
@@ -169,7 +168,7 @@ func TestInputTemplate_Render(t *testing.T) {
 		ctx := &Context{
 			Variables: []byte(`{"a":[1,2,3]}`),
 		}
-		buf := fastbuffer.New()
+		buf := &bytes.Buffer{}
 		err := template.Render(ctx, nil, buf)
 		assert.NoError(t, err)
 		out := buf.String()
@@ -189,7 +188,7 @@ func TestInputTemplate_Render(t *testing.T) {
 		ctx := &Context{
 			Variables: []byte(`{"a":[1,2,3]}`),
 		}
-		buf := fastbuffer.New()
+		buf := &bytes.Buffer{}
 		err := template.Render(ctx, nil, buf)
 		assert.NoError(t, err)
 		out := buf.String()
@@ -218,7 +217,7 @@ func TestInputTemplate_Render(t *testing.T) {
 			ctx := &Context{
 				Variables: []byte(""),
 			}
-			buf := fastbuffer.New()
+			buf := &bytes.Buffer{}
 			err := template.Render(ctx, nil, buf)
 			assert.NoError(t, err)
 			out := buf.String()
@@ -249,7 +248,7 @@ func TestInputTemplate_Render(t *testing.T) {
 					Header: http.Header{"Auth": []string{"value"}},
 				},
 			}
-			buf := fastbuffer.New()
+			buf := &bytes.Buffer{}
 			err := template.Render(ctx, nil, buf)
 			assert.NoError(t, err)
 			out := buf.String()
@@ -280,7 +279,7 @@ func TestInputTemplate_Render(t *testing.T) {
 					Header: http.Header{"Auth": []string{"value1", "value2"}},
 				},
 			}
-			buf := fastbuffer.New()
+			buf := &bytes.Buffer{}
 			err := template.Render(ctx, nil, buf)
 			assert.NoError(t, err)
 			out := buf.String()
@@ -312,7 +311,7 @@ func TestInputTemplate_Render(t *testing.T) {
 				ctx:       context.Background(),
 				Variables: []byte(""),
 			}
-			buf := fastbuffer.New()
+			buf := &bytes.Buffer{}
 			err := template.Render(ctx, nil, buf)
 			assert.NoError(t, err)
 			out := buf.String()
@@ -343,7 +342,7 @@ func TestInputTemplate_Render(t *testing.T) {
 				ctx := &Context{
 					Variables: []byte(""),
 				}
-				buf := fastbuffer.New()
+				buf := &bytes.Buffer{}
 				err := template.Render(ctx, nil, buf)
 				assert.NoError(t, err)
 				out := buf.String()
@@ -373,7 +372,7 @@ func TestInputTemplate_Render(t *testing.T) {
 				ctx := &Context{
 					Variables: []byte(`{"x":null}`),
 				}
-				buf := fastbuffer.New()
+				buf := &bytes.Buffer{}
 				err := template.Render(ctx, nil, buf)
 				assert.NoError(t, err)
 				out := buf.String()
@@ -402,7 +401,7 @@ func TestInputTemplate_Render(t *testing.T) {
 				ctx := &Context{
 					Variables: []byte(""),
 				}
-				buf := fastbuffer.New()
+				buf := &bytes.Buffer{}
 				err := template.Render(ctx, nil, buf)
 				assert.NoError(t, err)
 				out := buf.String()
@@ -475,7 +474,7 @@ func TestInputTemplate_Render(t *testing.T) {
 				ctx:       context.Background(),
 				Variables: []byte(""),
 			}
-			buf := fastbuffer.New()
+			buf := &bytes.Buffer{}
 			err := template.Render(ctx, []byte(`{"name":"home","address":{"zip":"00000","items":[{"name":"home","active":true}]}}`), buf)
 			assert.NoError(t, err)
 			out := buf.String()
@@ -536,7 +535,7 @@ func TestInputTemplate_Render(t *testing.T) {
 				ctx:       context.Background(),
 				Variables: []byte(""),
 			}
-			buf := fastbuffer.New()
+			buf := &bytes.Buffer{}
 			err := template.Render(ctx, []byte(`{"__typename":"Address","address":{"zip":"00000"}}`), buf)
 			assert.NoError(t, err)
 			out := buf.String()
