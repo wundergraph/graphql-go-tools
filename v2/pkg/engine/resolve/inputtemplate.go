@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,7 +9,6 @@ import (
 	"github.com/buger/jsonparser"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastbuffer"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
@@ -38,7 +38,7 @@ type InputTemplate struct {
 
 var setTemplateOutputNull = errors.New("set to null")
 
-func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuffer.FastBuffer) error {
+func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *bytes.Buffer) error {
 	var undefinedVariables []string
 
 	if err := i.renderSegments(ctx, data, i.Segments, preparedInput, &undefinedVariables); err != nil {
@@ -49,16 +49,16 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuf
 		output := httpclient.SetUndefinedVariables(preparedInput.Bytes(), undefinedVariables)
 		// The returned slice might be different, we need to copy back the data
 		preparedInput.Reset()
-		preparedInput.WriteBytes(output)
+		_, _ = preparedInput.Write(output)
 	}
 	return nil
 }
 
-func (i *InputTemplate) renderSegments(ctx *Context, data []byte, segments []TemplateSegment, preparedInput *fastbuffer.FastBuffer, undefinedVariables *[]string) (err error) {
+func (i *InputTemplate) renderSegments(ctx *Context, data []byte, segments []TemplateSegment, preparedInput *bytes.Buffer, undefinedVariables *[]string) (err error) {
 	for _, segment := range segments {
 		switch segment.SegmentType {
 		case StaticSegmentType:
-			preparedInput.WriteBytes(segment.Data)
+			_, _ = preparedInput.Write(segment.Data)
 		case VariableSegmentType:
 			switch segment.VariableKind {
 			case ObjectVariableKind:
@@ -80,7 +80,7 @@ func (i *InputTemplate) renderSegments(ctx *Context, data []byte, segments []Tem
 			if err != nil {
 				if errors.Is(err, setTemplateOutputNull) {
 					preparedInput.Reset()
-					preparedInput.WriteBytes(literal.NULL)
+					_, _ = preparedInput.Write(literal.NULL)
 					return nil
 				}
 				return err
@@ -91,13 +91,13 @@ func (i *InputTemplate) renderSegments(ctx *Context, data []byte, segments []Tem
 	return err
 }
 
-func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []byte, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {
+func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []byte, segment TemplateSegment, preparedInput *bytes.Buffer) error {
 	value, valueType, offset, err := jsonparser.Get(variables, segment.VariableSourcePath...)
 	if err != nil || valueType == jsonparser.Null {
 		if i.SetTemplateOutputToNullOnVariableNull {
 			return setTemplateOutputNull
 		}
-		preparedInput.WriteBytes(literal.NULL)
+		_, _ = preparedInput.Write(literal.NULL)
 		return nil
 	}
 	if valueType == jsonparser.String {
@@ -112,15 +112,15 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []by
 	return segment.Renderer.RenderVariable(ctx, value, preparedInput)
 }
 
-func (i *InputTemplate) renderResolvableObjectVariable(ctx context.Context, objectData []byte, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {
+func (i *InputTemplate) renderResolvableObjectVariable(ctx context.Context, objectData []byte, segment TemplateSegment, preparedInput *bytes.Buffer) error {
 	return segment.Renderer.RenderVariable(ctx, objectData, preparedInput)
 }
 
-func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) (variableWasUndefined bool, err error) {
+func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *bytes.Buffer) (variableWasUndefined bool, err error) {
 	value, valueType, offset, err := jsonparser.Get(ctx.Variables, segment.VariableSourcePath...)
 	if err != nil || valueType == jsonparser.Null {
 		if err == jsonparser.KeyPathNotFoundError {
-			preparedInput.WriteBytes(literal.NULL)
+			_, _ = preparedInput.Write(literal.NULL)
 			return true, nil
 		}
 		return false, segment.Renderer.RenderVariable(ctx.Context(), value, preparedInput)
@@ -137,7 +137,7 @@ func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegm
 	return false, segment.Renderer.RenderVariable(ctx.Context(), value, preparedInput)
 }
 
-func (i *InputTemplate) renderHeaderVariable(ctx *Context, path []string, preparedInput *fastbuffer.FastBuffer) error {
+func (i *InputTemplate) renderHeaderVariable(ctx *Context, path []string, preparedInput *bytes.Buffer) error {
 	if len(path) != 1 {
 		return errHeaderPathInvalid
 	}
@@ -151,7 +151,7 @@ func (i *InputTemplate) renderHeaderVariable(ctx *Context, path []string, prepar
 	}
 	for j := range value {
 		if j != 0 {
-			preparedInput.WriteBytes(literal.COMMA)
+			_, _ = preparedInput.Write(literal.COMMA)
 		}
 		preparedInput.WriteString(value[j])
 	}
