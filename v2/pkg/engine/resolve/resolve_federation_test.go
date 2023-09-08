@@ -1,14 +1,13 @@
 package resolve
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastbuffer"
 )
 
 func mockedDS(t *testing.T, ctrl *gomock.Controller, expectedInput, responseData string) *MockDataSource {
@@ -16,7 +15,7 @@ func mockedDS(t *testing.T, ctrl *gomock.Controller, expectedInput, responseData
 
 	service := NewMockDataSource(ctrl)
 	service.EXPECT().
-		Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+		Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 		DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 			actual := string(input)
 			expected := expectedInput
@@ -172,8 +171,8 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 		t.Run("federation with shareable", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			firstService := NewMockDataSource(ctrl)
 			firstService.EXPECT().
-				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
-				DoAndReturn(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+				DoAndReturn(func(ctx context.Context, input []byte, w *bytes.Buffer) (err error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename middlename} __typename id}}"}}`
 					assert.Equal(t, expected, actual)
@@ -184,8 +183,8 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 
 			secondService := NewMockDataSource(ctrl)
 			secondService.EXPECT().
-				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
-				DoAndReturn(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+				DoAndReturn(func(ctx context.Context, input []byte, w *bytes.Buffer) (err error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":[{"__typename":"User","id":"1234"}]}}}`
 					assert.Equal(t, expected, actual)
@@ -196,8 +195,8 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 
 			thirdService := NewMockDataSource(ctrl)
 			thirdService.EXPECT().
-				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
-				DoAndReturn(func(ctx context.Context, input []byte, w *fastbuffer.FastBuffer) (err error) {
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+				DoAndReturn(func(ctx context.Context, input []byte, w *bytes.Buffer) (err error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[{"__typename":"User","id":"1234"}]}}}`
 					assert.Equal(t, expected, actual)
@@ -360,7 +359,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
-				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 				DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{ user { name info {id __typename} address {id __typename} } }"}}`
@@ -372,7 +371,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 
 			infoService := NewMockDataSource(ctrl)
 			infoService.EXPECT().
-				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 				DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age } ... on Address { line1 }}}}}","variables":{"representations":[{"id":11,"__typename":"Info"},{"id":55,"__typename":"Address"}]}}}`
@@ -552,7 +551,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
-				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 				DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{ users { name info {id __typename} address {id __typename} } }"}}`
@@ -564,7 +563,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 
 			infoService := NewMockDataSource(ctrl)
 			infoService.EXPECT().
-				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 				DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age } ... on Address { line1 }}}}}","variables":{"representations":[{"id":11,"__typename":"Info"},{"id":55,"__typename":"Address"},{"id":12,"__typename":"Info"},{"id":56,"__typename":"Address"},{"id":13,"__typename":"Info"},{"id":57,"__typename":"Address"}]}}}`
@@ -766,7 +765,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
-				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 				DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{ users { name info {id __typename} address {id __typename} } }"}}`
@@ -778,7 +777,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 
 			infoService := NewMockDataSource(ctrl)
 			infoService.EXPECT().
-				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 				DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age } ... on Address { line1 }}}}}","variables":{"representations":[{"id":11,"__typename":"Info"},{"id":55,"__typename":"Address"},{"id":12,"__typename":"Info"},{"id":13,"__typename":"Info"}]}}}`
@@ -980,7 +979,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
-				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 				DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{ users { name info {id __typename} address {id __typename} } }"}}`
@@ -992,7 +991,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 
 			infoService := NewMockDataSource(ctrl)
 			infoService.EXPECT().
-				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 				DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age } ... on Address { line1 }}}}}","variables":{"representations":[{"id":11,"__typename":"Info"},{"id":55,"__typename":"Address"},{"id":56,"__typename":"Address"},{"id":13,"__typename":"Info"},{"id":57,"__typename":"Address"}]}}}`
@@ -1200,7 +1199,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 		t.Run("multiple entities with response renderer and batching, one render err", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
-				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 				DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{ users { name info {id __typename} address {id __typename} } }"}}`
@@ -1212,7 +1211,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 
 			infoService := NewMockDataSource(ctrl)
 			infoService.EXPECT().
-				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&fastbuffer.FastBuffer{})).
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 				DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age } ... on Address { line1 }}}}}","variables":{"representations":[{"id":11,"__typename":"Info"},{"id":12,"__typename":"Info"},{"id":56,"__typename":"Address"},{"id":13,"__typename":"Info"},{"id":57,"__typename":"Address"}]}}}`
