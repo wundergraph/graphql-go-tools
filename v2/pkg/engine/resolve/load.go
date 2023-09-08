@@ -34,6 +34,16 @@ type Loader struct {
 	errors []byte
 
 	sf *singleflight.Group
+
+	buffers   []*fastbuffer.FastBuffer
+	buffersMu sync.Mutex
+}
+
+func (l *Loader) Free() {
+	for i := range l.buffers {
+		pool.FastBuffer.Put(l.buffers[i])
+	}
+	l.buffers = l.buffers[:0]
 }
 
 type layer struct {
@@ -42,7 +52,6 @@ type layer struct {
 	items           [][]byte
 	mapping         [][]int
 	kind            layerKind
-	buffers         []*fastbuffer.FastBuffer
 	hasFetches      bool
 	hasResolvedData bool
 }
@@ -63,10 +72,6 @@ const (
 )
 
 func (l *Loader) popLayer() {
-	last := l.layers[len(l.layers)-1]
-	for i := range last.buffers {
-		pool.FastBuffer.Put(last.buffers[i])
-	}
 	l.layers = l.layers[:len(l.layers)-1]
 }
 
@@ -117,21 +122,15 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 
 // getLayerBuffer returns a buffer that will live as long as the current layer
 // it won't be re-used before the current layer is popped
-func (l *Loader) getLayerBuffer() *fastbuffer.FastBuffer {
+func (l *Loader) getBuffer() *fastbuffer.FastBuffer {
 	buf := pool.FastBuffer.Get()
 	if l.parallelFetch {
-		l.parallelMu.Lock()
+		l.buffersMu.Lock()
 	}
-	l.currentLayer().buffers = append(l.currentLayer().buffers, buf)
+	l.buffers = append(l.buffers, buf)
 	if l.parallelFetch {
-		l.parallelMu.Unlock()
+		l.buffersMu.Unlock()
 	}
-	return buf
-}
-
-func (l *Loader) getRootBuffer() *fastbuffer.FastBuffer {
-	buf := pool.FastBuffer.Get()
-	l.layers[0].buffers = append(l.layers[0].buffers, buf)
 	return buf
 }
 
@@ -164,7 +163,7 @@ func (l *Loader) setCurrentLayerData(data []byte) {
 func (l *Loader) resolveLayerData(path []string, isArray bool) (data []byte, items [][]byte, itemsMapping [][]int, err error) {
 	current := l.currentLayer()
 	if !l.insideArray() && !isArray {
-		buf := l.getLayerBuffer()
+		buf := l.getBuffer()
 		_, _ = buf.Write(current.data)
 		data = buf.Bytes()
 		data, _, _, err = jsonparser.Get(data, path...)
@@ -308,7 +307,7 @@ func (l *Loader) mergeLayerIntoParent() (err error) {
 	parent := l.layers[len(l.layers)-2]
 	if child.mapping != nil {
 		for i, indices := range child.mapping {
-			buf := l.getLayerBuffer()
+			buf := l.getBuffer()
 			_, _ = buf.Write([]byte(`[`))
 			for j := range indices {
 				if j != 0 {
@@ -329,7 +328,7 @@ func (l *Loader) mergeLayerIntoParent() (err error) {
 		return errors.WithStack(err)
 	}
 	if parent.kind == layerKindObject && child.kind == layerKindArray {
-		buf := l.getLayerBuffer()
+		buf := l.getBuffer()
 		_, _ = buf.Write([]byte(`[`))
 		addCommaSeparator := false
 		for i := range child.items {
@@ -475,7 +474,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 	itemsData := make([][]byte, len(lr.items))
 	if fetch.PostProcessing.ResponseTemplate != nil {
 		for i, stats := range batchStats {
-			buf := l.getLayerBuffer()
+			buf := l.getBuffer()
 			buf.WriteBytes(lBrack)
 			addCommaSeparator := false
 			for j := range stats {
@@ -497,7 +496,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch) (err error) 
 			itemsData[i] = buf.Bytes()
 		}
 		for i := range itemsData {
-			out := l.getLayerBuffer()
+			out := l.getBuffer()
 			err = fetch.PostProcessing.ResponseTemplate.Render(ctx, itemsData[i], out)
 			if err != nil {
 				return errors.WithStack(err)
@@ -552,7 +551,7 @@ func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListI
 		// getLayerBuffer will append the buffer to the list of buffers of the current layer
 		// this will ensure that the buffer is not re-used before this layer is merged into the parent
 		// however, appending is not concurrency safe, so we need to do it before we start the goroutines
-		out := l.getLayerBuffer()
+		out := l.getBuffer()
 		group.Go(func() error {
 			input := pool.FastBuffer.Get()
 			defer pool.FastBuffer.Put(input)
@@ -603,7 +602,7 @@ func (l *Loader) resolveSingleFetch(ctx *Context, fetch *SingleFetch) (err error
 	defer pool.FastBuffer.Put(input)
 	inputBuf := pool.FastBuffer.Get()
 	defer pool.FastBuffer.Put(inputBuf)
-	out := l.getLayerBuffer()
+	out := l.getBuffer()
 	inputData := l.inputData(l.currentLayer(), inputBuf)
 	err = fetch.InputTemplate.Render(ctx, inputData, input)
 	if err != nil {
@@ -645,7 +644,7 @@ func (l *Loader) loadWithSingleFlight(ctx *Context, source DataSource, identifie
 	}
 	data := maybeData.([]byte)
 	if shared {
-		out := l.getLayerBuffer()
+		out := l.getBuffer()
 		out.WriteBytes(data)
 		return out.Bytes(), nil
 	}
@@ -767,7 +766,7 @@ func (l *Loader) mergeJSONWithMergePath(left, right []byte, mergePath []string) 
 	}
 	element := mergePath[len(mergePath)-1]
 	mergePath = mergePath[:len(mergePath)-1]
-	buf := l.getRootBuffer()
+	buf := l.getBuffer()
 	buf.WriteBytes(lBrace)
 	buf.WriteBytes(quote)
 	buf.WriteBytes([]byte(element))
@@ -857,7 +856,7 @@ func (l *Loader) mergeJSON(left, right []byte) ([]byte, error) {
 	if len(ctx.missingKeys) == 0 {
 		return left, nil
 	}
-	buf := l.getRootBuffer()
+	buf := l.getBuffer()
 	buf.Reset()
 	buf.WriteBytes(lBrace)
 	for i := range ctx.missingKeys {

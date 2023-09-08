@@ -3892,11 +3892,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 func TestResolver_mergeJSON(t *testing.T) {
 	setup := func() *Loader {
 		loader := &Loader{
-			layers: []*layer{
-				{
-					buffers: []*fastbuffer.FastBuffer{},
-				},
-			},
+			layers: []*layer{},
 		}
 		return loader
 	}

@@ -138,7 +138,10 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	defer pool.FastBuffer.Put(dataBuf)
 
 	loader := r.loaders.Get().(*Loader)
-	defer r.loaders.Put(loader)
+	defer func() {
+		loader.Free()
+		r.loaders.Put(loader)
+	}()
 	loader.sf = r.sf
 
 	hasErrors, err := loader.LoadGraphQLResponseData(ctx, response, data, dataBuf)
