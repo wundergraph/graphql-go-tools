@@ -182,7 +182,12 @@ func (l *Loader) resolveLayerData(path []string, isArray bool) (data []byte, ite
 				items = append(items, value)
 			}
 		}, path...)
-		return nil, items, nil, errors.WithStack(err)
+		itemsCopy := make([][]byte, len(items))
+		for i := range items {
+			itemsCopy[i] = make([]byte, len(items[i]))
+			copy(itemsCopy[i], items[i])
+		}
+		return nil, itemsCopy, nil, errors.WithStack(err)
 	}
 	if isArray {
 		itemsMapping = make([][]int, len(current.items))
@@ -200,14 +205,19 @@ func (l *Loader) resolveLayerData(path []string, isArray bool) (data []byte, ite
 				count++
 			}, path...)
 		}
-		return nil, items, itemsMapping, nil
+	} else {
+		for i := range current.items {
+			data, _, _, _ = jsonparser.Get(current.items[i], path...)
+			// we explicitly ignore the error and just append a nil slice
+			items = append(items, data)
+		}
 	}
-	for i := range current.items {
-		data, _, _, _ = jsonparser.Get(current.items[i], path...)
-		// we explicitly ignore the error and just append a nil slice
-		items = append(items, data)
+	itemsCopy := make([][]byte, len(items))
+	for i := range items {
+		itemsCopy[i] = make([]byte, len(items[i]))
+		copy(itemsCopy[i], items[i])
 	}
-	return nil, items, itemsMapping, nil
+	return nil, itemsCopy, itemsMapping, nil
 }
 
 func (l *Loader) resolveArray(ctx *Context, array *Array) (err error) {
