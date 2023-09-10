@@ -8,9 +8,16 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func mockedDS(t *testing.T, ctrl *gomock.Controller, expectedInput, responseData string) *MockDataSource {
+type TestingTB interface {
+	Errorf(format string, args ...interface{})
+	Helper()
+	FailNow()
+}
+
+func mockedDS(t TestingTB, ctrl *gomock.Controller, expectedInput, responseData string) *MockDataSource {
 	t.Helper()
 
 	service := NewMockDataSource(ctrl)
@@ -19,15 +26,14 @@ func mockedDS(t *testing.T, ctrl *gomock.Controller, expectedInput, responseData
 		DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 			actual := string(input)
 			expected := expectedInput
+
+			require.Equal(t, expected, actual)
+
 			pair := NewBufPair()
-			if assert.Equal(t, expected, actual) {
-				pair.Data.WriteString(responseData)
-			} else {
-				pair.Data.WriteString("null")
-			}
+			pair.Data.WriteString(responseData)
 
 			return writeGraphqlResponse(pair, w, false)
-		})
+		}).AnyTimes()
 	return service
 }
 
