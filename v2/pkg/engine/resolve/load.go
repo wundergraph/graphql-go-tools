@@ -3,7 +3,6 @@ package resolve
 import (
 	"bytes"
 	"fmt"
-	"hash"
 	"io"
 	"reflect"
 	"sync"
@@ -25,8 +24,6 @@ var (
 type Loader struct {
 	parallelFetch bool
 	parallelMu    sync.Mutex
-
-	hash hash.Hash64
 
 	layers []*layer
 
@@ -102,9 +99,6 @@ func (l *Loader) inputData(layer *layer, out *bytes.Buffer) []byte {
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, data []byte, out io.Writer) (hasErrors bool, err error) {
-	if l.hash == nil {
-		l.hash = xxhash.New()
-	}
 	l.layers = l.layers[:0]
 	l.errors = l.errors[:0]
 	l.layers = append(l.layers, &layer{
@@ -412,6 +406,7 @@ func (l *Loader) resolveFetch(ctx *Context, fetch Fetch, res *resultSet) (err er
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		if parallel {
+			// TODO: single fetch is not possible inside parallel fetch
 			return l.resolveSingleFetch(ctx, f, res)
 		}
 		res = &resultSet{}
@@ -452,6 +447,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch, res *resultS
 	batchItemIndex := 0
 
 	itemBuf := l.getBuffer()
+	hash := xxhash.New()
 
 	itemHashes := make([]uint64, 0, len(lr.items)*len(fetch.Input.Items))
 	addSeparator := false
@@ -476,9 +472,9 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch, res *resultS
 				batchStats[i] = append(batchStats[i], -1)
 				continue
 			}
-			l.hash.Reset()
-			_, _ = l.hash.Write(itemBuf.Bytes())
-			itemHash := l.hash.Sum64()
+			hash.Reset()
+			_, _ = hash.Write(itemBuf.Bytes())
+			itemHash := hash.Sum64()
 			for k := range itemHashes {
 				if itemHashes[k] == itemHash {
 					batchStats[i] = append(batchStats[i], k)
