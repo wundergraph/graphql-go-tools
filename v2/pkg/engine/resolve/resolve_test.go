@@ -15,9 +15,12 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type _fakeDataSource struct {
+	t                 TestingTB
+	input             []byte
 	data              []byte
 	artificialLatency time.Duration
 }
@@ -26,6 +29,11 @@ func (f *_fakeDataSource) Load(ctx context.Context, input []byte, w io.Writer) (
 	if f.artificialLatency != 0 {
 		time.Sleep(f.artificialLatency)
 	}
+	if f.input != nil {
+		if !bytes.Equal(f.input, input) {
+			require.Equal(f.t, string(f.input), string(input), "input mismatch")
+		}
+	}
 	_, err = w.Write(f.data)
 	return
 }
@@ -33,6 +41,14 @@ func (f *_fakeDataSource) Load(ctx context.Context, input []byte, w io.Writer) (
 func FakeDataSource(data string) *_fakeDataSource {
 	return &_fakeDataSource{
 		data: []byte(data),
+	}
+}
+
+func fakeDataSourceWithInputCheck(t TestingTB, input []byte, data []byte) *_fakeDataSource {
+	return &_fakeDataSource{
+		t:     t,
+		input: input,
+		data:  data,
 	}
 }
 
@@ -4238,10 +4254,18 @@ func Benchmark_NestedBatching(b *testing.B) {
 
 	resolver := newResolver(rCtx, true)
 
-	productsService := FakeDataSource(`{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1"},{"name":"Couch","__typename":"Product","upc":"2"},{"name":"Chair","__typename":"Product","upc":"3"}]}}`)
-	stockService := FakeDataSource(`{"data":{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}}`)
-	reviewsService := FakeDataSource(`{"data":{"_entities":[{"__typename":"Product","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2"}}]},{"__typename":"Product","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1"}}]},{"__typename":"Product","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2"}}]}]}}`)
-	usersService := FakeDataSource(`{"data":{"_entities":[{"name":"user-1"},{"name":"user-2"}]}}`)
+	productsService := fakeDataSourceWithInputCheck(b,
+		[]byte(`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`),
+		[]byte(`{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1"},{"name":"Couch","__typename":"Product","upc":"2"},{"name":"Chair","__typename":"Product","upc":"3"}]}}`))
+	stockService := fakeDataSourceWithInputCheck(b,
+		[]byte(`{"method":"POST","url":"http://stock","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {stock}}}","variables":{"representations":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"2"},{"__typename":"Product","upc":"3"}]}}}`),
+		[]byte(`{"data":{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}}`))
+	reviewsService := fakeDataSourceWithInputCheck(b,
+		[]byte(`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"2"},{"__typename":"Product","upc":"3"}]}}}`),
+		[]byte(`{"data":{"_entities":[{"__typename":"Product","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2"}}]},{"__typename":"Product","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1"}}]},{"__typename":"Product","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2"}}]}]}}`))
+	usersService := fakeDataSourceWithInputCheck(b,
+		[]byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"2"}]}}}`),
+		[]byte(`{"data":{"_entities":[{"name":"user-1"},{"name":"user-2"}]}}`))
 
 	plan := &GraphQLResponse{
 		Data: &Object{
@@ -4523,7 +4547,7 @@ func Benchmark_NestedBatching(b *testing.B) {
 				b.Fatal(err)
 			}
 			if !bytes.Equal(expected, buf.Bytes()) {
-				b.Fatalf("want:\n%s\ngot:\n%s\n", string(expected), buf.String())
+				require.Equal(b, string(expected), buf.String())
 			}
 
 			buf.Reset()
