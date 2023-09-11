@@ -118,16 +118,27 @@ fetch:
 
 ## How does dataLoader work ?
 
-- dataLoader is request scope object. For every new graphql request (or every new Subscription message) it's required to create a new dataloader.
-- resolve.Context keeps dataLoader for current request.
-- resolve.Context keeps last(parent) `lastFetchID` for current request
-- resolve.Context keeps `responsePath`, it's an array of all object.Path/Array.Path since `lastFetchID`, 
-  in case if node is Array additionally add to `responsePath` special symbol - `@` (e.g., [topProducts, @ ])
-- current dataLoader implementation is based on synchronous resolve strategy.
-- when Resolver tries to resolve fetch (SingleFetch/BatchFetch) for `fetchID`, dataLoader resolves fetch with `fetchID` for all siblings.
-- in case SingleFetch dataLoaders (Load) concurrently resolve fetch for all siblings
-- in case BatchFetch dataLoaders (LoadBatch) creates batch request for resolving fetches for all siblings
-- for creating fetch input dataLoader selects from `lastFetchID` response data by `responsePath` (it's an array of all object.Path/Array.Path since `lastFetchID`)
+TODO: add description
+
+[//]: # (- dataLoader is request scope object. For every new graphql request &#40;or every new Subscription message&#41; it's required to create a new dataloader.)
+
+[//]: # (- resolve.Context keeps dataLoader for current request.)
+
+[//]: # (- resolve.Context keeps last&#40;parent&#41; `lastFetchID` for current request)
+
+[//]: # (- resolve.Context keeps `responsePath`, it's an array of all object.Path/Array.Path since `lastFetchID`, )
+
+[//]: # (  in case if node is Array additionally add to `responsePath` special symbol - `@` &#40;e.g., [topProducts, @ ]&#41;)
+
+[//]: # (- current dataLoader implementation is based on synchronous resolve strategy.)
+
+[//]: # (- when Resolver tries to resolve fetch &#40;SingleFetch/BatchFetch&#41; for `fetchID`, dataLoader resolves fetch with `fetchID` for all siblings.)
+
+[//]: # (- in case SingleFetch dataLoaders &#40;Load&#41; concurrently resolve fetch for all siblings)
+
+[//]: # (- in case BatchFetch dataLoaders &#40;LoadBatch&#41; creates batch request for resolving fetches for all siblings)
+
+[//]: # (- for creating fetch input dataLoader selects from `lastFetchID` response data by `responsePath` &#40;it's an array of all object.Path/Array.Path since `lastFetchID`&#41;)
    
 **Example:** 
 
@@ -169,33 +180,62 @@ query {
 
 ```
 
-   1. creates dataLoader
-   1. resolve `topProducts`, fetch with `FetchID=0` is required, return an array of products
-      * set `lastFetchID` as `0`, 
-      * add `topProducts` to `responsePath`
-      * save response with FetchID `0`
-   1. enters `Array of Products` node, add `@` to the `responsePath`, no need to fetch
-   1. enters `Product A` node, no need to fetch
-   1. enters `Array of Reviews` node, fetch with `FetchID`= 1 is required
-      * dataLoader gets response `{"topProducts": [{"upc": "top1", ...}, {"upc": "top2", ...}, {"upc": "top3", ...}]}` from `lastFetchID` (it has been saved in step 2) 
-        and builds fetch input for all `Array of Reviews` siblings (`selectedDataForFetch` method is responsible for finding all siblings)
-      * resolve all fetches from previous step (when fetch is SingleFetch - send N concurrent requests, when fetch is BatchFetch - compose all fetches to single Batch),
-         Planner is responsible to choose which type of Fetch to use (e.g., for graphql datasource it makes sense to use BatchFetch for resolving Entity)
-      * save response with FetchID `1`
-      * reset `responsePath` and add `reviews` and `@` to `responsePath` (`responsePath` = `["reviews", "@"]`)
-      * set `lastFetchID` as `1`
-   1. enters `Review A1` node, no need to fetch
-      * add `author` to `responsePath` (`responsePath` = `["reviews", "@", "author"]`)
-   1. enters `Author A1` node, fetch with `FetchID`=2 is required (actually, it's the last step that leads to fetching)
-      * dataLoader gets response `[{"reviews":[{review A1}, {review A2}, {review A3}]}, {"reviews": [{review B1}]}, {"reviews": [{review C1}, {review C2}]` from `lastFetchID` (it has been saved in step 5)
-      and builds fetch input for all `Author 1` siblings
-      * resolve all fetches from previous step (when fetch is SingleFetch - send N concurrent requests, when fetch is BatchFetch - compose all fetches to single Batch)
-      * save response with FetchID `2`
-      * reset `responsePath`
-      * set `lastFetchID` as `2`
-   1. enters `Review A2` nodes, no need to fetch 
-   1. enters `Author A2` node, fetch with `FetchID=2` is required
-      * dataLoader has already requested required data (it's saved with `FetchID=2`), it just gets second element from response for `FetchID=2`
+[//]: # ()
+[//]: # (   1. creates dataLoader)
 
-   1. enters second `Array of Reviews` node, fetch with `FetchID`= 1 is required
-      * dataLoader has already requested required data (it's saved with `FetchID=1`), it just gets second element from response for `FetchID=1`
+[//]: # (   1. resolve `topProducts`, fetch with `FetchID=0` is required, return an array of products)
+
+[//]: # (      * set `lastFetchID` as `0`, )
+
+[//]: # (      * add `topProducts` to `responsePath`)
+
+[//]: # (      * save response with FetchID `0`)
+
+[//]: # (   1. enters `Array of Products` node, add `@` to the `responsePath`, no need to fetch)
+
+[//]: # (   1. enters `Product A` node, no need to fetch)
+
+[//]: # (   1. enters `Array of Reviews` node, fetch with `FetchID`= 1 is required)
+
+[//]: # (      * dataLoader gets response `{"topProducts": [{"upc": "top1", ...}, {"upc": "top2", ...}, {"upc": "top3", ...}]}` from `lastFetchID` &#40;it has been saved in step 2&#41; )
+
+[//]: # (        and builds fetch input for all `Array of Reviews` siblings &#40;`selectedDataForFetch` method is responsible for finding all siblings&#41;)
+
+[//]: # (      * resolve all fetches from previous step &#40;when fetch is SingleFetch - send N concurrent requests, when fetch is BatchFetch - compose all fetches to single Batch&#41;,)
+
+[//]: # (         Planner is responsible to choose which type of Fetch to use &#40;e.g., for graphql datasource it makes sense to use BatchFetch for resolving Entity&#41;)
+
+[//]: # (      * save response with FetchID `1`)
+
+[//]: # (      * reset `responsePath` and add `reviews` and `@` to `responsePath` &#40;`responsePath` = `["reviews", "@"]`&#41;)
+
+[//]: # (      * set `lastFetchID` as `1`)
+
+[//]: # (   1. enters `Review A1` node, no need to fetch)
+
+[//]: # (      * add `author` to `responsePath` &#40;`responsePath` = `["reviews", "@", "author"]`&#41;)
+
+[//]: # (   1. enters `Author A1` node, fetch with `FetchID`=2 is required &#40;actually, it's the last step that leads to fetching&#41;)
+
+[//]: # (      * dataLoader gets response `[{"reviews":[{review A1}, {review A2}, {review A3}]}, {"reviews": [{review B1}]}, {"reviews": [{review C1}, {review C2}]` from `lastFetchID` &#40;it has been saved in step 5&#41;)
+
+[//]: # (      and builds fetch input for all `Author 1` siblings)
+
+[//]: # (      * resolve all fetches from previous step &#40;when fetch is SingleFetch - send N concurrent requests, when fetch is BatchFetch - compose all fetches to single Batch&#41;)
+
+[//]: # (      * save response with FetchID `2`)
+
+[//]: # (      * reset `responsePath`)
+
+[//]: # (      * set `lastFetchID` as `2`)
+
+[//]: # (   1. enters `Review A2` nodes, no need to fetch )
+
+[//]: # (   1. enters `Author A2` node, fetch with `FetchID=2` is required)
+
+[//]: # (      * dataLoader has already requested required data &#40;it's saved with `FetchID=2`&#41;, it just gets second element from response for `FetchID=2`)
+
+[//]: # ()
+[//]: # (   1. enters second `Array of Reviews` node, fetch with `FetchID`= 1 is required)
+
+[//]: # (      * dataLoader has already requested required data &#40;it's saved with `FetchID=1`&#41;, it just gets second element from response for `FetchID=1`)
