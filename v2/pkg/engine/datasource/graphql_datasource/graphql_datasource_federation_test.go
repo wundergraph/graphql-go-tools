@@ -450,7 +450,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														},
 													},
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
-													PostProcessing:       EntitiesPostProcessingConfiguration,
+													PostProcessing:       SingleEntityPostProcessingConfiguration,
 												},
 											},
 										},
@@ -523,7 +523,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			Input:                `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":[$$0$$]}}}`,
 																			DataSource:           &Source{},
 																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
-																			PostProcessing:       EntitiesPostProcessingConfiguration,
+																			PostProcessing:       SingleEntityPostProcessingConfiguration,
 																			Variables: []resolve.Variable{
 																				&resolve.ResolvableObjectVariable{
 																					Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -576,7 +576,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			Input:                `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":[$$0$$]}}}`,
 																			DataSource:           &Source{},
 																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
-																			PostProcessing:       EntitiesPostProcessingConfiguration,
+																			PostProcessing:       SingleEntityPostProcessingConfiguration,
 																			Variables: []resolve.Variable{
 																				&resolve.ResolvableObjectVariable{
 																					Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -616,7 +616,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			Input:                `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":[$$0$$]}}}`,
 																			DataSource:           &Source{},
 																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
-																			PostProcessing:       EntitiesPostProcessingConfiguration,
+																			PostProcessing:       SingleEntityPostProcessingConfiguration,
 																			Variables: []resolve.Variable{
 																				&resolve.ResolvableObjectVariable{
 																					Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -801,7 +801,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
 														DataSource:                            &Source{},
 														DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-														PostProcessing:                        EntitiesPostProcessingConfiguration,
+														PostProcessing:                        SingleEntityPostProcessingConfiguration,
 														SetTemplateOutputToNullOnVariableNull: true,
 														Variables: []resolve.Variable{
 															&resolve.ResolvableObjectVariable{
@@ -1262,7 +1262,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													SerialID:                              1,
 													Input:                                 input2,
 													SetTemplateOutputToNullOnVariableNull: true,
-													PostProcessing:                        EntitiesPostProcessingConfiguration,
+													PostProcessing:                        SingleEntityPostProcessingConfiguration,
 													DataSource:                            &Source{},
 													DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
 													Variables: []resolve.Variable{
@@ -1387,7 +1387,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													SerialID:                              1,
 													Input:                                 input2,
 													SetTemplateOutputToNullOnVariableNull: true,
-													PostProcessing:                        EntitiesPostProcessingConfiguration,
+													PostProcessing:                        SingleEntityPostProcessingConfiguration,
 													DataSource:                            &Source{},
 													DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
 													Variables: []resolve.Variable{
@@ -1539,7 +1539,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															SerialID:                              1,
 															Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":[$$0$$]}}}`,
 															SetTemplateOutputToNullOnVariableNull: true,
-															PostProcessing:                        EntitiesPostProcessingConfiguration,
+															PostProcessing:                        SingleEntityPostProcessingConfiguration,
 															DataSource:                            &Source{},
 															DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
 															Variables: []resolve.Variable{
@@ -1567,7 +1567,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															SerialID:                              2,
 															Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
 															SetTemplateOutputToNullOnVariableNull: true,
-															PostProcessing:                        EntitiesPostProcessingConfiguration,
+															PostProcessing:                        SingleEntityPostProcessingConfiguration,
 															DataSource:                            &Source{},
 															DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
 															Variables: []resolve.Variable{
