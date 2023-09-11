@@ -9,7 +9,13 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/starwars"
 )
 
-func starwarsSchema(t *testing.T) *Schema {
+type TestingTB interface {
+	Errorf(format string, args ...interface{})
+	Helper()
+	FailNow()
+}
+
+func starwarsSchema(t TestingTB) *Schema {
 	starwars.SetRelativePathToStarWarsPackage("../starwars")
 	schemaBytes := starwars.Schema(t)
 
@@ -19,7 +25,7 @@ func starwarsSchema(t *testing.T) *Schema {
 	return schema
 }
 
-func requestForQuery(t *testing.T, fileName string) Request {
+func requestForQuery(t TestingTB, fileName string) Request {
 	rawRequest := starwars.LoadQuery(t, fileName, nil)
 
 	var request Request
