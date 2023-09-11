@@ -198,7 +198,6 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 	if err != nil {
 		return nil, err
 	}
-	fetcher := resolve.NewFetcher(engineConfig.dataLoaderConfig.EnableSingleFlightLoader)
 
 	introspectionCfg, err := introspection_datasource.NewIntrospectionConfigFactory(&engineConfig.schema.document)
 	if err != nil {
@@ -217,7 +216,7 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 		logger:   logger,
 		config:   engineConfig,
 		planner:  plan.NewPlanner(ctx, engineConfig.plannerConfig),
-		resolver: resolve.New(ctx, fetcher),
+		resolver: resolve.New(ctx, engineConfig.dataLoaderConfig.EnableSingleFlightLoader),
 		internalExecutionContextPool: sync.Pool{
 			New: func() interface{} {
 				return newInternalExecutionContext()

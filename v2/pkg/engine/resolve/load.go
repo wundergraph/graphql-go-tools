@@ -30,7 +30,8 @@ type Loader struct {
 
 	errors []byte
 
-	sf *singleflight.Group
+	sf        *singleflight.Group
+	sfEnabled bool
 
 	buffers []*bytes.Buffer
 }
@@ -676,6 +677,15 @@ func (l *Loader) resolveSingleFetch(ctx *Context, fetch *SingleFetch, res *resul
 }
 
 func (l *Loader) loadWithSingleFlight(ctx *Context, source DataSource, identifier, input []byte, res *resultSet) ([]byte, error) {
+	if !l.sfEnabled {
+		out := &bytes.Buffer{}
+		err := source.Load(ctx.ctx, input, out)
+		if err != nil {
+			return nil, err
+		}
+		return out.Bytes(), nil
+	}
+
 	keyGen := pool.Hash64.Get()
 	defer pool.Hash64.Put(keyGen)
 	_, _ = keyGen.Write(identifier)

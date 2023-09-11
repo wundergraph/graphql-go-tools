@@ -53,7 +53,7 @@ func fakeDataSourceWithInputCheck(t TestingTB, input []byte, data []byte) *_fake
 }
 
 func newResolver(ctx context.Context, enableSingleFlight bool) *Resolver {
-	return New(ctx, NewFetcher(enableSingleFlight))
+	return New(ctx, enableSingleFlight)
 }
 
 type customResolver struct{}
