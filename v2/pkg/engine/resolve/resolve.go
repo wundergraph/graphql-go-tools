@@ -28,15 +28,14 @@ type Resolver struct {
 	bufPairSlicePool sync.Pool
 	errChanPool      sync.Pool
 	hash64Pool       sync.Pool
-	fetcher          *Fetcher
+	loaders          sync.Pool
 
-	loaders sync.Pool
-
-	sf *singleflight.Group
+	enableSingleFlightLoader bool
+	sf                       *singleflight.Group
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
-func New(ctx context.Context, fetcher *Fetcher) *Resolver {
+func New(ctx context.Context, enableSingleFlightLoader bool) *Resolver {
 	return &Resolver{
 		ctx: ctx,
 		byteSlicesPool: sync.Pool{
@@ -80,8 +79,8 @@ func New(ctx context.Context, fetcher *Fetcher) *Resolver {
 				return &Loader{}
 			},
 		},
-		fetcher: fetcher,
-		sf:      &singleflight.Group{},
+		enableSingleFlightLoader: enableSingleFlightLoader,
+		sf:                       &singleflight.Group{},
 	}
 }
 
@@ -128,6 +127,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		r.loaders.Put(loader)
 	}()
 	loader.sf = r.sf
+	loader.sfEnabled = r.enableSingleFlightLoader
 
 	hasErrors, err := loader.LoadGraphQLResponseData(ctx, response, data, dataBuf)
 	if err != nil {
