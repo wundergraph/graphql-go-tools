@@ -3915,7 +3915,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"name":"Bill","info":{"id":11,"__typename":"Info"},"address":{"id": 55,"__typename":"Address"}}`
 		right := `{"info":{"age":21},"address":{"line1":"Munich"}}`
 		expected := `{"address":{"__typename":"Address","id":55,"line1":"Munich"},"info":{"__typename":"Info","age":21,"id":11},"name":"Bill"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -3925,7 +3925,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"id":"1234","username":"Me","__typename":"User"}`
 		right := `{"reviews":[{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`
 		expected := `{"__typename":"User","id":"1234","reviews":[{"body":"A highly effective form of birth control.","product":{"__typename":"Product","upc":"top-1"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"__typename":"Product","upc":"top-2"}}],"username":"Me"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -3935,7 +3935,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"__typename":"Product","upc":"top-1"}`
 		right := `{"name": "Trilby"}`
 		expected := `{"__typename":"Product","name":"Trilby","upc":"top-1"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -3945,7 +3945,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"__typename":"Product","upc":"top-1"}`
 		right := `{"__typename":"Product","name":"Trilby","upc":"top-1"}`
 		expected := `{"__typename":"Product","name":"Trilby","upc":"top-1"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -3955,7 +3955,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}`
 		right := `{"__typename":"Address","country":"country-1","city":"city-1"}`
 		expected := `{"__typename":"Address","city":"city-1","country":"country-1","id":"address-1","line1":"line1","line2":"line2"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -3965,7 +3965,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"__typename":"Address","city":"city-1","country":"country-1","id":"address-1","line1":"line1","line2":"line2"}`
 		right := `{"__typename": "Address", "line3": "line3-1", "zip": "zip-1"}`
 		expected := `{"__typename":"Address","city":"city-1","country":"country-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -3975,7 +3975,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"__typename":"Address","city":"city-1","country":"country-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
 		right := `{"__typename":"Address","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1"}`
 		expected := `{"__typename":"Address","city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -3985,7 +3985,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}`
 		right := `{"__typename":"Address","city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
 		expected := `{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -3995,7 +3995,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}}`
 		right := `{"address":{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}}`
 		expected := `{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}},"address":{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -4005,7 +4005,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"user":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}}}`
 		right := `{"account":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}},"address":{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}}}`
 		expected := `{"account":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}},"address":{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}},"user":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}}}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right))
+		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
