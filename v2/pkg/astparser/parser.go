@@ -1610,11 +1610,16 @@ func (p *Parser) parseSchemaExtension(extend position.Position) {
 	schemaDefinition := ast.SchemaDefinition{
 		SchemaLiteral: schemaLiteral.TextPosition,
 	}
-	if p.peekEquals(keyword.AT) {
+
+	hasDirectives := p.peekEquals(keyword.AT)
+	if hasDirectives {
 		schemaDefinition.Directives = p.parseDirectiveList()
 		schemaDefinition.HasDirectives = len(schemaDefinition.Directives.Refs) > 0
 	}
-	p.parseRootOperationTypeDefinitionList(&schemaDefinition.RootOperationTypeDefinitions)
+
+	if p.peekEquals(keyword.LBRACE) || !hasDirectives {
+		p.parseRootOperationTypeDefinitionList(&schemaDefinition.RootOperationTypeDefinitions)
+	}
 
 	schemaExtension := ast.SchemaExtension{
 		ExtendLiteral:    extend,
@@ -1640,6 +1645,7 @@ func (p *Parser) parseObjectTypeExtension(extend position.Position) {
 		objectTypeDefinition.FieldsDefinition = p.parseFieldDefinitionList()
 		objectTypeDefinition.HasFieldDefinitions = len(objectTypeDefinition.FieldsDefinition.Refs) > 0
 	}
+
 	objectTypeExtension := ast.ObjectTypeExtension{
 		ExtendLiteral:        extend,
 		ObjectTypeDefinition: objectTypeDefinition,

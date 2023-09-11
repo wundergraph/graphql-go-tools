@@ -5,12 +5,13 @@ import (
 	"io/ioutil"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/keyword"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestParser_Parse(t *testing.T) {
@@ -469,6 +470,24 @@ func TestParser_Parse(t *testing.T) {
 						panic(fmt.Errorf("want 'Subscription', got '%s'", name))
 					}
 				})
+		})
+
+		t.Run("empty with directive", func(t *testing.T) {
+			run(`extend schema @myDirective`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					require.Len(t, doc.SchemaExtensions, 1)
+
+					schema := doc.SchemaExtensions[0]
+					require.Len(t, schema.RootOperationTypeDefinitions.Refs, 0)
+					require.True(t, schema.HasDirectives)
+
+					directive := doc.Directives[schema.Directives.Refs[0]]
+					assert.Equal(t, "myDirective", doc.Input.ByteSliceString(directive.Name))
+				})
+		})
+
+		t.Run("empty", func(t *testing.T) {
+			run(`extend schema`, parse, true)
 		})
 	})
 	t.Run("object type extension", func(t *testing.T) {
