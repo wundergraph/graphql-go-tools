@@ -2210,7 +2210,6 @@ func TestGraphQLDataSource(t *testing.T) {
 										},
 									},
 								},
-								Stream: resolve.Stream{},
 							},
 						},
 					},

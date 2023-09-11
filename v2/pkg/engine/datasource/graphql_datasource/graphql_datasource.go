@@ -38,6 +38,10 @@ var (
 		SelectResponseDataPath:   []string{"data", "_entities"},
 		SelectResponseErrorsPath: []string{"errors"},
 	}
+	SingleEntityPostProcessingConfiguration = resolve.PostProcessingConfiguration{
+		SelectResponseDataPath:   []string{"data", "_entities", "[0]"},
+		SelectResponseErrorsPath: []string{"errors"},
+	}
 )
 
 type Planner struct {
@@ -332,10 +336,10 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 
 	postProcessing := DefaultPostProcessingConfiguration
 	if p.extractEntities {
-		postProcessing = EntitiesPostProcessingConfiguration
-
 		if p.shouldSelectSingleEntity() {
-			postProcessing.SelectResponseDataPath = append(postProcessing.SelectResponseDataPath, "[0]")
+			postProcessing = SingleEntityPostProcessingConfiguration
+		} else {
+			postProcessing = EntitiesPostProcessingConfiguration
 		}
 	}
 
