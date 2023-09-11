@@ -17,11 +17,7 @@ type Context struct {
 	Request          Request
 	pathElements     [][]byte
 	responseElements []string
-	lastFetchID      int
-	patches          []patch
 	usedBuffers      []*bytes.Buffer
-	currentPatch     int
-	maxPatch         int
 	pathPrefix       []byte
 	beforeFetchHook  BeforeFetchHook
 	afterFetchHook   AfterFetchHook
@@ -42,10 +38,7 @@ func NewContext(ctx context.Context) *Context {
 		Variables:    make([]byte, 0, 4096),
 		pathPrefix:   make([]byte, 0, 4096),
 		pathElements: make([][]byte, 0, 16),
-		patches:      make([]patch, 0, 48),
 		usedBuffers:  make([]*bytes.Buffer, 0, 48),
-		currentPatch: -1,
-		maxPatch:     -1,
 		position:     Position{},
 	}
 }
@@ -73,27 +66,12 @@ func (c *Context) clone() Context {
 		pathElements[i] = make([]byte, len(c.pathElements[i]))
 		copy(pathElements[i], c.pathElements[i])
 	}
-	patches := make([]patch, len(c.patches))
-	for i := range patches {
-		patches[i] = patch{
-			path:      make([]byte, len(c.patches[i].path)),
-			extraPath: make([]byte, len(c.patches[i].extraPath)),
-			data:      make([]byte, len(c.patches[i].data)),
-			index:     c.patches[i].index,
-		}
-		copy(patches[i].path, c.patches[i].path)
-		copy(patches[i].extraPath, c.patches[i].extraPath)
-		copy(patches[i].data, c.patches[i].data)
-	}
 	return Context{
 		ctx:             c.ctx,
 		Variables:       variables,
 		Request:         c.Request,
 		pathElements:    pathElements,
-		patches:         patches,
 		usedBuffers:     make([]*bytes.Buffer, 0, 48),
-		currentPatch:    c.currentPatch,
-		maxPatch:        c.maxPatch,
 		pathPrefix:      pathPrefix,
 		beforeFetchHook: c.beforeFetchHook,
 		afterFetchHook:  c.afterFetchHook,
@@ -106,13 +84,10 @@ func (c *Context) Free() {
 	c.Variables = c.Variables[:0]
 	c.pathPrefix = c.pathPrefix[:0]
 	c.pathElements = c.pathElements[:0]
-	c.patches = c.patches[:0]
 	for i := range c.usedBuffers {
 		pool.BytesBuffer.Put(c.usedBuffers[i])
 	}
 	c.usedBuffers = c.usedBuffers[:0]
-	c.currentPatch = -1
-	c.maxPatch = -1
 	c.beforeFetchHook = nil
 	c.afterFetchHook = nil
 	c.Request.Header = nil
@@ -181,25 +156,6 @@ func (c *Context) path() []byte {
 		_, _ = buf.Write(c.pathElements[i])
 	}
 	return buf.Bytes()
-}
-
-func (c *Context) addPatch(index int, path, extraPath, data []byte) {
-	next := patch{path: path, extraPath: extraPath, data: data, index: index}
-	c.patches = append(c.patches, next)
-	c.maxPatch++
-}
-
-func (c *Context) popNextPatch() (patch patch, ok bool) {
-	c.currentPatch++
-	if c.currentPatch > c.maxPatch {
-		return patch, false
-	}
-	return c.patches[c.currentPatch], true
-}
-
-type patch struct {
-	path, extraPath, data []byte
-	index                 int
 }
 
 type HookContext struct {

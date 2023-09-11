@@ -117,13 +117,6 @@ func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *Bu
 	}
 }
 
-func (r *Resolver) validateContext(ctx *Context) (err error) {
-	if ctx.maxPatch != -1 || ctx.currentPatch != -1 {
-		return fmt.Errorf("context must be resetted using Free() before re-using it")
-	}
-	return nil
-}
-
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
 
 	dataBuf := pool.FastBuffer.Get()
