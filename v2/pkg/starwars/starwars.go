@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"path"
-	"testing"
 
 	"github.com/stretchr/testify/require"
 )
@@ -36,6 +35,12 @@ var (
 	testdataPath = "./"
 )
 
+type TestingTB interface {
+	Errorf(format string, args ...interface{})
+	Helper()
+	FailNow()
+}
+
 type TestCase struct {
 	Name        string
 	RequestBody []byte
@@ -51,20 +56,20 @@ func SetRelativePathToStarWarsPackage(path string) {
 	testdataPath = path
 }
 
-func Schema(t *testing.T) []byte {
+func Schema(t TestingTB) []byte {
 	schema, err := ioutil.ReadFile(path.Join(testdataPath, "testdata/star_wars.graphql"))
 	require.NoError(t, err)
 	return schema
 }
 
-func LoadQuery(t *testing.T, fileName string, variables QueryVariables) []byte {
+func LoadQuery(t TestingTB, fileName string, variables QueryVariables) []byte {
 	query, err := ioutil.ReadFile(path.Join(testdataPath, fileName))
 	require.NoError(t, err)
 
 	return RequestBody(t, string(query), variables)
 }
 
-func RequestBody(t *testing.T, query string, variables QueryVariables) []byte {
+func RequestBody(t TestingTB, query string, variables QueryVariables) []byte {
 	var variableJsonBytes []byte
 	if len(variables) > 0 {
 		var err error
