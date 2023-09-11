@@ -4518,7 +4518,6 @@ func Benchmark_NestedBatching(b *testing.B) {
 		},
 	}
 
-	var err error
 	expected := []byte(`{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`)
 
 	pool := sync.Pool{
@@ -4542,7 +4541,7 @@ func Benchmark_NestedBatching(b *testing.B) {
 			ctx := ctxPool.Get().(*Context)
 			buf := pool.Get().(*bytes.Buffer)
 			ctx.ctx = context.Background()
-			err = resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
+			err := resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
 			if err != nil {
 				b.Fatal(err)
 			}

@@ -416,7 +416,11 @@ func (l *Loader) mergeResultSet(res *resultSet) (err error) {
 func (l *Loader) resolveFetch(ctx *Context, fetch Fetch, res *resultSet) (err error) {
 	parallel := res != nil
 	lr := l.currentLayer()
-	lr.hasFetches = true
+	if !parallel {
+		// would be a data race otherwise
+		// we already set it to true for the root parallel fetch, so skip is fine
+		lr.hasFetches = true
+	}
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		if parallel {
@@ -613,11 +617,11 @@ func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListI
 		// however, appending is not concurrency safe, so we need to do it before we start the goroutines
 		out := res.getBuffer()
 		input := res.getBuffer()
+		err = fetch.Fetch.InputTemplate.Render(ctx, layer.items[i], input)
+		if err != nil {
+			return errors.WithStack(err)
+		}
 		group.Go(func() error {
-			err = fetch.Fetch.InputTemplate.Render(ctx, layer.items[i], input)
-			if err != nil {
-				return errors.WithStack(err)
-			}
 			data, err := l.loadAndPostProcess(groupContext, input, fetch.Fetch, out, res)
 			if err != nil {
 				return errors.WithStack(err)
