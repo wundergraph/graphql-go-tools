@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strconv"
 	"sync"
 	"unsafe"
 
 	"github.com/buger/jsonparser"
-	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
@@ -420,7 +420,15 @@ func (l *Loader) resolveFetch(ctx *Context, fetch Fetch, res *resultSet) (err er
 	case *ParallelFetch:
 		return l.resolveParallelFetch(ctx, f)
 	case *ParallelListItemFetch:
-		return l.resolveParallelListItemFetch(ctx, f)
+		if parallel {
+			return l.resolveParallelListItemFetch(ctx, f, res)
+		}
+		res = &resultSet{}
+		err = l.resolveParallelListItemFetch(ctx, f, res)
+		if err != nil {
+			return err
+		}
+		return l.mergeResultSet(res)
 	case *BatchFetch:
 		if parallel {
 			return l.resolveBatchFetch(ctx, f, res)
@@ -447,7 +455,8 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch, res *resultS
 	batchItemIndex := 0
 
 	itemBuf := l.getBuffer()
-	hash := xxhash.New()
+	hash := pool.Hash64.Get()
+	defer pool.Hash64.Put(hash)
 
 	itemHashes := make([]uint64, 0, len(lr.items)*len(fetch.Input.Items))
 	addSeparator := false
@@ -570,7 +579,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch, res *resultS
 	return
 }
 
-func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListItemFetch) (err error) {
+func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListItemFetch, res *resultSet) (err error) {
 	if !l.insideArray() {
 		return errors.WithStack(fmt.Errorf("resolveParallelListItemFetch must be inside an array, this seems to be a bug in the planner"))
 	}
@@ -581,7 +590,8 @@ func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListI
 		l.parallelFetch = false
 	}()
 	groupContext := ctx.WithContext(gCtx)
-	beforeSize := layer.itemsSize()
+	res.itemsData = make([][]byte, len(layer.items))
+	res.mergePath = fetch.Fetch.PostProcessing.MergePath
 	for i := range layer.items {
 		i := i
 		// get a buffer before we start the goroutines
@@ -599,17 +609,13 @@ func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListI
 			if err != nil {
 				return errors.WithStack(err)
 			}
-			layer.items[i], err = l.mergeJSONWithMergePath(layer.items[i], data, fetch.Fetch.PostProcessing.MergePath)
-			return errors.WithStack(err)
+			res.itemsData[i] = data
+			return nil
 		})
 	}
 	err = group.Wait()
 	if err != nil {
 		return errors.WithStack(err)
-	}
-	afterSize := layer.itemsSize()
-	if afterSize > beforeSize {
-		layer.hasResolvedData = true
 	}
 	return nil
 }
@@ -664,7 +670,7 @@ func (l *Loader) loadWithSingleFlight(ctx *Context, source DataSource, identifie
 	defer pool.Hash64.Put(keyGen)
 	_, _ = keyGen.Write(identifier)
 	_, _ = keyGen.Write(input)
-	key := fmt.Sprintf("%d", keyGen.Sum64())
+	key := strconv.FormatUint(keyGen.Sum64(), 10)
 	maybeData, err, shared := l.sf.Do(key, func() (interface{}, error) {
 		out := &bytes.Buffer{}
 		err := source.Load(ctx.ctx, input, out)
@@ -678,9 +684,9 @@ func (l *Loader) loadWithSingleFlight(ctx *Context, source DataSource, identifie
 	}
 	data := maybeData.([]byte)
 	if shared {
-		out := make([]byte, len(data))
-		copy(out, data)
-		return out, nil
+		out := l.getBuffer()
+		_, err = out.Write(data)
+		return out.Bytes(), err
 	}
 	return data, nil
 }
