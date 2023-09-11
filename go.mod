@@ -10,7 +10,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/evanphx/json-patch/v5 v5.1.0
-	github.com/go-test/deep v1.0.8
+	github.com/go-test/deep v1.1.0
 	github.com/gobwas/ws v1.0.4
 	github.com/golang/mock v1.4.1
 	github.com/google/go-cmp v0.5.8
