@@ -131,8 +131,6 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 
 	hasErrors, err := loader.LoadGraphQLResponseData(ctx, response, data, dataBuf)
 	if err != nil {
-		fmt.Printf("%+v", err)
-
 		return err
 	}
 
@@ -157,6 +155,27 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 }
 
 func (r *Resolver) resolveGraphQLSubscriptionResponse(ctx *Context, response *GraphQLResponse, subscriptionData *BufPair, writer io.Writer) (err error) {
+
+	dataBuf := pool.FastBuffer.Get()
+	defer pool.FastBuffer.Put(dataBuf)
+
+	loader := r.loaders.Get().(*Loader)
+	defer func() {
+		loader.Free()
+		r.loaders.Put(loader)
+	}()
+	loader.sf = r.sf
+	loader.sfEnabled = r.enableSingleFlightLoader
+
+	hasErrors, err := loader.LoadGraphQLResponseData(ctx, response, subscriptionData.Data.Bytes(), dataBuf)
+	if err != nil {
+		return err
+	}
+
+	if hasErrors {
+		_, err = writer.Write(dataBuf.Bytes())
+		return
+	}
 
 	buf := r.getBufPair()
 	defer r.freeBufPair(buf)
