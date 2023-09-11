@@ -136,6 +136,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 							},
 						),
+						PostProcessing: resolve.PostProcessingConfiguration{
+							MergePath: []string{"__type"},
+						},
 					},
 					Fields: []*resolve.Field{
 						{
@@ -145,6 +148,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 								Column: 4,
 							},
 							Value: &resolve.Object{
+								Path:     []string{"__type"},
 								Nullable: true,
 								Fields: []*resolve.Field{
 									{
@@ -185,6 +189,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 						Input:                `{"request_type":1}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: dataSourceIdentifier,
+						PostProcessing: resolve.PostProcessingConfiguration{
+							MergePath: []string{"__schema"},
+						},
 					},
 					Fields: []*resolve.Field{
 						{
@@ -194,6 +201,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 								Column: 4,
 							},
 							Value: &resolve.Object{
+								Path: []string{"__schema"},
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("queryType"),
@@ -235,6 +243,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 						Input:                `{"request_type":1}`,
 						DataSource:           &Source{},
 						DataSourceIdentifier: dataSourceIdentifier,
+						PostProcessing: resolve.PostProcessingConfiguration{
+							MergePath: []string{"__schema"},
+						},
 					},
 					Fields: []*resolve.Field{
 						{
@@ -244,6 +255,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 								Column: 4,
 							},
 							Value: &resolve.Object{
+								Path: []string{"__schema"},
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("queryType"),
@@ -339,6 +351,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 							},
 						),
+						PostProcessing: resolve.PostProcessingConfiguration{
+							MergePath: []string{"__type"},
+						},
 					},
 					Fields: []*resolve.Field{
 						{
@@ -348,6 +363,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 								Column: 4,
 							},
 							Value: &resolve.Object{
+								Path:     []string{"__type"},
 								Nullable: true,
 								Fetch: &resolve.ParallelFetch{
 									Fetches: []resolve.Fetch{
@@ -366,6 +382,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 												},
 											),
 											DataSourceIdentifier: dataSourceIdentifier,
+											PostProcessing: resolve.PostProcessingConfiguration{
+												MergePath: []string{"fields"},
+											},
 										},
 										&resolve.SingleFetch{
 											SerialID:   2,
@@ -382,6 +401,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 												},
 											),
 											DataSourceIdentifier: dataSourceIdentifier,
+											PostProcessing: resolve.PostProcessingConfiguration{
+												MergePath: []string{"enumValues"},
+											},
 										},
 									},
 								},
@@ -389,6 +411,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 									{
 										Name: []byte("fields"),
 										Value: &resolve.Array{
+											Path:     []string{"fields"},
 											Nullable: true,
 											Item: &resolve.Object{
 												Fields: []*resolve.Field{
@@ -412,6 +435,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 									{
 										Name: []byte("enumValues"),
 										Value: &resolve.Array{
+											Path:     []string{"enumValues"},
 											Nullable: true,
 											Item: &resolve.Object{
 												Fields: []*resolve.Field{
