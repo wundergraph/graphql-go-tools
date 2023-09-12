@@ -163,10 +163,7 @@ func (l *Loader) setCurrentLayerData(data []byte) {
 func (l *Loader) resolveLayerData(path []string, isArray bool) (data []byte, items [][]byte, itemsMapping [][]int, err error) {
 	current := l.currentLayer()
 	if !l.insideArray() && !isArray {
-		buf := l.getBuffer()
-		_, _ = buf.Write(current.data)
-		data = buf.Bytes()
-		data, _, _, err = jsonparser.Get(data, path...)
+		data, _, _, err = jsonparser.Get(current.data, path...)
 		if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 			// we have no data for this path which is legit
 			return nil, nil, nil, nil
@@ -466,7 +463,8 @@ func (l *Loader) resolveFetch(ctx *Context, fetch Fetch, res *resultSet) (err er
 
 func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch, res *resultSet) (err error) {
 	res.mergePath = fetch.PostProcessing.MergePath
-	input := res.getBuffer()
+	input := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(input)
 	lr := l.currentLayer()
 	err = fetch.Input.Header.Render(ctx, nil, input)
 	if err != nil {
@@ -475,7 +473,8 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch, res *resultS
 	batchStats := make([][]int, len(lr.items))
 	batchItemIndex := 0
 
-	itemBuf := res.getBuffer()
+	itemBuf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(itemBuf)
 	hash := pool.Hash64.Get()
 	defer pool.Hash64.Put(hash)
 
@@ -576,13 +575,15 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch, res *resultS
 			_, _ = buf.Write(rBrack)
 			res.itemsData[i] = buf.Bytes()
 		}
+		out := res.getBuffer()
+		start := 0
 		for i := range res.itemsData {
-			out := res.getBuffer()
 			err = fetch.PostProcessing.ResponseTemplate.Render(ctx, res.itemsData[i], out)
 			if err != nil {
 				return errors.WithStack(err)
 			}
-			res.itemsData[i] = out.Bytes()
+			res.itemsData[i] = out.Bytes()[start:]
+			start = out.Len()
 		}
 	} else {
 		for i, stats := range batchStats {

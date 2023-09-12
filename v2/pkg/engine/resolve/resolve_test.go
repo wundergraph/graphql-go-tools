@@ -4558,6 +4558,308 @@ func Benchmark_NestedBatching(b *testing.B) {
 	})
 }
 
+func Benchmark_NestedBatchingWithoutChecks(b *testing.B) {
+	rCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	resolver := newResolver(rCtx, true)
+
+	productsService := FakeDataSource(`{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1"},{"name":"Couch","__typename":"Product","upc":"2"},{"name":"Chair","__typename":"Product","upc":"3"}]}}`)
+	stockService := FakeDataSource(`{"data":{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}}`)
+	reviewsService := FakeDataSource(`{"data":{"_entities":[{"__typename":"Product","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2"}}]},{"__typename":"Product","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1"}}]},{"__typename":"Product","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2"}}]}]}}`)
+	usersService := FakeDataSource(`{"data":{"_entities":[{"name":"user-1"},{"name":"user-2"}]}}`)
+
+	plan := &GraphQLResponse{
+		Data: &Object{
+			Fetch: &SingleFetch{
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				DataSource: productsService,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
+				},
+			},
+			Fields: []*Field{
+				{
+					Name: []byte("topProducts"),
+					Value: &Array{
+						Path: []string{"topProducts"},
+						Item: &Object{
+							Fetch: &ParallelFetch{
+								Fetches: []Fetch{
+									&BatchFetch{
+										Input: BatchInput{
+											Header: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+											Items: []InputTemplate{
+												{
+													Segments: []TemplateSegment{
+														{
+															SegmentType:  VariableSegmentType,
+															VariableKind: ResolvableObjectVariableKind,
+															Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																Fields: []*Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &String{
+																			Path: []string{"__typename"},
+																		},
+																	},
+																	{
+																		Name: []byte("upc"),
+																		Value: &String{
+																			Path: []string{"upc"},
+																		},
+																	},
+																},
+															}),
+														},
+													},
+												},
+											},
+											Separator: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`,`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+											Footer: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`]}}}`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+										},
+										DataSource: reviewsService,
+										PostProcessing: PostProcessingConfiguration{
+											SelectResponseDataPath: []string{"data", "_entities"},
+										},
+									},
+									&BatchFetch{
+										Input: BatchInput{
+											Header: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`{"method":"POST","url":"http://stock","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {stock}}}","variables":{"representations":[`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+											Items: []InputTemplate{
+												{
+													Segments: []TemplateSegment{
+														{
+															SegmentType:  VariableSegmentType,
+															VariableKind: ResolvableObjectVariableKind,
+															Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																Fields: []*Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &String{
+																			Path: []string{"__typename"},
+																		},
+																	},
+																	{
+																		Name: []byte("upc"),
+																		Value: &String{
+																			Path: []string{"upc"},
+																		},
+																	},
+																},
+															}),
+														},
+													},
+												},
+											},
+											Separator: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`,`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+											Footer: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`]}}}`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+										},
+										DataSource: stockService,
+										PostProcessing: PostProcessingConfiguration{
+											SelectResponseDataPath: []string{"data", "_entities"},
+										},
+									},
+								},
+							},
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
+									},
+								},
+								{
+									Name: []byte("stock"),
+									Value: &Integer{
+										Path: []string{"stock"},
+									},
+								},
+								{
+									Name: []byte("reviews"),
+									Value: &Array{
+										Path: []string{"reviews"},
+										Item: &Object{
+											Fields: []*Field{
+												{
+													Name: []byte("body"),
+													Value: &String{
+														Path: []string{"body"},
+													},
+												},
+												{
+													Name: []byte("author"),
+													Value: &Object{
+														Path: []string{"author"},
+														Fetch: &BatchFetch{
+															Input: BatchInput{
+																Header: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			Data:        []byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[`),
+																			SegmentType: StaticSegmentType,
+																		},
+																	},
+																},
+																Items: []InputTemplate{
+																	{
+																		Segments: []TemplateSegment{
+																			{
+																				SegmentType:  VariableSegmentType,
+																				VariableKind: ResolvableObjectVariableKind,
+																				Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																					Fields: []*Field{
+																						{
+																							Name: []byte("__typename"),
+																							Value: &String{
+																								Path: []string{"__typename"},
+																							},
+																						},
+																						{
+																							Name: []byte("id"),
+																							Value: &String{
+																								Path: []string{"id"},
+																							},
+																						},
+																					},
+																				}),
+																			},
+																		},
+																	},
+																},
+																Separator: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			Data:        []byte(`,`),
+																			SegmentType: StaticSegmentType,
+																		},
+																	},
+																},
+																Footer: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			Data:        []byte(`]}}}`),
+																			SegmentType: StaticSegmentType,
+																		},
+																	},
+																},
+															},
+															DataSource: usersService,
+															PostProcessing: PostProcessingConfiguration{
+																SelectResponseDataPath: []string{"data", "_entities"},
+															},
+														},
+														Fields: []*Field{
+															{
+																Name: []byte("name"),
+																Value: &String{
+																	Path: []string{"name"},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	expected := []byte(`{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`)
+
+	pool := sync.Pool{
+		New: func() interface{} {
+			return bytes.NewBuffer(make([]byte, 0, 1024))
+		},
+	}
+
+	ctxPool := sync.Pool{
+		New: func() interface{} {
+			return NewContext(context.Background())
+		},
+	}
+
+	b.ReportAllocs()
+	b.SetBytes(int64(len(expected)))
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			ctx := ctxPool.Get().(*Context)
+			buf := pool.Get().(*bytes.Buffer)
+			ctx.ctx = context.Background()
+			err := resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
+			if err != nil {
+				b.Fatal(err)
+			}
+			if !bytes.Equal(expected, buf.Bytes()) {
+				require.Equal(b, string(expected), buf.String())
+			}
+
+			buf.Reset()
+			pool.Put(buf)
+
+			ctx.Free()
+			ctxPool.Put(ctx)
+		}
+	})
+}
+
 type hookContextPathMatcher struct {
 	path string
 }
