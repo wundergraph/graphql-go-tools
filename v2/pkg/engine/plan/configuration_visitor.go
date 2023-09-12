@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/pkg/errors"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -32,9 +34,7 @@ type configurationVisitor struct {
 	addedPathTracker   []pathConfiguration    // addedPathTracker is a list of paths which were added
 
 	pendingRequiredFields map[int]map[string]string // pendingRequiredFields is a map[selectionSetRef]map[UniqueId]RequiredFieldsSelectionSet
-	handledRequires       map[int]struct{}          // handledRequires is a map of field refs that were handled by @requires
-	// TODO: track handled keys
-	handledKeys map[string]struct{}
+	handledRequires       map[int]struct{}          // handledRequires is a map[FieldRef] of already processed fields which has @requires directive
 
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the planner not the first time
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
@@ -243,12 +243,11 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 		c.skipFieldsRefs = c.skipFieldsRefs[:0]
 	}
 
-	c.pendingRequiredFields = make(map[int]map[string]string)
 	c.missingPathTracker = make(map[string]missingPath)
 	c.addedPathTracker = make([]pathConfiguration, 0, 8)
 
+	c.pendingRequiredFields = make(map[int]map[string]string)
 	c.handledRequires = make(map[int]struct{})
-	c.handledKeys = make(map[string]struct{})
 }
 
 func (c *configurationVisitor) LeaveDocument(operation, definition *ast.Document) {
@@ -286,10 +285,15 @@ func (c *configurationVisitor) EnterSelectionSet(ref int) {
 				continue
 			}
 
+			if planner.hasPath(currentPath) {
+				continue
+			}
+
 			path := pathConfiguration{
 				path:             currentPath,
 				shouldWalkFields: true,
 				dsHash:           planner.dataSourceConfiguration.Hash(),
+				fieldRef:         ast.InvalidRef,
 			}
 
 			c.addPath(i, path)
@@ -527,7 +531,11 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		}
 	}
 
-	if !config.HasRootNode(typeName, fieldName) {
+	// we should handle a new planner for a __typename
+	// only when it is the first field on a query
+	shouldHandleTypeName := fieldName == typeNameField && parentPath == "query"
+
+	if !shouldHandleTypeName && !config.HasRootNode(typeName, fieldName) {
 		return false
 	}
 
@@ -637,7 +645,7 @@ func (c *configurationVisitor) handleMissingPath(typeName string, fieldName stri
 		}
 	}
 
-	c.walker.StopWithInternalErr(fmt.Errorf("could not find a data source for field %s.%s with path %s", typeName, fieldName, currentPath))
+	c.walker.StopWithInternalErr(errors.Wrap(&errOperationFieldNotResolved{TypeName: typeName, FieldName: fieldName, Path: currentPath}, "configurationVisitor.handleMissingPath"))
 }
 
 func (c *configurationVisitor) LeaveField(ref int) {
@@ -684,7 +692,7 @@ func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(
 	}
 
 	if node.Kind == ast.NodeKindUnionTypeDefinition {
-		c.planners[plannerIndex].addPath(pathConfiguration{
+		c.addPath(plannerIndex, pathConfiguration{
 			path:             currentPath,
 			shouldWalkFields: true,
 			typeName:         typeName,
@@ -718,7 +726,7 @@ func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
 	}
 	// The path for this field should only be added if the parent path also exists on this planner
 
-	c.planners[plannerIndex].addPath(pathConfiguration{
+	c.addPath(plannerIndex, pathConfiguration{
 		path:             currentPath,
 		shouldWalkFields: true,
 		typeName:         typeName,
@@ -735,7 +743,7 @@ func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
 func (c *configurationVisitor) addPlannerPathForTypename(
 	plannerIndex int, currentPath string, fieldRef int, fieldName string, typeName string, planningBehaviour DataSourcePlanningBehavior,
 ) (pathAdded bool) {
-	if fieldName != "__typename" {
+	if fieldName != typeNameField {
 		return false
 	}
 	if !planningBehaviour.IncludeTypeNameFields {
@@ -747,7 +755,7 @@ func (c *configurationVisitor) addPlannerPathForTypename(
 		return true
 	}
 
-	c.planners[plannerIndex].paths = append(c.planners[plannerIndex].paths, pathConfiguration{
+	c.addPath(plannerIndex, pathConfiguration{
 		path:             currentPath,
 		shouldWalkFields: true,
 		typeName:         typeName,

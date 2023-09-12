@@ -3,10 +3,14 @@ package plan
 import (
 	"fmt"
 
+	"github.com/pkg/errors"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
+
+const typeNameField = "__typename"
 
 type DataSourceFilter struct {
 	operation  *ast.Document
@@ -283,7 +287,7 @@ func (f *nodesResolvableVisitor) EnterField(ref int) {
 
 	_, found := f.nodes.HasSuggestionForPath(typeName, fieldName, currentPath)
 	if !found {
-		f.walker.StopWithInternalErr(&errOperationFieldNotResolved{TypeName: typeName, FieldName: fieldName, Path: currentPath})
+		f.walker.StopWithInternalErr(errors.Wrap(&errOperationFieldNotResolved{TypeName: typeName, FieldName: fieldName, Path: currentPath}, "nodesResolvableVisitor"))
 	}
 }
 
@@ -313,8 +317,7 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 	fieldName := f.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := f.operation.FieldAliasOrNameString(ref)
 
-	isTypeName := fieldName == "__typename"
-
+	isTypeName := fieldName == typeNameField
 	parentPath := f.walker.Path.DotDelimitedString()
 	currentPath := parentPath + "." + fieldAliasOrName
 
@@ -348,7 +351,7 @@ type errOperationFieldNotResolved struct {
 }
 
 func (e *errOperationFieldNotResolved) Error() string {
-	return fmt.Sprintf("could not find datasource to resolve %s.%s on a path %s", e.TypeName, e.FieldName, e.Path)
+	return fmt.Sprintf("could not select a datasource to resolve %s.%s on a path %s", e.TypeName, e.FieldName, e.Path)
 }
 
 const (
