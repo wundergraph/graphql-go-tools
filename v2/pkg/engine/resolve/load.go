@@ -553,8 +553,9 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch, res *resultS
 	}
 	res.itemsData = make([][]byte, len(lr.items))
 	if fetch.PostProcessing.ResponseTemplate != nil {
+		buf := res.getBuffer()
+		start := 0
 		for i, stats := range batchStats {
-			buf := res.getBuffer()
 			_, _ = buf.Write(lBrack)
 			addCommaSeparator := false
 			for j := range stats {
@@ -573,17 +574,16 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch, res *resultS
 				}
 			}
 			_, _ = buf.Write(rBrack)
-			res.itemsData[i] = buf.Bytes()
+			res.itemsData[i] = buf.Bytes()[start:]
+			start = buf.Len()
 		}
-		out := res.getBuffer()
-		start := 0
 		for i := range res.itemsData {
-			err = fetch.PostProcessing.ResponseTemplate.Render(ctx, res.itemsData[i], out)
+			err = fetch.PostProcessing.ResponseTemplate.Render(ctx, res.itemsData[i], buf)
 			if err != nil {
 				return errors.WithStack(err)
 			}
-			res.itemsData[i] = out.Bytes()[start:]
-			start = out.Len()
+			res.itemsData[i] = buf.Bytes()[start:]
+			start = buf.Len()
 		}
 	} else {
 		for i, stats := range batchStats {
