@@ -180,12 +180,7 @@ func (l *Loader) resolveLayerData(path []string, isArray bool) (data []byte, ite
 				items = append(items, value)
 			}
 		}, path...)
-		itemsCopy := make([][]byte, len(items))
-		for i := range items {
-			itemsCopy[i] = make([]byte, len(items[i]))
-			copy(itemsCopy[i], items[i])
-		}
-		return nil, itemsCopy, nil, errors.WithStack(err)
+		return nil, items, nil, errors.WithStack(err)
 	}
 	if isArray {
 		itemsMapping = make([][]int, len(current.items))
@@ -210,12 +205,7 @@ func (l *Loader) resolveLayerData(path []string, isArray bool) (data []byte, ite
 			items = append(items, data)
 		}
 	}
-	itemsCopy := make([][]byte, len(items))
-	for i := range items {
-		itemsCopy[i] = make([]byte, len(items[i]))
-		copy(itemsCopy[i], items[i])
-	}
-	return nil, itemsCopy, itemsMapping, nil
+	return nil, items, itemsMapping, nil
 }
 
 func (l *Loader) resolveArray(ctx *Context, array *Array) (err error) {
