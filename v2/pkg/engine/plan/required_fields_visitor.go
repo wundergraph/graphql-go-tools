@@ -90,9 +90,9 @@ func (v *requiredFieldsVisitor) EnterField(ref int) {
 
 	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
 
-	operationHasField, operationFieldRef := v.input.operation.SelectionSetHasFieldSelectionWithNameOrAliasBytes(selectionSetRef, fieldName)
+	operationHasField, operationFieldRef := v.input.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldName)
 	if operationHasField {
-		// do not add required field if the field is already present in the operation
+		// do not add required field if the field is already present in the operation with the same name
 		// but add an operation node from operation if the field has selections
 		if !v.input.operation.FieldHasSelections(operationFieldRef) {
 			return
