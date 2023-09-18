@@ -655,16 +655,18 @@ func (p *Planner) LeaveField(ref int) {
 // This is 3rd step of checks in addition to: planning path and skipFor functionality
 // if field is __typename, it is always allowed
 func (p *Planner) allowField(ref int) bool {
+	fieldName := p.visitor.Operation.FieldNameUnsafeString(ref)
+	fieldAliasOrName := p.visitor.Operation.FieldAliasOrNameString(ref)
+
 	// In addition, we skip field if its path are equal to planner parent path
 	// This is required to correctly plan on datasource which has corresponding child/root node,
 	// but we don't need to add it to the query as we are in the nested request
-	currentPath := fmt.Sprintf("%s.%s", p.visitor.Walker.Path.DotDelimitedString(), p.visitor.Operation.FieldNameString(ref))
+	currentPath := fmt.Sprintf("%s.%s", p.visitor.Walker.Path.DotDelimitedString(), fieldAliasOrName)
 	if p.dataSourceConfig.ParentInfo.Path != "query" && p.dataSourceConfig.ParentInfo.Path == currentPath {
 		p.DebugPrint("allowField: false path:", currentPath, "is equal to parent path", p.dataSourceConfig.ParentInfo.Path)
 		return false
 	}
 
-	fieldName := p.visitor.Operation.FieldAliasOrNameString(ref)
 	if fieldName == "__typename" {
 		p.DebugPrint("allowField: true path:", currentPath, `"__typename" is always allowed`)
 		return true
