@@ -32,7 +32,7 @@ func (f *DataSourceFilter) FilterDataSources(dataSources []DataSourceConfigurati
 		return
 	}
 
-	dsInUse := suggestions.UniqueDataSourceHashes()
+	dsInUse := suggestions.uniqueDataSourceHashes()
 
 	used = make([]DataSourceConfiguration, 0, len(dsInUse))
 
@@ -52,11 +52,11 @@ func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSourceConfigu
 		return nil
 	}
 
-	nodes = preserveUniqNodes(nodes)
-	nodes = preserveDuplicateNodes(nodes, false)
-	nodes = preserveDuplicateNodes(nodes, true)
+	nodes = selectUniqNodes(nodes)
+	nodes = selectDuplicateNodes(nodes, false)
+	nodes = selectDuplicateNodes(nodes, true)
 
-	nodes = nodesWithPriority(nodes)
+	nodes = selectedNodes(nodes)
 
 	f.isResolvable(nodes)
 	if f.report.HasErrors() {
@@ -104,26 +104,27 @@ type NodeSuggestion struct {
 	ParentPath     string
 	IsRootNode     bool
 
-	hasPriority  bool
-	whyWasChosen []string
+	onFragment       bool
+	selected         bool
+	selectionReasons []string
 }
 
-func (n *NodeSuggestion) WhyWasChosen(reason string) {
+func (n *NodeSuggestion) appendSelectionReason(reason string) {
 	// fmt.Println("ds:", n.DataSourceHash, fmt.Sprintf("%s.%s", n.TypeName, n.FieldName), "reason:", reason) // NOTE: debug do not remove
-	n.whyWasChosen = append(n.whyWasChosen, reason)
+	n.selectionReasons = append(n.selectionReasons, reason)
 }
 
-func (n *NodeSuggestion) SetPriorityWithReason(reason string) {
-	if n.hasPriority {
+func (n *NodeSuggestion) selectWithReason(reason string) {
+	if n.selected {
 		return
 	}
-	n.hasPriority = true
-	// n.WhyWasChosen(reason) // NOTE: debug do not remove
+	n.selected = true
+	// n.appendSelectionReason(reason) // NOTE: debug do not remove
 }
 
 type NodeSuggestions []NodeSuggestion
 
-func appendSuggestionWithPrecenseCheck(nodes NodeSuggestions, node NodeSuggestion) NodeSuggestions {
+func appendSuggestionWithPresenceCheck(nodes NodeSuggestions, node NodeSuggestion) NodeSuggestions {
 	for i := range nodes {
 		if nodes[i].TypeName == node.TypeName &&
 			nodes[i].FieldName == node.FieldName &&
@@ -157,7 +158,7 @@ func (f NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string) 
 	return 0, false
 }
 
-func (f NodeSuggestions) IsNodeUniq(idx int) bool {
+func (f NodeSuggestions) isNodeUniq(idx int) bool {
 	for i := range f {
 		if i == idx {
 			continue
@@ -169,7 +170,7 @@ func (f NodeSuggestions) IsNodeUniq(idx int) bool {
 	return true
 }
 
-func (f NodeSuggestions) HasPriorityOnOtherSource(idx int) bool {
+func (f NodeSuggestions) isSelectedOnOtherSource(idx int) bool {
 	for i := range f {
 		if i == idx {
 			continue
@@ -178,7 +179,7 @@ func (f NodeSuggestions) HasPriorityOnOtherSource(idx int) bool {
 			f[idx].FieldName == f[i].FieldName &&
 			f[idx].Path == f[i].Path &&
 			f[idx].DataSourceHash != f[i].DataSourceHash &&
-			f[i].hasPriority {
+			f[i].selected {
 
 			return true
 		}
@@ -186,7 +187,7 @@ func (f NodeSuggestions) HasPriorityOnOtherSource(idx int) bool {
 	return false
 }
 
-func (f NodeSuggestions) DuplicatesOf(idx int) (out []int) {
+func (f NodeSuggestions) duplicatesOf(idx int) (out []int) {
 	for i := range f {
 		if i == idx {
 			continue
@@ -200,7 +201,8 @@ func (f NodeSuggestions) DuplicatesOf(idx int) (out []int) {
 	return
 }
 
-func (f NodeSuggestions) ChildNodesOnSameSource(idx int) (out []int) {
+func (f NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
+	// here child could be on a fragment
 	for i := range f {
 		if i == idx {
 			continue
@@ -212,7 +214,7 @@ func (f NodeSuggestions) ChildNodesOnSameSource(idx int) (out []int) {
 	return
 }
 
-func (f NodeSuggestions) SiblingNodesOnSameSource(idx int) (out []int) {
+func (f NodeSuggestions) siblingNodesOnSameSource(idx int) (out []int) {
 	for i := range f {
 		if i == idx {
 			continue
@@ -224,7 +226,7 @@ func (f NodeSuggestions) SiblingNodesOnSameSource(idx int) (out []int) {
 	return
 }
 
-func (f NodeSuggestions) IsLeaf(idx int) bool {
+func (f NodeSuggestions) isLeaf(idx int) bool {
 	for i := range f {
 		if i == idx {
 			continue
@@ -236,7 +238,9 @@ func (f NodeSuggestions) IsLeaf(idx int) bool {
 	return true
 }
 
-func (f NodeSuggestions) ParentNodeOnSameSource(idx int) (parentIdx int, ok bool) {
+func (f NodeSuggestions) parentNodeOnSameSource(idx int) (parentIdx int, ok bool) {
+	// idx path could be on a fragment
+
 	for i := range f {
 		if i == idx {
 			continue
@@ -248,15 +252,7 @@ func (f NodeSuggestions) ParentNodeOnSameSource(idx int) (parentIdx int, ok bool
 	return -1, false
 }
 
-func (f NodeSuggestions) DataSourceCount() int {
-	return len(f.UniqueDataSourceHashes())
-}
-
-func (f NodeSuggestions) Count() int {
-	return len(f)
-}
-
-func (f NodeSuggestions) UniqueDataSourceHashes() map[DSHash]struct{} {
+func (f NodeSuggestions) uniqueDataSourceHashes() map[DSHash]struct{} {
 	if len(f) == 0 {
 		return nil
 	}
@@ -319,13 +315,14 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 
 	isTypeName := fieldName == typeNameField
 	parentPath := f.walker.Path.DotDelimitedString()
+	onFragment := f.walker.Path.EndsWithFragment()
 	currentPath := parentPath + "." + fieldAliasOrName
 
 	for _, v := range f.dataSources {
-		hasRootNode := v.HasRootNode(typeName, fieldName)
-		hasChildNode := v.HasChildNode(typeName, fieldName)
+		hasRootNode := v.HasRootNode(typeName, fieldName) || (isTypeName && v.HasRootNodeWithTypename(typeName))
+		hasChildNode := v.HasChildNode(typeName, fieldName) || (isTypeName && v.HasChildNodeWithTypename(typeName))
 
-		if hasRootNode || hasChildNode || isTypeName {
+		if hasRootNode || hasChildNode {
 			node := NodeSuggestion{
 				TypeName:       typeName,
 				FieldName:      fieldName,
@@ -333,10 +330,11 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 				Path:           currentPath,
 				ParentPath:     parentPath,
 				IsRootNode:     hasRootNode,
+				onFragment:     onFragment,
 			}
 
 			if f.secondaryRun {
-				f.nodes = appendSuggestionWithPrecenseCheck(f.nodes, node)
+				f.nodes = appendSuggestionWithPresenceCheck(f.nodes, node)
 			} else {
 				f.nodes = append(f.nodes, node)
 			}
@@ -351,7 +349,7 @@ type errOperationFieldNotResolved struct {
 }
 
 func (e *errOperationFieldNotResolved) Error() string {
-	return fmt.Sprintf("could not select a datasource to resolve %s.%s on a path %s", e.TypeName, e.FieldName, e.Path)
+	return fmt.Sprintf("could not select the datasource to resolve %s.%s on a path %s", e.TypeName, e.FieldName, e.Path)
 }
 
 const (
@@ -360,120 +358,120 @@ const (
 	ReasonStage1SameSourceLeafChild   = "stage1: same source leaf child of uniq node"
 	ReasonStage1SameSourceLeafSibling = "stage1: same source leaf sibling of uniq node"
 
-	ReasonStage2SameSourceNodeOfPreservedParent          = "stage2: node on the same source as preserved parent"
-	ReasonStage2SameSourceDuplicateNodeOfPreservedParent = "stage2: duplicate node on the same source as preserved parent"
-	ReasonStage2SameSourceNodeOfPreservedChild           = "stage2: node on the same source as preserved child"
-	ReasonStage2SameSourceNodeOfPreservedSibling         = "stage2: node on the same source as preserved sibling"
+	ReasonStage2SameSourceNodeOfSelectedParent          = "stage2: node on the same source as selected parent"
+	ReasonStage2SameSourceDuplicateNodeOfSelectedParent = "stage2: duplicate node on the same source as selected parent"
+	ReasonStage2SameSourceNodeOfSelectedChild           = "stage2: node on the same source as selected child"
+	ReasonStage2SameSourceNodeOfSelectedSibling         = "stage2: node on the same source as selected sibling"
 
-	PreserveReasonStage3ChooseAvailableNode = "stage3: choose first available node"
+	ReasonStage3SelectAvailableNode = "stage3: select first available node"
 )
 
-func preserveUniqNodes(nodes NodeSuggestions) []NodeSuggestion {
+func selectUniqNodes(nodes NodeSuggestions) []NodeSuggestion {
 	for i := range nodes {
-		if nodes[i].hasPriority {
+		if nodes[i].selected {
 			continue
 		}
 
-		isNodeUniq := nodes.IsNodeUniq(i)
+		isNodeUniq := nodes.isNodeUniq(i)
 		if !isNodeUniq {
 			continue
 		}
 
 		// uniq nodes are always has priority
-		nodes[i].SetPriorityWithReason(ReasonStage1Uniq)
+		nodes[i].selectWithReason(ReasonStage1Uniq)
 
 		// if node parent of the uniq node is on the same source, prioritize it too
-		parentIdx, ok := nodes.ParentNodeOnSameSource(i)
+		parentIdx, ok := nodes.parentNodeOnSameSource(i)
 		if ok {
-			nodes[parentIdx].SetPriorityWithReason(ReasonStage1SameSourceParent)
+			nodes[parentIdx].selectWithReason(ReasonStage1SameSourceParent)
 		}
 
 		// if node has leaf childs on the same source, prioritize them too
-		childs := nodes.ChildNodesOnSameSource(i)
+		childs := nodes.childNodesOnSameSource(i)
 		for _, child := range childs {
-			if nodes.IsLeaf(child) && nodes.IsNodeUniq(child) {
-				nodes[child].SetPriorityWithReason(ReasonStage1SameSourceLeafChild)
+			if nodes.isLeaf(child) && nodes.isNodeUniq(child) {
+				nodes[child].selectWithReason(ReasonStage1SameSourceLeafChild)
 			}
 		}
 
 		// prioritize leaf siblings of the node on the same source
-		siblings := nodes.SiblingNodesOnSameSource(i)
+		siblings := nodes.siblingNodesOnSameSource(i)
 		for _, sibling := range siblings {
-			if nodes.IsLeaf(sibling) && nodes.IsNodeUniq(sibling) {
-				nodes[sibling].SetPriorityWithReason(ReasonStage1SameSourceLeafSibling)
+			if nodes.isLeaf(sibling) && nodes.isNodeUniq(sibling) {
+				nodes[sibling].selectWithReason(ReasonStage1SameSourceLeafSibling)
 			}
 		}
 	}
 	return nodes
 }
 
-func preserveDuplicateNodes(nodes NodeSuggestions, secondRun bool) []NodeSuggestion {
+func selectDuplicateNodes(nodes NodeSuggestions, secondRun bool) []NodeSuggestion {
 	for i := range nodes {
-		if nodes[i].hasPriority {
+		if nodes[i].selected {
 			continue
 		}
 
-		if nodes.HasPriorityOnOtherSource(i) {
+		if nodes.isSelectedOnOtherSource(i) {
 			continue
 		}
 
 		// if node parent on the same source as the current node
-		parentIdx, ok := nodes.ParentNodeOnSameSource(i)
-		if ok && nodes[parentIdx].hasPriority {
-			nodes[i].SetPriorityWithReason(ReasonStage2SameSourceNodeOfPreservedParent)
+		parentIdx, ok := nodes.parentNodeOnSameSource(i)
+		if ok && nodes[parentIdx].selected {
+			nodes[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedParent)
 			continue
 		}
 
-		priorityIsSet := false
+		isSelected := false
 
 		// check if duplicates are on the same source as parent node
-		nodeDuplicates := nodes.DuplicatesOf(i)
+		nodeDuplicates := nodes.duplicatesOf(i)
 		for _, duplicate := range nodeDuplicates {
-			parentIdx, ok := nodes.ParentNodeOnSameSource(duplicate)
-			if ok && nodes[parentIdx].hasPriority {
-				nodes[duplicate].SetPriorityWithReason(ReasonStage2SameSourceDuplicateNodeOfPreservedParent)
-				priorityIsSet = true
+			parentIdx, ok := nodes.parentNodeOnSameSource(duplicate)
+			if ok && nodes[parentIdx].selected {
+				nodes[duplicate].selectWithReason(ReasonStage2SameSourceDuplicateNodeOfSelectedParent)
+				isSelected = true
 				break
 			}
 		}
-		if priorityIsSet {
+		if isSelected {
 			continue
 		}
 
-		childs := nodes.ChildNodesOnSameSource(i)
+		childs := nodes.childNodesOnSameSource(i)
 		for _, child := range childs {
-			if nodes[child].hasPriority {
-				nodes[i].SetPriorityWithReason(ReasonStage2SameSourceNodeOfPreservedChild)
-				priorityIsSet = true
+			if nodes[child].selected {
+				nodes[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedChild)
+				isSelected = true
 				break
 			}
 		}
-		if priorityIsSet {
+		if isSelected {
 			continue
 		}
 
-		siblings := nodes.SiblingNodesOnSameSource(i)
+		siblings := nodes.siblingNodesOnSameSource(i)
 		for _, sibling := range siblings {
-			if nodes[sibling].hasPriority {
-				nodes[i].SetPriorityWithReason(ReasonStage2SameSourceNodeOfPreservedSibling)
-				priorityIsSet = true
+			if nodes[sibling].selected {
+				nodes[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedSibling)
+				isSelected = true
 				break
 			}
 		}
-		if priorityIsSet {
+		if isSelected {
 			continue
 		}
 
 		if secondRun {
-			nodes[i].SetPriorityWithReason(PreserveReasonStage3ChooseAvailableNode)
+			nodes[i].selectWithReason(ReasonStage3SelectAvailableNode)
 		}
 	}
 	return nodes
 }
 
-func nodesWithPriority(nodes NodeSuggestions) (out NodeSuggestions) {
+func selectedNodes(nodes NodeSuggestions) (out NodeSuggestions) {
 	for i := range nodes {
-		if nodes[i].hasPriority {
+		if nodes[i].selected {
 			out = append(out, nodes[i])
 		}
 	}

@@ -48,6 +48,13 @@ func (p Path) Equals(another Path) bool {
 	return true
 }
 
+func (p Path) EndsWithFragment() bool {
+	if len(p) == 0 {
+		return false
+	}
+	return p[len(p)-1].Kind == InlineFragmentName
+}
+
 func (p Path) WithoutInlineFragmentNames() Path {
 	count := 0
 	for i := range p {
