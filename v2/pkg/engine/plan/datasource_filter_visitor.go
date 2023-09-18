@@ -104,9 +104,9 @@ type NodeSuggestion struct {
 	ParentPath     string
 	IsRootNode     bool
 
-	onFragment       bool
-	selected         bool
-	selectionReasons []string
+	parentPathWithoutFragment string
+	selected                  bool
+	selectionReasons          []string
 }
 
 func (n *NodeSuggestion) appendSelectionReason(reason string) {
@@ -202,12 +202,15 @@ func (f NodeSuggestions) duplicatesOf(idx int) (out []int) {
 }
 
 func (f NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
-	// here child could be on a fragment
 	for i := range f {
 		if i == idx {
 			continue
 		}
-		if f[i].DataSourceHash == f[idx].DataSourceHash && f[i].ParentPath == f[idx].Path {
+		if f[i].DataSourceHash != f[idx].DataSourceHash {
+			continue
+		}
+
+		if f[i].ParentPath == f[idx].Path || f[i].parentPathWithoutFragment == f[idx].Path {
 			out = append(out, i)
 		}
 	}
@@ -219,7 +222,20 @@ func (f NodeSuggestions) siblingNodesOnSameSource(idx int) (out []int) {
 		if i == idx {
 			continue
 		}
-		if f[i].DataSourceHash == f[idx].DataSourceHash && f[i].ParentPath == f[idx].ParentPath {
+		if f[i].DataSourceHash != f[idx].DataSourceHash {
+			continue
+		}
+
+		identicalParentPath := f[i].ParentPath == f[idx].ParentPath
+		identicalParentPathWithoutFragment := f[i].parentPathWithoutFragment == f[idx].parentPathWithoutFragment
+		idxParentOtherFragment := f[i].parentPathWithoutFragment == f[idx].ParentPath
+		otherParentIdxFragment := f[i].ParentPath == f[idx].parentPathWithoutFragment
+
+		if identicalParentPath ||
+			identicalParentPathWithoutFragment ||
+			idxParentOtherFragment ||
+			otherParentIdxFragment {
+
 			out = append(out, i)
 		}
 	}
@@ -239,13 +255,15 @@ func (f NodeSuggestions) isLeaf(idx int) bool {
 }
 
 func (f NodeSuggestions) parentNodeOnSameSource(idx int) (parentIdx int, ok bool) {
-	// idx path could be on a fragment
-
 	for i := range f {
 		if i == idx {
 			continue
 		}
-		if f[i].DataSourceHash == f[idx].DataSourceHash && f[i].Path == f[idx].ParentPath {
+		if f[i].DataSourceHash != f[idx].DataSourceHash {
+			continue
+		}
+
+		if f[i].Path == f[idx].ParentPath || f[i].Path == f[idx].parentPathWithoutFragment {
 			return i, true
 		}
 	}
@@ -316,6 +334,11 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 	isTypeName := fieldName == typeNameField
 	parentPath := f.walker.Path.DotDelimitedString()
 	onFragment := f.walker.Path.EndsWithFragment()
+	var parentPathWithoutFragment string
+	if onFragment {
+		parentPathWithoutFragment = f.walker.Path[:len(f.walker.Path)-1].DotDelimitedString()
+	}
+
 	currentPath := parentPath + "." + fieldAliasOrName
 
 	for _, v := range f.dataSources {
@@ -324,13 +347,13 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 
 		if hasRootNode || hasChildNode {
 			node := NodeSuggestion{
-				TypeName:       typeName,
-				FieldName:      fieldName,
-				DataSourceHash: v.Hash(),
-				Path:           currentPath,
-				ParentPath:     parentPath,
-				IsRootNode:     hasRootNode,
-				onFragment:     onFragment,
+				TypeName:                  typeName,
+				FieldName:                 fieldName,
+				DataSourceHash:            v.Hash(),
+				Path:                      currentPath,
+				ParentPath:                parentPath,
+				IsRootNode:                hasRootNode,
+				parentPathWithoutFragment: parentPathWithoutFragment,
 			}
 
 			if f.secondaryRun {
