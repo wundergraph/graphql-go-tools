@@ -296,6 +296,14 @@ func (f *nodesResolvableVisitor) EnterField(ref int) {
 	fieldName := f.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := f.operation.FieldAliasOrNameString(ref)
 
+	isTypeName := fieldName == typeNameField
+	isUnionParent := f.walker.EnclosingTypeDefinition.Kind == ast.NodeKindUnionTypeDefinition
+
+	if isUnionParent && isTypeName {
+		// typename field on union parent is always resolvable
+		return
+	}
+
 	parentPath := f.walker.Path.DotDelimitedString()
 	currentPath := parentPath + "." + fieldAliasOrName
 
