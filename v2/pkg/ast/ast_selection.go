@@ -191,12 +191,12 @@ func (d *Document) SelectionSetHasFieldSelectionWithExactName(set int, name []by
 			continue
 		}
 
-		if d.FieldAliasIsDefined(fieldRef) {
-			fieldAlias := d.FieldAliasBytes(fieldRef)
-			if bytes.Equal(fieldAlias, name) {
-				return true, fieldRef
-			}
-		} else {
+		if !d.FieldAliasIsDefined(fieldRef) {
+			return true, fieldRef
+		}
+
+		fieldAlias := d.FieldAliasBytes(fieldRef)
+		if bytes.Equal(fieldAlias, name) {
 			return true, fieldRef
 		}
 	}
