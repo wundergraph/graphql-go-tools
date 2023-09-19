@@ -23,9 +23,8 @@ require (
 	github.com/jensneuse/pipeline v0.0.0-20200117120358-9fb4de085cd6
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/nats-io/nats.go v1.19.1
-	github.com/r3labs/sse/v2 v2.8.1
+	github.com/r3labs/sse/v2 v2.10.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.0
-	github.com/sashabaranov/go-openai v1.14.1
 	github.com/sebdah/goldie/v2 v2.5.3
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.3.2
