@@ -265,7 +265,7 @@ func (v *Visitor) EnterField(ref int) {
 			Name: fieldAliasOrName,
 			Value: &resolve.String{
 				Nullable:   false,
-				Path:       []string{"__typename"},
+				Path:       []string{v.Operation.FieldAliasOrNameString(ref)},
 				IsTypeName: true,
 			},
 			OnTypeNames:             v.resolveOnTypeNames(),
