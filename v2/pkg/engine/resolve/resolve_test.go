@@ -167,6 +167,64 @@ func TestResolver_ResolveNode(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"data":{"n":12345,"ns_small":"12346","ns_big":"1152921504606846976"}}`
 	}))
+	t.Run("Scalar", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				DataSource: FakeDataSource(`{"int": 12345, "float": 3.5, "int_str": "12346", "bigint_str": "1152921504606846976", "str":"value", "object":{"foo": "bar"}, "encoded_object": "{\"foo\": \"bar\"}"}`),
+			},
+			Fields: []*Field{
+				{
+					Name: []byte("int"),
+					Value: &Scalar{
+						Path:     []string{"int"},
+						Nullable: false,
+					},
+				},
+				{
+					Name: []byte("float"),
+					Value: &Scalar{
+						Path:     []string{"float"},
+						Nullable: false,
+					},
+				},
+				{
+					Name: []byte("int_str"),
+					Value: &Scalar{
+						Path:     []string{"int_str"},
+						Nullable: false,
+					},
+				},
+				{
+					Name: []byte("bigint_str"),
+					Value: &Scalar{
+						Path:     []string{"bigint_str"},
+						Nullable: false,
+					},
+				},
+				{
+					Name: []byte("str"),
+					Value: &Scalar{
+						Path:     []string{"str"},
+						Nullable: false,
+					},
+				},
+				{
+					Name: []byte("object"),
+					Value: &Scalar{
+						Path:     []string{"object"},
+						Nullable: false,
+					},
+				},
+				{
+					Name: []byte("encoded_object"),
+					Value: &Scalar{
+						Path:     []string{"encoded_object"},
+						Nullable: false,
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"data":{"int":12345,"float":3.5,"int_str":"12346","bigint_str":"1152921504606846976","str":"value","object":{"foo": "bar"},"encoded_object":"{\"foo\": \"bar\"}"}}`
+	}))
 	t.Run("object with null field", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fields: []*Field{

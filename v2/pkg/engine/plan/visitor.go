@@ -500,11 +500,10 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 					Export:   fieldExport,
 				}
 			default:
-				return &resolve.String{
-					Path:                 path,
-					Nullable:             nullable,
-					Export:               fieldExport,
-					UnescapeResponseJson: unescapeResponseJson,
+				return &resolve.Scalar{
+					Path:     path,
+					Nullable: nullable,
+					Export:   fieldExport,
 				}
 			}
 		case ast.NodeKindEnumTypeDefinition:
