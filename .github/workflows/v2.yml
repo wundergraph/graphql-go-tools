@@ -1,4 +1,4 @@
-name: ci
+name: v2-ci
 on:
   pull_request:
     branches:
