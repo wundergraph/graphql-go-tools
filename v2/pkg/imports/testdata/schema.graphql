@@ -1,0 +1,9 @@
+#import "scalars/*.graphql"
+#import "types/query.graphql"
+#import "nested/nested.graphql"
+#import "deep/**/*.graphql"
+
+schema {
+    query: Query
+    mutation: Mutation
+}

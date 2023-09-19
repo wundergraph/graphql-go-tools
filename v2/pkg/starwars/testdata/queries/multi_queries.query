@@ -1,0 +1,14 @@
+query MultiHeroes {
+    empireHero: hero {
+        name
+    }
+    jediHero: hero {
+        name
+    }
+}
+
+query SingleHero {
+    hero {
+        name
+    }
+}

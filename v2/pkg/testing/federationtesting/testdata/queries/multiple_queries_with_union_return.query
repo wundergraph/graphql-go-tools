@@ -1,0 +1,27 @@
+query Histories {
+    me {
+        __typename
+        id
+        username
+    }
+    histories {
+        __typename
+        ... on Sale {
+            product {
+                __typename
+                upc
+            }
+            rating
+        }
+        ... on Purchase {
+            product {
+                __typename
+                upc
+            }
+            wallet {
+                __typename
+                currency
+            }
+        }
+    }
+}

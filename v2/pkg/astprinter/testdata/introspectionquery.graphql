@@ -1,0 +1,210 @@
+query IntrospectionQuery {
+  __schema {
+    queryType {
+      name
+    }
+    mutationType {
+      name
+    }
+    subscriptionType {
+      name
+    }
+    types {
+      ...FullType
+    }
+    directives {
+      name
+      description
+      locations
+      args {
+        ...InputValue
+      }
+    }
+  }
+}
+
+fragment FullType on __Type {
+  kind
+  name
+  description
+  fields(includeDeprecated: true) {
+    name
+    description
+    args {
+      ...InputValue
+    }
+    type {
+      ...TypeRef
+    }
+    isDeprecated
+    deprecationReason
+  }
+  inputFields {
+    ...InputValue
+  }
+  interfaces {
+    ...TypeRef
+  }
+  enumValues(includeDeprecated: true) {
+    name
+    description
+    isDeprecated
+    deprecationReason
+  }
+  possibleTypes {
+    ...TypeRef
+  }
+}
+
+fragment InputValue on __InputValue {
+  name
+  description
+  type {
+    ...TypeRef
+  }
+  defaultValue
+}
+
+fragment TypeRef on __Type {
+  kind
+  name
+  ofType {
+    kind
+    name
+    ofType {
+      kind
+      name
+      ofType {
+        kind
+        name
+        ofType {
+          kind
+          name
+          ofType {
+            kind
+            name
+            ofType {
+              kind
+              name
+              ofType {
+                kind
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+subscription sub {
+  ...multipleSubscriptions
+}
+
+fragment multipleSubscriptions on Subscription {
+  ... {
+    newMessage {
+      body
+    }
+  }
+  ... on Subscription {
+    typedInlineFragment
+  }
+  newMessage {
+    body
+    sender
+  }
+  disallowedSecondRootField
+}
+
+{
+  dog {
+    ...aliasedLyingFieldTargetNotDefined
+  }
+}
+
+query argOnRequiredArg($catCommand: CatCommand @include(if: true), $complex: Boolean = true) {
+  dog {
+    doesKnowCommand(dogCommand: $catCommand)
+  }
+}
+
+query directivesQuery @foo(bar: BAZ) {
+  dog @include(if: true, or: false) {
+    doesKnowCommand(dogCommand: $catCommand)
+  }
+}
+
+{
+  dog {
+    name: nickname
+    ... @include(if: true) {
+      name
+    }
+  }
+  cat {
+    name @include(if: true) @skip(if: true)
+    nickname
+  }
+  cat {
+    name @include(if: true)
+    nickname
+  }
+}
+
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+extend schema @foo {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+type Foo {
+  field: String
+}
+
+extend type Foo @foo {
+  field: String
+}
+
+input Foo {
+  field: String
+  field2: Boolean = true
+}
+
+extend input Foo @foo {
+  field: String
+}
+
+interface Foo {
+  field: String
+  field2: Boolean
+}
+
+extend interface Foo @foo {
+  field: String
+}
+
+scalar JSON
+
+extend scalar JSON @foo
+
+union Foo = BAR | BAZ
+
+extend union Foo @foo = BAR | BAZ
+
+enum Foo {
+  BAR
+  BAZ
+}
+
+extend enum Foo @foo {
+  BAR
+  BAZ
+}

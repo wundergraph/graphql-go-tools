@@ -1,0 +1,12 @@
+query {
+    topProducts {
+        __typename
+        price
+        upc
+    }
+    me {
+        __typename
+        id
+        username
+    }
+}

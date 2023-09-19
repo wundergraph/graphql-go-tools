@@ -1,0 +1,20 @@
+[
+  {
+    "name": "NEWHOPE",
+    "description": "",
+    "isDeprecated": false,
+    "deprecationReason": null
+  },
+  {
+    "name": "EMPIRE",
+    "description": "",
+    "isDeprecated": false,
+    "deprecationReason": null
+  },
+  {
+    "name": "JEDI",
+    "description": "",
+    "isDeprecated": true,
+    "deprecationReason": "No longer supported"
+  }
+]
