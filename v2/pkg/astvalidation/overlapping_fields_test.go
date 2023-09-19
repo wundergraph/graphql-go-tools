@@ -19,8 +19,6 @@ func TestOverlappingFieldsCanBeMerged(t *testing.T) {
 		definitionBytes := RenderTemplate(5, OverlappingFieldsDefinition)
 		operationBytes := RenderTemplate(5, OverlappingFieldsOperationValid)
 
-		fmt.Println(string(operationBytes))
-
 		definition := unsafeparser.ParseGraphqlDocumentBytes(definitionBytes)
 		operation := unsafeparser.ParseGraphqlDocumentBytes(operationBytes)
 		report := operationreport.Report{}
