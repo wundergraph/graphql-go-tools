@@ -1,5 +1,5 @@
 [![GoDoc](https://godoc.org/github.com/wundergraph/graphql-go-tools/v2?status.svg)](https://godoc.org/github.com/wundergraph/graphql-go-tools/v2)
-[![CI](https://github.com/wundergraph/graphql-go-tools/workflows/ci/badge.svg)](https://github.com/wundergraph/graphql-go-tools/workflows/ci/badge.svg)
+[![v2-ci](https://github.com/wundergraph/graphql-go-tools/workflows/v2-ci/badge.svg)](https://github.com/wundergraph/graphql-go-tools/actions/workflows/v2.yml)
 # graphql-go-tools
 
 [<p align="center"><img height="auto" src="./assets/logo.png"></p>](https://wundergraph.com/)
