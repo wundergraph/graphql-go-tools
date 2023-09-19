@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sync"
 )
@@ -23,15 +24,18 @@ type subscriptionCancellations struct {
 	cancellations map[string]context.CancelFunc
 }
 
-func (sc *subscriptionCancellations) AddWithParent(id string, parent context.Context) context.Context {
-	ctx, cancelFunc := context.WithCancel(parent)
+func (sc *subscriptionCancellations) AddWithParent(id string, parent context.Context) (context.Context, error) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	if sc.cancellations == nil {
 		sc.cancellations = make(map[string]context.CancelFunc)
 	}
+	if _, ok := sc.cancellations[id]; ok {
+		return nil, fmt.Errorf("subscriber for %s already exists", id)
+	}
+	ctx, cancelFunc := context.WithCancel(parent)
 	sc.cancellations[id] = cancelFunc
-	return ctx
+	return ctx, nil
 }
 
 func (sc *subscriptionCancellations) Cancel(id string) (ok bool) {
