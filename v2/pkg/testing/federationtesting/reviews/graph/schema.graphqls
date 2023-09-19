@@ -1,0 +1,54 @@
+type Query {
+    me: User
+    cat: Cat
+}
+
+type Cat {
+    name: String!
+}
+
+interface Comment {
+    upc: String!
+    body: String!
+}
+
+type Review {
+    body: String!
+    author: User! @provides(fields: "username")
+    product: Product!
+    attachments: [Attachment]
+}
+
+type Question implements Comment {
+    upc: String!
+    body: String!
+}
+
+type Rating implements Comment {
+    upc: String!
+    body: String!
+    score: Int!
+}
+
+type Video {
+    upc: String!
+    size: Float!
+}
+
+union Attachment = Question | Rating | Video
+
+extend type User @key(fields: "id") {
+    id: ID! @external
+    username: String! @external
+    reviews: [Review]
+    realName: String!
+}
+
+extend type Product @key(fields: "upc") {
+    upc: String! @external
+    reviews: [Review]
+}
+
+extend type Mutation {
+    addReview(authorID: String! upc: String!, review: String!): Review!
+}

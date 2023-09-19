@@ -1,0 +1,64 @@
+extend type Query {
+    me: User
+    identifiable: Identifiable
+    histories: [History]
+    cat: Cat
+}
+
+type Cat {
+    name: String!
+}
+
+interface Identifiable {
+    id: ID!
+}
+
+type User implements Identifiable @key(fields: "id")  {
+    id: ID!
+    username: String!
+    history: [History!]!
+    realName: String!
+}
+
+extend type Product @key(fields: "upc") {
+    upc: String! @external
+}
+
+union History = Purchase | Sale
+
+interface Info {
+    quantity: Int!
+}
+
+type Purchase implements Info {
+    product: Product!
+    wallet: Wallet
+    quantity: Int!
+}
+
+interface Store {
+    location: String!
+}
+
+type Sale implements Store {
+    product: Product!
+    rating: Int!
+    location: String!
+}
+
+interface Wallet {
+    currency: String!
+    amount: Float!
+}
+
+type WalletType1 implements Wallet {
+    currency: String!
+    amount: Float!
+    specialField1: String!
+}
+
+type WalletType2 implements Wallet {
+    currency: String!
+    amount: Float!
+    specialField2: String!
+}

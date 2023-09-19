@@ -1,0 +1,42 @@
+[
+  {
+    "kind": "GraphQL",
+    "name": "topProducts",
+    "root_fields": [
+      {
+        "type": "Query",
+        "fields": [
+          "topProducts"
+        ]
+      }
+    ],
+    "config": {
+      "url": "http://localhost:4002/query",
+      "method": "POST",
+      "headers": {},
+      "default_type_name": "Product"
+    }
+  },
+  {
+    "kind": "Kafka",
+    "name": "kafka-consumer-group",
+    "root_fields": [
+      {
+        "type": "Subscription",
+        "fields": [
+          "stock"
+        ]
+      }
+    ],
+    "config": {
+      "broker_addresses": [
+        "localhost:9092"
+      ],
+      "topics": [
+        "test.topic.{{.arguments.name}}"
+      ],
+      "group_id": "test.group",
+      "client_id": "kafka-integration-{{.arguments.name}}"
+    }
+  }
+]
