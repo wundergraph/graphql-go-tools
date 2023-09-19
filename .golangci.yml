@@ -1,0 +1,3 @@
+issues:
+  exclude:
+    - "SA1019: subscription.Message is deprecated: Prefer using TransportClient that is based on byte slices instead of this Message struct."
