@@ -42,7 +42,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -77,7 +76,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -112,7 +110,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -147,7 +144,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -182,7 +178,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -217,7 +212,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -252,7 +246,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -287,7 +280,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -322,7 +314,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -481,14 +472,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "AssetSubscriptionFilter",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "AND",
@@ -602,14 +591,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "AssetSubscriptionFilterNode",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "createdAt",
@@ -1873,7 +1860,6 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -1944,14 +1930,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "CreateAsset",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "fileName",
@@ -2041,14 +2025,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "CreateFilm",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "director",
@@ -2318,14 +2300,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "CreatePerson",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "birthYear",
@@ -2611,14 +2591,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "CreatePlanet",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "climate",
@@ -2814,14 +2792,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "CreateSpecies",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "averageHeight",
@@ -3025,14 +3001,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "CreateStarship",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "cargoCapacity",
@@ -3250,14 +3224,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "CreateVehicle",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "cargoCapacity",
@@ -3465,7 +3437,6 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -3628,14 +3599,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "FilmSubscriptionFilter",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "AND",
@@ -3749,14 +3718,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "FilmSubscriptionFilterNode",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "createdAt",
@@ -4938,7 +4905,6 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -5009,14 +4975,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "FilmcharactersPerson",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "birthYear",
@@ -5302,14 +5266,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "FilmplanetsPlanet",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "climate",
@@ -5505,14 +5467,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "FilmspeciesSpecies",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "averageHeight",
@@ -5716,14 +5676,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "FilmstarshipsStarship",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "cargoCapacity",
@@ -5941,14 +5899,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "FilmvehiclesVehicle",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "cargoCapacity",
@@ -6156,14 +6112,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "InvokeFunctionInput",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "name",
@@ -6205,7 +6159,6 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -6244,7 +6197,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -10620,7 +10572,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -10819,14 +10770,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "PersonSubscriptionFilter",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "AND",
@@ -10940,14 +10889,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "PersonSubscriptionFilterNode",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "birthYear",
@@ -12009,7 +11956,6 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -12080,14 +12026,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "PersonfilmsFilm",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "director",
@@ -12357,14 +12301,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "PersonhomeworldPlanet",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "climate",
@@ -12560,14 +12502,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "PersonspeciesSpecies",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "averageHeight",
@@ -12771,14 +12711,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "PersonstarshipsStarship",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "cargoCapacity",
@@ -12996,14 +12934,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "PersonvehiclesVehicle",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "cargoCapacity",
@@ -13211,7 +13147,6 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -13414,14 +13349,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "PlanetSubscriptionFilter",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "AND",
@@ -13535,14 +13468,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "PlanetSubscriptionFilterNode",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "createdAt",
@@ -14766,7 +14697,6 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -14837,14 +14767,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "PlanetfilmsFilm",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "director",
@@ -15114,14 +15042,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "PlanetresidentsPerson",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "birthYear",
@@ -15387,7 +15313,6 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -15422,7 +15347,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -15457,7 +15381,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -15492,7 +15415,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -15527,7 +15449,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -15562,7 +15483,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -15597,7 +15517,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -15632,7 +15551,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -15667,7 +15585,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -15702,7 +15619,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -15913,14 +15829,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "SpeciesSubscriptionFilter",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "AND",
@@ -16034,14 +15948,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "SpeciesSubscriptionFilterNode",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "averageHeight",
@@ -17289,7 +17201,6 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -17360,14 +17271,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "SpeciesfilmsFilm",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "director",
@@ -17637,14 +17546,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "SpeciespeoplePerson",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "birthYear",
@@ -17930,7 +17837,6 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -18161,14 +18067,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "StarshipSubscriptionFilter",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "AND",
@@ -18282,14 +18186,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "StarshipSubscriptionFilterNode",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "cargoCapacity",
@@ -19957,7 +19859,6 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -20028,14 +19929,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "StarshipfilmsFilm",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "director",
@@ -20305,14 +20204,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "StarshippilotsPerson",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "birthYear",
@@ -20598,7 +20495,6 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -20770,14 +20666,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "UpdateAsset",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "fileName",
@@ -20865,14 +20759,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "UpdateFilm",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "director",
@@ -21148,14 +21040,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "UpdatePerson",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "birthYear",
@@ -21451,14 +21341,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "UpdatePlanet",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "climate",
@@ -21664,14 +21552,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "UpdateSpecies",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "averageHeight",
@@ -21885,14 +21771,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "UpdateStarship",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "cargoCapacity",
@@ -22120,14 +22004,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "UpdateVehicle",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "cargoCapacity",
@@ -22345,7 +22227,6 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -22564,14 +22445,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "VehicleSubscriptionFilter",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "AND",
@@ -22685,14 +22564,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "VehicleSubscriptionFilterNode",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "cargoCapacity",
@@ -24324,7 +24201,6 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -24395,14 +24271,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "VehiclefilmsFilm",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "director",
@@ -24672,14 +24546,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "VehiclepilotsPerson",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "birthYear",
@@ -24965,14 +24837,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "ENUM",
         "name": "_ModelMutationType",
         "description": "",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
         "enumValues": [
@@ -25159,14 +25029,12 @@
             "ofType": null
           }
         ],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "AssetFilter",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "AND",
@@ -26466,14 +26334,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "ENUM",
         "name": "AssetOrderBy",
         "description": "",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
         "enumValues": [
@@ -26604,10 +26470,8 @@
         "kind": "SCALAR",
         "name": "DateTime",
         "description": "",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -27666,14 +27530,12 @@
             "ofType": null
           }
         ],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "FilmFilter",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "AND",
@@ -28891,14 +28753,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "ENUM",
         "name": "FilmOrderBy",
         "description": "",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
         "enumValues": [
@@ -29037,7 +28897,6 @@
         ],
         "inputFields": null,
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": [
           {
             "kind": "OBJECT",
@@ -29080,7 +28939,6 @@
         "kind": "ENUM",
         "name": "PERSON_EYE_COLOR",
         "description": "The eye color of this person. Will be \"UNKNOWN\" if not known or null if the person does not have an eye.",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
         "enumValues": [
@@ -29175,7 +29033,6 @@
         "kind": "ENUM",
         "name": "PERSON_GENDER",
         "description": " The gender of this person. Will be \"UNKNOWN\" if not known or null if the person does not have a gender.",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
         "enumValues": [
@@ -29210,7 +29067,6 @@
         "kind": "ENUM",
         "name": "PERSON_HAIR_COLOR",
         "description": "The hair color of this person. Will be \"UNKNOWN\" if not known or null if the person does not have hair.",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
         "enumValues": [
@@ -29263,7 +29119,6 @@
         "kind": "ENUM",
         "name": "PERSON_SKIN_COLOR",
         "description": "The skin color of this person.",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
         "enumValues": [
@@ -30327,14 +30182,12 @@
             "ofType": null
           }
         ],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "PersonFilter",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "AND",
@@ -31432,14 +31285,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "ENUM",
         "name": "PersonOrderBy",
         "description": "",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
         "enumValues": [
@@ -32116,14 +31967,12 @@
             "ofType": null
           }
         ],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "PlanetFilter",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "AND",
@@ -33383,14 +33232,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "ENUM",
         "name": "PlanetOrderBy",
         "description": "",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
         "enumValues": [
@@ -35059,14 +34906,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "ENUM",
         "name": "SPECIES_EYE_COLOR",
         "description": "The eye colors for this species, \"UNKNOWN\" if not known, null if this species does not typically have eyes.",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
         "enumValues": [
@@ -35173,7 +35018,6 @@
         "kind": "ENUM",
         "name": "SPECIES_HAIR_COLOR",
         "description": "The hair colors for this species, \"UNKNOWN\" if not known, null if this species does not typically have hairs.",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
         "enumValues": [
@@ -35220,7 +35064,6 @@
         "kind": "ENUM",
         "name": "SPECIES_SKIN_COLOR",
         "description": "The skin colors for this species, \"UNKNOWN\" if not known, null if this species does not typically have a skin.",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
         "enumValues": [
@@ -35923,14 +35766,12 @@
             "ofType": null
           }
         ],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "SpeciesFilter",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "AND",
@@ -37214,14 +37055,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "ENUM",
         "name": "SpeciesOrderBy",
         "description": "",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
         "enumValues": [
@@ -37938,14 +37777,12 @@
             "ofType": null
           }
         ],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "StarshipFilter",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "AND",
@@ -39649,14 +39486,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "ENUM",
         "name": "StarshipOrderBy",
         "description": "",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
         "enumValues": [
@@ -40421,14 +40256,12 @@
             "ofType": null
           }
         ],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "INPUT_OBJECT",
         "name": "VehicleFilter",
         "description": "",
-        "fields": null,
         "inputFields": [
           {
             "name": "AND",
@@ -42096,14 +41929,12 @@
           }
         ],
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "ENUM",
         "name": "VehicleOrderBy",
         "description": "",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
         "enumValues": [
@@ -42302,7 +42133,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -42437,14 +42267,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "ENUM",
         "name": "__DirectiveLocation",
         "description": "A Directive can be adjacent to many parts of the GraphQL language, a __DirectiveLocation describes one such possible adjacencies.",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
         "enumValues": [
@@ -42623,7 +42451,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -42730,7 +42557,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -42797,7 +42623,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -42896,7 +42721,6 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
@@ -43081,14 +42905,12 @@
         ],
         "inputFields": null,
         "interfaces": [],
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "ENUM",
         "name": "__TypeKind",
         "description": "An enum describing what kind of type a given `__Type` is.",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
         "enumValues": [
@@ -43147,50 +42969,40 @@
         "kind": "SCALAR",
         "name": "Boolean",
         "description": "The `Boolean` scalar type represents `true` or `false`.",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "SCALAR",
         "name": "Float",
         "description": "The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](http://en.wikipedia.org/wiki/IEEE_floating_point).",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "SCALAR",
         "name": "ID",
         "description": "The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `\"4\"`) or integer (such as `4`) input value will be accepted as an ID.",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "SCALAR",
         "name": "Int",
         "description": "The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       },
       {
         "kind": "SCALAR",
         "name": "String",
         "description": "The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.",
-        "fields": null,
         "inputFields": null,
         "interfaces": null,
-        "enumValues": null,
         "possibleTypes": null
       }
     ],
