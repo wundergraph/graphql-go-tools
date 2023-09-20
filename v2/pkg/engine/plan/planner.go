@@ -202,7 +202,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 		i++
 
 		if i > 100 {
-			report.AddInternalError(fmt.Errorf("bad datasource configuration - could not plan an operation"))
+			report.AddInternalError(fmt.Errorf("bad datasource configuration - could not plan the operation"))
 			return
 		}
 	}

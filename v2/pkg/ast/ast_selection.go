@@ -179,3 +179,26 @@ func (d *Document) SelectionSetHasFieldSelectionWithNameOrAliasBytes(set int, na
 func (d *Document) SelectionSetHasFieldSelectionWithNameOrAliasString(set int, nameOrAlias string) (exist bool, fieldRef int) {
 	return d.SelectionSetHasFieldSelectionWithNameOrAliasBytes(set, unsafebytes.StringToBytes(nameOrAlias))
 }
+
+func (d *Document) SelectionSetHasFieldSelectionWithExactName(set int, name []byte) (exist bool, fieldRef int) {
+	for _, i := range d.SelectionSets[set].SelectionRefs {
+		if d.Selections[i].Kind != SelectionKindField {
+			continue
+		}
+		fieldRef := d.Selections[i].Ref
+		fieldName := d.FieldNameBytes(fieldRef)
+		if !bytes.Equal(fieldName, name) {
+			continue
+		}
+
+		if !d.FieldAliasIsDefined(fieldRef) {
+			return true, fieldRef
+		}
+
+		fieldAlias := d.FieldAliasBytes(fieldRef)
+		if bytes.Equal(fieldAlias, name) {
+			return true, fieldRef
+		}
+	}
+	return false, InvalidRef
+}

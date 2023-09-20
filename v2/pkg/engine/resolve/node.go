@@ -12,6 +12,7 @@ const (
 	NodeKindFloat
 	NodeKindBigInt
 	NodeKindCustom
+	NodeKindScalar
 )
 
 type Node interface {

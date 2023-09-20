@@ -103,6 +103,8 @@ func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *Bu
 		return r.resolveFloat(ctx, n, data, bufPair)
 	case *BigInt:
 		return r.resolveBigInt(ctx, n, data, bufPair)
+	case *Scalar:
+		return r.resolveScalar(ctx, n, data, bufPair)
 	case *EmptyObject:
 		r.resolveEmptyObject(bufPair.Data)
 		return
@@ -412,6 +414,26 @@ func (r *Resolver) resolveBigInt(ctx *Context, bigIntValue *BigInt, data []byte,
 
 	}
 	r.exportField(ctx, bigIntValue.Export, value)
+	return nil
+}
+
+func (r *Resolver) resolveScalar(ctx *Context, scalarValue *Scalar, data []byte, scalarBuf *BufPair) error {
+	value, valueType, _, err := jsonparser.Get(data, scalarValue.Path...)
+	switch {
+	case err != nil, valueType == jsonparser.Null:
+		if !scalarValue.Nullable {
+			return errNonNullableFieldValueIsNull
+		}
+		r.resolveNull(scalarBuf.Data)
+		return nil
+	case valueType == jsonparser.String:
+		scalarBuf.Data.WriteBytes(quote)
+		scalarBuf.Data.WriteBytes(value)
+		scalarBuf.Data.WriteBytes(quote)
+	default:
+		scalarBuf.Data.WriteBytes(value)
+	}
+	r.exportField(ctx, scalarValue.Export, value)
 	return nil
 }
 

@@ -265,7 +265,7 @@ func (v *Visitor) EnterField(ref int) {
 			Name: fieldAliasOrName,
 			Value: &resolve.String{
 				Nullable:   false,
-				Path:       []string{"__typename"},
+				Path:       []string{v.Operation.FieldAliasOrNameString(ref)},
 				IsTypeName: true,
 			},
 			OnTypeNames:             v.resolveOnTypeNames(),
@@ -500,11 +500,10 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 					Export:   fieldExport,
 				}
 			default:
-				return &resolve.String{
-					Path:                 path,
-					Nullable:             nullable,
-					Export:               fieldExport,
-					UnescapeResponseJson: unescapeResponseJson,
+				return &resolve.Scalar{
+					Path:     path,
+					Nullable: nullable,
+					Export:   fieldExport,
 				}
 			}
 		case ast.NodeKindEnumTypeDefinition:
