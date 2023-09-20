@@ -21,10 +21,6 @@ var (
 	ErrOriginResponseError = errors.New("origin response error")
 )
 
-type bufferProvider interface {
-	getBuffer() *bytes.Buffer
-}
-
 type Loader struct {
 	layers []*layer
 
@@ -321,7 +317,7 @@ func (l *Loader) mergeLayerIntoParent() (err error) {
 		return nil
 	}
 	if parent.kind == layerKindObject && child.kind == layerKindObject {
-		parent.data, err = l.mergeJSONWithMergePath(parent.data, child.data, child.path, l)
+		parent.data, err = l.mergeJSONWithMergePath(parent.data, child.data, child.path)
 		return errors.WithStack(err)
 	}
 	if parent.kind == layerKindObject && child.kind == layerKindArray {
@@ -348,7 +344,7 @@ func (l *Loader) mergeLayerIntoParent() (err error) {
 			continue
 		}
 		existing, _, _, _ := jsonparser.Get(parent.items[i], child.path...)
-		combined, err := l.mergeJSON(existing, child.items[i], l)
+		combined, err := l.mergeJSON(existing, child.items[i])
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -378,7 +374,7 @@ func (l *Loader) mergeResultSet(res *resultSet) (err error) {
 		l.buffers = append(l.buffers, res.buffers...)
 	}
 	if res.data != nil {
-		return l.mergeDataIntoLayer(l.currentLayer(), res.data, res.mergePath, res)
+		return l.mergeDataIntoLayer(l.currentLayer(), res.data, res.mergePath)
 	}
 	if res.itemsData != nil {
 		lr := l.currentLayer()
@@ -387,7 +383,7 @@ func (l *Loader) mergeResultSet(res *resultSet) (err error) {
 			if lr.items[i] == nil {
 				continue
 			}
-			lr.items[i], err = l.mergeJSONWithMergePath(lr.items[i], res.itemsData[i], res.mergePath, res)
+			lr.items[i], err = l.mergeJSONWithMergePath(lr.items[i], res.itemsData[i], res.mergePath)
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -581,7 +577,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch, res *resultS
 				if stats[j] == -1 {
 					continue
 				}
-				res.itemsData[i], err = l.mergeJSON(res.itemsData[i], batchResponseItems[stats[j]], res)
+				res.itemsData[i], err = l.mergeJSON(res.itemsData[i], batchResponseItems[stats[j]])
 				if err != nil {
 					return errors.WithStack(err)
 				}
@@ -738,13 +734,13 @@ func (l *Loader) loadAndPostProcess(ctx *Context, input *bytes.Buffer, fetch *Si
 	return data, nil
 }
 
-func (l *Loader) mergeDataIntoLayer(layer *layer, data []byte, mergePath []string, res *resultSet) (err error) {
+func (l *Loader) mergeDataIntoLayer(layer *layer, data []byte, mergePath []string) (err error) {
 	if bytes.Equal(data, null) {
 		return
 	}
 	layer.hasResolvedData = true
 	if layer.kind == layerKindObject {
-		layer.data, err = l.mergeJSONWithMergePath(layer.data, data, mergePath, res)
+		layer.data, err = l.mergeJSONWithMergePath(layer.data, data, mergePath)
 		return errors.WithStack(err)
 	}
 	var (
@@ -768,7 +764,7 @@ func (l *Loader) mergeDataIntoLayer(layer *layer, data []byte, mergePath []strin
 			skipped++
 			continue
 		}
-		layer.items[i], err = l.mergeJSONWithMergePath(layer.items[i], dataItems[i-skipped], mergePath, res)
+		layer.items[i], err = l.mergeJSONWithMergePath(layer.items[i], dataItems[i-skipped], mergePath)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -808,13 +804,14 @@ var (
 	}
 )
 
-func (l *Loader) mergeJSONWithMergePath(left, right []byte, mergePath []string, buffers bufferProvider) ([]byte, error) {
+func (l *Loader) mergeJSONWithMergePath(left, right []byte, mergePath []string) ([]byte, error) {
 	if mergePath == nil || len(mergePath) == 0 {
-		return l.mergeJSON(left, right, buffers)
+		return l.mergeJSON(left, right)
 	}
 	element := mergePath[len(mergePath)-1]
 	mergePath = mergePath[:len(mergePath)-1]
-	buf := buffers.getBuffer()
+	buf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(buf)
 	_, _ = buf.Write(lBrace)
 	_, _ = buf.Write(quote)
 	_, _ = buf.Write([]byte(element))
@@ -822,10 +819,12 @@ func (l *Loader) mergeJSONWithMergePath(left, right []byte, mergePath []string, 
 	_, _ = buf.Write(colon)
 	_, _ = buf.Write(right)
 	_, _ = buf.Write(rBrace)
-	return l.mergeJSONWithMergePath(left, buf.Bytes(), mergePath, buffers)
+	out := make([]byte, buf.Len())
+	copy(out, buf.Bytes())
+	return l.mergeJSONWithMergePath(left, out, mergePath)
 }
 
-func (l *Loader) mergeJSON(left, right []byte, buffers bufferProvider) ([]byte, error) {
+func (l *Loader) mergeJSON(left, right []byte) ([]byte, error) {
 	if left == nil {
 		return right, nil
 	}
@@ -871,7 +870,7 @@ func (l *Loader) mergeJSON(left, right []byte, buffers bufferProvider) ([]byte, 
 			}
 			switch ctx.types[i] {
 			case jsonparser.Object:
-				merged, err := l.mergeJSON(ctx.values[i], value, buffers)
+				merged, err := l.mergeJSON(ctx.values[i], value)
 				if err != nil {
 					return errors.WithStack(err)
 				}
@@ -904,7 +903,8 @@ func (l *Loader) mergeJSON(left, right []byte, buffers bufferProvider) ([]byte, 
 	if len(ctx.missingKeys) == 0 {
 		return left, nil
 	}
-	buf := buffers.getBuffer()
+	buf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(buf)
 	_, _ = buf.Write(lBrace)
 	for i := range ctx.missingKeys {
 		_, _ = buf.Write(quote)
@@ -923,7 +923,9 @@ func (l *Loader) mergeJSON(left, right []byte, buffers bufferProvider) ([]byte, 
 	start := bytes.Index(left, lBrace)
 	_, _ = buf.Write(left[start+1:])
 	combined := buf.Bytes()
-	return combined, nil
+	out := make([]byte, len(combined))
+	copy(out, combined)
+	return out, nil
 }
 
 func (l *Loader) byteSliceContainsKey(slice [][]byte, key []byte) (int, bool) {
