@@ -1,12 +1,12 @@
 // Package graphql-go-tools is library to create GraphQL services using the go programming language.
 //
-// About GraphQL
+// # About GraphQL
 //
 // GraphQL is a query language for APIs and a runtime for fulfilling those queries with your existing data. GraphQL provides a complete and understandable description of the data in your API, gives clients the power to ask for exactly what they need and nothing more, makes it easier to evolve APIs over time, and enables powerful developer tools.
 //
 // Source: https://graphql.org
 //
-// About this library
+// # About this library
 //
 // This library is intended to be a set of low level building blocks to write high performance and secure GraphQL applications.
 // Use cases could range from writing layer seven GraphQL proxies, firewalls, caches etc..

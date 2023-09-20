@@ -11,6 +11,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
+	"go.uber.org/multierr"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 
@@ -119,10 +120,10 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 	err = l.resolveNode(ctx, response.Data)
 	if err != nil {
 		if errors.Is(err, ErrOriginResponseError) {
-			_, err = out.Write([]byte(`{"errors":`))
-			_, err = out.Write(l.errors)
-			_, err = out.Write([]byte(`}`))
-			return true, err
+			_, err1 := out.Write([]byte(`{"errors":`))
+			_, err2 := out.Write(l.errors)
+			_, err3 := out.Write([]byte(`}`))
+			return true, multierr.Combine(err1, err2, err3)
 		}
 		return false, err
 	}
@@ -805,7 +806,7 @@ var (
 )
 
 func (l *Loader) mergeJSONWithMergePath(left, right []byte, mergePath []string) ([]byte, error) {
-	if mergePath == nil || len(mergePath) == 0 {
+	if len(mergePath) == 0 {
 		return l.mergeJSON(left, right)
 	}
 	element := mergePath[len(mergePath)-1]

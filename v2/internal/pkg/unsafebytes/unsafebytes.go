@@ -33,7 +33,7 @@ func BytesToBool(byteSlice []byte) bool {
 }
 
 func StringToBytes(str string) []byte {
-	hdr := *(*reflect.StringHeader)(unsafe.Pointer(&str)) // nolint: govet
+	hdr := *(*reflect.StringHeader)(unsafe.Pointer(&str))  // nolint: govet
 	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{ // nolint: govet
 		Data: hdr.Data,
 		Len:  hdr.Len,

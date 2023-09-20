@@ -17,11 +17,12 @@ type TypeCondition struct {
 
 // FragmentDefinition
 // example:
-// fragment friendFields on User {
-//  id
-//  name
-//  profilePic(size: 50)
-// }
+//
+//	fragment friendFields on User {
+//	 id
+//	 name
+//	 profilePic(size: 50)
+//	}
 type FragmentDefinition struct {
 	FragmentLiteral position.Position  // fragment
 	Name            ByteSliceReference // Name but not on, e.g. friendFields
