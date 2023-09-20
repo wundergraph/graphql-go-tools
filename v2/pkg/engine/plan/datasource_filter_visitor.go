@@ -105,6 +105,7 @@ type NodeSuggestion struct {
 	IsRootNode     bool
 
 	parentPathWithoutFragment string
+	onFragment                bool
 	selected                  bool
 	selectionReasons          []string
 }
@@ -361,6 +362,7 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 				Path:                      currentPath,
 				ParentPath:                parentPath,
 				IsRootNode:                hasRootNode,
+				onFragment:                onFragment,
 				parentPathWithoutFragment: parentPathWithoutFragment,
 			}
 
@@ -411,10 +413,12 @@ func selectUniqNodes(nodes NodeSuggestions) []NodeSuggestion {
 		// uniq nodes are always has priority
 		nodes[i].selectWithReason(ReasonStage1Uniq)
 
-		// if node parent of the uniq node is on the same source, prioritize it too
-		parentIdx, ok := nodes.parentNodeOnSameSource(i)
-		if ok {
-			nodes[parentIdx].selectWithReason(ReasonStage1SameSourceParent)
+		if !nodes[i].onFragment { // on a first stage do not select parent of nodes on fragments
+			// if node parent of the uniq node is on the same source, prioritize it too
+			parentIdx, ok := nodes.parentNodeOnSameSource(i)
+			if ok {
+				nodes[parentIdx].selectWithReason(ReasonStage1SameSourceParent)
+			}
 		}
 
 		// if node has leaf childs on the same source, prioritize them too

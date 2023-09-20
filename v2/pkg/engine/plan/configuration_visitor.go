@@ -645,7 +645,7 @@ func (c *configurationVisitor) handleMissingPath(typeName string, fieldName stri
 		}
 	}
 
-	c.walker.StopWithInternalErr(errors.Wrap(&errOperationFieldNotResolved{TypeName: typeName, FieldName: fieldName, Path: currentPath}, "configurationVisitor.handleMissingPath"))
+	c.walker.StopWithInternalErr(errors.Wrap(fmt.Errorf("could not plan a field %s.%s on a path %s", typeName, fieldName, currentPath), "configurationVisitor.handleMissingPath"))
 }
 
 func (c *configurationVisitor) LeaveField(ref int) {
