@@ -1,5 +1,15 @@
 package resolve
 
+type Scalar struct {
+	Path     []string
+	Nullable bool
+	Export   *FieldExport `json:"export,omitempty"`
+}
+
+func (_ *Scalar) NodeKind() NodeKind {
+	return NodeKindScalar
+}
+
 type String struct {
 	Path                 []string
 	Nullable             bool
