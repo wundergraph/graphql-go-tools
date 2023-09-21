@@ -32,7 +32,7 @@ type Visitor struct {
 	objects                      []*resolve.Object
 	currentFields                []objectFields
 	currentField                 *resolve.Field
-	planners                     []plannerConfiguration
+	planners                     []*plannerConfiguration
 	fetchConfigurations          []objectFetchConfiguration
 	skipFieldsRefs               []int
 	fieldConfigs                 map[int]*FieldConfiguration
@@ -120,7 +120,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 
 				enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 				shouldWalkFieldsOnPath :=
-					// check if the field path has type condition and matches the enclosing type
+				// check if the field path has type condition and matches the enclosing type
 					config.shouldWalkFieldsOnPath(path, enclosingTypeName) ||
 						// check if the planner has path without type condition
 						// this could happen in case of union type
@@ -662,16 +662,17 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 func (v *Visitor) resolveFieldPath(ref int) []string {
 	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 	fieldName := v.Operation.FieldNameUnsafeString(ref)
-	config := v.currentOrParentPlannerConfiguration()
+	plannerConfig := v.currentOrParentPlannerConfiguration()
+
 	aliasOverride := false
-	if config.planner != nil {
-		aliasOverride = config.planner.DataSourcePlanningBehavior().OverrideFieldPathFromAlias
+	if plannerConfig != nil && plannerConfig.planner != nil {
+		aliasOverride = plannerConfig.planner.DataSourcePlanningBehavior().OverrideFieldPathFromAlias
 	}
 
 	for i := range v.Config.Fields {
 		if v.Config.Fields[i].TypeName == typeName && v.Config.Fields[i].FieldName == fieldName {
 			if aliasOverride {
-				override, exists := config.planner.DownstreamResponseFieldAlias(ref)
+				override, exists := plannerConfig.planner.DownstreamResponseFieldAlias(ref)
 				if exists {
 					return []string{override}
 				}
@@ -718,7 +719,7 @@ var (
 	selectorRegex = regexp.MustCompile(`{{\s*\.(.*?)\s*}}`)
 )
 
-func (v *Visitor) currentOrParentPlannerConfiguration() plannerConfiguration {
+func (v *Visitor) currentOrParentPlannerConfiguration() *plannerConfiguration {
 	const none = -1
 	currentPath := v.currentFullPath()
 	plannerIndex := none
@@ -741,7 +742,7 @@ func (v *Visitor) currentOrParentPlannerConfiguration() plannerConfiguration {
 		return v.planners[plannerIndex]
 	}
 
-	return plannerConfiguration{}
+	return nil
 }
 
 func (v *Visitor) isCurrentOrParentPath(currentPath string, parentPath string) bool {

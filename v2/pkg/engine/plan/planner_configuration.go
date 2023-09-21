@@ -12,7 +12,10 @@ type plannerConfiguration struct {
 	planner                 DataSourcePlanner
 	paths                   []pathConfiguration
 	dataSourceConfiguration DataSourceConfiguration
-	insideArray             bool
+
+	insideArray    bool
+	requiredFields FederationFieldConfigurations
+	providedFields NodeSuggestions
 }
 
 func (p *plannerConfiguration) addPath(configuration pathConfiguration) {
