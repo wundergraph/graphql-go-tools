@@ -41,6 +41,7 @@ func (l *Loader) Free() {
 }
 
 type resultSet struct {
+	mu        sync.Mutex
 	data      []byte
 	itemsData [][]byte
 	mergePath []string
@@ -50,7 +51,9 @@ type resultSet struct {
 
 func (r *resultSet) getBuffer() *bytes.Buffer {
 	buf := pool.BytesBuffer.Get()
+	r.mu.Lock()
 	r.buffers = append(r.buffers, buf)
+	r.mu.Unlock()
 	return buf
 }
 

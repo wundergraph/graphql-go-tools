@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2574,14 +2575,14 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					return writeGraphqlResponse(pair, w, false)
 				})
 
-			productServiceCallCount := 0
+			var productServiceCallCount atomic.Int64
 
 			productService := NewMockDataSource(ctrl)
 			productService.EXPECT().
 				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 				Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 					actual := string(input)
-					productServiceCallCount++
+					productServiceCallCount.Add(1)
 					switch actual {
 					case `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}}`:
 						pair := NewBufPair()
