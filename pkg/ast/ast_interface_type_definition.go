@@ -10,9 +10,10 @@ import (
 
 // InterfaceTypeDefinition
 // example:
-// interface NamedEntity {
-// 	name: String
-// }
+//
+//	interface NamedEntity {
+//		name: String
+//	}
 type InterfaceTypeDefinition struct {
 	Description          Description        // optional, describes the interface
 	InterfaceLiteral     position.Position  // interface

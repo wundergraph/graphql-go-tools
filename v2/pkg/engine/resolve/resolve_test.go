@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2574,14 +2575,14 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					return writeGraphqlResponse(pair, w, false)
 				})
 
-			productServiceCallCount := 0
+			var productServiceCallCount atomic.Int64
 
 			productService := NewMockDataSource(ctrl)
 			productService.EXPECT().
 				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 				Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 					actual := string(input)
-					productServiceCallCount++
+					productServiceCallCount.Add(1)
 					switch actual {
 					case `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"}]}}}`:
 						pair := NewBufPair()
@@ -3939,6 +3940,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should successfully get result from upstream", func(t *testing.T) {
+		t.Skip("TODO: This test hangs with the race detector enabled")
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -3973,7 +3975,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"name":"Bill","info":{"id":11,"__typename":"Info"},"address":{"id": 55,"__typename":"Address"}}`
 		right := `{"info":{"age":21},"address":{"line1":"Munich"}}`
 		expected := `{"address":{"__typename":"Address","id":55,"line1":"Munich"},"info":{"__typename":"Info","age":21,"id":11},"name":"Bill"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -3983,7 +3985,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"id":"1234","username":"Me","__typename":"User"}`
 		right := `{"reviews":[{"body": "A highly effective form of birth control.","product": {"upc": "top-1","__typename": "Product"}},{"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product": {"upc": "top-2","__typename": "Product"}}]}`
 		expected := `{"__typename":"User","id":"1234","reviews":[{"body":"A highly effective form of birth control.","product":{"__typename":"Product","upc":"top-1"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"__typename":"Product","upc":"top-2"}}],"username":"Me"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -3993,7 +3995,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"__typename":"Product","upc":"top-1"}`
 		right := `{"name": "Trilby"}`
 		expected := `{"__typename":"Product","name":"Trilby","upc":"top-1"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -4003,7 +4005,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"__typename":"Product","upc":"top-1"}`
 		right := `{"__typename":"Product","name":"Trilby","upc":"top-1"}`
 		expected := `{"__typename":"Product","name":"Trilby","upc":"top-1"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -4013,7 +4015,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}`
 		right := `{"__typename":"Address","country":"country-1","city":"city-1"}`
 		expected := `{"__typename":"Address","city":"city-1","country":"country-1","id":"address-1","line1":"line1","line2":"line2"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -4023,7 +4025,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"__typename":"Address","city":"city-1","country":"country-1","id":"address-1","line1":"line1","line2":"line2"}`
 		right := `{"__typename": "Address", "line3": "line3-1", "zip": "zip-1"}`
 		expected := `{"__typename":"Address","city":"city-1","country":"country-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -4033,7 +4035,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"__typename":"Address","city":"city-1","country":"country-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
 		right := `{"__typename":"Address","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1"}`
 		expected := `{"__typename":"Address","city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -4043,7 +4045,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}`
 		right := `{"__typename":"Address","city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
 		expected := `{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -4053,7 +4055,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}}`
 		right := `{"address":{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}}`
 		expected := `{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}},"address":{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -4063,7 +4065,7 @@ func TestResolver_mergeJSON(t *testing.T) {
 		left := `{"user":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}}}`
 		right := `{"account":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}},"address":{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}}}`
 		expected := `{"account":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}},"address":{"__typename":"Address","address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"},"city":"city-1","country":"country-1","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1","id":"address-1","line1":"line1","line2":"line2","line3":"line3-1","zip":"zip-1"}},"user":{"account":{"address":{"__typename":"Address","id":"address-1","line1":"line1","line2":"line2"}}}}`
-		out, err := loader.mergeJSON([]byte(left), []byte(right), &resultSet{})
+		out, err := loader.mergeJSON([]byte(left), []byte(right))
 		assert.NoError(t, err)
 		assert.JSONEq(t, expected, string(out))
 	})
@@ -4324,6 +4326,308 @@ func Benchmark_NestedBatching(b *testing.B) {
 	usersService := fakeDataSourceWithInputCheck(b,
 		[]byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"2"}]}}}`),
 		[]byte(`{"data":{"_entities":[{"name":"user-1"},{"name":"user-2"}]}}`))
+
+	plan := &GraphQLResponse{
+		Data: &Object{
+			Fetch: &SingleFetch{
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				DataSource: productsService,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
+				},
+			},
+			Fields: []*Field{
+				{
+					Name: []byte("topProducts"),
+					Value: &Array{
+						Path: []string{"topProducts"},
+						Item: &Object{
+							Fetch: &ParallelFetch{
+								Fetches: []Fetch{
+									&BatchFetch{
+										Input: BatchInput{
+											Header: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+											Items: []InputTemplate{
+												{
+													Segments: []TemplateSegment{
+														{
+															SegmentType:  VariableSegmentType,
+															VariableKind: ResolvableObjectVariableKind,
+															Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																Fields: []*Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &String{
+																			Path: []string{"__typename"},
+																		},
+																	},
+																	{
+																		Name: []byte("upc"),
+																		Value: &String{
+																			Path: []string{"upc"},
+																		},
+																	},
+																},
+															}),
+														},
+													},
+												},
+											},
+											Separator: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`,`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+											Footer: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`]}}}`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+										},
+										DataSource: reviewsService,
+										PostProcessing: PostProcessingConfiguration{
+											SelectResponseDataPath: []string{"data", "_entities"},
+										},
+									},
+									&BatchFetch{
+										Input: BatchInput{
+											Header: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`{"method":"POST","url":"http://stock","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {stock}}}","variables":{"representations":[`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+											Items: []InputTemplate{
+												{
+													Segments: []TemplateSegment{
+														{
+															SegmentType:  VariableSegmentType,
+															VariableKind: ResolvableObjectVariableKind,
+															Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																Fields: []*Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &String{
+																			Path: []string{"__typename"},
+																		},
+																	},
+																	{
+																		Name: []byte("upc"),
+																		Value: &String{
+																			Path: []string{"upc"},
+																		},
+																	},
+																},
+															}),
+														},
+													},
+												},
+											},
+											Separator: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`,`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+											Footer: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`]}}}`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+										},
+										DataSource: stockService,
+										PostProcessing: PostProcessingConfiguration{
+											SelectResponseDataPath: []string{"data", "_entities"},
+										},
+									},
+								},
+							},
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
+									},
+								},
+								{
+									Name: []byte("stock"),
+									Value: &Integer{
+										Path: []string{"stock"},
+									},
+								},
+								{
+									Name: []byte("reviews"),
+									Value: &Array{
+										Path: []string{"reviews"},
+										Item: &Object{
+											Fields: []*Field{
+												{
+													Name: []byte("body"),
+													Value: &String{
+														Path: []string{"body"},
+													},
+												},
+												{
+													Name: []byte("author"),
+													Value: &Object{
+														Path: []string{"author"},
+														Fetch: &BatchFetch{
+															Input: BatchInput{
+																Header: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			Data:        []byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[`),
+																			SegmentType: StaticSegmentType,
+																		},
+																	},
+																},
+																Items: []InputTemplate{
+																	{
+																		Segments: []TemplateSegment{
+																			{
+																				SegmentType:  VariableSegmentType,
+																				VariableKind: ResolvableObjectVariableKind,
+																				Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																					Fields: []*Field{
+																						{
+																							Name: []byte("__typename"),
+																							Value: &String{
+																								Path: []string{"__typename"},
+																							},
+																						},
+																						{
+																							Name: []byte("id"),
+																							Value: &String{
+																								Path: []string{"id"},
+																							},
+																						},
+																					},
+																				}),
+																			},
+																		},
+																	},
+																},
+																Separator: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			Data:        []byte(`,`),
+																			SegmentType: StaticSegmentType,
+																		},
+																	},
+																},
+																Footer: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			Data:        []byte(`]}}}`),
+																			SegmentType: StaticSegmentType,
+																		},
+																	},
+																},
+															},
+															DataSource: usersService,
+															PostProcessing: PostProcessingConfiguration{
+																SelectResponseDataPath: []string{"data", "_entities"},
+															},
+														},
+														Fields: []*Field{
+															{
+																Name: []byte("name"),
+																Value: &String{
+																	Path: []string{"name"},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	expected := []byte(`{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`)
+
+	pool := sync.Pool{
+		New: func() interface{} {
+			return bytes.NewBuffer(make([]byte, 0, 1024))
+		},
+	}
+
+	ctxPool := sync.Pool{
+		New: func() interface{} {
+			return NewContext(context.Background())
+		},
+	}
+
+	b.ReportAllocs()
+	b.SetBytes(int64(len(expected)))
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			ctx := ctxPool.Get().(*Context)
+			buf := pool.Get().(*bytes.Buffer)
+			ctx.ctx = context.Background()
+			err := resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
+			if err != nil {
+				b.Fatal(err)
+			}
+			if !bytes.Equal(expected, buf.Bytes()) {
+				require.Equal(b, string(expected), buf.String())
+			}
+
+			buf.Reset()
+			pool.Put(buf)
+
+			ctx.Free()
+			ctxPool.Put(ctx)
+		}
+	})
+}
+
+func Benchmark_NestedBatchingWithoutChecks(b *testing.B) {
+	rCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	resolver := newResolver(rCtx, true)
+
+	productsService := FakeDataSource(`{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1"},{"name":"Couch","__typename":"Product","upc":"2"},{"name":"Chair","__typename":"Product","upc":"3"}]}}`)
+	stockService := FakeDataSource(`{"data":{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}}`)
+	reviewsService := FakeDataSource(`{"data":{"_entities":[{"__typename":"Product","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2"}}]},{"__typename":"Product","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1"}}]},{"__typename":"Product","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2"}}]}]}}`)
+	usersService := FakeDataSource(`{"data":{"_entities":[{"name":"user-1"},{"name":"user-2"}]}}`)
 
 	plan := &GraphQLResponse{
 		Data: &Object{

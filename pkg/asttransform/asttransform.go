@@ -7,7 +7,6 @@
 // The right order to not mess things up is from the deepest level up to the root.
 // Therefore this package is used to register transformations while walking an AST in order to bring all transformations in the right order.
 // Only then, when all transformations are in the right order according to depth, it's possible to safely apply them.
-//
 package asttransform
 
 import (

@@ -7,11 +7,12 @@ import (
 
 // InlineFragment
 // example:
-// ... on User {
-//      friends {
-//        count
-//      }
-//    }
+//
+//	... on User {
+//	     friends {
+//	       count
+//	     }
+//	   }
 type InlineFragment struct {
 	Spread        position.Position // ...
 	TypeCondition TypeCondition     // on NamedType, e.g. on User
