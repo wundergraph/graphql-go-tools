@@ -106,10 +106,14 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningWalker.RegisterInlineFragmentVisitor(p.planningVisitor)
 
 	for key := range p.planningVisitor.planners {
-		config := p.planningVisitor.planners[key].dataSourceConfiguration
-		config.ParentInfo.Path = p.planningVisitor.planners[key].parentPath
-		config.ParentInfo.InsideArray = p.planningVisitor.planners[key].insideArray
-		isNested := p.planningVisitor.planners[key].isNestedPlanner()
+		dataSourceConfig := p.planningVisitor.planners[key].dataSourceConfiguration
+		dataSourcePlannerConfig := DataSourcePlannerConfiguration{
+			RequiredFields: p.planningVisitor.planners[key].requiredFields,
+			ProvidedFields: p.planningVisitor.planners[key].providedFields,
+			ParentPath:     p.planningVisitor.planners[key].parentPath,
+			InsideArray:    p.planningVisitor.planners[key].insideArray,
+			IsNested:       p.planningVisitor.planners[key].isNestedPlanner(),
+		}
 
 		if plannerWithId, ok := p.planningVisitor.planners[key].planner.(astvisitor.VisitorIdentifier); ok {
 			plannerWithId.SetID(key + 1)
@@ -124,7 +128,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 			}
 		}
 
-		err := p.planningVisitor.planners[key].planner.Register(p.planningVisitor, config, isNested)
+		err := p.planningVisitor.planners[key].planner.Register(p.planningVisitor, dataSourceConfig, dataSourcePlannerConfig)
 		if err != nil {
 			report.AddInternalError(err)
 			return

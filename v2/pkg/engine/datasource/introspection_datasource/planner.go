@@ -16,12 +16,14 @@ type Planner struct {
 	rootFieldName           string
 	rootFielPath            string
 	dataSourceConfiguration plan.DataSourceConfiguration
+	insideArray             bool
 }
 
-func (p *Planner) Register(visitor *plan.Visitor, dataSourceConfiguration plan.DataSourceConfiguration, _ bool) error {
+func (p *Planner) Register(visitor *plan.Visitor, dataSourceConfiguration plan.DataSourceConfiguration, dataSourcePlannerConfiguration plan.DataSourcePlannerConfiguration) error {
 	p.v = visitor
 	p.rootField = ast.InvalidRef
 	p.dataSourceConfiguration = dataSourceConfiguration
+	p.insideArray = dataSourcePlannerConfiguration.InsideArray
 	visitor.Walker.RegisterEnterFieldVisitor(p)
 	return nil
 }
@@ -58,7 +60,6 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		p.v.Walker.StopWithInternalErr(errors.New("introspection root field is not set"))
 	}
 
-	insideArray := p.dataSourceConfiguration.ParentInfo.InsideArray
 	postProcessing := resolve.PostProcessingConfiguration{
 		MergePath: []string{p.rootFielPath},
 	}
@@ -66,7 +67,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	requiresParallelListItemFetch := false
 	switch p.rootFieldName {
 	case fieldsFieldName, enumValuesFieldName:
-		requiresParallelListItemFetch = insideArray
+		requiresParallelListItemFetch = p.insideArray
 	}
 
 	return plan.FetchConfiguration{

@@ -51,6 +51,7 @@ type Planner struct {
 
 	visitor                            *plan.Visitor
 	dataSourceConfig                   plan.DataSourceConfiguration
+	dataSourcePlannerConfig            plan.DataSourcePlannerConfiguration
 	config                             Configuration
 	upstreamOperation                  *ast.Document
 	upstreamVariables                  []byte
@@ -60,7 +61,6 @@ type Planner struct {
 	disallowSingleFlight               bool
 	fetchClient                        *http.Client
 	subscriptionClient                 GraphQLSubscriptionClient
-	isNested                           bool   // isNested - flags that datasource is nested e.g. field with datasource is not on a query type
 	rootTypeName                       string // rootTypeName - holds name of top level type
 	rootFieldName                      string // rootFieldName - holds name of root type field
 	rootFieldRef                       int    // rootFieldRef - holds ref of root type field
@@ -129,7 +129,7 @@ func (p *Planner) EnterDirective(ref int) {
 func (p *Planner) addDirectiveToNode(directiveRef int, node ast.Node) {
 	directiveName := p.visitor.Operation.DirectiveNameString(directiveRef)
 	operationType := ast.OperationTypeQuery
-	if !p.isNested {
+	if !p.dataSourcePlannerConfig.IsNested {
 		operationType = p.visitor.Operation.OperationDefinitions[p.visitor.Walker.Ancestors[0].Ref].OperationType
 	}
 	if !p.visitor.Definition.DirectiveIsAllowedOnNodeKind(directiveName, node.Kind, operationType) {
@@ -294,7 +294,7 @@ func (c *Configuration) ApplyDefaults() {
 	}
 }
 
-func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration, isNested bool) error {
+func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration, dataSourcePlannerConfiguration plan.DataSourcePlannerConfiguration) error {
 	p.visitor = visitor
 	p.visitor.Walker.RegisterDocumentVisitor(p)
 	p.visitor.Walker.RegisterFieldVisitor(p)
@@ -305,6 +305,7 @@ func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceC
 	p.visitor.Walker.RegisterEnterDirectiveVisitor(p)
 	p.visitor.Walker.RegisterVariableDefinitionVisitor(p)
 
+	p.dataSourcePlannerConfig = dataSourcePlannerConfiguration
 	p.dataSourceConfig = configuration
 	err := json.Unmarshal(configuration.Custom, &p.config)
 	if err != nil {
@@ -312,7 +313,6 @@ func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceC
 	}
 
 	p.config.ApplyDefaults()
-	p.isNested = isNested
 
 	return nil
 }
@@ -358,16 +358,16 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 }
 
 func (p *Planner) shouldSelectSingleEntity() bool {
-	return p.dataSourceConfig.HasRequiredFieldsFromParentPlanner() &&
-		!p.dataSourceConfig.ParentInfo.InsideArray
+	return p.dataSourcePlannerConfig.HasRequiredFields() &&
+		!p.dataSourcePlannerConfig.InsideArray
 }
 
 func (p *Planner) requiresSerialFetch() bool {
-	if !p.dataSourceConfig.HasRequiredFieldsFromParentPlanner() {
+	if !p.dataSourcePlannerConfig.HasRequiredFields() {
 		return false
 	}
 
-	for _, fieldConfig := range p.dataSourceConfig.ParentInfo.RequiredFields {
+	for _, fieldConfig := range p.dataSourcePlannerConfig.RequiredFields {
 		if fieldConfig.FieldName != "" {
 			// if there field name in field config representation variables includes fields from @requires directive
 			return true
@@ -378,11 +378,11 @@ func (p *Planner) requiresSerialFetch() bool {
 }
 
 func (p *Planner) requiresBatchFetch() bool {
-	if !p.dataSourceConfig.HasRequiredFieldsFromParentPlanner() {
+	if !p.dataSourcePlannerConfig.HasRequiredFields() {
 		return false
 	}
 
-	return p.dataSourceConfig.ParentInfo.InsideArray
+	return p.dataSourcePlannerConfig.InsideArray
 }
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
@@ -419,7 +419,7 @@ func (p *Planner) EnterOperationDefinition(ref int) {
 	}
 
 	operationType := p.visitor.Operation.OperationDefinitions[ref].OperationType
-	if p.isNested {
+	if p.dataSourcePlannerConfig.IsNested {
 		operationType = ast.OperationTypeQuery
 	}
 	definition := p.upstreamOperation.AddOperationDefinitionToRootNodes(ast.OperationDefinition{
@@ -662,8 +662,8 @@ func (p *Planner) allowField(ref int) bool {
 	// This is required to correctly plan on datasource which has corresponding child/root node,
 	// but we don't need to add it to the query as we are in the nested request
 	currentPath := fmt.Sprintf("%s.%s", p.visitor.Walker.Path.DotDelimitedString(), fieldAliasOrName)
-	if p.dataSourceConfig.ParentInfo.Path != "query" && p.dataSourceConfig.ParentInfo.Path == currentPath {
-		p.DebugPrint("allowField: false path:", currentPath, "is equal to parent path", p.dataSourceConfig.ParentInfo.Path)
+	if p.dataSourcePlannerConfig.ParentPath != "query" && p.dataSourcePlannerConfig.ParentPath == currentPath {
+		p.DebugPrint("allowField: false path:", currentPath, "is equal to parent path", p.dataSourcePlannerConfig.ParentPath)
 		return false
 	}
 
@@ -672,7 +672,7 @@ func (p *Planner) allowField(ref int) bool {
 		return true
 	}
 
-	_, hasProvidedNode := p.dataSourceConfig.ProvidedFields.HasSuggestionForPath(p.lastFieldEnclosingTypeName, fieldName, currentPath)
+	_, hasProvidedNode := p.dataSourcePlannerConfig.ProvidedFields.HasSuggestionForPath(p.lastFieldEnclosingTypeName, fieldName, currentPath)
 	enclosingTypeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
 	allow := hasProvidedNode ||
 		p.dataSourceConfig.HasRootNode(enclosingTypeName, fieldName) ||
@@ -738,7 +738,7 @@ func (p *Planner) LeaveDocument(_, _ *ast.Document) {
 }
 
 func (p *Planner) addRepresentationsVariable() {
-	if !p.dataSourceConfig.HasRequiredFieldsFromParentPlanner() {
+	if !p.dataSourcePlannerConfig.HasRequiredFields() {
 		return
 	}
 
@@ -750,7 +750,8 @@ func (p *Planner) addRepresentationsVariable() {
 
 func (p *Planner) buildRepresentationsVariable() resolve.Variable {
 	// as required fields are merged for the nested ds we should have a single variable
-	cfg := p.dataSourceConfig.ParentInfo.RequiredFields[0]
+	// TODO: this is incorrect it could be a few variables
+	cfg := p.dataSourcePlannerConfig.RequiredFields[0]
 
 	key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, false)
 	if report.HasErrors() {
@@ -769,7 +770,7 @@ func (p *Planner) buildRepresentationsVariable() resolve.Variable {
 }
 
 func (p *Planner) addRepresentationsQuery() {
-	isNestedFederationRequest := p.isNested && p.config.Federation.Enabled && p.dataSourceConfig.HasRequiredFieldsFromParentPlanner()
+	isNestedFederationRequest := p.dataSourcePlannerConfig.IsNested && p.config.Federation.Enabled && p.dataSourcePlannerConfig.HasRequiredFields()
 
 	if !isNestedFederationRequest {
 		return
@@ -1273,9 +1274,9 @@ func (p *Planner) printQueryPlan(operation *ast.Document) {
 			"\n")
 	}
 
-	if p.dataSourceConfig.HasRequiredFieldsFromParentPlanner() {
+	if p.dataSourcePlannerConfig.HasRequiredFields() {
 		args = append(args, "Representations:\n")
-		for _, cfg := range p.dataSourceConfig.ParentInfo.RequiredFields {
+		for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
 			key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, true)
 			if report.HasErrors() {
 				continue
@@ -1459,7 +1460,7 @@ it might be the case that no FieldDefinition exists for the rewritten root field
 In that case, we transform the schema so that normalization and printing of the upstream Query succeeds.
 */
 func (p *Planner) replaceQueryType(definition *ast.Document) {
-	if !p.isNested || p.config.Federation.Enabled {
+	if !p.dataSourcePlannerConfig.IsNested || p.config.Federation.Enabled {
 		return
 	}
 

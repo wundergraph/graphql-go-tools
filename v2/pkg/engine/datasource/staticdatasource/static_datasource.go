@@ -39,7 +39,7 @@ func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 	}
 }
 
-func (p *Planner) Register(_ *plan.Visitor, configuration plan.DataSourceConfiguration, _ bool) error {
+func (p *Planner) Register(_ *plan.Visitor, configuration plan.DataSourceConfiguration, _ plan.DataSourcePlannerConfiguration) error {
 	return json.Unmarshal(configuration.Custom, &p.config)
 }
 

@@ -35,8 +35,6 @@ type DataSourceConfiguration struct {
 	Custom     json.RawMessage
 
 	FederationMetaData FederationMetaData
-	ParentInfo         DataSourceParentInfo
-	ProvidedFields     NodeSuggestions
 
 	hash DSHash
 }
@@ -49,10 +47,16 @@ func (d *DataSourceConfiguration) Hash() DSHash {
 	return d.hash
 }
 
-type DataSourceParentInfo struct {
+type DataSourcePlannerConfiguration struct {
 	RequiredFields FederationFieldConfigurations
-	Path           string
+	ProvidedFields NodeSuggestions
+	ParentPath     string
 	InsideArray    bool
+	IsNested       bool
+}
+
+func (c *DataSourcePlannerConfiguration) HasRequiredFields() bool {
+	return len(c.RequiredFields) > 0
 }
 
 func (d *DataSourceConfiguration) HasRootNode(typeName, fieldName string) bool {
@@ -81,10 +85,6 @@ func (d *DataSourceConfiguration) RequiredFieldsByKey(typeName string) []Federat
 
 func (d *DataSourceConfiguration) RequiredFieldsByRequires(typeName, fieldName string) []FederationFieldConfiguration {
 	return d.FederationMetaData.Requires.FilterByTypeAndField(typeName, fieldName)
-}
-
-func (d *DataSourceConfiguration) HasRequiredFieldsFromParentPlanner() bool {
-	return len(d.ParentInfo.RequiredFields) > 0
 }
 
 type DirectiveConfigurations []DirectiveConfiguration
@@ -139,7 +139,7 @@ type DataSourcePlanningBehavior struct {
 }
 
 type DataSourcePlanner interface {
-	Register(visitor *Visitor, configuration DataSourceConfiguration, isNested bool) error
+	Register(visitor *Visitor, configuration DataSourceConfiguration, dataSourcePlannerConfiguration DataSourcePlannerConfiguration) error
 	ConfigureFetch() FetchConfiguration
 	ConfigureSubscription() SubscriptionConfiguration
 	DataSourcePlanningBehavior() DataSourcePlanningBehavior
