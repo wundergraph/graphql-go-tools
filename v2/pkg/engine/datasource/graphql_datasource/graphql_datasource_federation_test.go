@@ -1624,4 +1624,251 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			})
 		})
 	})
+
+	t.Run("plan with few entities from the same datasource", func(t *testing.T) {
+		t.Run("on array", func(t *testing.T) {
+			definition := `
+				type User {
+					id: ID!
+					name: String!
+				}
+
+				type Admin {
+					adminID: ID!
+					adminName: String!
+				}
+	
+				union Account = User | Admin
+
+				type Query {
+					accounts: [Account!]
+				}
+			`
+
+			firstSubgraphSDL := `	
+				type User @key(fields: "id") {
+					id: ID!
+				}
+
+				type Admin @key(fields: "adminID") {
+					adminID: ID!
+				}
+	
+				union Account = User | Admin
+
+				type Query {
+					accounts: [Account!]
+				}
+			`
+
+			firstDatasourceConfiguration := plan.DataSourceConfiguration{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"accounts"},
+					},
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id"},
+					},
+					{
+						TypeName:   "Admin",
+						FieldNames: []string{"adminID"},
+					},
+				},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://first.service",
+					},
+					Federation: FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: firstSubgraphSDL,
+					},
+				}),
+				Factory: federationFactory,
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "Admin",
+							SelectionSet: "adminID",
+						},
+					},
+				},
+			}
+
+			secondSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					name: String!
+				}
+
+				type Admin @key(fields: "adminID") {
+					adminID: ID!
+					adminName: String!
+				}
+			`
+			secondDatasourceConfiguration := plan.DataSourceConfiguration{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "name"},
+					},
+					{
+						TypeName:   "Admin",
+						FieldNames: []string{"adminID", "adminName"},
+					},
+				},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://second.service",
+					},
+					Federation: FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: secondSubgraphSDL,
+					},
+				}),
+				Factory: federationFactory,
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "Admin",
+							SelectionSet: "id",
+						},
+					},
+				},
+			}
+
+			dataSources := []plan.DataSourceConfiguration{
+				firstDatasourceConfiguration,
+				secondDatasourceConfiguration,
+			}
+
+			planConfiguration := plan.Configuration{
+				DataSources:                  ShuffleDS(dataSources),
+				DisableResolveFieldPositions: true,
+			}
+
+			t.Run("only shared field", func(t *testing.T) {
+				query := `
+					query Accounts {
+						accounts {
+							... on User {
+								name
+							}
+							... on Admin {
+								adminName
+							}
+						}
+					}
+				`
+
+				expectedPlan := func(input, nestedInput string) *plan.SynchronousResponsePlan {
+					return &plan.SynchronousResponsePlan{
+						Response: &resolve.GraphQLResponse{
+							Data: &resolve.Object{
+								Fetch: &resolve.SingleFetch{
+									Input:                input,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("accounts"),
+										Value: &resolve.Object{
+											Path:     []string{"accounts"},
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Path: []string{"name"},
+													},
+													OnTypeNames: [][]byte{[]byte("User")},
+												},
+												{
+													Name: []byte("adminName"),
+													Value: &resolve.String{
+														Path: []string{"adminName"},
+													},
+													OnTypeNames: [][]byte{[]byte("Admin")},
+												},
+											},
+											Fetch: &resolve.SingleFetch{
+												SerialID:                              1,
+												Input:                                 nestedInput,
+												DataSource:                            &Source{},
+												SetTemplateOutputToNullOnVariableNull: true,
+												Variables: []resolve.Variable{
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
+																	},
+																},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.String{
+																		Path: []string{"id"},
+																	},
+																},
+															},
+														}),
+													},
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
+																	},
+																},
+																{
+																	Name: []byte("adminID"),
+																	Value: &resolve.String{
+																		Path: []string{"adminID"},
+																	},
+																},
+															},
+														}),
+													},
+												},
+												DataSourceIdentifier: []byte("graphql_datasource.Source"),
+												PostProcessing:       EntitiesPostProcessingConfiguration,
+											},
+										},
+									},
+								},
+							},
+						},
+					}
+				}
+
+				t.Run("query", RunTest(
+					definition,
+					query,
+					"Accounts",
+
+					expectedPlan(
+						`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename}}}"}}`,
+						`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name} ... on Admin {adminName}}}","variables":{"representations":[$$0$$]}}}`,
+					),
+					planConfiguration,
+				))
+			})
+
+		})
+	})
 }
