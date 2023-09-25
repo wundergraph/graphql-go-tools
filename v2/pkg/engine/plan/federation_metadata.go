@@ -81,3 +81,12 @@ func AppendRequiredFieldsConfigurationWithMerge(configs FederationFieldConfigura
 
 	return configs
 }
+
+func AppendRequiredFieldsConfigurationIfNotPresent(configs FederationFieldConfigurations, config FederationFieldConfiguration) FederationFieldConfigurations {
+	ok := configs.HasSelectionSet(config.TypeName, config.SelectionSet)
+	if ok {
+		return configs
+	}
+
+	return append(configs, config)
+}
