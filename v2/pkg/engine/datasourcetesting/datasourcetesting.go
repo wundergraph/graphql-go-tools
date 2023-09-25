@@ -70,8 +70,8 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 // ShuffleDS randomizes the order of the data sources
 // to ensure that the order doesn't matter
 func ShuffleDS(dataSources []plan.DataSourceConfiguration) []plan.DataSourceConfiguration {
-	rand.Seed(time.Now().UnixNano())
-	rand.Shuffle(len(dataSources), func(i, j int) {
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rnd.Shuffle(len(dataSources), func(i, j int) {
 		dataSources[i], dataSources[j] = dataSources[j], dataSources[i]
 	})
 
