@@ -33,8 +33,8 @@ type configurationVisitor struct {
 	missingPathTracker map[string]missingPath // missingPathTracker is a map of paths which will be added on secondary runs
 	addedPathTracker   []pathConfiguration    // addedPathTracker is a list of paths which were added
 
-	pendingRequiredFields map[int]map[string]string // pendingRequiredFields is a map[selectionSetRef]map[UniqueId]RequiredFieldsSelectionSet
-	handledRequires       map[int]struct{}          // handledRequires is a map[FieldRef] of already processed fields which has @requires directive
+	pendingRequiredFields map[int][]string // pendingRequiredFields is a map[selectionSetRef][]RequiredFieldsSelectionSet
+	handledRequires       map[int]struct{} // handledRequires is a map[FieldRef] of already processed fields which has @requires directive
 
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the planner not the first time
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
@@ -255,7 +255,7 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 	c.missingPathTracker = make(map[string]missingPath)
 	c.addedPathTracker = make([]pathConfiguration, 0, 8)
 
-	c.pendingRequiredFields = make(map[int]map[string]string)
+	c.pendingRequiredFields = make(map[int][]string)
 	c.handledRequires = make(map[int]struct{})
 }
 
@@ -818,7 +818,7 @@ func (c *configurationVisitor) handleFieldRequiredByRequires(config *plannerConf
 
 	requiredFieldsForTypeAndField := config.dataSourceConfiguration.RequiredFieldsByRequires(typeName, fieldName)
 	for _, requiredFieldsConfiguration := range requiredFieldsForTypeAndField {
-		c.planAddingRequiredFields(currentPath, requiredFieldsConfiguration)
+		c.planAddingRequiredFields(requiredFieldsConfiguration)
 		config.requiredFields = AppendRequiredFieldsConfigurationWithMerge(config.requiredFields, requiredFieldsConfiguration)
 		c.hasNewFields = true
 	}
@@ -848,7 +848,7 @@ func (c *configurationVisitor) planKeyRequiredFields(plannerIdx int, parentPath 
 		}
 		for _, possibleRequiredFieldConfig := range possibleRequiredFields {
 			if c.planners[i].dataSourceConfiguration.HasKeyRequirement(typeName, possibleRequiredFieldConfig.SelectionSet) {
-				c.planAddingRequiredFields(parentPath, possibleRequiredFieldConfig)
+				c.planAddingRequiredFields(possibleRequiredFieldConfig)
 				return possibleRequiredFieldConfig, true
 			}
 		}
@@ -857,19 +857,25 @@ func (c *configurationVisitor) planKeyRequiredFields(plannerIdx int, parentPath 
 	return FederationFieldConfiguration{}, false
 }
 
-func (c *configurationVisitor) planAddingRequiredFields(currentPath string, fieldConfiguration FederationFieldConfiguration) {
-	key := currentPath + "." + fieldConfiguration.SelectionSet
-
+func (c *configurationVisitor) planAddingRequiredFields(fieldConfiguration FederationFieldConfiguration) {
 	currentSelectionSet := c.currentSelectionSet()
 
-	configs, hasSelectionSet := c.pendingRequiredFields[currentSelectionSet]
+	selectionSets, hasSelectionSet := c.pendingRequiredFields[currentSelectionSet]
 	if !hasSelectionSet {
-		configs = make(map[string]string)
+		selectionSets = make([]string, 0, 2)
+		c.pendingRequiredFields[currentSelectionSet] = append(selectionSets, fieldConfiguration.SelectionSet)
+		return
 	}
 
-	if _, exists := configs[key]; !exists {
-		configs[key] = fieldConfiguration.SelectionSet
-		c.pendingRequiredFields[currentSelectionSet] = configs
+	exists := false
+	for _, existingSelectionSet := range selectionSets {
+		if existingSelectionSet == fieldConfiguration.SelectionSet {
+			exists = true
+			break
+		}
+	}
+	if !exists {
+		c.pendingRequiredFields[currentSelectionSet] = append(selectionSets, fieldConfiguration.SelectionSet)
 	}
 }
 

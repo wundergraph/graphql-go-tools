@@ -656,40 +656,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					}
 				}
 
-				t.Run("variant 1", RunTest(
+				t.Run("run", RunTest(
 					definition,
 					operation,
 					operationName,
 					expectedPlan(`{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {__typename id line1 line2}}}}"}}`),
-					plan.Configuration{
-						DataSources: []plan.DataSourceConfiguration{
-							usersDatasourceConfiguration,
-							accountsDatasourceConfiguration,
-							addressesDatasourceConfiguration,
-							addressesEnricherDatasourceConfiguration,
-						},
-						DisableResolveFieldPositions: true,
-						Fields: plan.FieldConfigurations{
-							{
-								TypeName:  "Address",
-								FieldName: "line3",
-								Arguments: plan.ArgumentsConfigurations{
-									{
-										Name:       "test",
-										SourceType: plan.FieldArgumentSource,
-									},
-								},
-							},
-						},
-					},
-				))
-
-				t.Run("variant 2", RunTest(
-					definition,
-					operation,
-					operationName,
-
-					expectedPlan(`{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {__typename line1 line2 id}}}}"}}`),
 					plan.Configuration{
 						DataSources: []plan.DataSourceConfiguration{
 							usersDatasourceConfiguration,
