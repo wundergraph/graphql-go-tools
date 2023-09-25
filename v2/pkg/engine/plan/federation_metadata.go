@@ -82,11 +82,11 @@ func AppendRequiredFieldsConfigurationWithMerge(configs FederationFieldConfigura
 	return configs
 }
 
-func AppendRequiredFieldsConfigurationIfNotPresent(configs FederationFieldConfigurations, config FederationFieldConfiguration) FederationFieldConfigurations {
+func AppendRequiredFieldsConfigurationIfNotPresent(configs FederationFieldConfigurations, config FederationFieldConfiguration) (cfgs FederationFieldConfigurations, added bool) {
 	ok := configs.HasSelectionSet(config.TypeName, config.SelectionSet)
-	if ok {
-		return configs
+	if !ok {
+		return append(configs, config), true
 	}
 
-	return append(configs, config)
+	return configs, false
 }
