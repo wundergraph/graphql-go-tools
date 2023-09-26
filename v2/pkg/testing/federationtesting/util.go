@@ -1,7 +1,6 @@
 package federationtesting
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,5 +44,5 @@ func LoadTestingSubgraphSDL(upstream Upstream) ([]byte, error) {
 	}
 
 	absolutePath := filepath.Join(strings.Split(wd, "pkg")[0], federationTestingDirectoryRelativePath, string(upstream), "graph", "schema.graphqls")
-	return ioutil.ReadFile(absolutePath)
+	return os.ReadFile(absolutePath)
 }

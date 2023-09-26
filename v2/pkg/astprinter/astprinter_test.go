@@ -2,7 +2,7 @@ package astprinter
 
 import (
 	"bytes"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/jensneuse/diffview"
@@ -533,7 +533,7 @@ func TestPrintSchemaDefinition(t *testing.T) {
 
 	goldie.Assert(t, "starwars_schema_definition", out)
 	if t.Failed() {
-		fixture, err := ioutil.ReadFile("./fixtures/starwars_schema_definition.golden")
+		fixture, err := os.ReadFile("./fixtures/starwars_schema_definition.golden")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -557,7 +557,7 @@ func TestPrintOperationDefinition(t *testing.T) {
 
 	goldie.Assert(t, "introspectionquery", out)
 	if t.Failed() {
-		fixture, err := ioutil.ReadFile("./fixtures/introspectionquery.golden")
+		fixture, err := os.ReadFile("./fixtures/introspectionquery.golden")
 		if err != nil {
 			t.Fatal(err)
 		}

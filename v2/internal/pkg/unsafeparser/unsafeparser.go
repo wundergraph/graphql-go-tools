@@ -2,7 +2,7 @@
 package unsafeparser
 
 import (
-	"io/ioutil"
+	"os"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
@@ -26,7 +26,7 @@ func ParseGraphqlDocumentBytes(input []byte) ast.Document {
 }
 
 func ParseGraphqlDocumentFile(filePath string) ast.Document {
-	fileBytes, err := ioutil.ReadFile(filePath)
+	fileBytes, err := os.ReadFile(filePath)
 	if err != nil {
 		panic(err)
 	}

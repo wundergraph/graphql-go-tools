@@ -3,7 +3,7 @@ package graphql
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"testing"
 
@@ -34,14 +34,14 @@ func createTestRoundTripper(t *testing.T, testCase roundTripperTestCase) testRou
 			var receivedBodyBytes []byte
 			if req.Body != nil {
 				var err error
-				receivedBodyBytes, err = ioutil.ReadAll(req.Body)
+				receivedBodyBytes, err = io.ReadAll(req.Body)
 				require.NoError(t, err)
 			}
 			require.Equal(t, testCase.expectedBody, string(receivedBodyBytes), "roundTripperTestCase body do not match")
 		}
 
 		body := bytes.NewBuffer([]byte(testCase.sendResponseBody))
-		return &http.Response{StatusCode: testCase.sendStatusCode, Body: ioutil.NopCloser(body)}
+		return &http.Response{StatusCode: testCase.sendStatusCode, Body: io.NopCloser(body)}
 	}
 }
 
