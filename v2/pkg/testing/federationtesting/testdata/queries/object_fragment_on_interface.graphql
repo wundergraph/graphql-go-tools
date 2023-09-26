@@ -1,0 +1,9 @@
+query InterfaceResponse {
+    identifiable {
+        __typename
+        id
+        ... on User {
+            username
+        }
+    }
+}

@@ -1,0 +1,26 @@
+{
+  "RelativePath": "testdata/schema.graphql",
+  "Imports": [
+    {
+      "RelativePath": "testdata/scalars/json.graphql",
+      "Imports": null
+    },
+    {
+      "RelativePath": "testdata/types/query.graphql",
+      "Imports": null
+    },
+    {
+      "RelativePath": "testdata/nested/nested.graphql",
+      "Imports": [
+        {
+          "RelativePath": "testdata/nested2/nested2.graphql",
+          "Imports": null
+        }
+      ]
+    },
+    {
+      "RelativePath": "testdata/deep/deeper/custom_types.graphql",
+      "Imports": null
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+linters:
+  disable-all: true
+  enable:
+    - gofmt
+    # - bodyclose
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - typecheck
+    # - unused
+    # - gosec
+    # - gci
+
+linters-settings:
+  gci:
+    sections:
+      - standard
+      - default
+      - prefix(github.com/wundergraph)
+      - prefix(github.com/wundergraph/graphql-go-tools)
+issues:
+  exclude:
+    - "SA1019: subscription.Message is deprecated: Prefer using TransportClient that is based on byte slices instead of this Message struct."
+    - "SA1019: rand\\.Seed.*"

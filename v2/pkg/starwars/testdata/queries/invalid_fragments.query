@@ -1,0 +1,11 @@
+query Fragments($droidID: ID!){
+    droid(id: $droidID) {
+        ...reviewFields
+    }
+}
+
+fragment reviewFields on Review {
+    id
+    stars
+    commentary
+}
