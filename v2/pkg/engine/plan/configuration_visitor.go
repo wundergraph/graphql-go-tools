@@ -564,12 +564,6 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		return -1, false
 	}
 
-	plannerConfig := &plannerConfiguration{
-		dataSourceConfiguration: *config,
-		requiredFields:          make(FederationFieldConfigurations, 0, 4),
-		providedFields:          make(NodeSuggestions, 0, 4),
-	}
-
 	fetchID := c.nextFetchID()
 	planner := config.Factory.Planner(c.ctx)
 	isParentAbstract := c.isParentTypeNodeAbstractType()
@@ -635,10 +629,13 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		plannerPath = precedingFragmentPath
 	}
 
-	plannerConfig.parentPath = plannerPath
-	plannerConfig.planner = planner
-	plannerConfig.paths = paths
-	plannerConfig.insideArray = c.insideArray(parentPath)
+	plannerConfig := &plannerConfiguration{
+		dataSourceConfiguration: *config,
+		parentPath:              plannerPath,
+		planner:                 planner,
+		paths:                   paths,
+		insideArray:             c.insideArray(parentPath),
+	}
 
 	fieldDefinition, ok := c.walker.FieldDefinition(ref)
 	if !ok {
