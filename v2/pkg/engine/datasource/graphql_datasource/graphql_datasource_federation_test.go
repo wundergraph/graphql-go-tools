@@ -1658,6 +1658,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 	t.Run("plan with few entities from the same datasource", func(t *testing.T) {
 
 		t.Run("on array", func(t *testing.T) {
+			// TODO: add interface test
+
 			definition := `
 				type User {
 					id: ID!

@@ -64,8 +64,24 @@ func (r *SimpleResolver) resolveObject(object *Object, data []byte, resolveBuf *
 	objectBuf := pool.FastBuffer.Get()
 	defer pool.FastBuffer.Put(objectBuf)
 
+	typeNameSkip := false
 	first := true
 	for i := range object.Fields {
+		if object.Fields[i].OnTypeNames != nil {
+			typeName, _, _, _ := jsonparser.Get(data, "__typename")
+			hasMatch := false
+			for _, onTypeName := range object.Fields[i].OnTypeNames {
+				if bytes.Equal(typeName, onTypeName) {
+					hasMatch = true
+					break
+				}
+			}
+			if !hasMatch {
+				typeNameSkip = true
+				continue
+			}
+		}
+
 		fieldData := data
 		if first {
 			objectBuf.WriteBytes(lBrace)
@@ -93,6 +109,10 @@ func (r *SimpleResolver) resolveObject(object *Object, data []byte, resolveBuf *
 	}
 
 	if first {
+		if typeNameSkip {
+			r.resolveEmptyObject(resolveBuf)
+			return
+		}
 		if !object.Nullable {
 			return errNonNullableFieldValueIsNull
 		}

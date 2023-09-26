@@ -1924,4 +1924,140 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 			},
 		}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`
 	}))
+
+	t.Run("nested batching of direct array childs", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+
+		accountsService := mockedDS(t, ctrl,
+			`{"method":"POST","url":"http://accounts","body":{"query":"{accounts{__typename ... on User {__typename id} ... on Moderator {__typename moderatorID} ... on Admin {__typename adminID}}}"}}`,
+			`{"accounts":[{"__typename":"User","id":"3"},{"__typename":"Admin","adminID":"2"},{"__typename":"Moderator","moderatorID":"1"}]}`)
+
+		namesService := mockedDS(t, ctrl,
+			`{"method":"POST","url":"http://names","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name} ... on Moderator {subject} ... on Admin {type}}}","variables":{"representations":[{"__typename":"User","id":"3"},{"__typename":"Admin","adminID":"2"},{"__typename":"Moderator","moderatorID":"1"}]}}}`,
+			`{"_entities":[{"__typename":"User","name":"User"},{"__typename":"Admin","type":"super"},{"__typename":"Moderator","subject":"posts"}]}`)
+
+		return &GraphQLResponse{
+			Data: &Object{
+				Fetch: &SingleFetch{
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"method":"POST","url":"http://accounts","body":{"query":"{accounts{__typename ... on User {__typename id} ... on Moderator {__typename moderatorID} ... on Admin {__typename adminID}}}"}}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+					DataSource: accountsService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
+					},
+				},
+				Fields: []*Field{
+					{
+						Name: []byte("accounts"),
+						Value: &Array{
+							Path: []string{"accounts"},
+							Item: &Object{
+								Fetch: &BatchFetch{
+									Input: BatchInput{
+										Header: InputTemplate{
+											Segments: []TemplateSegment{
+												{
+													Data:        []byte(`{"method":"POST","url":"http://names","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name} ... on Moderator {subject} ... on Admin {type}}}","variables":{"representations":[`),
+													SegmentType: StaticSegmentType,
+												},
+											},
+										},
+										Items: []InputTemplate{
+											{
+												Segments: []TemplateSegment{
+													{
+														SegmentType:  VariableSegmentType,
+														VariableKind: ResolvableObjectVariableKind,
+														Renderer: NewGraphQLVariableResolveRenderer(&Object{
+															Fields: []*Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &String{
+																		Path: []string{"__typename"},
+																	},
+																},
+																{
+																	Name: []byte("id"),
+																	Value: &String{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
+																},
+																{
+																	Name: []byte("adminID"),
+																	Value: &String{
+																		Path: []string{"adminID"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("Admin")},
+																},
+																{
+																	Name: []byte("moderatorID"),
+																	Value: &String{
+																		Path: []string{"moderatorID"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("Moderator")},
+																},
+															},
+														}),
+													},
+												},
+											},
+										},
+										Separator: InputTemplate{
+											Segments: []TemplateSegment{
+												{
+													Data:        []byte(`,`),
+													SegmentType: StaticSegmentType,
+												},
+											},
+										},
+										Footer: InputTemplate{
+											Segments: []TemplateSegment{
+												{
+													Data:        []byte(`]}}}`),
+													SegmentType: StaticSegmentType,
+												},
+											},
+										},
+									},
+									DataSource: namesService,
+									PostProcessing: PostProcessingConfiguration{
+										SelectResponseDataPath: []string{"data", "_entities"},
+									},
+								},
+								Fields: []*Field{
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
+										},
+										OnTypeNames: [][]byte{[]byte("User")},
+									},
+									{
+										Name: []byte("type"),
+										Value: &String{
+											Path: []string{"type"},
+										},
+										OnTypeNames: [][]byte{[]byte("Admin")},
+									},
+									{
+										Name: []byte("subject"),
+										Value: &String{
+											Path: []string{"subject"},
+										},
+										OnTypeNames: [][]byte{[]byte("Moderator")},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"accounts":[{"name":"User"},{"type":"super"},{"subject":"posts"}]}}`
+	}))
 }
