@@ -11,11 +11,14 @@ import (
 )
 
 func TestBuildRepresentationVariableNode(t *testing.T) {
-	runTest := func(t *testing.T, definitionStr, keyStr string, expectedNode resolve.Node) {
+	runTest := func(t *testing.T, definitionStr, keyStr string, addTypename, addOnType bool, expectedNode resolve.Node) {
 		definition, _ := astparser.ParseGraphqlDocumentString(definitionStr)
-		key, _ := plan.RequiredFieldsFragment("User", keyStr, false)
+		cfg := plan.FederationFieldConfiguration{
+			TypeName:     "User",
+			SelectionSet: keyStr,
+		}
 
-		node, err := BuildRepresentationVariableNode(key, &definition)
+		node, err := buildRepresentationVariableNode(cfg, &definition, addTypename, addOnType)
 		require.NoError(t, err)
 
 		require.Equal(t, expectedNode, node)
@@ -30,14 +33,10 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 				name: String!
 			}
 		`, `id name`,
+			false,
+			false,
 			&resolve.Object{
 				Fields: []*resolve.Field{
-					{
-						Name: []byte("__typename"),
-						Value: &resolve.String{
-							Path: []string{"__typename"},
-						},
-					},
 					{
 						Name: []byte("id"),
 						Value: &resolve.String{
@@ -76,6 +75,8 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 			}
 				
 		`, `id name account { accoundID address(home: true) { zip } }`,
+			true,
+			true,
 			&resolve.Object{
 				Fields: []*resolve.Field{
 					{
@@ -89,12 +90,14 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 						Value: &resolve.String{
 							Path: []string{"id"},
 						},
+						OnTypeNames: [][]byte{[]byte("User")},
 					},
 					{
 						Name: []byte("name"),
 						Value: &resolve.String{
 							Path: []string{"name"},
 						},
+						OnTypeNames: [][]byte{[]byte("User")},
 					},
 					{
 						Name: []byte("account"),
@@ -123,8 +126,63 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 								},
 							},
 						},
+						OnTypeNames: [][]byte{[]byte("User")},
 					},
 				},
 			})
 	})
+}
+
+func TestMergeRepresentationVariableNodes(t *testing.T) {
+	userRepresentation := &resolve.Object{
+		Fields: []*resolve.Field{
+			{
+				Name: []byte("id"),
+				Value: &resolve.String{
+					Path: []string{"id"},
+				},
+				OnTypeNames: [][]byte{[]byte("User")},
+			},
+		},
+	}
+
+	adminRepresentation := &resolve.Object{
+		Fields: []*resolve.Field{
+			{
+				Name: []byte("id"),
+				Value: &resolve.String{
+					Path: []string{"id"},
+				},
+				OnTypeNames: [][]byte{[]byte("Admin")},
+			},
+		},
+	}
+
+	expected := &resolve.Object{
+		Fields: []*resolve.Field{
+			{
+				Name: []byte("__typename"),
+				Value: &resolve.String{
+					Path: []string{"__typename"},
+				},
+			},
+			{
+				Name: []byte("id"),
+				Value: &resolve.String{
+					Path: []string{"id"},
+				},
+				OnTypeNames: [][]byte{[]byte("User")},
+			},
+			{
+				Name: []byte("id"),
+				Value: &resolve.String{
+					Path: []string{"id"},
+				},
+				OnTypeNames: [][]byte{[]byte("Admin")},
+			},
+		},
+	}
+
+	merged := mergeRepresentationVariableNodes([]*resolve.Object{userRepresentation, adminRepresentation})
+	require.Equal(t, expected, merged)
 }
