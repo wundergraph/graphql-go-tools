@@ -749,23 +749,37 @@ func (p *Planner) addRepresentationsVariable() {
 }
 
 func (p *Planner) buildRepresentationsVariable() resolve.Variable {
-	// as required fields are merged for the nested ds we should have a single variable
-	// TODO: this is incorrect it could be a few variables
-	cfg := p.dataSourcePlannerConfig.RequiredFields[0]
+	// at the moment we should have multiple required fields only for the direct childs of array
+	// this is not the best way to detect this
+	isDirectArrayChild := p.dataSourcePlannerConfig.InsideArray && len(p.dataSourcePlannerConfig.RequiredFields) > 1
 
-	key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, false)
-	if report.HasErrors() {
-		p.visitor.Walker.StopWithInternalErr(report)
-		return nil
+	if !isDirectArrayChild {
+		cfg := p.dataSourcePlannerConfig.RequiredFields[0]
+
+		node, err := buildRepresentationVariableNode(cfg, p.visitor.Definition, true, false)
+		if err != nil {
+			p.visitor.Walker.StopWithInternalErr(err)
+			return nil
+		}
+
+		return resolve.NewResolvableObjectVariable(
+			node,
+		)
 	}
-	node, err := BuildRepresentationVariableNode(key, p.visitor.Definition)
-	if err != nil {
-		p.visitor.Walker.StopWithInternalErr(err)
-		return nil
+
+	objects := make([]*resolve.Object, 0, len(p.dataSourcePlannerConfig.RequiredFields))
+	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
+		node, err := buildRepresentationVariableNode(cfg, p.visitor.Definition, false, true)
+		if err != nil {
+			p.visitor.Walker.StopWithInternalErr(err)
+			return nil
+		}
+
+		objects = append(objects, node)
 	}
 
 	return resolve.NewResolvableObjectVariable(
-		node,
+		mergeRepresentationVariableNodes(objects),
 	)
 }
 

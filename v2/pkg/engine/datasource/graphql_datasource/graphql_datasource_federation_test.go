@@ -1656,7 +1656,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 	})
 
 	t.Run("plan with few entities from the same datasource", func(t *testing.T) {
-		t.Skip("not implemented yet")
 
 		t.Run("on array", func(t *testing.T) {
 			definition := `
@@ -1772,7 +1771,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 						{
 							TypeName:     "Admin",
-							SelectionSet: "id",
+							SelectionSet: "adminID",
 						},
 					},
 				},
@@ -1788,8 +1787,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				DisableResolveFieldPositions: true,
 			}
 
-			t.Run("only shared field", func(t *testing.T) {
-				query := `
+			query := `
 					query Accounts {
 						accounts {
 							... on User {
@@ -1802,22 +1800,24 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					}
 				`
 
-				expectedPlan := func(input, nestedInput string) *plan.SynchronousResponsePlan {
-					return &plan.SynchronousResponsePlan{
-						Response: &resolve.GraphQLResponse{
-							Data: &resolve.Object{
-								Fetch: &resolve.SingleFetch{
-									Input:                input,
-									PostProcessing:       DefaultPostProcessingConfiguration,
-									DataSource:           &Source{},
-									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								},
-								Fields: []*resolve.Field{
-									{
-										Name: []byte("accounts"),
-										Value: &resolve.Object{
-											Path:     []string{"accounts"},
-											Nullable: true,
+			expectedPlan := func(input, nestedInput string) *plan.SynchronousResponsePlan {
+				return &plan.SynchronousResponsePlan{
+					Response: &resolve.GraphQLResponse{
+						Data: &resolve.Object{
+							Fetch: &resolve.SingleFetch{
+								Input:                input,
+								PostProcessing:       DefaultPostProcessingConfiguration,
+								DataSource:           &Source{},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							},
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("accounts"),
+									Value: &resolve.Array{
+										Path:     []string{"accounts"},
+										Nullable: true,
+										Item: &resolve.Object{
+											Nullable: false,
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("name"),
@@ -1839,6 +1839,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												Input:                                 nestedInput,
 												DataSource:                            &Source{},
 												SetTemplateOutputToNullOnVariableNull: true,
+												RequiresBatchFetch:                    true,
 												Variables: []resolve.Variable{
 													&resolve.ResolvableObjectVariable{
 														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -1854,24 +1855,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																	Value: &resolve.String{
 																		Path: []string{"id"},
 																	},
-																},
-															},
-														}),
-													},
-													&resolve.ResolvableObjectVariable{
-														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-															Fields: []*resolve.Field{
-																{
-																	Name: []byte("__typename"),
-																	Value: &resolve.String{
-																		Path: []string{"__typename"},
-																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
 																{
 																	Name: []byte("adminID"),
 																	Value: &resolve.String{
 																		Path: []string{"adminID"},
 																	},
+																	OnTypeNames: [][]byte{[]byte("Admin")},
 																},
 															},
 														}),
@@ -1885,22 +1876,21 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 						},
-					}
+					},
 				}
+			}
 
-				t.Run("query", RunTest(
-					definition,
-					query,
-					"Accounts",
+			t.Run("query", RunTest(
+				definition,
+				query,
+				"Accounts",
 
-					expectedPlan(
-						`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename}}}"}}`,
-						`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name} ... on Admin {adminName}}}","variables":{"representations":[$$0$$]}}}`,
-					),
-					planConfiguration,
-				))
-			})
-
+				expectedPlan(
+					`{"method":"POST","url":"http://first.service","body":{"query":"{accounts {__typename ... on User {__typename id} ... on Admin {__typename adminID}}}"}}`,
+					`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name} ... on Admin {adminName}}}","variables":{"representations":[$$0$$]}}}`,
+				),
+				planConfiguration,
+			))
 		})
 	})
 }
