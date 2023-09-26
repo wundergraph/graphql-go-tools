@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/jensneuse/diffview"
@@ -46,7 +46,7 @@ func TestVisitOperation(t *testing.T) {
 
 	if t.Failed() {
 
-		fixture, err := ioutil.ReadFile("./fixtures/visitor.golden")
+		fixture, err := os.ReadFile("./fixtures/visitor.golden")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,7 +125,7 @@ func TestVisitSchemaDefinition(t *testing.T) {
 
 	if t.Failed() {
 
-		fixture, err := ioutil.ReadFile("./fixtures/schema_visitor.golden")
+		fixture, err := os.ReadFile("./fixtures/schema_visitor.golden")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -185,7 +185,7 @@ func TestWalker_Path(t *testing.T) {
 
 	if t.Failed() {
 
-		fixture, err := ioutil.ReadFile("./fixtures/path.golden")
+		fixture, err := os.ReadFile("./fixtures/path.golden")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -248,7 +248,7 @@ func TestVisitWithSkip(t *testing.T) {
 
 	if t.Failed() {
 
-		fixture, err := ioutil.ReadFile("./fixtures/visitor_skip.golden")
+		fixture, err := os.ReadFile("./fixtures/visitor_skip.golden")
 		if err != nil {
 			t.Fatal(err)
 		}

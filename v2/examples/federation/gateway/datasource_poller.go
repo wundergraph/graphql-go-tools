@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -206,7 +206,7 @@ func (d *DatasourcePollerPoller) fetchServiceSDL(ctx context.Context, serviceURL
 		Errors GQLErr `json:"errors,omitempty"`
 	}
 
-	bs, err := ioutil.ReadAll(resp.Body)
+	bs, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("read bytes: %v", err)
 	}
