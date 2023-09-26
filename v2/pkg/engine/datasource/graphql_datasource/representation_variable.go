@@ -3,31 +3,58 @@ package graphql_datasource
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 type objectFields struct {
 	popOnField int
+	isRoot     bool
 	fields     *[]*resolve.Field
 }
 
-func BuildRepresentationVariableNode(key, definition *ast.Document) (*resolve.Object, error) {
+func buildRepresentationVariableNode(cfg plan.FederationFieldConfiguration, definition *ast.Document, addTypename bool, addOnType bool) (*resolve.Object, error) {
+	key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, false)
+	if report.HasErrors() {
+		return nil, report
+	}
+
 	walker := astvisitor.NewWalker(48)
 
 	visitor := &representationVariableVisitor{
-		Walker: &walker,
+		typeName:    cfg.TypeName,
+		addOnType:   addOnType,
+		addTypeName: addTypename,
+		Walker:      &walker,
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterFieldVisitor(visitor)
 
-	var report operationreport.Report
-	walker.Walk(key, definition, &report)
+	walker.Walk(key, definition, report)
 	if report.HasErrors() {
 		return nil, report
 	}
 
 	return visitor.rootObject, nil
+}
+
+func mergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object {
+	fields := make([]*resolve.Field, 0, len(objects)*2)
+
+	fields = append(fields, &resolve.Field{
+		Name: []byte("__typename"),
+		Value: &resolve.String{
+			Path: []string{"__typename"},
+		},
+	})
+
+	for _, object := range objects {
+		fields = append(fields, object.Fields...)
+	}
+
+	return &resolve.Object{
+		Fields: fields,
+	}
 }
 
 type representationVariableVisitor struct {
@@ -36,26 +63,34 @@ type representationVariableVisitor struct {
 
 	currentFields []objectFields
 	rootObject    *resolve.Object
+
+	typeName    string
+	addOnType   bool
+	addTypeName bool
 }
 
 func (v *representationVariableVisitor) EnterDocument(key, definition *ast.Document) {
 	v.key = key
 	v.definition = definition
 
-	v.rootObject = &resolve.Object{
-		Fields: []*resolve.Field{
-			{
-				Name: []byte("__typename"),
-				Value: &resolve.String{
-					Path: []string{"__typename"},
-				},
+	fields := make([]*resolve.Field, 0, 2)
+	if v.addTypeName {
+		fields = append(fields, &resolve.Field{
+			Name: []byte("__typename"),
+			Value: &resolve.String{
+				Path: []string{"__typename"},
 			},
-		},
+		})
+	}
+
+	v.rootObject = &resolve.Object{
+		Fields: fields,
 	}
 
 	v.currentFields = append(v.currentFields, objectFields{
 		fields:     &v.rootObject.Fields,
 		popOnField: -1,
+		isRoot:     true,
 	})
 }
 
@@ -71,6 +106,10 @@ func (v *representationVariableVisitor) EnterField(ref int) {
 	currentField := &resolve.Field{
 		Name:  fieldName,
 		Value: v.resolveFieldValue(ref, fieldDefinitionType, true, []string{string(fieldName)}),
+	}
+
+	if v.addOnType && v.currentFields[len(v.currentFields)-1].isRoot {
+		currentField.OnTypeNames = [][]byte{[]byte(v.typeName)}
 	}
 
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, currentField)
