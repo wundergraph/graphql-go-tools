@@ -120,7 +120,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 
 				enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 				shouldWalkFieldsOnPath :=
-				// check if the field path has type condition and matches the enclosing type
+					// check if the field path has type condition and matches the enclosing type
 					config.shouldWalkFieldsOnPath(path, enclosingTypeName) ||
 						// check if the planner has path without type condition
 						// this could happen in case of union type
