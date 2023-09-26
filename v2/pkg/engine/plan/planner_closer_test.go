@@ -98,7 +98,7 @@ func (f *FakePlanner) EnterDocument(operation, definition *ast.Document) {
 
 }
 
-func (f *FakePlanner) Register(visitor *Visitor, configuration DataSourceConfiguration, isNested bool) error {
+func (f *FakePlanner) Register(visitor *Visitor, _ DataSourceConfiguration, _ DataSourcePlannerConfiguration) error {
 	visitor.Walker.RegisterEnterDocumentVisitor(f)
 	return nil
 }
