@@ -7,8 +7,10 @@ import (
 
 type ValidationResult struct {
 	Valid  bool
-	Errors Errors
+	Errors ValidationErrors
 }
+
+type ValidationErrors Errors
 
 func (r *Request) ValidateForSchema(schema *Schema) (result ValidationResult, err error) {
 	if schema == nil {
