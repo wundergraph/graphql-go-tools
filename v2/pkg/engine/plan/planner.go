@@ -111,7 +111,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 			RequiredFields: p.planningVisitor.planners[key].requiredFields,
 			ProvidedFields: p.planningVisitor.planners[key].providedFields,
 			ParentPath:     p.planningVisitor.planners[key].parentPath,
-			InsideArray:    p.planningVisitor.planners[key].insideArray,
+			PathType:       p.planningVisitor.planners[key].parentPathType,
 			IsNested:       p.planningVisitor.planners[key].isNestedPlanner(),
 		}
 

@@ -69,19 +69,18 @@ func (c *configurationVisitor) currentSelectionSet() int {
 	return c.selectionSetRefs[len(c.selectionSetRefs)-1]
 }
 
-func (c *configurationVisitor) insideArray(path string) bool {
-	if len(c.arrayFields) == 0 {
-		return false
-	}
-
+func (c *configurationVisitor) plannerPathType(path string) PlannerPathType {
 	for i := len(c.arrayFields) - 1; i >= 0; i-- {
 		arrayPath := c.arrayFields[i].fieldPath
-		if strings.HasPrefix(path, arrayPath) {
-			return true
+		switch {
+		case path == arrayPath:
+			return PlannerPathArrayItem
+		case strings.HasPrefix(path, arrayPath+"."):
+			return PlannerPathNestedInArray
 		}
 	}
 
-	return false
+	return PlannerPathObject
 }
 
 func (c *configurationVisitor) addArrayField(fieldRef int, currentPath string) {
@@ -634,7 +633,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		parentPath:              plannerPath,
 		planner:                 planner,
 		paths:                   paths,
-		insideArray:             c.insideArray(parentPath),
+		parentPathType:          c.plannerPathType(plannerPath),
 	}
 
 	fieldDefinition, ok := c.walker.FieldDefinition(ref)

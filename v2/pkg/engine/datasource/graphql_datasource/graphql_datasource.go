@@ -359,7 +359,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 
 func (p *Planner) shouldSelectSingleEntity() bool {
 	return p.dataSourcePlannerConfig.HasRequiredFields() &&
-		!p.dataSourcePlannerConfig.InsideArray
+		p.dataSourcePlannerConfig.PathType == plan.PlannerPathObject
 }
 
 func (p *Planner) requiresSerialFetch() bool {
@@ -382,7 +382,7 @@ func (p *Planner) requiresBatchFetch() bool {
 		return false
 	}
 
-	return p.dataSourcePlannerConfig.InsideArray
+	return p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
 }
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
@@ -749,11 +749,13 @@ func (p *Planner) addRepresentationsVariable() {
 }
 
 func (p *Planner) buildRepresentationsVariable() resolve.Variable {
-	// at the moment we should have multiple required fields only for the direct childs of array
-	// this is not the best way to detect this
-	isDirectArrayChild := p.dataSourcePlannerConfig.InsideArray && len(p.dataSourcePlannerConfig.RequiredFields) > 1
+	isArrayItems := p.dataSourcePlannerConfig.PathType == plan.PlannerPathArrayItem
 
-	if !isDirectArrayChild {
+	if !isArrayItems {
+		if len(p.dataSourcePlannerConfig.RequiredFields) > 1 {
+			p.stopWithError("unhandled case: more than one required field for non-array path type")
+		}
+
 		cfg := p.dataSourcePlannerConfig.RequiredFields[0]
 
 		node, err := buildRepresentationVariableNode(cfg, p.visitor.Definition, true, false)

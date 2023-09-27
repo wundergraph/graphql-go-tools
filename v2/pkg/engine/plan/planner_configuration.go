@@ -8,12 +8,13 @@ import (
 )
 
 type plannerConfiguration struct {
-	parentPath              string
+	parentPath     string
+	parentPathType PlannerPathType
+
 	planner                 DataSourcePlanner
 	paths                   []pathConfiguration
 	dataSourceConfiguration DataSourceConfiguration
 
-	insideArray    bool
 	requiredFields FederationFieldConfigurations
 	providedFields NodeSuggestions
 }
