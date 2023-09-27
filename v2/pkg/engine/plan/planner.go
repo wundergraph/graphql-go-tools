@@ -218,7 +218,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 			p.debugMessage(fmt.Sprintf("After run #%d. Planning paths", i))
 			if p.configurationVisitor.hasMissingPaths() {
 				p.debugMessage("Missing paths:")
-				for path, _ := range p.configurationVisitor.missingPathTracker {
+				for path := range p.configurationVisitor.missingPathTracker {
 					fmt.Println(path)
 				}
 			}
