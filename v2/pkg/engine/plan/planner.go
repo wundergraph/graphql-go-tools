@@ -162,6 +162,13 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 		return
 	}
 
+	if p.config.Debug.PrintNodeSuggestions {
+		p.debugMessage("Initial node suggestions:")
+		for i := range p.configurationVisitor.nodeSuggestions {
+			fmt.Println(p.configurationVisitor.nodeSuggestions[i].String())
+		}
+	}
+
 	p.configurationVisitor.secondaryRun = false
 	p.configurationWalker.Walk(operation, definition, report)
 	if report.HasErrors() {
@@ -189,6 +196,13 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 			return
 		}
 
+		if p.config.Debug.PrintNodeSuggestions {
+			p.debugMessage("Recalculated node suggestions:")
+			for i := range p.configurationVisitor.nodeSuggestions {
+				fmt.Println(p.configurationVisitor.nodeSuggestions[i].String())
+			}
+		}
+
 		p.configurationWalker.Walk(operation, definition, report)
 		if report.HasErrors() {
 			return
@@ -196,11 +210,18 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 
 		if p.config.Debug.PrintOperationWithRequiredFields {
 			p.debugMessage(fmt.Sprintf("After run #%d. Operation with new required fields:", i))
+			p.debugMessage(fmt.Sprintf("Has new fields: %v", p.configurationVisitor.hasNewFields))
 			p.printOperation(operation)
 		}
 
 		if p.config.Debug.PrintPlanningPaths {
 			p.debugMessage(fmt.Sprintf("After run #%d. Planning paths", i))
+			if p.configurationVisitor.hasMissingPaths() {
+				p.debugMessage("Missing paths:")
+				for path, _ := range p.configurationVisitor.missingPathTracker {
+					fmt.Println(path)
+				}
+			}
 			p.printPlanningPaths()
 		}
 		i++

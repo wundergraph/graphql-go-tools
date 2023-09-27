@@ -23,6 +23,7 @@ type DebugConfiguration struct {
 	PrintOperationWithRequiredFields bool
 	PrintPlanningPaths               bool
 	PrintQueryPlans                  bool
+	PrintNodeSuggestions             bool
 
 	ConfigurationVisitor bool
 	PlanningVisitor      bool

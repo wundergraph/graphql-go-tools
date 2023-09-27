@@ -123,6 +123,10 @@ func (n *NodeSuggestion) selectWithReason(reason string) {
 	// n.appendSelectionReason(reason) // NOTE: debug do not remove
 }
 
+func (n *NodeSuggestion) String() string {
+	return fmt.Sprintf(`{"ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t}`, n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode)
+}
+
 type NodeSuggestions []NodeSuggestion
 
 func appendSuggestionWithPresenceCheck(nodes NodeSuggestions, node NodeSuggestion) NodeSuggestions {
@@ -157,6 +161,16 @@ func (f NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string) 
 	}
 
 	return 0, false
+}
+
+func (f NodeSuggestions) HasSuggestionForDsHashAndParentPath(dsHash DSHash, path string) (ok bool) {
+	for i := range f {
+		if f[i].ParentPath == path && f[i].DataSourceHash == dsHash {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (f NodeSuggestions) isNodeUniq(idx int) bool {

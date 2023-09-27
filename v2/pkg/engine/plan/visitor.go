@@ -128,7 +128,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 						config.shouldWalkFieldsOnPath(path, "")
 
 				if pp, ok := config.planner.(DataSourceDebugger); ok {
-					pp.DebugPrint("AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path, " allow:", shouldWalkFieldsOnPath)
+					pp.DebugPrint("allow:", shouldWalkFieldsOnPath, " AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path)
 				}
 
 				return shouldWalkFieldsOnPath
@@ -138,7 +138,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 					config.dataSourceConfiguration.HasChildNodeWithTypename(typeCondition)
 
 				if pp, ok := config.planner.(DataSourceDebugger); ok {
-					pp.DebugPrint("AllowVisitor: InlineFragment", " ref:", ref, " typeCondition:", typeCondition, " allow:", hasRootOrHasChildNode)
+					pp.DebugPrint("allow:", hasRootOrHasChildNode, " AllowVisitor: InlineFragment", " ref:", ref, " typeCondition:", typeCondition)
 				}
 
 				return hasRootOrHasChildNode
@@ -147,7 +147,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 
 				if !allowedByParent {
 					if pp, ok := config.planner.(DataSourceDebugger); ok {
-						pp.DebugPrint("AllowVisitor: SelectionSet", " ref:", ref, " allow:", false)
+						pp.DebugPrint("allow:", false, " AllowVisitor: SelectionSet", " ref:", ref)
 					}
 
 					// do not override a parent's decision
@@ -157,7 +157,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 				allow := !config.isExitPath(path)
 
 				if pp, ok := config.planner.(DataSourceDebugger); ok {
-					pp.DebugPrint("AllowVisitor: SelectionSet", " ref:", ref, " allow:", allow)
+					pp.DebugPrint("allow:", allow, " AllowVisitor: SelectionSet", " ref:", ref)
 				}
 
 				return allow

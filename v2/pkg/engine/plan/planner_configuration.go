@@ -1,7 +1,7 @@
 package plan
 
 import (
-	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -103,17 +103,5 @@ type pathConfiguration struct {
 }
 
 func (p *pathConfiguration) String() string {
-	j := make(map[string]any)
-
-	j["path"] = p.path
-	j["exitPlannerOnNode"] = p.exitPlannerOnNode
-	j["shouldWalkFields"] = p.shouldWalkFields
-	j["typeName"] = p.typeName
-	j["fieldRef"] = p.fieldRef
-	j["ds"] = p.dsHash
-	j["isRootNode"] = p.isRootNode
-
-	b, _ := json.Marshal(j)
-
-	return string(b)
+	return fmt.Sprintf(`{"ds":%d,"fieldRef":%3d,"path":"%s","typeName":"%s","shouldWalkFields":%t,"exitPlannerOnNode":%t,"isRootNode":%t}`, p.dsHash, p.fieldRef, p.path, p.typeName, p.shouldWalkFields, p.exitPlannerOnNode, p.isRootNode)
 }
