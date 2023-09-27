@@ -84,7 +84,7 @@ func (d *DataSourceConfiguration) HasChildNodeWithTypename(typeName string) bool
 }
 
 func (d *DataSourceConfiguration) HasKeyRequirement(typeName, requiresFields string) bool {
-	return d.FederationMetaData.Keys.HasSelectionSet(typeName, requiresFields)
+	return d.FederationMetaData.Keys.HasSelectionSet(typeName, "", requiresFields)
 }
 
 func (d *DataSourceConfiguration) RequiredFieldsByKey(typeName string) []FederationFieldConfiguration {

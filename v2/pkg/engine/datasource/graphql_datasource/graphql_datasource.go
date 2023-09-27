@@ -751,27 +751,14 @@ func (p *Planner) addRepresentationsVariable() {
 func (p *Planner) buildRepresentationsVariable() resolve.Variable {
 	isArrayItems := p.dataSourcePlannerConfig.PathType == plan.PlannerPathArrayItem
 
-	if !isArrayItems {
-		if len(p.dataSourcePlannerConfig.RequiredFields) > 1 {
-			p.stopWithError("unhandled case: more than one required field for non-array path type")
-		}
-
-		cfg := p.dataSourcePlannerConfig.RequiredFields[0]
-
-		node, err := buildRepresentationVariableNode(cfg, p.visitor.Definition, true, false)
-		if err != nil {
-			p.visitor.Walker.StopWithInternalErr(err)
-			return nil
-		}
-
-		return resolve.NewResolvableObjectVariable(
-			node,
-		)
+	uniqTypes := p.dataSourcePlannerConfig.RequiredFields.UniqueTypes()
+	if len(uniqTypes) > 1 && !isArrayItems {
+		p.stopWithError("unhandled case: more than one type requirements for non-array path type")
 	}
 
 	objects := make([]*resolve.Object, 0, len(p.dataSourcePlannerConfig.RequiredFields))
 	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
-		node, err := buildRepresentationVariableNode(cfg, p.visitor.Definition, false, true)
+		node, err := buildRepresentationVariableNode(cfg, p.visitor.Definition, false, isArrayItems)
 		if err != nil {
 			p.visitor.Walker.StopWithInternalErr(err)
 			return nil

@@ -1,6 +1,8 @@
 package graphql_datasource
 
 import (
+	"bytes"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -39,7 +41,12 @@ func buildRepresentationVariableNode(cfg plan.FederationFieldConfiguration, defi
 }
 
 func mergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object {
-	fields := make([]*resolve.Field, 0, len(objects)*2)
+	fieldCount := 0
+	for _, object := range objects {
+		fieldCount += len(object.Fields)
+	}
+
+	fields := make([]*resolve.Field, 0, fieldCount)
 
 	fields = append(fields, &resolve.Field{
 		Name: []byte("__typename"),
@@ -48,8 +55,33 @@ func mergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object
 		},
 	})
 
+	isOnTypeEqual := func(a, b [][]byte) bool {
+		if len(a) != len(b) {
+			return false
+		}
+		for i := range a {
+			if !bytes.Equal(a[i], b[i]) {
+				return false
+			}
+		}
+		return true
+	}
+
+	isAdded := func(field *resolve.Field) bool {
+		for _, f := range fields {
+			if bytes.Equal(f.Name, field.Name) && isOnTypeEqual(f.OnTypeNames, field.OnTypeNames) {
+				return true
+			}
+		}
+		return false
+	}
+
 	for _, object := range objects {
-		fields = append(fields, object.Fields...)
+		for _, field := range object.Fields {
+			if !isAdded(field) {
+				fields = append(fields, field)
+			}
+		}
 	}
 
 	return &resolve.Object{

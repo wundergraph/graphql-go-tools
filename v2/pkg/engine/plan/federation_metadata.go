@@ -1,9 +1,5 @@
 package plan
 
-import (
-	"fmt"
-)
-
 type FederationMetaData struct {
 	Keys     FederationFieldConfigurations
 	Requires FederationFieldConfigurations
@@ -28,6 +24,18 @@ func (f FederationFieldConfigurations) FilterByType(typeName string) (out []Fede
 	return out
 }
 
+func (f FederationFieldConfigurations) UniqueTypes() (out []string) {
+	seen := map[string]struct{}{}
+	for i := range f {
+		seen[f[i].TypeName] = struct{}{}
+	}
+
+	for k := range seen {
+		out = append(out, k)
+	}
+	return out
+}
+
 func (f FederationFieldConfigurations) FilterByTypeAndField(typeName, fieldName string) (out []FederationFieldConfiguration) {
 	for i := range f {
 		if f[i].TypeName != typeName || f[i].FieldName != fieldName {
@@ -38,52 +46,19 @@ func (f FederationFieldConfigurations) FilterByTypeAndField(typeName, fieldName 
 	return out
 }
 
-func (f FederationFieldConfigurations) ForType(typeName string) (*FederationFieldConfiguration, int) {
+func (f FederationFieldConfigurations) HasSelectionSet(typeName, fieldName, selectionSet string) bool {
 	for i := range f {
-		if f[i].TypeName == typeName {
-			return &f[i], i
-		}
-	}
-	return nil, -1
-}
-
-func (f FederationFieldConfigurations) HasTypeAndField(typeName, fieldName string) bool {
-	for i := range f {
-		if f[i].TypeName == typeName && f[i].FieldName == fieldName {
+		if typeName == f[i].TypeName &&
+			fieldName == f[i].FieldName &&
+			selectionSet == f[i].SelectionSet {
 			return true
 		}
 	}
 	return false
 }
 
-func (f FederationFieldConfigurations) HasSelectionSet(typeName, selectionSet string) bool {
-	for i := range f {
-		if typeName != f[i].TypeName {
-			continue
-		}
-		if f[i].SelectionSet == selectionSet {
-			return true
-		}
-	}
-	return false
-}
-
-func AppendRequiredFieldsConfigurationWithMerge(configs FederationFieldConfigurations, config FederationFieldConfiguration) FederationFieldConfigurations {
-	cfg, i := configs.ForType(config.TypeName)
-	if i == -1 {
-		return append(configs, config)
-	}
-
-	cfg.SelectionSet = fmt.Sprintf("%s %s", cfg.SelectionSet, config.SelectionSet)
-	if cfg.FieldName == "" {
-		cfg.FieldName = config.FieldName
-	}
-
-	return configs
-}
-
-func AppendRequiredFieldsConfigurationIfNotPresent(configs FederationFieldConfigurations, config FederationFieldConfiguration) (cfgs FederationFieldConfigurations, added bool) {
-	ok := configs.HasSelectionSet(config.TypeName, config.SelectionSet)
+func appendRequiredFieldsConfigurationIfNotPresent(configs FederationFieldConfigurations, config FederationFieldConfiguration) (cfgs FederationFieldConfigurations, added bool) {
+	ok := configs.HasSelectionSet(config.TypeName, config.FieldName, config.SelectionSet)
 	if !ok {
 		return append(configs, config), true
 	}
