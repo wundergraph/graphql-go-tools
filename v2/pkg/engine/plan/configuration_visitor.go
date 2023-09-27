@@ -287,6 +287,11 @@ func (c *configurationVisitor) EnterSelectionSet(ref int) {
 				continue
 			}
 
+			dsHash := planner.dataSourceConfiguration.Hash()
+			if !c.nodeSuggestions.HasSuggestionForDsHashAndParentPath(dsHash, currentPath) {
+				continue
+			}
+
 			hasRootNode := planner.dataSourceConfiguration.HasRootNodeWithTypename(typeName)
 			hasChildNode := planner.dataSourceConfiguration.HasChildNodeWithTypename(typeName)
 			if !(hasRootNode || hasChildNode) {
