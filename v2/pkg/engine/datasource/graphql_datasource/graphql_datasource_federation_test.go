@@ -1717,6 +1717,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						TypeName:   "Admin",
 						FieldNames: []string{"adminID"},
 					},
+					{
+						TypeName:   "Moderator",
+						FieldNames: []string{"moderatorID"},
+					},
 				},
 				Custom: ConfigJson(Configuration{
 					Fetch: FetchConfiguration{
@@ -1737,6 +1741,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						{
 							TypeName:     "Admin",
 							SelectionSet: "adminID",
+						},
+						{
+							TypeName:     "Moderator",
+							SelectionSet: "moderatorID",
 						},
 					},
 				},
@@ -1830,6 +1838,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			planConfiguration := plan.Configuration{
 				DataSources:                  ShuffleDS(dataSources),
 				DisableResolveFieldPositions: true,
+				Debug: plan.DebugConfiguration{
+					PrintOperationWithRequiredFields: false,
+					PrintPlanningPaths:               true,
+					PrintQueryPlans:                  false,
+					ConfigurationVisitor:             false,
+					PlanningVisitor:                  true,
+					DatasourceVisitor:                true,
+				},
 			}
 
 			query := `
@@ -1975,7 +1991,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				"Accounts",
 
 				expectedPlan(
-					`{"method":"POST","url":"http://first.service","body":{"query":"{accounts {__typename ... on User {__typename id} ... on Admin {__typename adminID}}}"}}`,
+					`{"method":"POST","url":"http://first.service","body":{"query":"{accounts {__typename ... on User {__typename id} ... on Admin {__typename adminID} ... on Moderator {__typename moderatorID}}}"}}`,
 					`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name} ... on Admin {adminName}}}","variables":{"representations":[$$0$$]}}}`,
 					`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Moderator {subject}}}","variables":{"representations":[$$0$$]}}}`,
 				),
