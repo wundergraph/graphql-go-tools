@@ -749,7 +749,7 @@ func (p *Planner) addRepresentationsVariable() {
 }
 
 func (p *Planner) buildRepresentationsVariable() resolve.Variable {
-	isArrayItems := p.dataSourcePlannerConfig.PathType == plan.PlannerPathArrayItem
+	isArrayItems := p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
 
 	uniqTypes := p.dataSourcePlannerConfig.RequiredFields.UniqueTypes()
 	if len(uniqTypes) > 1 && !isArrayItems {

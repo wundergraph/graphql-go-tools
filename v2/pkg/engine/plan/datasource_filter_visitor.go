@@ -163,16 +163,6 @@ func (f NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string) 
 	return 0, false
 }
 
-func (f NodeSuggestions) HasSuggestionForDsHashAndParentPath(dsHash DSHash, path string) (ok bool) {
-	for i := range f {
-		if f[i].ParentPath == path && f[i].DataSourceHash == dsHash {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (f NodeSuggestions) isNodeUniq(idx int) bool {
 	for i := range f {
 		if i == idx {

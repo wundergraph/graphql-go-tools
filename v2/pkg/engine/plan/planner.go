@@ -231,6 +231,31 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 			return
 		}
 	}
+
+	// remove unnecessary fragment paths
+	hasRemovedPaths := p.removeUnnecessaryFragmentPaths()
+	if hasRemovedPaths && p.config.Debug.PrintPlanningPaths {
+		p.debugMessage("After removing unnecessary fragment paths")
+		p.printPlanningPaths()
+	}
+}
+
+func (p *Planner) removeUnnecessaryFragmentPaths() (hasRemovedPaths bool) {
+	// We add fragment paths on enter selection set of fragments in configurationVisitor
+	// It could happen that datasource has a root node for the given fragment type,
+	// but we do not select any fields from this fragment
+	// So we need to remove all fragment paths that are not prefixes of any other path
+
+	for _, planner := range p.configurationVisitor.planners {
+		fragmentPaths := planner.fragmentPaths()
+		for _, path := range fragmentPaths {
+			if !planner.hasPathPrefix(path) {
+				planner.removePath(path)
+				hasRemovedPaths = true
+			}
+		}
+	}
+	return
 }
 
 func (p *Planner) selectOperation(operation *ast.Document, operationName string, report *operationreport.Report) {

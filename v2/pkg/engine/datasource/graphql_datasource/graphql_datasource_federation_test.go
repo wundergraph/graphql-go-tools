@@ -1838,14 +1838,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			planConfiguration := plan.Configuration{
 				DataSources:                  ShuffleDS(dataSources),
 				DisableResolveFieldPositions: true,
-				Debug: plan.DebugConfiguration{
-					PrintOperationWithRequiredFields: false,
-					PrintPlanningPaths:               true,
-					PrintQueryPlans:                  false,
-					ConfigurationVisitor:             false,
-					PlanningVisitor:                  true,
-					DatasourceVisitor:                true,
-				},
 			}
 
 			query := `
