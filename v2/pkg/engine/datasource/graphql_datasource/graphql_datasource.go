@@ -359,7 +359,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 
 func (p *Planner) shouldSelectSingleEntity() bool {
 	return p.dataSourcePlannerConfig.HasRequiredFields() &&
-		!p.dataSourcePlannerConfig.InsideArray
+		p.dataSourcePlannerConfig.PathType == plan.PlannerPathObject
 }
 
 func (p *Planner) requiresSerialFetch() bool {
@@ -382,7 +382,7 @@ func (p *Planner) requiresBatchFetch() bool {
 		return false
 	}
 
-	return p.dataSourcePlannerConfig.InsideArray
+	return p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
 }
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
@@ -749,27 +749,16 @@ func (p *Planner) addRepresentationsVariable() {
 }
 
 func (p *Planner) buildRepresentationsVariable() resolve.Variable {
-	// at the moment we should have multiple required fields only for the direct childs of array
-	// this is not the best way to detect this
-	isDirectArrayChild := p.dataSourcePlannerConfig.InsideArray && len(p.dataSourcePlannerConfig.RequiredFields) > 1
+	isArrayItems := p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
 
-	if !isDirectArrayChild {
-		cfg := p.dataSourcePlannerConfig.RequiredFields[0]
-
-		node, err := buildRepresentationVariableNode(cfg, p.visitor.Definition, true, false)
-		if err != nil {
-			p.visitor.Walker.StopWithInternalErr(err)
-			return nil
-		}
-
-		return resolve.NewResolvableObjectVariable(
-			node,
-		)
+	uniqTypes := p.dataSourcePlannerConfig.RequiredFields.UniqueTypes()
+	if len(uniqTypes) > 1 && !isArrayItems {
+		p.stopWithError("unhandled case: more than one type requirements for non-array path type")
 	}
 
 	objects := make([]*resolve.Object, 0, len(p.dataSourcePlannerConfig.RequiredFields))
 	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
-		node, err := buildRepresentationVariableNode(cfg, p.visitor.Definition, false, true)
+		node, err := buildRepresentationVariableNode(cfg, p.visitor.Definition, false, isArrayItems)
 		if err != nil {
 			p.visitor.Walker.StopWithInternalErr(err)
 			return nil

@@ -69,19 +69,18 @@ func (c *configurationVisitor) currentSelectionSet() int {
 	return c.selectionSetRefs[len(c.selectionSetRefs)-1]
 }
 
-func (c *configurationVisitor) insideArray(path string) bool {
-	if len(c.arrayFields) == 0 {
-		return false
-	}
-
+func (c *configurationVisitor) plannerPathType(path string) PlannerPathType {
 	for i := len(c.arrayFields) - 1; i >= 0; i-- {
 		arrayPath := c.arrayFields[i].fieldPath
-		if strings.HasPrefix(path, arrayPath) {
-			return true
+		switch {
+		case path == arrayPath:
+			return PlannerPathArrayItem
+		case strings.HasPrefix(path, arrayPath+"."):
+			return PlannerPathNestedInArray
 		}
 	}
 
-	return false
+	return PlannerPathObject
 }
 
 func (c *configurationVisitor) addArrayField(fieldRef int, currentPath string) {
@@ -303,6 +302,7 @@ func (c *configurationVisitor) EnterSelectionSet(ref int) {
 				shouldWalkFields: true,
 				dsHash:           planner.dataSourceConfiguration.Hash(),
 				fieldRef:         ast.InvalidRef,
+				pathType:         PathTypeFragment,
 			}
 
 			c.addPath(i, path)
@@ -593,6 +593,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 				shouldWalkFields: false,
 				dsHash:           config.Hash(),
 				fieldRef:         ast.InvalidRef,
+				pathType:         PathTypeFragment,
 			},
 		}, paths...)
 	} else {
@@ -604,6 +605,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 				shouldWalkFields: true,
 				dsHash:           config.Hash(),
 				fieldRef:         ast.InvalidRef,
+				pathType:         PathTypeParent,
 			},
 		}, paths...)
 	}
@@ -621,6 +623,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 				shouldWalkFields: false,
 				dsHash:           config.Hash(),
 				fieldRef:         ast.InvalidRef,
+				pathType:         PathTypeParent,
 			},
 		}, paths...)
 
@@ -634,7 +637,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		parentPath:              plannerPath,
 		planner:                 planner,
 		paths:                   paths,
-		insideArray:             c.insideArray(parentPath),
+		parentPathType:          c.plannerPathType(plannerPath),
 	}
 
 	fieldDefinition, ok := c.walker.FieldDefinition(ref)
@@ -816,17 +819,21 @@ func (c *configurationVisitor) handleFieldRequiredByRequires(config *plannerConf
 	requiredFieldsForTypeAndField := config.dataSourceConfiguration.RequiredFieldsByRequires(typeName, fieldName)
 	for _, requiredFieldsConfiguration := range requiredFieldsForTypeAndField {
 		c.planAddingRequiredFields(requiredFieldsConfiguration)
-		config.requiredFields = AppendRequiredFieldsConfigurationWithMerge(config.requiredFields, requiredFieldsConfiguration)
-		c.hasNewFields = true
+		var added bool
+		config.requiredFields, added = appendRequiredFieldsConfigurationIfNotPresent(config.requiredFields, requiredFieldsConfiguration)
+		if added {
+			c.hasNewFields = true
+		}
 	}
 }
 
 func (c *configurationVisitor) handleFieldsRequiredByKey(plannerIdx int, config *plannerConfiguration, parentPath string, typeName string) {
 	requiredFieldsForType := config.dataSourceConfiguration.RequiredFieldsByKey(typeName)
 	if len(requiredFieldsForType) > 0 {
-		requiredFieldsConfiguration, added := c.planKeyRequiredFields(plannerIdx, parentPath, typeName, requiredFieldsForType)
-		if added {
-			config.requiredFields, added = AppendRequiredFieldsConfigurationIfNotPresent(config.requiredFields, requiredFieldsConfiguration)
+		requiredFieldsConfiguration, planned := c.planKeyRequiredFields(plannerIdx, parentPath, typeName, requiredFieldsForType)
+		if planned {
+			var added bool
+			config.requiredFields, added = appendRequiredFieldsConfigurationIfNotPresent(config.requiredFields, requiredFieldsConfiguration)
 			if added {
 				c.hasNewFields = true
 			}

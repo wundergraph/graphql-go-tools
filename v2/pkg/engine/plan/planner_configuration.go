@@ -1,19 +1,20 @@
 package plan
 
 import (
-	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
 type plannerConfiguration struct {
-	parentPath              string
+	parentPath     string
+	parentPathType PlannerPathType
+
 	planner                 DataSourcePlanner
 	paths                   []pathConfiguration
 	dataSourceConfiguration DataSourceConfiguration
 
-	insideArray    bool
 	requiredFields FederationFieldConfigurations
 	providedFields NodeSuggestions
 }
@@ -77,6 +78,24 @@ func (p *plannerConfiguration) hasPathPrefix(prefix string) bool {
 	return false
 }
 
+func (p *plannerConfiguration) fragmentPaths() (out []string) {
+	for i := range p.paths {
+		if p.paths[i].pathType == PathTypeFragment {
+			out = append(out, p.paths[i].path)
+		}
+	}
+	return
+}
+
+func (p *plannerConfiguration) removePath(path string) {
+	for i := range p.paths {
+		if p.paths[i].path == path {
+			p.paths = append(p.paths[:i], p.paths[i+1:]...)
+			return
+		}
+	}
+}
+
 func (p *plannerConfiguration) hasParent(parent string) bool {
 	return p.parentPath == parent
 }
@@ -99,20 +118,28 @@ type pathConfiguration struct {
 	depth      int
 	dsHash     DSHash
 	isRootNode bool
+	pathType   PathType
 }
 
+type PathType int
+
+const (
+	PathTypeField PathType = iota
+	PathTypeFragment
+	PathTypeParent
+)
+
 func (p *pathConfiguration) String() string {
-	j := make(map[string]any)
+	pathType := "field"
+	if p.pathType == PathTypeField {
+		return fmt.Sprintf(`{"ds":%d,"path":"%s","fieldRef":%3d,"typeName":"%s","shouldWalkFields":%t,"exitPlannerOnNode":%t,"isRootNode":%t,"pathType":"%s"}`, p.dsHash, p.path, p.fieldRef, p.typeName, p.shouldWalkFields, p.exitPlannerOnNode, p.isRootNode, pathType)
+	}
+	switch p.pathType {
+	case PathTypeFragment:
+		pathType = "fragment"
+	case PathTypeParent:
+		pathType = "parent"
+	}
 
-	j["path"] = p.path
-	j["exitPlannerOnNode"] = p.exitPlannerOnNode
-	j["shouldWalkFields"] = p.shouldWalkFields
-	j["typeName"] = p.typeName
-	j["fieldRef"] = p.fieldRef
-	j["ds"] = p.dsHash
-	j["isRootNode"] = p.isRootNode
-
-	b, _ := json.Marshal(j)
-
-	return string(b)
+	return fmt.Sprintf(`{"ds":%d,"path":"%s","shouldWalkFields":%t,"exitPlannerOnNode":%t,"pathType":"%s"}`, p.dsHash, p.path, p.shouldWalkFields, p.exitPlannerOnNode, pathType)
 }

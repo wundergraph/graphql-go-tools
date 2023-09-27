@@ -111,7 +111,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 			RequiredFields: p.planningVisitor.planners[key].requiredFields,
 			ProvidedFields: p.planningVisitor.planners[key].providedFields,
 			ParentPath:     p.planningVisitor.planners[key].parentPath,
-			InsideArray:    p.planningVisitor.planners[key].insideArray,
+			PathType:       p.planningVisitor.planners[key].parentPathType,
 			IsNested:       p.planningVisitor.planners[key].isNestedPlanner(),
 		}
 
@@ -162,6 +162,13 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 		return
 	}
 
+	if p.config.Debug.PrintNodeSuggestions {
+		p.debugMessage("Initial node suggestions:")
+		for i := range p.configurationVisitor.nodeSuggestions {
+			fmt.Println(p.configurationVisitor.nodeSuggestions[i].String())
+		}
+	}
+
 	p.configurationVisitor.secondaryRun = false
 	p.configurationWalker.Walk(operation, definition, report)
 	if report.HasErrors() {
@@ -189,6 +196,13 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 			return
 		}
 
+		if p.config.Debug.PrintNodeSuggestions {
+			p.debugMessage("Recalculated node suggestions:")
+			for i := range p.configurationVisitor.nodeSuggestions {
+				fmt.Println(p.configurationVisitor.nodeSuggestions[i].String())
+			}
+		}
+
 		p.configurationWalker.Walk(operation, definition, report)
 		if report.HasErrors() {
 			return
@@ -196,11 +210,18 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 
 		if p.config.Debug.PrintOperationWithRequiredFields {
 			p.debugMessage(fmt.Sprintf("After run #%d. Operation with new required fields:", i))
+			p.debugMessage(fmt.Sprintf("Has new fields: %v", p.configurationVisitor.hasNewFields))
 			p.printOperation(operation)
 		}
 
 		if p.config.Debug.PrintPlanningPaths {
 			p.debugMessage(fmt.Sprintf("After run #%d. Planning paths", i))
+			if p.configurationVisitor.hasMissingPaths() {
+				p.debugMessage("Missing paths:")
+				for path := range p.configurationVisitor.missingPathTracker {
+					fmt.Println(path)
+				}
+			}
 			p.printPlanningPaths()
 		}
 		i++
@@ -210,6 +231,31 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 			return
 		}
 	}
+
+	// remove unnecessary fragment paths
+	hasRemovedPaths := p.removeUnnecessaryFragmentPaths()
+	if hasRemovedPaths && p.config.Debug.PrintPlanningPaths {
+		p.debugMessage("After removing unnecessary fragment paths")
+		p.printPlanningPaths()
+	}
+}
+
+func (p *Planner) removeUnnecessaryFragmentPaths() (hasRemovedPaths bool) {
+	// We add fragment paths on enter selection set of fragments in configurationVisitor
+	// It could happen that datasource has a root node for the given fragment type,
+	// but we do not select any fields from this fragment
+	// So we need to remove all fragment paths that are not prefixes of any other path
+
+	for _, planner := range p.configurationVisitor.planners {
+		fragmentPaths := planner.fragmentPaths()
+		for _, path := range fragmentPaths {
+			if !planner.hasPathPrefix(path) {
+				planner.removePath(path)
+				hasRemovedPaths = true
+			}
+		}
+	}
+	return
 }
 
 func (p *Planner) selectOperation(operation *ast.Document, operationName string, report *operationreport.Report) {

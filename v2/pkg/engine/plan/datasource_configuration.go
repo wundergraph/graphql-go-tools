@@ -51,9 +51,17 @@ type DataSourcePlannerConfiguration struct {
 	RequiredFields FederationFieldConfigurations
 	ProvidedFields NodeSuggestions
 	ParentPath     string
-	InsideArray    bool
+	PathType       PlannerPathType
 	IsNested       bool
 }
+
+type PlannerPathType int
+
+const (
+	PlannerPathObject PlannerPathType = iota
+	PlannerPathArrayItem
+	PlannerPathNestedInArray
+)
 
 func (c *DataSourcePlannerConfiguration) HasRequiredFields() bool {
 	return len(c.RequiredFields) > 0
@@ -76,7 +84,7 @@ func (d *DataSourceConfiguration) HasChildNodeWithTypename(typeName string) bool
 }
 
 func (d *DataSourceConfiguration) HasKeyRequirement(typeName, requiresFields string) bool {
-	return d.FederationMetaData.Keys.HasSelectionSet(typeName, requiresFields)
+	return d.FederationMetaData.Keys.HasSelectionSet(typeName, "", requiresFields)
 }
 
 func (d *DataSourceConfiguration) RequiredFieldsByKey(typeName string) []FederationFieldConfiguration {

@@ -16,14 +16,14 @@ type Planner struct {
 	rootFieldName           string
 	rootFielPath            string
 	dataSourceConfiguration plan.DataSourceConfiguration
-	insideArray             bool
+	isArrayItem             bool
 }
 
 func (p *Planner) Register(visitor *plan.Visitor, dataSourceConfiguration plan.DataSourceConfiguration, dataSourcePlannerConfiguration plan.DataSourcePlannerConfiguration) error {
 	p.v = visitor
 	p.rootField = ast.InvalidRef
 	p.dataSourceConfiguration = dataSourceConfiguration
-	p.insideArray = dataSourcePlannerConfiguration.InsideArray
+	p.isArrayItem = dataSourcePlannerConfiguration.PathType == plan.PlannerPathArrayItem
 	visitor.Walker.RegisterEnterFieldVisitor(p)
 	return nil
 }
@@ -67,7 +67,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 	requiresParallelListItemFetch := false
 	switch p.rootFieldName {
 	case fieldsFieldName, enumValuesFieldName:
-		requiresParallelListItemFetch = p.insideArray
+		requiresParallelListItemFetch = p.isArrayItem
 	}
 
 	return plan.FetchConfiguration{

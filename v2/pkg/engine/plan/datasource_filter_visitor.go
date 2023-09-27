@@ -123,6 +123,10 @@ func (n *NodeSuggestion) selectWithReason(reason string) {
 	// n.appendSelectionReason(reason) // NOTE: debug do not remove
 }
 
+func (n *NodeSuggestion) String() string {
+	return fmt.Sprintf(`{"ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t}`, n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode)
+}
+
 type NodeSuggestions []NodeSuggestion
 
 func appendSuggestionWithPresenceCheck(nodes NodeSuggestions, node NodeSuggestion) NodeSuggestions {
