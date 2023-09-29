@@ -5,6 +5,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
+// DataSourceFetch is a postprocessor that transforms fetches into more concrete fetch types
 type DataSourceFetch struct{}
 
 func (d *DataSourceFetch) Process(pre plan.Plan) plan.Plan {
@@ -55,8 +56,10 @@ func (d *DataSourceFetch) traverseFetch(fetch resolve.Fetch) resolve.Fetch {
 
 func (d *DataSourceFetch) traverseSingleFetch(fetch *resolve.SingleFetch) resolve.Fetch {
 	switch {
-	case fetch.RequiresEntityBatchFetch:
-		return d.createBatchFetch(fetch)
+	case fetch.RequiresEntityFetch && fetch.RequiresEntityBatchFetch:
+		return d.createEntityBatchFetch(fetch)
+	case fetch.RequiresEntityFetch && !fetch.RequiresEntityBatchFetch:
+		return d.createEntityFetch(fetch)
 	case fetch.RequiresParallelListItemFetch:
 		return d.createParallelListItemFetch(fetch)
 	default:
@@ -70,7 +73,7 @@ func (d *DataSourceFetch) createParallelListItemFetch(fetch *resolve.SingleFetch
 	}
 }
 
-func (d *DataSourceFetch) createBatchFetch(fetch *resolve.SingleFetch) resolve.Fetch {
+func (d *DataSourceFetch) createEntityBatchFetch(fetch *resolve.SingleFetch) resolve.Fetch {
 	representationsVariableIndex := -1
 	for i, segment := range fetch.InputTemplate.Segments {
 		if segment.SegmentType == resolve.VariableSegmentType &&
@@ -107,7 +110,39 @@ func (d *DataSourceFetch) createBatchFetch(fetch *resolve.SingleFetch) resolve.F
 				SetTemplateOutputToNullOnVariableNull: fetch.InputTemplate.SetTemplateOutputToNullOnVariableNull,
 			},
 		},
-		DataSource:     fetch.DataSource,
-		PostProcessing: fetch.PostProcessing,
+		DataSource:           fetch.DataSource,
+		PostProcessing:       fetch.PostProcessing,
+		DisallowSingleFlight: fetch.DisallowSingleFlight,
+	}
+}
+
+func (d *DataSourceFetch) createEntityFetch(fetch *resolve.SingleFetch) resolve.Fetch {
+	representationsVariableIndex := -1
+	for i, segment := range fetch.InputTemplate.Segments {
+		if segment.SegmentType == resolve.VariableSegmentType &&
+			segment.VariableKind == resolve.ResolvableObjectVariableKind {
+			representationsVariableIndex = i
+			break
+		}
+	}
+
+	return &resolve.EntityFetch{
+		Input: resolve.EntityInput{
+			Header: resolve.InputTemplate{
+				Segments:                              fetch.InputTemplate.Segments[:representationsVariableIndex],
+				SetTemplateOutputToNullOnVariableNull: fetch.InputTemplate.SetTemplateOutputToNullOnVariableNull,
+			},
+			Item: resolve.InputTemplate{
+				Segments:                              []resolve.TemplateSegment{fetch.InputTemplate.Segments[representationsVariableIndex]},
+				SetTemplateOutputToNullOnVariableNull: fetch.InputTemplate.SetTemplateOutputToNullOnVariableNull,
+			},
+			Footer: resolve.InputTemplate{
+				Segments:                              fetch.InputTemplate.Segments[representationsVariableIndex+1:],
+				SetTemplateOutputToNullOnVariableNull: fetch.InputTemplate.SetTemplateOutputToNullOnVariableNull,
+			},
+		},
+		DataSource:           fetch.DataSource,
+		PostProcessing:       fetch.PostProcessing,
+		DisallowSingleFlight: fetch.DisallowSingleFlight,
 	}
 }

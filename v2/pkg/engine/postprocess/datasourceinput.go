@@ -10,6 +10,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
+// ProcessDataSource is a postprocessor that processes input template and sort fetches of serial fetch
 type ProcessDataSource struct{}
 
 func (d *ProcessDataSource) Process(pre plan.Plan) plan.Plan {
@@ -42,8 +43,6 @@ func (d *ProcessDataSource) traverseFetch(fetch resolve.Fetch) {
 	switch f := fetch.(type) {
 	case *resolve.SingleFetch:
 		d.traverseSingleFetch(f)
-	case *resolve.BatchEntityFetch:
-		panic("implement me")
 	case *resolve.ParallelFetch:
 		for i := range f.Fetches {
 			d.traverseFetch(f.Fetches[i])
@@ -57,6 +56,10 @@ func (d *ProcessDataSource) traverseFetch(fetch resolve.Fetch) {
 		for i := range f.Fetches {
 			d.traverseFetch(f.Fetches[i])
 		}
+	default:
+		// at this point, we should not have any other types of fetches
+		// as from planner we could get only SingleFetch, ParallelFetch and SerialFetch
+		// other types of fetches are created only during postprocessing via DataSourceFetch postprocessor
 	}
 }
 
