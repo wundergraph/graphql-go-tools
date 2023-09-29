@@ -749,16 +749,12 @@ func (p *Planner) addRepresentationsVariable() {
 }
 
 func (p *Planner) buildRepresentationsVariable() resolve.Variable {
-	isArrayItems := p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
-
 	uniqTypes := p.dataSourcePlannerConfig.RequiredFields.UniqueTypes()
-	if len(uniqTypes) > 1 && !isArrayItems {
-		p.stopWithError("unhandled case: more than one type requirements for non-array path type")
-	}
+	addOnType := len(uniqTypes) > 1
 
 	objects := make([]*resolve.Object, 0, len(p.dataSourcePlannerConfig.RequiredFields))
 	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
-		node, err := buildRepresentationVariableNode(cfg, p.visitor.Definition, false, isArrayItems)
+		node, err := buildRepresentationVariableNode(cfg, p.visitor.Definition, false, addOnType)
 		if err != nil {
 			p.visitor.Walker.StopWithInternalErr(err)
 			return nil
