@@ -980,17 +980,9 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external res
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 
 	singleFetch := &resolve.SingleFetch{
-		Input:                                 external.Input,
-		DataSource:                            external.DataSource,
-		Variables:                             external.Variables,
-		DisallowSingleFlight:                  external.DisallowSingleFlight,
-		RequiresSerialFetch:                   external.RequiresSerialFetch,
-		RequiresBatchFetch:                    external.RequiresBatchFetch,
-		RequiresParallelListItemFetch:         external.RequiresParallelListItemFetch,
-		DataSourceIdentifier:                  []byte(dataSourceType),
-		PostProcessing:                        external.PostProcessing,
-		SetTemplateOutputToNullOnVariableNull: external.SetTemplateOutputToNullOnVariableNull,
-		SerialID:                              internal.fetchID,
+		FetchConfiguration:   external,
+		SerialID:             internal.fetchID,
+		DataSourceIdentifier: []byte(dataSourceType),
 	}
 
 	return singleFetch

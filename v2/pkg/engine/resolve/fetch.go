@@ -17,26 +17,10 @@ type Fetch interface {
 type Fetches []Fetch
 
 type SingleFetch struct {
-	SerialID   int
-	Input      string
-	DataSource DataSource
-	Variables  Variables
-	// DisallowSingleFlight is used for write operations like mutations, POST, DELETE etc. to disable singleFlight
-	// By default SingleFlight for fetches is disabled and needs to be enabled on the Resolver first
-	// If the resolver allows SingleFlight it's up to each individual DataSource Planner to decide whether an Operation
-	// should be allowed to use SingleFlight
-	DisallowSingleFlight          bool
-	RequiresSerialFetch           bool
-	RequiresBatchFetch            bool
-	RequiresParallelListItemFetch bool
-	InputTemplate                 InputTemplate
-	DataSourceIdentifier          []byte
-	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
-	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
-	// Returning null in this case tells the batch implementation to skip this item
-	SetTemplateOutputToNullOnVariableNull bool
-	PostProcessing                        PostProcessingConfiguration
-	EnableBatchMultiPlexing               bool
+	FetchConfiguration
+	SerialID             int
+	InputTemplate        InputTemplate
+	DataSourceIdentifier []byte
 }
 
 type PostProcessingConfiguration struct {
@@ -123,9 +107,13 @@ func (_ *ParallelListItemFetch) FetchKind() FetchKind {
 }
 
 type FetchConfiguration struct {
-	Input                         string
-	Variables                     Variables
-	DataSource                    DataSource
+	Input      string
+	Variables  Variables
+	DataSource DataSource
+	// DisallowSingleFlight is used for write operations like mutations, POST, DELETE etc. to disable singleFlight
+	// By default SingleFlight for fetches is disabled and needs to be enabled on the Resolver first
+	// If the resolver allows SingleFlight it's up to each individual DataSource Planner to decide whether an Operation
+	// should be allowed to use SingleFlight
 	DisallowSingleFlight          bool
 	RequiresSerialFetch           bool
 	RequiresBatchFetch            bool
