@@ -517,7 +517,7 @@ func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchEntityFetch, res *r
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	data, err := l.loadWithSingleFlight(ctx, fetch.DataSource, fetch.DataSourceIdentifier, input.Bytes(), res)
+	data, err := l.loadWithSingleFlight(ctx, fetch.DisallowSingleFlight, fetch.DataSource, fetch.DataSourceIdentifier, input.Bytes(), res)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -613,7 +613,7 @@ func (l *Loader) resolveParallelListItemFetch(ctx *Context, fetch *ParallelListI
 			return errors.WithStack(err)
 		}
 		group.Go(func() error {
-			data, err := l.loadAndPostProcess(groupContext, input, fetch.Fetch, out, res)
+			data, err := l.loadAndPostProcess(groupContext, fetch.Fetch.DisallowSingleFlight, fetch.Fetch.DataSource, fetch.Fetch.DataSourceIdentifier, fetch.Fetch.PostProcessing, input, out, res)
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -664,15 +664,15 @@ func (l *Loader) resolveSingleFetch(ctx *Context, fetch *SingleFetch, res *resul
 		return errors.WithStack(err)
 	}
 	res.mergePath = fetch.PostProcessing.MergePath
-	res.data, err = l.loadAndPostProcess(ctx, input, fetch, out, res)
+	res.data, err = l.loadAndPostProcess(ctx, fetch.DisallowSingleFlight, fetch.DataSource, fetch.DataSourceIdentifier, fetch.PostProcessing, input, out, res)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	return
 }
 
-func (l *Loader) loadWithSingleFlight(ctx *Context, source DataSource, identifier, input []byte, res *resultSet) ([]byte, error) {
-	if !l.sfEnabled {
+func (l *Loader) loadWithSingleFlight(ctx *Context, dissalowSingleFlight bool, source DataSource, identifier []byte, input []byte, res *resultSet) ([]byte, error) {
+	if !l.sfEnabled || dissalowSingleFlight {
 		out := res.getBuffer()
 		err := source.Load(ctx.ctx, input, out)
 		if err != nil {
@@ -705,8 +705,8 @@ func (l *Loader) loadWithSingleFlight(ctx *Context, source DataSource, identifie
 	return data, nil
 }
 
-func (l *Loader) loadAndPostProcess(ctx *Context, input *bytes.Buffer, fetch *SingleFetch, out *bytes.Buffer, res *resultSet) (data []byte, err error) {
-	data, err = l.loadWithSingleFlight(ctx, fetch.DataSource, fetch.DataSourceIdentifier, input.Bytes(), res)
+func (l *Loader) loadAndPostProcess(ctx *Context, dissalowSingleFlight bool, source DataSource, identifier []byte, postProcessing PostProcessingConfiguration, input *bytes.Buffer, out *bytes.Buffer, res *resultSet) (data []byte, err error) {
+	data, err = l.loadWithSingleFlight(ctx, dissalowSingleFlight, source, identifier, input.Bytes(), res)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -715,13 +715,13 @@ func (l *Loader) loadAndPostProcess(ctx *Context, input *bytes.Buffer, fetch *Si
 		res.errors = responseErrors
 		return nil, ErrOriginResponseError
 	}
-	if fetch.PostProcessing.SelectResponseDataPath != nil {
-		data, _, _, err = jsonparser.Get(data, fetch.PostProcessing.SelectResponseDataPath...)
+	if postProcessing.SelectResponseDataPath != nil {
+		data, _, _, err = jsonparser.Get(data, postProcessing.SelectResponseDataPath...)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
 	}
-	if fetch.PostProcessing.ResponseTemplate != nil {
+	if postProcessing.ResponseTemplate != nil {
 		intermediate := pool.FastBuffer.Get()
 		defer pool.FastBuffer.Put(intermediate)
 		_, err = intermediate.Write(data)
@@ -729,7 +729,7 @@ func (l *Loader) loadAndPostProcess(ctx *Context, input *bytes.Buffer, fetch *Si
 			return nil, errors.WithStack(err)
 		}
 		out.Reset()
-		err = fetch.PostProcessing.ResponseTemplate.Render(ctx, intermediate.Bytes(), out)
+		err = postProcessing.ResponseTemplate.Render(ctx, intermediate.Bytes(), out)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
