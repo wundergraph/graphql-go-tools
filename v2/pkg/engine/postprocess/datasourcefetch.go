@@ -136,6 +136,7 @@ func (d *DataSourceFetch) createEntityFetch(fetch *resolve.SingleFetch) resolve.
 				Segments:                              []resolve.TemplateSegment{fetch.InputTemplate.Segments[representationsVariableIndex]},
 				SetTemplateOutputToNullOnVariableNull: fetch.InputTemplate.SetTemplateOutputToNullOnVariableNull,
 			},
+			SkipErrItem: true,
 			Footer: resolve.InputTemplate{
 				Segments:                              fetch.InputTemplate.Segments[representationsVariableIndex+1:],
 				SetTemplateOutputToNullOnVariableNull: fetch.InputTemplate.SetTemplateOutputToNullOnVariableNull,

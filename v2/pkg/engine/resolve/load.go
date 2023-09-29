@@ -436,12 +436,23 @@ func (l *Loader) resolveFetch(ctx *Context, fetch Fetch, res *resultSet) (err er
 			return err
 		}
 		return l.mergeResultSet(res)
-	case *BatchEntityFetch:
+	case *EntityFetch:
 		if parallel {
-			return l.resolveBatchFetch(ctx, f, res)
+			return l.resolveEntityFetch(ctx, f, res)
 		}
 		res = &resultSet{}
-		err = l.resolveBatchFetch(ctx, f, res)
+		err = l.resolveEntityFetch(ctx, f, res)
+		if err != nil {
+			l.mergeResultErr(res)
+			return err
+		}
+		return l.mergeResultSet(res)
+	case *BatchEntityFetch:
+		if parallel {
+			return l.resolveBatchEntityFetch(ctx, f, res)
+		}
+		res = &resultSet{}
+		err = l.resolveBatchEntityFetch(ctx, f, res)
 		if err != nil {
 			l.mergeResultErr(res)
 			return err
@@ -451,7 +462,50 @@ func (l *Loader) resolveFetch(ctx *Context, fetch Fetch, res *resultSet) (err er
 	return nil
 }
 
-func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchEntityFetch, res *resultSet) (err error) {
+func (l *Loader) resolveEntityFetch(ctx *Context, fetch *EntityFetch, res *resultSet) (err error) {
+	input := res.getBuffer()
+	out := res.getBuffer()
+
+	lr := l.currentLayer()
+	err = fetch.Input.Header.Render(ctx, nil, input)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	itemBuf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(itemBuf)
+
+	err = fetch.Input.Item.Render(ctx, lr.data, itemBuf)
+	if err != nil {
+		if fetch.Input.SkipErrItem {
+			err = nil
+			// skip fetch on render item error
+			return
+		}
+		return errors.WithStack(err)
+	}
+
+	if itemBuf.Len() == 4 && bytes.Equal(itemBuf.Bytes(), null) {
+		// skip fetch if item is null
+		return
+	}
+
+	_, _ = input.Write(itemBuf.Bytes())
+
+	err = fetch.Input.Footer.Render(ctx, nil, input)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	res.mergePath = fetch.PostProcessing.MergePath
+	res.data, err = l.loadAndPostProcess(ctx, fetch.DisallowSingleFlight, fetch.DataSource, fetch.DataSourceIdentifier, fetch.PostProcessing, input, out, res)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return
+}
+
+func (l *Loader) resolveBatchEntityFetch(ctx *Context, fetch *BatchEntityFetch, res *resultSet) (err error) {
 	res.mergePath = fetch.PostProcessing.MergePath
 	input := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(input)

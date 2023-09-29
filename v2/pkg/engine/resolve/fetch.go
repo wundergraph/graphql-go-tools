@@ -106,9 +106,10 @@ type EntityFetch struct {
 }
 
 type EntityInput struct {
-	Header InputTemplate
-	Item   InputTemplate
-	Footer InputTemplate
+	Header      InputTemplate
+	Item        InputTemplate
+	SkipErrItem bool
+	Footer      InputTemplate
 }
 
 func (_ *EntityFetch) FetchKind() FetchKind {
