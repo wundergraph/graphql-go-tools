@@ -77,6 +77,7 @@ type BatchEntityFetch struct {
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
 	DataSourceIdentifier []byte
+	DisallowSingleFlight bool
 }
 
 type BatchInput struct {
@@ -101,6 +102,7 @@ type EntityFetch struct {
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
 	DataSourceIdentifier []byte
+	DisallowSingleFlight bool
 }
 
 type EntityInput struct {
@@ -132,12 +134,18 @@ type FetchConfiguration struct {
 	// By default SingleFlight for fetches is disabled and needs to be enabled on the Resolver first
 	// If the resolver allows SingleFlight it's up to each individual DataSource Planner to decide whether an Operation
 	// should be allowed to use SingleFlight
-	DisallowSingleFlight          bool
-	RequiresSerialFetch           bool
+	DisallowSingleFlight bool
+	// RequiresSerialFetch is used to indicate that the single fetches should be executed serially
+	// When we have multiple fetches attached to the object - after post-processing of a plan we will get SerialFetch instead of ParallelFetch
+	RequiresSerialFetch bool
+	// RequiresParallelListItemFetch is used to indicate that the single fetches should be executed without batching
+	// When we have multiple fetches attached to the object - after post-processing of a plan we will get ParallelListItemFetch instead of ParallelFetch
 	RequiresParallelListItemFetch bool
-	RequiresEntityFetch           bool
-	RequiresEntityBatchFetch      bool
-	PostProcessing                PostProcessingConfiguration
+	// RequiresEntityFetch will be set to true if the fetch is an entity fetch on an object. After post-processing, we will get EntityFetch
+	RequiresEntityFetch bool
+	// RequiresEntityBatchFetch indicates that entity fetches on array items could be batched. After post-processing, we will get EntityBatchFetch
+	RequiresEntityBatchFetch bool
+	PostProcessing           PostProcessingConfiguration
 	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
 	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
 	// Returning null in this case tells the batch implementation to skip this item
