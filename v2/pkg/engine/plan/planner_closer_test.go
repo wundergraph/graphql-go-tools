@@ -12,6 +12,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -103,8 +104,8 @@ func (f *FakePlanner) Register(visitor *Visitor, _ DataSourceConfiguration, _ Da
 	return nil
 }
 
-func (f *FakePlanner) ConfigureFetch() FetchConfiguration {
-	return FetchConfiguration{
+func (f *FakePlanner) ConfigureFetch() resolve.FetchConfiguration {
+	return resolve.FetchConfiguration{
 		DataSource: &FakeDataSource{
 			source: f.source,
 		},

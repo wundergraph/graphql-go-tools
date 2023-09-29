@@ -317,7 +317,7 @@ func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceC
 	return nil
 }
 
-func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
+func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 	var input []byte
 	input = httpclient.SetInputBodyWithPath(input, p.upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
@@ -343,7 +343,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		}
 	}
 
-	return plan.FetchConfiguration{
+	return resolve.FetchConfiguration{
 		Input: string(input),
 		DataSource: &Source{
 			httpClient: p.fetchClient,
@@ -378,11 +378,7 @@ func (p *Planner) requiresSerialFetch() bool {
 }
 
 func (p *Planner) requiresBatchFetch() bool {
-	if !p.dataSourcePlannerConfig.HasRequiredFields() {
-		return false
-	}
-
-	return p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
+	return p.dataSourcePlannerConfig.HasRequiredFields()
 }
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {

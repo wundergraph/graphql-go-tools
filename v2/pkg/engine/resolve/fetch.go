@@ -121,3 +121,18 @@ type ParallelListItemFetch struct {
 func (_ *ParallelListItemFetch) FetchKind() FetchKind {
 	return FetchKindParallelListItem
 }
+
+type FetchConfiguration struct {
+	Input                         string
+	Variables                     Variables
+	DataSource                    DataSource
+	DisallowSingleFlight          bool
+	RequiresSerialFetch           bool
+	RequiresBatchFetch            bool
+	RequiresParallelListItemFetch bool
+	PostProcessing                PostProcessingConfiguration
+	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
+	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
+	// Returning null in this case tells the batch implementation to skip this item
+	SetTemplateOutputToNullOnVariableNull bool
+}

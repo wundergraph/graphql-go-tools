@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 type Configuration struct {
@@ -43,8 +44,8 @@ func (p *Planner) Register(_ *plan.Visitor, configuration plan.DataSourceConfigu
 	return json.Unmarshal(configuration.Custom, &p.config)
 }
 
-func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
-	return plan.FetchConfiguration{
+func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
+	return resolve.FetchConfiguration{
 		Input:                p.config.Data,
 		DataSource:           Source{},
 		DisallowSingleFlight: true,

@@ -55,7 +55,7 @@ func (p *Planner) configureInput() string {
 	return buildInput(p.rootFieldName)
 }
 
-func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
+func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 	if p.rootField == ast.InvalidRef {
 		p.v.Walker.StopWithInternalErr(errors.New("introspection root field is not set"))
 	}
@@ -70,7 +70,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		requiresParallelListItemFetch = p.isArrayItem
 	}
 
-	return plan.FetchConfiguration{
+	return resolve.FetchConfiguration{
 		Input:                         p.configureInput(),
 		RequiresParallelListItemFetch: requiresParallelListItemFetch,
 		DataSource: &Source{
