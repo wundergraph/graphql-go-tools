@@ -85,7 +85,8 @@ func mergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object
 	}
 
 	return &resolve.Object{
-		Fields: fields,
+		Nullable: true,
+		Fields:   fields,
 	}
 }
 
@@ -116,7 +117,8 @@ func (v *representationVariableVisitor) EnterDocument(key, definition *ast.Docum
 	}
 
 	v.rootObject = &resolve.Object{
-		Fields: fields,
+		Nullable: true,
+		Fields:   fields,
 	}
 
 	v.currentFields = append(v.currentFields, objectFields{
