@@ -750,12 +750,9 @@ func (p *Planner) addRepresentationsVariable() {
 }
 
 func (p *Planner) buildRepresentationsVariable() resolve.Variable {
-	uniqTypes := p.dataSourcePlannerConfig.RequiredFields.UniqueTypes()
-	addOnType := len(uniqTypes) > 1
-
 	objects := make([]*resolve.Object, 0, len(p.dataSourcePlannerConfig.RequiredFields))
 	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
-		node, err := buildRepresentationVariableNode(cfg, p.visitor.Definition, false, addOnType)
+		node, err := buildRepresentationVariableNode(cfg, p.visitor.Definition)
 		if err != nil {
 			p.visitor.Walker.StopWithInternalErr(err)
 			return nil

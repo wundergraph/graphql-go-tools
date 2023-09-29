@@ -485,8 +485,12 @@ func (l *Loader) resolveEntityFetch(ctx *Context, fetch *EntityFetch, res *resul
 		return errors.WithStack(err)
 	}
 
-	if itemBuf.Len() == 4 && bytes.Equal(itemBuf.Bytes(), null) {
+	switch {
+	case itemBuf.Len() == 4 && bytes.Equal(itemBuf.Bytes(), null):
 		// skip fetch if item is null
+		return
+	case itemBuf.Len() == 2 && bytes.Equal(itemBuf.Bytes(), emptyObject):
+		// skip fetch if item is empty
 		return
 	}
 

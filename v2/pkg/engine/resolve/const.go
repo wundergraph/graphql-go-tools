@@ -23,6 +23,7 @@ var (
 
 	unableToResolveMsg = []byte("unable to resolve")
 	emptyArray         = []byte("[]")
+	emptyObject        = []byte("{}")
 )
 
 var (
