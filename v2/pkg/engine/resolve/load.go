@@ -436,7 +436,7 @@ func (l *Loader) resolveFetch(ctx *Context, fetch Fetch, res *resultSet) (err er
 			return err
 		}
 		return l.mergeResultSet(res)
-	case *BatchFetch:
+	case *BatchEntityFetch:
 		if parallel {
 			return l.resolveBatchFetch(ctx, f, res)
 		}
@@ -451,7 +451,7 @@ func (l *Loader) resolveFetch(ctx *Context, fetch Fetch, res *resultSet) (err er
 	return nil
 }
 
-func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchFetch, res *resultSet) (err error) {
+func (l *Loader) resolveBatchFetch(ctx *Context, fetch *BatchEntityFetch, res *resultSet) (err error) {
 	res.mergePath = fetch.PostProcessing.MergePath
 	input := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(input)

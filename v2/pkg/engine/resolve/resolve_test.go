@@ -3287,7 +3287,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 														Value: &Object{
 															Nullable: true,
 															Path:     []string{"product"},
-															Fetch: &BatchFetch{
+															Fetch: &BatchEntityFetch{
 																DataSource: productService,
 																Input: BatchInput{
 																	Header: InputTemplate{
@@ -4102,7 +4102,7 @@ func Benchmark_ResolveGraphQLResponse(b *testing.B) {
 					Value: &Array{
 						Path: []string{"users"},
 						Item: &Object{
-							Fetch: &BatchFetch{
+							Fetch: &BatchEntityFetch{
 								Input: BatchInput{
 									Header: InputTemplate{
 										Segments: []TemplateSegment{
@@ -4351,7 +4351,7 @@ func Benchmark_NestedBatching(b *testing.B) {
 						Item: &Object{
 							Fetch: &ParallelFetch{
 								Fetches: []Fetch{
-									&BatchFetch{
+									&BatchEntityFetch{
 										Input: BatchInput{
 											Header: InputTemplate{
 												Segments: []TemplateSegment{
@@ -4409,7 +4409,7 @@ func Benchmark_NestedBatching(b *testing.B) {
 											SelectResponseDataPath: []string{"data", "_entities"},
 										},
 									},
-									&BatchFetch{
+									&BatchEntityFetch{
 										Input: BatchInput{
 											Header: InputTemplate{
 												Segments: []TemplateSegment{
@@ -4498,7 +4498,7 @@ func Benchmark_NestedBatching(b *testing.B) {
 													Name: []byte("author"),
 													Value: &Object{
 														Path: []string{"author"},
-														Fetch: &BatchFetch{
+														Fetch: &BatchEntityFetch{
 															Input: BatchInput{
 																Header: InputTemplate{
 																	Segments: []TemplateSegment{
@@ -4653,7 +4653,7 @@ func Benchmark_NestedBatchingWithoutChecks(b *testing.B) {
 						Item: &Object{
 							Fetch: &ParallelFetch{
 								Fetches: []Fetch{
-									&BatchFetch{
+									&BatchEntityFetch{
 										Input: BatchInput{
 											Header: InputTemplate{
 												Segments: []TemplateSegment{
@@ -4711,7 +4711,7 @@ func Benchmark_NestedBatchingWithoutChecks(b *testing.B) {
 											SelectResponseDataPath: []string{"data", "_entities"},
 										},
 									},
-									&BatchFetch{
+									&BatchEntityFetch{
 										Input: BatchInput{
 											Header: InputTemplate{
 												Segments: []TemplateSegment{
@@ -4800,7 +4800,7 @@ func Benchmark_NestedBatchingWithoutChecks(b *testing.B) {
 													Name: []byte("author"),
 													Value: &Object{
 														Path: []string{"author"},
-														Fetch: &BatchFetch{
+														Fetch: &BatchEntityFetch{
 															Input: BatchInput{
 																Header: InputTemplate{
 																	Segments: []TemplateSegment{

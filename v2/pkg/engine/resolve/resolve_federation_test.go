@@ -601,7 +601,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 							Value: &Array{
 								Path: []string{"users"},
 								Item: &Object{
-									Fetch: &BatchFetch{
+									Fetch: &BatchEntityFetch{
 										Input: BatchInput{
 											Header: InputTemplate{
 												Segments: []TemplateSegment{
@@ -815,7 +815,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 							Value: &Array{
 								Path: []string{"users"},
 								Item: &Object{
-									Fetch: &BatchFetch{
+									Fetch: &BatchEntityFetch{
 										Input: BatchInput{
 											Header: InputTemplate{
 												Segments: []TemplateSegment{
@@ -1029,7 +1029,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 							Value: &Array{
 								Path: []string{"users"},
 								Item: &Object{
-									Fetch: &BatchFetch{
+									Fetch: &BatchEntityFetch{
 										Input: BatchInput{
 											Header: InputTemplate{
 												Segments: []TemplateSegment{
@@ -1249,7 +1249,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 							Value: &Array{
 								Path: []string{"users"},
 								Item: &Object{
-									Fetch: &BatchFetch{
+									Fetch: &BatchEntityFetch{
 										Input: BatchInput{
 											Header: InputTemplate{
 												Segments: []TemplateSegment{
@@ -1697,7 +1697,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 							Item: &Object{
 								Fetch: &ParallelFetch{
 									Fetches: []Fetch{
-										&BatchFetch{
+										&BatchEntityFetch{
 											Input: BatchInput{
 												Header: InputTemplate{
 													Segments: []TemplateSegment{
@@ -1755,7 +1755,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 												SelectResponseDataPath: []string{"data", "_entities"},
 											},
 										},
-										&BatchFetch{
+										&BatchEntityFetch{
 											Input: BatchInput{
 												Header: InputTemplate{
 													Segments: []TemplateSegment{
@@ -1844,7 +1844,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 														Name: []byte("author"),
 														Value: &Object{
 															Path: []string{"author"},
-															Fetch: &BatchFetch{
+															Fetch: &BatchEntityFetch{
 																Input: BatchInput{
 																	Header: InputTemplate{
 																		Segments: []TemplateSegment{
@@ -1957,7 +1957,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 						Value: &Array{
 							Path: []string{"accounts"},
 							Item: &Object{
-								Fetch: &BatchFetch{
+								Fetch: &BatchEntityFetch{
 									Input: BatchInput{
 										Header: InputTemplate{
 											Segments: []TemplateSegment{

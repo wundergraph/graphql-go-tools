@@ -5,9 +5,10 @@ type FetchKind int
 const (
 	FetchKindSingle FetchKind = iota + 1
 	FetchKindParallel
-	FetchKindBatch
 	FetchKindSerial
 	FetchKindParallelListItem
+	FetchKindEntity
+	FetchKindEntityBatch
 )
 
 type Fetch interface {
@@ -69,9 +70,9 @@ func (_ *SerialFetch) FetchKind() FetchKind {
 	return FetchKindSerial
 }
 
-// BatchFetch - TODO: document better
+// BatchEntityFetch - TODO: document better
 // allows to join nested fetches to the same subgraph into a single fetch
-type BatchFetch struct {
+type BatchEntityFetch struct {
 	Input                BatchInput
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
@@ -91,8 +92,25 @@ type BatchInput struct {
 	Footer       InputTemplate
 }
 
-func (_ *BatchFetch) FetchKind() FetchKind {
-	return FetchKindBatch
+func (_ *BatchEntityFetch) FetchKind() FetchKind {
+	return FetchKindEntityBatch
+}
+
+type EntityFetch struct {
+	Input                EntityInput
+	DataSource           DataSource
+	PostProcessing       PostProcessingConfiguration
+	DataSourceIdentifier []byte
+}
+
+type EntityInput struct {
+	Header InputTemplate
+	Item   InputTemplate
+	Footer InputTemplate
+}
+
+func (_ *EntityFetch) FetchKind() FetchKind {
+	return FetchKindEntity
 }
 
 // The ParallelListItemFetch can be used to make nested parallel fetches within a list
@@ -116,8 +134,9 @@ type FetchConfiguration struct {
 	// should be allowed to use SingleFlight
 	DisallowSingleFlight          bool
 	RequiresSerialFetch           bool
-	RequiresBatchFetch            bool
 	RequiresParallelListItemFetch bool
+	RequiresEntityFetch           bool
+	RequiresEntityBatchFetch      bool
 	PostProcessing                PostProcessingConfiguration
 	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
 	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item

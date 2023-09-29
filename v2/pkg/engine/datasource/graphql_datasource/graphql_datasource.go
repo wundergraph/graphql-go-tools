@@ -351,7 +351,8 @@ func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 		Variables:                             p.variables,
 		DisallowSingleFlight:                  p.disallowSingleFlight,
 		RequiresSerialFetch:                   p.requiresSerialFetch(),
-		RequiresBatchFetch:                    p.requiresBatchFetch(),
+		RequiresEntityFetch:                   p.requiresEntityFetch(),
+		RequiresEntityBatchFetch:              p.requiresEntityBatchFetch(),
 		PostProcessing:                        postProcessing,
 		SetTemplateOutputToNullOnVariableNull: p.extractEntities,
 	}
@@ -377,8 +378,12 @@ func (p *Planner) requiresSerialFetch() bool {
 	return false
 }
 
-func (p *Planner) requiresBatchFetch() bool {
+func (p *Planner) requiresEntityFetch() bool {
 	return p.dataSourcePlannerConfig.HasRequiredFields()
+}
+
+func (p *Planner) requiresEntityBatchFetch() bool {
+	return p.requiresEntityFetch() && p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
 }
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {

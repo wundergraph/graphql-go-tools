@@ -42,7 +42,7 @@ func (d *ProcessDataSource) traverseFetch(fetch resolve.Fetch) {
 	switch f := fetch.(type) {
 	case *resolve.SingleFetch:
 		d.traverseSingleFetch(f)
-	case *resolve.BatchFetch:
+	case *resolve.BatchEntityFetch:
 		panic("implement me")
 	case *resolve.ParallelFetch:
 		for i := range f.Fetches {

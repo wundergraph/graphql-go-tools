@@ -55,7 +55,7 @@ func (d *DataSourceFetch) traverseFetch(fetch resolve.Fetch) resolve.Fetch {
 
 func (d *DataSourceFetch) traverseSingleFetch(fetch *resolve.SingleFetch) resolve.Fetch {
 	switch {
-	case fetch.RequiresBatchFetch:
+	case fetch.RequiresEntityBatchFetch:
 		return d.createBatchFetch(fetch)
 	case fetch.RequiresParallelListItemFetch:
 		return d.createParallelListItemFetch(fetch)
@@ -80,7 +80,7 @@ func (d *DataSourceFetch) createBatchFetch(fetch *resolve.SingleFetch) resolve.F
 		}
 	}
 
-	return &resolve.BatchFetch{
+	return &resolve.BatchEntityFetch{
 		Input: resolve.BatchInput{
 			Header: resolve.InputTemplate{
 				Segments:                              fetch.InputTemplate.Segments[:representationsVariableIndex],
