@@ -140,6 +140,10 @@ func (d *Document) FieldDefinitionTypeNameString(ref int) string {
 	return d.ResolveTypeNameString(d.FieldDefinitions[ref].Type)
 }
 
+func (d *Document) FieldDefinitionTypeNameBytes(ref int) ByteSlice {
+	return d.ResolveTypeNameBytes(d.FieldDefinitions[ref].Type)
+}
+
 func (d *Document) FieldDefinitionTypeNode(ref int) Node {
 	typeName := d.ResolveTypeNameBytes(d.FieldDefinitions[ref].Type)
 	node, _ := d.Index.FirstNodeByNameBytes(typeName)

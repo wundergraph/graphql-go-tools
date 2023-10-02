@@ -708,8 +708,7 @@ func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(
 		return false
 	}
 
-	fieldDefTypeRef := c.definition.FieldDefinitionType(fieldDefRef)
-	fieldDefTypeName := c.definition.TypeNameBytes(fieldDefTypeRef)
+	fieldDefTypeName := c.definition.FieldDefinitionTypeNameBytes(fieldDefRef)
 	node, ok := c.definition.NodeByName(fieldDefTypeName)
 	if !ok {
 		return false
@@ -919,4 +918,125 @@ func (c *configurationVisitor) addRequiredFields(selectionSetRef int, requiredFi
 	if report.HasErrors() {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields for %s", typeName))
 	}
+}
+
+func (c *configurationVisitor) isFieldReturnsInterface(fieldRef int) (interfaceDefRef int, isInterface bool) {
+	var (
+		fieldDefRef int
+		hasField    bool
+	)
+
+	interfaceDefRef = ast.InvalidRef
+
+	switch c.walker.EnclosingTypeDefinition.Kind {
+	case ast.NodeKindObjectTypeDefinition:
+		fieldDefRef, hasField = c.definition.ObjectTypeDefinitionFieldWithName(c.walker.EnclosingTypeDefinition.Ref, c.operation.FieldNameBytes(fieldRef))
+		if !hasField {
+			return
+		}
+	case ast.NodeKindInterfaceTypeDefinition:
+		fieldDefRef, hasField = c.definition.InterfaceTypeDefinitionFieldWithName(c.walker.EnclosingTypeDefinition.Ref, c.operation.FieldNameBytes(fieldRef))
+		if !hasField {
+			return
+		}
+	default:
+		return
+	}
+
+	fieldDefTypeName := c.definition.FieldDefinitionTypeNameBytes(fieldDefRef)
+	node, hasNode := c.definition.NodeByName(fieldDefTypeName)
+	if !hasNode {
+		return
+	}
+
+	if node.Kind != ast.NodeKindInterfaceTypeDefinition {
+		return
+	}
+
+	return node.Ref, true
+}
+
+func (c *configurationVisitor) objectTypesImplementingInterface(interfaceDefRef int) (typeNames []string, ok bool) {
+	implementedByNodes := c.definition.InterfaceTypeDefinitionImplementedByRootNodes(interfaceDefRef)
+
+	typeNames = make([]string, 0, len(implementedByNodes))
+	for _, implementedByNode := range implementedByNodes {
+		if implementedByNode.Kind != ast.NodeKindObjectTypeDefinition {
+			continue
+		}
+
+		typeNames = append(typeNames, implementedByNode.NameString(c.definition))
+	}
+
+	if len(typeNames) > 0 {
+		return typeNames, true
+
+	}
+
+	return nil, false
+}
+
+func (c *configurationVisitor) plannerHasEntitiesWithName(plannerIdx int, typeNames []string) (dsTypeNames []string, ok bool) {
+	hasEntities := false
+	for _, typeName := range typeNames {
+		if len(c.planners[plannerIdx].dataSourceConfiguration.RequiredFieldsByKey(typeName)) > 0 {
+			hasEntities = true
+			break
+		}
+	}
+
+	if !hasEntities {
+		return nil, false
+	}
+
+	dsTypeNames = make([]string, 0, len(typeNames))
+	for _, typeName := range typeNames {
+		if c.planners[plannerIdx].dataSourceConfiguration.HasRootNodeWithTypename(typeName) ||
+			c.planners[plannerIdx].dataSourceConfiguration.HasChildNodeWithTypename(typeName) {
+			dsTypeNames = append(dsTypeNames, typeName)
+		}
+	}
+
+	return dsTypeNames, true
+}
+
+func (c *configurationVisitor) interfaceFieldSelectionNeedsRewrite(fieldRef int, plannerIdx int, typeNames []string) bool {
+
+	/*
+		We do not need to rewrite the selection set if:
+		- all types implementing the interface have a root node with the requested fields
+		- or selections contains inline fragments for all types implementing the interface
+	*/
+
+	return false
+}
+
+func (c *configurationVisitor) rewriteSelectionSetOfFieldWithInterfaceType(fieldRef int, plannerIdx int) {
+	interfaceDefRef, isInterface := c.isFieldReturnsInterface(fieldRef)
+	if !isInterface {
+		return
+	}
+
+	typeNames, ok := c.objectTypesImplementingInterface(interfaceDefRef)
+	if !ok {
+		return
+	}
+
+	dsTypeNames, ok := c.plannerHasEntitiesWithName(plannerIdx, typeNames)
+	if !ok {
+		return
+	}
+
+	if !c.interfaceFieldSelectionNeedsRewrite(fieldRef, plannerIdx, dsTypeNames) {
+		return
+	}
+
+	// TODO: implement rewrite
+
+	/*
+		1) extract selections which is not inline-fragments - e.g. shared selections
+		2) extract selections for each inline fragment
+		3) for types which do not have inline-fragment - add inline fragment with shared fields
+		4) for types which have inline-fragment - add not selected shared fields to existing inline fragment
+	*/
 }
