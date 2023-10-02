@@ -27,10 +27,12 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 						},
 					},
 					Fetch: &resolve.SingleFetch{
-						Input:                "world",
-						DataSource:           Source{},
 						DataSourceIdentifier: []byte("staticdatasource.Source"),
-						DisallowSingleFlight: true,
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:                "world",
+							DataSource:           Source{},
+							DisallowSingleFlight: true,
+						},
 					},
 				},
 			},

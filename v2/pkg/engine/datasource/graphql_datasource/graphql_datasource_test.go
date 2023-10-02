@@ -43,16 +43,18 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","unnull_variables":true,"body":{"query":"query($a: String){hero(a: $a)}","variables":{"a":$$0$$}}}`,
-					Variables: resolve.NewVariables(
-						&resolve.ContextVariable{
-							Path:     []string{"a"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
-						},
-					),
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: &Source{},
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","unnull_variables":true,"body":{"query":"query($a: String){hero(a: $a)}","variables":{"a":$$0$$}}}`,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"a"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+							},
+						),
+						PostProcessing: DefaultPostProcessingConfiguration,
+					},
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -117,19 +119,21 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":$$0$$}}}`,
-					Variables: resolve.NewVariables(
-						&resolve.ContextVariable{
-							Path:     []string{"id"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-						},
-						&resolve.HeaderVariable{
-							Path: []string{"Authorization"},
-						},
-					),
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: &Source{},
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":$$0$$}}}`,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"id"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+							},
+							&resolve.HeaderVariable{
+								Path: []string{"Authorization"},
+							},
+						),
+						PostProcessing: DefaultPostProcessingConfiguration,
+					},
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -285,10 +289,12 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:           &Source{},
-					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource:     &Source{},
+						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
+						PostProcessing: DefaultPostProcessingConfiguration,
+					},
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -383,10 +389,12 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						DataSource:           &Source{},
-						Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{thing {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource:     &Source{},
+							Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{thing {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -474,16 +482,18 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:           &Source{},
-					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
-					Variables: resolve.NewVariables(
-						&resolve.ContextVariable{
-							Path:     []string{"skip"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
-						},
-					),
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource:     &Source{},
+						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
+						PostProcessing: DefaultPostProcessingConfiguration,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"skip"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+							},
+						),
+					},
 				},
 				Fields: []*resolve.Field{
 					{
@@ -556,14 +566,16 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:           &Source{},
-					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName __typename @skip(if: $skip) tn2: __typename @include(if: $skip)}}","variables":{"skip":$$0$$}}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					Variables: resolve.NewVariables(&resolve.ContextVariable{
-						Path:     []string{"skip"},
-						Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
-					}),
-					PostProcessing: DefaultPostProcessingConfiguration,
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: &Source{},
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName __typename @skip(if: $skip) tn2: __typename @include(if: $skip)}}","variables":{"skip":$$0$$}}}`,
+						Variables: resolve.NewVariables(&resolve.ContextVariable{
+							Path:     []string{"skip"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+						}),
+						PostProcessing: DefaultPostProcessingConfiguration,
+					},
 				},
 				Fields: []*resolve.Field{
 					{
@@ -652,16 +664,18 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:           &Source{},
-					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {... @skip(if: $skip){id displayName}}}","variables":{"skip":$$0$$}}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
-					Variables: resolve.NewVariables(
-						&resolve.ContextVariable{
-							Path:     []string{"skip"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
-						},
-					),
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource:     &Source{},
+						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {... @skip(if: $skip){id displayName}}}","variables":{"skip":$$0$$}}}`,
+						PostProcessing: DefaultPostProcessingConfiguration,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"skip"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+							},
+						),
+					},
 				},
 				Fields: []*resolve.Field{
 					{
@@ -738,16 +752,18 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:           &Source{},
-					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {... @include(if: $include){id displayName}}}","variables":{"include":$$0$$}}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
-					Variables: resolve.NewVariables(
-						&resolve.ContextVariable{
-							Path:     []string{"include"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
-						},
-					),
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource:     &Source{},
+						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {... @include(if: $include){id displayName}}}","variables":{"include":$$0$$}}}`,
+						PostProcessing: DefaultPostProcessingConfiguration,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"include"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+							},
+						),
+					},
 				},
 				Fields: []*resolve.Field{
 					{
@@ -822,10 +838,12 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:           &Source{},
-					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource:     &Source{},
+						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
+						PostProcessing: DefaultPostProcessingConfiguration,
+					},
 				},
 				Fields: []*resolve.Field{
 					{
@@ -888,10 +906,12 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:           &Source{},
-					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource:     &Source{},
+						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
+						PostProcessing: DefaultPostProcessingConfiguration,
+					},
 				},
 				Fields: []*resolve.Field{
 					{
@@ -960,16 +980,18 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:           &Source{},
-					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {id displayName @include(if: $include)}}","variables":{"include":$$0$$}}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
-					Variables: resolve.NewVariables(
-						&resolve.ContextVariable{
-							Path:     []string{"include"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
-						},
-					),
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource:     &Source{},
+						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {id displayName @include(if: $include)}}","variables":{"include":$$0$$}}}`,
+						PostProcessing: DefaultPostProcessingConfiguration,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"include"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+							},
+						),
+					},
 				},
 				Fields: []*resolve.Field{
 					{
@@ -1040,10 +1062,12 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:           &Source{},
-					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource:     &Source{},
+						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
+						PostProcessing: DefaultPostProcessingConfiguration,
+					},
 				},
 				Fields: []*resolve.Field{
 					{
@@ -1111,10 +1135,12 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:           &Source{},
-					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource:     &Source{},
+						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
+						PostProcessing: DefaultPostProcessingConfiguration,
+					},
 				},
 				Fields: []*resolve.Field{
 					{
@@ -1180,10 +1206,12 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource:           &Source{},
-					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName __typename ... on RegisteredUser {hasVerifiedEmail}}}"}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource:     &Source{},
+						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName __typename ... on RegisteredUser {hasVerifiedEmail}}}"}}`,
+						PostProcessing: DefaultPostProcessingConfiguration,
+					},
 				},
 				Fields: []*resolve.Field{
 					{
@@ -1258,16 +1286,18 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($name: String!){user(name: $name){normalized(data: {name: $name})}}","variables":{"name":$$0$$}}}`,
-					Variables: resolve.NewVariables(
-						&resolve.ContextVariable{
-							Path:     []string{"name"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-						},
-					),
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: &Source{},
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($name: String!){user(name: $name){normalized(data: {name: $name})}}","variables":{"name":$$0$$}}}`,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"name"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+							},
+						),
+						PostProcessing: DefaultPostProcessingConfiguration,
+					},
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -1351,16 +1381,18 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						DataSource: &Source{},
-						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($heroId: ID!){droid(id: $heroId){name} hero {id}}","variables":{"heroId":$$0$$}}}`,
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"heroId"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-							},
-						),
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &Source{},
+							Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($heroId: ID!){droid(id: $heroId){name} hero {id}}","variables":{"heroId":$$0$$}}}`,
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"heroId"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+								},
+							),
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -1469,23 +1501,25 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $heroName: String!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} search(name: $heroName){__typename ... on Droid {primaryFunction}} stringList nestedStringList}","variables":{"heroName":$$1$$,"id":$$0$$}}}`,
-					Variables: resolve.NewVariables(
-						&resolve.ContextVariable{
-							Path:     []string{"id"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-						},
-						&resolve.ContextVariable{
-							Path:     []string{"heroName"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-						},
-						&resolve.HeaderVariable{
-							Path: []string{"Authorization"},
-						},
-					),
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: &Source{},
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $heroName: String!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} search(name: $heroName){__typename ... on Droid {primaryFunction}} stringList nestedStringList}","variables":{"heroName":$$1$$,"id":$$0$$}}}`,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"id"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+							},
+							&resolve.ContextVariable{
+								Path:     []string{"heroName"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+							},
+							&resolve.HeaderVariable{
+								Path: []string{"Authorization"},
+							},
+						),
+						PostProcessing: DefaultPostProcessingConfiguration,
+					},
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -1702,31 +1736,33 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$4$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $a: String! @onVariable, $input: SearchInput!, $options: JSON)@onOperation {api_droid: droid(id: $id){name @format aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search(name: $a){__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}} withOptions: searchWithInput(input: {options: $options}){__typename ... on Droid {primaryFunction}}}","variables":{"options":$$3$$,"input":$$2$$,"a":$$1$$,"id":$$0$$}}}`,
-					Variables: resolve.NewVariables(
-						&resolve.ContextVariable{
-							Path:     []string{"id"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-						},
-						&resolve.ContextVariable{
-							Path:     []string{"a"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-						},
-						&resolve.ContextVariable{
-							Path:     []string{"input"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["object"],"properties":{"name":{"type":["string","null"]},"options":{}},"additionalProperties":false}`),
-						},
-						&resolve.ContextVariable{
-							Path:     []string{"options"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{}`),
-						},
-						&resolve.HeaderVariable{
-							Path: []string{"Authorization"},
-						},
-					),
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: &Source{},
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$4$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $a: String! @onVariable, $input: SearchInput!, $options: JSON)@onOperation {api_droid: droid(id: $id){name @format aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search(name: $a){__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}} withOptions: searchWithInput(input: {options: $options}){__typename ... on Droid {primaryFunction}}}","variables":{"options":$$3$$,"input":$$2$$,"a":$$1$$,"id":$$0$$}}}`,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"id"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+							},
+							&resolve.ContextVariable{
+								Path:     []string{"a"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+							},
+							&resolve.ContextVariable{
+								Path:     []string{"input"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["object"],"properties":{"name":{"type":["string","null"]},"options":{}},"additionalProperties":false}`),
+							},
+							&resolve.ContextVariable{
+								Path:     []string{"options"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{}`),
+							},
+							&resolve.HeaderVariable{
+								Path: []string{"Authorization"},
+							},
+						),
+						PostProcessing: DefaultPostProcessingConfiguration,
+					},
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -2015,16 +2051,18 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					Input:      `{"method":"POST","url":"https://subgraph-reviews/query","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {username id}}}}}","variables":{"representations":$$0$$}}}`,
-					Variables: resolve.NewVariables(
-						&resolve.ContextVariable{
-							Path:     []string{"representations"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["array"],"items":{"type":["object"],"additionalProperties":true}}`),
-						},
-					),
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: &Source{},
+						Input:      `{"method":"POST","url":"https://subgraph-reviews/query","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {username id}}}}}","variables":{"representations":$$0$$}}}`,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"representations"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["array"],"items":{"type":["object"],"additionalProperties":true}}`),
+							},
+						),
+						PostProcessing: DefaultPostProcessingConfiguration,
+					},
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -2173,16 +2211,18 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidIDs: [ID!]!){droids(ids: $droidIDs){name primaryFunction}}","variables":{"droidIDs":$$0$$}}}`,
-						DataSource: &Source{},
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"droidIDs"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["array"],"items":{"type":["string","integer"]}}`),
-							},
-						),
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidIDs: [ID!]!){droids(ids: $droidIDs){name primaryFunction}}","variables":{"droidIDs":$$0$$}}}`,
+							DataSource: &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"droidIDs"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["array"],"items":{"type":["string","integer"]}}`),
+								},
+							),
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -2228,16 +2268,18 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidID: ID!){droid(id: $droidID){name primaryFunction}}","variables":{"droidID":$$0$$}}}`,
-						DataSource: &Source{},
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"droidID"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-							},
-						),
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidID: ID!){droid(id: $droidID){name primaryFunction}}","variables":{"droidID":$$0$$}}}`,
+							DataSource: &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"droidID"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+								},
+							),
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -2278,16 +2320,18 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($birthdate: Date!){heroByBirthdate(birthdate: $birthdate){name}}","variables":{"birthdate":$$0$$}}}`,
-						DataSource: &Source{},
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"birthdate"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{}`),
-							},
-						),
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($birthdate: Date!){heroByBirthdate(birthdate: $birthdate){name}}","variables":{"birthdate":$$0$$}}}`,
+							DataSource: &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"birthdate"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{}`),
+								},
+							),
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -2326,17 +2370,19 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:      `{"method":"POST","url":"https://service.one","body":{"query":"mutation($name: String!){addFriend(name: $name){id name}}","variables":{"name":$$0$$}}}`,
-						DataSource: &Source{},
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"name"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-							},
-						),
-						DisallowSingleFlight: true,
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"method":"POST","url":"https://service.one","body":{"query":"mutation($name: String!){addFriend(name: $name){id name}}","variables":{"name":$$0$$}}}`,
+							DataSource: &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"name"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+								},
+							),
+							DisallowSingleFlight: true,
+							PostProcessing:       DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -2422,21 +2468,23 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:      `{"method":"POST","url":"https://foo.service","body":{"query":"query($a: String, $b: String){foo(bar: $a){bar(bal: $b)}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
-						DataSource: &Source{},
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"a"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
-							},
-							&resolve.ContextVariable{
-								Path:     []string{"b"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
-							},
-						),
-						DisallowSingleFlight: false,
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"method":"POST","url":"https://foo.service","body":{"query":"query($a: String, $b: String){foo(bar: $a){bar(bal: $b)}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
+							DataSource: &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"a"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+								},
+								&resolve.ContextVariable{
+									Path:     []string{"b"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+								},
+							),
+							DisallowSingleFlight: false,
+							PostProcessing:       DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -2525,21 +2573,23 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:      `{"method":"POST","url":"https://countries.service","body":{"query":"query($a: ID!, $b: ID!){country(code: $a){name} alias: country(code: $b){name}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
-						DataSource: &Source{},
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"a"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-							},
-							&resolve.ContextVariable{
-								Path:     []string{"b"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-							},
-						),
-						DisallowSingleFlight: false,
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"method":"POST","url":"https://countries.service","body":{"query":"query($a: ID!, $b: ID!){country(code: $a){name} alias: country(code: $b){name}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
+							DataSource: &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"a"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+								},
+								&resolve.ContextVariable{
+									Path:     []string{"b"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+								},
+							),
+							DisallowSingleFlight: false,
+							PostProcessing:       DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -2646,21 +2696,23 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:      `{"method":"POST","url":"https://countries.service","body":{"query":"query($a: ID!, $b: ID!){country(code: $a){name} countryAlias: country(code: $b){name}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
-						DataSource: &Source{},
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"a"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-							},
-							&resolve.ContextVariable{
-								Path:     []string{"b"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-							},
-						),
-						DisallowSingleFlight: false,
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"method":"POST","url":"https://countries.service","body":{"query":"query($a: ID!, $b: ID!){country(code: $a){name} countryAlias: country(code: $b){name}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
+							DataSource: &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"a"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+								},
+								&resolve.ContextVariable{
+									Path:     []string{"b"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+								},
+							),
+							DisallowSingleFlight: false,
+							PostProcessing:       DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -2803,36 +2855,40 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.ParallelFetch{
 						Fetches: []resolve.Fetch{
 							&resolve.SingleFetch{
-								Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
-								DataSource: &Source{},
-								Variables: resolve.NewVariables(
-									&resolve.ContextVariable{
-										Path:     []string{"firstArg"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
-									},
-									&resolve.ContextVariable{
-										Path:     []string{"thirdArg"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["integer","null"]}`),
-									},
-								),
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
+									DataSource: &Source{},
+									Variables: resolve.NewVariables(
+										&resolve.ContextVariable{
+											Path:     []string{"firstArg"},
+											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+										},
+										&resolve.ContextVariable{
+											Path:     []string{"thirdArg"},
+											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["integer","null"]}`),
+										},
+									),
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								PostProcessing:       DefaultPostProcessingConfiguration,
 							},
 							&resolve.SingleFetch{
-								Input:      `{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
-								DataSource: &Source{},
-								Variables: resolve.NewVariables(
-									&resolve.ContextVariable{
-										Path:     []string{"secondArg"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
-									},
-									&resolve.ContextVariable{
-										Path:     []string{"fourthArg"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["number","null"]}`),
-									},
-								),
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:      `{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo serviceOneField} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
+									DataSource: &Source{},
+									Variables: resolve.NewVariables(
+										&resolve.ContextVariable{
+											Path:     []string{"secondArg"},
+											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
+										},
+										&resolve.ContextVariable{
+											Path:     []string{"fourthArg"},
+											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["number","null"]}`),
+										},
+									),
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								PostProcessing:       DefaultPostProcessingConfiguration,
 							},
 						},
 					},
@@ -2844,10 +2900,12 @@ func TestGraphQLDataSource(t *testing.T) {
 								Path:     []string{"serviceOne"},
 
 								Fetch: &resolve.SingleFetch{
-									DataSource:           &Source{},
-									Input:                `{"method":"POST","url":"https://country.service","body":{"query":"{countries {name}}"}}`,
+									FetchConfiguration: resolve.FetchConfiguration{
+										DataSource:     &Source{},
+										Input:          `{"method":"POST","url":"https://country.service","body":{"query":"{countries {name}}"}}`,
+										PostProcessing: DefaultPostProcessingConfiguration,
+									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									PostProcessing:       DefaultPostProcessingConfiguration,
 								},
 
 								Fields: []*resolve.Field{
@@ -2882,16 +2940,18 @@ func TestGraphQLDataSource(t *testing.T) {
 								Nullable: true,
 								Path:     []string{"serviceTwo"},
 								Fetch: &resolve.SingleFetch{
-									DataSource: &Source{},
-									Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOneResponse: serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":$$0$$}}}`,
-									Variables: resolve.NewVariables(
-										&resolve.ObjectVariable{
-											Path:     []string{"serviceOneField"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
-										},
-									),
+									FetchConfiguration: resolve.FetchConfiguration{
+										DataSource: &Source{},
+										Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOneResponse: serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":$$0$$}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"serviceOneField"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+											},
+										),
+										PostProcessing: DefaultPostProcessingConfiguration,
+									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									PostProcessing:       DefaultPostProcessingConfiguration,
 								},
 								Fields: []*resolve.Field{
 									{
@@ -3128,25 +3188,27 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:      `{"method":"POST","url":"https://graphql.service","body":{"query":"mutation($title: String!, $completed: Boolean!, $name: String!){addTask(input: [{titleSets: [[$title]],completed: $completed,user: {name: $name}}]){task {id title completed}}}","variables":{"name":$$2$$,"completed":$$1$$,"title":$$0$$}}}`,
-						DataSource: &Source{},
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"title"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-							},
-							&resolve.ContextVariable{
-								Path:     []string{"completed"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
-							},
-							&resolve.ContextVariable{
-								Path:     []string{"name"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-							},
-						),
-						DisallowSingleFlight: true,
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"method":"POST","url":"https://graphql.service","body":{"query":"mutation($title: String!, $completed: Boolean!, $name: String!){addTask(input: [{titleSets: [[$title]],completed: $completed,user: {name: $name}}]){task {id title completed}}}","variables":{"name":$$2$$,"completed":$$1$$,"title":$$0$$}}}`,
+							DataSource: &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"title"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+								},
+								&resolve.ContextVariable{
+									Path:     []string{"completed"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+								},
+								&resolve.ContextVariable{
+									Path:     []string{"name"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+								},
+							),
+							DisallowSingleFlight: true,
+							PostProcessing:       DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -3273,21 +3335,23 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:      `{"method":"POST","url":"https://user.service","body":{"query":"mutation($id: String, $name: String){createUser(input: {user: {id: $id,username: $name}}){user {id username createdDate}}}","variables":{"name":$$1$$,"id":$$0$$}}}`,
-						DataSource: &Source{},
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"id"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
-							},
-							&resolve.ContextVariable{
-								Path:     []string{"name"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
-							},
-						),
-						DisallowSingleFlight: true,
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"method":"POST","url":"https://user.service","body":{"query":"mutation($id: String, $name: String){createUser(input: {user: {id: $id,username: $name}}){user {id username createdDate}}}","variables":{"name":$$1$$,"id":$$0$$}}}`,
+							DataSource: &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"id"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+								},
+								&resolve.ContextVariable{
+									Path:     []string{"name"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+								},
+							),
+							DisallowSingleFlight: true,
+							PostProcessing:       DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -3397,21 +3461,23 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){__typename namespaceCreate(input: {name: $name,personal: $personal}){__typename ... on NamespaceCreated {namespace {id name}} ... on Error {code message}}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
-						DataSource: &Source{},
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"name"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-							},
-							&resolve.ContextVariable{
-								Path:     []string{"personal"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
-							},
-						),
-						DisallowSingleFlight: true,
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){__typename namespaceCreate(input: {name: $name,personal: $personal}){__typename ... on NamespaceCreated {namespace {id name}} ... on Error {code message}}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
+							DataSource: &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"name"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+								},
+								&resolve.ContextVariable{
+									Path:     []string{"personal"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+								},
+							),
+							DisallowSingleFlight: true,
+							PostProcessing:       DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -3545,21 +3611,23 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:                `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){namespaceCreate(input: {name: $name,personal: $personal}){__typename}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
-						DataSource:           &Source{},
-						DisallowSingleFlight: true,
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"name"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-							},
-							&resolve.ContextVariable{
-								Path:     []string{"personal"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
-							},
-						),
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:                `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){namespaceCreate(input: {name: $name,personal: $personal}){__typename}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
+							DataSource:           &Source{},
+							DisallowSingleFlight: true,
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"name"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+								},
+								&resolve.ContextVariable{
+									Path:     []string{"personal"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+								},
+							),
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -3770,27 +3838,31 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{me {id username}}"}}`,
-						DataSource:           &Source{},
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{me {id username}}"}}`,
+							DataSource:     &Source{},
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("me"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body author {id username} product {reviews {body author {id username}} upc}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
-									Variables: resolve.NewVariables(
-										&resolve.ObjectVariable{
-											Path:     []string{"id"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-										},
-									),
-									DataSource:                            &Source{},
-									DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-									PostProcessing:                        EntitiesPostProcessingConfiguration,
-									SetTemplateOutputToNullOnVariableNull: true,
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body author {id username} product {reviews {body author {id username}} upc}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+										),
+										DataSource:                            &Source{},
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
+										SetTemplateOutputToNullOnVariableNull: true,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"me"},
 								Nullable: true,
@@ -3846,17 +3918,19 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.Object{
 															Path: []string{"product"},
 															Fetch: &resolve.SingleFetch{
-																Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
-																DataSource: &Source{},
-																Variables: resolve.NewVariables(
-																	&resolve.ObjectVariable{
-																		Path:     []string{"upc"},
-																		Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-																	},
-																),
-																DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-																PostProcessing:                        EntitiesPostProcessingConfiguration,
-																SetTemplateOutputToNullOnVariableNull: true,
+																FetchConfiguration: resolve.FetchConfiguration{
+																	Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
+																	DataSource: &Source{},
+																	Variables: resolve.NewVariables(
+																		&resolve.ObjectVariable{
+																			Path:     []string{"upc"},
+																			Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+																		},
+																	),
+																	PostProcessing:                        EntitiesPostProcessingConfiguration,
+																	SetTemplateOutputToNullOnVariableNull: true,
+																},
+																DataSourceIdentifier: []byte("graphql_datasource.Source"),
 															},
 															Fields: []*resolve.Field{
 																{
@@ -4072,28 +4146,32 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.ParallelFetch{
 						Fetches: []resolve.Fetch{
 							&resolve.SingleFetch{
-								Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){username}}","variables":{"a":$$0$$}}}`,
-								DataSource: &Source{},
-								Variables: resolve.NewVariables(
-									&resolve.ContextVariable{
-										Path:     []string{"a"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-									},
-								),
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){username}}","variables":{"a":$$0$$}}}`,
+									DataSource: &Source{},
+									Variables: resolve.NewVariables(
+										&resolve.ContextVariable{
+											Path:     []string{"a"},
+											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+										},
+									),
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								PostProcessing:       DefaultPostProcessingConfiguration,
 							},
 							&resolve.SingleFetch{
-								Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($b: String!){vehicle(id: $b){description}}","variables":{"b":$$0$$}}}`,
-								DataSource: &Source{},
-								Variables: resolve.NewVariables(
-									&resolve.ContextVariable{
-										Path:     []string{"b"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-									},
-								),
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($b: String!){vehicle(id: $b){description}}","variables":{"b":$$0$$}}}`,
+									DataSource: &Source{},
+									Variables: resolve.NewVariables(
+										&resolve.ContextVariable{
+											Path:     []string{"b"},
+											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+										},
+									),
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								PostProcessing:       DefaultPostProcessingConfiguration,
 							},
 						},
 					},
@@ -4247,33 +4325,37 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate account {__typename ... on PasswordAccount {email} ... on SMSAccount {number}} metadata {name address description} ssn}}","variables":{"a":$$0$$}}}`,
-						DataSource: &Source{},
-						Variables: resolve.NewVariables(
-							&resolve.ObjectVariable{
-								Path:     []string{"a"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-							},
-						),
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate account {__typename ... on PasswordAccount {email} ... on SMSAccount {number}} metadata {name address description} ssn}}","variables":{"a":$$0$$}}}`,
+							DataSource: &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ObjectVariable{
+									Path:     []string{"a"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+								},
+							),
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("user"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									Input: `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price __typename}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
-									Variables: resolve.NewVariables(
-										&resolve.ObjectVariable{
-											Path:     []string{"id"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-										},
-									),
-									DataSource:                            &Source{},
-									DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-									PostProcessing:                        EntitiesPostProcessingConfiguration,
-									SetTemplateOutputToNullOnVariableNull: true,
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input: `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price __typename}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+										),
+										DataSource:                            &Source{},
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
+										SetTemplateOutputToNullOnVariableNull: true,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"user"},
 								Nullable: true,
@@ -4552,33 +4634,37 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate account {__typename ... on PasswordAccount {email} ... on SMSAccount {number}} metadata {name address description} ssn}}","variables":{"a":$$0$$}}}`,
-						DataSource: &Source{},
-						Variables: resolve.NewVariables(
-							&resolve.ObjectVariable{
-								Path:     []string{"a"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-							},
-						),
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate account {__typename ... on PasswordAccount {email} ... on SMSAccount {number}} metadata {name address description} ssn}}","variables":{"a":$$0$$}}}`,
+							DataSource: &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ObjectVariable{
+									Path:     []string{"a"},
+									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+								},
+							),
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("user"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									Input: `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price __typename}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
-									Variables: resolve.NewVariables(
-										&resolve.ObjectVariable{
-											Path:     []string{"id"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-										},
-									),
-									DataSource:                            &Source{},
-									DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-									PostProcessing:                        EntitiesPostProcessingConfiguration,
-									SetTemplateOutputToNullOnVariableNull: true,
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input: `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price __typename}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+										),
+										DataSource:                            &Source{},
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
+										SetTemplateOutputToNullOnVariableNull: true,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"user"},
 								Nullable: true,
@@ -4837,35 +4923,39 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{me {id}}"}}`,
-						DataSource:           &Source{},
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{me {id}}"}}`,
+							DataSource:     &Source{},
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("me"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: Boolean!){_entities(representations: $representations){__typename ... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"publicOnly":$$2$$,"someSkipCondition":$$1$$,"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
-									Variables: resolve.NewVariables(
-										&resolve.ObjectVariable{
-											Path:     []string{"id"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-										},
-										&resolve.ContextVariable{
-											Path:     []string{"someSkipCondition"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
-										},
-										&resolve.ContextVariable{
-											Path:     []string{"publicOnly"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
-										},
-									),
-									DataSource:                            &Source{},
-									DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-									PostProcessing:                        EntitiesPostProcessingConfiguration,
-									SetTemplateOutputToNullOnVariableNull: true,
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: Boolean!){_entities(representations: $representations){__typename ... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"publicOnly":$$2$$,"someSkipCondition":$$1$$,"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+											&resolve.ContextVariable{
+												Path:     []string{"someSkipCondition"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+											},
+											&resolve.ContextVariable{
+												Path:     []string{"publicOnly"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
+											},
+										),
+										DataSource:                            &Source{},
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
+										SetTemplateOutputToNullOnVariableNull: true,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"me"},
 								Nullable: true,
@@ -5000,35 +5090,39 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{me {id}}"}}`,
-						DataSource:           &Source{},
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{me {id}}"}}`,
+							DataSource:     &Source{},
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("me"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: XBoolean!){_entities(representations: $representations){__typename ... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"publicOnly":$$2$$,"someSkipCondition":$$1$$,"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
-									Variables: resolve.NewVariables(
-										&resolve.ObjectVariable{
-											Path:     []string{"id"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-										},
-										&resolve.ContextVariable{
-											Path:     []string{"someSkipCondition"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
-										},
-										&resolve.ContextVariable{
-											Path:     []string{"publicOnly"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
-										},
-									),
-									DataSource:                            &Source{},
-									DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-									PostProcessing:                        EntitiesPostProcessingConfiguration,
-									SetTemplateOutputToNullOnVariableNull: true,
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: XBoolean!){_entities(representations: $representations){__typename ... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"publicOnly":$$2$$,"someSkipCondition":$$1$$,"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+											&resolve.ContextVariable{
+												Path:     []string{"someSkipCondition"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+											},
+											&resolve.ContextVariable{
+												Path:     []string{"publicOnly"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
+											},
+										),
+										DataSource:                            &Source{},
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
+										SetTemplateOutputToNullOnVariableNull: true,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"me"},
 								Nullable: true,
@@ -5163,37 +5257,41 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						// Should fetch the federation key as well as all the required fields.
-						Input:                `{"method":"POST","url":"http://one.service","body":{"query":"{serviceOne {id serviceOneFieldOne serviceOneFieldTwo}}"}}`,
-						DataSource:           &Source{},
+						FetchConfiguration: resolve.FetchConfiguration{
+							// Should fetch the federation key as well as all the required fields.
+							Input:          `{"method":"POST","url":"http://one.service","body":{"query":"{serviceOne {id serviceOneFieldOne serviceOneFieldTwo}}"}}`,
+							DataSource:     &Source{},
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("serviceOne"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									// The required fields are present in the representations.
-									Input: `{"method":"POST","url":"http://two.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on ServiceOneType {serviceTwoFieldOne serviceTwoFieldTwo}}}","variables":{"representations":[{"serviceOneFieldTwo":$$2$$,"serviceOneFieldOne":$$1$$,"id":$$0$$,"__typename":"ServiceOneType"}]}}}`,
-									Variables: resolve.NewVariables(
-										&resolve.ObjectVariable{
-											Path:     []string{"id"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-										},
-										&resolve.ObjectVariable{
-											Path:     []string{"serviceOneFieldOne"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-										},
-										&resolve.ObjectVariable{
-											Path:     []string{"serviceOneFieldTwo"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-										},
-									),
-									DataSource:                            &Source{},
-									DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-									PostProcessing:                        EntitiesPostProcessingConfiguration,
-									SetTemplateOutputToNullOnVariableNull: true,
+									FetchConfiguration: resolve.FetchConfiguration{
+										// The required fields are present in the representations.
+										Input: `{"method":"POST","url":"http://two.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on ServiceOneType {serviceTwoFieldOne serviceTwoFieldTwo}}}","variables":{"representations":[{"serviceOneFieldTwo":$$2$$,"serviceOneFieldOne":$$1$$,"id":$$0$$,"__typename":"ServiceOneType"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+											&resolve.ObjectVariable{
+												Path:     []string{"serviceOneFieldOne"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+											},
+											&resolve.ObjectVariable{
+												Path:     []string{"serviceOneFieldTwo"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+											},
+										),
+										DataSource:                            &Source{},
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
+										SetTemplateOutputToNullOnVariableNull: true,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"serviceOne"},
 								Nullable: true,
@@ -5313,27 +5411,31 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{api_me: me {id username}}"}}`,
-						DataSource:           &Source{},
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{api_me: me {id username}}"}}`,
+							DataSource:     &Source{},
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("api_me"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body author {id username} product {reviews {body author {id username}} upc}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
-									Variables: resolve.NewVariables(
-										&resolve.ObjectVariable{
-											Path:     []string{"id"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-										},
-									),
-									DataSource:                            &Source{},
-									DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-									PostProcessing:                        EntitiesPostProcessingConfiguration,
-									SetTemplateOutputToNullOnVariableNull: true,
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body author {id username} product {reviews {body author {id username}} upc}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+										),
+										DataSource:                            &Source{},
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
+										SetTemplateOutputToNullOnVariableNull: true,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"api_me"},
 								Nullable: true,
@@ -5389,17 +5491,19 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.Object{
 															Path: []string{"product"},
 															Fetch: &resolve.SingleFetch{
-																Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
-																DataSource: &Source{},
-																Variables: resolve.NewVariables(
-																	&resolve.ObjectVariable{
-																		Path:     []string{"upc"},
-																		Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-																	},
-																),
-																DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-																PostProcessing:                        EntitiesPostProcessingConfiguration,
-																SetTemplateOutputToNullOnVariableNull: true,
+																FetchConfiguration: resolve.FetchConfiguration{
+																	Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
+																	DataSource: &Source{},
+																	Variables: resolve.NewVariables(
+																		&resolve.ObjectVariable{
+																			Path:     []string{"upc"},
+																			Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+																		},
+																	),
+																	PostProcessing:                        EntitiesPostProcessingConfiguration,
+																	SetTemplateOutputToNullOnVariableNull: true,
+																},
+																DataSourceIdentifier: []byte("graphql_datasource.Source"),
 															},
 															Fields: []*resolve.Field{
 																{
@@ -5642,27 +5746,31 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{me {__typename id uid: id username}}"}}`,
-						DataSource:           &Source{},
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{me {__typename id uid: id username}}"}}`,
+							DataSource:     &Source{},
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("me"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body id}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
-									Variables: resolve.NewVariables(
-										&resolve.ObjectVariable{
-											Path:     []string{"id"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-										},
-									),
-									DataSource:                            &Source{},
-									DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-									PostProcessing:                        EntitiesPostProcessingConfiguration,
-									SetTemplateOutputToNullOnVariableNull: true,
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body id}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+										),
+										DataSource:                            &Source{},
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
+										SetTemplateOutputToNullOnVariableNull: true,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"me"},
 								Nullable: true,
@@ -5813,27 +5921,31 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{self {id __typename ... on User {uid: id username}}}"}}`,
-						DataSource:           &Source{},
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{self {id __typename ... on User {uid: id username}}}"}}`,
+							DataSource:     &Source{},
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("self"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body id}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
-									Variables: resolve.NewVariables(
-										&resolve.ObjectVariable{
-											Path:     []string{"id"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-										},
-									),
-									DataSource:                            &Source{},
-									DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-									PostProcessing:                        EntitiesPostProcessingConfiguration,
-									SetTemplateOutputToNullOnVariableNull: true,
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body id}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+										),
+										DataSource:                            &Source{},
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
+										SetTemplateOutputToNullOnVariableNull: true,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"self"},
 								Nullable: true,
@@ -5991,27 +6103,31 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{self {__typename ... on User {id}}}"}}`,
-						DataSource:           &Source{},
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{self {__typename ... on User {id}}}"}}`,
+							DataSource:     &Source{},
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("self"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body attachment {__typename ... on Image {extension} ... on Video {length}} id}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
-									Variables: resolve.NewVariables(
-										&resolve.ObjectVariable{
-											Path:     []string{"id"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-										},
-									),
-									DataSource:                            &Source{},
-									DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-									PostProcessing:                        EntitiesPostProcessingConfiguration,
-									SetTemplateOutputToNullOnVariableNull: true,
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body attachment {__typename ... on Image {extension} ... on Video {length}} id}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+										),
+										DataSource:                            &Source{},
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
+										SetTemplateOutputToNullOnVariableNull: true,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"self"},
 								Nullable: true,
@@ -6197,27 +6313,31 @@ func TestGraphQLDataSource(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
-							Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
-							DataSource:           &Source{},
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
+								DataSource:     &Source{},
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
-							PostProcessing:       DefaultPostProcessingConfiguration,
 						},
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("user"),
 								Value: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
-										Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {name __typename ... on Cat {catField details {age}} ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
-										Variables: resolve.NewVariables(
-											&resolve.ObjectVariable{
-												Path:     []string{"id"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-											},
-										),
-										DataSource:                            &Source{},
-										DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-										PostProcessing:                        EntitiesPostProcessingConfiguration,
-										SetTemplateOutputToNullOnVariableNull: true,
+										FetchConfiguration: resolve.FetchConfiguration{
+											Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {name __typename ... on Cat {catField details {age}} ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+											Variables: resolve.NewVariables(
+												&resolve.ObjectVariable{
+													Path:     []string{"id"},
+													Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+												},
+											),
+											DataSource:                            &Source{},
+											PostProcessing:                        EntitiesPostProcessingConfiguration,
+											SetTemplateOutputToNullOnVariableNull: true,
+										},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
 									Path:     []string{"user"},
 									Nullable: true,
@@ -6431,27 +6551,31 @@ func TestGraphQLDataSource(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
-							Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
-							DataSource:           &Source{},
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
+								DataSource:     &Source{},
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
-							PostProcessing:       DefaultPostProcessingConfiguration,
 						},
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("user"),
 								Value: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
-										Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {catField details {age}} name ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
-										Variables: resolve.NewVariables(
-											&resolve.ObjectVariable{
-												Path:     []string{"id"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-											},
-										),
-										DataSource:                            &Source{},
-										DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-										PostProcessing:                        EntitiesPostProcessingConfiguration,
-										SetTemplateOutputToNullOnVariableNull: true,
+										FetchConfiguration: resolve.FetchConfiguration{
+											Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {catField details {age}} name ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+											Variables: resolve.NewVariables(
+												&resolve.ObjectVariable{
+													Path:     []string{"id"},
+													Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+												},
+											),
+											DataSource:                            &Source{},
+											PostProcessing:                        EntitiesPostProcessingConfiguration,
+											SetTemplateOutputToNullOnVariableNull: true,
+										},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
 									Path:     []string{"user"},
 									Nullable: true,
@@ -6665,31 +6789,35 @@ func TestGraphQLDataSource(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
-							Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
-							DataSource:           &Source{},
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
+								DataSource:     &Source{},
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
-							PostProcessing:       DefaultPostProcessingConfiguration,
 						},
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("user"),
 								Value: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
-										// Note: __typename is included in the Cat and Dog inline fragments
-										// because the field were originally themselves in inline fragments
-										// that were inlined. The additional __typename selections are
-										// harmless.
-										Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {catField details {age}} ... on Dog {dogField species} details {hasOwner} name}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
-										Variables: resolve.NewVariables(
-											&resolve.ObjectVariable{
-												Path:     []string{"id"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-											},
-										),
-										DataSource:                            &Source{},
-										DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-										PostProcessing:                        EntitiesPostProcessingConfiguration,
-										SetTemplateOutputToNullOnVariableNull: true,
+										FetchConfiguration: resolve.FetchConfiguration{
+											// Note: __typename is included in the Cat and Dog inline fragments
+											// because the field were originally themselves in inline fragments
+											// that were inlined. The additional __typename selections are
+											// harmless.
+											Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {catField details {age}} ... on Dog {dogField species} details {hasOwner} name}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+											Variables: resolve.NewVariables(
+												&resolve.ObjectVariable{
+													Path:     []string{"id"},
+													Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+												},
+											),
+											DataSource:                            &Source{},
+											PostProcessing:                        EntitiesPostProcessingConfiguration,
+											SetTemplateOutputToNullOnVariableNull: true,
+										},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
 									Path:     []string{"user"},
 									Nullable: true,
@@ -6916,27 +7044,31 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {username id}}"}}`,
-						DataSource:           &Source{},
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username id}}"}}`,
+							DataSource:     &Source{},
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("user"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {name catField} ... on Dog {name dogField}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
-									Variables: resolve.NewVariables(
-										&resolve.ObjectVariable{
-											Path:     []string{"id"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-										},
-									),
-									DataSource:                            &Source{},
-									DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-									PostProcessing:                        EntitiesPostProcessingConfiguration,
-									SetTemplateOutputToNullOnVariableNull: true,
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {name catField} ... on Dog {name dogField}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ObjectVariable{
+												Path:     []string{"id"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											},
+										),
+										DataSource:                            &Source{},
+										PostProcessing:                        EntitiesPostProcessingConfiguration,
+										SetTemplateOutputToNullOnVariableNull: true,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"user"},
 								Nullable: true,
@@ -7117,10 +7249,12 @@ func TestGraphQLDataSource(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {username pets {__typename ... on Cat {id} ... on Dog {id}}}}"}}`,
-						DataSource:           &Source{},
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username pets {__typename ... on Cat {id} ... on Dog {id}}}}"}}`,
+							DataSource:     &Source{},
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						PostProcessing:       DefaultPostProcessingConfiguration,
 					},
 					Fields: []*resolve.Field{
 						{
@@ -7142,21 +7276,23 @@ func TestGraphQLDataSource(t *testing.T) {
 											Nullable: false,
 											Item: &resolve.Object{
 												Fetch: &resolve.SingleFetch{
-													Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Cat {name catField} ... on Dog {name dogField}}}","variables":{"representations":[{"id":$$1$$,"__typename":$$0$$}]}}}`,
-													Variables: resolve.NewVariables(
-														&resolve.ObjectVariable{
-															Path:     []string{"__typename"},
-															Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
-														},
-														&resolve.ObjectVariable{
-															Path:     []string{"id"},
-															Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-														},
-													),
-													DataSource:                            &Source{},
-													DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
-													PostProcessing:                        EntitiesPostProcessingConfiguration,
-													SetTemplateOutputToNullOnVariableNull: true,
+													FetchConfiguration: resolve.FetchConfiguration{
+														Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Cat {name catField} ... on Dog {name dogField}}}","variables":{"representations":[{"id":$$1$$,"__typename":$$0$$}]}}}`,
+														Variables: resolve.NewVariables(
+															&resolve.ObjectVariable{
+																Path:     []string{"__typename"},
+																Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+															},
+															&resolve.ObjectVariable{
+																Path:     []string{"id"},
+																Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+															},
+														),
+														DataSource:                            &Source{},
+														PostProcessing:                        EntitiesPostProcessingConfiguration,
+														SetTemplateOutputToNullOnVariableNull: true,
+													},
+													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 												},
 												Nullable: false,
 												Fields: []*resolve.Field{
@@ -7326,23 +7462,25 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($droidId: ID!, $reviewId: ReviewID!){droid(id: $droidId){name aliased: name friends {name} primaryFunction} review(id: $reviewId){stars}}","variables":{"reviewId":$$1$$,"droidId":$$0$$}}}`,
-					Variables: resolve.NewVariables(
-						&resolve.ContextVariable{
-							Path:     []string{"droidId"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-						},
-						&resolve.ContextVariable{
-							Path:     []string{"reviewId"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-						},
-						&resolve.HeaderVariable{
-							Path: []string{"Authorization"},
-						},
-					),
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: &Source{},
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($droidId: ID!, $reviewId: ReviewID!){droid(id: $droidId){name aliased: name friends {name} primaryFunction} review(id: $reviewId){stars}}","variables":{"reviewId":$$1$$,"droidId":$$0$$}}}`,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"droidId"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+							},
+							&resolve.ContextVariable{
+								Path:     []string{"reviewId"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+							},
+							&resolve.HeaderVariable{
+								Path: []string{"Authorization"},
+							},
+						),
+						PostProcessing: DefaultPostProcessingConfiguration,
+					},
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
@@ -7489,16 +7627,18 @@ func TestGraphQLDataSource(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					Input:      `{"method":"POST","url":"http://localhost:8084/query","body":{"query":"query($id: ID!){custom_user: user(id: $id){id name tier meta}}","variables":{"id":$$0$$}}}`,
-					Variables: resolve.NewVariables(
-						&resolve.ContextVariable{
-							Path:     []string{"id"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-						},
-					),
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: &Source{},
+						Input:      `{"method":"POST","url":"http://localhost:8084/query","body":{"query":"query($id: ID!){custom_user: user(id: $id){id name tier meta}}","variables":{"id":$$0$$}}}`,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"id"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+							},
+						),
+						PostProcessing: DefaultPostProcessingConfiguration,
+					},
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
 				},
 				Fields: []*resolve.Field{
 					{
