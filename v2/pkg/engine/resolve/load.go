@@ -411,7 +411,6 @@ func (l *Loader) resolveFetch(ctx *Context, fetch Fetch, res *resultSet) (err er
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		if parallel {
-			// TODO: single fetch is not possible inside parallel fetch
 			return l.resolveSingleFetch(ctx, f, res)
 		}
 		res = &resultSet{}

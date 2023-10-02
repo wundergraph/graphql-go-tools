@@ -56,9 +56,9 @@ func (d *DataSourceFetch) traverseFetch(fetch resolve.Fetch) resolve.Fetch {
 
 func (d *DataSourceFetch) traverseSingleFetch(fetch *resolve.SingleFetch) resolve.Fetch {
 	switch {
-	case fetch.RequiresEntityFetch && fetch.RequiresEntityBatchFetch:
+	case fetch.RequiresEntityBatchFetch:
 		return d.createEntityBatchFetch(fetch)
-	case fetch.RequiresEntityFetch && !fetch.RequiresEntityBatchFetch:
+	case fetch.RequiresEntityFetch:
 		return d.createEntityFetch(fetch)
 	case fetch.RequiresParallelListItemFetch:
 		return d.createParallelListItemFetch(fetch)

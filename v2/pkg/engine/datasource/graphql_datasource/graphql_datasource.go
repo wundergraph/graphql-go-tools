@@ -379,11 +379,11 @@ func (p *Planner) requiresSerialFetch() bool {
 }
 
 func (p *Planner) requiresEntityFetch() bool {
-	return p.dataSourcePlannerConfig.HasRequiredFields()
+	return p.dataSourcePlannerConfig.HasRequiredFields() && p.dataSourcePlannerConfig.PathType == plan.PlannerPathObject
 }
 
 func (p *Planner) requiresEntityBatchFetch() bool {
-	return p.requiresEntityFetch() && p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
+	return p.dataSourcePlannerConfig.HasRequiredFields() && p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
 }
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
