@@ -47,6 +47,7 @@ type UniversalProtocolHandlerOptions struct {
 	Logger                           abstractlogger.Logger
 	CustomSubscriptionUpdateInterval time.Duration
 	CustomReadErrorTimeOut           time.Duration
+	CustomSubscriptionExecutionTries int
 	CustomEngine                     Engine
 }
 
@@ -115,6 +116,12 @@ func NewUniversalProtocolHandlerWithOptions(client TransportClient, protocol Pro
 				return nil, err
 			}
 			engine.subscriptionUpdateInterval = subscriptionUpdateInterval
+		}
+
+		if options.CustomSubscriptionExecutionTries != 0 {
+			engine.maxExecutionTries = options.CustomSubscriptionExecutionTries
+		} else {
+			engine.maxExecutionTries = DefaultSubscriptionExecutionTries
 		}
 		handler.engine = &engine
 	}

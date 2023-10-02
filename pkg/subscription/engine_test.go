@@ -16,6 +16,107 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/pkg/graphql"
 )
 
+func TestExecutorEngine_StartExecutionBackoff(t *testing.T) {
+	t.Run("default retry case", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx, cancelFunc := context.WithTimeout(context.Background(), time.Minute)
+		defer cancelFunc()
+
+		executorMock := NewMockExecutor(ctrl)
+		executorMock.EXPECT().SetContext(gomock.AssignableToTypeOf(ctx)).Times(1)
+
+		executeTimes := 0
+		var lastTime time.Time
+		nextBackOff := time.Second
+		sampleErr := errors.New("failed to WebSocket dial")
+		executorMock.EXPECT().Execute(gomock.AssignableToTypeOf(&graphql.EngineResultWriter{})).Do(func(arg interface{}) {
+			defer func() {
+				lastTime = time.Now()
+				executeTimes++
+			}()
+			if executeTimes == 0 {
+				return
+			}
+			duration := time.Since(lastTime)
+			if duration < nextBackOff {
+				t.Fatalf("expected next retry after %s got %s", nextBackOff.String(), duration.String())
+			}
+			nextBackOff = nextBackOff * 2
+		}).Return(sampleErr).AnyTimes()
+
+		executorPoolMock := NewMockExecutorPool(ctrl)
+
+		eventHandlerMock := NewMockEventHandler(ctrl)
+		eventHandlerMock.EXPECT().Emit(EventTypeOnError, "testID", gomock.AssignableToTypeOf([]byte{}), sampleErr).AnyTimes()
+
+		engine := ExecutorEngine{
+			logger:           abstractlogger.Noop{},
+			subCancellations: subscriptionCancellations{},
+			executorPool:     executorPoolMock,
+			bufferPool: &sync.Pool{
+				New: func() interface{} {
+					writer := graphql.NewEngineResultWriterFromBuffer(bytes.NewBuffer(make([]byte, 0, 1024)))
+					return &writer
+				},
+			},
+			subscriptionUpdateInterval: time.Second,
+			maxExecutionTries:          5,
+		}
+
+		go engine.startSubscription(ctx, "testID", executorMock, eventHandlerMock)
+
+		assert.Eventually(t, func() bool {
+			return executeTimes >= 4
+		}, time.Second*15, time.Millisecond*100)
+	})
+
+	t.Run("test max backoff", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ctx, cancelFunc := context.WithTimeout(context.Background(), time.Minute)
+		defer cancelFunc()
+
+		maxRetries := 3
+		sampleErr := errors.New("failed to WebSocket dial")
+
+		executorMock := NewMockExecutor(ctrl)
+		executorMock.EXPECT().SetContext(gomock.AssignableToTypeOf(ctx)).Times(1)
+
+		executorPoolMock := NewMockExecutorPool(ctrl)
+		executorPoolMock.EXPECT().Put(gomock.Eq(executorMock))
+		var gottenError bool
+		eventHandlerMock := NewMockEventHandler(ctrl)
+		eventHandlerMock.EXPECT().Emit(EventTypeOnError, "testID", gomock.AssignableToTypeOf([]byte{}), gomock.AssignableToTypeOf(sampleErr)).Times(1).Do(func(arg0, arg1, arg2, arg3 interface{}) {
+			gottenError = true
+		})
+
+		executorMock.EXPECT().Execute(gomock.AssignableToTypeOf(&graphql.EngineResultWriter{})).Return(sampleErr).Times(maxRetries)
+
+		engine := ExecutorEngine{
+			logger:           abstractlogger.Noop{},
+			subCancellations: subscriptionCancellations{},
+			executorPool:     executorPoolMock,
+			bufferPool: &sync.Pool{
+				New: func() interface{} {
+					writer := graphql.NewEngineResultWriterFromBuffer(bytes.NewBuffer(make([]byte, 0, 1024)))
+					return &writer
+				},
+			},
+			subscriptionUpdateInterval: time.Second,
+			maxExecutionTries:          maxRetries,
+		}
+
+		go engine.startSubscription(ctx, "testID", executorMock, eventHandlerMock)
+
+		assert.Eventually(t, func() bool {
+			return gottenError
+		}, time.Second*8, time.Millisecond*100)
+	})
+}
+
 func TestExecutorEngine_StartOperation(t *testing.T) {
 	t.Run("execute non-subscription operation", func(t *testing.T) {
 		t.Run("on execution failure", func(t *testing.T) {
@@ -188,7 +289,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 				Times(1)
 			executorMock.EXPECT().Execute(gomock.AssignableToTypeOf(&graphql.EngineResultWriter{})).
 				Return(errors.New("error")).
-				MinTimes(2)
+				MinTimes(1)
 
 			executorPoolMock := NewMockExecutorPool(ctrl)
 			executorPoolMock.EXPECT().Get(gomock.Eq(payload)).
@@ -202,7 +303,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 
 			eventHandlerMock := NewMockEventHandler(ctrl)
 			eventHandlerMock.EXPECT().Emit(gomock.Eq(EventTypeOnError), gomock.Eq(id), gomock.Nil(), gomock.Any()).
-				MinTimes(2)
+				Times(1)
 
 			engine := ExecutorEngine{
 				logger:           abstractlogger.Noop{},
@@ -215,6 +316,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 					},
 				},
 				subscriptionUpdateInterval: 2 * time.Millisecond,
+				maxExecutionTries:          1,
 			}
 
 			assert.Eventually(t, func() bool {

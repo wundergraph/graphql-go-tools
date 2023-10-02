@@ -39,6 +39,7 @@ type HandleOptions struct {
 	CustomConnectionInitTimeOut      time.Duration
 	CustomReadErrorTimeOut           time.Duration
 	CustomSubscriptionEngine         subscription.Engine
+	CustomSubscriptionExecutionRetry int
 }
 
 // HandleOptionFunc can be used to define option functions.
@@ -55,6 +56,12 @@ func WithLogger(logger abstractlogger.Logger) HandleOptionFunc {
 func WithInitFunc(initFunc InitFunc) HandleOptionFunc {
 	return func(opts *HandleOptions) {
 		opts.WebSocketInitFunc = initFunc
+	}
+}
+
+func WithCustomSubscriptionExecutionRetry(retry int) HandleOptionFunc {
+	return func(opts *HandleOptions) {
+		opts.CustomSubscriptionExecutionRetry = retry
 	}
 }
 
