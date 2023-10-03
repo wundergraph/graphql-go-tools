@@ -220,3 +220,16 @@ func (d *Document) SelectionSetInlineFragmentSelections(set int) (refs []int) {
 	}
 	return
 }
+
+func (d *Document) SelectionKind(ref int) SelectionKind {
+	return d.Selections[ref].Kind
+}
+
+func (d *Document) SelectionSetFieldNames(set int) (fieldNames []string) {
+	fieldSelections := d.SelectionSetFieldSelections(set)
+	fieldNames = make([]string, 0, len(fieldSelections))
+	for _, fieldSelectionRef := range fieldSelections {
+		fieldNames = append(fieldNames, d.FieldNameString(fieldSelectionRef))
+	}
+	return
+}

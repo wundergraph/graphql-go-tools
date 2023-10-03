@@ -129,9 +129,9 @@ func (d *Document) FieldsAreEqualFlat(left, right int) bool {
 		d.DirectiveSetsAreEqual(d.FieldDirectives(left), d.FieldDirectives(right)) // directives
 }
 
-func (d *Document) FieldSelectionSet(ref int) int {
+func (d *Document) FieldSelectionSet(ref int) (selectionSetRef int, ok bool) {
 	if !d.Fields[ref].HasSelections {
-		return InvalidRef
+		return InvalidRef, false
 	}
-	return d.Fields[ref].SelectionSet
+	return d.Fields[ref].SelectionSet, true
 }
