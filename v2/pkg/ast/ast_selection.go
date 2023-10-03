@@ -202,3 +202,21 @@ func (d *Document) SelectionSetHasFieldSelectionWithExactName(set int, name []by
 	}
 	return false, InvalidRef
 }
+
+func (d *Document) SelectionSetFieldSelections(set int) (refs []int) {
+	for _, i := range d.SelectionSets[set].SelectionRefs {
+		if d.Selections[i].Kind == SelectionKindField {
+			refs = append(refs, d.Selections[i].Ref)
+		}
+	}
+	return
+}
+
+func (d *Document) SelectionSetInlineFragmentSelections(set int) (refs []int) {
+	for _, i := range d.SelectionSets[set].SelectionRefs {
+		if d.Selections[i].Kind == SelectionKindInlineFragment {
+			refs = append(refs, d.Selections[i].Ref)
+		}
+	}
+	return
+}
