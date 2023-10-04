@@ -101,7 +101,8 @@ func (e *ExecutorEngine) handleOnBeforeStart(executor Executor) error {
 			return hook.OnBeforeStart(e.reqCtx, e.operation)
 		}
 	default:
-		return fmt.Errorf("unsupported executor type: %T", executor)
+		// Do nothing
+		break
 	}
 
 	return nil

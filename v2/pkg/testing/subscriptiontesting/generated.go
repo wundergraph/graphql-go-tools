@@ -520,7 +520,7 @@ func (ec *executionContext) _Chatroom_messages(ctx context.Context, field graphq
 	}
 	res := resTmp.([]Message)
 	fc.Result = res
-	return ec.marshalNMessage2ᚕgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋsubscriptiontestingᚐMessageᚄ(ctx, field.Selections, res)
+	return ec.marshalNMessage2ᚕgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋsubscriptiontestingᚐMessageᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Chatroom_messages(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -750,7 +750,7 @@ func (ec *executionContext) _Mutation_post(ctx context.Context, field graphql.Co
 	}
 	res := resTmp.(*Message)
 	fc.Result = res
-	return ec.marshalNMessage2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋsubscriptiontestingᚐMessage(ctx, field.Selections, res)
+	return ec.marshalNMessage2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋsubscriptiontestingᚐMessage(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_post(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -812,7 +812,7 @@ func (ec *executionContext) _Query_room(ctx context.Context, field graphql.Colle
 	}
 	res := resTmp.(*Chatroom)
 	fc.Result = res
-	return ec.marshalOChatroom2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋsubscriptiontestingᚐChatroom(ctx, field.Selections, res)
+	return ec.marshalOChatroom2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋsubscriptiontestingᚐChatroom(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_room(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1010,7 +1010,7 @@ func (ec *executionContext) _Subscription_messageAdded(ctx context.Context, fiel
 				w.Write([]byte{'{'})
 				graphql.MarshalString(field.Alias).MarshalGQL(w)
 				w.Write([]byte{':'})
-				ec.marshalNMessage2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋsubscriptiontestingᚐMessage(ctx, field.Selections, res).MarshalGQL(w)
+				ec.marshalNMessage2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋsubscriptiontestingᚐMessage(ctx, field.Selections, res).MarshalGQL(w)
 				w.Write([]byte{'}'})
 			})
 		case <-ctx.Done():
@@ -3387,11 +3387,11 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
-func (ec *executionContext) marshalNMessage2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋsubscriptiontestingᚐMessage(ctx context.Context, sel ast.SelectionSet, v Message) graphql.Marshaler {
+func (ec *executionContext) marshalNMessage2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋsubscriptiontestingᚐMessage(ctx context.Context, sel ast.SelectionSet, v Message) graphql.Marshaler {
 	return ec._Message(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNMessage2ᚕgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋsubscriptiontestingᚐMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []Message) graphql.Marshaler {
+func (ec *executionContext) marshalNMessage2ᚕgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋsubscriptiontestingᚐMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []Message) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -3415,7 +3415,7 @@ func (ec *executionContext) marshalNMessage2ᚕgithubᚗcomᚋwundergraphᚋgrap
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNMessage2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋsubscriptiontestingᚐMessage(ctx, sel, v[i])
+			ret[i] = ec.marshalNMessage2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋsubscriptiontestingᚐMessage(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -3435,7 +3435,7 @@ func (ec *executionContext) marshalNMessage2ᚕgithubᚗcomᚋwundergraphᚋgrap
 	return ret
 }
 
-func (ec *executionContext) marshalNMessage2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋsubscriptiontestingᚐMessage(ctx context.Context, sel ast.SelectionSet, v *Message) graphql.Marshaler {
+func (ec *executionContext) marshalNMessage2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋsubscriptiontestingᚐMessage(ctx context.Context, sel ast.SelectionSet, v *Message) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -3754,7 +3754,7 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) marshalOChatroom2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋpkgᚋtestingᚋsubscriptiontestingᚐChatroom(ctx context.Context, sel ast.SelectionSet, v *Chatroom) graphql.Marshaler {
+func (ec *executionContext) marshalOChatroom2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋsubscriptiontestingᚐChatroom(ctx context.Context, sel ast.SelectionSet, v *Chatroom) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

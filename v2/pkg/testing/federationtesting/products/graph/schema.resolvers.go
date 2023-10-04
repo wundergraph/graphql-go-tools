@@ -14,6 +14,11 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/federationtesting/products/graph/model"
 )
 
+// SetPrice is the resolver for the setPrice field.
+func (r *mutationResolver) SetPrice(ctx context.Context, upc string, price int) (*model.Product, error) {
+	panic(fmt.Errorf("not implemented: SetPrice - setPrice"))
+}
+
 // TopProducts is the resolver for the topProducts field.
 func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.Product, error) {
 	return hats, nil
@@ -80,11 +85,15 @@ func (r *subscriptionResolver) UpdateProductPrice(ctx context.Context, upc strin
 	return updatedPrice, nil
 }
 
+// Mutation returns generated.MutationResolver implementation.
+func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
+
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
 // Subscription returns generated.SubscriptionResolver implementation.
 func (r *Resolver) Subscription() generated.SubscriptionResolver { return &subscriptionResolver{r} }
 
+type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
