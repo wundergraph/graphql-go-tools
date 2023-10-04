@@ -115,7 +115,6 @@ func (r *interfaceSelectionRewriter) collectFieldInformation(fieldRef int) inter
 	}
 
 	fieldNames := r.operation.SelectionSetFieldNames(fieldSelectionSetRef)
-	_ = fieldNames
 
 	inlineFragmentSelectionRefs := r.operation.SelectionSetInlineFragmentSelections(fieldSelectionSetRef)
 	inlineFragmentSelections := make(map[string][]inlineFragmentSelection, len(inlineFragmentSelectionRefs))
@@ -223,6 +222,26 @@ func (r *interfaceSelectionRewriter) interfaceFieldSelectionNeedsRewrite(fieldRe
 	return fieldInfo, false
 }
 
+func (r *interfaceSelectionRewriter) rewriteOperation(fieldRef int, entityNames []string, fieldInfo interfaceFieldSelectionInfo) {
+	/*
+		1) extract selections which is not inline-fragments - e.g. shared selections
+		2) extract selections for each inline fragment
+		3) for types which do not have inline-fragment - add inline fragment with shared fields
+		4) for types which have inline-fragment - add not selected shared fields to existing inline fragment
+	*/
+
+	if len(fieldInfo.inlineFragments) == 0 {
+		r.createSelectionSetFromSharedFields(fieldRef, entityNames, fieldInfo.sharedFieldNames)
+		// create new selection set with shared fields
+		// add inline fragment for each type
+		// copy selection set into inline fragment
+	}
+
+	// when we have both shared fields and inline fragments
+	// for types which do not have inline-fragment - add inline fragment with shared fields
+	// for types which have inline-fragment - add not selected shared fields to existing inline fragment
+}
+
 func (r *interfaceSelectionRewriter) RewriteOperation(fieldRef int, enclosingNode ast.Node, dsConfiguration *DataSourceConfiguration) bool {
 	interfaceDefRef, isInterface := r.isFieldReturnsInterface(fieldRef, enclosingNode)
 	if !isInterface {
@@ -244,15 +263,7 @@ func (r *interfaceSelectionRewriter) RewriteOperation(fieldRef int, enclosingNod
 		return false
 	}
 
-	_ = info
-	// TODO: implement rewrite
-
-	/*
-		1) extract selections which is not inline-fragments - e.g. shared selections
-		2) extract selections for each inline fragment
-		3) for types which do not have inline-fragment - add inline fragment with shared fields
-		4) for types which have inline-fragment - add not selected shared fields to existing inline fragment
-	*/
+	r.rewriteOperation(fieldRef, entityNames, info)
 
 	return true
 }
