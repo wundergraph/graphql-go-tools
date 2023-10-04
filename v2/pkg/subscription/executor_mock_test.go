@@ -9,8 +9,8 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	ast "github.com/wundergraph/graphql-go-tools/pkg/ast"
-	resolve "github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
+	ast "github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	resolve "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 // MockExecutor is a mock of Executor interface.

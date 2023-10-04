@@ -9,7 +9,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	subscription "github.com/wundergraph/graphql-go-tools/pkg/subscription"
+	subscription "github.com/wundergraph/graphql-go-tools/v2/pkg/subscription"
 )
 
 // MockEngine is a mock of Engine interface.

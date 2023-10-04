@@ -12,8 +12,8 @@ import (
 
 	"github.com/jensneuse/abstractlogger"
 
-	"github.com/wundergraph/graphql-go-tools/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/pkg/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
 )
 
 type errOnBeforeStartHookFailure struct {
@@ -100,8 +100,8 @@ func (e *ExecutorEngine) handleOnBeforeStart(executor Executor) error {
 		if hook := e.engine.GetWebsocketBeforeStartHook(); hook != nil {
 			return hook.OnBeforeStart(e.reqCtx, e.operation)
 		}
-	case *ExecutorV1:
-		// do nothing
+	default:
+		return fmt.Errorf("unsupported executor type: %T", executor)
 	}
 
 	return nil
