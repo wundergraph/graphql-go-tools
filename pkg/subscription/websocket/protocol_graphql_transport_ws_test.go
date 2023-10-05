@@ -475,13 +475,17 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 
 		operation := []byte(`{"operationName":"Hello","query":"query Hello { hello }"}`)
 		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 		mockEngine := NewMockEngine(ctrl)
-		mockEngine.EXPECT().StartOperation(gomock.Eq(ctx), gomock.Eq("1"), gomock.Eq(operation), gomock.Eq(&protocol.eventHandler))
+		mockEngine.EXPECT().StartOperation(gomock.Eq(ctx), gomock.Eq("2"), gomock.Eq(operation), gomock.Eq(&protocol.eventHandler))
 
 		assert.Eventually(t, func() bool {
-			inputMessage := []byte(`{"id":"1","type":"subscribe","payload":{"operationName":"Hello","query":"query Hello { hello }"}}`)
-			err := protocol.Handle(ctx, mockEngine, inputMessage)
+			initMessage := []byte(`{"id":"1","type":"connection_init"}`)
+			err := protocol.Handle(ctx, mockEngine, initMessage)
 			assert.NoError(t, err)
+			subscribeMessage := []byte(`{"id":"2","type":"subscribe","payload":` + string(operation) + `}`)
+			err2 := protocol.Handle(ctx, mockEngine, subscribeMessage)
+			assert.NoError(t, err2)
 			return true
 		}, 1*time.Second, 2*time.Millisecond)
 	})
@@ -533,7 +537,6 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		mockEngine := NewMockEngine(ctrl)
-		mockEngine.EXPECT().StopSubscription(gomock.Eq("1"), gomock.Eq(&protocol.eventHandler))
 
 		assert.Eventually(t, func() bool {
 			inputMessage := []byte(`{"type":"connection_init","payload":{something}}`)
