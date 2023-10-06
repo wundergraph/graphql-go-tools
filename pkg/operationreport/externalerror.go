@@ -64,6 +64,16 @@ func ErrTypeUndefined(typeName ast.ByteSlice) (err ExternalError) {
 	return err
 }
 
+func ErrInvalidOperationType(operationType ast.OperationType) (err ExternalError) {
+	err.Message = fmt.Sprintf("invalid operation type %d", int(operationType))
+	return err
+}
+
+func ErrOperationTypeUndefined(operationType ast.OperationType) (err ExternalError) {
+	err.Message = fmt.Sprintf("operation type %s is not defined; did you forget to merge the base schema?", operationType.Name())
+	return err
+}
+
 func ErrScalarTypeUndefined(scalarName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf("scalar not defined: %s", scalarName)
 	return err
@@ -337,6 +347,14 @@ func ErrFragmentSpreadFormsCycle(spreadName ast.ByteSlice) (err ExternalError) {
 	return err
 }
 
+func ErrInvalidFragmentSpread(fragmentName, fragmentTypeName, enclosingName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf(
+		"fragment spread: fragment %s must be spread on type %s and not type %s",
+		fragmentName, fragmentTypeName, enclosingName,
+	)
+	return err
+}
+
 func ErrFragmentDefinedButNotUsed(fragmentName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf("fragment: %s defined but not used", fragmentName)
 	return err
@@ -465,5 +483,12 @@ func ErrEntityExtensionMustHaveKeyDirective(typeName string) (err ExternalError)
 
 func ErrExtensionWithKeyDirectiveMustExtendEntity(typeName string) (err ExternalError) {
 	err.Message = fmt.Sprintf("the extension named '%s' has a key directive but there is no entity of the same name", typeName)
+	return err
+}
+
+func ErrDuplicateFieldsMustBeIdentical(fieldName, parentName, typeOne, typeTwo string) (err ExternalError) {
+	err.Message = fmt.Sprintf("field '%s' on type '%s' is defined in multiple subgraphs "+
+		"but the fields cannot be merged because the types of the fields are non-identical:\n"+
+		"first subgraph: type '%s'\n second subgraph: type '%s'", fieldName, parentName, typeOne, typeTwo)
 	return err
 }

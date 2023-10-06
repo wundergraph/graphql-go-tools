@@ -1,0 +1,30 @@
+fragment ProductFragment on Product {
+    __typename
+    price
+    upc
+}
+
+fragment ReviewFragment on Review {
+    __typename
+    product {
+        ...ProductFragment
+    }
+}
+
+fragment UserFragment on User {
+    __typename
+    id
+    username
+    reviews {
+        ...ReviewFragment
+    }
+}
+
+query {
+    topProducts {
+        ...ProductFragment
+    }
+    me {
+        ...UserFragment
+    }
+}

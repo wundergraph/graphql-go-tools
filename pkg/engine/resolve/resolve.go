@@ -95,6 +95,8 @@ const (
 	NodeKindBoolean
 	NodeKindInteger
 	NodeKindFloat
+	NodeKindBigInt
+	NodeKindCustom
 
 	FetchKindSingle FetchKind = iota + 1
 	FetchKindParallel
@@ -115,7 +117,7 @@ type AfterFetchHook interface {
 }
 
 type Context struct {
-	context.Context
+	ctx              context.Context
 	Variables        []byte
 	Request          Request
 	pathElements     [][]byte
@@ -138,8 +140,11 @@ type Request struct {
 }
 
 func NewContext(ctx context.Context) *Context {
+	if ctx == nil {
+		panic("nil context.Context")
+	}
 	return &Context{
-		Context:      ctx,
+		ctx:          ctx,
 		Variables:    make([]byte, 0, 4096),
 		pathPrefix:   make([]byte, 0, 4096),
 		pathElements: make([][]byte, 0, 16),
@@ -152,7 +157,20 @@ func NewContext(ctx context.Context) *Context {
 	}
 }
 
-func (c *Context) Clone() Context {
+func (c *Context) Context() context.Context {
+	return c.ctx
+}
+
+func (c *Context) WithContext(ctx context.Context) *Context {
+	if ctx == nil {
+		panic("nil context.Context")
+	}
+	cpy := *c
+	cpy.ctx = ctx
+	return &cpy
+}
+
+func (c *Context) clone() Context {
 	variables := make([]byte, len(c.Variables))
 	copy(variables, c.Variables)
 	pathPrefix := make([]byte, len(c.pathPrefix))
@@ -175,7 +193,7 @@ func (c *Context) Clone() Context {
 		copy(patches[i].data, c.patches[i].data)
 	}
 	return Context{
-		Context:         c.Context,
+		ctx:             c.ctx,
 		Variables:       variables,
 		Request:         c.Request,
 		pathElements:    pathElements,
@@ -191,7 +209,7 @@ func (c *Context) Clone() Context {
 }
 
 func (c *Context) Free() {
-	c.Context = nil
+	c.ctx = nil
 	c.Variables = c.Variables[:0]
 	c.pathPrefix = c.pathPrefix[:0]
 	c.pathElements = c.pathElements[:0]
@@ -410,12 +428,16 @@ func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *Bu
 		return r.resolveInteger(ctx, n, data, bufPair)
 	case *Float:
 		return r.resolveFloat(ctx, n, data, bufPair)
+	case *BigInt:
+		return r.resolveBigInt(ctx, n, data, bufPair)
 	case *EmptyObject:
 		r.resolveEmptyObject(bufPair.Data)
 		return
 	case *EmptyArray:
 		r.resolveEmptyArray(bufPair.Data)
 		return
+	case *CustomNode:
+		return r.resolveCustom(ctx, n, data, bufPair)
 	default:
 		return
 	}
@@ -477,17 +499,12 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	buf := r.getBufPair()
 	defer r.freeBufPair(buf)
 
-	responseBuf := r.getBufPair()
-	defer r.freeBufPair(responseBuf)
-
-	extractResponse(data, responseBuf, ProcessResponseConfig{ExtractGraphqlResponse: true})
-
 	if data != nil {
 		ctx.lastFetchID = initialValueID
 	}
 
 	if r.dataLoaderEnabled {
-		ctx.dataLoader = r.dataloaderFactory.newDataLoader(responseBuf.Data.Bytes())
+		ctx.dataLoader = r.dataloaderFactory.newDataLoader(data)
 		defer func() {
 			r.dataloaderFactory.freeDataLoader(ctx.dataLoader)
 			ctx.dataLoader = nil
@@ -495,15 +512,44 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	}
 
 	ignoreData := false
-	err = r.resolveNode(ctx, response.Data, responseBuf.Data.Bytes(), buf)
+	err = r.resolveNode(ctx, response.Data, data, buf)
 	if err != nil {
 		if !errors.Is(err, errNonNullableFieldValueIsNull) {
 			return
 		}
 		ignoreData = true
 	}
-	if responseBuf.Errors.Len() > 0 {
-		r.MergeBufPairErrors(responseBuf, buf)
+
+	return writeGraphqlResponse(buf, writer, ignoreData)
+}
+
+func (r *Resolver) resolveGraphQLSubscriptionResponse(ctx *Context, response *GraphQLResponse, subscriptionData *BufPair, writer io.Writer) (err error) {
+
+	buf := r.getBufPair()
+	defer r.freeBufPair(buf)
+
+	if subscriptionData.HasData() {
+		ctx.lastFetchID = initialValueID
+	}
+
+	if r.dataLoaderEnabled {
+		ctx.dataLoader = r.dataloaderFactory.newDataLoader(subscriptionData.Data.Bytes())
+		defer func() {
+			r.dataloaderFactory.freeDataLoader(ctx.dataLoader)
+			ctx.dataLoader = nil
+		}()
+	}
+
+	ignoreData := false
+	err = r.resolveNode(ctx, response.Data, subscriptionData.Data.Bytes(), buf)
+	if err != nil {
+		if !errors.Is(err, errNonNullableFieldValueIsNull) {
+			return
+		}
+		ignoreData = true
+	}
+	if subscriptionData.HasErrors() {
+		r.MergeBufPairErrors(subscriptionData, buf)
 	}
 
 	return writeGraphqlResponse(buf, writer, ignoreData)
@@ -530,7 +576,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	copy(subscriptionInput, rendered)
 	r.freeBufPair(buf)
 
-	c, cancel := context.WithCancel(ctx)
+	c, cancel := context.WithCancel(ctx.Context())
 	defer cancel()
 	resolverDone := r.ctx.Done()
 
@@ -549,6 +595,9 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return err
 	}
 
+	responseBuf := r.getBufPair()
+	defer r.freeBufPair(responseBuf)
+
 	for {
 		select {
 		case <-resolverDone:
@@ -558,7 +607,9 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 			if !ok {
 				return nil
 			}
-			err = r.ResolveGraphQLResponse(ctx, subscription.Response, data, writer)
+			responseBuf.Reset()
+			extractResponse(data, responseBuf, subscription.Trigger.ProcessResponseConfig)
+			err = r.resolveGraphQLSubscriptionResponse(ctx, subscription.Response, responseBuf, writer)
 			if err != nil {
 				return err
 			}
@@ -586,7 +637,7 @@ func (r *Resolver) ResolveGraphQLStreamingResponse(ctx *Context, response *Graph
 
 	buf.Write(literal.LBRACK)
 
-	done := ctx.Context.Done()
+	done := ctx.Context().Done()
 
 Loop:
 	for {
@@ -823,7 +874,7 @@ func (r *Resolver) resolveArrayAsynchronous(ctx *Context, array *Array, arrayIte
 		itemBuf := r.getBufPair()
 		*bufSlice = append(*bufSlice, itemBuf)
 		itemData := (*arrayItems)[i]
-		cloned := ctx.Clone()
+		cloned := ctx.clone()
 		go func(ctx Context, i int) {
 			ctx.addPathElement([]byte(strconv.Itoa(i)))
 			if e := r.resolveNode(&ctx, array.Item, itemData, itemBuf); e != nil && !errors.Is(e, errTypeNameSkipped) {
@@ -907,6 +958,42 @@ func (r *Resolver) resolveFloat(ctx *Context, floatValue *Float, data []byte, fl
 	return nil
 }
 
+func (r *Resolver) resolveBigInt(ctx *Context, bigIntValue *BigInt, data []byte, bigIntBuf *BufPair) error {
+	value, valueType, _, err := jsonparser.Get(data, bigIntValue.Path...)
+	switch {
+	case err != nil, valueType == jsonparser.Null:
+		if !bigIntValue.Nullable {
+			return errNonNullableFieldValueIsNull
+		}
+		r.resolveNull(bigIntBuf.Data)
+		return nil
+	case valueType == jsonparser.Number:
+		bigIntBuf.Data.WriteBytes(value)
+	case valueType == jsonparser.String:
+		bigIntBuf.Data.WriteBytes(quote)
+		bigIntBuf.Data.WriteBytes(value)
+		bigIntBuf.Data.WriteBytes(quote)
+	default:
+		return fmt.Errorf("invalid value type '%s' for path %s, expecting number or string, got: %v", valueType, string(ctx.path()), string(value))
+
+	}
+	r.exportField(ctx, bigIntValue.Export, value)
+	return nil
+}
+
+func (r *Resolver) resolveCustom(ctx *Context, customValue *CustomNode, data []byte, customBuf *BufPair) error {
+	value, dataType, _, _ := jsonparser.Get(data, customValue.Path...)
+	if dataType == jsonparser.Null && !customValue.Nullable {
+		return errNonNullableFieldValueIsNull
+	}
+	resolvedValue, err := customValue.Resolve(value)
+	if err != nil {
+		return fmt.Errorf("failed to resolve value type %s for path %s via custom resolver", dataType, string(ctx.path()))
+	}
+	customBuf.Data.WriteBytes(resolvedValue)
+	return nil
+}
+
 func (r *Resolver) resolveBoolean(ctx *Context, boolean *Boolean, data []byte, booleanBuf *BufPair) error {
 	value, valueType, _, err := jsonparser.Get(data, boolean.Path...)
 	if err != nil || valueType != jsonparser.Boolean {
@@ -954,10 +1041,11 @@ func (r *Resolver) resolveString(ctx *Context, str *String, data []byte, stringB
 	if str.UnescapeResponseJson {
 		value = bytes.ReplaceAll(value, []byte(`\"`), []byte(`"`))
 
-		// When the original value from upstream response was a string `"hello"`
-		// after getting it via jsonparser.Get we will return unquoted value `hello`,
-		// which is invalid json, so we need to quote it again
-		if !gjson.ValidBytes(value) {
+		// Do not modify values which was strings
+		// When the original value from upstream response was a plain string value `"hello"`, `"true"`, `"1"`, `"2.0"`,
+		// after getting it via jsonparser.Get we will get unquoted values `hello`, `true`, `1`, `2.0`
+		// which is not string anymore, so we need to quote it again
+		if !(bytes.ContainsAny(value, `{}[]`) && gjson.ValidBytes(value)) {
 			// wrap value in quotes to make it valid json
 			value = append(literal.QUOTE, append(value, literal.QUOTE...)...)
 		}
@@ -1084,7 +1172,6 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 	first := true
 	skipCount := 0
 	for i := range object.Fields {
-
 		if object.Fields[i].SkipDirectiveDefined {
 			skip, err := jsonparser.GetBoolean(ctx.Variables, object.Fields[i].SkipVariableName)
 			if err == nil && skip {
@@ -1113,9 +1200,16 @@ func (r *Resolver) resolveObject(ctx *Context, object *Object, data []byte, obje
 			fieldData = data
 		}
 
-		if object.Fields[i].OnTypeName != nil {
+		if object.Fields[i].OnTypeNames != nil {
 			typeName, _, _, _ := jsonparser.Get(fieldData, "__typename")
-			if !bytes.Equal(typeName, object.Fields[i].OnTypeName) {
+			hasMatch := false
+			for _, onTypeName := range object.Fields[i].OnTypeNames {
+				if bytes.Equal(typeName, onTypeName) {
+					hasMatch = true
+					break
+				}
+			}
+			if !hasMatch {
 				typeNameSkip = true
 				// Restore the response elements that may have been reset above.
 				ctx.responseElements = responseElements
@@ -1222,6 +1316,10 @@ func (r *Resolver) freeResultSet(set *resultSet) {
 }
 
 func (r *Resolver) resolveFetch(ctx *Context, fetch Fetch, data []byte, set *resultSet) (err error) {
+	// if context is cancelled, we should not resolve the fetch
+	if errors.Is(ctx.Context().Err(), context.Canceled) {
+		return nil
+	}
 
 	switch f := fetch.(type) {
 	case *SingleFetch:
@@ -1353,7 +1451,7 @@ type Field struct {
 	Stream                  *StreamField
 	HasBuffer               bool
 	BufferID                int
-	OnTypeName              []byte
+	OnTypeNames             [][]byte
 	SkipDirectiveDefined    bool
 	SkipVariableName        string
 	IncludeDirectiveDefined bool
@@ -1453,6 +1551,20 @@ func (_ *String) NodeKind() NodeKind {
 	return NodeKindString
 }
 
+type CustomResolve interface {
+	Resolve(value []byte) ([]byte, error)
+}
+
+type CustomNode struct {
+	CustomResolve
+	Nullable bool
+	Path     []string
+}
+
+func (_ *CustomNode) NodeKind() NodeKind {
+	return NodeKindCustom
+}
+
 type Boolean struct {
 	Path     []string
 	Nullable bool
@@ -1483,6 +1595,16 @@ func (_ *Integer) NodeKind() NodeKind {
 	return NodeKindInteger
 }
 
+type BigInt struct {
+	Path     []string
+	Nullable bool
+	Export   *FieldExport `json:"export,omitempty"`
+}
+
+func (BigInt) NodeKind() NodeKind {
+	return NodeKindBigInt
+}
+
 type Array struct {
 	Path                []string
 	Nullable            bool
@@ -1507,10 +1629,11 @@ type GraphQLSubscription struct {
 }
 
 type GraphQLSubscriptionTrigger struct {
-	Input         []byte
-	InputTemplate InputTemplate
-	Variables     Variables
-	Source        SubscriptionDataSource
+	Input                 []byte
+	InputTemplate         InputTemplate
+	Variables             Variables
+	Source                SubscriptionDataSource
+	ProcessResponseConfig ProcessResponseConfig
 }
 
 type FlushWriter interface {

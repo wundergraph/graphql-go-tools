@@ -1,0 +1,10 @@
+query SearchResults {
+    searchResults {
+        ...on Character {
+            name
+        }
+        ...on Vehicle {
+            length
+        }
+    }
+}

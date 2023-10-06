@@ -24,7 +24,10 @@ import (
 )
 
 func TestGraphQLDataSource(t *testing.T) {
+	// XXX: Directive needs to be explicitly declared
 	t.Run("@removeNullVariables directive", RunTest(`
+		directive @removeNullVariables on QUERY | MUTATION
+
 		schema {
 			query: Query
 		}
@@ -118,7 +121,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
 					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {__typename name} primaryFunction} hero {__typename name} stringList nestedStringList}","variables":{"id":$$0$$}}}`,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"id"},
@@ -295,7 +298,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource:            &Source{},
 					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {__typename id displayName}}"}}`,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
@@ -370,7 +373,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource:            &Source{},
 					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {__typename id displayName @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 					Variables: resolve.NewVariables(
@@ -455,7 +458,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource:           &Source{},
 					BufferId:             0,
-					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {__typename id displayName __typename @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
+					Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName __typename @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					Variables: resolve.NewVariables(&resolve.ContextVariable{
 						Path:     []string{"skip"},
@@ -554,7 +557,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource:            &Source{},
 					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {__typename ... @skip(if: $skip){__typename id displayName}}}","variables":{"skip":$$0$$}}}`,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {... @skip(if: $skip){id displayName}}}","variables":{"skip":$$0$$}}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 					Variables: resolve.NewVariables(
@@ -578,6 +581,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"id"},
 									},
+									OnTypeNames:          [][]byte{[]byte("RegisteredUser")},
 									SkipDirectiveDefined: true,
 									SkipVariableName:     "skip",
 								},
@@ -586,6 +590,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"displayName"},
 									},
+									OnTypeNames:          [][]byte{[]byte("RegisteredUser")},
 									SkipDirectiveDefined: true,
 									SkipVariableName:     "skip",
 								},
@@ -641,7 +646,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource:            &Source{},
 					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {__typename ... @include(if: $include){__typename id displayName}}}","variables":{"include":$$0$$}}}`,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {... @include(if: $include){id displayName}}}","variables":{"include":$$0$$}}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 					Variables: resolve.NewVariables(
@@ -665,6 +670,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"id"},
 									},
+									OnTypeNames:             [][]byte{[]byte("RegisteredUser")},
 									IncludeDirectiveDefined: true,
 									IncludeVariableName:     "include",
 								},
@@ -673,6 +679,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"displayName"},
 									},
+									OnTypeNames:             [][]byte{[]byte("RegisteredUser")},
 									IncludeDirectiveDefined: true,
 									IncludeVariableName:     "include",
 								},
@@ -726,7 +733,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource:            &Source{},
 					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {__typename id}}"}}`,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
@@ -795,7 +802,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource:            &Source{},
 					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {__typename id displayName}}"}}`,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
@@ -870,7 +877,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource:            &Source{},
 					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {__typename id displayName @include(if: $include)}}","variables":{"include":$$0$$}}}`,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {id displayName @include(if: $include)}}","variables":{"include":$$0$$}}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 					Variables: resolve.NewVariables(
@@ -953,7 +960,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource:            &Source{},
 					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {__typename id displayName}}"}}`,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
@@ -1027,7 +1034,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource:            &Source{},
 					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {__typename id}}"}}`,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
@@ -1099,7 +1106,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource:            &Source{},
 					BufferId:              0,
-					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {__typename id displayName ... on RegisteredUser {hasVerifiedEmail}}}"}}`,
+					Input:                 `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName __typename ... on RegisteredUser {hasVerifiedEmail}}}"}}`,
 					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 				},
@@ -1129,7 +1136,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.Boolean{
 										Path: []string{"hasVerifiedEmail"},
 									},
-									OnTypeName: []byte("RegisteredUser"),
+									OnTypeNames: [][]byte{[]byte("RegisteredUser")},
 								},
 							},
 						},
@@ -1276,7 +1283,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						DataSource: &Source{},
 						BufferId:   0,
-						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($heroId: ID!){droid(id: $heroId){name} hero {__typename id}}","variables":{"heroId":$$0$$}}}`,
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($heroId: ID!){droid(id: $heroId){name} hero {id}}","variables":{"heroId":$$0$$}}}`,
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"heroId"},
@@ -1400,7 +1407,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
 					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $heroName: String!){droid(id: $id){name aliased: name friends {__typename name} primaryFunction} hero {__typename name} search(name: $heroName){__typename ... on Droid {primaryFunction}} stringList nestedStringList}","variables":{"heroName":$$1$$,"id":$$0$$}}}`,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $heroName: String!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} search(name: $heroName){__typename ... on Droid {primaryFunction}} stringList nestedStringList}","variables":{"heroName":$$1$$,"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"id"},
@@ -1499,7 +1506,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"primaryFunction"},
 									},
-									OnTypeName: []byte("Droid"),
+									OnTypeNames: [][]byte{[]byte("Droid")},
 								},
 							},
 						},
@@ -1644,7 +1651,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
 					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$4$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $a: String! @onVariable, $input: SearchInput!, $options: JSON)@onOperation {api_droid: droid(id: $id){name @format aliased: name friends {__typename name} primaryFunction} api_hero: hero {__typename name ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search(name: $a){__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}} withOptions: searchWithInput(input: {options: $options}){__typename ... on Droid {primaryFunction}}}","variables":{"options":$$3$$,"input":$$2$$,"a":$$1$$,"id":$$0$$}}}`,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$4$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $a: String! @onVariable, $input: SearchInput!, $options: JSON)@onOperation {api_droid: droid(id: $id){name @format aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search(name: $a){__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}} withOptions: searchWithInput(input: {options: $options}){__typename ... on Droid {primaryFunction}}}","variables":{"options":$$3$$,"input":$$2$$,"a":$$1$$,"id":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"id"},
@@ -1736,7 +1743,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"height"},
 									},
-									OnTypeName: []byte("Human"),
+									OnTypeNames: [][]byte{[]byte("Human")},
 								},
 							},
 						},
@@ -1778,7 +1785,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"primaryFunction"},
 									},
-									OnTypeName: []byte("Droid"),
+									OnTypeNames: [][]byte{[]byte("Droid")},
 								},
 							},
 						},
@@ -1796,7 +1803,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"primaryFunction"},
 									},
-									OnTypeName: []byte("Droid"),
+									OnTypeNames: [][]byte{[]byte("Droid")},
 								},
 							},
 						},
@@ -1814,7 +1821,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"primaryFunction"},
 									},
-									OnTypeName: []byte("Droid"),
+									OnTypeNames: [][]byte{[]byte("Droid")},
 								},
 							},
 						},
@@ -2037,7 +2044,7 @@ func TestGraphQLDataSource(t *testing.T) {
 												},
 											},
 										},
-										OnTypeName: []byte("Product"),
+										OnTypeNames: [][]byte{[]byte("Product")},
 									},
 								},
 							},
@@ -2244,7 +2251,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($birthdate: Date!){heroByBirthdate(birthdate: $birthdate){__typename name}}","variables":{"birthdate":$$0$$}}}`,
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($birthdate: Date!){heroByBirthdate(birthdate: $birthdate){name}}","variables":{"birthdate":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
@@ -3447,8 +3454,8 @@ func TestGraphQLDataSource(t *testing.T) {
 										},
 									},
 									{
-										OnTypeName: []byte("NamespaceCreated"),
-										Name:       []byte("namespace"),
+										OnTypeNames: [][]byte{[]byte("NamespaceCreated")},
+										Name:        []byte("namespace"),
 										Value: &resolve.Object{
 											Path: []string{"namespace"},
 											Fields: []*resolve.Field{
@@ -3470,15 +3477,15 @@ func TestGraphQLDataSource(t *testing.T) {
 										},
 									},
 									{
-										OnTypeName: []byte("Error"),
-										Name:       []byte("code"),
+										OnTypeNames: [][]byte{[]byte("Error")},
+										Name:        []byte("code"),
 										Value: &resolve.String{
 											Path: []string{"code"},
 										},
 									},
 									{
-										OnTypeName: []byte("Error"),
-										Name:       []byte("message"),
+										OnTypeNames: [][]byte{[]byte("Error")},
+										Name:        []byte("message"),
 										Value: &resolve.String{
 											Path: []string{"message"},
 										},
@@ -3666,6 +3673,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Source: &SubscriptionSource{
 					NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
 				},
+				ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 			},
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -3704,6 +3712,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Source: &SubscriptionSource{
 					client: NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
 				},
+				ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
 			},
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
@@ -4156,7 +4165,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate __typename ssn}}","variables":{"a":$$0$$}}}`,
+						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate __typename account {__typename ... on PasswordAccount {email} ... on SMSAccount {number}} metadata {name address description} ssn}}","variables":{"a":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ObjectVariable{
@@ -4176,7 +4185,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
 										BufferId: 1,
-										Input:    `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {__typename id description price}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Input:    `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
 												Path:     []string{"id"},
@@ -4288,7 +4297,7 @@ func TestGraphQLDataSource(t *testing.T) {
 													Value: &resolve.String{
 														Path: []string{"email"},
 													},
-													OnTypeName: []byte("PasswordAccount"),
+													OnTypeNames: [][]byte{[]byte("PasswordAccount")},
 												},
 												{
 													Name: []byte("number"),
@@ -4296,7 +4305,7 @@ func TestGraphQLDataSource(t *testing.T) {
 														Nullable: true,
 														Path:     []string{"number"},
 													},
-													OnTypeName: []byte("SMSAccount"),
+													OnTypeNames: [][]byte{[]byte("SMSAccount")},
 												},
 											},
 										},
@@ -4360,7 +4369,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					ChildNodes: []plan.TypeField{
 						{
 							TypeName:   "User",
-							FieldNames: []string{"id", "name", "username", "birthDate", "metaData", "ssn"},
+							FieldNames: []string{"id", "name", "username", "birthDate", "metadata", "ssn"},
 						},
 						{
 							TypeName:   "UserMetadata",
@@ -4473,7 +4482,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:   0,
-						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate __typename ssn}}","variables":{"a":$$0$$}}}`,
+						Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate account {__typename ... on PasswordAccount {email} ... on SMSAccount {number}} metadata {name address description} __typename ssn}}","variables":{"a":$$0$$}}}`,
 						DataSource: &Source{},
 						Variables: resolve.NewVariables(
 							&resolve.ObjectVariable{
@@ -4493,7 +4502,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
 										BufferId: 1,
-										Input:    `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {__typename id description price}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Input:    `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
 												Path:     []string{"id"},
@@ -4567,7 +4576,7 @@ func TestGraphQLDataSource(t *testing.T) {
 													Value: &resolve.String{
 														Path: []string{"email"},
 													},
-													OnTypeName: []byte("PasswordAccount"),
+													OnTypeNames: [][]byte{[]byte("PasswordAccount")},
 												},
 												{
 													Name: []byte("number"),
@@ -4575,7 +4584,7 @@ func TestGraphQLDataSource(t *testing.T) {
 														Nullable: true,
 														Path:     []string{"number"},
 													},
-													OnTypeName: []byte("SMSAccount"),
+													OnTypeNames: [][]byte{[]byte("SMSAccount")},
 												},
 											},
 										},
@@ -4677,7 +4686,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					ChildNodes: []plan.TypeField{
 						{
 							TypeName:   "User",
-							FieldNames: []string{"id", "name", "username", "birthDate", "metaData", "ssn"},
+							FieldNames: []string{"id", "name", "username", "birthDate", "metadata", "ssn"},
 						},
 						{
 							TypeName:   "UserMetadata",
@@ -5845,7 +5854,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:              0,
-						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{self {__typename id ... on User {uid: id username id}}}"}}`,
+						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{self {id __typename ... on User {uid: id username}}}"}}`,
 						DataSource:            &Source{},
 						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
@@ -5883,13 +5892,12 @@ func TestGraphQLDataSource(t *testing.T) {
 								Path:     []string{"self"},
 								Nullable: true,
 								Fields: []*resolve.Field{
-									// there is a bug with interfaces that consumes this
-									//{
-									//	Name: []byte("id"),
-									//	Value: &resolve.String{
-									//		Path: []string{"id"},
-									//	},
-									//},
+									{
+										Name: []byte("id"),
+										Value: &resolve.String{
+											Path: []string{"id"},
+										},
+									},
 									{
 										Name: []byte("__typename"),
 										Value: &resolve.String{
@@ -5903,14 +5911,14 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.String{
 											Path: []string{"uid"},
 										},
-										OnTypeName: []byte("User"),
+										OnTypeNames: [][]byte{[]byte("User")},
 									},
 									{
 										Name: []byte("username"),
 										Value: &resolve.String{
 											Path: []string{"username"},
 										},
-										OnTypeName: []byte("User"),
+										OnTypeNames: [][]byte{[]byte("User")},
 									},
 									{
 										HasBuffer: true,
@@ -5931,7 +5939,7 @@ func TestGraphQLDataSource(t *testing.T) {
 												},
 											},
 										},
-										OnTypeName: []byte("User"),
+										OnTypeNames: [][]byte{[]byte("User")},
 									},
 								},
 							},
@@ -6104,14 +6112,14 @@ func TestGraphQLDataSource(t *testing.T) {
 																	Value: &resolve.String{
 																		Path: []string{"extension"},
 																	},
-																	OnTypeName: []byte("Image"),
+																	OnTypeNames: [][]byte{[]byte("Image")},
 																},
 																{
 																	Name: []byte("length"),
 																	Value: &resolve.String{
 																		Path: []string{"length"},
 																	},
-																	OnTypeName: []byte("Video"),
+																	OnTypeNames: [][]byte{[]byte("Video")},
 																},
 															},
 														},
@@ -6119,7 +6127,7 @@ func TestGraphQLDataSource(t *testing.T) {
 												},
 											},
 										},
-										OnTypeName: []byte("User"),
+										OnTypeNames: [][]byte{[]byte("User")},
 									},
 								},
 							},
@@ -6276,11 +6284,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Fetch: &resolve.BatchFetch{
 										Fetch: &resolve.SingleFetch{
 											BufferId: 1,
-											// Note: __typename is included in the Cat and Dog inline fragments
-											// because the field were originally themselves in inline fragments
-											// that were inlined. The additional __typename selections are
-											// harmless.
-											Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename name ... on Cat {catField details {age}} ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+											Input:    `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {name __typename ... on Cat {catField details {age}} ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
 													Path:     []string{"id"},
@@ -6327,7 +6331,7 @@ func TestGraphQLDataSource(t *testing.T) {
 															Value: &resolve.String{
 																Path: []string{"catField"},
 															},
-															OnTypeName: []byte("Cat"),
+															OnTypeNames: [][]byte{[]byte("Cat")},
 														},
 														{
 															Name: []byte("details"),
@@ -6342,21 +6346,21 @@ func TestGraphQLDataSource(t *testing.T) {
 																	},
 																},
 															},
-															OnTypeName: []byte("Cat"),
+															OnTypeNames: [][]byte{[]byte("Cat")},
 														},
 														{
 															Name: []byte("dogField"),
 															Value: &resolve.String{
 																Path: []string{"dogField"},
 															},
-															OnTypeName: []byte("Dog"),
+															OnTypeNames: [][]byte{[]byte("Dog")},
 														},
 														{
 															Name: []byte("species"),
 															Value: &resolve.String{
 																Path: []string{"species"},
 															},
-															OnTypeName: []byte("Dog"),
+															OnTypeNames: [][]byte{[]byte("Dog")},
 														},
 														{
 															Name: []byte("details"),
@@ -6484,28 +6488,28 @@ func TestGraphQLDataSource(t *testing.T) {
 		t.Run("featuring consecutive inline fragments (shared selection in middle)", RunTest(
 			federatedSchemaWithComplexNestedFragments,
 			`
-		query TestQuery {
-			user {
-				username
-				pets {
-					... on Cat {
-						catField
-						details {
-							age
+			query TestQuery {
+				user {
+					username
+					pets {
+						... on Cat {
+							catField
+							details {
+								age
+							}
 						}
-					}
-					name
-					... on Dog {
-						dogField
-						species
-					}
-					details {
-						hasOwner
+						name
+						... on Dog {
+							dogField
+							species
+						}
+						details {
+							hasOwner
+						}
 					}
 				}
 			}
-		}
-		`,
+			`,
 			"TestQuery",
 			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
@@ -6526,11 +6530,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Fetch: &resolve.BatchFetch{
 										Fetch: &resolve.SingleFetch{
 											BufferId: 1,
-											// Note: __typename is included in the Cat and Dog inline fragments
-											// because the field were originally themselves in inline fragments
-											// that were inlined. The additional __typename selections are
-											// harmless.
-											Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {catField details {age}} name ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+											Input:    `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {catField details {age}} name ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
 													Path:     []string{"id"},
@@ -6571,7 +6571,7 @@ func TestGraphQLDataSource(t *testing.T) {
 															Value: &resolve.String{
 																Path: []string{"catField"},
 															},
-															OnTypeName: []byte("Cat"),
+															OnTypeNames: [][]byte{[]byte("Cat")},
 														},
 														{
 															Name: []byte("details"),
@@ -6586,7 +6586,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																	},
 																},
 															},
-															OnTypeName: []byte("Cat"),
+															OnTypeNames: [][]byte{[]byte("Cat")},
 														},
 														{
 															Name: []byte("name"),
@@ -6599,14 +6599,14 @@ func TestGraphQLDataSource(t *testing.T) {
 															Value: &resolve.String{
 																Path: []string{"dogField"},
 															},
-															OnTypeName: []byte("Dog"),
+															OnTypeNames: [][]byte{[]byte("Dog")},
 														},
 														{
 															Name: []byte("species"),
 															Value: &resolve.String{
 																Path: []string{"species"},
 															},
-															OnTypeName: []byte("Dog"),
+															OnTypeNames: [][]byte{[]byte("Dog")},
 														},
 														{
 															Name: []byte("details"),
@@ -6734,28 +6734,28 @@ func TestGraphQLDataSource(t *testing.T) {
 		t.Run("featuring consecutive inline fragments (shared selection at bottom)", RunTest(
 			federatedSchemaWithComplexNestedFragments,
 			`
-		query TestQuery {
-			user {
-				username
-				pets {
-					... on Cat {
-						catField
-						details {
-							age
+			query TestQuery {
+				user {
+					username
+					pets {
+						... on Cat {
+							catField
+							details {
+								age
+							}
 						}
+						... on Dog {
+							dogField
+							species
+						}
+						details {
+							hasOwner
+						}
+						name
 					}
-					... on Dog {
-						dogField
-						species
-					}
-					details {
-						hasOwner
-					}
-					name
 				}
 			}
-		}
-		`,
+			`,
 			"TestQuery",
 			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
@@ -6821,7 +6821,7 @@ func TestGraphQLDataSource(t *testing.T) {
 															Value: &resolve.String{
 																Path: []string{"catField"},
 															},
-															OnTypeName: []byte("Cat"),
+															OnTypeNames: [][]byte{[]byte("Cat")},
 														},
 														{
 															Name: []byte("details"),
@@ -6836,21 +6836,21 @@ func TestGraphQLDataSource(t *testing.T) {
 																	},
 																},
 															},
-															OnTypeName: []byte("Cat"),
+															OnTypeNames: [][]byte{[]byte("Cat")},
 														},
 														{
 															Name: []byte("dogField"),
 															Value: &resolve.String{
 																Path: []string{"dogField"},
 															},
-															OnTypeName: []byte("Dog"),
+															OnTypeNames: [][]byte{[]byte("Dog")},
 														},
 														{
 															Name: []byte("species"),
 															Value: &resolve.String{
 																Path: []string{"species"},
 															},
-															OnTypeName: []byte("Dog"),
+															OnTypeNames: [][]byte{[]byte("Dog")},
 														},
 														{
 															Name: []byte("details"),
@@ -6984,41 +6984,41 @@ func TestGraphQLDataSource(t *testing.T) {
 
 	t.Run("Federation with field query (defined in pet subgraph) featuring consecutive inline union fragments", RunTest(
 		`
-        type Query {
-            user: User
-        }
-        type User {
+	   type Query {
+	       user: User
+	   }
+	   type User {
 			id: ID!
-            username: String!
-            pets: [CatOrDog!]!
-        }
-        type Cat {
-            name: String!
-            catField: String!
-        }
-        type Dog {
-            name: String!
-            dogField: String!
-        }
-        union CatOrDog = Cat | Dog
-        `,
+	       username: String!
+	       pets: [CatOrDog!]!
+	   }
+	   type Cat {
+	       name: String!
+	       catField: String!
+	   }
+	   type Dog {
+	       name: String!
+	       dogField: String!
+	   }
+	   union CatOrDog = Cat | Dog
+	   `,
 		`
-        query TestQuery {
-            user {
-                username
-                pets {
-                    ... on Cat {
+	   query TestQuery {
+	       user {
+	           username
+	           pets {
+	               ... on Cat {
 						name
-                        catField
-                    }
-                    ... on Dog {
+	                   catField
+	               }
+	               ... on Dog {
 						name
-                        dogField
-                    }
-                }
-            }
-        }
-        `,
+	                   dogField
+	               }
+	           }
+	       }
+	   }
+	   `,
 		"TestQuery",
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
@@ -7039,11 +7039,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								Fetch: &resolve.BatchFetch{
 									Fetch: &resolve.SingleFetch{
 										BufferId: 1,
-										// Note: __typename is included in the Cat and Dog inline fragments
-										// because the field were originally themselves in inline fragments
-										// that were inlined. The additional __typename selections are
-										// harmless.
-										Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {name catField} ... on Dog {name dogField}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Input:    `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {name catField} ... on Dog {name dogField}}}}}","variables":{"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
 										Variables: resolve.NewVariables(
 											&resolve.ObjectVariable{
 												Path:     []string{"id"},
@@ -7084,28 +7080,28 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.String{
 															Path: []string{"name"},
 														},
-														OnTypeName: []byte("Cat"),
+														OnTypeNames: [][]byte{[]byte("Cat")},
 													},
 													{
 														Name: []byte("catField"),
 														Value: &resolve.String{
 															Path: []string{"catField"},
 														},
-														OnTypeName: []byte("Cat"),
+														OnTypeNames: [][]byte{[]byte("Cat")},
 													},
 													{
 														Name: []byte("name"),
 														Value: &resolve.String{
 															Path: []string{"name"},
 														},
-														OnTypeName: []byte("Dog"),
+														OnTypeNames: [][]byte{[]byte("Dog")},
 													},
 													{
 														Name: []byte("dogField"),
 														Value: &resolve.String{
 															Path: []string{"dogField"},
 														},
-														OnTypeName: []byte("Dog"),
+														OnTypeNames: [][]byte{[]byte("Dog")},
 													},
 												},
 											},
@@ -7168,20 +7164,20 @@ func TestGraphQLDataSource(t *testing.T) {
 						Federation: FederationConfiguration{
 							Enabled: true,
 							ServiceSDL: `
-                                union CatOrDog = Cat | Dog
-                                type Cat {
-                                    name: String!
-                                    catField: String!
-                                }
-                                type Dog {
-                                    name: String!
-                                    dogField: String!
-                                }
+	                           union CatOrDog = Cat | Dog
+	                           type Cat {
+	                               name: String!
+	                               catField: String!
+	                           }
+	                           type Dog {
+	                               name: String!
+	                               dogField: String!
+	                           }
 								extend type User @key(fields: "id") {
 									id: ID! @external
 									pets: [CatOrDog!]!
 								}
-                            `,
+	                       `,
 						},
 					}),
 					Factory: federationFactory,
@@ -7301,7 +7297,7 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.String{
 															Path: []string{"name"},
 														},
-														OnTypeName: []byte("Cat"),
+														OnTypeNames: [][]byte{[]byte("Cat")},
 													},
 													{
 														HasBuffer: true,
@@ -7310,7 +7306,7 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.String{
 															Path: []string{"catField"},
 														},
-														OnTypeName: []byte("Cat"),
+														OnTypeNames: [][]byte{[]byte("Cat")},
 													},
 													{
 														HasBuffer: true,
@@ -7319,7 +7315,7 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.String{
 															Path: []string{"name"},
 														},
-														OnTypeName: []byte("Dog"),
+														OnTypeNames: [][]byte{[]byte("Dog")},
 													},
 													{
 														HasBuffer: true,
@@ -7328,7 +7324,7 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.String{
 															Path: []string{"dogField"},
 														},
-														OnTypeName: []byte("Dog"),
+														OnTypeNames: [][]byte{[]byte("Dog")},
 													},
 												},
 											},
@@ -7432,8 +7428,18 @@ func TestGraphQLDataSource(t *testing.T) {
 					RequiresFields: []string{"id"},
 				},
 				{
+					TypeName:       "Cat",
+					FieldName:      "catField",
+					RequiresFields: []string{"id"},
+				},
+				{
 					TypeName:       "Dog",
 					FieldName:      "name",
+					RequiresFields: []string{"id"},
+				},
+				{
+					TypeName:       "Dog",
+					FieldName:      "dogField",
 					RequiresFields: []string{"id"},
 				},
 			},
@@ -7460,7 +7466,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Fetch: &resolve.SingleFetch{
 					DataSource: &Source{},
 					BufferId:   0,
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($droidId: ID!, $reviewId: ReviewID!){droid(id: $droidId){name aliased: name friends {__typename name} primaryFunction} review(id: $reviewId){stars}}","variables":{"reviewId":$$1$$,"droidId":$$0$$}}}`,
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($droidId: ID!, $reviewId: ReviewID!){droid(id: $droidId){name aliased: name friends {name} primaryFunction} review(id: $reviewId){stars}}","variables":{"reviewId":$$1$$,"droidId":$$0$$}}}`,
 					Variables: resolve.NewVariables(
 						&resolve.ContextVariable{
 							Path:     []string{"droidId"},
@@ -7801,23 +7807,23 @@ func TestSubscriptionSource_Start(t *testing.T) {
 
 	t.Run("invalid json: should stop before sending to upstream", func(t *testing.T) {
 		next := make(chan []byte)
-		ctx := context.Background()
-		defer ctx.Done()
+		ctx := resolve.NewContext(context.Background())
+		defer ctx.Context().Done()
 
-		source := newSubscriptionSource(ctx)
+		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: "#test") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
+		err := source.Start(ctx.Context(), chatSubscriptionOptions, next)
 		require.ErrorIs(t, err, resolve.ErrUnableToResolve)
 	})
 
 	t.Run("invalid syntax (roomNam)", func(t *testing.T) {
 		next := make(chan []byte)
-		ctx := context.Background()
-		defer ctx.Done()
+		ctx := resolve.NewContext(context.Background())
+		defer ctx.Context().Done()
 
-		source := newSubscriptionSource(ctx)
+		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
+		err := source.Start(ctx.Context(), chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
 		msg, ok := <-next
@@ -7851,12 +7857,12 @@ func TestSubscriptionSource_Start(t *testing.T) {
 
 	t.Run("should successfully subscribe with chat example", func(t *testing.T) {
 		next := make(chan []byte)
-		ctx := context.Background()
-		defer ctx.Done()
+		ctx := resolve.NewContext(context.Background())
+		defer ctx.Context().Done()
 
-		source := newSubscriptionSource(ctx)
+		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
+		err := source.Start(ctx.Context(), chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
 		username := "myuser"
@@ -7913,12 +7919,12 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 
 	t.Run("invalid syntax (roomNam)", func(t *testing.T) {
 		next := make(chan []byte)
-		ctx := context.Background()
-		defer ctx.Done()
+		ctx := resolve.NewContext(context.Background())
+		defer ctx.Context().Done()
 
-		source := newSubscriptionSource(ctx)
+		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
+		err := source.Start(ctx.Context(), chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
 		msg, ok := <-next
@@ -7952,12 +7958,12 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 
 	t.Run("should successfully subscribe with chat example", func(t *testing.T) {
 		next := make(chan []byte)
-		ctx := context.Background()
-		defer ctx.Done()
+		ctx := resolve.NewContext(context.Background())
+		defer ctx.Context().Done()
 
-		source := newSubscriptionSource(ctx)
+		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
+		err := source.Start(ctx.Context(), chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
 		username := "myuser"
@@ -8159,7 +8165,8 @@ func TestSource_Load(t *testing.T) {
 			buf := bytes.NewBuffer(nil)
 
 			undefinedVariables := []string{"a", "c"}
-			ctx := httpclient.CtxSetUndefinedVariables(context.Background(), undefinedVariables)
+			ctx := context.Background()
+			input = httpclient.SetUndefinedVariables(input, undefinedVariables)
 
 			require.NoError(t, src.Load(ctx, input, buf))
 			assert.Equal(t, `{"variables":{"b":null}}`, buf.String())
@@ -8171,7 +8178,7 @@ func TestUnNullVariables(t *testing.T) {
 	t.Run("should not unnull variables if not enabled", func(t *testing.T) {
 		t.Run("two variables, one null", func(t *testing.T) {
 			s := &Source{}
-			out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}}}`), []string{})
+			out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}}}`))
 			expected := `{"body":{"variables":{"a":null,"b":true}}}`
 			assert.Equal(t, expected, string(out))
 		})
@@ -8179,77 +8186,77 @@ func TestUnNullVariables(t *testing.T) {
 
 	t.Run("variables with whitespace and empty objects", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"email":null,"firstName": "FirstTest",		"lastName":"LastTest","phone":123456,"preferences":{ "notifications":{}},"password":"password"}},"unnull_variables":true}`), []string{})
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"email":null,"firstName": "FirstTest",		"lastName":"LastTest","phone":123456,"preferences":{ "notifications":{}},"password":"password"}},"unnull_variables":true}`))
 		expected := `{"body":{"variables":{"firstName":"FirstTest","lastName":"LastTest","phone":123456,"password":"password"}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("empty variables", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{}},"unnull_variables":true}`), []string{})
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{}},"unnull_variables":true}`))
 		expected := `{"body":{"variables":{}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("null inside an array", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"list":["a",null,"b"]}},"unnull_variables":true}`), []string{})
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"list":["a",null,"b"]}},"unnull_variables":true}`))
 		expected := `{"body":{"variables":{"list":["a",null,"b"]}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("complex null inside nested objects and arrays", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null, "b": {"key":null, "nested": {"nestedkey": null}}, "arr": ["1", null, "3"], "d": {"nested_arr":["4",null,"6"]}}},"unnull_variables":true}`), []string{})
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null, "b": {"key":null, "nested": {"nestedkey": null}}, "arr": ["1", null, "3"], "d": {"nested_arr":["4",null,"6"]}}},"unnull_variables":true}`))
 		expected := `{"body":{"variables":{"b":{"key":null,"nested":{"nestedkey":null}},"arr":["1",null,"3"],"d":{"nested_arr":["4",null,"6"]}}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("two variables, one null", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}},"unnull_variables":true}`), []string{})
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}},"unnull_variables":true}`))
 		expected := `{"body":{"variables":{"b":true}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("two variables, one null reverse", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":true,"b":null}},"unnull_variables":true}`), []string{})
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":true,"b":null}},"unnull_variables":true}`))
 		expected := `{"body":{"variables":{"a":true}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("null variables", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":null},"unnull_variables":true}`), []string{})
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":null},"unnull_variables":true}`))
 		expected := `{"body":{"variables":null},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("ignore null inside non variables", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"foo":null},"body":"query {foo(bar: null){baz}}"},"unnull_variables":true}`), []string{})
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"foo":null},"body":"query {foo(bar: null){baz}}"},"unnull_variables":true}`))
 		expected := `{"body":{"variables":{},"body":"query {foo(bar: null){baz}}"},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("ignore null in variable name", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"not_null":1,"null":2,"not_null2":3}},"unnull_variables":true}`), []string{})
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"not_null":1,"null":2,"not_null2":3}},"unnull_variables":true}`))
 		expected := `{"body":{"variables":{"not_null":1,"null":2,"not_null2":3}},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("variables missing", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}"},"unnull_variables":true}`), []string{})
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}"},"unnull_variables":true}`))
 		expected := `{"body":{"query":"{foo}"},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
 
 	t.Run("variables null", func(t *testing.T) {
 		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}","variables":null},"unnull_variables":true}`), []string{})
+		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}","variables":null},"unnull_variables":true}`))
 		expected := `{"body":{"query":"{foo}","variables":null},"unnull_variables":true}`
 		assert.Equal(t, expected, string(out))
 	})
@@ -8578,7 +8585,7 @@ type Droid implements Character {
     friends: [Character]
 }
 
-type Startship {
+type Starship {
     name: String!
     length: Float!
 }`
@@ -8654,7 +8661,7 @@ type Droid implements Character {
     friends: [Character]
 }
 
-type Startship {
+type Starship {
     name: String!
     length: Float!
 }`
@@ -8734,7 +8741,7 @@ type Droid implements Character {
     friends: [Character]
 }
 
-type Startship {
+type Starship {
     name: String!
     length: Float!
 }`
@@ -8811,7 +8818,7 @@ type Droid_api implements Character_api {
     friends: [Character_api]
 }
 
-type Startship_api {
+type Starship_api {
     name: String!
     length: Float!
 }`

@@ -1,0 +1,13 @@
+EnterOperationDefinition (PostsUserQuery): ref: 0
+  EnterSelectionSet(Query): ref: 2
+    EnterField(posts::Query): ref: 5
+      EnterSelectionSet(Post): ref: 1
+        EnterField(id::Post): ref: 0
+        LeaveField(id::Post): ref: 0
+        EnterField(description::Post): ref: 1
+        LeaveField(description::Post): ref: 1
+      LeaveSelectionSet(Post): ref: 1
+    LeaveField(posts::Query): ref: 5
+  LeaveSelectionSet(Query): ref: 2
+LeaveOperationDefinition(PostsUserQuery): ref: 0
+

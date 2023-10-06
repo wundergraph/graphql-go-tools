@@ -1,8 +1,11 @@
 package resolve
 
+// go:generate mockgen -package resolve -destination resolve_mock_test.go . DataSource,BeforeFetchHook,AfterFetchHook,DataSourceBatch,DataSourceBatchFactory
+
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -106,6 +109,18 @@ func newResolver(ctx context.Context, enableSingleFlight bool, enableDataLoader 
 	return New(ctx, NewFetcher(enableSingleFlight), enableDataLoader)
 }
 
+type customResolver struct{}
+
+func (customResolver) Resolve(value []byte) ([]byte, error) {
+	return value, nil
+}
+
+type customErrResolve struct{}
+
+func (customErrResolve) Resolve(value []byte) ([]byte, error) {
+	return nil, errors.New("custom error")
+}
+
 func TestResolver_ResolveNode(t *testing.T) {
 	testFn := func(enableSingleFlight bool, enableDataLoader bool, fn func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string)) func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -150,10 +165,47 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("Nullable empty object", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Nullable: true,
-		}, Context{Context: context.Background()}, `null`
+		}, Context{ctx: context.Background()}, `null`
 	}))
 	t.Run("empty object", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
-		return &EmptyObject{}, Context{Context: context.Background()}, `{}`
+		return &EmptyObject{}, Context{ctx: context.Background()}, `{}`
+	}))
+	t.Run("BigInt", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"n": 12345, "ns_small": "12346", "ns_big": "1152921504606846976"`),
+			},
+			Fields: []*Field{
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("n"),
+					Value: &BigInt{
+						Path:     []string{"n"},
+						Nullable: false,
+					},
+				},
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("ns_small"),
+					Value: &BigInt{
+						Path:     []string{"ns_small"},
+						Nullable: false,
+					},
+				},
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("ns_big"),
+					Value: &BigInt{
+						Path:     []string{"ns_big"},
+						Nullable: false,
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"n":12345,"ns_small":"12346","ns_big":"1152921504606846976"}`
 	}))
 	t.Run("object with null field", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -163,7 +215,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Value: &Null{},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"foo":null}`
+		}, Context{ctx: context.Background()}, `{"foo":null}`
 	}))
 	t.Run("default graphql object", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -175,7 +227,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"data":null}`
+		}, Context{ctx: context.Background()}, `{"data":null}`
 	}))
 	t.Run("graphql object with simple data source", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -245,7 +297,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
+		}, Context{ctx: context.Background()}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
 	}))
 	t.Run("skip single field should resolve to empty response", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -279,7 +331,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: []byte(`{"skip":true}`)}, `{"data":{"user":{}}}`
+		}, Context{ctx: context.Background(), Variables: []byte(`{"skip":true}`)}, `{"data":{"user":{}}}`
 	}))
 	t.Run("skip multiple fields should resolve to empty response", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -323,7 +375,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: []byte(`{"skip":true}`)}, `{"data":{"user":{}}}`
+		}, Context{ctx: context.Background(), Variables: []byte(`{"skip":true}`)}, `{"data":{"user":{}}}`
 	}))
 	t.Run("skip __typename field be possible", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -365,7 +417,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: []byte(`{"skip":true}`)}, `{"data":{"user":{"id":"1"}}}`
+		}, Context{ctx: context.Background(), Variables: []byte(`{"skip":true}`)}, `{"data":{"user":{"id":"1"}}}`
 	}))
 	t.Run("include __typename field be possible", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -407,7 +459,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: []byte(`{"include":true}`)}, `{"data":{"user":{"id":"1","__typename":"User"}}}`
+		}, Context{ctx: context.Background(), Variables: []byte(`{"include":true}`)}, `{"data":{"user":{"id":"1","__typename":"User"}}}`
 	}))
 	t.Run("include __typename field with false value", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -449,7 +501,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: []byte(`{"include":false}`)}, `{"data":{"user":{"id":"1"}}}`
+		}, Context{ctx: context.Background(), Variables: []byte(`{"include":false}`)}, `{"data":{"user":{"id":"1"}}}`
 	}))
 	t.Run("skip field when skip variable is true", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -521,7 +573,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: []byte(`{"skip":true}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky"}}}}`
+		}, Context{ctx: context.Background(), Variables: []byte(`{"skip":true}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky"}}}}`
 	}))
 	t.Run("don't skip field when skip variable is false", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -593,7 +645,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: []byte(`{"skip":false}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
+		}, Context{ctx: context.Background(), Variables: []byte(`{"skip":false}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
 	}))
 	t.Run("don't skip field when skip variable is missing", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -665,7 +717,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: []byte(`{}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
+		}, Context{ctx: context.Background(), Variables: []byte(`{}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
 	}))
 	t.Run("include field when include variable is true", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -737,7 +789,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: []byte(`{"include":true}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
+		}, Context{ctx: context.Background(), Variables: []byte(`{"include":true}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
 	}))
 	t.Run("exclude field when include variable is false", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -809,7 +861,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: []byte(`{"include":false}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky"}}}}`
+		}, Context{ctx: context.Background(), Variables: []byte(`{"include":false}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky"}}}}`
 	}))
 	t.Run("exclude field when include variable is missing", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -881,7 +933,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: []byte(`{}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky"}}}}`
+		}, Context{ctx: context.Background(), Variables: []byte(`{}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky"}}}}`
 	}))
 	t.Run("fetch with context variable resolver", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -929,7 +981,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: []byte(`{"id":1}`)}, `{"name":"Jens"}`
+		}, Context{ctx: context.Background(), Variables: []byte(`{"id":1}`)}, `{"name":"Jens"}`
 	}))
 	t.Run("resolve array of strings", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -950,7 +1002,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"strings":["Alex","true","123"]}`
+		}, Context{ctx: context.Background()}, `{"strings":["Alex","true","123"]}`
 	}))
 	t.Run("resolve array of mixed scalar types", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
 		return &Object{
@@ -971,7 +1023,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `invalid value type 'number' for path /data/strings/2, expecting string, got: 123. You can fix this by configuring this field as Int/Float/JSON Scalar`
+		}, Context{ctx: context.Background()}, `invalid value type 'number' for path /data/strings/2, expecting string, got: 123. You can fix this by configuring this field as Int/Float/JSON Scalar`
 	}))
 	t.Run("resolve array items", func(t *testing.T) {
 		t.Run("with unescape json enabled", func(t *testing.T) {
@@ -995,7 +1047,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							},
 						},
 					},
-				}, Context{Context: context.Background()}, `{"jsonList":[{"field":"value"}]}`
+				}, Context{ctx: context.Background()}, `{"jsonList":[{"field":"value"}]}`
 			}))
 			t.Run("json input", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
@@ -1017,7 +1069,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							},
 						},
 					},
-				}, Context{Context: context.Background()}, `{"jsonList":[{"field":"value"}]}`
+				}, Context{ctx: context.Background()}, `{"jsonList":[{"field":"value"}]}`
 			}))
 		})
 		t.Run("with unescape json disabled", func(t *testing.T) {
@@ -1041,7 +1093,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 							},
 						},
 					},
-				}, Context{Context: context.Background()}, `{"jsonList":["{\"field\":\"value\"}"]}`
+				}, Context{ctx: context.Background()}, `{"jsonList":["{\"field\":\"value\"}"]}`
 			}))
 			t.Run("json input", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
 				return &Object{
@@ -1063,7 +1115,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 								},
 							},
 						},
-					}, Context{Context: context.Background()},
+					}, Context{ctx: context.Background()},
 					`invalid value type 'object' for path /data/jsonList/0, expecting string, got: {"field":"value"}. You can fix this by configuring this field as Int/Float/JSON Scalar`
 			}))
 		})
@@ -1190,7 +1242,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"synchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"asynchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"nullableFriends":null,"strings":["foo","bar","baz"],"integers":[123,456,789],"floats":[1.2,3.4,5.6],"booleans":[true,false,true]}`
+		}, Context{ctx: context.Background()}, `{"synchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"asynchronousFriends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"nullableFriends":null,"strings":["foo","bar","baz"],"integers":[123,456,789],"floats":[1.2,3.4,5.6],"booleans":[true,false,true]}`
 	}))
 	t.Run("array response from data source", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -1207,10 +1259,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 							Item: &Object{
 								Fields: []*Field{
 									{
-										BufferID:   0,
-										HasBuffer:  true,
-										OnTypeName: []byte("Dog"),
-										Name:       []byte("name"),
+										BufferID:    0,
+										HasBuffer:   true,
+										OnTypeNames: [][]byte{[]byte("Dog")},
+										Name:        []byte("name"),
 										Value: &String{
 											Path: []string{"name"},
 										},
@@ -1220,7 +1272,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 				},
-			}, Context{Context: context.Background()},
+			}, Context{ctx: context.Background()},
 			`{"pets":[{"name":"Woofie"}]}`
 	}))
 	t.Run("non null object with field condition can be null", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
@@ -1238,8 +1290,8 @@ func TestResolver_ResolveNode(t *testing.T) {
 							Nullable: false,
 							Fields: []*Field{
 								{
-									OnTypeName: []byte("Cat"),
-									Name:       []byte("name"),
+									OnTypeNames: [][]byte{[]byte("Cat")},
+									Name:        []byte("name"),
 									Value: &String{
 										Path: []string{"name"},
 									},
@@ -1248,7 +1300,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 				},
-			}, Context{Context: context.Background()},
+			}, Context{ctx: context.Background()},
 			`{}`
 	}))
 	t.Run("object with multiple type conditions", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
@@ -1272,8 +1324,8 @@ func TestResolver_ResolveNode(t *testing.T) {
 										Path: []string{"namespaceCreate"},
 										Fields: []*Field{
 											{
-												Name:       []byte("namespace"),
-												OnTypeName: []byte("NamespaceCreated"),
+												Name:        []byte("namespace"),
+												OnTypeNames: [][]byte{[]byte("NamespaceCreated")},
 												Value: &Object{
 													Path:     []string{"namespace"},
 													Nullable: false,
@@ -1296,16 +1348,16 @@ func TestResolver_ResolveNode(t *testing.T) {
 												},
 											},
 											{
-												Name:       []byte("code"),
-												OnTypeName: []byte("Error"),
+												Name:        []byte("code"),
+												OnTypeNames: [][]byte{[]byte("Error")},
 												Value: &String{
 													Nullable: false,
 													Path:     []string{"code"},
 												},
 											},
 											{
-												Name:       []byte("message"),
-												OnTypeName: []byte("Error"),
+												Name:        []byte("message"),
+												OnTypeNames: [][]byte{[]byte("Error")},
 												Value: &String{
 													Nullable: false,
 													Path:     []string{"message"},
@@ -1318,7 +1370,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 				},
-			}, Context{Context: context.Background()},
+			}, Context{ctx: context.Background()},
 			`{"data":{"namespaceCreate":{"code":"UserAlreadyHasPersonalNamespace","message":""}}}`
 	}))
 	t.Run("resolve fieldsets based on __typename", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
@@ -1337,10 +1389,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 							Item: &Object{
 								Fields: []*Field{
 									{
-										BufferID:   0,
-										HasBuffer:  true,
-										OnTypeName: []byte("Dog"),
-										Name:       []byte("name"),
+										BufferID:    0,
+										HasBuffer:   true,
+										OnTypeNames: [][]byte{[]byte("Dog")},
+										Name:        []byte("name"),
 										Value: &String{
 											Path: []string{"name"},
 										},
@@ -1350,7 +1402,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 				},
-			}, Context{Context: context.Background()},
+			}, Context{ctx: context.Background()},
 			`{"pets":[{"name":"Woofie"}]}`
 	}))
 
@@ -1385,10 +1437,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 										Nullable: true,
 										Fields: []*Field{
 											{
-												BufferID:   0,
-												HasBuffer:  false,
-												OnTypeName: []byte("Dog"),
-												Name:       []byte("name"),
+												BufferID:    0,
+												HasBuffer:   false,
+												OnTypeNames: [][]byte{[]byte("Dog")},
+												Name:        []byte("name"),
 												Value: &String{
 													Path: []string{"name"},
 												},
@@ -1400,7 +1452,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 				},
-			}, Context{Context: context.Background()},
+			}, Context{ctx: context.Background()},
 			`{"pet":{"id":"1","detail":null}}`
 	}))
 
@@ -1421,10 +1473,10 @@ func TestResolver_ResolveNode(t *testing.T) {
 							Item: &Object{
 								Fields: []*Field{
 									{
-										BufferID:   0,
-										HasBuffer:  true,
-										OnTypeName: []byte("Dog"),
-										Name:       []byte("name"),
+										BufferID:    0,
+										HasBuffer:   true,
+										OnTypeNames: [][]byte{[]byte("Dog")},
+										Name:        []byte("name"),
 										Value: &String{
 											Path: []string{"name"},
 										},
@@ -1434,7 +1486,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 				},
-			}, Context{Context: context.Background()},
+			}, Context{ctx: context.Background()},
 			`{"pets":[{"name":"Woofie"}]}`
 	}))
 	t.Run("parent object variables", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
@@ -1512,7 +1564,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"id":1,"name":"Jens","pet":{"name":"Woofie"}}`
+		}, Context{ctx: context.Background()}, `{"id":1,"name":"Jens","pet":{"name":"Woofie"}}`
 	}))
 	t.Run("with unescape json enabled", func(t *testing.T) {
 		t.Run("json object within a string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
@@ -1520,7 +1572,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				Fetch: &SingleFetch{
 					BufferId: 0,
 					// Datasource returns a JSON object within a string
-					DataSource: FakeDataSource(`{"data":"{ \"hello\": \"world\" }"}`),
+					DataSource: FakeDataSource(`{"data":"{ \"hello\": \"world\", \"numberAsString\": \"1\", \"number\": 1, \"bool\": true, \"null\": null, \"array\": [1,2,3], \"object\": {\"key\": \"value\"} }"}`),
 				},
 				Nullable: false,
 				Fields: []*Field{
@@ -1541,7 +1593,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				// expected output is a JSON object
-			}, Context{Context: context.Background()}, `{"data":{ "hello": "world" }}`
+			}, Context{ctx: context.Background()}, `{"data":{ "hello": "world", "numberAsString": "1", "number": 1, "bool": true, "null": null, "array": [1,2,3], "object": {"key": "value"} }}`
 		}))
 		t.Run("json array within a string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 			return &Object{
@@ -1569,14 +1621,14 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 				// expected output is a JSON array
-			}, Context{Context: context.Background()}, `{"data":[1, 2, 3]}`
+			}, Context{ctx: context.Background()}, `{"data":[1, 2, 3]}`
 		}))
-		t.Run("json boolean within a string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		t.Run("string with array and objects brackets", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 			return &Object{
 				Fetch: &SingleFetch{
 					BufferId: 0,
-					// Datasource returns a JSON boolean within a string
-					DataSource: FakeDataSource(`{"data": "true"}`),
+					// Datasource returns a string with array and object brackets
+					DataSource: FakeDataSource(`{"data":"hi[1beep{2}]"}`),
 				},
 				Nullable: false,
 				Fields: []*Field{
@@ -1596,37 +1648,315 @@ func TestResolver_ResolveNode(t *testing.T) {
 						HasBuffer: true,
 					},
 				},
-				// expected output is a JSON boolean
-			}, Context{Context: context.Background()}, `{"data":true}`
+				// expected output is a string
+			}, Context{ctx: context.Background()}, `{"data":"hi[1beep{2}]"}`
 		}))
-		t.Run("handle plain strings", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
-			return &Object{
-				Fetch: &SingleFetch{
-					BufferId:   0,
-					DataSource: FakeDataSource(`{"data": "hello world"}`),
-				},
-				Nullable: false,
-				Fields: []*Field{
-					{
-						Name: []byte("data"),
-						// Value is a string and unescape json is enabled
-						Value: &String{
-							Path:                 []string{"data"},
-							Nullable:             true,
-							UnescapeResponseJson: true,
-							IsTypeName:           false,
-						},
-						Position: Position{
-							Line:   2,
-							Column: 3,
-						},
-						HasBuffer: true,
+		t.Run("plain scalar values within a string", func(t *testing.T) {
+			t.Run("boolean", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId: 0,
+						// Datasource returns a JSON boolean within a string
+						DataSource: FakeDataSource(`{"data": "true"}`),
 					},
-				},
-				// expect data value to be valid JSON string
-			}, Context{Context: context.Background()}, `{"data":"hello world"}`
-		}))
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expected output is a string
+				}, Context{ctx: context.Background()}, `{"data":"true"}`
+			}))
+			t.Run("int", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId: 0,
+						// Datasource returns a JSON number within a string
+						DataSource: FakeDataSource(`{"data": "1"}`),
+					},
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							Position: Position{
+								Line:   2,
+								Column: 3,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expected output is a string
+				}, Context{ctx: context.Background()}, `{"data":"1"}`
+			}))
+			t.Run("float", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId: 0,
+						// Datasource returns a JSON number within a string
+						DataSource: FakeDataSource(`{"data": "2.0"}`),
+					},
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							Position: Position{
+								Line:   2,
+								Column: 3,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expected output is a string
+				}, Context{ctx: context.Background()}, `{"data":"2.0"}`
+			}))
+			t.Run("null", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId: 0,
+						// Datasource returns a JSON number within a string
+						DataSource: FakeDataSource(`{"data": "null"}`),
+					},
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							Position: Position{
+								Line:   2,
+								Column: 3,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expected output is a string
+				}, Context{ctx: context.Background()}, `{"data":"null"}`
+			}))
+			t.Run("string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId:   0,
+						DataSource: FakeDataSource(`{"data": "hello world"}`),
+					},
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							Position: Position{
+								Line:   2,
+								Column: 3,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expect data value to be valid JSON string
+				}, Context{ctx: context.Background()}, `{"data":"hello world"}`
+			}))
+		})
+		t.Run("plain scalar values as is", func(t *testing.T) {
+			t.Run("boolean", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId: 0,
+						// Datasource returns a JSON boolean within a string
+						DataSource: FakeDataSource(`{"data": true}`),
+					},
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expected output is a JSON boolean
+				}, Context{ctx: context.Background()}, `{"data":true}`
+			}))
+			t.Run("int", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId: 0,
+						// Datasource returns a JSON number within a string
+						DataSource: FakeDataSource(`{"data": 1}`),
+					},
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							Position: Position{
+								Line:   2,
+								Column: 3,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expected output is a JSON boolean
+				}, Context{ctx: context.Background()}, `{"data":1}`
+			}))
+			t.Run("float", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId: 0,
+						// Datasource returns a JSON number within a string
+						DataSource: FakeDataSource(`{"data": 2.0}`),
+					},
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							Position: Position{
+								Line:   2,
+								Column: 3,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expected output is a JSON boolean
+				}, Context{ctx: context.Background()}, `{"data":2.0}`
+			}))
+			t.Run("null", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+				return &Object{
+					Fetch: &SingleFetch{
+						BufferId:   0,
+						DataSource: FakeDataSource(`{"data": null}`),
+					},
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("data"),
+							// Value is a string and unescape json is enabled
+							Value: &String{
+								Path:                 []string{"data"},
+								Nullable:             true,
+								UnescapeResponseJson: true,
+								IsTypeName:           false,
+							},
+							Position: Position{
+								Line:   2,
+								Column: 3,
+							},
+							HasBuffer: true,
+						},
+					},
+					// expect data value to be valid JSON string
+				}, Context{ctx: context.Background()}, `{"data":null}`
+			}))
+		})
 	})
+
+	t.Run("custom", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"id": "1"}`),
+			},
+			Fields: []*Field{
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("id"),
+					Value: &CustomNode{
+						CustomResolve: customResolver{},
+						Path:          []string{"id"},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"id":1}`
+	}))
+	t.Run("custom nullable", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"id": null}`),
+			},
+			Fields: []*Field{
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("id"),
+					Value: &CustomNode{
+						CustomResolve: customErrResolve{},
+						Path:          []string{"id"},
+						Nullable:      false,
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, errNonNullableFieldValueIsNull.Error()
+	}))
+	t.Run("custom error", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"id": "1"}`),
+			},
+			Fields: []*Field{
+				{
+					BufferID:  0,
+					HasBuffer: true,
+					Name:      []byte("id"),
+					Value: &CustomNode{
+						CustomResolve: customErrResolve{},
+						Path:          []string{"id"},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `failed to resolve value type string for path /data/id via custom resolver`
+	}))
 }
 
 func TestResolver_WithHooks(t *testing.T) {
@@ -1733,8 +2063,9 @@ func TestResolver_WithHooks(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), beforeFetchHook: beforeFetch, afterFetchHook: afterFetch}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
+		}, Context{ctx: context.Background(), beforeFetchHook: beforeFetch, afterFetchHook: afterFetch}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
 	}))
+
 }
 
 func TestResolver_ResolveGraphQLResponse(t *testing.T) {
@@ -1778,7 +2109,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Data: &Object{
 				Nullable: true,
 			},
-		}, Context{Context: context.Background()}, `{"data":null}`
+		}, Context{ctx: context.Background()}, `{"data":null}`
 	}))
 	t.Run("__typename without renaming", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -1845,7 +2176,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"User","aliased":"User","rewritten":"User"}}}`
+		}, Context{ctx: context.Background()}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"User","aliased":"User","rewritten":"User"}}}`
 	}))
 	t.Run("__typename with renaming", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -1913,7 +2244,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			}, Context{
-				Context: context.Background(),
+				ctx: context.Background(),
 				RenameTypeNames: []RenameTypeName{
 					{
 						From: []byte("User"),
@@ -1955,7 +2286,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"errors":[{"message":"unable to resolve","locations":[{"line":3,"column":4}],"path":["country"]}],"data":null}`
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"unable to resolve","locations":[{"line":3,"column":4}],"path":["country"]}],"data":null}`
 	}))
 	t.Run("fetch with simple error", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -1988,7 +2319,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"errors":[{"message":"errorMessage"}],"data":{"name":null}}`
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage"}],"data":{"name":null}}`
 	}))
 	t.Run("nested fetch error for non-nullable field", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -2035,7 +2366,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"errors":[{"message":"errorMessage"},{"message":"unable to resolve","locations":[{"line":0,"column":0}],"path":["nestedObject"]}],"data":null}`
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage"},{"message":"unable to resolve","locations":[{"line":0,"column":0}],"path":["nestedObject"]}],"data":null}`
 	}))
 	t.Run("fetch with two Errors", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -2069,7 +2400,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"errors":[{"message":"errorMessage1"},{"message":"errorMessage2"}],"data":{"name":null}}`
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage1"},{"message":"errorMessage2"}],"data":{"name":null}}`
 	}))
 	t.Run("not nullable object in nullable field", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -2109,7 +2440,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"data":{"nullableField":null}}`
+		}, Context{ctx: context.Background()}, `{"data":{"nullableField":null}}`
 	}))
 	t.Run("null field should bubble up to parent with error", testFnWithError(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -2255,7 +2586,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `invalid value type 'array' for path /data/stringObject/stringField, expecting string, got: [{"id":1},{"id":2},{"id":3}]. You can fix this by configuring this field as Int/Float Scalar`
+		}, Context{ctx: context.Background()}, `invalid value type 'array' for path /data/stringObject/stringField, expecting string, got: [{"id":1},{"id":2},{"id":3}]. You can fix this by configuring this field as Int/Float Scalar`
 	}))
 	t.Run("empty nullable array should resolve correctly", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -2287,7 +2618,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"data":{"nullableArray":[]}}`
+		}, Context{ctx: context.Background()}, `{"data":{"nullableArray":[]}}`
 	}))
 	t.Run("empty not nullable array should resolve correctly", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -2320,7 +2651,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"data":{"notNullableArray":[]}}`
+		}, Context{ctx: context.Background()}, `{"data":{"notNullableArray":[]}}`
 	}))
 	t.Run("when data null not nullable array should resolve to data null and errors", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -2372,7 +2703,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"errors":[{"message":"unable to resolve","locations":[{"line":0,"column":0}]}],"data":null}`
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"unable to resolve","locations":[{"line":0,"column":0}]}],"data":null}`
 	}))
 	t.Run("when data null and errors present not nullable array should result to null data upsteam error and resolve error", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -2410,7 +2741,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background()}, `{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos",0,"name"]},{"message":"unable to resolve","locations":[{"line":0,"column":0}]}],"data":null}`
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos",0,"name"]},{"message":"unable to resolve","locations":[{"line":0,"column":0}]}],"data":null}`
 	}))
 	t.Run("complex GraphQL Server plan", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		serviceOne := NewMockDataSource(ctrl)
@@ -2660,7 +2991,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: []byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`)}, `{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"serviceTwo":{"fieldTwo":"fieldTwoValue","serviceOneResponse":{"fieldOne":"fieldOneValue"}},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}}`
+		}, Context{ctx: context.Background(), Variables: []byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`)}, `{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"serviceTwo":{"fieldTwo":"fieldTwoValue","serviceOneResponse":{"fieldOne":"fieldOneValue"}},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}}`
 	}))
 	t.Run("federation", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
@@ -2850,7 +3181,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-1","name":"Trilby"}}]}}}`
+		}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-1","name":"Trilby"}}]}}}`
 	}))
 	t.Run("federation with enabled dataloader", testFn(true, true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		userService := NewMockDataSource(ctrl)
@@ -3054,7 +3385,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`
+		}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`
 	}))
 	t.Run("federation with null response", testFn(true, true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		userService := NewMockDataSource(ctrl)
@@ -3276,7 +3607,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			}, // ...															 `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"foo","product":{"upc":"top-1","name":"Trilby"}},{"body":"bar","product":{"upc":"top-2","name":"Fedora"}},{"body":"baz","product":null},{"body":"bat","product":null},{"body":"bal","product":{"upc":"top-5","name":"Boater"}},{"body":"ban","product":{"upc":"top-6","name":"Top Hat"}}]}}}
-		}, Context{Context: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"foo","product":{"upc":"top-1","name":"Trilby"}},{"body":"bar","product":{"upc":"top-2","name":"Fedora"}},{"body":"baz","product":null},{"body":"bat","product":{"upc":"top-4","name":"Boater"}},{"body":"bal","product":{"upc":"top-5","name":"Top Hat"}},{"body":"ban","product":{"upc":"top-6","name":"Bowler"}}]}}}`
+		}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"foo","product":{"upc":"top-1","name":"Trilby"}},{"body":"bar","product":{"upc":"top-2","name":"Fedora"}},{"body":"baz","product":null},{"body":"bat","product":{"upc":"top-4","name":"Boater"}},{"body":"bal","product":{"upc":"top-5","name":"Top Hat"}},{"body":"ban","product":{"upc":"top-6","name":"Bowler"}}]}}}`
 	}))
 	t.Run("federation with enabled dataloader and fetch error ", testFn(true, true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
@@ -3475,7 +3806,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: nil}, `{"errors":[{"message":"errorMessage"},{"message":"unable to resolve","locations":[{"line":0,"column":0}],"path":["me","reviews","0","product"]},{"message":"unable to resolve","locations":[{"line":0,"column":0}],"path":["me","reviews","1","product"]}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`
+		}, Context{ctx: context.Background(), Variables: nil}, `{"errors":[{"message":"errorMessage"},{"message":"unable to resolve","locations":[{"line":0,"column":0}],"path":["me","reviews","0","product"]},{"message":"unable to resolve","locations":[{"line":0,"column":0}],"path":["me","reviews","1","product"]}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`
 	}))
 	t.Run("federation with optional variable", testFn(true, true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		userService := NewMockDataSource(ctrl)
@@ -3710,7 +4041,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{Context: context.Background(), Variables: []byte(`{"companyId":"abc123","date":null}`)}, `{"data":{"me":{"employment":{"id":"xyz987","times":[{"id":"t1","employee":{"id":"xyz987"},"start":"2022-11-02T08:00:00","end":"2022-11-02T12:00:00"}]}}}}`
+		}, Context{ctx: context.Background(), Variables: []byte(`{"companyId":"abc123","date":null}`)}, `{"data":{"me":{"employment":{"id":"xyz987","times":[{"id":"t1","employee":{"id":"xyz987"},"start":"2022-11-02T08:00:00","end":"2022-11-02T12:00:00"}]}}}}`
 	}))
 }
 
@@ -3732,7 +4063,7 @@ func TestResolver_WithHeader(t *testing.T) {
 			header := make(http.Header)
 			header.Set(tc.header, "foo")
 			ctx := &Context{
-				Context: context.Background(),
+				ctx: context.Background(),
 				Request: Request{
 					Header: header,
 				},
@@ -3837,7 +4168,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	setup := func(ctx context.Context, stream SubscriptionDataSource) (*Resolver, *GraphQLSubscription, *TestFlushWriter) {
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
-				Source: stream,
+				Source:                stream,
+				ProcessResponseConfig: ProcessResponseConfig{ExtractGraphqlResponse: true},
 			},
 			Response: &GraphQLResponse{
 				Data: &Object{
@@ -3871,7 +4203,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		resolver, plan, out := setup(c, fakeStream)
 
 		ctx := Context{
-			Context: c,
+			ctx: c,
 		}
 
 		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
@@ -3887,7 +4219,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		resolver, plan, out := setup(c, nil)
 
 		ctx := Context{
-			Context: c,
+			ctx: c,
 		}
 
 		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
@@ -3907,7 +4239,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		resolver, plan, out := setup(c, fakeStream)
 
 		ctx := Context{
-			Context: c,
+			ctx: c,
 		}
 
 		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)

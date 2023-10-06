@@ -37,23 +37,28 @@ type InputTemplate struct {
 
 var setTemplateOutputNull = errors.New("set to null")
 
-func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuffer.FastBuffer) (err error) {
-	undefinedVariables := make([]string, 0)
+func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuffer.FastBuffer) error {
+	var undefinedVariables []string
 
-	for j := range i.Segments {
-		switch i.Segments[j].SegmentType {
+	for _, segment := range i.Segments {
+		var err error
+		switch segment.SegmentType {
 		case StaticSegmentType:
-			preparedInput.WriteBytes(i.Segments[j].Data)
+			preparedInput.WriteBytes(segment.Data)
 		case VariableSegmentType:
-			switch i.Segments[j].VariableKind {
+			switch segment.VariableKind {
 			case ObjectVariableKind:
-				err = i.renderObjectVariable(ctx, data, i.Segments[j], preparedInput)
+				err = i.renderObjectVariable(ctx.Context(), data, segment, preparedInput)
 			case ContextVariableKind:
-				err = i.renderContextVariable(ctx, i.Segments[j], preparedInput, &undefinedVariables)
+				var undefined bool
+				undefined, err = i.renderContextVariable(ctx, segment, preparedInput)
+				if undefined {
+					undefinedVariables = append(undefinedVariables, segment.VariableSourcePath[0])
+				}
 			case HeaderVariableKind:
-				err = i.renderHeaderVariable(ctx, i.Segments[j].VariableSourcePath, preparedInput)
+				err = i.renderHeaderVariable(ctx, segment.VariableSourcePath, preparedInput)
 			default:
-				err = fmt.Errorf("InputTemplate.Render: cannot resolve variable of kind: %d", i.Segments[j].VariableKind)
+				err = fmt.Errorf("InputTemplate.Render: cannot resolve variable of kind: %d", segment.VariableKind)
 			}
 			if err != nil {
 				if errors.Is(err, setTemplateOutputNull) {
@@ -67,10 +72,12 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *fastbuf
 	}
 
 	if len(undefinedVariables) > 0 {
-		ctx.Context = httpclient.CtxSetUndefinedVariables(ctx.Context, undefinedVariables)
+		output := httpclient.SetUndefinedVariables(preparedInput.Bytes(), undefinedVariables)
+		// The returned slice might be different, we need to copy back the data
+		preparedInput.Reset()
+		preparedInput.WriteBytes(output)
 	}
-
-	return
+	return nil
 }
 
 func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []byte, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) error {
@@ -94,15 +101,14 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []by
 	return segment.Renderer.RenderVariable(ctx, value, preparedInput)
 }
 
-func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer, undefinedVariables *[]string) error {
+func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *fastbuffer.FastBuffer) (variableWasUndefined bool, err error) {
 	value, valueType, offset, err := jsonparser.Get(ctx.Variables, segment.VariableSourcePath...)
 	if err != nil || valueType == jsonparser.Null {
 		if err == jsonparser.KeyPathNotFoundError {
-			*undefinedVariables = append(*undefinedVariables, segment.VariableSourcePath[0])
+			preparedInput.WriteBytes(literal.NULL)
+			return true, nil
 		}
-
-		preparedInput.WriteBytes(literal.NULL)
-		return nil
+		return false, segment.Renderer.RenderVariable(ctx.Context(), value, preparedInput)
 	}
 	if valueType == jsonparser.String {
 		value = ctx.Variables[offset-len(value)-2 : offset]
@@ -113,7 +119,7 @@ func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegm
 			}
 		}
 	}
-	return segment.Renderer.RenderVariable(ctx, value, preparedInput)
+	return false, segment.Renderer.RenderVariable(ctx.Context(), value, preparedInput)
 }
 
 func (i *InputTemplate) renderHeaderVariable(ctx *Context, path []string, preparedInput *fastbuffer.FastBuffer) error {

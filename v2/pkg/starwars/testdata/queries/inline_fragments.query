@@ -1,0 +1,14 @@
+{
+    hero {
+        friends {
+            ...on Droid {
+                name
+                primaryFunction
+            }
+            ...on Human {
+                name
+                height
+            }
+        }
+    }
+}

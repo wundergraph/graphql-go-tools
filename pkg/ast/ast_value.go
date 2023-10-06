@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/tidwall/sjson"
-
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/quotes"
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
@@ -121,62 +119,69 @@ func (d *Document) ValueContainsVariable(value Value) bool {
 	}
 }
 
-func (d *Document) ValueToJSON(value Value) ([]byte, error) {
+func (d *Document) writeJSONValue(buf *bytes.Buffer, value Value) error {
 	switch value.Kind {
 	case ValueKindNull:
-		return literal.NULL, nil
+		buf.Write(literal.NULL)
 	case ValueKindEnum:
-		return quotes.WrapBytes(d.EnumValueNameBytes(value.Ref)), nil
+		buf.Write(quotes.WrapBytes(d.EnumValueNameBytes(value.Ref)))
 	case ValueKindInteger:
 		intValueBytes := d.IntValueRaw(value.Ref)
 		if d.IntValueIsNegative(value.Ref) {
-			return append(literal.SUB, intValueBytes...), nil
+			buf.WriteByte(literal.SUB_BYTE)
 		}
-		return intValueBytes, nil
+		buf.Write(intValueBytes)
 	case ValueKindFloat:
 		floatValueBytes := d.FloatValueRaw(value.Ref)
 		if d.FloatValueIsNegative(value.Ref) {
-			return append(literal.SUB, floatValueBytes...), nil
+			buf.WriteByte(literal.SUB_BYTE)
 		}
-		return floatValueBytes, nil
+		buf.Write(floatValueBytes)
 	case ValueKindBoolean:
 		if value.Ref == 0 {
-			return literal.FALSE, nil
+			buf.Write(literal.FALSE)
+		} else {
+			buf.Write(literal.TRUE)
 		}
-		return literal.TRUE, nil
 	case ValueKindString:
-		return quotes.WrapBytes(d.StringValueContentBytes(value.Ref)), nil
+		buf.Write(quotes.WrapBytes(d.StringValueContentBytes(value.Ref)))
 	case ValueKindList:
-		out := []byte("[]")
-		for _, i := range d.ListValues[value.Ref].Refs {
-			item, err := d.ValueToJSON(d.Values[i])
-			if err != nil {
-				return nil, err
+		buf.WriteByte(literal.LBRACK_BYTE)
+		for ii, ref := range d.ListValues[value.Ref].Refs {
+			if ii > 0 {
+				buf.WriteByte(literal.COMMA_BYTE)
 			}
-			out, err = sjson.SetRawBytes(out, "-1", item)
-			if err != nil {
-				return nil, err
+			if err := d.writeJSONValue(buf, d.Values[ref]); err != nil {
+				return err
 			}
 		}
-		return out, nil
+		buf.WriteByte(literal.RBRACK_BYTE)
 	case ValueKindObject:
-		out := []byte("{}")
-		for i := len(d.ObjectValues[value.Ref].Refs) - 1; i >= 0; i-- {
-			ref := d.ObjectValues[value.Ref].Refs[i]
-			fieldNameString := d.ObjectFieldNameString(ref)
-			fieldValueBytes, err := d.ValueToJSON(d.ObjectFieldValue(ref))
-			if err != nil {
-				return nil, err
+		buf.WriteByte(literal.LBRACE_BYTE)
+		for ii, ref := range d.ObjectValues[value.Ref].Refs {
+			if ii > 0 {
+				buf.WriteByte(literal.COMMA_BYTE)
 			}
-			out, err = sjson.SetRawBytes(out, fieldNameString, fieldValueBytes)
-			if err != nil {
-				return nil, err
+			fieldNameBytes := d.ObjectFieldNameBytes(ref)
+			buf.Write(quotes.WrapBytes(fieldNameBytes))
+			buf.WriteByte(literal.COLON_BYTE)
+			if err := d.writeJSONValue(buf, d.ObjectFieldValue(ref)); err != nil {
+				return err
 			}
 		}
-		return out, nil
+		buf.WriteByte(literal.RBRACE_BYTE)
 	default:
-		return nil, fmt.Errorf("ValueToJSON: not implemented for kind: %s", value.Kind.String())
+		return fmt.Errorf("ValueToJSON: not implemented for kind: %s", value.Kind.String())
 	}
+	return nil
+}
+
+func (d *Document) ValueToJSON(value Value) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := d.writeJSONValue(&buf, value); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // nolint

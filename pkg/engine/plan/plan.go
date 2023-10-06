@@ -36,6 +36,7 @@ type Configuration struct {
 	// This setting removes position information from all fields
 	// In production, this should be set to false so that error messages are easier to understand
 	DisableResolveFieldPositions bool
+	CustomResolveMap             map[string]resolve.CustomResolve
 }
 
 type DirectiveConfigurations []DirectiveConfiguration
@@ -156,7 +157,7 @@ type ArgumentConfiguration struct {
 
 type DataSourceConfiguration struct {
 	// RootNodes - defines the nodes where the responsibility of the DataSource begins
-	// When you enter a node and it is not a child node
+	// When you enter a node, and it is not a child node
 	// when you have entered into a field which representing data source - it means that we starting a new planning stage
 	RootNodes []TypeField
 	// ChildNodes - describes additional fields which will be requested along with fields which has a datasources
@@ -224,6 +225,7 @@ func NewPlanner(ctx context.Context, config Configuration) *Planner {
 	requiredFieldsWalker.RegisterEnterDocumentVisitor(requiredFieldsV)
 	requiredFieldsWalker.RegisterEnterOperationVisitor(requiredFieldsV)
 	requiredFieldsWalker.RegisterEnterFieldVisitor(requiredFieldsV)
+	requiredFieldsWalker.RegisterLeaveDocumentVisitor(requiredFieldsV)
 
 	// configuration
 
@@ -308,7 +310,8 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		isNested := p.planningVisitor.planners[key].isNestedPlanner()
 		err := p.planningVisitor.planners[key].planner.Register(p.planningVisitor, config, isNested)
 		if err != nil {
-			p.planningWalker.StopWithInternalErr(err)
+			report.AddInternalError(err)
+			return
 		}
 	}
 
@@ -510,7 +513,6 @@ func (v *Visitor) LeaveSelectionSet(_ int) {
 }
 
 func (v *Visitor) EnterField(ref int) {
-
 	if v.skipField(ref) {
 		return
 	}
@@ -528,7 +530,7 @@ func (v *Visitor) EnterField(ref int) {
 				Path:       []string{"__typename"},
 				IsTypeName: true,
 			},
-			OnTypeName:              v.resolveOnTypeName(),
+			OnTypeNames:             v.resolveOnTypeNames(),
 			Position:                v.resolveFieldPosition(ref),
 			SkipDirectiveDefined:    skip,
 			SkipVariableName:        skipVariableName,
@@ -574,7 +576,7 @@ func (v *Visitor) EnterField(ref int) {
 		Value:                   v.resolveFieldValue(ref, fieldDefinitionType, true, path),
 		HasBuffer:               hasBuffer,
 		BufferID:                bufferID,
-		OnTypeName:              v.resolveOnTypeName(),
+		OnTypeNames:             v.resolveOnTypeNames(),
 		Position:                v.resolveFieldPosition(ref),
 		SkipDirectiveDefined:    skip,
 		SkipVariableName:        skipVariableName,
@@ -647,7 +649,7 @@ func (v *Visitor) resolveInclude(directiveRefs []int) (bool, string) {
 	return false, ""
 }
 
-func (v *Visitor) resolveOnTypeName() []byte {
+func (v *Visitor) resolveOnTypeNames() [][]byte {
 	if len(v.Walker.Ancestors) < 2 {
 		return nil
 	}
@@ -656,7 +658,29 @@ func (v *Visitor) resolveOnTypeName() []byte {
 		return nil
 	}
 	typeName := v.Operation.InlineFragmentTypeConditionName(inlineFragment.Ref)
-	return v.Config.Types.RenameTypeNameOnMatchBytes(typeName)
+	if typeName == nil {
+		typeName = v.Walker.EnclosingTypeDefinition.NameBytes(v.Definition)
+	}
+	node, exists := v.Definition.NodeByName(typeName)
+	// If not an interface, return the concrete type
+	if !exists || !node.Kind.IsAbstractType() {
+		return [][]byte{v.Config.Types.RenameTypeNameOnMatchBytes(typeName)}
+	}
+	if node.Kind == ast.NodeKindUnionTypeDefinition {
+		// This should never be true. If it is, it's an error
+		panic("resolveOnTypeNames called with a union type")
+	}
+	// We're dealing with an interface, so add all objects that implement this interface to the slice
+	onTypeNames := make([][]byte, 0, 2)
+	for objectTypeDefinitionRef := range v.Definition.ObjectTypeDefinitions {
+		if v.Definition.ObjectTypeDefinitionImplementsInterface(objectTypeDefinitionRef, typeName) {
+			onTypeNames = append(onTypeNames, v.Definition.ObjectTypeDefinitionNameBytes(objectTypeDefinitionRef))
+		}
+	}
+	if len(onTypeNames) < 1 {
+		return nil
+	}
+	return onTypeNames
 }
 
 func (v *Visitor) LeaveField(ref int) {
@@ -707,6 +731,13 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 		}
 	case ast.TypeKindNamed:
 		typeName := v.Definition.ResolveTypeNameString(typeRef)
+		customResolve, ok := v.Config.CustomResolveMap[typeName]
+		if ok {
+			return &resolve.CustomNode{
+				CustomResolve: customResolve,
+				Path:          path,
+			}
+		}
 		typeDefinitionNode, ok := v.Definition.Index.FirstNodeByNameStr(typeName)
 		if !ok {
 			return &resolve.Null{}
@@ -736,6 +767,12 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 				}
 			case "Float":
 				return &resolve.Float{
+					Path:     path,
+					Nullable: nullable,
+					Export:   fieldExport,
+				}
+			case "BigInt":
+				return &resolve.BigInt{
 					Path:     path,
 					Nullable: nullable,
 					Export:   fieldExport,
@@ -1174,6 +1211,7 @@ func (v *Visitor) configureSubscription(config objectFetchConfiguration) {
 	subscription := config.planner.ConfigureSubscription()
 	config.trigger.Variables = subscription.Variables
 	config.trigger.Source = subscription.DataSource
+	config.trigger.ProcessResponseConfig = subscription.ProcessResponseConfig
 	v.resolveInputTemplates(config, &subscription.Input, &config.trigger.Variables)
 	config.trigger.Input = []byte(subscription.Input)
 }
@@ -1355,9 +1393,10 @@ type DataSourcePlanner interface {
 }
 
 type SubscriptionConfiguration struct {
-	Input      string
-	Variables  resolve.Variables
-	DataSource resolve.SubscriptionDataSource
+	Input                 string
+	Variables             resolve.Variables
+	DataSource            resolve.SubscriptionDataSource
+	ProcessResponseConfig resolve.ProcessResponseConfig
 }
 
 type FetchConfiguration struct {
@@ -1533,81 +1572,132 @@ func (c *configurationVisitor) EnterField(ref int) {
 	fieldName := c.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
-	parent := c.walker.Path.DotDelimitedString()
-	current := parent + "." + fieldAliasOrName
+	parentPath := c.walker.Path.DotDelimitedString()
+	currentPath := parentPath + "." + fieldAliasOrName
 	root := c.walker.Ancestors[0]
 	if root.Kind != ast.NodeKindOperationDefinition {
 		return
 	}
-	isSubscription := c.isSubscription(root.Ref, current)
+	isSubscription := c.isSubscription(root.Ref, currentPath)
 	for i, plannerConfig := range c.planners {
 		planningBehaviour := plannerConfig.planner.DataSourcePlanningBehavior()
-		if plannerConfig.hasParent(parent) && plannerConfig.hasRootNode(typeName, fieldName) && planningBehaviour.MergeAliasedRootNodes {
+		if fieldAliasOrName == "__typename" && planningBehaviour.IncludeTypeNameFields {
+			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: currentPath, shouldWalkFields: true})
+			return
+		}
+		if plannerConfig.hasParent(parentPath) && plannerConfig.hasRootNode(typeName, fieldName) && planningBehaviour.MergeAliasedRootNodes {
 			// same parent + root node = root sibling
-			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current, shouldWalkFields: true})
+			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: currentPath, shouldWalkFields: true})
 			c.fieldBuffers[ref] = plannerConfig.bufferID
 			return
 		}
-		if plannerConfig.hasPath(parent) && plannerConfig.hasChildNode(typeName, fieldName) {
-			// has parent path + has child node = child
-			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current, shouldWalkFields: true})
-			return
-		}
-		if fieldAliasOrName == "__typename" && planningBehaviour.IncludeTypeNameFields {
-			c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: current, shouldWalkFields: true})
-			return
+		if plannerConfig.hasPath(parentPath) {
+			if plannerConfig.hasChildNode(typeName, fieldName) {
+				// has parent path + has child node = child
+				c.planners[i].paths = append(c.planners[i].paths, pathConfiguration{path: currentPath, shouldWalkFields: true})
+				return
+			}
+
+			if pathAdded := c.addPlannerPathForUnionChildOfObjectParent(ref, i, currentPath); pathAdded {
+				return
+			}
+
+			if pathAdded := c.addPlannerPathForChildOfAbstractParent(i, typeName, fieldName, currentPath); pathAdded {
+				return
+			}
 		}
 	}
 	for i, config := range c.config.DataSources {
-		if config.HasRootNode(typeName, fieldName) {
-			var (
-				bufferID int
-			)
-			if !isSubscription {
-				bufferID = c.nextBufferID()
-				c.fieldBuffers[ref] = bufferID
-			}
-			planner := c.config.DataSources[i].Factory.Planner(c.ctx)
-			isParentAbstract := c.isParentTypeNodeAbstractType()
-			paths := []pathConfiguration{
+		if !config.HasRootNode(typeName, fieldName) {
+			continue
+		}
+		var (
+			bufferID int
+		)
+		if !isSubscription {
+			bufferID = c.nextBufferID()
+			c.fieldBuffers[ref] = bufferID
+		}
+		planner := c.config.DataSources[i].Factory.Planner(c.ctx)
+		isParentAbstract := c.isParentTypeNodeAbstractType()
+		paths := []pathConfiguration{
+			{
+				path:             currentPath,
+				shouldWalkFields: true,
+			},
+		}
+		if isParentAbstract {
+			// if the parent is abstract, we add the parent path as well
+			// this will ensure that we're walking into and out of the root inline fragments
+			// otherwise, we'd only walk into the fields inside the inline fragments in the root,
+			// so we'd miss the selection sets and inline fragments in the root
+			paths = append([]pathConfiguration{
 				{
-					path:             current,
-					shouldWalkFields: true,
+					path:             parentPath,
+					shouldWalkFields: false,
 				},
-			}
-			if isParentAbstract {
-				// if the parent is abstract, we add the parent path as well
-				// this will ensure that we're walking into and out of the root inline fragments
-				// otherwise, we'd only walk into the fields inside the inline fragments in the root,
-				// so we'd miss the selection sets and inline fragments in the root
-				paths = append([]pathConfiguration{
-					{
-						path:             parent,
-						shouldWalkFields: false,
-					},
-				}, paths...)
-			}
-			c.planners = append(c.planners, plannerConfiguration{
-				bufferID:                bufferID,
-				parentPath:              parent,
-				planner:                 planner,
-				paths:                   paths,
-				dataSourceConfiguration: config,
-			})
-			fieldDefinition, ok := c.walker.FieldDefinition(ref)
-			if !ok {
-				continue
-			}
-			c.fetches = append(c.fetches, objectFetchConfiguration{
-				bufferID:           bufferID,
-				planner:            planner,
-				isSubscription:     isSubscription,
-				fieldRef:           ref,
-				fieldDefinitionRef: fieldDefinition,
-			})
-			return
+			}, paths...)
+		}
+		c.planners = append(c.planners, plannerConfiguration{
+			bufferID:                bufferID,
+			parentPath:              parentPath,
+			planner:                 planner,
+			paths:                   paths,
+			dataSourceConfiguration: config,
+		})
+		fieldDefinition, ok := c.walker.FieldDefinition(ref)
+		if !ok {
+			continue
+		}
+		c.fetches = append(c.fetches, objectFetchConfiguration{
+			bufferID:           bufferID,
+			planner:            planner,
+			isSubscription:     isSubscription,
+			fieldRef:           ref,
+			fieldDefinitionRef: fieldDefinition,
+		})
+		return
+	}
+}
+
+func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(fieldRef int, plannerIndex int, currentPath string) (pathAdded bool) {
+	if c.walker.EnclosingTypeDefinition.Kind != ast.NodeKindObjectTypeDefinition {
+		return false
+	}
+	fieldDefRef, exists := c.definition.NodeFieldDefinitionByName(c.walker.EnclosingTypeDefinition, c.operation.FieldNameBytes(fieldRef))
+	if !exists {
+		return false
+	}
+
+	fieldDefTypeRef := c.definition.FieldDefinitionType(fieldDefRef)
+	fieldDefTypeName := c.definition.TypeNameBytes(fieldDefTypeRef)
+	node, ok := c.definition.NodeByName(fieldDefTypeName)
+	if !ok {
+		return false
+	}
+
+	if node.Kind == ast.NodeKindUnionTypeDefinition {
+		c.planners[plannerIndex].paths = append(c.planners[plannerIndex].paths, pathConfiguration{path: currentPath, shouldWalkFields: true})
+		return true
+	}
+	return false
+}
+
+func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
+	plannerIndex int, typeName, fieldName, currentPath string,
+) (pathAdded bool) {
+	if !c.isParentTypeNodeAbstractType() {
+		return false
+	}
+	// If the field is a root node in any of the data sources, the path shouldn't be handled here
+	for _, d := range c.config.DataSources {
+		if d.HasRootNode(typeName, fieldName) {
+			return false
 		}
 	}
+	// The path for this field should only be added if the parent path also exists on this planner
+	c.planners[plannerIndex].paths = append(c.planners[plannerIndex].paths, pathConfiguration{path: currentPath, shouldWalkFields: true})
+	return true
 }
 
 func (c *configurationVisitor) isParentTypeNodeAbstractType() bool {
@@ -1661,23 +1751,44 @@ func (c *configurationVisitor) isSubscription(root int, path string) bool {
 	return strings.Count(path, ".") == 1
 }
 
+type skipFieldData struct {
+	selectionSetRef int
+	fieldConfig     *FieldConfiguration
+	requiredField   string
+	fieldPath       string
+}
+
 type requiredFieldsVisitor struct {
 	operation, definition *ast.Document
 	walker                *astvisitor.Walker
 	config                *Configuration
 	operationName         string
 	skipFieldPaths        []string
+	// selectedFieldPaths is a set of all explicitly selected field paths
+	selectedFieldPaths map[string]struct{}
+	// skipFieldDataPaths is to prevent appending duplicate skipFieldData to potentialSkipFieldDatas
+	skipFieldDataPaths map[string]struct{}
+	// potentialSkipFieldDatas is used in LeaveDocument to determine whether a required field should be skipped
+	// Must be a slice to preserve field order, which is why duplicates are handled with a set
+	potentialSkipFieldDatas []*skipFieldData
 }
 
 func (r *requiredFieldsVisitor) EnterDocument(_, _ *ast.Document) {
 	r.skipFieldPaths = r.skipFieldPaths[:0]
+	r.selectedFieldPaths = make(map[string]struct{})
+	r.potentialSkipFieldDatas = make([]*skipFieldData, 0)
 }
 
 func (r *requiredFieldsVisitor) EnterField(ref int) {
 	typeName := r.walker.EnclosingTypeDefinition.NameString(r.definition)
 	fieldName := r.operation.FieldNameUnsafeString(ref)
 	fieldConfig := r.config.Fields.ForTypeField(typeName, fieldName)
+	path := r.walker.Path.DotDelimitedString()
 	if fieldConfig == nil {
+		// Record all explicitly selected fields
+		// A field selected on an interface will have the same field path as a fragment on an object
+		// LeaveDocument uses this record to ensure only required fields that were not explicitly selected are skipped
+		r.selectedFieldPaths[fmt.Sprintf("%s.%s", path, fieldName)] = struct{}{}
 		return
 	}
 	if len(fieldConfig.RequiresFields) == 0 {
@@ -1687,12 +1798,24 @@ func (r *requiredFieldsVisitor) EnterField(ref int) {
 	if selectionSet.Kind != ast.NodeKindSelectionSet {
 		return
 	}
-	for i := range fieldConfig.RequiresFields {
-		r.handleRequiredField(selectionSet.Ref, fieldConfig.RequiresFields[i])
+	for _, requiredField := range fieldConfig.RequiresFields {
+		requiredFieldPath := fmt.Sprintf("%s.%s", path, requiredField)
+		// Prevent adding duplicates to the slice (order is necessary; hence, a separate map)
+		if _, ok := r.skipFieldDataPaths[requiredFieldPath]; ok {
+			continue
+		}
+		// For each required field, collect the data required to handle (in LeaveDocument) whether we should skip it
+		data := &skipFieldData{
+			selectionSetRef: selectionSet.Ref,
+			fieldConfig:     fieldConfig,
+			requiredField:   requiredField,
+			fieldPath:       requiredFieldPath,
+		}
+		r.potentialSkipFieldDatas = append(r.potentialSkipFieldDatas, data)
 	}
 }
 
-func (r *requiredFieldsVisitor) handleRequiredField(selectionSet int, requiredFieldName string) {
+func (r *requiredFieldsVisitor) handleRequiredField(selectionSet int, requiredFieldName, fullFieldPath string) {
 	for _, ref := range r.operation.SelectionSets[selectionSet].SelectionRefs {
 		selection := r.operation.Selections[ref]
 		if selection.Kind != ast.SelectionKindField {
@@ -1704,10 +1827,10 @@ func (r *requiredFieldsVisitor) handleRequiredField(selectionSet int, requiredFi
 			return
 		}
 	}
-	r.addRequiredField(requiredFieldName, selectionSet)
+	r.addRequiredField(requiredFieldName, selectionSet, fullFieldPath)
 }
 
-func (r *requiredFieldsVisitor) addRequiredField(fieldName string, selectionSet int) {
+func (r *requiredFieldsVisitor) addRequiredField(fieldName string, selectionSet int, fullFieldPath string) {
 	field := ast.Field{
 		Name: r.operation.Input.AppendInputString(fieldName),
 	}
@@ -1717,8 +1840,7 @@ func (r *requiredFieldsVisitor) addRequiredField(fieldName string, selectionSet 
 		Ref:  addedField.Ref,
 	}
 	r.operation.AddSelection(selectionSet, selection)
-	addedFieldPath := r.walker.Path.DotDelimitedString() + "." + fieldName
-	r.skipFieldPaths = append(r.skipFieldPaths, addedFieldPath)
+	r.skipFieldPaths = append(r.skipFieldPaths, fullFieldPath)
 }
 
 func (r *requiredFieldsVisitor) EnterOperationDefinition(ref int) {
@@ -1726,5 +1848,15 @@ func (r *requiredFieldsVisitor) EnterOperationDefinition(ref int) {
 	if r.operationName != operationName {
 		r.walker.SkipNode()
 		return
+	}
+}
+
+func (r *requiredFieldsVisitor) LeaveDocument(_, _ *ast.Document) {
+	for _, data := range r.potentialSkipFieldDatas {
+		path := data.fieldPath
+		// If a field was not explicitly selected, skip it
+		if _, ok := r.selectedFieldPaths[path]; !ok {
+			r.handleRequiredField(data.selectionSetRef, data.requiredField, path)
+		}
 	}
 }

@@ -1,0 +1,8 @@
+query Hero($skipFriends: Boolean!) {
+    hero {
+        name
+        friends @skip(if: $skipFriends) {
+            name
+        }
+    }
+}

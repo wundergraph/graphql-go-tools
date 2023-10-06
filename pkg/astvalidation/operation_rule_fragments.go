@@ -2,7 +2,6 @@ package astvalidation
 
 import (
 	"bytes"
-
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
@@ -30,13 +29,24 @@ type fragmentsVisitor struct {
 }
 
 func (f *fragmentsVisitor) EnterFragmentSpread(ref int) {
+	fragmentName := f.operation.FragmentSpreadNameBytes(ref)
+	fragmentDefinitionRef, exists := f.operation.FragmentDefinitionRef(fragmentName)
+	if !exists {
+		f.StopWithExternalErr(operationreport.ErrFragmentUndefined(fragmentName))
+		return
+	}
+	fragmentTypeName := f.operation.FragmentDefinitionTypeName(fragmentDefinitionRef)
+	enclosingTypeName := f.EnclosingTypeDefinition.NameBytes(f.definition)
+	if !bytes.Equal(fragmentTypeName, enclosingTypeName) {
+		f.StopWithExternalErr(operationreport.ErrInvalidFragmentSpread(fragmentName, fragmentTypeName, enclosingTypeName))
+		return
+	}
 	if f.Ancestors[0].Kind == ast.NodeKindOperationDefinition {
-		spreadName := f.operation.FragmentSpreadNameBytes(ref)
-		f.StopWithExternalErr(operationreport.ErrFragmentSpreadFormsCycle(spreadName))
+		f.StopWithExternalErr(operationreport.ErrFragmentSpreadFormsCycle(fragmentName))
 	}
 }
 
-func (f *fragmentsVisitor) LeaveDocument(operation, definition *ast.Document) {
+func (f *fragmentsVisitor) LeaveDocument(_, _ *ast.Document) {
 	for i := range f.fragmentDefinitionsVisited {
 		if !f.operation.FragmentDefinitionIsUsed(f.fragmentDefinitionsVisited[i]) {
 			fragmentName := f.fragmentDefinitionsVisited[i]
