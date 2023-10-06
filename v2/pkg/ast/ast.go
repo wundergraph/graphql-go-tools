@@ -106,6 +106,17 @@ func NewDocument() *Document {
 	}
 }
 
+func NewSmallDocument() *Document {
+	return &Document{
+		BooleanValues: [2]BooleanValue{false, true},
+		Refs:          make([][8]int, 48),
+		RefIndex:      -1,
+		Index: Index{
+			nodes: make(map[uint64][]Node, 4),
+		},
+	}
+}
+
 func (d *Document) Reset() {
 	d.RootNodes = d.RootNodes[:0]
 	d.SchemaDefinitions = d.SchemaDefinitions[:0]

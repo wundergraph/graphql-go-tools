@@ -698,9 +698,9 @@ func (l *Loader) loadWithSingleFlight(ctx *Context, source DataSource, identifie
 	}
 	data := maybeData.([]byte)
 	if shared {
-		out := res.getBuffer()
-		_, err = out.Write(data)
-		return out.Bytes(), err
+		out := make([]byte, len(data))
+		copy(out, data)
+		return out, err
 	}
 	return data, nil
 }
