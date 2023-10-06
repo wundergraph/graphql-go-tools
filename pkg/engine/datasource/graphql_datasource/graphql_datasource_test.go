@@ -24,7 +24,10 @@ import (
 )
 
 func TestGraphQLDataSource(t *testing.T) {
+	// XXX: Directive needs to be explicitly declared
 	t.Run("@removeNullVariables directive", RunTest(`
+		directive @removeNullVariables on QUERY | MUTATION
+
 		schema {
 			query: Query
 		}
