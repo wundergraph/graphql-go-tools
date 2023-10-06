@@ -146,11 +146,12 @@ func _() {
 	_ = x[UnknownPathKind-0]
 	_ = x[ArrayIndex-1]
 	_ = x[FieldName-2]
+	_ = x[InlineFragmentName-3]
 }
 
-const _PathKind_name = "UnknownPathKindArrayIndexFieldName"
+const _PathKind_name = "UnknownPathKindArrayIndexFieldNameInlineFragmentName"
 
-var _PathKind_index = [...]uint8{0, 15, 25, 34}
+var _PathKind_index = [...]uint8{0, 15, 25, 34, 52}
 
 func (i PathKind) String() string {
 	if i < 0 || i >= PathKind(len(_PathKind_index)-1) {

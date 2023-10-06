@@ -12,7 +12,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.1.0
 	github.com/go-test/deep v1.0.8
 	github.com/gobwas/ws v1.0.4
-	github.com/golang/mock v1.4.1
+	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.5.8
 	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/golang-lru v0.5.4
@@ -25,7 +25,6 @@ require (
 	github.com/nats-io/nats.go v1.19.1
 	github.com/r3labs/sse/v2 v2.8.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.0
-	github.com/sashabaranov/go-openai v1.14.1
 	github.com/sebdah/goldie/v2 v2.5.3
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/viper v1.3.2
