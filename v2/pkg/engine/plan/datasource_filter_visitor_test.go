@@ -570,12 +570,27 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					ChildNode("Details", "surname").
 					DS(),
 			},
-			ExpectedSuggestions: NodeSuggestions{
-				{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
-				{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
-				{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
-				{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true},
-				{TypeName: "Details", FieldName: "name", DataSourceHash: 11, Path: "query.me.details.name", ParentPath: "query.me.details", IsRootNode: false, selected: true},
+			ExpectedVariants: []Variant{
+				{
+					dsOrder: []int{0, 1},
+					suggestions: NodeSuggestions{
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
+						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true},
+						{TypeName: "Details", FieldName: "name", DataSourceHash: 11, Path: "query.me.details.name", ParentPath: "query.me.details", IsRootNode: false, selected: true},
+					},
+				},
+				{
+					dsOrder: []int{1, 0},
+					suggestions: NodeSuggestions{
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
+						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true},
+						{TypeName: "Details", FieldName: "name", DataSourceHash: 11, Path: "query.me.details.name", ParentPath: "query.me.details", IsRootNode: false, selected: true},
+					},
+				},
 			},
 		},
 		{

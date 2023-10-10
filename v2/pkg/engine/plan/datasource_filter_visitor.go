@@ -116,11 +116,11 @@ func (n *NodeSuggestion) appendSelectionReason(reason string) {
 }
 
 func (n *NodeSuggestion) selectWithReason(reason string) {
+	// n.appendSelectionReason(reason) // NOTE: debug do not remove
 	if n.selected {
 		return
 	}
 	n.selected = true
-	// n.appendSelectionReason(reason) // NOTE: debug do not remove
 }
 
 func (n *NodeSuggestion) String() string {
@@ -215,7 +215,7 @@ func (f NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
 			continue
 		}
 
-		if f[i].ParentPath == f[idx].Path || (f[i].onFragment && *f[i].parentPathWithoutFragment == f[idx].Path) {
+		if f[i].ParentPath == f[idx].Path || (f[i].parentPathWithoutFragment != nil && *f[i].parentPathWithoutFragment == f[idx].Path) {
 			out = append(out, i)
 		}
 	}
@@ -233,11 +233,11 @@ func (f NodeSuggestions) siblingNodesOnSameSource(idx int) (out []int) {
 
 		hasMatch := false
 		switch {
-		case f[i].onFragment && f[idx].onFragment:
+		case f[i].parentPathWithoutFragment != nil && f[idx].parentPathWithoutFragment != nil:
 			hasMatch = *f[i].parentPathWithoutFragment == *f[idx].parentPathWithoutFragment
-		case f[i].onFragment && !f[idx].onFragment:
+		case f[i].parentPathWithoutFragment != nil && f[idx].parentPathWithoutFragment == nil:
 			hasMatch = *f[i].parentPathWithoutFragment == f[idx].ParentPath
-		case !f[i].onFragment && f[idx].onFragment:
+		case f[i].parentPathWithoutFragment == nil && f[idx].parentPathWithoutFragment != nil:
 			hasMatch = f[i].ParentPath == *f[idx].parentPathWithoutFragment
 		default:
 			hasMatch = f[i].ParentPath == f[idx].ParentPath
@@ -271,7 +271,7 @@ func (f NodeSuggestions) parentNodeOnSameSource(idx int) (parentIdx int, ok bool
 			continue
 		}
 
-		if f[i].Path == f[idx].ParentPath || (f[idx].onFragment && f[i].Path == *f[idx].parentPathWithoutFragment) {
+		if f[i].Path == f[idx].ParentPath || (f[idx].parentPathWithoutFragment != nil && f[i].Path == *f[idx].parentPathWithoutFragment) {
 			return i, true
 		}
 	}
