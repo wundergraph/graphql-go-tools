@@ -139,6 +139,10 @@ func (d *Document) AddSelection(set int, selection Selection) {
 	d.SelectionSets[set].SelectionRefs = append(d.SelectionSets[set].SelectionRefs, d.AddSelectionToDocument(selection))
 }
 
+func (d *Document) AddSelectionRefToSelectionSet(set int, selectionRef int) {
+	d.SelectionSets[set].SelectionRefs = append(d.SelectionSets[set].SelectionRefs, selectionRef)
+}
+
 func (d *Document) EmptySelectionSet(ref int) {
 	d.SelectionSets[ref].SelectionRefs = d.SelectionSets[ref].SelectionRefs[:0]
 }
