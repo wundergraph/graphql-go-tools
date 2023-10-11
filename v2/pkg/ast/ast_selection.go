@@ -204,18 +204,18 @@ func (d *Document) SelectionSetHasFieldSelectionWithExactName(set int, name []by
 }
 
 func (d *Document) SelectionSetFieldSelections(set int) (refs []int) {
-	for _, i := range d.SelectionSets[set].SelectionRefs {
-		if d.Selections[i].Kind == SelectionKindField {
-			refs = append(refs, d.Selections[i].Ref)
+	for _, selectionRef := range d.SelectionSets[set].SelectionRefs {
+		if d.Selections[selectionRef].Kind == SelectionKindField {
+			refs = append(refs, selectionRef)
 		}
 	}
 	return
 }
 
 func (d *Document) SelectionSetInlineFragmentSelections(set int) (refs []int) {
-	for _, i := range d.SelectionSets[set].SelectionRefs {
-		if d.Selections[i].Kind == SelectionKindInlineFragment {
-			refs = append(refs, d.Selections[i].Ref)
+	for _, selectionRef := range d.SelectionSets[set].SelectionRefs {
+		if d.Selections[selectionRef].Kind == SelectionKindInlineFragment {
+			refs = append(refs, selectionRef)
 		}
 	}
 	return
@@ -229,7 +229,7 @@ func (d *Document) SelectionSetFieldNames(set int) (fieldNames []string) {
 	fieldSelections := d.SelectionSetFieldSelections(set)
 	fieldNames = make([]string, 0, len(fieldSelections))
 	for _, fieldSelectionRef := range fieldSelections {
-		fieldNames = append(fieldNames, d.FieldNameString(fieldSelectionRef))
+		fieldNames = append(fieldNames, d.FieldNameString(d.Selections[fieldSelectionRef].Ref))
 	}
 	return
 }
