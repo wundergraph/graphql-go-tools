@@ -99,7 +99,7 @@ func (r *interfaceSelectionRewriter) datasourceHasEntitiesWithName(dsConfigurati
 
 type interfaceFieldSelectionInfo struct {
 	sharedFieldNames []string
-	inlineFragments  map[string][]inlineFragmentSelection
+	inlineFragments  []inlineFragmentSelection
 }
 
 type inlineFragmentSelection struct {
@@ -117,7 +117,7 @@ func (r *interfaceSelectionRewriter) collectFieldInformation(fieldRef int) inter
 	fieldNames := r.operation.SelectionSetFieldNames(fieldSelectionSetRef)
 
 	inlineFragmentSelectionRefs := r.operation.SelectionSetInlineFragmentSelections(fieldSelectionSetRef)
-	inlineFragmentSelections := make(map[string][]inlineFragmentSelection, len(inlineFragmentSelectionRefs))
+	inlineFragmentSelections := make([]inlineFragmentSelection, 0, len(inlineFragmentSelectionRefs))
 	for _, inlineFragmentSelectionRef := range inlineFragmentSelectionRefs {
 		typeCondition := r.operation.InlineFragmentTypeConditionNameString(inlineFragmentSelectionRef)
 		inlineFragmentSelectionSetRef, ok := r.operation.InlineFragmentSelectionSet(inlineFragmentSelectionRef)
@@ -129,7 +129,7 @@ func (r *interfaceSelectionRewriter) collectFieldInformation(fieldRef int) inter
 		// potentially there could be another nested inline fragments - but we do not yet have such use case
 		fieldNames := r.operation.SelectionSetFieldNames(inlineFragmentSelectionSetRef)
 
-		inlineFragmentSelections[typeCondition] = append(inlineFragmentSelections[typeCondition], inlineFragmentSelection{
+		inlineFragmentSelections = append(inlineFragmentSelections, inlineFragmentSelection{
 			selectionRef: inlineFragmentSelectionRef,
 			typeName:     typeCondition,
 			fieldNames:   fieldNames,
@@ -142,7 +142,7 @@ func (r *interfaceSelectionRewriter) collectFieldInformation(fieldRef int) inter
 	}
 }
 
-func (r *interfaceSelectionRewriter) allEntitiesHaveRequestedFields(configuration *DataSourceConfiguration, entityNames []string, sharedFieldNames []string) bool {
+func (r *interfaceSelectionRewriter) allEntitiesHaveSharedFieldsAsRootNode(configuration *DataSourceConfiguration, entityNames []string, sharedFieldNames []string) bool {
 	for _, typeName := range entityNames {
 		for _, fieldName := range sharedFieldNames {
 			if !configuration.HasRootNode(typeName, fieldName) {
@@ -154,7 +154,7 @@ func (r *interfaceSelectionRewriter) allEntitiesHaveRequestedFields(configuratio
 	return true
 }
 
-func (r *interfaceSelectionRewriter) inlineFragmentHasAllRequestedFields(dsConfiguration *DataSourceConfiguration, inlineFragmentSelection inlineFragmentSelection, sharedFieldNames []string) bool {
+func (r *interfaceSelectionRewriter) inlineFragmentHasAllSharedFields(dsConfiguration *DataSourceConfiguration, inlineFragmentSelection inlineFragmentSelection, sharedFieldNames []string) bool {
 	notSelectedFields := make([]string, 0, len(sharedFieldNames))
 	selectedSharedFieldsCount := 0
 	for _, fieldName := range sharedFieldNames {
@@ -190,7 +190,7 @@ func (r *interfaceSelectionRewriter) interfaceFieldSelectionNeedsRewrite(fieldRe
 	// case 1. we do not have fragments
 	if len(fieldInfo.inlineFragments) == 0 {
 		// check that all types implementing the interface have a root node with the requested fields
-		return fieldInfo, !r.allEntitiesHaveRequestedFields(dsConfiguration, entityNames, fieldInfo.sharedFieldNames)
+		return fieldInfo, !r.allEntitiesHaveSharedFieldsAsRootNode(dsConfiguration, entityNames, fieldInfo.sharedFieldNames)
 	}
 
 	// case 2. we do not have shared fields, but only fragments
@@ -204,42 +204,29 @@ func (r *interfaceSelectionRewriter) interfaceFieldSelectionNeedsRewrite(fieldRe
 
 	entityNamesNotIncludedInFragments := make([]string, 0, len(entityNames))
 	for _, typeName := range entityNames {
-		if _, ok := fieldInfo.inlineFragments[typeName]; !ok {
+		hasType := false
+		for _, fragmentSelection := range fieldInfo.inlineFragments {
+			if fragmentSelection.typeName == typeName {
+				hasType = true
+				break
+			}
+		}
+		if !hasType {
 			entityNamesNotIncludedInFragments = append(entityNamesNotIncludedInFragments, typeName)
 		}
 	}
-	if !r.allEntitiesHaveRequestedFields(dsConfiguration, entityNamesNotIncludedInFragments, fieldInfo.sharedFieldNames) {
+	if !r.allEntitiesHaveSharedFieldsAsRootNode(dsConfiguration, entityNamesNotIncludedInFragments, fieldInfo.sharedFieldNames) {
 		return fieldInfo, true
 	}
 
 	// 3.2 check that fragment types have all requested fields or all not selected fields are local for the datasource
-	for _, inlineFragmentSelections := range fieldInfo.inlineFragments {
-		if !r.inlineFragmentHasAllRequestedFields(dsConfiguration, inlineFragmentSelections[0], fieldInfo.sharedFieldNames) {
+	for _, inlineFragmentSelection := range fieldInfo.inlineFragments {
+		if !r.inlineFragmentHasAllSharedFields(dsConfiguration, inlineFragmentSelection, fieldInfo.sharedFieldNames) {
 			return fieldInfo, true
 		}
 	}
 
 	return fieldInfo, false
-}
-
-func (r *interfaceSelectionRewriter) rewriteOperation(fieldRef int, entityNames []string, fieldInfo interfaceFieldSelectionInfo) {
-	/*
-		1) extract selections which is not inline-fragments - e.g. shared selections
-		2) extract selections for each inline fragment
-		3) for types which do not have inline-fragment - add inline fragment with shared fields
-		4) for types which have inline-fragment - add not selected shared fields to existing inline fragment
-	*/
-
-	if len(fieldInfo.inlineFragments) == 0 {
-		r.createSelectionSetFromSharedFields(fieldRef, entityNames, fieldInfo.sharedFieldNames)
-		// create new selection set with shared fields
-		// add inline fragment for each type
-		// copy selection set into inline fragment
-	}
-
-	// when we have both shared fields and inline fragments
-	// for types which do not have inline-fragment - add inline fragment with shared fields
-	// for types which have inline-fragment - add not selected shared fields to existing inline fragment
 }
 
 func (r *interfaceSelectionRewriter) RewriteOperation(fieldRef int, enclosingNode ast.Node, dsConfiguration *DataSourceConfiguration) bool {
@@ -266,4 +253,24 @@ func (r *interfaceSelectionRewriter) RewriteOperation(fieldRef int, enclosingNod
 	r.rewriteOperation(fieldRef, entityNames, info)
 
 	return true
+}
+
+func (r *interfaceSelectionRewriter) rewriteOperation(fieldRef int, entityNames []string, fieldInfo interfaceFieldSelectionInfo) {
+	/*
+		1) extract selections which is not inline-fragments - e.g. shared selections
+		2) extract selections for each inline fragment
+		3) for types which do not have inline-fragment - add inline fragment with shared fields
+		4) for types which have inline-fragment - add not selected shared fields to existing inline fragment
+	*/
+
+	if len(fieldInfo.inlineFragments) == 0 {
+		r.createSelectionSetFromSharedFields(fieldRef, entityNames, fieldInfo.sharedFieldNames)
+		// create new selection set with shared fields
+		// add inline fragment for each type
+		// copy selection set into inline fragment
+	}
+
+	// when we have both shared fields and inline fragments
+	// for types which do not have inline-fragment - add inline fragment with shared fields
+	// for types which have inline-fragment - add not selected shared fields to existing inline fragment
 }

@@ -924,7 +924,6 @@ func (c *configurationVisitor) addRequiredFields(selectionSetRef int, requiredFi
 }
 
 func (c *configurationVisitor) rewriteSelectionSetOfFieldWithInterfaceType(fieldRef int, plannerIdx int) {
-	// TODO: share at planner level
 	rewriter := newInterfaceSelectionRewriter(
 		c.operation,
 		c.definition,
