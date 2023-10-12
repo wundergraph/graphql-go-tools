@@ -17,6 +17,10 @@ type Configuration struct {
 
 	// Debug - configure debug options
 	Debug DebugConfiguration
+	// IncludeInfo will add additional information to the plan,
+	// e.g. the origin of a field, possible types, etc.
+	// This information is required to compute the schema usage info from a plan
+	IncludeInfo bool
 }
 
 type DebugConfiguration struct {
