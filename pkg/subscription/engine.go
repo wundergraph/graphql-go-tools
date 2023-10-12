@@ -40,7 +40,7 @@ type ErrorTimeoutExecutingSubscription struct {
 }
 
 func (e *ErrorTimeoutExecutingSubscription) Error() string {
-	return fmt.Sprintf("error executing subsctiption: %v", e.err)
+	return fmt.Sprintf("error executing subscription: %v", e.err)
 }
 
 func (e *ErrorTimeoutExecutingSubscription) Unwrap() error {
