@@ -279,6 +279,12 @@ func TestGraphQLWSWriteEventHandler_HandleWriteEvent(t *testing.T) {
 		expectedMessage := []byte(`{"type":"connection_ack"}`)
 		assert.Equal(t, expectedMessage, testClient.readMessageToClient())
 	})
+	t.Run("should write timout error and disconnect", func(t *testing.T) {
+		testClient := NewTestClient(true)
+		writeEventHandler := NewTestGraphQLWSWriteEventHandler(testClient)
+		writeEventHandler.HandleWriteEvent(GraphQLWSMessageTypeError, "", nil, &subscription.ErrorTimeoutExecutingSubscription{})
+		assert.Equal(t, false, testClient.isConnected)
+	})
 }
 
 func TestProtocolGraphQLWSHandler_Handle(t *testing.T) {

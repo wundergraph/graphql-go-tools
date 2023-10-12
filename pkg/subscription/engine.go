@@ -35,6 +35,18 @@ type Engine interface {
 	TerminateAllSubscriptions(eventHandler EventHandler) error
 }
 
+type ErrorTimeoutExecutingSubscription struct {
+	err error
+}
+
+func (e *ErrorTimeoutExecutingSubscription) Error() string {
+	return fmt.Sprintf("error executing subsctiption: %v", e.err)
+}
+
+func (e *ErrorTimeoutExecutingSubscription) Unwrap() error {
+	return e.err
+}
+
 // ExecutorEngine is an implementation of Engine and works with subscription.Executor.
 type ExecutorEngine struct {
 	logger abstractlogger.Logger
@@ -212,7 +224,10 @@ func (e *ExecutorEngine) executeWithBackOff(executor Executor, buf *graphql.Engi
 		}
 		time.Sleep(nextRetry)
 	}
-	return err
+	if err != nil {
+		return &ErrorTimeoutExecutingSubscription{err}
+	}
+	return nil
 }
 
 func (e *ExecutorEngine) handleNonSubscriptionOperation(ctx context.Context, id string, executor Executor, eventHandler EventHandler) {

@@ -49,7 +49,7 @@ func TestExecutorEngine_StartExecutionBackoff(t *testing.T) {
 		executorPoolMock := NewMockExecutorPool(ctrl)
 
 		eventHandlerMock := NewMockEventHandler(ctrl)
-		eventHandlerMock.EXPECT().Emit(EventTypeOnError, "testID", gomock.AssignableToTypeOf([]byte{}), sampleErr).AnyTimes()
+		eventHandlerMock.EXPECT().Emit(EventTypeOnError, "testID", gomock.AssignableToTypeOf([]byte{}), gomock.AssignableToTypeOf(&ErrorTimeoutExecutingSubscription{})).AnyTimes()
 
 		engine := ExecutorEngine{
 			logger:           abstractlogger.Noop{},
@@ -89,7 +89,7 @@ func TestExecutorEngine_StartExecutionBackoff(t *testing.T) {
 		executorPoolMock.EXPECT().Put(gomock.Eq(executorMock))
 		var gottenError bool
 		eventHandlerMock := NewMockEventHandler(ctrl)
-		eventHandlerMock.EXPECT().Emit(EventTypeOnError, "testID", gomock.AssignableToTypeOf([]byte{}), gomock.AssignableToTypeOf(sampleErr)).Times(1).Do(func(arg0, arg1, arg2, arg3 interface{}) {
+		eventHandlerMock.EXPECT().Emit(EventTypeOnError, "testID", gomock.AssignableToTypeOf([]byte{}), gomock.AssignableToTypeOf(&ErrorTimeoutExecutingSubscription{})).Times(1).Do(func(arg0, arg1, arg2, arg3 interface{}) {
 			gottenError = true
 		})
 

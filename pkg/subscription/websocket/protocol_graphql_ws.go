@@ -200,6 +200,10 @@ func (g *GraphQLWSWriteEventHandler) HandleWriteEvent(messageType GraphQLWSMessa
 		err = g.Writer.WriteData(id, data)
 	case GraphQLWSMessageTypeError:
 		err = g.Writer.WriteError(id, graphql.RequestErrorsFromError(providedErr))
+		var timeoutErr *subscription.ErrorTimeoutExecutingSubscription
+		if errors.As(providedErr, &timeoutErr) {
+			err = g.Writer.Client.DisconnectWithReason(NewCloseReason(1011, timeoutErr.Error()))
+		}
 	case GraphQLWSMessageTypeConnectionError:
 		err = g.Writer.WriteConnectionError(providedErr.Error())
 	case GraphQLWSMessageTypeConnectionKeepAlive:
