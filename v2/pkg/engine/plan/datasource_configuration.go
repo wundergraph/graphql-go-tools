@@ -22,6 +22,8 @@ type PlannerFactory interface {
 }
 
 type DataSourceConfiguration struct {
+	// ID is a unique identifier for the DataSource
+	ID string
 	// RootNodes - defines the nodes where the responsibility of the DataSource begins
 	// When you enter a node, and it is not a child node
 	// when you have entered into a field which representing data source - it means that we are starting a new planning stage
