@@ -18,7 +18,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 		def := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definition)
 
 		fieldRef := ast.InvalidRef
-		for ref, _ := range op.Fields {
+		for ref := range op.Fields {
 			if op.FieldNameString(ref) == "iface" {
 				fieldRef = ref
 				break

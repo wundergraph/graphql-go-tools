@@ -160,3 +160,23 @@ func (d *Document) InterfaceTypeDefinitionFieldWithName(ref int, fieldName []byt
 	}
 	return InvalidRef, false
 }
+
+func (d *Document) InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceDefRef int) (typeNames []string, ok bool) {
+	implementedByNodes := d.InterfaceTypeDefinitionImplementedByRootNodes(interfaceDefRef)
+
+	typeNames = make([]string, 0, len(implementedByNodes))
+	for _, implementedByNode := range implementedByNodes {
+		if implementedByNode.Kind != NodeKindObjectTypeDefinition {
+			continue
+		}
+
+		typeNames = append(typeNames, implementedByNode.NameString(d))
+	}
+
+	if len(typeNames) > 0 {
+		return typeNames, true
+
+	}
+
+	return nil, false
+}
