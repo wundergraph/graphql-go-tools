@@ -104,7 +104,7 @@ type NodeSuggestion struct {
 	ParentPath     string
 	IsRootNode     bool
 
-	parentPathWithoutFragment string
+	parentPathWithoutFragment *string
 	onFragment                bool
 	selected                  bool
 	selectionReasons          []string
@@ -116,15 +116,15 @@ func (n *NodeSuggestion) appendSelectionReason(reason string) {
 }
 
 func (n *NodeSuggestion) selectWithReason(reason string) {
+	// n.appendSelectionReason(reason) // NOTE: debug do not remove
 	if n.selected {
 		return
 	}
 	n.selected = true
-	// n.appendSelectionReason(reason) // NOTE: debug do not remove
 }
 
 func (n *NodeSuggestion) String() string {
-	return fmt.Sprintf(`{"ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t}`, n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode)
+	return fmt.Sprintf(`{"ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t, "select reason": %v}`, n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode, n.selectionReasons)
 }
 
 type NodeSuggestions []NodeSuggestion
@@ -215,7 +215,7 @@ func (f NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
 			continue
 		}
 
-		if f[i].ParentPath == f[idx].Path || f[i].parentPathWithoutFragment == f[idx].Path {
+		if f[i].ParentPath == f[idx].Path || (f[i].parentPathWithoutFragment != nil && *f[i].parentPathWithoutFragment == f[idx].Path) {
 			out = append(out, i)
 		}
 	}
@@ -231,16 +231,19 @@ func (f NodeSuggestions) siblingNodesOnSameSource(idx int) (out []int) {
 			continue
 		}
 
-		identicalParentPath := f[i].ParentPath == f[idx].ParentPath
-		identicalParentPathWithoutFragment := f[i].parentPathWithoutFragment == f[idx].parentPathWithoutFragment
-		idxParentOtherFragment := f[i].parentPathWithoutFragment == f[idx].ParentPath
-		otherParentIdxFragment := f[i].ParentPath == f[idx].parentPathWithoutFragment
+		hasMatch := false
+		switch {
+		case f[i].parentPathWithoutFragment != nil && f[idx].parentPathWithoutFragment != nil:
+			hasMatch = *f[i].parentPathWithoutFragment == *f[idx].parentPathWithoutFragment
+		case f[i].parentPathWithoutFragment != nil && f[idx].parentPathWithoutFragment == nil:
+			hasMatch = *f[i].parentPathWithoutFragment == f[idx].ParentPath
+		case f[i].parentPathWithoutFragment == nil && f[idx].parentPathWithoutFragment != nil:
+			hasMatch = f[i].ParentPath == *f[idx].parentPathWithoutFragment
+		default:
+			hasMatch = f[i].ParentPath == f[idx].ParentPath
+		}
 
-		if identicalParentPath ||
-			identicalParentPathWithoutFragment ||
-			idxParentOtherFragment ||
-			otherParentIdxFragment {
-
+		if hasMatch {
 			out = append(out, i)
 		}
 	}
@@ -268,7 +271,7 @@ func (f NodeSuggestions) parentNodeOnSameSource(idx int) (parentIdx int, ok bool
 			continue
 		}
 
-		if f[i].Path == f[idx].ParentPath || f[i].Path == f[idx].parentPathWithoutFragment {
+		if f[i].Path == f[idx].ParentPath || (f[idx].parentPathWithoutFragment != nil && f[i].Path == *f[idx].parentPathWithoutFragment) {
 			return i, true
 		}
 	}
@@ -347,9 +350,10 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 	isTypeName := fieldName == typeNameField
 	parentPath := f.walker.Path.DotDelimitedString()
 	onFragment := f.walker.Path.EndsWithFragment()
-	var parentPathWithoutFragment string
+	var parentPathWithoutFragment *string
 	if onFragment {
-		parentPathWithoutFragment = f.walker.Path[:len(f.walker.Path)-1].DotDelimitedString()
+		p := f.walker.Path[:len(f.walker.Path)-1].DotDelimitedString()
+		parentPathWithoutFragment = &p
 	}
 
 	currentPath := parentPath + "." + fieldAliasOrName
