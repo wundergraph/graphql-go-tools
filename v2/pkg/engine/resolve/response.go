@@ -4,6 +4,7 @@ import (
 	"io"
 
 	"github.com/buger/jsonparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
@@ -24,6 +25,11 @@ type GraphQLSubscriptionTrigger struct {
 type GraphQLResponse struct {
 	Data            Node
 	RenameTypeNames []RenameTypeName
+	Info            *GraphQLResponseInfo
+}
+
+type GraphQLResponseInfo struct {
+	OperationType ast.OperationType
 }
 
 type RenameTypeName struct {

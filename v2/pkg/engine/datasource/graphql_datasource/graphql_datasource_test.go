@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	. "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
@@ -217,6 +218,258 @@ func TestGraphQLDataSource(t *testing.T) {
 	}, plan.Configuration{
 		DataSources: []plan.DataSourceConfiguration{
 			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"droid", "hero", "stringList", "nestedStringList"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Character",
+						FieldNames: []string{"name", "friends"},
+					},
+					{
+						TypeName:   "Human",
+						FieldNames: []string{"name", "height", "friends"},
+					},
+					{
+						TypeName:   "Droid",
+						FieldNames: []string{"name", "primaryFunction", "friends"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "https://swapi.com/graphql",
+						Header: http.Header{
+							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
+							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
+						},
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "droid",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:              "Query",
+				FieldName:             "stringList",
+				DisableDefaultMapping: true,
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "nestedStringList",
+				Path:      []string{"nestedStringList"},
+			},
+		},
+		DisableResolveFieldPositions: true,
+	}))
+
+	t.Run("simple named Query with field info", RunTest(starWarsSchema, `
+		query MyQuery($id: ID!) {
+			droid(id: $id){
+				name
+				aliased: name
+				friends {
+					name
+				}
+				primaryFunction
+			}
+			hero {
+				name
+			}
+			stringList
+			nestedStringList
+		}
+	`, "MyQuery", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Info: &resolve.GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			},
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":$$0$$}}}`,
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path:     []string{"id"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+						},
+						&resolve.HeaderVariable{
+							Path: []string{"Authorization"},
+						},
+					),
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					PostProcessing:       DefaultPostProcessingConfiguration,
+				},
+				Fields: []*resolve.Field{
+					{
+						Name: []byte("droid"),
+						Info: &resolve.FieldInfo{
+							Name:            "droid",
+							ParentTypeNames: []string{"Query"},
+							Source: resolve.TypeFieldSource{
+								IDs: []string{"https://swapi.com"},
+							},
+						},
+						Value: &resolve.Object{
+							Path:     []string{"droid"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("name"),
+									Value: &resolve.String{
+										Path: []string{"name"},
+									},
+									Info: &resolve.FieldInfo{
+										Name:            "name",
+										ParentTypeNames: []string{"Droid"},
+										Source: resolve.TypeFieldSource{
+											IDs: []string{"https://swapi.com"},
+										},
+									},
+								},
+								{
+									Name: []byte("aliased"),
+									Value: &resolve.String{
+										Path: []string{"aliased"},
+									},
+									Info: &resolve.FieldInfo{
+										Name:            "name",
+										ParentTypeNames: []string{"Droid"},
+										Source: resolve.TypeFieldSource{
+											IDs: []string{"https://swapi.com"},
+										},
+									},
+								},
+								{
+									Name: []byte("friends"),
+									Info: &resolve.FieldInfo{
+										Name:            "friends",
+										ParentTypeNames: []string{"Droid"},
+										Source: resolve.TypeFieldSource{
+											IDs: []string{"https://swapi.com"},
+										},
+									},
+									Value: &resolve.Array{
+										Nullable: true,
+										Path:     []string{"friends"},
+										Item: &resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Path: []string{"name"},
+													},
+													Info: &resolve.FieldInfo{
+														Name:            "name",
+														ParentTypeNames: []string{"Character"},
+														Source: resolve.TypeFieldSource{
+															IDs: []string{"https://swapi.com"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+								{
+									Name: []byte("primaryFunction"),
+									Value: &resolve.String{
+										Path: []string{"primaryFunction"},
+									},
+									Info: &resolve.FieldInfo{
+										Name:            "primaryFunction",
+										ParentTypeNames: []string{"Droid"},
+										Source: resolve.TypeFieldSource{
+											IDs: []string{"https://swapi.com"},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						Name: []byte("hero"),
+						Value: &resolve.Object{
+							Path:     []string{"hero"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("name"),
+									Value: &resolve.String{
+										Path: []string{"name"},
+									},
+									Info: &resolve.FieldInfo{
+										Name:            "name",
+										ParentTypeNames: []string{"Character"},
+										Source: resolve.TypeFieldSource{
+											IDs: []string{"https://swapi.com"},
+										},
+									},
+								},
+							},
+						},
+						Info: &resolve.FieldInfo{
+							Name:            "hero",
+							ParentTypeNames: []string{"Query"},
+							Source: resolve.TypeFieldSource{
+								IDs: []string{"https://swapi.com"},
+							},
+						},
+					},
+					{
+						Name: []byte("stringList"),
+						Value: &resolve.Array{
+							Nullable: true,
+							Item: &resolve.String{
+								Nullable: true,
+							},
+						},
+						Info: &resolve.FieldInfo{
+							Name:            "stringList",
+							ParentTypeNames: []string{"Query"},
+							Source: resolve.TypeFieldSource{
+								IDs: []string{"https://swapi.com"},
+							},
+						},
+					},
+					{
+						Name: []byte("nestedStringList"),
+						Value: &resolve.Array{
+							Nullable: true,
+							Path:     []string{"nestedStringList"},
+							Item: &resolve.String{
+								Nullable: true,
+							},
+						},
+						Info: &resolve.FieldInfo{
+							Name:            "nestedStringList",
+							ParentTypeNames: []string{"Query"},
+							Source: resolve.TypeFieldSource{
+								IDs: []string{"https://swapi.com"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		IncludeInfo: true,
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				ID: "https://swapi.com",
 				RootNodes: []plan.TypeField{
 					{
 						TypeName:   "Query",

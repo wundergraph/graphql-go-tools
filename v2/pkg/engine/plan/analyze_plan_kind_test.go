@@ -4,27 +4,32 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 
 	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 )
 
-type expectation func(t *testing.T, subscription, streaming bool, err error)
+type expectation func(t *testing.T, operationKind ast.OperationType, streaming bool, err error)
 
 func mustNotErr() expectation {
-	return func(t *testing.T, subscription, streaming bool, err error) {
+	return func(t *testing.T, operationKind ast.OperationType, streaming bool, err error) {
 		assert.NoError(t, err)
 	}
 }
 
-func mustSubscription(expectSubscription bool) expectation {
-	return func(t *testing.T, subscription, streaming bool, err error) {
-		assert.Equal(t, expectSubscription, subscription)
+func mustSubscription(expect bool) expectation {
+	return func(t *testing.T, operationKind ast.OperationType, streaming bool, err error) {
+		if expect {
+			assert.Equal(t, ast.OperationTypeSubscription, operationKind)
+		} else {
+			assert.NotEqual(t, ast.OperationTypeSubscription, operationKind)
+		}
 	}
 }
 
 func mustStreaming(expectStreaming bool) expectation {
-	return func(t *testing.T, subscription, streaming bool, err error) {
+	return func(t *testing.T, operationKind ast.OperationType, streaming bool, err error) {
 		assert.Equal(t, expectStreaming, streaming)
 	}
 }
@@ -38,9 +43,9 @@ func TestAnalyzePlanKind(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			subscription, streaming, err := AnalyzePlanKind(&op, &def, operationName)
+			operationKind, streaming, err := AnalyzePlanKind(&op, &def, operationName)
 			for i := range expectations {
-				expectations[i](t, subscription, streaming, err)
+				expectations[i](t, operationKind, streaming, err)
 			}
 		}
 	}

@@ -58,6 +58,23 @@ type Field struct {
 	SkipVariableName        string
 	IncludeDirectiveDefined bool
 	IncludeVariableName     string
+	Info                    *FieldInfo
+}
+
+type FieldInfo struct {
+	// Name is the name of the field.
+	Name string
+	// ParentTypeNames is the list of possible parent types for this field.
+	// E.g. for a root field, this will be Query, Mutation, Subscription.
+	// For a field on an object type, this will be the name of that object type.
+	// For a field on an interface type, this will be the name of that interface type and all of its possible implementations.
+	// For a field on a union type, this will be the name of that union type and all of its possible members.
+	ParentTypeNames []string
+	Source          TypeFieldSource
+}
+
+type TypeFieldSource struct {
+	IDs []string
 }
 
 type Position struct {

@@ -274,6 +274,7 @@ func (v *Visitor) EnterField(ref int) {
 			SkipVariableName:        skipVariableName,
 			IncludeDirectiveDefined: include,
 			IncludeVariableName:     includeVariableName,
+			Info:                    v.resolveFieldInfo(ref),
 		}
 		*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
 		return
@@ -296,6 +297,7 @@ func (v *Visitor) EnterField(ref int) {
 		SkipVariableName:        skipVariableName,
 		IncludeDirectiveDefined: include,
 		IncludeVariableName:     includeVariableName,
+		Info:                    v.resolveFieldInfo(ref),
 	}
 
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
@@ -307,6 +309,34 @@ func (v *Visitor) EnterField(ref int) {
 		return
 	}
 	v.fieldConfigs[ref] = fieldConfig
+}
+
+func (v *Visitor) resolveFieldInfo(ref int) *resolve.FieldInfo {
+	if !v.Config.IncludeInfo {
+		return nil
+	}
+	onTypeNames := v.resolveOnTypeNames()
+	enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
+	fieldName := v.Operation.FieldNameString(ref)
+	parentTypeNames := []string{enclosingTypeName}
+	for i := range onTypeNames {
+		parentTypeNames = append(parentTypeNames, string(onTypeNames[i]))
+	}
+	sourceIDs := make([]string, 0, 1)
+	for i := range v.planners {
+		for j := range v.planners[i].paths {
+			if v.planners[i].paths[j].fieldRef == ref {
+				sourceIDs = append(sourceIDs, v.planners[i].dataSourceConfiguration.ID)
+			}
+		}
+	}
+	return &resolve.FieldInfo{
+		Name:            fieldName,
+		ParentTypeNames: parentTypeNames,
+		Source: resolve.TypeFieldSource{
+			IDs: sourceIDs,
+		},
+	}
 }
 
 func (v *Visitor) linkFetchConfiguration(fieldRef int) {
@@ -630,7 +660,7 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		popOnField: -1,
 	})
 
-	isSubscription, _, err := AnalyzePlanKind(v.Operation, v.Definition, v.OperationName)
+	operationKind, _, err := AnalyzePlanKind(v.Operation, v.Definition, v.OperationName)
 	if err != nil {
 		v.Walker.StopWithInternalErr(err)
 		return
@@ -640,7 +670,13 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		Data: rootObject,
 	}
 
-	if isSubscription {
+	if v.Config.IncludeInfo {
+		graphQLResponse.Info = &resolve.GraphQLResponseInfo{
+			OperationType: operationKind,
+		}
+	}
+
+	if operationKind == ast.OperationTypeSubscription {
 		v.plan = &SubscriptionResponsePlan{
 			FlushInterval: v.Config.DefaultFlushIntervalMillis,
 			Response: &resolve.GraphQLSubscription{
