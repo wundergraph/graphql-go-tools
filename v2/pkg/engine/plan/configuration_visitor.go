@@ -929,7 +929,17 @@ func (c *configurationVisitor) rewriteSelectionSetOfFieldWithInterfaceType(field
 		c.definition,
 	)
 
-	rewriter.RewriteOperation(fieldRef,
+	rewritten, err := rewriter.RewriteOperation(fieldRef,
 		c.walker.EnclosingTypeDefinition,
 		&c.planners[plannerIdx].dataSourceConfiguration)
+
+	if err != nil {
+		c.walker.StopWithInternalErr(err)
+	}
+
+	if rewritten {
+		c.hasNewFields = true
+		c.walker.Stop()
+	}
+
 }
