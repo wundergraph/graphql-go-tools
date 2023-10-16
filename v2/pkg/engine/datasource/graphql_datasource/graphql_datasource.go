@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/buger/jsonparser"
+	"github.com/jensneuse/abstractlogger"
 	"github.com/tidwall/sjson"
 	"golang.org/x/exp/slices"
 
@@ -1564,6 +1565,7 @@ type Factory struct {
 	StreamingClient            *http.Client
 	OnWsConnectionInitCallback *OnWsConnectionInitCallback
 	SubscriptionClient         *SubscriptionClient
+	Logger                     abstractlogger.Logger
 }
 
 func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
@@ -1571,6 +1573,9 @@ func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 		opts := make([]Options, 0)
 		if f.OnWsConnectionInitCallback != nil {
 			opts = append(opts, WithOnWsConnectionInitCallback(f.OnWsConnectionInitCallback))
+		}
+		if f.Logger != nil {
+			opts = append(opts, WithLogger(f.Logger))
 		}
 
 		f.SubscriptionClient = NewGraphQLSubscriptionClient(f.HTTPClient, f.StreamingClient, ctx, opts...)
