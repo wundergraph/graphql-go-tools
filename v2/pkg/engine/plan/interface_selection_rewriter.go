@@ -88,6 +88,7 @@ func (r *interfaceSelectionRewriter) datasourceHasEntitiesWithName(dsConfigurati
 
 type interfaceFieldSelectionInfo struct {
 	sharedFields            []sharedFieldSelection
+	hasSharedTypename       bool
 	inlineFragments         []inlineFragmentSelection
 	entitiesWithoutFragment []string
 }
@@ -111,9 +112,16 @@ func (r *interfaceSelectionRewriter) collectFieldInformation(fieldRef int, entit
 
 	fieldSelections := r.operation.SelectionSetFieldSelections(fieldSelectionSetRef)
 	sharedFields := make([]sharedFieldSelection, 0, len(fieldSelections))
+	hasSharedTypename := false
 	for _, fieldSelectionRef := range fieldSelections {
 		fieldRef := r.operation.Selections[fieldSelectionRef].Ref
 		fieldName := r.operation.FieldNameString(fieldRef)
+		if fieldName == "__typename" {
+			// skip typenames in a shared fields
+			hasSharedTypename = true
+			continue
+		}
+
 		sharedFields = append(sharedFields, sharedFieldSelection{
 			fieldSelectionRef: fieldSelectionRef,
 			fieldName:         fieldName,
@@ -145,6 +153,7 @@ func (r *interfaceSelectionRewriter) collectFieldInformation(fieldRef int, entit
 
 	return interfaceFieldSelectionInfo{
 		sharedFields:            sharedFields,
+		hasSharedTypename:       hasSharedTypename,
 		inlineFragments:         inlineFragmentSelections,
 		entitiesWithoutFragment: entitiesWithoutFragment,
 	}, nil
@@ -276,7 +285,7 @@ func (r *interfaceSelectionRewriter) RewriteOperation(fieldRef int, enclosingNod
 		return false, nil
 	}
 
-	err = r.rewriteOperation(fieldRef, entityNames, info)
+	err = r.rewriteOperation(fieldRef, info)
 	if err != nil {
 		return false, err
 	}
@@ -284,7 +293,7 @@ func (r *interfaceSelectionRewriter) RewriteOperation(fieldRef int, enclosingNod
 	return true, nil
 }
 
-func (r *interfaceSelectionRewriter) rewriteOperation(fieldRef int, entityNames []string, fieldInfo interfaceFieldSelectionInfo) error {
+func (r *interfaceSelectionRewriter) rewriteOperation(fieldRef int, fieldInfo interfaceFieldSelectionInfo) error {
 	/*
 		1) extract selections which is not inline-fragments - e.g. shared selections
 		2) extract selections for each inline fragment
@@ -292,7 +301,12 @@ func (r *interfaceSelectionRewriter) rewriteOperation(fieldRef int, entityNames 
 		4) for types which have inline-fragment - add not selected shared fields to existing inline fragment
 	*/
 
-	newSelectionRefs := make([]int, 0, len(fieldInfo.entitiesWithoutFragment)+len(fieldInfo.inlineFragments))
+	newSelectionRefs := make([]int, 0, len(fieldInfo.entitiesWithoutFragment)+len(fieldInfo.inlineFragments)+1) // 1 for __typename
+
+	if fieldInfo.hasSharedTypename {
+		// we should preserve __typename if it was in the original query as it explicitly requested
+		newSelectionRefs = append(newSelectionRefs, r.typeNameSelection())
+	}
 
 	for _, entityName := range fieldInfo.entitiesWithoutFragment {
 		newSelectionRefs = append(newSelectionRefs, r.createFragmentSelection(entityName, fieldInfo.sharedFields))
@@ -315,6 +329,16 @@ func (r *interfaceSelectionRewriter) rewriteOperation(fieldRef int, entityNames 
 	}
 
 	return nil
+}
+
+func (r *interfaceSelectionRewriter) typeNameSelection() (selectionRef int) {
+	field := r.operation.AddField(ast.Field{
+		Name: r.operation.Input.AppendInputString("__typename"),
+	})
+	return r.operation.AddSelectionToDocument(ast.Selection{
+		Ref:  field.Ref,
+		Kind: ast.SelectionKindField,
+	})
 }
 
 func (r *interfaceSelectionRewriter) createFragmentSelection(typeName string, sharedFields []sharedFieldSelection) (selectionRef int) {

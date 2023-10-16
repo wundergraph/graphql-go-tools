@@ -3,6 +3,7 @@ package plan
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafeparser"
@@ -37,12 +38,12 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 		rewriter := newInterfaceSelectionRewriter(&op, &def)
 		rewritten, err := rewriter.RewriteOperation(fieldRef, node, dsConfiguration)
 		require.NoError(t, err)
-		require.Equal(t, shouldRewrite, rewritten)
+		assert.Equal(t, shouldRewrite, rewritten)
 
 		printedOp := unsafeprinter.PrettyPrint(&op, &def)
 		expectedPretty := unsafeprinter.Prettify(expectedOperation)
 
-		require.Equal(t, expectedPretty, printedOp)
+		assert.Equal(t, expectedPretty, printedOp)
 	}
 
 	type testCase struct {
@@ -160,6 +161,82 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: true,
 		},
 		{
+			name:       "no shared fields. query has user fragment",
+			definition: definition,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DSPtr(),
+			operation: `
+				query {
+					iface {
+						... on User {
+							isUser
+						}
+					}
+				}`,
+
+			expectedOperation: `
+				query {
+					iface {
+						... on User {
+							isUser
+						}
+					}
+				}`,
+			shouldRewrite: false,
+		},
+		{
+			name:       "only __typename as a shared field. query has user fragment",
+			definition: definition,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DSPtr(),
+			operation: `
+				query {
+					iface {
+						__typename
+						... on User {
+							isUser
+						}
+					}
+				}`,
+
+			expectedOperation: `
+				query {
+					iface {
+						__typename
+						... on User {
+							isUser
+						}
+					}
+				}`,
+			shouldRewrite: false,
+		},
+		{
 			name:       "one field is external. query has admin and user fragment",
 			definition: definition,
 			dsConfiguration: dsb().
@@ -193,6 +270,54 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			expectedOperation: `
 				query {
 					iface {
+						... on User {
+							isUser
+							name
+						}
+						... on Admin {
+							id
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:       "one field is external. query has admin and user fragment and shared __typename",
+			definition: definition,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "isUser").
+				RootNode("Admin", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DSPtr(),
+			operation: `
+				query {
+					iface {
+						name
+						__typename
+						... on User {
+							isUser
+						}
+						... on Admin {
+							id
+						}
+					}
+				}`,
+
+			expectedOperation: `
+				query {
+					iface {
+						__typename
 						... on User {
 							isUser
 							name
