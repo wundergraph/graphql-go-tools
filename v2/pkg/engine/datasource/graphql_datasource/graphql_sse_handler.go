@@ -235,10 +235,6 @@ func (h *gqlSSEConnectionHandler) buildGETRequest(ctx context.Context) (*http.Re
 		req.Header = h.options.Header
 	}
 
-	req.Header.Set("Accept", "text/event-stream")
-	req.Header.Set("Connection", "keep-alive")
-	req.Header.Set("Cache-Control", "no-cache")
-
 	query := req.URL.Query()
 	query.Add("query", h.options.Body.Query)
 
@@ -259,6 +255,7 @@ func (h *gqlSSEConnectionHandler) buildGETRequest(ctx context.Context) (*http.Re
 	}
 
 	req.URL.RawQuery = query.Encode()
+	h.setSSEHeaders(req)
 
 	return req, nil
 }
@@ -278,9 +275,14 @@ func (h *gqlSSEConnectionHandler) buildPOSTRequest(ctx context.Context) (*http.R
 		req.Header = h.options.Header
 	}
 
+	req.Header.Set("Content-Type", "application/json")
+	h.setSSEHeaders(req)
+	return req, nil
+}
+
+// setSSEHeaders sets the headers required for SSE for both GET and POST requests
+func (h *gqlSSEConnectionHandler) setSSEHeaders(req *http.Request) {
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("Connection", "keep-alive")
 	req.Header.Set("Cache-Control", "no-cache")
-
-	return req, nil
 }
