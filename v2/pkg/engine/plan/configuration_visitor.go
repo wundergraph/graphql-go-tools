@@ -346,17 +346,14 @@ func (c *configurationVisitor) EnterField(ref int) {
 	isSubscription := c.isSubscription(root.Ref, currentPath)
 
 	plannerIdx, planned := c.planWithExistingPlanners(ref, typeName, fieldName, currentPath, parentPath, precedingParentPath)
-	if planned {
-		c.handleRequirements(plannerIdx, parentPath, currentPath, typeName, fieldName, ref)
-
-		c.rewriteSelectionSetOfFieldWithInterfaceType(ref, plannerIdx)
-
-		return
+	if !planned {
+		plannerIdx, planned = c.addNewPlanner(ref, typeName, fieldName, currentPath, parentPath, isSubscription)
 	}
 
-	plannerIdx, planned = c.addNewPlanner(ref, typeName, fieldName, currentPath, parentPath, isSubscription)
 	if planned {
 		c.handleRequirements(plannerIdx, parentPath, currentPath, typeName, fieldName, ref)
+		c.rewriteSelectionSetOfFieldWithInterfaceType(ref, plannerIdx)
+
 		return
 	}
 
