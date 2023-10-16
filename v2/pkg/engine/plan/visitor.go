@@ -320,7 +320,12 @@ func (v *Visitor) resolveFieldInfo(ref int) *resolve.FieldInfo {
 	fieldName := v.Operation.FieldNameString(ref)
 	parentTypeNames := []string{enclosingTypeName}
 	for i := range onTypeNames {
-		parentTypeNames = append(parentTypeNames, string(onTypeNames[i]))
+		onTypeName := string(onTypeNames[i])
+		// in the case of a union, this will be equal, so do not append duplicates
+		if onTypeName == enclosingTypeName {
+			continue
+		}
+		parentTypeNames = append(parentTypeNames, onTypeName)
 	}
 	sourceIDs := make([]string, 0, 1)
 	for i := range v.planners {
