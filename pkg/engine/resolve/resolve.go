@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,7 +17,6 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
-	errors "golang.org/x/xerrors"
 
 	"github.com/TykTechnologies/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/fastbuffer"
