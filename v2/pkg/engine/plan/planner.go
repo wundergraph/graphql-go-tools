@@ -148,7 +148,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) {
 	dsFilter := NewDataSourceFilter(operation, definition, report)
 
-	if p.config.Debug.PrintOperationWithRequiredFields {
+	if p.config.Debug.PrintOperationTransformations {
 		p.debugMessage("Initial operation:")
 		p.printOperation(operation)
 	}
@@ -175,7 +175,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 		return
 	}
 
-	if p.config.Debug.PrintOperationWithRequiredFields {
+	if p.config.Debug.PrintOperationTransformations {
 		p.debugMessage("Operation after initial run:")
 		p.printOperation(operation)
 	}
@@ -208,7 +208,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 			return
 		}
 
-		if p.config.Debug.PrintOperationWithRequiredFields {
+		if p.config.Debug.PrintOperationTransformations {
 			p.debugMessage(fmt.Sprintf("After run #%d. Operation with new required fields:", i))
 			p.debugMessage(fmt.Sprintf("Has new fields: %v", p.configurationVisitor.hasNewFields))
 			p.printOperation(operation)
@@ -281,7 +281,14 @@ func (p *Planner) selectOperation(operation *ast.Document, operationName string,
 }
 
 func (p *Planner) printOperation(operation *ast.Document) {
-	pp, _ := astprinter.PrintStringIndentDebug(operation, nil, "  ")
+	var pp string
+
+	if p.config.Debug.PrintOperationEnableASTRefs {
+		pp, _ = astprinter.PrintStringIndentDebug(operation, nil, "  ")
+	} else {
+		pp, _ = astprinter.PrintStringIndent(operation, nil, "  ")
+	}
+
 	fmt.Println(pp)
 }
 

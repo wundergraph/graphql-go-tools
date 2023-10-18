@@ -20,10 +20,11 @@ type Configuration struct {
 }
 
 type DebugConfiguration struct {
-	PrintOperationWithRequiredFields bool
-	PrintPlanningPaths               bool
-	PrintQueryPlans                  bool
-	PrintNodeSuggestions             bool
+	PrintOperationTransformations bool
+	PrintOperationEnableASTRefs   bool
+	PrintPlanningPaths            bool
+	PrintQueryPlans               bool
+	PrintNodeSuggestions          bool
 
 	ConfigurationVisitor bool
 	PlanningVisitor      bool
