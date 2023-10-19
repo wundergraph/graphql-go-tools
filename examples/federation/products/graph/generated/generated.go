@@ -59,7 +59,7 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		TopProducts        func(childComplexity int, first *int) int
+		TopProducts        func(childComplexity int, first int) int
 		__resolve__service func(childComplexity int) int
 		__resolve_entities func(childComplexity int, representations []map[string]interface{}) int
 	}
@@ -76,10 +76,10 @@ type ComplexityRoot struct {
 }
 
 type EntityResolver interface {
-	FindProductByUpc(ctx context.Context, upc string) (*model.Product, error)
+	FindProductByUpc(ctx context.Context, obj fedruntime.Entity, upc string) (*model.Product, error)
 }
 type QueryResolver interface {
-	TopProducts(ctx context.Context, first *int) ([]*model.Product, error)
+	TopProducts(ctx context.Context, first int) ([]*model.Product, error)
 }
 type SubscriptionResolver interface {
 	UpdatedPrice(ctx context.Context) (<-chan *model.Product, error)
@@ -152,7 +152,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.TopProducts(childComplexity, args["first"].(*int)), true
+		return e.complexity.Query.TopProducts(childComplexity, args["first"].(int)), true
 
 	case "Query._service":
 		if e.complexity.Query.__resolve__service == nil {
@@ -276,7 +276,7 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 
 var sources = []*ast.Source{
 	{Name: "../schema.graphqls", Input: `extend type Query {
-    topProducts(first: Int = 5): [Product]
+    topProducts(first: Int! = 5): [Product]
 }
 
 extend type Subscription {
@@ -290,7 +290,8 @@ type Product @key(fields: "upc") {
     name: String!
     price: Int!
     inStock: Int!
-}`, BuiltIn: false},
+}
+`, BuiltIn: false},
 	{Name: "../../federation/directives.graphql", Input: `
 	scalar _Any
 	scalar _FieldSet
@@ -376,10 +377,10 @@ func (ec *executionContext) field_Query__entities_args(ctx context.Context, rawA
 func (ec *executionContext) field_Query_topProducts_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 *int
+	var arg0 int
 	if tmp, ok := rawArgs["first"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("first"))
-		arg0, err = ec.unmarshalOInt2ᚖint(ctx, tmp)
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -441,7 +442,7 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 
 // region    **************************** field.gotpl *****************************
 
-func (ec *executionContext) _Entity_findProductByUpc(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Entity_findProductByUpc(ctx context.Context, field graphql.CollectedField, obj fedruntime.Entity) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Entity_findProductByUpc(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -455,7 +456,7 @@ func (ec *executionContext) _Entity_findProductByUpc(ctx context.Context, field 
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Entity().FindProductByUpc(rctx, fc.Args["upc"].(string))
+		return ec.resolvers.Entity().FindProductByUpc(rctx, obj, fc.Args["upc"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -696,7 +697,7 @@ func (ec *executionContext) _Query_topProducts(ctx context.Context, field graphq
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().TopProducts(rctx, fc.Args["first"].(*int))
+		return ec.resolvers.Query().TopProducts(rctx, fc.Args["first"].(int))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -3028,20 +3029,11 @@ func (ec *executionContext) __Entity(ctx context.Context, sel ast.SelectionSet, 
 
 var entityImplementors = []string{"Entity"}
 
-func (ec *executionContext) _Entity(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
+func (ec *executionContext) _Entity(ctx context.Context, sel ast.SelectionSet, obj fedruntime.Entity) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, entityImplementors)
-	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
-		Object: "Entity",
-	})
-
 	out := graphql.NewFieldSet(fields)
 	var invalids uint32
 	for i, field := range fields {
-		innerCtx := graphql.WithRootFieldContext(ctx, &graphql.RootFieldContext{
-			Object: field.Name,
-			Field:  field,
-		})
-
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Entity")
@@ -3054,19 +3046,16 @@ func (ec *executionContext) _Entity(ctx context.Context, sel ast.SelectionSet) g
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Entity_findProductByUpc(ctx, field)
+				res = ec._Entity_findProductByUpc(ctx, field, obj)
 				if res == graphql.Null {
 					atomic.AddUint32(&invalids, 1)
 				}
 				return res
 			}
 
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx, innerFunc)
-			}
-
 			out.Concurrently(i, func() graphql.Marshaler {
-				return rrm(innerCtx)
+				return innerFunc(ctx)
+
 			})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -4048,22 +4037,6 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 		return graphql.Null
 	}
 	res := graphql.MarshalBoolean(*v)
-	return res
-}
-
-func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v interface{}) (*int, error) {
-	if v == nil {
-		return nil, nil
-	}
-	res, err := graphql.UnmarshalInt(v)
-	return &res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.SelectionSet, v *int) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	res := graphql.MarshalInt(*v)
 	return res
 }
 

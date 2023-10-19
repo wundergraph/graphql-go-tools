@@ -1,5 +1,5 @@
 extend type Query {
-    topProducts(first: Int = 5): [Product]
+    topProducts(first: Int! = 5): [Product]
 }
 
 extend type Subscription {

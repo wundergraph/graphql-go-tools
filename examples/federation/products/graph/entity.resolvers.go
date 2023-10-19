@@ -9,10 +9,11 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/examples/federation/products/graph/generated"
 	"github.com/wundergraph/graphql-go-tools/examples/federation/products/graph/model"
+	"github.com/99designs/gqlgen/plugin/federation/fedruntime"
 )
 
 // FindProductByUpc is the resolver for the findProductByUpc field.
-func (r *entityResolver) FindProductByUpc(ctx context.Context, upc string) (*model.Product, error) {
+func (r *entityResolver) FindProductByUpc(ctx context.Context, obj fedruntime.Entity, upc string) (*model.Product, error) {
 	for _, h := range hats {
 		if h.Upc == upc {
 			return h, nil

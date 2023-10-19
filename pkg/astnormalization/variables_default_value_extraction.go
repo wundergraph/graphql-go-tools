@@ -6,6 +6,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
 
+	"github.com/wundergraph/graphql-go-tools/internal/pkg/quotes"
 	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astimport"
@@ -81,25 +82,31 @@ func (v *variablesDefaultValueExtractionVisitor) EnterVariableDefinition(ref int
 	// remove variable DefaultValue from operation
 	v.operation.VariableDefinitions[ref].DefaultValue.IsDefined = false
 
-	// skip when variable was provided
-	_, _, _, err := jsonparser.Get(v.operation.Input.Variables, variableName)
-	if err == nil {
-		return
-	}
-
 	// store extracted variable ref
 	v.extractedVariablesRefs = append(v.extractedVariablesRefs, ref)
 
-	valueBytes, err := v.operation.ValueToJSON(v.operation.VariableDefinitionDefaultValue(ref))
-	if err != nil {
-		return
+	// Use the provided value for the variable if present, otherwise, use the default value
+	valueBytes, dataType, _, _ := jsonparser.Get(v.operation.Input.Variables, variableName)
+	if valueBytes == nil {
+		jsonVal, err := v.operation.ValueToJSON(v.operation.VariableDefinitionDefaultValue(ref))
+		if err != nil {
+			return
+		}
+
+		valueBytes = jsonVal
+	} else {
+		if dataType == jsonparser.String {
+			valueBytes = quotes.WrapBytes(valueBytes)
+		}
 	}
 
-	v.operation.Input.Variables, err = sjson.SetRawBytes(v.operation.Input.Variables, variableName, valueBytes)
+	inputVars, err := sjson.SetRawBytes(v.operation.Input.Variables, variableName, valueBytes)
 	if err != nil {
 		v.StopWithInternalErr(err)
 		return
 	}
+
+	v.operation.Input.Variables = inputVars
 }
 
 func (v *variablesDefaultValueExtractionVisitor) EnterOperationDefinition(ref int) {

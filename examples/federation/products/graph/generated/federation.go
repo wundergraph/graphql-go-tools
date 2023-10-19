@@ -92,7 +92,7 @@ func (ec *executionContext) __resolve_entities(ctx context.Context, representati
 				if err != nil {
 					return fmt.Errorf(`unmarshalling param 0 for findProductByUpc(): %w`, err)
 				}
-				entity, err := ec.resolvers.Entity().FindProductByUpc(ctx, id0)
+				entity, err := ec.resolvers.Entity().FindProductByUpc(ctx, nil, id0)
 				if err != nil {
 					return fmt.Errorf(`resolving Entity "Product": %w`, err)
 				}

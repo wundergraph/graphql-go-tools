@@ -14,6 +14,9 @@ const (
 			objectInNestedList(input: [[Nested]]): String
 			stringInNestedList(input: [[String!]]): String
 			nullableStringInNestedList(input: [[String]]): String
+			notNullableInt(input: Int! = 5): String
+			notNullableString(input: String! = "DefaultInSchema"): String
+			noArgs(): String
 		}
 		input Nested {
 			NotNullable: String!
@@ -82,7 +85,7 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 				mutation simple($in: String = "bar" ) {
 					simple(input: $in)
 				}`, "", `
-				mutation simple($in: String) {
+				mutation simple($in: String!) {
 			  		simple(input: $in)
 				}`, ``, `{"in":"bar"}`)
 		})
@@ -91,7 +94,7 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 				mutation simple($in: String = "bar" ) {
 			  		simple(input: $in)
 				}`, "", `
-				mutation simple($in: String) {
+				mutation simple($in: String!) {
 			  		simple(input: $in)
 				}`, `{"in":"foo"}`, `{"in":"foo"}`)
 		})
@@ -117,11 +120,11 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 						})
 					}`, "", `
 					query q(
-						$nullable: String,
+						$nullable: String!,
 						$notNullable: String!,
-						$strIntolist: String,
+						$strIntolist: String!,
 						$strIntolistOfNonNull: String!
-						$strIntolistNonNullItemNullable: String,
+						$strIntolistNonNullItemNullable: String!,
 						$strIntolistNonNullItemNotNull: String!
 					) {
 						complex(input: {
@@ -156,10 +159,10 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 						})
 					}`, ``, `
 					query q(
-						$nullable: String,
+						$nullable: String!,
 						$notNullable: String!,
-						$list: [String],
-						$listOfNonNull: [String!]
+						$list: [String]!,
+						$listOfNonNull: [String!]!
 						$listNonNullItemNullable: [String]!,
 						$listNonNullItemNotNull: [String!]!
 					) {
@@ -182,14 +185,14 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 				runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
 					query q(
 						$nullable: String = "a",
-						$notNullable: String = "b",	
+						$notNullable: String = "b",
 					) {
 						objectInList(input: [{NotNullable: $notNullable, Nullable: $nullable}])
 					}`, "", `
-					query q(	
-						$nullable: String,
+					query q(
+						$nullable: String!,
 						$notNullable: String!,
-					) {	
+					) {
 						objectInList(input: [{NotNullable: $notNullable, Nullable: $nullable}])
 					}`, ``, `{"notNullable":"b","nullable":"a"}`)
 			})
@@ -198,14 +201,14 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 				runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
 					query q(
 						$nullable: String = "a",
-						$notNullable: String = "b",	
+						$notNullable: String = "b",
 					) {
 						objectInNestedList(input: [[{NotNullable: $notNullable, Nullable: $nullable}]])
 					}`, "", `
-					query q(	
-						$nullable: String,
+					query q(
+						$nullable: String!,
 						$notNullable: String!,
-					) {	
+					) {
 						objectInNestedList(input: [[{NotNullable: $notNullable, Nullable: $nullable}]])
 					}`, ``, `{"notNullable":"b","nullable":"a"}`)
 			})
@@ -219,7 +222,7 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 					}`, "", `
 					query q(
 						$notNullable: String!,
-					) {	
+					) {
 						stringInNestedList(input: [["a", $notNullable]])
 					}`, ``, `{"notNullable":"foo"}`)
 			})
@@ -232,8 +235,8 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 						nullableStringInNestedList(input: [["a", null, $nullable]])
 					}`, "", `
 					query q(
-						$nullable: String,
-					) {	
+						$nullable: String!,
+					) {
 						nullableStringInNestedList(input: [["a", null, $nullable]])
 					}`, ``, `{"nullable":"foo"}`)
 			})
@@ -249,7 +252,7 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 				mixedArgs(a: $nullable, b: $notNullable)
 			}`, "", `
 			query q(
-				$nullable: String,
+				$nullable: String!,
 				$notNullable: String!,
 			) {
 				mixedArgs(a: $nullable, b: $notNullable)
@@ -261,9 +264,92 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 			mutation simple($a: String = "bar", $b: String = "bazz") {
 				mixed(a: $a, b: $b)
 			}`, "", `
-			mutation simple($a: String, $b: String, $c: String, $d: String!) {
+			mutation simple($a: String!, $b: String!, $c: String, $d: String!) {
 				mixed(a: $a, b: $b, input: $c, nonNullInput: $d)
 			}`, `{"a":"aaa"}`, `{"d":"bar","c":"foo","b":"bazz","a":"aaa"}`)
+	})
 
+	t.Run("Variable as set as not nullable even if they are not used inside query", func(t *testing.T) {
+		runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+								 query q(
+												 $input: Boolean = true,
+								 ) {
+												 noArgs() @skip(if: $input)
+								 }`, "", `
+								 query q(
+												 $input: Boolean!,
+								 ) {
+												 noArgs()  @skip(if: $input)
+								 }`, ``, `{"input":true}`)
+	})
+
+	t.Run("Not nullable int with default value", func(t *testing.T) {
+		runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+								 query q(
+												 $input: Int = 4,
+								 ) {
+												 notNullableInt(input: $input)
+								 }`, "", `
+								 query q(
+												 $input: Int!,
+								 ) {
+												 notNullableInt(input: $input)
+								 }`, ``, `{"input":4}`)
+	})
+
+	t.Run("not nullable int with default value and variable overwrite", func(t *testing.T) {
+		runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+								 query q(
+												 $input: Int = 4,
+								 ) {
+												 notNullableInt(input: $input)
+								 }`, "", `
+								 query q(
+												 $input: Int!,
+								 ) {
+												 notNullableInt(input: $input)
+								 }`, `{"input":6}`, `{"input":6}`)
+	})
+
+	t.Run("nullable string with default value", func(t *testing.T) {
+		runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+								 query q(
+												 $input: String = "DefaultInOperation",
+								 ) {
+												 notNullableString(input: $input)
+								 }`, "", `
+								 query q(
+												 $input: String!,
+								 ) {
+												 notNullableString(input: $input)
+								 }`, ``, `{"input":"DefaultInOperation"}`)
+	})
+
+	t.Run("not nullable string with default value", func(t *testing.T) {
+		runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+								 query q(
+												 $input: String! = "DefaultInOperation",
+								 ) {
+												 notNullableString(input: $input)
+								 }`, "", `
+								 query q(
+												 $input: String!,
+								 ) {
+												 notNullableString(input: $input)
+								 }`, ``, `{"input":"DefaultInOperation"}`)
+	})
+
+	t.Run("not nullable string with default value and variable overwrite", func(t *testing.T) {
+		runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+								 query q(
+												 $input: String = "DefaultInOperation",
+								 ) {
+												 notNullableString(input: $input)
+								 }`, "", `
+								 query q(
+												 $input: String!,
+								 ) {
+												 notNullableString(input: $input)
+								 }`, `{"input":"ValueInVariable"}`, `{"input":"ValueInVariable"}`)
 	})
 }
