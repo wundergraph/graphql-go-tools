@@ -921,12 +921,12 @@ func (c *configurationVisitor) addRequiredFields(selectionSetRef int, requiredFi
 }
 
 func (c *configurationVisitor) rewriteSelectionSetOfFieldWithInterfaceType(fieldRef int, plannerIdx int) {
-	rewriter := newInterfaceSelectionRewriter(
+	rewriter := newFieldSelectionRewriter(
 		c.operation,
 		c.definition,
 	)
 
-	rewritten, err := rewriter.RewriteOperation(fieldRef,
+	rewritten, err := rewriter.RewriteFieldSelection(fieldRef,
 		c.walker.EnclosingTypeDefinition,
 		&c.planners[plannerIdx].dataSourceConfiguration)
 

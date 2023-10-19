@@ -35,8 +35,8 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 
 		node, _ := def.Index.FirstNodeByNameStr(enclosingTypeName)
 
-		rewriter := newInterfaceSelectionRewriter(&op, &def)
-		rewritten, err := rewriter.RewriteOperation(fieldRef, node, dsConfiguration)
+		rewriter := newFieldSelectionRewriter(&op, &def)
+		rewritten, err := rewriter.RewriteFieldSelection(fieldRef, node, dsConfiguration)
 		require.NoError(t, err)
 		assert.Equal(t, shouldRewrite, rewritten)
 

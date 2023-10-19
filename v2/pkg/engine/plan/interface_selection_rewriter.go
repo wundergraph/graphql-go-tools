@@ -9,31 +9,26 @@ import (
 var (
 	FieldDoesntHaveSelectionSetErr          = errors.New("unexpected error: field does not have a selection set")
 	InlineFragmentDoesntHaveSelectionSetErr = errors.New("unexpected error: inline fragment does not have a selection set")
+	InlineFragmentTypeIsNotExistsErr        = errors.New("unexpected error: inline fragment type condition does not exists")
 )
 
-type interfaceSelectionRewriter struct {
+type fieldSelectionRewriter struct {
 	operation  *ast.Document
 	definition *ast.Document
-
-	fieldRef        int
-	enclosingNode   ast.Node
-	dsConfiguration DataSourceConfiguration
 }
 
-func newInterfaceSelectionRewriter(operation *ast.Document, definition *ast.Document) *interfaceSelectionRewriter {
-	return &interfaceSelectionRewriter{
+func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document) *fieldSelectionRewriter {
+	return &fieldSelectionRewriter{
 		operation:  operation,
 		definition: definition,
 	}
 }
 
-func (r *interfaceSelectionRewriter) isFieldReturnsInterface(fieldRef int, enclosingNode ast.Node) (interfaceDefRef int, isInterface bool) {
+func (r *fieldSelectionRewriter) fieldTypeNode(fieldRef int, enclosingNode ast.Node) (node ast.Node, ok bool) {
 	var (
 		fieldDefRef int
 		hasField    bool
 	)
-
-	interfaceDefRef = ast.InvalidRef
 
 	switch enclosingNode.Kind {
 	case ast.NodeKindObjectTypeDefinition:
@@ -56,14 +51,10 @@ func (r *interfaceSelectionRewriter) isFieldReturnsInterface(fieldRef int, enclo
 		return
 	}
 
-	if node.Kind != ast.NodeKindInterfaceTypeDefinition {
-		return
-	}
-
-	return node.Ref, true
+	return node, true
 }
 
-func (r *interfaceSelectionRewriter) datasourceHasEntitiesWithName(dsConfiguration *DataSourceConfiguration, typeNames []string) (entityNames []string, ok bool) {
+func (r *fieldSelectionRewriter) datasourceHasEntitiesWithName(dsConfiguration *DataSourceConfiguration, typeNames []string) (entityNames []string, ok bool) {
 	hasEntities := false
 	for _, typeName := range typeNames {
 		if len(dsConfiguration.RequiredFieldsByKey(typeName)) > 0 {
@@ -86,80 +77,100 @@ func (r *interfaceSelectionRewriter) datasourceHasEntitiesWithName(dsConfigurati
 	return entityNames, true
 }
 
-type interfaceFieldSelectionInfo struct {
-	sharedFields            []sharedFieldSelection
-	hasSharedTypename       bool
-	inlineFragments         []inlineFragmentSelection
-	entitiesWithoutFragment []string
+type fieldSelectionInfo struct {
+	hasTypeNameSelection        bool // __typename is selected
+	sharedFields                []fieldSelection
+	inlineFragmentsOnObjects    []inlineFragmentSelection
+	inlineFragmentsOnInterfaces []inlineFragmentSelection
 }
 
-type sharedFieldSelection struct {
+type fieldSelection struct {
 	fieldSelectionRef int
 	fieldName         string
 }
 
 type inlineFragmentSelection struct {
-	selectionRef int
-	typeName     string
-	fieldNames   []string
+	selectionRef         int
+	typeName             string
+	hasTypeNameSelection bool // __typename is selected
+	fields               []fieldSelection
 }
 
-func (r *interfaceSelectionRewriter) collectFieldInformation(fieldRef int, entityNames []string) (interfaceFieldSelectionInfo, error) {
-	fieldSelectionSetRef, ok := r.operation.FieldSelectionSet(fieldRef)
-	if !ok {
-		return interfaceFieldSelectionInfo{}, FieldDoesntHaveSelectionSetErr
-	}
-
-	fieldSelections := r.operation.SelectionSetFieldSelections(fieldSelectionSetRef)
-	sharedFields := make([]sharedFieldSelection, 0, len(fieldSelections))
-	hasSharedTypename := false
-	for _, fieldSelectionRef := range fieldSelections {
+func (r *fieldSelectionRewriter) selectionSetFieldSelections(selectionSetRef int, includeTypename bool) (fieldSelections []fieldSelection, hasTypename bool) {
+	fieldSelectionRefs := r.operation.SelectionSetFieldSelections(selectionSetRef)
+	fieldSelections = make([]fieldSelection, 0, len(fieldSelectionRefs))
+	for _, fieldSelectionRef := range fieldSelectionRefs {
 		fieldRef := r.operation.Selections[fieldSelectionRef].Ref
 		fieldName := r.operation.FieldNameString(fieldRef)
 		if fieldName == "__typename" {
-			// skip typenames in a shared fields
-			hasSharedTypename = true
-			continue
+			hasTypename = true
+			if !includeTypename {
+				continue
+			}
 		}
 
-		sharedFields = append(sharedFields, sharedFieldSelection{
+		fieldSelections = append(fieldSelections, fieldSelection{
 			fieldSelectionRef: fieldSelectionRef,
 			fieldName:         fieldName,
 		})
 	}
 
+	return fieldSelections, hasTypename
+}
+
+func (r *fieldSelectionRewriter) collectFieldInformation(fieldRef int) (fieldSelectionInfo, error) {
+	fieldSelectionSetRef, ok := r.operation.FieldSelectionSet(fieldRef)
+	if !ok {
+		return fieldSelectionInfo{}, FieldDoesntHaveSelectionSetErr
+	}
+
+	sharedFields, hasSharedTypename := r.selectionSetFieldSelections(fieldSelectionSetRef, false)
+
 	inlineFragmentSelectionRefs := r.operation.SelectionSetInlineFragmentSelections(fieldSelectionSetRef)
-	inlineFragmentSelections := make([]inlineFragmentSelection, 0, len(inlineFragmentSelectionRefs))
+	inlineFragmentSelectionsOnObjects := make([]inlineFragmentSelection, 0, len(inlineFragmentSelectionRefs))
+	inlineFragmentsOnInterfaces := make([]inlineFragmentSelection, 0, len(inlineFragmentSelectionRefs))
+
 	for _, inlineFragmentSelectionRef := range inlineFragmentSelectionRefs {
 		inlineFragmentRef := r.operation.Selections[inlineFragmentSelectionRef].Ref
 		typeCondition := r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef)
 		inlineFragmentSelectionSetRef, ok := r.operation.InlineFragmentSelectionSet(inlineFragmentRef)
 		if !ok {
-			return interfaceFieldSelectionInfo{}, InlineFragmentDoesntHaveSelectionSetErr
+			return fieldSelectionInfo{}, InlineFragmentDoesntHaveSelectionSetErr
+		}
+
+		node, hasNode := r.definition.NodeByNameStr(typeCondition)
+		if !hasNode {
+			return fieldSelectionInfo{}, InlineFragmentTypeIsNotExistsErr
 		}
 
 		// For now, we care only about field selections on inline fragment
 		// potentially there could be another nested inline fragments - but we do not yet have such use case
-		fieldNames := r.operation.SelectionSetFieldNames(inlineFragmentSelectionSetRef)
+		fields, hasTypeName := r.selectionSetFieldSelections(inlineFragmentSelectionSetRef, true)
 
-		inlineFragmentSelections = append(inlineFragmentSelections, inlineFragmentSelection{
-			selectionRef: inlineFragmentSelectionRef,
-			typeName:     typeCondition,
-			fieldNames:   fieldNames,
-		})
+		fragmentSelectionInfo := inlineFragmentSelection{
+			selectionRef:         inlineFragmentSelectionRef,
+			typeName:             typeCondition,
+			hasTypeNameSelection: hasTypeName,
+			fields:               fields,
+		}
+
+		switch node.Kind {
+		case ast.NodeKindObjectTypeDefinition:
+			inlineFragmentSelectionsOnObjects = append(inlineFragmentSelectionsOnObjects, fragmentSelectionInfo)
+		case ast.NodeKindInterfaceTypeDefinition:
+			inlineFragmentsOnInterfaces = append(inlineFragmentsOnInterfaces, fragmentSelectionInfo)
+		}
 	}
 
-	entitiesWithoutFragment := r.entityNamesWithoutFragments(inlineFragmentSelections, entityNames)
-
-	return interfaceFieldSelectionInfo{
-		sharedFields:            sharedFields,
-		hasSharedTypename:       hasSharedTypename,
-		inlineFragments:         inlineFragmentSelections,
-		entitiesWithoutFragment: entitiesWithoutFragment,
+	return fieldSelectionInfo{
+		sharedFields:                sharedFields,
+		hasTypeNameSelection:        hasSharedTypename,
+		inlineFragmentsOnObjects:    inlineFragmentSelectionsOnObjects,
+		inlineFragmentsOnInterfaces: inlineFragmentsOnInterfaces,
 	}, nil
 }
 
-func (r *interfaceSelectionRewriter) entityNamesWithoutFragments(inlineFragments []inlineFragmentSelection, entityNames []string) []string {
+func (r *fieldSelectionRewriter) entityNamesWithoutFragments(inlineFragments []inlineFragmentSelection, entityNames []string) []string {
 	entityNamesNotIncludedInFragments := make([]string, 0, len(entityNames))
 	for _, typeName := range entityNames {
 		hasType := false
@@ -181,7 +192,7 @@ func (r *interfaceSelectionRewriter) entityNamesWithoutFragments(inlineFragments
 	return nil
 }
 
-func (r *interfaceSelectionRewriter) allEntitiesHaveSharedFieldsAsRootNode(configuration *DataSourceConfiguration, entityNames []string, sharedFields []sharedFieldSelection) bool {
+func (r *fieldSelectionRewriter) allEntitiesHaveSharedFieldsAsRootNode(configuration *DataSourceConfiguration, entityNames []string, sharedFields []fieldSelection) bool {
 	for _, typeName := range entityNames {
 		for _, sharedField := range sharedFields {
 			if !configuration.HasRootNode(typeName, sharedField.fieldName) {
@@ -193,12 +204,12 @@ func (r *interfaceSelectionRewriter) allEntitiesHaveSharedFieldsAsRootNode(confi
 	return true
 }
 
-func (r *interfaceSelectionRewriter) notSelectedSharedFieldsForInlineFragment(inlineFragmentSelection inlineFragmentSelection, sharedFields []sharedFieldSelection) []sharedFieldSelection {
-	notSelectedFields := make([]sharedFieldSelection, 0, len(sharedFields))
+func (r *fieldSelectionRewriter) notSelectedSharedFieldsForInlineFragment(inlineFragmentSelection inlineFragmentSelection, sharedFields []fieldSelection) []fieldSelection {
+	notSelectedFields := make([]fieldSelection, 0, len(sharedFields))
 	for _, sharedField := range sharedFields {
 		fieldIsSelected := false
-		for _, fragmentFieldName := range inlineFragmentSelection.fieldNames {
-			if sharedField.fieldName == fragmentFieldName {
+		for _, fragmentField := range inlineFragmentSelection.fields {
+			if sharedField.fieldName == fragmentField.fieldName {
 				fieldIsSelected = true
 				break
 			}
@@ -211,7 +222,7 @@ func (r *interfaceSelectionRewriter) notSelectedSharedFieldsForInlineFragment(in
 	return notSelectedFields
 }
 
-func (r *interfaceSelectionRewriter) inlineFragmentHasAllSharedFields(dsConfiguration *DataSourceConfiguration, inlineFragmentSelection inlineFragmentSelection, sharedFields []sharedFieldSelection) bool {
+func (r *fieldSelectionRewriter) inlineFragmentHasAllSharedFields(dsConfiguration *DataSourceConfiguration, inlineFragmentSelection inlineFragmentSelection, sharedFields []fieldSelection) bool {
 	notSelectedFields := r.notSelectedSharedFieldsForInlineFragment(inlineFragmentSelection, sharedFields)
 
 	if len(notSelectedFields) == 0 {
@@ -227,45 +238,73 @@ func (r *interfaceSelectionRewriter) inlineFragmentHasAllSharedFields(dsConfigur
 	return true
 }
 
-func (r *interfaceSelectionRewriter) interfaceFieldSelectionNeedsRewrite(fieldRef int, dsConfiguration *DataSourceConfiguration, entityNames []string) (selectionSetInfo interfaceFieldSelectionInfo, needRewrite bool, err error) {
-	selectionSetInfo, err = r.collectFieldInformation(fieldRef, entityNames)
+func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(fieldRef int, dsConfiguration *DataSourceConfiguration, entityNames []string) (selectionSetInfo fieldSelectionInfo, entitiesWithoutFragment []string, needRewrite bool, err error) {
+	selectionSetInfo, err = r.collectFieldInformation(fieldRef)
 	if err != nil {
 		return
 	}
+
+	entitiesWithoutFragment = r.entityNamesWithoutFragments(selectionSetInfo.inlineFragmentsOnObjects, entityNames)
+
+	// TODO: we are not checking inline fragments on interfaces - this is the case when we have on interface fragment within interface field selection
+
 	// case 1. we do not have fragments
-	if len(selectionSetInfo.inlineFragments) == 0 {
+	if len(selectionSetInfo.inlineFragmentsOnObjects) == 0 {
 		// check that all types implementing the interface have a root node with the requested fields
-		return selectionSetInfo, !r.allEntitiesHaveSharedFieldsAsRootNode(dsConfiguration, entityNames, selectionSetInfo.sharedFields), nil
+		return selectionSetInfo, entitiesWithoutFragment, !r.allEntitiesHaveSharedFieldsAsRootNode(dsConfiguration, entityNames, selectionSetInfo.sharedFields), nil
 	}
 
 	// case 2. we do not have shared fields, but only fragments
 	if len(selectionSetInfo.sharedFields) == 0 {
 		// if we do not have shared fields but do have fragments - we do not need to rewrite
-		return selectionSetInfo, false, nil
+		return selectionSetInfo, entitiesWithoutFragment, false, nil
 	}
 
 	// case 3. we have both shared fields and inline fragments
 	// 3.1 check first case for types for which we do not have inline fragments
 
-	if !r.allEntitiesHaveSharedFieldsAsRootNode(dsConfiguration, selectionSetInfo.entitiesWithoutFragment, selectionSetInfo.sharedFields) {
-		return selectionSetInfo, true, nil
+	if !r.allEntitiesHaveSharedFieldsAsRootNode(dsConfiguration, entitiesWithoutFragment, selectionSetInfo.sharedFields) {
+		return selectionSetInfo, entitiesWithoutFragment, true, nil
 	}
 
 	// 3.2 check that fragment types have all requested fields or all not selected fields are local for the datasource
-	for _, inlineFragmentSelection := range selectionSetInfo.inlineFragments {
+	for _, inlineFragmentSelection := range selectionSetInfo.inlineFragmentsOnObjects {
 		if !r.inlineFragmentHasAllSharedFields(dsConfiguration, inlineFragmentSelection, selectionSetInfo.sharedFields) {
-			return selectionSetInfo, true, nil
+			return selectionSetInfo, entitiesWithoutFragment, true, nil
 		}
 	}
 
-	return selectionSetInfo, false, nil
+	return selectionSetInfo, entitiesWithoutFragment, false, nil
 }
 
-func (r *interfaceSelectionRewriter) RewriteOperation(fieldRef int, enclosingNode ast.Node, dsConfiguration *DataSourceConfiguration) (rewritten bool, err error) {
-	interfaceDefRef, isInterface := r.isFieldReturnsInterface(fieldRef, enclosingNode)
-	if !isInterface {
+func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(fieldRef int, dsConfiguration *DataSourceConfiguration, entityNames []string) (selectionSetInfo fieldSelectionInfo, needRewrite bool, err error) {
+	// TODO: implement
+	return fieldSelectionInfo{}, false, nil
+}
+
+func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNode ast.Node, dsConfiguration *DataSourceConfiguration) (rewritten bool, err error) {
+	fieldTypeNode, ok := r.fieldTypeNode(fieldRef, enclosingNode)
+	if !ok {
 		return false, nil
 	}
+
+	switch fieldTypeNode.Kind {
+	case ast.NodeKindInterfaceTypeDefinition:
+		return r.processInterfaceSelection(fieldRef, fieldTypeNode.Ref, dsConfiguration)
+	case ast.NodeKindUnionTypeDefinition:
+		return r.processUnionSelection(fieldRef, fieldTypeNode.Ref, dsConfiguration)
+	default:
+		return false, nil
+	}
+}
+
+func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfaceDefRef int, dsConfiguration *DataSourceConfiguration) (rewritten bool, err error) {
+	/*
+		1) extract selections which is not inline-fragments - e.g. shared selections
+		2) extract selections for each inline fragment
+		3) for types which do not have inline-fragment - add inline fragment with shared fields
+		4) for types which have inline-fragment - add not selected shared fields to existing inline fragment
+	*/
 
 	typeNames, ok := r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceDefRef)
 	if !ok {
@@ -277,7 +316,7 @@ func (r *interfaceSelectionRewriter) RewriteOperation(fieldRef int, enclosingNod
 		return false, nil
 	}
 
-	info, needRewrite, err := r.interfaceFieldSelectionNeedsRewrite(fieldRef, dsConfiguration, entityNames)
+	info, entitiesWithoutFragment, needRewrite, err := r.interfaceFieldSelectionNeedsRewrite(fieldRef, dsConfiguration, entityNames)
 	if err != nil {
 		return false, err
 	}
@@ -285,7 +324,7 @@ func (r *interfaceSelectionRewriter) RewriteOperation(fieldRef int, enclosingNod
 		return false, nil
 	}
 
-	err = r.rewriteOperation(fieldRef, info)
+	err = r.rewriteInterfaceSelection(fieldRef, info, entitiesWithoutFragment)
 	if err != nil {
 		return false, err
 	}
@@ -293,26 +332,44 @@ func (r *interfaceSelectionRewriter) RewriteOperation(fieldRef int, enclosingNod
 	return true, nil
 }
 
-func (r *interfaceSelectionRewriter) rewriteOperation(fieldRef int, fieldInfo interfaceFieldSelectionInfo) error {
+func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef int, dsConfiguration *DataSourceConfiguration) (rewritten bool, err error) {
 	/*
-		1) extract selections which is not inline-fragments - e.g. shared selections
-		2) extract selections for each inline fragment
-		3) for types which do not have inline-fragment - add inline fragment with shared fields
-		4) for types which have inline-fragment - add not selected shared fields to existing inline fragment
+		1) extract inline fragments selections with interface types
+		2) extract inline fragments selections with members of the union
+		3) intersect inline fragments selections with interface types and members of the union
+		4) create new inline fragments with types from the intersection which do not have inline fragments
+		5) append existing inline fragments with fields from the interfaces
 	*/
 
-	newSelectionRefs := make([]int, 0, len(fieldInfo.entitiesWithoutFragment)+len(fieldInfo.inlineFragments)+1) // 1 for __typename
+	typeNames, ok := r.definition.UnionTypeDefinitionMemberTypeNames(unionDefRef)
+	if !ok {
+		return false, nil
+	}
 
-	if fieldInfo.hasSharedTypename {
+	entityNames, ok := r.datasourceHasEntitiesWithName(dsConfiguration, typeNames)
+	if !ok {
+		return false, nil
+	}
+
+	info, needRewrite, err := r.unionFieldSelectionNeedsRewrite(fieldRef, dsConfiguration, entityNames)
+	_, _ = info, needRewrite
+
+	return false, nil
+}
+
+func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldInfo fieldSelectionInfo, entitiesWithoutFragment []string) error {
+	newSelectionRefs := make([]int, 0, len(entitiesWithoutFragment)+len(fieldInfo.inlineFragmentsOnObjects)+1) // 1 for __typename
+
+	if fieldInfo.hasTypeNameSelection {
 		// we should preserve __typename if it was in the original query as it explicitly requested
 		newSelectionRefs = append(newSelectionRefs, r.typeNameSelection())
 	}
 
-	for _, entityName := range fieldInfo.entitiesWithoutFragment {
+	for _, entityName := range entitiesWithoutFragment {
 		newSelectionRefs = append(newSelectionRefs, r.createFragmentSelection(entityName, fieldInfo.sharedFields))
 	}
 
-	for _, inlineFragmentInfo := range fieldInfo.inlineFragments {
+	for _, inlineFragmentInfo := range fieldInfo.inlineFragmentsOnObjects {
 		fragmentSelectionRef, err := r.copyFragmentSelectionWithAddingFields(inlineFragmentInfo, fieldInfo.sharedFields)
 		if err != nil {
 			return err
@@ -331,7 +388,7 @@ func (r *interfaceSelectionRewriter) rewriteOperation(fieldRef int, fieldInfo in
 	return nil
 }
 
-func (r *interfaceSelectionRewriter) typeNameSelection() (selectionRef int) {
+func (r *fieldSelectionRewriter) typeNameSelection() (selectionRef int) {
 	field := r.operation.AddField(ast.Field{
 		Name: r.operation.Input.AppendInputString("__typename"),
 	})
@@ -341,7 +398,7 @@ func (r *interfaceSelectionRewriter) typeNameSelection() (selectionRef int) {
 	})
 }
 
-func (r *interfaceSelectionRewriter) createFragmentSelection(typeName string, sharedFields []sharedFieldSelection) (selectionRef int) {
+func (r *fieldSelectionRewriter) createFragmentSelection(typeName string, sharedFields []fieldSelection) (selectionRef int) {
 	selectionRefs := make([]int, 0, len(sharedFields))
 	for _, sharedField := range sharedFields {
 		newFieldSelectionRef := r.operation.CopySelection(sharedField.fieldSelectionRef)
@@ -368,7 +425,7 @@ func (r *interfaceSelectionRewriter) createFragmentSelection(typeName string, sh
 	})
 }
 
-func (r *interfaceSelectionRewriter) copyFragmentSelectionWithAddingFields(inlineFragmentInfo inlineFragmentSelection, sharedFields []sharedFieldSelection) (selectionRef int, err error) {
+func (r *fieldSelectionRewriter) copyFragmentSelectionWithAddingFields(inlineFragmentInfo inlineFragmentSelection, sharedFields []fieldSelection) (selectionRef int, err error) {
 	notSelectedFields := r.notSelectedSharedFieldsForInlineFragment(inlineFragmentInfo, sharedFields)
 
 	inlineFragmentSelectionCopyRef := r.operation.CopySelection(inlineFragmentInfo.selectionRef)
