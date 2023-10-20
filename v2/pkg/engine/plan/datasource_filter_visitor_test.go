@@ -807,6 +807,71 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				},
 			},
 		},
+		{
+			Description: "Shareable: no root node parent",
+			Definition:  conflictingPathsDefinition,
+			Query: `
+				query {
+					user {
+						id
+						object {
+							name
+						}
+						nested {
+							uniqueOne
+							uniqueTwo
+							nested {
+								shared
+								uniqueOne
+								uniqueTwo
+							}
+						}
+					}
+				}
+			`,
+			DataSources: []DataSourceConfiguration{
+				conflictingPaths1,
+				conflictingPaths2,
+			},
+			ExpectedVariants: []Variant{
+				{
+					dsOrder: []int{0, 1},
+					suggestions: NodeSuggestions{
+						{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, selected: true},
+						{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user", IsRootNode: true, selected: true},
+						{TypeName: "User", FieldName: "object", DataSourceHash: 11, Path: "query.user.object", ParentPath: "query.user", IsRootNode: true, selected: true},
+						{TypeName: "Object", FieldName: "name", DataSourceHash: 11, Path: "query.user.object.name", ParentPath: "query.user.object", IsRootNode: false, selected: true},
+						{TypeName: "User", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, selected: true},
+						{TypeName: "User", FieldName: "nested", DataSourceHash: 22, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, selected: true},
+						{TypeName: "NestedOne", FieldName: "uniqueOne", DataSourceHash: 11, Path: "query.user.nested.uniqueOne", ParentPath: "query.user.nested", IsRootNode: false, selected: true},
+						{TypeName: "NestedOne", FieldName: "uniqueTwo", DataSourceHash: 22, Path: "query.user.nested.uniqueTwo", ParentPath: "query.user.nested", IsRootNode: false, selected: true},
+						{TypeName: "NestedOne", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested.nested", ParentPath: "query.user.nested", IsRootNode: false, selected: true},
+						{TypeName: "NestedOne", FieldName: "nested", DataSourceHash: 22, Path: "query.user.nested.nested", ParentPath: "query.user.nested", IsRootNode: false, selected: true},
+						{TypeName: "NestedTwo", FieldName: "shared", DataSourceHash: 11, Path: "query.user.nested.nested.shared", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true},
+						{TypeName: "NestedTwo", FieldName: "uniqueOne", DataSourceHash: 11, Path: "query.user.nested.nested.uniqueOne", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true},
+						{TypeName: "NestedTwo", FieldName: "uniqueTwo", DataSourceHash: 22, Path: "query.user.nested.nested.uniqueTwo", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true},
+					},
+				},
+				{
+					dsOrder: []int{1, 0},
+					suggestions: NodeSuggestions{
+						{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, selected: true},
+						{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user", IsRootNode: true, selected: true},
+						{TypeName: "User", FieldName: "object", DataSourceHash: 11, Path: "query.user.object", ParentPath: "query.user", IsRootNode: true, selected: true},
+						{TypeName: "Object", FieldName: "name", DataSourceHash: 11, Path: "query.user.object.name", ParentPath: "query.user.object", IsRootNode: false, selected: true},
+						{TypeName: "User", FieldName: "nested", DataSourceHash: 22, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, selected: true},
+						{TypeName: "User", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, selected: true},
+						{TypeName: "NestedOne", FieldName: "uniqueOne", DataSourceHash: 11, Path: "query.user.nested.uniqueOne", ParentPath: "query.user.nested", IsRootNode: false, selected: true},
+						{TypeName: "NestedOne", FieldName: "uniqueTwo", DataSourceHash: 22, Path: "query.user.nested.uniqueTwo", ParentPath: "query.user.nested", IsRootNode: false, selected: true},
+						{TypeName: "NestedOne", FieldName: "nested", DataSourceHash: 22, Path: "query.user.nested.nested", ParentPath: "query.user.nested", IsRootNode: false, selected: true},
+						{TypeName: "NestedOne", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested.nested", ParentPath: "query.user.nested", IsRootNode: false, selected: true},
+						{TypeName: "NestedTwo", FieldName: "shared", DataSourceHash: 22, Path: "query.user.nested.nested.shared", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true},
+						{TypeName: "NestedTwo", FieldName: "uniqueOne", DataSourceHash: 11, Path: "query.user.nested.nested.uniqueOne", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true},
+						{TypeName: "NestedTwo", FieldName: "uniqueTwo", DataSourceHash: 22, Path: "query.user.nested.nested.uniqueTwo", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true},
+					},
+				},
+			},
+		},
 	}
 
 	run := func(t *testing.T, Definition, Query string, DataSources []DataSourceConfiguration, expected NodeSuggestions) {
@@ -955,3 +1020,82 @@ var shareableDS3 = dsb().Hash(33).Schema(shareableDS3Schema).
 	RootNode("User", "id", "details").
 	ChildNode("Details", "age").
 	DS()
+
+const conflictingPaths1Schema = `
+	type Query {
+		user: User!
+	}
+
+	type User @key(fields: "id") {
+		id: ID!
+		nested: NestedOne!
+	}
+
+	type NestedOne {
+		uniqueOne: String!
+		nested: NestedTwo!
+	}
+
+	type NestedTwo {
+		shared: String!
+		uniqueOne: Int!
+	}
+`
+
+var conflictingPaths1 = dsb().Hash(11).Schema(conflictingPaths1Schema).
+	RootNode("Query", "user").RootNode("User", "id", "nested", "object").
+	ChildNode("Object", "name").
+	ChildNode("NestedOne", "uniqueOne", "nested").
+	ChildNode("NestedTwo", "shared", "uniqueOne").
+	DS()
+
+const conflictingPaths2Schema = `
+	type User @key(fields: "id") {
+		id: ID!
+		nested: NestedOne!
+	}
+
+	type NestedOne {
+		uniqueTwo: String!
+		nested: NestedTwo!
+	}
+
+	type NestedTwo {
+		shared: String!
+		uniqueTwo: Int!
+	}
+`
+
+var conflictingPaths2 = dsb().Hash(22).Schema(conflictingPaths2Schema).
+	RootNode("User", "id", "nested").
+	ChildNode("NestedOne", "uniqueTwo", "nested").
+	ChildNode("NestedTwo", "shared", "uniqueTwo").
+	DS()
+
+var conflictingPathsDefinition = `
+	type Query {
+		user: User!
+	}
+	
+	type User {
+		id: ID!
+		nested: NestedOne!
+		object: Object!
+	}
+
+	type Object {
+		name: String!
+	}
+	
+	type NestedOne {
+		uniqueOne: String!
+		uniqueTwo: String!
+		nested: NestedTwo!
+	}
+	
+	type NestedTwo {
+		shared: String!
+		uniqueOne: Int!
+		uniqueTwo: Int!
+	}
+`
