@@ -413,25 +413,26 @@ func selectUniqNodes(nodes NodeSuggestions) []NodeSuggestion {
 			continue
 		}
 
-		isNodeUniq := nodes.isNodeUniq(i)
-		if !isNodeUniq {
+		isNodeUnique := nodes.isNodeUniq(i)
+		if !isNodeUnique {
 			continue
 		}
 
-		// uniq nodes are always has priority
+		// unique nodes always have priority
 		nodes[i].selectWithReason(ReasonStage1Uniq)
 
 		if !nodes[i].onFragment { // on a first stage do not select parent of nodes on fragments
-			// if node parent of the uniq node is on the same source, prioritize it too
+			// if node parent of the unique node is on the same source, prioritize it too
 			parentIdx, ok := nodes.parentNodeOnSameSource(i)
-			if ok {
+			// Only select the parent on this stage if the node is a leaf; otherwise, the parent is selected elsewhere
+			if ok && nodes.isLeaf(i) {
 				nodes[parentIdx].selectWithReason(ReasonStage1SameSourceParent)
 			}
 		}
 
-		// if node has leaf childs on the same source, prioritize them too
-		childs := nodes.childNodesOnSameSource(i)
-		for _, child := range childs {
+		// if node has leaf children on the same source, prioritize them too
+		children := nodes.childNodesOnSameSource(i)
+		for _, child := range children {
 			if nodes.isLeaf(child) && nodes.isNodeUniq(child) {
 				nodes[child].selectWithReason(ReasonStage1SameSourceLeafChild)
 			}
