@@ -12,8 +12,8 @@ import (
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wundergraph/graphql-go-tools/pkg/graphql"
-	"github.com/wundergraph/graphql-go-tools/pkg/subscription"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/subscription"
 )
 
 func TestGraphQLTransportWSMessageReader_Read(t *testing.T) {
@@ -475,7 +475,6 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 
 		operation := []byte(`{"operationName":"Hello","query":"query Hello { hello }"}`)
 		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
 		mockEngine := NewMockEngine(ctrl)
 		mockEngine.EXPECT().StartOperation(gomock.Eq(ctx), gomock.Eq("2"), gomock.Eq(operation), gomock.Eq(&protocol.eventHandler))
 

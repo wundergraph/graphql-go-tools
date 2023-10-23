@@ -35,7 +35,7 @@ var (
 
 type Request struct {
 	OperationName string          `json:"operationName"`
-	Variables     json.RawMessage `json:"variables"`
+	Variables     json.RawMessage `json:"variables,omitempty"`
 	Query         string          `json:"query"`
 
 	document     ast.Document

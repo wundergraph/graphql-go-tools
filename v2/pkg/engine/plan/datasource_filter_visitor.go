@@ -104,7 +104,7 @@ type NodeSuggestion struct {
 	ParentPath     string
 	IsRootNode     bool
 
-	parentPathWithoutFragment string
+	parentPathWithoutFragment *string
 	onFragment                bool
 	selected                  bool
 	selectionReasons          []string
@@ -116,15 +116,15 @@ func (n *NodeSuggestion) appendSelectionReason(reason string) {
 }
 
 func (n *NodeSuggestion) selectWithReason(reason string) {
+	// n.appendSelectionReason(reason) // NOTE: debug do not remove
 	if n.selected {
 		return
 	}
 	n.selected = true
-	// n.appendSelectionReason(reason) // NOTE: debug do not remove
 }
 
 func (n *NodeSuggestion) String() string {
-	return fmt.Sprintf(`{"ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t}`, n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode)
+	return fmt.Sprintf(`{"ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t, "select reason": %v}`, n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode, n.selectionReasons)
 }
 
 type NodeSuggestions []NodeSuggestion
@@ -215,7 +215,7 @@ func (f NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
 			continue
 		}
 
-		if f[i].ParentPath == f[idx].Path || f[i].parentPathWithoutFragment == f[idx].Path {
+		if f[i].ParentPath == f[idx].Path || (f[i].parentPathWithoutFragment != nil && *f[i].parentPathWithoutFragment == f[idx].Path) {
 			out = append(out, i)
 		}
 	}
@@ -231,16 +231,19 @@ func (f NodeSuggestions) siblingNodesOnSameSource(idx int) (out []int) {
 			continue
 		}
 
-		identicalParentPath := f[i].ParentPath == f[idx].ParentPath
-		identicalParentPathWithoutFragment := f[i].parentPathWithoutFragment == f[idx].parentPathWithoutFragment
-		idxParentOtherFragment := f[i].parentPathWithoutFragment == f[idx].ParentPath
-		otherParentIdxFragment := f[i].ParentPath == f[idx].parentPathWithoutFragment
+		hasMatch := false
+		switch {
+		case f[i].parentPathWithoutFragment != nil && f[idx].parentPathWithoutFragment != nil:
+			hasMatch = *f[i].parentPathWithoutFragment == *f[idx].parentPathWithoutFragment
+		case f[i].parentPathWithoutFragment != nil && f[idx].parentPathWithoutFragment == nil:
+			hasMatch = *f[i].parentPathWithoutFragment == f[idx].ParentPath
+		case f[i].parentPathWithoutFragment == nil && f[idx].parentPathWithoutFragment != nil:
+			hasMatch = f[i].ParentPath == *f[idx].parentPathWithoutFragment
+		default:
+			hasMatch = f[i].ParentPath == f[idx].ParentPath
+		}
 
-		if identicalParentPath ||
-			identicalParentPathWithoutFragment ||
-			idxParentOtherFragment ||
-			otherParentIdxFragment {
-
+		if hasMatch {
 			out = append(out, i)
 		}
 	}
@@ -268,7 +271,7 @@ func (f NodeSuggestions) parentNodeOnSameSource(idx int) (parentIdx int, ok bool
 			continue
 		}
 
-		if f[i].Path == f[idx].ParentPath || f[i].Path == f[idx].parentPathWithoutFragment {
+		if f[i].Path == f[idx].ParentPath || (f[idx].parentPathWithoutFragment != nil && f[i].Path == *f[idx].parentPathWithoutFragment) {
 			return i, true
 		}
 	}
@@ -347,9 +350,10 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 	isTypeName := fieldName == typeNameField
 	parentPath := f.walker.Path.DotDelimitedString()
 	onFragment := f.walker.Path.EndsWithFragment()
-	var parentPathWithoutFragment string
+	var parentPathWithoutFragment *string
 	if onFragment {
-		parentPathWithoutFragment = f.walker.Path[:len(f.walker.Path)-1].DotDelimitedString()
+		p := f.walker.Path[:len(f.walker.Path)-1].DotDelimitedString()
+		parentPathWithoutFragment = &p
 	}
 
 	currentPath := parentPath + "." + fieldAliasOrName
@@ -409,25 +413,26 @@ func selectUniqNodes(nodes NodeSuggestions) []NodeSuggestion {
 			continue
 		}
 
-		isNodeUniq := nodes.isNodeUniq(i)
-		if !isNodeUniq {
+		isNodeUnique := nodes.isNodeUniq(i)
+		if !isNodeUnique {
 			continue
 		}
 
-		// uniq nodes are always has priority
+		// unique nodes always have priority
 		nodes[i].selectWithReason(ReasonStage1Uniq)
 
 		if !nodes[i].onFragment { // on a first stage do not select parent of nodes on fragments
-			// if node parent of the uniq node is on the same source, prioritize it too
+			// if node parent of the unique node is on the same source, prioritize it too
 			parentIdx, ok := nodes.parentNodeOnSameSource(i)
-			if ok {
+			// Only select the parent on this stage if the node is a leaf; otherwise, the parent is selected elsewhere
+			if ok && nodes.isLeaf(i) {
 				nodes[parentIdx].selectWithReason(ReasonStage1SameSourceParent)
 			}
 		}
 
-		// if node has leaf childs on the same source, prioritize them too
-		childs := nodes.childNodesOnSameSource(i)
-		for _, child := range childs {
+		// if node has leaf children on the same source, prioritize them too
+		children := nodes.childNodesOnSameSource(i)
+		for _, child := range children {
 			if nodes.isLeaf(child) && nodes.isNodeUniq(child) {
 				nodes[child].selectWithReason(ReasonStage1SameSourceLeafChild)
 			}
