@@ -52,8 +52,8 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 		dsConfiguration   *DataSourceConfiguration
 		operation         string
 		expectedOperation string
-		enclosingTypeName string
-		fieldName         string
+		enclosingTypeName string // default is "Query"
+		fieldName         string // default is "iface"
 		shouldRewrite     bool
 	}
 
@@ -73,9 +73,23 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			id: ID!
 			name: String!
 		}
+
+		type ImplementsNodeNotInUnion implements Node {
+			id: ID!
+			name: String!
+		}
+
+		type Moderator implements Node {
+			id: ID!
+			name: String!
+			isModerator: Boolean!
+		}
 		
+		union Account = User | Admin | Moderator
+
 		type Query {
 			iface: Node!
+			accounts: [Account!]!
 		}
 	`
 
@@ -244,6 +258,67 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						... on Admin {
 							name
 						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name: "has only moderator fragment which is from other datasource - should remove moderator fragment",
+			definition: `
+				interface Node {
+					id: ID!
+					name: String!
+				}
+				
+				type User implements Node {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin implements Node {
+					id: ID!
+					name: String!
+				}
+
+				type Moderator implements Node {
+					id: ID!
+					name: String!
+					isModerator: Boolean!
+				}
+				
+				type Query {
+					iface: Node!
+				}
+			`,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DSPtr(),
+			operation: `
+				query {
+					iface {
+						... on Moderator {
+							isModerator
+						}
+					}
+				}`,
+
+			expectedOperation: `
+				query {
+					iface {
+						__typename
 					}
 				}`,
 			shouldRewrite: true,
@@ -656,7 +731,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: false,
 		},
 		{
-			name: "field is union",
+			name: "field is union - should not be touched we have all fragments and everything is local",
 			definition: `
 				union Node = User | Admin
 				
@@ -884,6 +959,264 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 								name
 							}
 						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:       "Union with interface fragment: no entity fragments, all fields local",
+			definition: definition,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface", "accounts").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id", "name").
+				RootNode("Moderator", "id", "name", "isModerator").
+				RootNode("Node", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Moderator",
+						SelectionSet: "id",
+					},
+				}).
+				DSPtr(),
+			fieldName: "accounts",
+			operation: `
+				query {
+					accounts {
+						... on Node {
+							name
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					accounts {
+						... on Node {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: false,
+		},
+		{
+			name:       "Union with interface fragment: no entity fragments, all user.name is local, admin.name and moderator.name is external",
+			definition: definition,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface", "accounts").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				RootNode("Moderator", "id").
+				RootNode("Node", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Moderator",
+						SelectionSet: "id",
+					},
+				}).
+				DSPtr(),
+			fieldName: "accounts",
+			operation: `
+				query {
+					accounts {
+						... on Node {
+							name
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					accounts {
+						... on User {
+							name
+						}
+						... on Admin {
+							name
+						}
+						... on Moderator {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:       "Union with interface fragment: no entity fragments, all user.name is local, admin.name is external, moderator from other datasource",
+			definition: definition,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface", "accounts").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				RootNode("Node", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DSPtr(),
+			fieldName: "accounts",
+			operation: `
+				query {
+					accounts {
+						... on Node {
+							name
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					accounts {
+						... on User {
+							name
+						}
+						... on Admin {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:       "Union with interface fragment: user has fragment, user.name is local, admin.name is external, moderator from other datasource",
+			definition: definition,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface", "accounts").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				RootNode("Node", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DSPtr(),
+			fieldName: "accounts",
+			operation: `
+				query {
+					accounts {
+						... on Node {
+							name
+						}
+						... on User {
+							isUser
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					accounts {
+						... on User {
+							isUser
+							name
+						}
+						... on Admin {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:       "Union with interface fragment: user has fragment, moderator has fragment, user.name is local, admin.name is external, moderator from other datasource",
+			definition: definition,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface", "accounts").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				RootNode("Node", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DSPtr(),
+			fieldName: "accounts",
+			operation: `
+				query {
+					accounts {
+						... on Node {
+							name
+						}
+						... on Moderator {
+							isModerator
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					accounts {
+						... on User {
+							name
+						}
+						... on Admin {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:       "Union with interface fragment: only moderator has fragment, user.name is local, admin.name is external, moderator from other datasource",
+			definition: definition,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface", "accounts").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				RootNode("Node", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DSPtr(),
+			fieldName: "accounts",
+			operation: `
+				query {
+					accounts {
+						... on Moderator {
+							isModerator
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					accounts {
+						__typename
 					}
 				}`,
 			shouldRewrite: true,
