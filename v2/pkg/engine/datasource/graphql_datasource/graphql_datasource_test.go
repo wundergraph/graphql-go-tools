@@ -14,8 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	. "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -302,19 +302,21 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					DataSource: &Source{},
-					Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":$$0$$}}}`,
-					Variables: resolve.NewVariables(
-						&resolve.ContextVariable{
-							Path:     []string{"id"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-						},
-						&resolve.HeaderVariable{
-							Path: []string{"Authorization"},
-						},
-					),
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					PostProcessing:       DefaultPostProcessingConfiguration,
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: &Source{},
+						Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":$$0$$}}}`,
+						Variables: resolve.NewVariables(
+							&resolve.ContextVariable{
+								Path:     []string{"id"},
+								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+							},
+							&resolve.HeaderVariable{
+								Path: []string{"Authorization"},
+							},
+						),
+						PostProcessing: DefaultPostProcessingConfiguration,
+					},
 				},
 				Fields: []*resolve.Field{
 					{
