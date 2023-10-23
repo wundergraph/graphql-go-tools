@@ -119,6 +119,136 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: true,
 		},
 		{
+			name: "admin name is external, moderator is from other datasource - should not have moderator fragment",
+			definition: `
+				interface Node {
+					id: ID!
+					name: String!
+				}
+				
+				type User implements Node {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin implements Node {
+					id: ID!
+					name: String!
+				}
+
+				type Moderator implements Node {
+					id: ID!
+					name: String!
+				}
+				
+				type Query {
+					iface: Node!
+				}
+			`,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DSPtr(),
+			operation: `
+				query {
+					iface {
+						name
+					}
+				}`,
+
+			expectedOperation: `
+				query {
+					iface {
+						... on User {
+							name
+						}
+						... on Admin {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name: "admin name is external, moderator is from other datasource - should remove moderator fragment",
+			definition: `
+				interface Node {
+					id: ID!
+					name: String!
+				}
+				
+				type User implements Node {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin implements Node {
+					id: ID!
+					name: String!
+				}
+
+				type Moderator implements Node {
+					id: ID!
+					name: String!
+					isModerator: Boolean!
+				}
+				
+				type Query {
+					iface: Node!
+				}
+			`,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DSPtr(),
+			operation: `
+				query {
+					iface {
+						name
+						... on Moderator {
+							isModerator
+						}
+					}
+				}`,
+
+			expectedOperation: `
+				query {
+					iface {
+						... on User {
+							name
+						}
+						... on Admin {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
 			name:       "one field is external. query has user fragment",
 			definition: definition,
 			dsConfiguration: dsb().

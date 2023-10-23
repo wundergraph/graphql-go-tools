@@ -324,7 +324,7 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 		return false, nil
 	}
 
-	err = r.rewriteInterfaceSelection(fieldRef, info, entitiesWithoutFragment)
+	err = r.rewriteInterfaceSelection(fieldRef, info, entitiesWithoutFragment, dsConfiguration)
 	if err != nil {
 		return false, err
 	}
@@ -357,7 +357,7 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 	return false, nil
 }
 
-func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldInfo fieldSelectionInfo, entitiesWithoutFragment []string) error {
+func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldInfo fieldSelectionInfo, entitiesWithoutFragment []string, dsConfiguration *DataSourceConfiguration) error {
 	newSelectionRefs := make([]int, 0, len(entitiesWithoutFragment)+len(fieldInfo.inlineFragmentsOnObjects)+1) // 1 for __typename
 
 	if fieldInfo.hasTypeNameSelection {
@@ -370,6 +370,14 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 	}
 
 	for _, inlineFragmentInfo := range fieldInfo.inlineFragmentsOnObjects {
+		hasTypeOnDatasource := dsConfiguration.HasRootNodeWithTypename(inlineFragmentInfo.typeName) ||
+			dsConfiguration.HasChildNodeWithTypename(inlineFragmentInfo.typeName)
+
+		if !hasTypeOnDatasource {
+			// remove fragments with type not exists in the current datasource
+			continue
+		}
+
 		fragmentSelectionRef, err := r.copyFragmentSelectionWithAddingFields(inlineFragmentInfo, fieldInfo.sharedFields)
 		if err != nil {
 			return err
