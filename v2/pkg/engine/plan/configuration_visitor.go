@@ -934,9 +934,15 @@ func (c *configurationVisitor) rewriteSelectionSetOfFieldWithInterfaceType(field
 		c.walker.StopWithInternalErr(err)
 	}
 
-	if rewritten {
-		c.hasNewFields = true
-		c.walker.Stop()
+	if !rewritten {
+		return
 	}
 
+	// we should skip typename field ref when it was added by the rewriter, e.g. not requested by user
+	if rewriter.skipTypeNameFieldRef != ast.InvalidRef {
+		c.skipFieldsRefs = append(c.skipFieldsRefs, rewriter.skipTypeNameFieldRef)
+	}
+
+	c.hasNewFields = true
+	c.walker.Stop()
 }

@@ -17,12 +17,15 @@ var (
 type fieldSelectionRewriter struct {
 	operation  *ast.Document
 	definition *ast.Document
+
+	skipTypeNameFieldRef int
 }
 
 func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document) *fieldSelectionRewriter {
 	return &fieldSelectionRewriter{
-		operation:  operation,
-		definition: definition,
+		operation:            operation,
+		definition:           definition,
+		skipTypeNameFieldRef: ast.InvalidRef,
 	}
 }
 
@@ -227,6 +230,16 @@ func (r *fieldSelectionRewriter) entityNamesWithFragments(inlineFragments []inli
 	return nil
 }
 
+func (r *fieldSelectionRewriter) allFragmentTypesExistsOnDatasource(inlineFragments []inlineFragmentSelection, configuration *DataSourceConfiguration) bool {
+	for _, inlineFragment := range inlineFragments {
+		if !r.hasTypeOnDataSource(configuration, inlineFragment.typeName) {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (r *fieldSelectionRewriter) filterFragmentsByTypeNames(inlineFragments []inlineFragmentSelection, typeNames []string) (fragments []inlineFragmentSelection, missingTypes []string) {
 	fragments = make([]inlineFragmentSelection, 0, len(typeNames))
 	for _, typeName := range typeNames {
@@ -395,7 +408,17 @@ func (r *fieldSelectionRewriter) allEntityFragmentsSatisfyInterfaces(inlineFragm
 	return true
 }
 
+func (r *fieldSelectionRewriter) hasTypeOnDataSource(dsConfiguration *DataSourceConfiguration, typeName string) bool {
+	return dsConfiguration.HasRootNodeWithTypename(typeName) ||
+		dsConfiguration.HasChildNodeWithTypename(typeName)
+}
+
 func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInfo fieldSelectionInfo, dsConfiguration *DataSourceConfiguration, entityNames []string) (needRewrite bool) {
+	// when we have types not exists in the current datasource - we need to rewrite
+	if !r.allFragmentTypesExistsOnDatasource(selectionSetInfo.inlineFragmentsOnObjects, dsConfiguration) {
+		return true
+	}
+
 	// when we do not have fragments on interfaces, but only on objects - we do not need to rewrite
 	if len(selectionSetInfo.inlineFragmentsOnInterfaces) == 0 {
 		return false
@@ -532,7 +555,8 @@ func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo f
 	newSelectionRefs := make([]int, 0, len(unionTypeNames)+1) // 1 for __typename
 	if fieldInfo.hasTypeNameSelection {
 		// we should preserve __typename if it was in the original query as it is explicitly requested
-		newSelectionRefs = append(newSelectionRefs, r.typeNameSelection())
+		typeNameSelectionRef, _ := r.typeNameSelection()
+		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
 	}
 
 	unionTypeNamesToProcess := make([]string, 0, len(unionTypeNames))
@@ -611,6 +635,9 @@ func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo f
 
 	if addedFragments == 0 && !fieldInfo.hasTypeNameSelection {
 		// we have to add __typename selection - but we should skip it in response
+		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection()
+		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, typeNameSelectionRef)
+		r.skipTypeNameFieldRef = typeNameFieldRef
 	}
 
 	return nil
@@ -621,7 +648,8 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 
 	if fieldInfo.hasTypeNameSelection {
 		// we should preserve __typename if it was in the original query as it is explicitly requested
-		newSelectionRefs = append(newSelectionRefs, r.typeNameSelection())
+		typeNameSelectionRef, _ := r.typeNameSelection()
+		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
 	}
 
 	for _, entityName := range entitiesWithoutFragment {
@@ -629,10 +657,7 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 	}
 
 	for _, inlineFragmentInfo := range fieldInfo.inlineFragmentsOnObjects {
-		hasTypeOnDatasource := dsConfiguration.HasRootNodeWithTypename(inlineFragmentInfo.typeName) ||
-			dsConfiguration.HasChildNodeWithTypename(inlineFragmentInfo.typeName)
-
-		if !hasTypeOnDatasource {
+		if !r.hasTypeOnDataSource(dsConfiguration, inlineFragmentInfo.typeName) {
 			// remove fragments with type not exists in the current datasource
 			continue
 		}
@@ -655,14 +680,14 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 	return nil
 }
 
-func (r *fieldSelectionRewriter) typeNameSelection() (selectionRef int) {
+func (r *fieldSelectionRewriter) typeNameSelection() (selectionRef int, fieldRef int) {
 	field := r.operation.AddField(ast.Field{
 		Name: r.operation.Input.AppendInputString("__typename"),
 	})
 	return r.operation.AddSelectionToDocument(ast.Selection{
 		Ref:  field.Ref,
 		Kind: ast.SelectionKindField,
-	})
+	}), field.Ref
 }
 
 func (r *fieldSelectionRewriter) createFragmentSelection(typeName string, fields []fieldSelection) (selectionRef int) {
