@@ -324,6 +324,11 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 		return entitiesWithoutFragment, !r.allEntitiesHaveFieldsAsRootNode(dsConfiguration, entityNames, selectionSetInfo.sharedFields)
 	}
 
+	// check that all inline fragments types are present in the current datasource
+	if !r.allFragmentTypesExistsOnDatasource(selectionSetInfo.inlineFragmentsOnObjects, dsConfiguration) {
+		return entitiesWithoutFragment, true
+	}
+
 	// case 2. we do not have shared fields, but only fragments
 	if len(selectionSetInfo.sharedFields) == 0 {
 		// if we do not have shared fields but do have fragments - we do not need to rewrite
@@ -652,8 +657,13 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
 	}
 
-	for _, entityName := range entitiesWithoutFragment {
-		newSelectionRefs = append(newSelectionRefs, r.createFragmentSelection(entityName, fieldInfo.sharedFields))
+	addedFragments := 0
+
+	if len(fieldInfo.sharedFields) > 0 {
+		for _, entityName := range entitiesWithoutFragment {
+			newSelectionRefs = append(newSelectionRefs, r.createFragmentSelection(entityName, fieldInfo.sharedFields))
+			addedFragments++
+		}
 	}
 
 	for _, inlineFragmentInfo := range fieldInfo.inlineFragmentsOnObjects {
@@ -668,6 +678,7 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 		}
 
 		newSelectionRefs = append(newSelectionRefs, fragmentSelectionRef)
+		addedFragments++
 	}
 
 	fieldSelectionSetRef, _ := r.operation.FieldSelectionSet(fieldRef)
@@ -675,6 +686,13 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 
 	for _, newSelectionRef := range newSelectionRefs {
 		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, newSelectionRef)
+	}
+
+	if addedFragments == 0 && !fieldInfo.hasTypeNameSelection {
+		// we have to add __typename selection - but we should skip it in response
+		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection()
+		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, typeNameSelectionRef)
+		r.skipTypeNameFieldRef = typeNameFieldRef
 	}
 
 	return nil
