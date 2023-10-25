@@ -7,8 +7,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
