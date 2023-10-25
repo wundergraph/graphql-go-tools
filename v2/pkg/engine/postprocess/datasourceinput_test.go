@@ -16,16 +16,18 @@ func TestDataSourceInput_Process(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					Input:      `{"method":"POST","url":"http://localhost:4001/$$0$$","body":{"query":"{me {id username __typename}}"}}`,
-					DataSource: nil,
-					Variables: []resolve.Variable{
-						&resolve.HeaderVariable{
-							Path: []string{"Authorization"},
+					FetchConfiguration: resolve.FetchConfiguration{
+						Input:      `{"method":"POST","url":"http://localhost:4001/$$0$$","body":{"query":"{me {id username __typename}}"}}`,
+						DataSource: nil,
+						Variables: []resolve.Variable{
+							&resolve.HeaderVariable{
+								Path: []string{"Authorization"},
+							},
 						},
-					},
-					PostProcessing: resolve.PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
+						PostProcessing: resolve.PostProcessingConfiguration{
+							SelectResponseDataPath:   []string{"data"},
+							SelectResponseErrorsPath: []string{"errors"},
+						},
 					},
 				},
 				Fields: []*resolve.Field{
@@ -33,36 +35,38 @@ func TestDataSourceInput_Process(t *testing.T) {
 						Name: []byte("me"),
 						Value: &resolve.Object{
 							Fetch: &resolve.SingleFetch{
-								Input: `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[$$0$$]}}}`,
-								Variables: resolve.NewVariables(
-									&resolve.ResolvableObjectVariable{
-										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-											Nullable: false,
-											Fields: []*resolve.Field{
-												{
-													Name: []byte("__typename"),
-													Value: &resolve.String{
-														Path:     []string{"__typename"},
-														Nullable: false,
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input: `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[$$0$$]}}}`,
+									Variables: resolve.NewVariables(
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: false,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path:     []string{"__typename"},
+															Nullable: false,
+														},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.String{
+															Path:     []string{"id"},
+															Nullable: false,
+														},
 													},
 												},
-												{
-													Name: []byte("id"),
-													Value: &resolve.String{
-														Path:     []string{"id"},
-														Nullable: false,
-													},
-												},
-											},
-										}),
+											}),
+										},
+									),
+									DataSource: nil,
+									PostProcessing: resolve.PostProcessingConfiguration{
+										SelectResponseDataPath:   []string{"data", "_entities"},
+										SelectResponseErrorsPath: []string{"errors"},
 									},
-								),
-								DataSource: nil,
-								PostProcessing: resolve.PostProcessingConfiguration{
-									SelectResponseDataPath:   []string{"data", "_entities"},
-									SelectResponseErrorsPath: []string{"errors"},
+									SetTemplateOutputToNullOnVariableNull: true,
 								},
-								SetTemplateOutputToNullOnVariableNull: true,
 							},
 							Path:     []string{"me"},
 							Nullable: true,
@@ -98,36 +102,38 @@ func TestDataSourceInput_Process(t *testing.T) {
 													Value: &resolve.Object{
 														Path: []string{"product"},
 														Fetch: &resolve.SingleFetch{
-															Input:      `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[$$0$$]}}}`,
-															DataSource: nil,
-															Variables: resolve.NewVariables(
-																&resolve.ResolvableObjectVariable{
-																	Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																		Nullable: false,
-																		Fields: []*resolve.Field{
-																			{
-																				Name: []byte("__typename"),
-																				Value: &resolve.String{
-																					Path:     []string{"__typename"},
-																					Nullable: false,
+															FetchConfiguration: resolve.FetchConfiguration{
+																Input:      `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[$$0$$]}}}`,
+																DataSource: nil,
+																Variables: resolve.NewVariables(
+																	&resolve.ResolvableObjectVariable{
+																		Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																			Nullable: false,
+																			Fields: []*resolve.Field{
+																				{
+																					Name: []byte("__typename"),
+																					Value: &resolve.String{
+																						Path:     []string{"__typename"},
+																						Nullable: false,
+																					},
+																				},
+																				{
+																					Name: []byte("upc"),
+																					Value: &resolve.String{
+																						Path:     []string{"upc"},
+																						Nullable: false,
+																					},
 																				},
 																			},
-																			{
-																				Name: []byte("upc"),
-																				Value: &resolve.String{
-																					Path:     []string{"upc"},
-																					Nullable: false,
-																				},
-																			},
-																		},
-																	}),
+																		}),
+																	},
+																),
+																PostProcessing: resolve.PostProcessingConfiguration{
+																	SelectResponseDataPath:   []string{"data", "_entities"},
+																	SelectResponseErrorsPath: []string{"errors"},
 																},
-															),
-															PostProcessing: resolve.PostProcessingConfiguration{
-																SelectResponseDataPath:   []string{"data", "_entities"},
-																SelectResponseErrorsPath: []string{"errors"},
+																SetTemplateOutputToNullOnVariableNull: true,
 															},
-															SetTemplateOutputToNullOnVariableNull: true,
 														},
 														Fields: []*resolve.Field{
 															{
@@ -172,10 +178,12 @@ func TestDataSourceInput_Process(t *testing.T) {
 							},
 						},
 					},
-					DataSource: nil,
-					PostProcessing: resolve.PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: nil,
+						PostProcessing: resolve.PostProcessingConfiguration{
+							SelectResponseDataPath:   []string{"data"},
+							SelectResponseErrorsPath: []string{"errors"},
+						},
 					},
 				},
 				Fields: []*resolve.Field{
@@ -223,10 +231,12 @@ func TestDataSourceInput_Process(t *testing.T) {
 									},
 									SetTemplateOutputToNullOnVariableNull: true,
 								},
-								DataSource: nil,
-								PostProcessing: resolve.PostProcessingConfiguration{
-									SelectResponseDataPath:   []string{"data", "_entities"},
-									SelectResponseErrorsPath: []string{"errors"},
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: nil,
+									PostProcessing: resolve.PostProcessingConfiguration{
+										SelectResponseDataPath:   []string{"data", "_entities"},
+										SelectResponseErrorsPath: []string{"errors"},
+									},
 								},
 							},
 							Path:     []string{"me"},
@@ -303,9 +313,11 @@ func TestDataSourceInput_Process(t *testing.T) {
 																},
 																SetTemplateOutputToNullOnVariableNull: true,
 															},
-															PostProcessing: resolve.PostProcessingConfiguration{
-																SelectResponseDataPath:   []string{"data", "_entities"},
-																SelectResponseErrorsPath: []string{"errors"},
+															FetchConfiguration: resolve.FetchConfiguration{
+																PostProcessing: resolve.PostProcessingConfiguration{
+																	SelectResponseDataPath:   []string{"data", "_entities"},
+																	SelectResponseErrorsPath: []string{"errors"},
+																},
 															},
 														},
 														Fields: []*resolve.Field{
@@ -350,9 +362,9 @@ func TestDataSourceInput_ProcessSerialFetch(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SerialFetch{
 					Fetches: []resolve.Fetch{
-						&resolve.SingleFetch{Input: `a`, SerialID: 0},
-						&resolve.SingleFetch{Input: `b`, SerialID: 2},
-						&resolve.SingleFetch{Input: `c`, SerialID: 5},
+						&resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: `a`}, SerialID: 0},
+						&resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: `b`}, SerialID: 2},
+						&resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: `c`}, SerialID: 5},
 					},
 				},
 			},

@@ -5,9 +5,10 @@ type FetchKind int
 const (
 	FetchKindSingle FetchKind = iota + 1
 	FetchKindParallel
-	FetchKindBatch
 	FetchKindSerial
 	FetchKindParallelListItem
+	FetchKindEntity
+	FetchKindEntityBatch
 )
 
 type Fetch interface {
@@ -17,26 +18,10 @@ type Fetch interface {
 type Fetches []Fetch
 
 type SingleFetch struct {
-	SerialID   int
-	Input      string
-	DataSource DataSource
-	Variables  Variables
-	// DisallowSingleFlight is used for write operations like mutations, POST, DELETE etc. to disable singleFlight
-	// By default SingleFlight for fetches is disabled and needs to be enabled on the Resolver first
-	// If the resolver allows SingleFlight it's up to each individual DataSource Planner to decide whether an Operation
-	// should be allowed to use SingleFlight
-	DisallowSingleFlight          bool
-	RequiresSerialFetch           bool
-	RequiresBatchFetch            bool
-	RequiresParallelListItemFetch bool
-	InputTemplate                 InputTemplate
-	DataSourceIdentifier          []byte
-	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
-	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
-	// Returning null in this case tells the batch implementation to skip this item
-	SetTemplateOutputToNullOnVariableNull bool
-	PostProcessing                        PostProcessingConfiguration
-	EnableBatchMultiPlexing               bool
+	FetchConfiguration
+	SerialID             int
+	InputTemplate        InputTemplate
+	DataSourceIdentifier []byte
 }
 
 type PostProcessingConfiguration struct {
@@ -85,13 +70,14 @@ func (_ *SerialFetch) FetchKind() FetchKind {
 	return FetchKindSerial
 }
 
-// BatchFetch - TODO: document better
+// BatchEntityFetch - TODO: document better
 // allows to join nested fetches to the same subgraph into a single fetch
-type BatchFetch struct {
+type BatchEntityFetch struct {
 	Input                BatchInput
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
 	DataSourceIdentifier []byte
+	DisallowSingleFlight bool
 }
 
 type BatchInput struct {
@@ -107,8 +93,27 @@ type BatchInput struct {
 	Footer       InputTemplate
 }
 
-func (_ *BatchFetch) FetchKind() FetchKind {
-	return FetchKindBatch
+func (_ *BatchEntityFetch) FetchKind() FetchKind {
+	return FetchKindEntityBatch
+}
+
+type EntityFetch struct {
+	Input                EntityInput
+	DataSource           DataSource
+	PostProcessing       PostProcessingConfiguration
+	DataSourceIdentifier []byte
+	DisallowSingleFlight bool
+}
+
+type EntityInput struct {
+	Header      InputTemplate
+	Item        InputTemplate
+	SkipErrItem bool
+	Footer      InputTemplate
+}
+
+func (_ *EntityFetch) FetchKind() FetchKind {
+	return FetchKindEntity
 }
 
 // The ParallelListItemFetch can be used to make nested parallel fetches within a list
@@ -120,4 +125,30 @@ type ParallelListItemFetch struct {
 
 func (_ *ParallelListItemFetch) FetchKind() FetchKind {
 	return FetchKindParallelListItem
+}
+
+type FetchConfiguration struct {
+	Input      string
+	Variables  Variables
+	DataSource DataSource
+	// DisallowSingleFlight is used for write operations like mutations, POST, DELETE etc. to disable singleFlight
+	// By default SingleFlight for fetches is disabled and needs to be enabled on the Resolver first
+	// If the resolver allows SingleFlight it's up to each individual DataSource Planner to decide whether an Operation
+	// should be allowed to use SingleFlight
+	DisallowSingleFlight bool
+	// RequiresSerialFetch is used to indicate that the single fetches should be executed serially
+	// When we have multiple fetches attached to the object - after post-processing of a plan we will get SerialFetch instead of ParallelFetch
+	RequiresSerialFetch bool
+	// RequiresParallelListItemFetch is used to indicate that the single fetches should be executed without batching
+	// When we have multiple fetches attached to the object - after post-processing of a plan we will get ParallelListItemFetch instead of ParallelFetch
+	RequiresParallelListItemFetch bool
+	// RequiresEntityFetch will be set to true if the fetch is an entity fetch on an object. After post-processing, we will get EntityFetch
+	RequiresEntityFetch bool
+	// RequiresEntityBatchFetch indicates that entity fetches on array items could be batched. After post-processing, we will get EntityBatchFetch
+	RequiresEntityBatchFetch bool
+	PostProcessing           PostProcessingConfiguration
+	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
+	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
+	// Returning null in this case tells the batch implementation to skip this item
+	SetTemplateOutputToNullOnVariableNull bool
 }

@@ -15,7 +15,7 @@ type objectFields struct {
 	fields     *[]*resolve.Field
 }
 
-func buildRepresentationVariableNode(cfg plan.FederationFieldConfiguration, definition *ast.Document, addTypename bool, addOnType bool) (*resolve.Object, error) {
+func buildRepresentationVariableNode(cfg plan.FederationFieldConfiguration, definition *ast.Document) (*resolve.Object, error) {
 	key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, false)
 	if report.HasErrors() {
 		return nil, report
@@ -25,8 +25,8 @@ func buildRepresentationVariableNode(cfg plan.FederationFieldConfiguration, defi
 
 	visitor := &representationVariableVisitor{
 		typeName:    cfg.TypeName,
-		addOnType:   addOnType,
-		addTypeName: addTypename,
+		addOnType:   true,
+		addTypeName: true,
 		Walker:      &walker,
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
@@ -47,13 +47,6 @@ func mergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object
 	}
 
 	fields := make([]*resolve.Field, 0, fieldCount)
-
-	fields = append(fields, &resolve.Field{
-		Name: []byte("__typename"),
-		Value: &resolve.String{
-			Path: []string{"__typename"},
-		},
-	})
 
 	isOnTypeEqual := func(a, b [][]byte) bool {
 		if len(a) != len(b) {
@@ -85,7 +78,8 @@ func mergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object
 	}
 
 	return &resolve.Object{
-		Fields: fields,
+		Nullable: true,
+		Fields:   fields,
 	}
 }
 
@@ -107,16 +101,23 @@ func (v *representationVariableVisitor) EnterDocument(key, definition *ast.Docum
 
 	fields := make([]*resolve.Field, 0, 2)
 	if v.addTypeName {
-		fields = append(fields, &resolve.Field{
+		typeNameField := &resolve.Field{
 			Name: []byte("__typename"),
 			Value: &resolve.String{
 				Path: []string{"__typename"},
 			},
-		})
+		}
+
+		if v.addOnType {
+			typeNameField.OnTypeNames = [][]byte{[]byte(v.typeName)}
+		}
+
+		fields = append(fields, typeNameField)
 	}
 
 	v.rootObject = &resolve.Object{
-		Fields: fields,
+		Nullable: true,
+		Fields:   fields,
 	}
 
 	v.currentFields = append(v.currentFields, objectFields{

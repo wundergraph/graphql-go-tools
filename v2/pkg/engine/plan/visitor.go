@@ -1016,22 +1016,14 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 	}
 }
 
-func (v *Visitor) configureFetch(internal objectFetchConfiguration, external FetchConfiguration) resolve.Fetch {
+func (v *Visitor) configureFetch(internal objectFetchConfiguration, external resolve.FetchConfiguration) resolve.Fetch {
 	dataSourceType := reflect.TypeOf(external.DataSource).String()
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 
 	singleFetch := &resolve.SingleFetch{
-		Input:                                 external.Input,
-		DataSource:                            external.DataSource,
-		Variables:                             external.Variables,
-		DisallowSingleFlight:                  external.DisallowSingleFlight,
-		RequiresSerialFetch:                   external.RequiresSerialFetch,
-		RequiresBatchFetch:                    external.RequiresBatchFetch,
-		RequiresParallelListItemFetch:         external.RequiresParallelListItemFetch,
-		DataSourceIdentifier:                  []byte(dataSourceType),
-		PostProcessing:                        external.PostProcessing,
-		SetTemplateOutputToNullOnVariableNull: external.SetTemplateOutputToNullOnVariableNull,
-		SerialID:                              internal.fetchID,
+		FetchConfiguration:   external,
+		SerialID:             internal.fetchID,
+		DataSourceIdentifier: []byte(dataSourceType),
 	}
 
 	return singleFetch

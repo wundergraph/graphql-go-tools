@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"io"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 type Configuration struct {
@@ -27,6 +29,10 @@ type Planner struct {
 	config Configuration
 }
 
+func (p *Planner) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration) *ast.Document {
+	return nil
+}
+
 func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
 	// skip, not required
 	return
@@ -43,8 +49,8 @@ func (p *Planner) Register(_ *plan.Visitor, configuration plan.DataSourceConfigu
 	return json.Unmarshal(configuration.Custom, &p.config)
 }
 
-func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
-	return plan.FetchConfiguration{
+func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
+	return resolve.FetchConfiguration{
 		Input:                p.config.Data,
 		DataSource:           Source{},
 		DisallowSingleFlight: true,

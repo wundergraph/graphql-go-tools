@@ -79,11 +79,56 @@ type Planner struct {
 	addedInlineFragments map[onTypeInlineFragment]struct{}
 	hasFederationRoot    bool
 	extractEntities      bool
+
+	// tmp
+	upstreamSchema *ast.Document
 }
 
 type onTypeInlineFragment struct {
 	TypeCondition string
 	SelectionSet  int
+}
+
+func (p *Planner) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration) *ast.Document {
+	if p.upstreamSchema != nil {
+		return p.upstreamSchema
+	}
+
+	var config Configuration
+
+	err := json.Unmarshal(dataSourceConfig.Custom, &config)
+	if err != nil {
+		panic(err)
+	}
+
+	definition := ast.NewDocument()
+	definitionParser := astparser.NewParser()
+	report := &operationreport.Report{}
+
+	if config.Federation.Enabled {
+		federationSchema, err := federation.BuildFederationSchema(config.UpstreamSchema, config.Federation.ServiceSDL)
+		if err != nil {
+			panic(err)
+		}
+		definition.Input.ResetInputString(federationSchema)
+		definitionParser.Parse(definition, report)
+		if report.HasErrors() {
+			panic(report)
+		}
+	} else {
+		definition.Input.ResetInputString(config.UpstreamSchema)
+		definitionParser.Parse(definition, report)
+		if report.HasErrors() {
+			panic(report)
+		}
+
+		if err := asttransform.MergeDefinitionWithBaseSchema(definition); err != nil {
+			panic(fmt.Errorf("unable to merge upstream schema with base schema: %v", err))
+		}
+	}
+
+	p.upstreamSchema = definition
+	return definition
 }
 
 func (p *Planner) SetID(id int) {
@@ -318,7 +363,7 @@ func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceC
 	return nil
 }
 
-func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
+func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 	var input []byte
 	input = httpclient.SetInputBodyWithPath(input, p.upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
@@ -344,7 +389,7 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		}
 	}
 
-	return plan.FetchConfiguration{
+	return resolve.FetchConfiguration{
 		Input: string(input),
 		DataSource: &Source{
 			httpClient: p.fetchClient,
@@ -352,7 +397,8 @@ func (p *Planner) ConfigureFetch() plan.FetchConfiguration {
 		Variables:                             p.variables,
 		DisallowSingleFlight:                  p.disallowSingleFlight,
 		RequiresSerialFetch:                   p.requiresSerialFetch(),
-		RequiresBatchFetch:                    p.requiresBatchFetch(),
+		RequiresEntityFetch:                   p.requiresEntityFetch(),
+		RequiresEntityBatchFetch:              p.requiresEntityBatchFetch(),
 		PostProcessing:                        postProcessing,
 		SetTemplateOutputToNullOnVariableNull: p.extractEntities,
 	}
@@ -378,12 +424,12 @@ func (p *Planner) requiresSerialFetch() bool {
 	return false
 }
 
-func (p *Planner) requiresBatchFetch() bool {
-	if !p.dataSourcePlannerConfig.HasRequiredFields() {
-		return false
-	}
+func (p *Planner) requiresEntityFetch() bool {
+	return p.dataSourcePlannerConfig.HasRequiredFields() && p.dataSourcePlannerConfig.PathType == plan.PlannerPathObject
+}
 
-	return p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
+func (p *Planner) requiresEntityBatchFetch() bool {
+	return p.dataSourcePlannerConfig.HasRequiredFields() && p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
 }
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
@@ -750,16 +796,9 @@ func (p *Planner) addRepresentationsVariable() {
 }
 
 func (p *Planner) buildRepresentationsVariable() resolve.Variable {
-	isArrayItems := p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
-
-	uniqTypes := p.dataSourcePlannerConfig.RequiredFields.UniqueTypes()
-	if len(uniqTypes) > 1 && !isArrayItems {
-		p.stopWithError("unhandled case: more than one type requirements for non-array path type")
-	}
-
 	objects := make([]*resolve.Object, 0, len(p.dataSourcePlannerConfig.RequiredFields))
 	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
-		node, err := buildRepresentationVariableNode(cfg, p.visitor.Definition, false, isArrayItems)
+		node, err := buildRepresentationVariableNode(cfg, p.visitor.Definition)
 		if err != nil {
 			p.visitor.Walker.StopWithInternalErr(err)
 			return nil
@@ -1269,6 +1308,9 @@ func (p *Planner) printQueryPlan(operation *ast.Document) {
 
 	args := []interface{}{
 		"Execution plan:\n",
+		"Planner path: ",
+		p.dataSourcePlannerConfig.ParentPath,
+		"\n",
 	}
 
 	if len(p.upstreamVariables) > 0 {

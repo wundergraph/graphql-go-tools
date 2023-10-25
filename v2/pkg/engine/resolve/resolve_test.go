@@ -141,7 +141,9 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("BigInt", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fetch: &SingleFetch{
-				DataSource: FakeDataSource(`{"n": 12345, "ns_small": "12346", "ns_big": "1152921504606846976"`),
+				FetchConfiguration: FetchConfiguration{
+					DataSource: FakeDataSource(`{"n": 12345, "ns_small": "12346", "ns_big": "1152921504606846976"`),
+				},
 			},
 			Fields: []*Field{
 				{
@@ -171,7 +173,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("Scalar", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fetch: &SingleFetch{
-				DataSource: FakeDataSource(`{"int": 12345, "float": 3.5, "int_str": "12346", "bigint_str": "1152921504606846976", "str":"value", "object":{"foo": "bar"}, "encoded_object": "{\"foo\": \"bar\"}"}`),
+				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"int": 12345, "float": 3.5, "int_str": "12346", "bigint_str": "1152921504606846976", "str":"value", "object":{"foo": "bar"}, "encoded_object": "{\"foo\": \"bar\"}"}`)},
 			},
 			Fields: []*Field{
 				{
@@ -253,7 +255,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+							FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`)},
 						},
 						Fields: []*Field{
 							{
@@ -307,7 +309,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+							FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`)},
 						},
 						Fields: []*Field{
 							{
@@ -331,7 +333,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+							FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`)},
 						},
 						Fields: []*Field{
 							{
@@ -363,7 +365,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+							FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`)},
 						},
 						Fields: []*Field{
 							{
@@ -393,7 +395,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"},"__typename":"User"}`),
+							FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"},"__typename":"User"}`)},
 						},
 						Fields: []*Field{
 							{
@@ -423,7 +425,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"},"__typename":"User"}`),
+							FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"},"__typename":"User"}`)},
 						},
 						Fields: []*Field{
 							{
@@ -453,7 +455,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+							FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`)},
 						},
 						Fields: []*Field{
 							{
@@ -509,7 +511,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+							FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`)},
 						},
 						Fields: []*Field{
 							{
@@ -565,7 +567,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+							FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`)},
 						},
 						Fields: []*Field{
 							{
@@ -621,7 +623,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+							FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`)},
 						},
 						Fields: []*Field{
 							{
@@ -677,7 +679,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+							FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`)},
 						},
 						Fields: []*Field{
 							{
@@ -733,7 +735,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					Name: []byte("user"),
 					Value: &Object{
 						Fetch: &SingleFetch{
-							DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
+							FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`)},
 						},
 						Fields: []*Field{
 							{
@@ -793,8 +795,13 @@ func TestResolver_ResolveNode(t *testing.T) {
 			Return(nil)
 		return &Object{
 			Fetch: &SingleFetch{
-				DataSource: mockDataSource,
-				Input:      `{"id":$$0$$}`,
+				FetchConfiguration: FetchConfiguration{
+					DataSource: mockDataSource,
+					Input:      `{"id":$$0$$}`,
+					Variables: NewVariables(&ContextVariable{
+						Path: []string{"id"},
+					}),
+				},
 				InputTemplate: InputTemplate{
 					Segments: []TemplateSegment{
 						{
@@ -813,9 +820,6 @@ func TestResolver_ResolveNode(t *testing.T) {
 						},
 					},
 				},
-				Variables: NewVariables(&ContextVariable{
-					Path: []string{"id"},
-				}),
 			},
 			Fields: []*Field{
 				{
@@ -830,7 +834,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve array of strings", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fetch: &SingleFetch{
-				DataSource: FakeDataSource(`{"strings": ["Alex", "true", "123"]}`),
+				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"strings": ["Alex", "true", "123"]}`)},
 			},
 			Fields: []*Field{
 				{
@@ -848,7 +852,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve array of mixed scalar types", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
 		return &Object{
 			Fetch: &SingleFetch{
-				DataSource: FakeDataSource(`{"strings": ["Alex", "true", 123]}`),
+				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"strings": ["Alex", "true", 123]}`)},
 			},
 			Fields: []*Field{
 				{
@@ -868,7 +872,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("json encoded input", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
 					Fetch: &SingleFetch{
-						DataSource: FakeDataSource(`{"jsonList":["{\"field\":\"value\"}"]}`),
+						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"jsonList":["{\"field\":\"value\"}"]}`)},
 					},
 					Fields: []*Field{
 						{
@@ -887,7 +891,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("json input", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
 					Fetch: &SingleFetch{
-						DataSource: FakeDataSource(`{"jsonList":[{"field":"value"}]}`),
+						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"jsonList":[{"field":"value"}]}`)},
 					},
 					Fields: []*Field{
 						{
@@ -908,7 +912,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("json encoded input", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
 					Fetch: &SingleFetch{
-						DataSource: FakeDataSource(`{"jsonList":["{\"field\":\"value\"}"]}`),
+						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"jsonList":["{\"field\":\"value\"}"]}`)},
 					},
 					Fields: []*Field{
 						{
@@ -927,7 +931,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("json input", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
 				return &Object{
 						Fetch: &SingleFetch{
-							DataSource: FakeDataSource(`{"jsonList":[{"field":"value"}]}`),
+							FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"jsonList":[{"field":"value"}]}`)},
 						},
 						Fields: []*Field{
 							{
@@ -949,7 +953,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve arrays", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fetch: &SingleFetch{
-				DataSource: FakeDataSource(`{"friends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"strings":["foo","bar","baz"],"integers":[123,456,789],"floats":[1.2,3.4,5.6],"booleans":[true,false,true]}`),
+				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"friends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"strings":["foo","bar","baz"],"integers":[123,456,789],"floats":[1.2,3.4,5.6],"booleans":[true,false,true]}`)},
 			},
 			Fields: []*Field{
 				{
@@ -1058,7 +1062,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("array response from data source", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
-					DataSource: FakeDataSource(`[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]`),
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]`)},
 				},
 				Fields: []*Field{
 					{
@@ -1084,7 +1088,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("non null object with field condition can be null", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
-					DataSource: FakeDataSource(`{"__typename":"Dog","name":"Woofie"}`),
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"__typename":"Dog","name":"Woofie"}`)},
 				},
 				Fields: []*Field{
 					{
@@ -1109,7 +1113,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("object with multiple type conditions", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
-					DataSource: FakeDataSource(`{"namespaceCreate":{"__typename":"Error","code":"UserAlreadyHasPersonalNamespace","message":""}}`),
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"namespaceCreate":{"__typename":"Error","code":"UserAlreadyHasPersonalNamespace","message":""}}`)},
 				},
 				Fields: []*Field{
 					{
@@ -1167,7 +1171,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve fieldsets based on __typename", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
-					DataSource: FakeDataSource(`{"pets":[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]}`),
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"pets":[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]}`)},
 				},
 				Fields: []*Field{
 					{
@@ -1195,7 +1199,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve fieldsets based on __typename when field is Nullable", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
-					DataSource: FakeDataSource(`{"pet":{"id": "1", "detail": null}}`),
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"pet":{"id": "1", "detail": null}}`)},
 				},
 				Fields: []*Field{
 					{
@@ -1236,7 +1240,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve fieldsets asynchronous based on __typename", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
-					DataSource: FakeDataSource(`{"pets":[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]}`),
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"pets":[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]}`)},
 				},
 				Fields: []*Field{
 					{
@@ -1266,7 +1270,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			return &Object{
 				Fetch: &SingleFetch{
 					// Datasource returns a JSON object within a string
-					DataSource: FakeDataSource(`{"data":"{\"hello\":\"world\",\"numberAsString\":\"1\",\"number\":1,\"bool\":true,\"null\":null,\"array\":[1,2,3],\"object\":{\"key\":\"value\"}}"}`),
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data":"{\"hello\":\"world\",\"numberAsString\":\"1\",\"number\":1,\"bool\":true,\"null\":null,\"array\":[1,2,3],\"object\":{\"key\":\"value\"}}"}`)},
 				},
 				Nullable: false,
 				Fields: []*Field{
@@ -1292,7 +1296,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			return &Object{
 				Fetch: &SingleFetch{
 					// Datasource returns a JSON array within a string
-					DataSource: FakeDataSource(`{"data":"[1,2,3]"}`),
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data":"[1,2,3]"}`)},
 				},
 				Nullable: false,
 				Fields: []*Field{
@@ -1318,7 +1322,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			return &Object{
 				Fetch: &SingleFetch{
 					// Datasource returns a string with array and object brackets
-					DataSource: FakeDataSource(`{"data":"hi[1beep{2}]"}`),
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data":"hi[1beep{2}]"}`)},
 				},
 				Nullable: false,
 				Fields: []*Field{
@@ -1345,7 +1349,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				return &Object{
 					Fetch: &SingleFetch{
 						// Datasource returns a JSON boolean within a string
-						DataSource: FakeDataSource(`{"data": "true"}`),
+						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data": "true"}`)},
 					},
 					Nullable: false,
 					Fields: []*Field{
@@ -1367,7 +1371,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				return &Object{
 					Fetch: &SingleFetch{
 						// Datasource returns a JSON number within a string
-						DataSource: FakeDataSource(`{"data": "1"}`),
+						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data": "1"}`)},
 					},
 					Nullable: false,
 					Fields: []*Field{
@@ -1393,7 +1397,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				return &Object{
 					Fetch: &SingleFetch{
 						// Datasource returns a JSON number within a string
-						DataSource: FakeDataSource(`{"data": "2.0"}`),
+						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data": "2.0"}`)},
 					},
 					Nullable: false,
 					Fields: []*Field{
@@ -1419,7 +1423,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				return &Object{
 					Fetch: &SingleFetch{
 						// Datasource returns a JSON number within a string
-						DataSource: FakeDataSource(`{"data": "null"}`),
+						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data": "null"}`)},
 					},
 					Nullable: false,
 					Fields: []*Field{
@@ -1444,7 +1448,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("string", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
 					Fetch: &SingleFetch{
-						DataSource: FakeDataSource(`{"data": "hello world"}`),
+						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data": "hello world"}`)},
 					},
 					Nullable: false,
 					Fields: []*Field{
@@ -1472,7 +1476,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				return &Object{
 					Fetch: &SingleFetch{
 						// Datasource returns a JSON boolean within a string
-						DataSource: FakeDataSource(`{"data": true}`),
+						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data": true}`)},
 					},
 					Nullable: false,
 					Fields: []*Field{
@@ -1494,7 +1498,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				return &Object{
 					Fetch: &SingleFetch{
 						// Datasource returns a JSON number within a string
-						DataSource: FakeDataSource(`{"data": 1}`),
+						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data": 1}`)},
 					},
 					Nullable: false,
 					Fields: []*Field{
@@ -1520,7 +1524,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				return &Object{
 					Fetch: &SingleFetch{
 						// Datasource returns a JSON number within a string
-						DataSource: FakeDataSource(`{"data": 2.0}`),
+						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data": 2.0}`)},
 					},
 					Nullable: false,
 					Fields: []*Field{
@@ -1545,7 +1549,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("null", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 				return &Object{
 					Fetch: &SingleFetch{
-						DataSource: FakeDataSource(`{"data": null}`),
+						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data": null}`)},
 					},
 					Nullable: false,
 					Fields: []*Field{
@@ -1573,7 +1577,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("custom", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 			Fetch: &SingleFetch{
-				DataSource: FakeDataSource(`{"id": "1"}`),
+				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id": "1"}`)},
 			},
 			Fields: []*Field{
 				{
@@ -1589,7 +1593,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("custom nullable", testGraphQLErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
 		return &Object{
 			Fetch: &SingleFetch{
-				DataSource: FakeDataSource(`{"id": null}`),
+				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id": null}`)},
 			},
 			Fields: []*Field{
 				{
@@ -1606,7 +1610,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("custom error", testErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node Node, ctx Context, expectedErr string) {
 		return &Object{
 			Fetch: &SingleFetch{
-				DataSource: FakeDataSource(`{"id": "1"}`),
+				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id": "1"}`)},
 			},
 			Fields: []*Field{
 				{
@@ -1680,7 +1684,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						Name: []byte("user"),
 						Value: &Object{
 							Fetch: &SingleFetch{
-								DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User","rewritten":"User"}`),
+								FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User","rewritten":"User"}`)},
 							},
 							Fields: []*Field{
 								{
@@ -1736,7 +1740,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							Name: []byte("user"),
 							Value: &Object{
 								Fetch: &SingleFetch{
-									DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User","rewritten":"User"}`),
+									FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User","rewritten":"User"}`)},
 								},
 								Fields: []*Field{
 									{
@@ -1838,7 +1842,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Data: &Object{
 				Nullable: false,
 				Fetch: &SingleFetch{
-					DataSource: mockDataSource,
+					FetchConfiguration: FetchConfiguration{DataSource: mockDataSource},
 				},
 				Fields: []*Field{
 					{
@@ -1866,7 +1870,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Fetch: &SingleFetch{
-					DataSource: mockDataSource,
+					FetchConfiguration: FetchConfiguration{DataSource: mockDataSource},
 				},
 				Fields: []*Field{
 					{
@@ -1885,7 +1889,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Data: &Object{
 				Nullable: false,
 				Fetch: &SingleFetch{
-					DataSource: FakeDataSource(`{"nullable_field": null}`),
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"nullable_field": null}`)},
 				},
 				Fields: []*Field{
 					{
@@ -1924,8 +1928,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				return &GraphQLResponse{
 					Data: &Object{
 						Fetch: &SingleFetch{
-							DataSource:           FakeDataSource(fakeData),
-							Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{thing {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
+							FetchConfiguration: FetchConfiguration{
+								DataSource: FakeDataSource(fakeData),
+								Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{thing {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
+							},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
 						Fields: []*Field{
@@ -1984,11 +1990,13 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				return &GraphQLResponse{
 					Data: &Object{
 						Fetch: &SingleFetch{
-							DataSource:           FakeDataSource(fakeData),
-							Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{things {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data"},
+							FetchConfiguration: FetchConfiguration{
+								DataSource: FakeDataSource(fakeData),
+								Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{things {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
+								PostProcessing: PostProcessingConfiguration{
+									SelectResponseDataPath: []string{"data"},
+								},
 							},
 						},
 						Fields: []*Field{
@@ -2047,7 +2055,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Data: &Object{
 				Nullable: true,
 				Fetch: &SingleFetch{
-					DataSource: FakeDataSource(`[{"id":1},{"id":2},{"id":3}]`),
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`[{"id":1},{"id":2},{"id":3}]`)},
 				},
 				Fields: []*Field{
 					{
@@ -2176,7 +2184,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Data: &Object{
 				Nullable: true,
 				Fetch: &SingleFetch{
-					DataSource: FakeDataSource(`[]`),
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`[]`)},
 				},
 				Fields: []*Field{
 					{
@@ -2205,7 +2213,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Data: &Object{
 				Nullable: false,
 				Fetch: &SingleFetch{
-					DataSource: FakeDataSource(`{"some_path": []}`),
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"some_path": []}`)},
 				},
 				Fields: []*Field{
 					{
@@ -2235,9 +2243,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Data: &Object{
 				Nullable: false,
 				Fetch: &SingleFetch{
-					DataSource: FakeDataSource(`{"data":null}`),
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
+					FetchConfiguration: FetchConfiguration{
+						DataSource: FakeDataSource(`{"data":null}`),
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
+						},
 					},
 				},
 				Fields: []*Field{
@@ -2284,8 +2294,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			Data: &Object{
 				Nullable: false,
 				Fetch: &SingleFetch{
-					DataSource: FakeDataSource(
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(
 						`{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos",0,"name"]}],"data":null}`),
+					},
 				},
 				Fields: []*Field{
 					{
@@ -2356,7 +2367,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				Fetch: &ParallelFetch{
 					Fetches: []Fetch{
 						&SingleFetch{
-							Input: `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
 							InputTemplate: InputTemplate{
 								Segments: []TemplateSegment{
 									{
@@ -2385,21 +2395,23 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 								},
 							},
-							DataSource: serviceOne,
-							Variables: NewVariables(
-								&ContextVariable{
-									Path: []string{"firstArg"},
+							FetchConfiguration: FetchConfiguration{
+								Input:      `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
+								DataSource: serviceOne,
+								Variables: NewVariables(
+									&ContextVariable{
+										Path: []string{"firstArg"},
+									},
+									&ContextVariable{
+										Path: []string{"thirdArg"},
+									},
+								),
+								PostProcessing: PostProcessingConfiguration{
+									SelectResponseDataPath: []string{"data"},
 								},
-								&ContextVariable{
-									Path: []string{"thirdArg"},
-								},
-							),
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data"},
 							},
 						},
 						&SingleFetch{
-							Input: `{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
 							InputTemplate: InputTemplate{
 								Segments: []TemplateSegment{
 									{
@@ -2428,17 +2440,20 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									},
 								},
 							},
-							DataSource: serviceTwo,
-							Variables: NewVariables(
-								&ContextVariable{
-									Path: []string{"secondArg"},
+							FetchConfiguration: FetchConfiguration{
+								Input:      `{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
+								DataSource: serviceTwo,
+								Variables: NewVariables(
+									&ContextVariable{
+										Path: []string{"secondArg"},
+									},
+									&ContextVariable{
+										Path: []string{"fourthArg"},
+									},
+								),
+								PostProcessing: PostProcessingConfiguration{
+									SelectResponseDataPath: []string{"data"},
 								},
-								&ContextVariable{
-									Path: []string{"fourthArg"},
-								},
-							),
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data"},
 							},
 						},
 					},
@@ -2463,7 +2478,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						Value: &Object{
 							Path: []string{"serviceTwo"},
 							Fetch: &SingleFetch{
-								Input: `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`,
 								InputTemplate: InputTemplate{
 									Segments: []TemplateSegment{
 										{
@@ -2472,10 +2486,13 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										},
 									},
 								},
-								DataSource: nestedServiceOne,
-								Variables:  Variables{},
-								PostProcessing: PostProcessingConfiguration{
-									SelectResponseDataPath: []string{"data"},
+								FetchConfiguration: FetchConfiguration{
+									Input:      `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`,
+									DataSource: nestedServiceOne,
+									Variables:  Variables{},
+									PostProcessing: PostProcessingConfiguration{
+										SelectResponseDataPath: []string{"data"},
+									},
 								},
 							},
 							Fields: []*Field{
@@ -2610,9 +2627,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						DataSource: userService,
-						PostProcessing: PostProcessingConfiguration{
-							SelectResponseDataPath: []string{"data"},
+						FetchConfiguration: FetchConfiguration{
+							DataSource: userService,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data"},
+							},
 						},
 					},
 					Fields: []*Field{
@@ -2652,9 +2671,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 											},
 										},
 									},
-									DataSource: reviewsService,
-									PostProcessing: PostProcessingConfiguration{
-										SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+									FetchConfiguration: FetchConfiguration{
+										DataSource: reviewsService,
+										PostProcessing: PostProcessingConfiguration{
+											SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+										},
 									},
 								},
 								Path:     []string{"me"},
@@ -2693,7 +2714,12 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 															Path: []string{"product"},
 															Fetch: &ParallelListItemFetch{
 																Fetch: &SingleFetch{
-																	DataSource: productService,
+																	FetchConfiguration: FetchConfiguration{
+																		DataSource: productService,
+																		PostProcessing: PostProcessingConfiguration{
+																			SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+																		},
+																	},
 																	InputTemplate: InputTemplate{
 																		Segments: []TemplateSegment{
 																			{
@@ -2725,9 +2751,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																				SegmentType: StaticSegmentType,
 																			},
 																		},
-																	},
-																	PostProcessing: PostProcessingConfiguration{
-																		SelectResponseDataPath: []string{"data", "_entities", "[0]"},
 																	},
 																},
 															},
@@ -2806,9 +2829,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						DataSource: userService,
-						PostProcessing: PostProcessingConfiguration{
-							SelectResponseDataPath: []string{"data"},
+						FetchConfiguration: FetchConfiguration{
+							DataSource: userService,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data"},
+							},
 						},
 					},
 					Fields: []*Field{
@@ -2848,9 +2873,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 											},
 										},
 									},
-									DataSource: reviewsService,
-									PostProcessing: PostProcessingConfiguration{
-										SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+									FetchConfiguration: FetchConfiguration{
+										DataSource: reviewsService,
+										PostProcessing: PostProcessingConfiguration{
+											SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+										},
 									},
 								},
 								Path:     []string{"me"},
@@ -2887,7 +2914,12 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 														Value: &Object{
 															Path: []string{"product"},
 															Fetch: &SingleFetch{
-																DataSource: productService,
+																FetchConfiguration: FetchConfiguration{
+																	DataSource: productService,
+																	PostProcessing: PostProcessingConfiguration{
+																		SelectResponseDataPath: []string{"data", "_entities"},
+																	},
+																},
 																InputTemplate: InputTemplate{
 																	Segments: []TemplateSegment{
 																		{
@@ -2921,9 +2953,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																			SegmentType: StaticSegmentType,
 																		},
 																	},
-																},
-																PostProcessing: PostProcessingConfiguration{
-																	SelectResponseDataPath: []string{"data", "_entities"},
 																},
 															},
 															Fields: []*Field{
@@ -3001,9 +3030,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						DataSource: userService,
-						PostProcessing: PostProcessingConfiguration{
-							SelectResponseDataPath: []string{"data"},
+						FetchConfiguration: FetchConfiguration{
+							DataSource: userService,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data"},
+							},
 						},
 					},
 					Fields: []*Field{
@@ -3043,9 +3074,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 											},
 										},
 									},
-									DataSource: reviewsService,
-									PostProcessing: PostProcessingConfiguration{
-										SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+									FetchConfiguration: FetchConfiguration{
+										DataSource: reviewsService,
+										PostProcessing: PostProcessingConfiguration{
+											SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+										},
 									},
 								},
 								Path:     []string{"me"},
@@ -3082,7 +3115,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 														Value: &Object{
 															Path: []string{"product"},
 															Fetch: &SingleFetch{
-																DataSource: productService,
 																InputTemplate: InputTemplate{
 																	Segments: []TemplateSegment{
 																		{
@@ -3117,9 +3149,12 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																		},
 																	},
 																},
-																PostProcessing: PostProcessingConfiguration{
-																	SelectResponseDataPath: []string{"data", "_entities"},
-																	MergePath:              []string{"data"},
+																FetchConfiguration: FetchConfiguration{
+																	DataSource: productService,
+																	PostProcessing: PostProcessingConfiguration{
+																		SelectResponseDataPath: []string{"data", "_entities"},
+																		MergePath:              []string{"data"},
+																	},
 																},
 															},
 															Fields: []*Field{
@@ -3204,9 +3239,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						DataSource: userService,
-						PostProcessing: PostProcessingConfiguration{
-							SelectResponseDataPath: []string{"data"},
+						FetchConfiguration: FetchConfiguration{
+							DataSource: userService,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data"},
+							},
 						},
 					},
 					Fields: []*Field{
@@ -3247,9 +3284,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										},
 										SetTemplateOutputToNullOnVariableNull: true,
 									},
-									DataSource: reviewsService,
-									PostProcessing: PostProcessingConfiguration{
-										SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+									FetchConfiguration: FetchConfiguration{
+										DataSource: reviewsService,
+										PostProcessing: PostProcessingConfiguration{
+											SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+										},
 									},
 								},
 								Path:     []string{"me"},
@@ -3287,7 +3326,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 														Value: &Object{
 															Nullable: true,
 															Path:     []string{"product"},
-															Fetch: &BatchFetch{
+															Fetch: &BatchEntityFetch{
 																DataSource: productService,
 																Input: BatchInput{
 																	Header: InputTemplate{
@@ -3424,9 +3463,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						DataSource: userService,
-						PostProcessing: PostProcessingConfiguration{
-							SelectResponseDataPath: []string{"data"},
+						FetchConfiguration: FetchConfiguration{
+							DataSource: userService,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data"},
+							},
 						},
 					},
 					Fields: []*Field{
@@ -3452,9 +3493,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 											},
 										},
 									},
-									DataSource: reviewsService,
-									PostProcessing: PostProcessingConfiguration{
-										SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+									FetchConfiguration: FetchConfiguration{
+										DataSource: reviewsService,
+										PostProcessing: PostProcessingConfiguration{
+											SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+										},
 									},
 								},
 								Path:     []string{"me"},
@@ -3492,7 +3535,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 														Value: &Object{
 															Path: []string{"product"},
 															Fetch: &SingleFetch{
-																DataSource: productService,
 																InputTemplate: InputTemplate{
 																	Segments: []TemplateSegment{
 																		{
@@ -3528,8 +3570,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																		},
 																	},
 																},
-																PostProcessing: PostProcessingConfiguration{
-																	SelectResponseDataPath: []string{"data", "_entities"},
+																FetchConfiguration: FetchConfiguration{
+																	DataSource: productService,
+																	PostProcessing: PostProcessingConfiguration{
+																		SelectResponseDataPath: []string{"data", "_entities"},
+																	},
 																},
 															},
 															Fields: []*Field{
@@ -3607,9 +3652,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						DataSource: userService,
-						PostProcessing: PostProcessingConfiguration{
-							SelectResponseDataPath: []string{"data"},
+						FetchConfiguration: FetchConfiguration{
+							DataSource: userService,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data"},
+							},
 						},
 					},
 					Fields: []*Field{
@@ -3704,9 +3751,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 													},
 													SetTemplateOutputToNullOnVariableNull: true,
 												},
-												DataSource: timeService,
-												PostProcessing: PostProcessingConfiguration{
-													SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+												FetchConfiguration: FetchConfiguration{
+													DataSource: timeService,
+													PostProcessing: PostProcessingConfiguration{
+														SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+													},
 												},
 											},
 										},
@@ -3742,9 +3791,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										},
 										SetTemplateOutputToNullOnVariableNull: true,
 									},
-									DataSource: employeeService,
-									PostProcessing: PostProcessingConfiguration{
-										SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+									FetchConfiguration: FetchConfiguration{
+										DataSource: employeeService,
+										PostProcessing: PostProcessingConfiguration{
+											SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+										},
 									},
 								},
 							},
@@ -3796,7 +3847,9 @@ func TestResolver_WithHeader(t *testing.T) {
 			res := &GraphQLResponse{
 				Data: &Object{
 					Fetch: &SingleFetch{
-						DataSource: fakeService,
+						FetchConfiguration: FetchConfiguration{
+							DataSource: fakeService,
+						},
 						InputTemplate: InputTemplate{
 							Segments: []TemplateSegment{
 								{
@@ -4091,9 +4144,11 @@ func Benchmark_ResolveGraphQLResponse(b *testing.B) {
 						},
 					},
 				},
-				DataSource: userService,
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath: []string{"data"},
+				FetchConfiguration: FetchConfiguration{
+					DataSource: userService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
+					},
 				},
 			},
 			Fields: []*Field{
@@ -4102,7 +4157,7 @@ func Benchmark_ResolveGraphQLResponse(b *testing.B) {
 					Value: &Array{
 						Path: []string{"users"},
 						Item: &Object{
-							Fetch: &BatchFetch{
+							Fetch: &BatchEntityFetch{
 								Input: BatchInput{
 									Header: InputTemplate{
 										Segments: []TemplateSegment{
@@ -4338,9 +4393,11 @@ func Benchmark_NestedBatching(b *testing.B) {
 						},
 					},
 				},
-				DataSource: productsService,
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath: []string{"data"},
+				FetchConfiguration: FetchConfiguration{
+					DataSource: productsService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
+					},
 				},
 			},
 			Fields: []*Field{
@@ -4351,7 +4408,7 @@ func Benchmark_NestedBatching(b *testing.B) {
 						Item: &Object{
 							Fetch: &ParallelFetch{
 								Fetches: []Fetch{
-									&BatchFetch{
+									&BatchEntityFetch{
 										Input: BatchInput{
 											Header: InputTemplate{
 												Segments: []TemplateSegment{
@@ -4409,7 +4466,7 @@ func Benchmark_NestedBatching(b *testing.B) {
 											SelectResponseDataPath: []string{"data", "_entities"},
 										},
 									},
-									&BatchFetch{
+									&BatchEntityFetch{
 										Input: BatchInput{
 											Header: InputTemplate{
 												Segments: []TemplateSegment{
@@ -4498,7 +4555,7 @@ func Benchmark_NestedBatching(b *testing.B) {
 													Name: []byte("author"),
 													Value: &Object{
 														Path: []string{"author"},
-														Fetch: &BatchFetch{
+														Fetch: &BatchEntityFetch{
 															Input: BatchInput{
 																Header: InputTemplate{
 																	Segments: []TemplateSegment{
@@ -4640,9 +4697,11 @@ func Benchmark_NestedBatchingWithoutChecks(b *testing.B) {
 						},
 					},
 				},
-				DataSource: productsService,
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath: []string{"data"},
+				FetchConfiguration: FetchConfiguration{
+					DataSource: productsService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
+					},
 				},
 			},
 			Fields: []*Field{
@@ -4653,7 +4712,7 @@ func Benchmark_NestedBatchingWithoutChecks(b *testing.B) {
 						Item: &Object{
 							Fetch: &ParallelFetch{
 								Fetches: []Fetch{
-									&BatchFetch{
+									&BatchEntityFetch{
 										Input: BatchInput{
 											Header: InputTemplate{
 												Segments: []TemplateSegment{
@@ -4711,7 +4770,7 @@ func Benchmark_NestedBatchingWithoutChecks(b *testing.B) {
 											SelectResponseDataPath: []string{"data", "_entities"},
 										},
 									},
-									&BatchFetch{
+									&BatchEntityFetch{
 										Input: BatchInput{
 											Header: InputTemplate{
 												Segments: []TemplateSegment{
@@ -4800,7 +4859,7 @@ func Benchmark_NestedBatchingWithoutChecks(b *testing.B) {
 													Name: []byte("author"),
 													Value: &Object{
 														Path: []string{"author"},
-														Fetch: &BatchFetch{
+														Fetch: &BatchEntityFetch{
 															Input: BatchInput{
 																Header: InputTemplate{
 																	Segments: []TemplateSegment{

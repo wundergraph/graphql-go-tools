@@ -109,3 +109,15 @@ func (d *Document) ImportUnionTypeDefinitionWithDirectives(name, description str
 
 	return
 }
+
+func (d *Document) UnionTypeDefinitionMemberTypeNames(ref int) (typeNames []string, ok bool) {
+	if !d.UnionTypeDefinitions[ref].HasUnionMemberTypes {
+		return nil, false
+	}
+
+	typeNames = make([]string, 0, len(d.UnionTypeDefinitions[ref].UnionMemberTypes.Refs))
+	for _, typeRef := range d.UnionTypeDefinitions[ref].UnionMemberTypes.Refs {
+		typeNames = append(typeNames, d.TypeNameString(typeRef))
+	}
+	return typeNames, true
+}

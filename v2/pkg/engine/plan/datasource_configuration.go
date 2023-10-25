@@ -6,6 +6,7 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -150,7 +151,7 @@ type DataSourcePlanningBehavior struct {
 
 type DataSourcePlanner interface {
 	Register(visitor *Visitor, configuration DataSourceConfiguration, dataSourcePlannerConfiguration DataSourcePlannerConfiguration) error
-	ConfigureFetch() FetchConfiguration
+	ConfigureFetch() resolve.FetchConfiguration
 	ConfigureSubscription() SubscriptionConfiguration
 	DataSourcePlanningBehavior() DataSourcePlanningBehavior
 	// DownstreamResponseFieldAlias allows the DataSourcePlanner to overwrite the response path with an alias
@@ -175,6 +176,7 @@ type DataSourcePlanner interface {
 	// The DataSourcePlanner could keep track that it rewrites the upstream query and use DownstreamResponseFieldAlias
 	// to indicate to the Planner to expect the response for countryAlias on the path "countryAlias" instead of "country".
 	DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool)
+	UpstreamSchema(dataSourceConfig DataSourceConfiguration) *ast.Document
 }
 
 type SubscriptionConfiguration struct {
@@ -182,19 +184,4 @@ type SubscriptionConfiguration struct {
 	Variables      resolve.Variables
 	DataSource     resolve.SubscriptionDataSource
 	PostProcessing resolve.PostProcessingConfiguration
-}
-
-type FetchConfiguration struct {
-	Input                         string
-	Variables                     resolve.Variables
-	DataSource                    resolve.DataSource
-	DisallowSingleFlight          bool
-	RequiresSerialFetch           bool
-	RequiresBatchFetch            bool
-	RequiresParallelListItemFetch bool
-	PostProcessing                resolve.PostProcessingConfiguration
-	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
-	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
-	// Returning null in this case tells the batch implementation to skip this item
-	SetTemplateOutputToNullOnVariableNull bool
 }

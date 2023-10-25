@@ -35,6 +35,11 @@ func (b *dsBuilder) Schema(schema string) *dsBuilder {
 	return b
 }
 
+func (b *dsBuilder) KeysMetadata(keys FederationFieldConfigurations) *dsBuilder {
+	b.ds.FederationMetaData.Keys = keys
+	return b
+}
+
 func (b *dsBuilder) Hash(hash DSHash) *dsBuilder {
 	b.ds.hash = hash
 	return b
@@ -46,6 +51,10 @@ func (b *dsBuilder) DS() DataSourceConfiguration {
 	}
 	b.ds.Hash()
 	return *b.ds
+}
+
+func (b *dsBuilder) DSPtr() *DataSourceConfiguration {
+	return b.ds
 }
 
 func strptr(s string) *string { return &s }

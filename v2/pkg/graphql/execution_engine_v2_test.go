@@ -189,7 +189,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			engineConf.SetCustomResolveMap(testCase.customResolveMap)
 
 			engineConf.plannerConfig.Debug = plan.DebugConfiguration{
-				// PrintOperationWithRequiredFields: true,
+				// PrintOperationTransformations:    true,
 				// PrintPlanningPaths:               true,
 				// PrintQueryPlans:                  true,
 				// ConfigurationVisitor:             true,
@@ -353,6 +353,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
+						UpstreamSchema: string(starwarsSchema(t).Document()),
 					}),
 				},
 			},
@@ -397,6 +398,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
+						UpstreamSchema: string(starwarsSchema(t).Document()),
 					}),
 				},
 			},
@@ -1120,6 +1122,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
+						UpstreamSchema: countriesSchema,
 					}),
 				},
 			},
@@ -1888,12 +1891,12 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 	engineConfig.SetFieldConfigurations(fieldConfigs)
 
 	engineConfig.plannerConfig.Debug = plan.DebugConfiguration{
-		PrintOperationWithRequiredFields: true,
-		PrintPlanningPaths:               true,
-		PrintQueryPlans:                  true,
-		ConfigurationVisitor:             false,
-		PlanningVisitor:                  false,
-		DatasourceVisitor:                false,
+		PrintOperationTransformations: true,
+		PrintPlanningPaths:            true,
+		PrintQueryPlans:               true,
+		ConfigurationVisitor:          false,
+		PlanningVisitor:               false,
+		DatasourceVisitor:             false,
 	}
 
 	engine, err = NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConfig)

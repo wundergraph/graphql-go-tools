@@ -75,3 +75,10 @@ func (d *Document) AddInlineFragment(fragment InlineFragment) int {
 func (d *Document) InlineFragmentIsOfTheSameType(ref int) bool {
 	return d.InlineFragments[ref].IsOfTheSameType
 }
+
+func (d *Document) InlineFragmentSelectionSet(ref int) (selectionSetRef int, ok bool) {
+	if !d.InlineFragments[ref].HasSelections {
+		return InvalidRef, false
+	}
+	return d.InlineFragments[ref].SelectionSet, true
+}

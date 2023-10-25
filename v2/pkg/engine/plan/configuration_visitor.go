@@ -33,8 +33,9 @@ type configurationVisitor struct {
 	missingPathTracker map[string]missingPath // missingPathTracker is a map of paths which will be added on secondary runs
 	addedPathTracker   []pathConfiguration    // addedPathTracker is a list of paths which were added
 
-	pendingRequiredFields map[int][]string // pendingRequiredFields is a map[selectionSetRef][]RequiredFieldsSelectionSet
-	handledRequires       map[int]struct{} // handledRequires is a map[FieldRef] of already processed fields which has @requires directive
+	pendingRequiredFields  map[int][]string // pendingRequiredFields is a map[selectionSetRef][]RequiredFieldsSelectionSet
+	handledRequires        map[int]struct{} // handledRequires is a map[FieldRef] of already processed fields which has @requires directive
+	rewritenAbstractFields map[int]struct{} // rewritenAbstractFields is a map[FieldRef] of already processed fields with abstract type, e.g. union or interface
 
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the planner not the first time
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
@@ -256,6 +257,7 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 
 	c.pendingRequiredFields = make(map[int][]string)
 	c.handledRequires = make(map[int]struct{})
+	c.rewritenAbstractFields = make(map[int]struct{})
 }
 
 func (c *configurationVisitor) LeaveDocument(operation, definition *ast.Document) {
@@ -346,14 +348,14 @@ func (c *configurationVisitor) EnterField(ref int) {
 	isSubscription := c.isSubscription(root.Ref, currentPath)
 
 	plannerIdx, planned := c.planWithExistingPlanners(ref, typeName, fieldName, currentPath, parentPath, precedingParentPath)
-	if planned {
-		c.handleRequirements(plannerIdx, parentPath, currentPath, typeName, fieldName, ref)
-		return
+	if !planned {
+		plannerIdx, planned = c.addNewPlanner(ref, typeName, fieldName, currentPath, parentPath, isSubscription)
 	}
 
-	plannerIdx, planned = c.addNewPlanner(ref, typeName, fieldName, currentPath, parentPath, isSubscription)
 	if planned {
 		c.handleRequirements(plannerIdx, parentPath, currentPath, typeName, fieldName, ref)
+		c.rewriteSelectionSetOfFieldWithInterfaceType(ref, plannerIdx)
+
 		return
 	}
 
@@ -708,8 +710,7 @@ func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(
 		return false
 	}
 
-	fieldDefTypeRef := c.definition.FieldDefinitionType(fieldDefRef)
-	fieldDefTypeName := c.definition.TypeNameBytes(fieldDefTypeRef)
+	fieldDefTypeName := c.definition.FieldDefinitionTypeNameBytes(fieldDefRef)
 	node, ok := c.definition.NodeByName(fieldDefTypeName)
 	if !ok {
 		return false
@@ -919,4 +920,39 @@ func (c *configurationVisitor) addRequiredFields(selectionSetRef int, requiredFi
 	if report.HasErrors() {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields for %s", typeName))
 	}
+}
+
+func (c *configurationVisitor) rewriteSelectionSetOfFieldWithInterfaceType(fieldRef int, plannerIdx int) {
+	if _, ok := c.rewritenAbstractFields[fieldRef]; ok {
+		return
+	}
+
+	upstreamSchema := c.planners[plannerIdx].planner.UpstreamSchema(c.planners[plannerIdx].dataSourceConfiguration)
+
+	rewriter := newFieldSelectionRewriter(
+		c.operation,
+		c.definition,
+		upstreamSchema,
+	)
+
+	rewritten, err := rewriter.RewriteFieldSelection(fieldRef,
+		c.walker.EnclosingTypeDefinition,
+		&c.planners[plannerIdx].dataSourceConfiguration)
+
+	if err != nil {
+		c.walker.StopWithInternalErr(err)
+	}
+
+	if !rewritten {
+		return
+	}
+
+	// we should skip typename field ref when it was added by the rewriter, e.g. not requested by user
+	if rewriter.skipTypeNameFieldRef != ast.InvalidRef {
+		c.skipFieldsRefs = append(c.skipFieldsRefs, rewriter.skipTypeNameFieldRef)
+	}
+
+	c.hasNewFields = true
+	c.walker.Stop()
+	c.rewritenAbstractFields[fieldRef] = struct{}{}
 }

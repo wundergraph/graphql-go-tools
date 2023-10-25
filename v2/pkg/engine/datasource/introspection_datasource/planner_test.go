@@ -127,17 +127,19 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:                `{"request_type":2,"type_name":"$$0$$"}`,
-						DataSource:           &Source{},
 						DataSourceIdentifier: dataSourceIdentifier,
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"a"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"request_type":2,"type_name":"$$0$$"}`,
+							DataSource: &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"a"},
+									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
+								},
+							),
+							PostProcessing: resolve.PostProcessingConfiguration{
+								MergePath: []string{"__type"},
 							},
-						),
-						PostProcessing: resolve.PostProcessingConfiguration{
-							MergePath: []string{"__type"},
 						},
 					},
 					Fields: []*resolve.Field{
@@ -186,11 +188,13 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:                `{"request_type":1}`,
-						DataSource:           &Source{},
 						DataSourceIdentifier: dataSourceIdentifier,
-						PostProcessing: resolve.PostProcessingConfiguration{
-							MergePath: []string{"__schema"},
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"request_type":1}`,
+							DataSource: &Source{},
+							PostProcessing: resolve.PostProcessingConfiguration{
+								MergePath: []string{"__schema"},
+							},
 						},
 					},
 					Fields: []*resolve.Field{
@@ -240,11 +244,13 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:                `{"request_type":1}`,
-						DataSource:           &Source{},
 						DataSourceIdentifier: dataSourceIdentifier,
-						PostProcessing: resolve.PostProcessingConfiguration{
-							MergePath: []string{"__schema"},
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"request_type":1}`,
+							DataSource: &Source{},
+							PostProcessing: resolve.PostProcessingConfiguration{
+								MergePath: []string{"__schema"},
+							},
 						},
 					},
 					Fields: []*resolve.Field{
@@ -342,17 +348,19 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
-						Input:                `{"request_type":2,"type_name":"$$0$$"}`,
-						DataSource:           &Source{},
 						DataSourceIdentifier: dataSourceIdentifier,
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"a"},
-								Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"request_type":2,"type_name":"$$0$$"}`,
+							DataSource: &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"a"},
+									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
+								},
+							),
+							PostProcessing: resolve.PostProcessingConfiguration{
+								MergePath: []string{"__type"},
 							},
-						),
-						PostProcessing: resolve.PostProcessingConfiguration{
-							MergePath: []string{"__type"},
 						},
 					},
 					Fields: []*resolve.Field{
@@ -368,41 +376,45 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 								Fetch: &resolve.ParallelFetch{
 									Fetches: []resolve.Fetch{
 										&resolve.SingleFetch{
-											SerialID:   1,
-											Input:      `{"request_type":3,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
-											DataSource: &Source{},
-											Variables: resolve.NewVariables(
-												&resolve.ObjectVariable{
-													Path:     []string{"name"},
-													Renderer: resolve.NewPlainVariableRenderer(),
-												},
-												&resolve.ContextVariable{
-													Path:     []string{"b"},
-													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["boolean","null"]}`),
-												},
-											),
+											SerialID:             1,
 											DataSourceIdentifier: dataSourceIdentifier,
-											PostProcessing: resolve.PostProcessingConfiguration{
-												MergePath: []string{"fields"},
+											FetchConfiguration: resolve.FetchConfiguration{
+												Input:      `{"request_type":3,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
+												DataSource: &Source{},
+												Variables: resolve.NewVariables(
+													&resolve.ObjectVariable{
+														Path:     []string{"name"},
+														Renderer: resolve.NewPlainVariableRenderer(),
+													},
+													&resolve.ContextVariable{
+														Path:     []string{"b"},
+														Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["boolean","null"]}`),
+													},
+												),
+												PostProcessing: resolve.PostProcessingConfiguration{
+													MergePath: []string{"fields"},
+												},
 											},
 										},
 										&resolve.SingleFetch{
-											SerialID:   2,
-											Input:      `{"request_type":4,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
-											DataSource: &Source{},
-											Variables: resolve.NewVariables(
-												&resolve.ObjectVariable{
-													Path:     []string{"name"},
-													Renderer: resolve.NewPlainVariableRenderer(),
-												},
-												&resolve.ContextVariable{
-													Path:     []string{"c"},
-													Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["boolean","null"]}`),
-												},
-											),
+											SerialID:             2,
 											DataSourceIdentifier: dataSourceIdentifier,
-											PostProcessing: resolve.PostProcessingConfiguration{
-												MergePath: []string{"enumValues"},
+											FetchConfiguration: resolve.FetchConfiguration{
+												Input:      `{"request_type":4,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
+												DataSource: &Source{},
+												Variables: resolve.NewVariables(
+													&resolve.ObjectVariable{
+														Path:     []string{"name"},
+														Renderer: resolve.NewPlainVariableRenderer(),
+													},
+													&resolve.ContextVariable{
+														Path:     []string{"c"},
+														Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["boolean","null"]}`),
+													},
+												),
+												PostProcessing: resolve.PostProcessingConfiguration{
+													MergePath: []string{"enumValues"},
+												},
 											},
 										},
 									},
