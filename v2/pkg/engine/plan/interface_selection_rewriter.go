@@ -459,11 +459,7 @@ func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInf
 	// e.g. { ... on Interface { a } }
 
 	if len(selectionSetInfo.inlineFragmentsOnObjects) == 0 {
-		if !r.allEntitiesImplementsInterfaces(selectionSetInfo.inlineFragmentsOnInterfaces, dsConfiguration, entityNames) {
-			return true
-		}
-
-		return false
+		return !r.allEntitiesImplementsInterfaces(selectionSetInfo.inlineFragmentsOnInterfaces, dsConfiguration, entityNames)
 	}
 
 	// when we have fragments on both interfaces and objects
