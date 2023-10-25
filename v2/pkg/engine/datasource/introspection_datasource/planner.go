@@ -19,6 +19,10 @@ type Planner struct {
 	isArrayItem             bool
 }
 
+func (p *Planner) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration) *ast.Document {
+	return nil
+}
+
 func (p *Planner) Register(visitor *plan.Visitor, dataSourceConfiguration plan.DataSourceConfiguration, dataSourcePlannerConfiguration plan.DataSourcePlannerConfiguration) error {
 	p.v = visitor
 	p.rootField = ast.InvalidRef

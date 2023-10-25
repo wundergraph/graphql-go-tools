@@ -6,6 +6,7 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -175,6 +176,7 @@ type DataSourcePlanner interface {
 	// The DataSourcePlanner could keep track that it rewrites the upstream query and use DownstreamResponseFieldAlias
 	// to indicate to the Planner to expect the response for countryAlias on the path "countryAlias" instead of "country".
 	DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool)
+	UpstreamSchema(dataSourceConfig DataSourceConfiguration) *ast.Document
 }
 
 type SubscriptionConfiguration struct {

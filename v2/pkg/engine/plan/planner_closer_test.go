@@ -95,6 +95,10 @@ type FakePlanner struct {
 	source *StatefulSource
 }
 
+func (f *FakePlanner) UpstreamSchema(dataSourceConfig DataSourceConfiguration) *ast.Document {
+	return nil
+}
+
 func (f *FakePlanner) EnterDocument(operation, definition *ast.Document) {
 
 }

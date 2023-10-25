@@ -79,11 +79,56 @@ type Planner struct {
 	addedInlineFragments map[onTypeInlineFragment]struct{}
 	hasFederationRoot    bool
 	extractEntities      bool
+
+	// tmp
+	upstreamSchema *ast.Document
 }
 
 type onTypeInlineFragment struct {
 	TypeCondition string
 	SelectionSet  int
+}
+
+func (p *Planner) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration) *ast.Document {
+	if p.upstreamSchema != nil {
+		return p.upstreamSchema
+	}
+
+	var config Configuration
+
+	err := json.Unmarshal(dataSourceConfig.Custom, &config)
+	if err != nil {
+		panic(err)
+	}
+
+	definition := ast.NewDocument()
+	definitionParser := astparser.NewParser()
+	report := &operationreport.Report{}
+
+	if config.Federation.Enabled {
+		federationSchema, err := federation.BuildFederationSchema(config.UpstreamSchema, config.Federation.ServiceSDL)
+		if err != nil {
+			panic(err)
+		}
+		definition.Input.ResetInputString(federationSchema)
+		definitionParser.Parse(definition, report)
+		if report.HasErrors() {
+			panic(report)
+		}
+	} else {
+		definition.Input.ResetInputString(config.UpstreamSchema)
+		definitionParser.Parse(definition, report)
+		if report.HasErrors() {
+			panic(report)
+		}
+
+		if err := asttransform.MergeDefinitionWithBaseSchema(definition); err != nil {
+			panic(fmt.Errorf("unable to merge upstream schema with base schema: %v", err))
+		}
+	}
+
+	p.upstreamSchema = definition
+	return definition
 }
 
 func (p *Planner) SetID(id int) {
@@ -1263,6 +1308,9 @@ func (p *Planner) printQueryPlan(operation *ast.Document) {
 
 	args := []interface{}{
 		"Execution plan:\n",
+		"Planner path: ",
+		p.dataSourcePlannerConfig.ParentPath,
+		"\n",
 	}
 
 	if len(p.upstreamVariables) > 0 {

@@ -12,49 +12,58 @@ import (
 )
 
 func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
-	run := func(t *testing.T, definition string, dsConfiguration *DataSourceConfiguration, operation string, expectedOperation string, shouldRewrite bool, enclosingTypeName string, fieldName string) {
+	type testCase struct {
+		name               string
+		definition         string
+		upstreamDefinition *string
+		dsConfiguration    *DataSourceConfiguration
+		operation          string
+		expectedOperation  string
+		enclosingTypeName  string // default is "Query"
+		fieldName          string // default is "iface"
+		shouldRewrite      bool
+	}
+
+	run := func(t *testing.T, testCase testCase) {
 		t.Helper()
 
-		op := unsafeparser.ParseGraphqlDocumentString(operation)
-		def := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definition)
+		op := unsafeparser.ParseGraphqlDocumentString(testCase.operation)
+		def := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(testCase.definition)
 
-		if fieldName == "" {
-			fieldName = "iface"
+		var upstreamDef *ast.Document
+		if testCase.upstreamDefinition != nil {
+			d := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(*testCase.upstreamDefinition)
+			upstreamDef = &d
+		} else {
+			upstreamDef = &def
 		}
-		if enclosingTypeName == "" {
-			enclosingTypeName = "Query"
+
+		if testCase.fieldName == "" {
+			testCase.fieldName = "iface"
+		}
+		if testCase.enclosingTypeName == "" {
+			testCase.enclosingTypeName = "Query"
 		}
 
 		fieldRef := ast.InvalidRef
 		for ref := range op.Fields {
-			if op.FieldNameString(ref) == fieldName {
+			if op.FieldNameString(ref) == testCase.fieldName {
 				fieldRef = ref
 				break
 			}
 		}
 
-		node, _ := def.Index.FirstNodeByNameStr(enclosingTypeName)
+		node, _ := def.Index.FirstNodeByNameStr(testCase.enclosingTypeName)
 
-		rewriter := newFieldSelectionRewriter(&op, &def)
-		rewritten, err := rewriter.RewriteFieldSelection(fieldRef, node, dsConfiguration)
+		rewriter := newFieldSelectionRewriter(&op, &def, upstreamDef)
+		rewritten, err := rewriter.RewriteFieldSelection(fieldRef, node, testCase.dsConfiguration)
 		require.NoError(t, err)
-		assert.Equal(t, shouldRewrite, rewritten)
+		assert.Equal(t, testCase.shouldRewrite, rewritten)
 
 		printedOp := unsafeprinter.PrettyPrint(&op, &def)
-		expectedPretty := unsafeprinter.Prettify(expectedOperation)
+		expectedPretty := unsafeprinter.Prettify(testCase.expectedOperation)
 
 		assert.Equal(t, expectedPretty, printedOp)
-	}
-
-	type testCase struct {
-		name              string
-		definition        string
-		dsConfiguration   *DataSourceConfiguration
-		operation         string
-		expectedOperation string
-		enclosingTypeName string // default is "Query"
-		fieldName         string // default is "iface"
-		shouldRewrite     bool
 	}
 
 	definition := `
@@ -122,10 +131,10 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			expectedOperation: `
 				query {
 					iface {
-						... on User {
+						... on Admin {
 							name
 						}
-						... on Admin {
+						... on User {
 							name
 						}
 					}
@@ -185,10 +194,10 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			expectedOperation: `
 				query {
 					iface {
-						... on User {
+						... on Admin {
 							name
 						}
-						... on Admin {
+						... on User {
 							name
 						}
 					}
@@ -252,10 +261,10 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			expectedOperation: `
 				query {
 					iface {
-						... on User {
+						... on Admin {
 							name
 						}
-						... on Admin {
+						... on User {
 							name
 						}
 					}
@@ -319,6 +328,106 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				query {
 					iface {
 						__typename
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name: "has user, admin, moderator fragments - should remove moderator as it is in schema, but not implements interface Node",
+			definition: `
+				interface Node {
+					id: ID!
+					name: String!
+				}
+				
+				type User implements Node {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin implements Node {
+					id: ID!
+					name: String!
+				}
+
+				type Moderator implements Node {
+					id: ID!
+					name: String!
+					isModerator: Boolean!
+				}
+				
+				type Query {
+					iface: Node!
+				}
+			`,
+			upstreamDefinition: strptr(`
+				interface Node {
+					id: ID!
+					name: String!
+				}
+				
+				type User implements Node {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin implements Node {
+					id: ID!
+				}
+
+				# moderator is in schema, but not implements interface Node
+				type Moderator { 
+					id: ID!
+					name: String!
+					isModerator: Boolean!
+				}
+			`),
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				RootNode("Moderator", "id", "name", "isModerator").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Moderator",
+						SelectionSet: "id",
+					},
+				}).
+				DSPtr(),
+			operation: `
+				query {
+					iface {
+						... on Admin {
+							name
+						}
+						... on User {
+							name
+						}
+						... on Moderator {
+							name
+						}
+					}
+				}`,
+
+			expectedOperation: `
+				query {
+					iface {
+						... on Admin {
+							name
+						}
+						... on User {
+							name
+						}
 					}
 				}`,
 			shouldRewrite: true,
@@ -702,7 +811,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: false,
 		},
 		{
-			name:       "all fields local. query without fragment. types are not entities",
+			name:       "all fields local. query with user fragment. types are not entities",
 			definition: definition,
 			dsConfiguration: dsb().
 				RootNode("Query", "iface").
@@ -952,10 +1061,10 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				query {
 					container {
 						node {
-							... on User {
+							... on Admin {
 								name
 							}
-							... on Admin {
+							... on User {
 								name
 							}
 						}
@@ -1186,6 +1295,86 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: true,
 		},
 		{
+			name:       "Union with interface fragment: user has fragment, moderator has fragment, user.name is local, admin.name is external, moderator is not part of a union",
+			definition: definition,
+			upstreamDefinition: strptr(`
+				interface Node {
+					id: ID!
+					name: String!
+				}
+				
+				type User implements Node {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin implements Node {
+					id: ID!
+					name: String!
+				}
+		
+				type ImplementsNodeNotInUnion implements Node {
+					id: ID!
+					name: String!
+				}
+		
+				type Moderator implements Node {
+					id: ID!
+					name: String!
+					isModerator: Boolean!
+				}
+				
+				union Account = User | Admin
+		
+				type Query {
+					iface: Node!
+					accounts: [Account!]!
+				}
+			`),
+			dsConfiguration: dsb().
+				RootNode("Query", "iface", "accounts").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Moderator", "id", "name", "isModerator").
+				RootNode("Admin", "id").
+				RootNode("Node", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DSPtr(),
+			fieldName: "accounts",
+			operation: `
+				query {
+					accounts {
+						... on Node {
+							name
+						}
+						... on Moderator {
+							isModerator
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					accounts {
+						... on User {
+							name
+						}
+						... on Admin {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
 			name:       "Union with interface fragment: only moderator has fragment, user.name is local, admin.name is external, moderator from other datasource",
 			definition: definition,
 			dsConfiguration: dsb().
@@ -1225,7 +1414,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			run(t, testCase.definition, testCase.dsConfiguration, testCase.operation, testCase.expectedOperation, testCase.shouldRewrite, testCase.enclosingTypeName, testCase.fieldName)
+			run(t, testCase)
 		})
 	}
 }
