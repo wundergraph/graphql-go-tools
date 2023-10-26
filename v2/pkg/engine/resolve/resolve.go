@@ -14,6 +14,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastbuffer"
@@ -76,12 +77,24 @@ func New(ctx context.Context, enableSingleFlightLoader bool) *Resolver {
 		},
 		loaders: sync.Pool{
 			New: func() interface{} {
-				return &Loader{}
+				return &V2Loader{}
 			},
 		},
 		enableSingleFlightLoader: enableSingleFlightLoader,
 		sf:                       &singleflight.Group{},
 	}
+}
+
+func (r *Resolver) getLoader() *V2Loader {
+	loader := r.loaders.Get().(*V2Loader)
+	loader.sf = r.sf
+	loader.enableSingleFlight = r.enableSingleFlightLoader
+	return loader
+}
+
+func (r *Resolver) freeLoader(loader *V2Loader) {
+	loader.Free()
+	r.loaders.Put(loader)
 }
 
 func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *BufPair) (err error) {
@@ -123,15 +136,13 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	dataBuf := pool.FastBuffer.Get()
 	defer pool.FastBuffer.Put(dataBuf)
 
-	loader := r.loaders.Get().(*Loader)
-	defer func() {
-		loader.Free()
-		r.loaders.Put(loader)
-	}()
-	loader.sf = r.sf
-	loader.sfEnabled = r.enableSingleFlightLoader
+	loader := r.getLoader()
+	defer r.freeLoader(loader)
 
-	hasErrors, err := loader.LoadGraphQLResponseData(ctx, response, data, dataBuf)
+	js := astjson.Pool.Get()
+	defer astjson.Pool.Put(js)
+
+	err = loader.LoadGraphQLResponseData(ctx, response, js)
 	if err != nil {
 		return err
 	}
@@ -139,9 +150,14 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	buf := r.getBufPair()
 	defer r.freeBufPair(buf)
 
-	if hasErrors {
+	/*if hasErrors {
 		_, err = writer.Write(dataBuf.Bytes())
 		return
+	}*/
+
+	err = js.PrintRoot(dataBuf)
+	if err != nil {
+		return err
 	}
 
 	ignoreData := false
@@ -158,26 +174,34 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 
 func (r *Resolver) resolveGraphQLSubscriptionResponse(ctx *Context, response *GraphQLResponse, subscriptionData *BufPair, writer io.Writer) (err error) {
 
-	dataBuf := pool.FastBuffer.Get()
-	defer pool.FastBuffer.Put(dataBuf)
+	js := astjson.Pool.Get()
+	defer astjson.Pool.Put(js)
 
-	loader := r.loaders.Get().(*Loader)
-	defer func() {
-		loader.Free()
-		r.loaders.Put(loader)
-	}()
-	loader.sf = r.sf
-	loader.sfEnabled = r.enableSingleFlightLoader
+	if subscriptionData.HasData() {
+		err = js.ParseObject(subscriptionData.Data.Bytes())
+		if err != nil {
+			return err
+		}
+	}
 
-	hasErrors, err := loader.LoadGraphQLResponseData(ctx, response, subscriptionData.Data.Bytes(), dataBuf)
+	loader := r.getLoader()
+	defer r.freeLoader(loader)
+
+	err = loader.LoadGraphQLResponseData(ctx, response, js)
 	if err != nil {
 		return err
 	}
 
-	if hasErrors {
+	subscriptionData.Reset()
+	err = js.PrintNode(js.Nodes[js.RootNode], subscriptionData.Data)
+	if err != nil {
+		return err
+	}
+
+	/*if hasErrors {
 		_, err = writer.Write(dataBuf.Bytes())
 		return
-	}
+	}*/
 
 	buf := r.getBufPair()
 	defer r.freeBufPair(buf)

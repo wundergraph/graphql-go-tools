@@ -142,7 +142,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 		return &Object{
 			Fetch: &SingleFetch{
 				FetchConfiguration: FetchConfiguration{
-					DataSource: FakeDataSource(`{"n": 12345, "ns_small": "12346", "ns_big": "1152921504606846976"`),
+					DataSource: FakeDataSource(`{"n": 12345, "ns_small": "12346", "ns_big": "1152921504606846976"}`),
 				},
 			},
 			Fields: []*Field{
@@ -226,7 +226,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"int":12345,"float":3.5,"int_str":"12346","bigint_str":"1152921504606846976","str":"value","object":{"foo": "bar"},"encoded_object":"{\"foo\": \"bar\"}"}}`
+		}, Context{ctx: context.Background()}, `{"data":{"int":12345,"float":3.5,"int_str":"12346","bigint_str":"1152921504606846976","str":"value","object":{"foo":"bar"},"encoded_object":"{\"foo\": \"bar\"}"}}`
 	}))
 	t.Run("object with null field", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
@@ -1062,7 +1062,12 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("array response from data source", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
 		return &Object{
 				Fetch: &SingleFetch{
-					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]`)},
+					FetchConfiguration: FetchConfiguration{
+						DataSource: FakeDataSource(`{"data":[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]}`),
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
+						},
+					},
 				},
 				Fields: []*Field{
 					{
