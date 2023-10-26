@@ -17,6 +17,13 @@ import (
 const (
 	ContentEncodingHeader = "Content-Encoding"
 	AcceptEncodingHeader  = "Accept-Encoding"
+	AcceptHeader          = "Accept"
+	ContentTypeHeader     = "Content-Type"
+
+	EncodingGzip    = "gzip"
+	EncodingDeflate = "deflate"
+
+	ContentTypeJSON = "application/json"
 )
 
 var (
@@ -90,8 +97,10 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 		request.URL.RawQuery = query.Encode()
 	}
 
-	request.Header.Add("accept", "application/json")
-	request.Header.Add("content-type", "application/json")
+	request.Header.Add(AcceptHeader, ContentTypeJSON)
+	request.Header.Add(ContentTypeHeader, ContentTypeJSON)
+	request.Header.Set(AcceptEncodingHeader, EncodingGzip)
+	request.Header.Add(AcceptEncodingHeader, EncodingDeflate)
 
 	response, err := client.Do(request)
 	if err != nil {
@@ -99,7 +108,7 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 	}
 	defer response.Body.Close()
 
-	respReader, err := respBodyReader(request, response)
+	respReader, err := respBodyReader(response)
 	if err != nil {
 		return err
 	}
@@ -108,17 +117,13 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 	return
 }
 
-func respBodyReader(req *http.Request, resp *http.Response) (io.ReadCloser, error) {
-	if req.Header.Get(AcceptEncodingHeader) == "" {
+func respBodyReader(resp *http.Response) (io.ReadCloser, error) {
+	switch resp.Header.Get(ContentEncodingHeader) {
+	case EncodingGzip:
+		return gzip.NewReader(resp.Body)
+	case EncodingDeflate:
+		return flate.NewReader(resp.Body), nil
+	default:
 		return resp.Body, nil
 	}
-
-	switch resp.Header.Get(ContentEncodingHeader) {
-	case "gzip":
-		return gzip.NewReader(resp.Body)
-	case "deflate":
-		return flate.NewReader(resp.Body), nil
-	}
-
-	return resp.Body, nil
 }
