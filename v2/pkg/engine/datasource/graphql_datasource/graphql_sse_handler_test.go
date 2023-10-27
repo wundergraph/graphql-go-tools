@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 func TestGraphQLSubscriptionClientSubscribe_SSE(t *testing.T) {
@@ -51,7 +52,8 @@ func TestGraphQLSubscriptionClientSubscribe_SSE(t *testing.T) {
 	)
 
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+
+	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
@@ -89,7 +91,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_RequestAbort(t *testing.T) {
 	)
 
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: "http://dummy",
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
@@ -150,7 +152,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_POST(t *testing.T) {
 	)
 
 	next := make(chan []byte)
-	err = client.Subscribe(ctx, GraphQLSubscriptionOptions{
+	err = client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL:           server.URL,
 		Body:          postReqBody,
 		UseSSE:        true,
@@ -208,7 +210,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_WithEvents(t *testing.T) {
 	)
 
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
@@ -262,7 +264,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Error(t *testing.T) {
 	)
 
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
@@ -314,7 +316,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Error_Without_Header(t *testing.
 	)
 
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
@@ -371,7 +373,7 @@ func TestGraphQLSubscriptionClientSubscribe_QueryParams(t *testing.T) {
 	)
 
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query:         `subscription($a: Int!){countdown(from: $a)}`,
@@ -497,7 +499,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Upstream_Dies(t *testing.T) {
 	)
 
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,

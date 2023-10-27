@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 
 	"github.com/buger/jsonparser"
 	ll "github.com/jensneuse/abstractlogger"
@@ -160,7 +161,7 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 
 	next := make(chan []byte)
 	ctx, clientCancel := context.WithCancel(context.Background())
-	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
@@ -175,7 +176,7 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 
-		err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 			URL: server.URL,
 			Body: GraphQLBody{
 				Query: `subscription {messageAdded(roomName: "room"){text}}`,
@@ -214,7 +215,7 @@ func TestWebsocketSubscriptionClientImmediateClientCancel(t *testing.T) {
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
@@ -269,7 +270,7 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,

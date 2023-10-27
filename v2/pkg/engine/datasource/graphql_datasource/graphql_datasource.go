@@ -369,7 +369,7 @@ func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
 
 	if p.unnulVariables {
-		input = httpclient.SetInputFlag(input, httpclient.UNNULLVARIABLES)
+		input = httpclient.SetInputFlag(input, httpclient.UNNULL_VARIABLES)
 	}
 
 	header, err := json.Marshal(p.config.Fetch.Header)
@@ -437,9 +437,9 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
 	input = httpclient.SetInputURL(input, []byte(p.config.Subscription.URL))
 	if p.config.Subscription.UseSSE {
-		input = httpclient.SetInputFlag(input, httpclient.USESSE)
+		input = httpclient.SetInputFlag(input, httpclient.USE_SSE)
 		if p.config.Subscription.SSEMethodPost {
-			input = httpclient.SetInputFlag(input, httpclient.SSEMETHODPOST)
+			input = httpclient.SetInputFlag(input, httpclient.SSE_METHOD_POST)
 		}
 	}
 
@@ -1651,7 +1651,7 @@ func (s *Source) compactAndUnNullVariables(input []byte) []byte {
 		variables = buf.Bytes()
 	}
 
-	removeNullVariables := httpclient.IsInputFlagSet(input, httpclient.UNNULLVARIABLES)
+	removeNullVariables := httpclient.IsInputFlagSet(input, httpclient.UNNULL_VARIABLES)
 	variables = s.cleanupVariables(variables, removeNullVariables, undefinedVariables)
 
 	input, _ = jsonparser.Set(input, variables, "body", "variables")
@@ -1722,7 +1722,7 @@ func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err 
 }
 
 type GraphQLSubscriptionClient interface {
-	Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error
+	Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error
 }
 
 type GraphQLSubscriptionOptions struct {
@@ -1744,7 +1744,7 @@ type SubscriptionSource struct {
 	client GraphQLSubscriptionClient
 }
 
-func (s *SubscriptionSource) Start(ctx context.Context, input []byte, next chan<- []byte) error {
+func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, next chan<- []byte) error {
 	var options GraphQLSubscriptionOptions
 	err := json.Unmarshal(input, &options)
 	if err != nil {

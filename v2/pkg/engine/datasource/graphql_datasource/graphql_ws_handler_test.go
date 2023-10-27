@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 
 	"github.com/stretchr/testify/assert"
 	"nhooyr.io/websocket"
@@ -71,7 +72,7 @@ func TestWebSocketSubscriptionClientInitIncludeKA_GQLWS(t *testing.T) {
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
@@ -138,7 +139,7 @@ func TestWebsocketSubscriptionClient_GQLWS(t *testing.T) {
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
@@ -201,7 +202,7 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
-	err := client.Subscribe(clientCtx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(clientCtx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomNam: "room"){text}}`,
@@ -256,7 +257,7 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
-	err := client.Subscribe(clientCtx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(clientCtx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomNam: "room"){text}}`,
@@ -319,7 +320,7 @@ func TestWebsocketSubscriptionClient_GQLWS_Upstream_Dies(t *testing.T) {
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,

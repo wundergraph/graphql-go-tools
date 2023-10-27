@@ -18,17 +18,17 @@ import (
 const (
 	PATH                = "path"
 	URL                 = "url"
-	URLENCODEBODY       = "url_encode_body"
+	URLENCODE_BODY      = "url_encode_body"
 	BASEURL             = "base_url"
 	METHOD              = "method"
 	BODY                = "body"
 	HEADER              = "header"
 	QUERYPARAMS         = "query_params"
-	USESSE              = "use_sse"
-	SSEMETHODPOST       = "sse_method_post"
+	USE_SSE             = "use_sse"
+	SSE_METHOD_POST     = "sse_method_post"
 	SCHEME              = "scheme"
 	HOST                = "host"
-	UNNULLVARIABLES     = "unnull_variables"
+	UNNULL_VARIABLES    = "unnull_variables"
 	UNDEFINED_VARIABLES = "undefined"
 )
 
@@ -105,7 +105,7 @@ func SetInputURLEncodeBody(input []byte, urlEncodeBody bool) []byte {
 	if !urlEncodeBody {
 		return input
 	}
-	out, _ := sjson.SetRawBytes(input, URLENCODEBODY, []byte("true"))
+	out, _ := sjson.SetRawBytes(input, URLENCODE_BODY, []byte("true"))
 	return out
 }
 

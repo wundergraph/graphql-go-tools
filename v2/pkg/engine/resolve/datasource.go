@@ -10,5 +10,5 @@ type DataSource interface {
 }
 
 type SubscriptionDataSource interface {
-	Start(ctx context.Context, input []byte, next chan<- []byte) error
+	Start(ctx *Context, input []byte, next chan<- []byte) error
 }
