@@ -121,14 +121,14 @@ func (l *V2Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		err := l.loadSingleFetch(l.ctx.ctx, f, items, res)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		return l.mergeResult(res, items)
 	case *SerialFetch:
 		for i := range f.Fetches {
 			err := l.resolveAndMergeFetch(f.Fetches[i], items)
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 		}
 	case *ParallelFetch:
@@ -145,12 +145,12 @@ func (l *V2Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		err := g.Wait()
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		for i := range results {
 			err = l.mergeResult(results[i], items)
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 		}
 	case *ParallelListItemFetch:
@@ -167,12 +167,12 @@ func (l *V2Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		err := g.Wait()
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		for i := range results {
 			err = l.mergeResult(results[i], items[i:i+1])
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 		}
 	case *EntityFetch:
@@ -181,7 +181,7 @@ func (l *V2Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		err := l.loadEntityFetch(l.ctx.ctx, f, items, res)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		return l.mergeResult(res, items)
 	case *BatchEntityFetch:
@@ -190,7 +190,7 @@ func (l *V2Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		err := l.loadBatchEntityFetch(l.ctx.ctx, f, items, res)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		return l.mergeResult(res, items)
 	}
@@ -219,7 +219,7 @@ func (l *V2Loader) mergeResult(res *result, items []int) error {
 	defer pool.BytesBuffer.Put(res.out)
 	node, err := l.data.AppendObject(res.out.Bytes())
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	if res.postProcessing.SelectResponseErrorsPath != nil {
 		ref := l.data.Get(node, res.postProcessing.SelectResponseErrorsPath)
@@ -240,15 +240,15 @@ func (l *V2Loader) mergeResult(res *result, items []int) error {
 		res.out.Reset()
 		err = l.data.PrintNode(l.data.Nodes[node], res.out)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		err = res.postProcessing.ResponseTemplate.Render(l.ctx, res.out.Bytes(), postProcessed)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		node, err = l.data.AppendObject(postProcessed.Bytes())
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 	if len(items) == 0 {
@@ -285,18 +285,18 @@ func (l *V2Loader) mergeResult(res *result, items []int) error {
 					}
 					err = l.data.PrintNode(l.data.Nodes[l.data.Nodes[node].ArrayValues[item]], rendered)
 					if err != nil {
-						return err
+						return errors.WithStack(err)
 					}
 					addComma = true
 				}
 				_, _ = rendered.Write(rBrack)
 				err = res.postProcessing.ResponseTemplate.Render(l.ctx, rendered.Bytes(), postProcessed)
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 				nodeProcessed, err := l.data.AppendObject(postProcessed.Bytes())
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 				l.data.MergeNodesWithPath(items[i], nodeProcessed, res.postProcessing.MergePath)
 			}
@@ -331,15 +331,15 @@ func (l *V2Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, item
 	defer pool.BytesBuffer.Put(preparedInput)
 	err := l.itemsData(items, input)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	err = fetch.InputTemplate.Render(l.ctx, input.Bytes(), preparedInput)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, fetch.DataSourceIdentifier, preparedInput.Bytes(), res.out)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	res.postProcessing = fetch.PostProcessing
 	return nil
@@ -354,7 +354,7 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 	defer pool.BytesBuffer.Put(item)
 	err := l.itemsData(items, itemData)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	var undefinedVariables []string
@@ -395,7 +395,7 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 
 	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, fetch.DataSourceIdentifier, preparedInput.Bytes(), res.out)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	res.postProcessing = fetch.PostProcessing
 	return nil
@@ -411,7 +411,7 @@ func (l *V2Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityF
 
 	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	res.batchStats = make([][]int, len(items))
 	itemHashes := make([]uint64, 0, len(items)*len(fetch.Input.Items))
@@ -511,9 +511,9 @@ func (l *V2Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight b
 		return singleBuffer.Bytes(), err
 	})
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	sharedBuf := maybeSharedBuf.([]byte)
 	_, err = out.Write(sharedBuf)
-	return err
+	return errors.WithStack(err)
 }
