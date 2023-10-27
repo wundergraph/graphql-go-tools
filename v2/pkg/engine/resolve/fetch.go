@@ -85,6 +85,8 @@ type BatchInput struct {
 	Items  []InputTemplate
 	// If SkipNullItems is set to true, items that render to null will not be included in the batch but skipped
 	SkipNullItems bool
+	// Same as SkipNullItems but for empty objects
+	SkipEmptyObjectItems bool
 	// If SkipErrItems is set to true, items that return an error during rendering will not be included in the batch but skipped
 	// In this case, the error will be swallowed
 	// E.g. if a field is not nullable and the value is null, the item will be skipped

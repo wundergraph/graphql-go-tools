@@ -8,10 +8,11 @@ import (
 	"strconv"
 
 	"github.com/pkg/errors"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 type V2Loader struct {
@@ -345,21 +346,25 @@ func (l *V2Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, item
 }
 
 func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items []int, res *result) error {
-	input := pool.BytesBuffer.Get()
-	defer pool.BytesBuffer.Put(input)
+	itemData := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(itemData)
 	preparedInput := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(preparedInput)
 	item := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(item)
-	err := l.itemsData(items, input)
+	err := l.itemsData(items, itemData)
 	if err != nil {
 		return err
 	}
-	err = fetch.Input.Header.Render(l.ctx, nil, preparedInput)
+
+	var undefinedVariables []string
+
+	err = fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	err = fetch.Input.Item.Render(l.ctx, input.Bytes(), item)
+
+	err = fetch.Input.Item.Render(l.ctx, itemData.Bytes(), item)
 	if err != nil {
 		if fetch.Input.SkipErrItem {
 			err = nil
@@ -378,10 +383,16 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 		return nil
 	}
 	_, _ = item.WriteTo(preparedInput)
-	err = fetch.Input.Footer.Render(l.ctx, nil, preparedInput)
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
+	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
 	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, fetch.DataSourceIdentifier, preparedInput.Bytes(), res.out)
 	if err != nil {
 		return err
@@ -396,7 +407,9 @@ func (l *V2Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityF
 	preparedInput := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(preparedInput)
 
-	err := fetch.Input.Header.Render(l.ctx, nil, preparedInput)
+	var undefinedVariables []string
+
+	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
 		return err
 	}
@@ -433,6 +446,11 @@ WithNextItem:
 				res.batchStats[i] = append(res.batchStats[i], -1)
 				continue
 			}
+			if fetch.Input.SkipEmptyObjectItems && itemInput.Len() == 2 && bytes.Equal(itemInput.Bytes(), emptyObject) {
+				res.batchStats[i] = append(res.batchStats[i], -1)
+				continue
+			}
+
 			keyGen.Reset()
 			_, _ = keyGen.Write(itemInput.Bytes())
 			itemHash := keyGen.Sum64()
@@ -455,10 +473,22 @@ WithNextItem:
 			addSeparator = true
 		}
 	}
-	err = fetch.Input.Footer.Render(l.ctx, nil, preparedInput)
+
+	if len(itemHashes) == 0 {
+		// all items were skipped - discard fetch
+		return nil
+	}
+
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
+	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
 	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, fetch.DataSourceIdentifier, preparedInput.Bytes(), res.out)
 	if err != nil {
 		return errors.WithStack(err)
