@@ -8,10 +8,11 @@ import (
 	"strconv"
 
 	"github.com/pkg/errors"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 type V2Loader struct {
@@ -120,14 +121,14 @@ func (l *V2Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		err := l.loadSingleFetch(l.ctx.ctx, f, items, res)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		return l.mergeResult(res, items)
 	case *SerialFetch:
 		for i := range f.Fetches {
 			err := l.resolveAndMergeFetch(f.Fetches[i], items)
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 		}
 	case *ParallelFetch:
@@ -144,12 +145,12 @@ func (l *V2Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		err := g.Wait()
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		for i := range results {
 			err = l.mergeResult(results[i], items)
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 		}
 	case *ParallelListItemFetch:
@@ -166,12 +167,12 @@ func (l *V2Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		err := g.Wait()
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		for i := range results {
 			err = l.mergeResult(results[i], items[i:i+1])
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
 		}
 	case *EntityFetch:
@@ -180,7 +181,7 @@ func (l *V2Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		err := l.loadEntityFetch(l.ctx.ctx, f, items, res)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		return l.mergeResult(res, items)
 	case *BatchEntityFetch:
@@ -189,7 +190,7 @@ func (l *V2Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		err := l.loadBatchEntityFetch(l.ctx.ctx, f, items, res)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		return l.mergeResult(res, items)
 	}
@@ -216,9 +217,14 @@ func (l *V2Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res 
 
 func (l *V2Loader) mergeResult(res *result, items []int) error {
 	defer pool.BytesBuffer.Put(res.out)
+
+	if res.fetchAborted {
+		return nil
+	}
+
 	node, err := l.data.AppendObject(res.out.Bytes())
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	if res.postProcessing.SelectResponseErrorsPath != nil {
 		ref := l.data.Get(node, res.postProcessing.SelectResponseErrorsPath)
@@ -239,15 +245,15 @@ func (l *V2Loader) mergeResult(res *result, items []int) error {
 		res.out.Reset()
 		err = l.data.PrintNode(l.data.Nodes[node], res.out)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		err = res.postProcessing.ResponseTemplate.Render(l.ctx, res.out.Bytes(), postProcessed)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		node, err = l.data.AppendObject(postProcessed.Bytes())
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 	if len(items) == 0 {
@@ -284,18 +290,18 @@ func (l *V2Loader) mergeResult(res *result, items []int) error {
 					}
 					err = l.data.PrintNode(l.data.Nodes[l.data.Nodes[node].ArrayValues[item]], rendered)
 					if err != nil {
-						return err
+						return errors.WithStack(err)
 					}
 					addComma = true
 				}
 				_, _ = rendered.Write(rBrack)
 				err = res.postProcessing.ResponseTemplate.Render(l.ctx, rendered.Bytes(), postProcessed)
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 				nodeProcessed, err := l.data.AppendObject(postProcessed.Bytes())
 				if err != nil {
-					return err
+					return errors.WithStack(err)
 				}
 				l.data.MergeNodesWithPath(items[i], nodeProcessed, res.postProcessing.MergePath)
 			}
@@ -321,6 +327,7 @@ type result struct {
 	postProcessing PostProcessingConfiguration
 	out            *bytes.Buffer
 	batchStats     [][]int
+	fetchAborted   bool
 }
 
 func (l *V2Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items []int, res *result) error {
@@ -330,36 +337,40 @@ func (l *V2Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, item
 	defer pool.BytesBuffer.Put(preparedInput)
 	err := l.itemsData(items, input)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	err = fetch.InputTemplate.Render(l.ctx, input.Bytes(), preparedInput)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, fetch.DataSourceIdentifier, preparedInput.Bytes(), res.out)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	res.postProcessing = fetch.PostProcessing
 	return nil
 }
 
 func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items []int, res *result) error {
-	input := pool.BytesBuffer.Get()
-	defer pool.BytesBuffer.Put(input)
+	itemData := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(itemData)
 	preparedInput := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(preparedInput)
 	item := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(item)
-	err := l.itemsData(items, input)
-	if err != nil {
-		return err
-	}
-	err = fetch.Input.Header.Render(l.ctx, nil, preparedInput)
+	err := l.itemsData(items, itemData)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	err = fetch.Input.Item.Render(l.ctx, input.Bytes(), item)
+
+	var undefinedVariables []string
+
+	err = fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	err = fetch.Input.Item.Render(l.ctx, itemData.Bytes(), item)
 	if err != nil {
 		if fetch.Input.SkipErrItem {
 			err = nil
@@ -371,20 +382,28 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 	renderedItem := item.Bytes()
 	if bytes.Equal(renderedItem, null) {
 		// skip fetch if item is null
+		res.fetchAborted = true
 		return nil
 	}
 	if bytes.Equal(renderedItem, emptyObject) {
 		// skip fetch if item is empty
+		res.fetchAborted = true
 		return nil
 	}
 	_, _ = item.WriteTo(preparedInput)
-	err = fetch.Input.Footer.Render(l.ctx, nil, preparedInput)
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
+	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
 	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, fetch.DataSourceIdentifier, preparedInput.Bytes(), res.out)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	res.postProcessing = fetch.PostProcessing
 	return nil
@@ -396,9 +415,11 @@ func (l *V2Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityF
 	preparedInput := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(preparedInput)
 
-	err := fetch.Input.Header.Render(l.ctx, nil, preparedInput)
+	var undefinedVariables []string
+
+	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	res.batchStats = make([][]int, len(items))
 	itemHashes := make([]uint64, 0, len(items)*len(fetch.Input.Items))
@@ -433,6 +454,11 @@ WithNextItem:
 				res.batchStats[i] = append(res.batchStats[i], -1)
 				continue
 			}
+			if fetch.Input.SkipEmptyObjectItems && itemInput.Len() == 2 && bytes.Equal(itemInput.Bytes(), emptyObject) {
+				res.batchStats[i] = append(res.batchStats[i], -1)
+				continue
+			}
+
 			keyGen.Reset()
 			_, _ = keyGen.Write(itemInput.Bytes())
 			itemHash := keyGen.Sum64()
@@ -455,10 +481,23 @@ WithNextItem:
 			addSeparator = true
 		}
 	}
-	err = fetch.Input.Footer.Render(l.ctx, nil, preparedInput)
+
+	if len(itemHashes) == 0 {
+		// all items were skipped - discard fetch
+		res.fetchAborted = true
+		return nil
+	}
+
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
+	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
 	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, fetch.DataSourceIdentifier, preparedInput.Bytes(), res.out)
 	if err != nil {
 		return errors.WithStack(err)
@@ -481,9 +520,9 @@ func (l *V2Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight b
 		return singleBuffer.Bytes(), err
 	})
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	sharedBuf := maybeSharedBuf.([]byte)
 	_, err = out.Write(sharedBuf)
-	return err
+	return errors.WithStack(err)
 }
