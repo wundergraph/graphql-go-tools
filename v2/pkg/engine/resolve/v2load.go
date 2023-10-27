@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"strconv"
 
 	"github.com/pkg/errors"
@@ -217,6 +218,11 @@ func (l *V2Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res 
 
 func (l *V2Loader) mergeResult(res *result, items []int) error {
 	defer pool.BytesBuffer.Put(res.out)
+
+	if res.fetchAborted {
+		return nil
+	}
+
 	node, err := l.data.AppendObject(res.out.Bytes())
 	if err != nil {
 		return errors.WithStack(err)
@@ -322,6 +328,7 @@ type result struct {
 	postProcessing PostProcessingConfiguration
 	out            *bytes.Buffer
 	batchStats     [][]int
+	fetchAborted   bool
 }
 
 func (l *V2Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items []int, res *result) error {
@@ -376,10 +383,12 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 	renderedItem := item.Bytes()
 	if bytes.Equal(renderedItem, null) {
 		// skip fetch if item is null
+		res.fetchAborted = true
 		return nil
 	}
 	if bytes.Equal(renderedItem, emptyObject) {
 		// skip fetch if item is empty
+		res.fetchAborted = true
 		return nil
 	}
 	_, _ = item.WriteTo(preparedInput)
@@ -476,6 +485,7 @@ WithNextItem:
 
 	if len(itemHashes) == 0 {
 		// all items were skipped - discard fetch
+		res.fetchAborted = true
 		return nil
 	}
 
