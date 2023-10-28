@@ -44,7 +44,7 @@ type planVisitor struct {
 }
 
 func (p *planVisitor) visitNode(node resolve.Node, path []string) {
-	// TODO: clarify why is t.Path is always nil on resolve.Object?
+	// TODO: clarify why t.Path is always nil on resolve.Object?
 	switch t := node.(type) {
 	case *resolve.Object:
 		for _, field := range t.Fields {
