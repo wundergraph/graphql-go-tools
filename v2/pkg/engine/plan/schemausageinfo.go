@@ -63,6 +63,6 @@ func (p *planVisitor) visitNode(node resolve.Node, path []string) {
 			p.visitNode(field.Value, newPath)
 		}
 	case *resolve.Array:
-		p.visitNode(t.Item, t.Path)
+		p.visitNode(t.Item, path)
 	}
 }
