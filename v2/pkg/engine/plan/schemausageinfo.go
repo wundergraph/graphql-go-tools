@@ -44,21 +44,22 @@ type planVisitor struct {
 }
 
 func (p *planVisitor) visitNode(node resolve.Node, path []string) {
+	// TODO: clarify why is t.Path is always nil on resolve.Object?
 	switch t := node.(type) {
 	case *resolve.Object:
 		for _, field := range t.Fields {
-			if field.Info != nil {
-				newPath := append([]string{}, append(path, field.Info.Name)...)
-				p.usage.TypeFields = append(p.usage.TypeFields, TypeFieldUsageInfo{
-					FieldName: field.Info.Name,
-					TypeNames: field.Info.ParentTypeNames,
-					Path:      newPath,
-					Source: TypeFieldSource{
-						IDs: field.Info.Source.IDs,
-					},
-				})
+			if field.Info == nil {
+				continue
 			}
 			newPath := append([]string{}, append(path, field.Info.Name)...)
+			p.usage.TypeFields = append(p.usage.TypeFields, TypeFieldUsageInfo{
+				FieldName: field.Info.Name,
+				TypeNames: field.Info.ParentTypeNames,
+				Path:      newPath,
+				Source: TypeFieldSource{
+					IDs: field.Info.Source.IDs,
+				},
+			})
 			p.visitNode(field.Value, newPath)
 		}
 	case *resolve.Array:
