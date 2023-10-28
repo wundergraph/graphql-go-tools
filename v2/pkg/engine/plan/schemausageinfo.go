@@ -47,19 +47,21 @@ func (p *planVisitor) visitNode(node resolve.Node, path []string) {
 	switch t := node.(type) {
 	case *resolve.Object:
 		for _, field := range t.Fields {
-			if field.Info != nil {
-				p.usage.TypeFields = append(p.usage.TypeFields, TypeFieldUsageInfo{
-					FieldName: field.Info.Name,
-					TypeNames: field.Info.ParentTypeNames,
-					Path:      append(path, field.Info.Name),
-					Source: TypeFieldSource{
-						IDs: field.Info.Source.IDs,
-					},
-				})
+			if field.Info == nil {
+				continue
 			}
-			p.visitNode(field.Value, append(path, t.Path...))
+			newPath := append([]string{}, append(path, field.Info.Name)...)
+			p.usage.TypeFields = append(p.usage.TypeFields, TypeFieldUsageInfo{
+				FieldName: field.Info.Name,
+				TypeNames: field.Info.ParentTypeNames,
+				Path:      newPath,
+				Source: TypeFieldSource{
+					IDs: field.Info.Source.IDs,
+				},
+			})
+			p.visitNode(field.Value, newPath)
 		}
 	case *resolve.Array:
-		p.visitNode(t.Item, append(path, t.Path...))
+		p.visitNode(t.Item, path)
 	}
 }
