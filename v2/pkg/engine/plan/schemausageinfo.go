@@ -48,18 +48,20 @@ func (p *planVisitor) visitNode(node resolve.Node, path []string) {
 	case *resolve.Object:
 		for _, field := range t.Fields {
 			if field.Info != nil {
+				newPath := append([]string{}, append(path, field.Info.Name)...)
 				p.usage.TypeFields = append(p.usage.TypeFields, TypeFieldUsageInfo{
 					FieldName: field.Info.Name,
 					TypeNames: field.Info.ParentTypeNames,
-					Path:      append(path, field.Info.Name),
+					Path:      newPath,
 					Source: TypeFieldSource{
 						IDs: field.Info.Source.IDs,
 					},
 				})
 			}
-			p.visitNode(field.Value, append(path, t.Path...))
+			newPath := append([]string{}, append(path, field.Info.Name)...)
+			p.visitNode(field.Value, newPath)
 		}
 	case *resolve.Array:
-		p.visitNode(t.Item, append(path, t.Path...))
+		p.visitNode(t.Item, t.Path)
 	}
 }
