@@ -519,6 +519,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								Info: &resolve.FieldInfo{
 									Name:            "user",
 									ParentTypeNames: []string{"Query"},
+									NamedType:       "User",
 									Source: resolve.TypeFieldSource{
 										IDs: []string{"user.service"},
 									},
@@ -531,6 +532,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											Name: []byte("account"),
 											Info: &resolve.FieldInfo{
 												Name:            "account",
+												NamedType:       "Account",
 												ParentTypeNames: []string{"User"},
 												Source: resolve.TypeFieldSource{
 													IDs: []string{"user.service"},
@@ -544,6 +546,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														Name: []byte("name"),
 														Info: &resolve.FieldInfo{
 															Name:            "name",
+															NamedType:       "String",
 															ParentTypeNames: []string{"Account"},
 															Source: resolve.TypeFieldSource{
 																IDs: []string{"account.service"},
@@ -557,6 +560,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														Name: []byte("shippingInfo"),
 														Info: &resolve.FieldInfo{
 															Name:            "shippingInfo",
+															NamedType:       "ShippingInfo",
 															ParentTypeNames: []string{"Account"},
 															Source: resolve.TypeFieldSource{
 																IDs: []string{"account.service"},
@@ -570,6 +574,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																	Name: []byte("zip"),
 																	Info: &resolve.FieldInfo{
 																		Name:            "zip",
+																		NamedType:       "String",
 																		ParentTypeNames: []string{"ShippingInfo"},
 																		Source: resolve.TypeFieldSource{
 																			IDs: []string{"account.service"},

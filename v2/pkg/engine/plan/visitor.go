@@ -260,6 +260,15 @@ func (v *Visitor) EnterField(ref int) {
 
 	fieldName := v.Operation.FieldNameBytes(ref)
 	fieldAliasOrName := v.Operation.FieldAliasOrNameBytes(ref)
+
+	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
+	if !ok {
+		return
+	}
+
+	path := v.resolveFieldPath(ref)
+	fieldDefinitionType := v.Definition.FieldDefinitionType(fieldDefinition)
+
 	if bytes.Equal(fieldName, literal.TYPENAME) {
 		v.currentField = &resolve.Field{
 			Name: fieldAliasOrName,
@@ -274,19 +283,11 @@ func (v *Visitor) EnterField(ref int) {
 			SkipVariableName:        skipVariableName,
 			IncludeDirectiveDefined: include,
 			IncludeVariableName:     includeVariableName,
-			Info:                    v.resolveFieldInfo(ref),
+			Info:                    v.resolveFieldInfo(ref, fieldDefinitionType),
 		}
 		*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
 		return
 	}
-
-	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
-	if !ok {
-		return
-	}
-
-	path := v.resolveFieldPath(ref)
-	fieldDefinitionType := v.Definition.FieldDefinitionType(fieldDefinition)
 
 	v.currentField = &resolve.Field{
 		Name:                    fieldAliasOrName,
@@ -297,9 +298,9 @@ func (v *Visitor) EnterField(ref int) {
 		SkipVariableName:        skipVariableName,
 		IncludeDirectiveDefined: include,
 		IncludeVariableName:     includeVariableName,
-		Info:                    v.resolveFieldInfo(ref),
 	}
-
+	// to avoid running v.resolveOnTypeNames() again, we set the field info here
+	v.currentField.Info = v.resolveFieldInfo(ref, fieldDefinitionType)
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
 
 	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
@@ -311,13 +312,22 @@ func (v *Visitor) EnterField(ref int) {
 	v.fieldConfigs[ref] = fieldConfig
 }
 
-func (v *Visitor) resolveFieldInfo(ref int) *resolve.FieldInfo {
+func (v *Visitor) resolveFieldInfo(ref, typeRef int) *resolve.FieldInfo {
 	if !v.Config.IncludeInfo {
 		return nil
 	}
-	onTypeNames := v.resolveOnTypeNames()
+
+	onTypeNames := v.currentField.OnTypeNames
 	enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 	fieldName := v.Operation.FieldNameString(ref)
+	underlyingType := v.Definition.ResolveUnderlyingType(typeRef)
+	typeName := v.Definition.ResolveTypeNameString(typeRef)
+
+	// if the value is not a named type, try to resolve the underlying type
+	if underlyingType != -1 {
+		typeName = v.Definition.ResolveTypeNameString(underlyingType)
+	}
+
 	parentTypeNames := []string{enclosingTypeName}
 	for i := range onTypeNames {
 		onTypeName := string(onTypeNames[i])
@@ -327,6 +337,7 @@ func (v *Visitor) resolveFieldInfo(ref int) *resolve.FieldInfo {
 		}
 		parentTypeNames = append(parentTypeNames, onTypeName)
 	}
+
 	sourceIDs := make([]string, 0, 1)
 	for i := range v.planners {
 		for j := range v.planners[i].paths {
@@ -337,6 +348,7 @@ func (v *Visitor) resolveFieldInfo(ref int) *resolve.FieldInfo {
 	}
 	return &resolve.FieldInfo{
 		Name:            fieldName,
+		NamedType:       typeName,
 		ParentTypeNames: parentTypeNames,
 		Source: resolve.TypeFieldSource{
 			IDs: sourceIDs,

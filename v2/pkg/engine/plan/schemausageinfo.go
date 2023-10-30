@@ -12,6 +12,7 @@ type SchemaUsageInfo struct {
 
 type TypeFieldUsageInfo struct {
 	FieldName string
+	NamedType string
 	TypeNames []string
 	Path      []string
 	Source    TypeFieldSource
@@ -54,6 +55,7 @@ func (p *planVisitor) visitNode(node resolve.Node, path []string) {
 			p.usage.TypeFields = append(p.usage.TypeFields, TypeFieldUsageInfo{
 				FieldName: field.Info.Name,
 				TypeNames: field.Info.ParentTypeNames,
+				NamedType: field.Info.NamedType,
 				Path:      newPath,
 				Source: TypeFieldSource{
 					IDs: field.Info.Source.IDs,
