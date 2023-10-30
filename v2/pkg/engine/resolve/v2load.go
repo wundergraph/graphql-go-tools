@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strconv"
+	"unsafe"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
@@ -17,33 +17,31 @@ import (
 
 type V2Loader struct {
 	data               *astjson.JSON
+	dataRoot           int
+	errorsRoot         int
 	ctx                *Context
 	sf                 *singleflight.Group
 	enableSingleFlight bool
 }
 
 func (l *V2Loader) Free() {
-	l.data = nil
 	l.ctx = nil
 	l.sf = nil
+	l.data = nil
+	l.dataRoot = -1
+	l.errorsRoot = -1
 }
 
-func (l *V2Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, data *astjson.JSON) (err error) {
-	l.data = data
+func (l *V2Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
+	l.data = resolvable.storage
+	l.dataRoot = resolvable.dataRoot
+	l.errorsRoot = resolvable.errorsRoot
 	l.ctx = ctx
-	if l.data.NodeIsDefined(l.data.RootNode) {
-		l.walkNode(response.Data, []int{l.data.RootNode})
-	} else {
-		l.data.RootNode = -1
-		l.walkNode(response.Data, nil)
-	}
+	l.walkNode(response.Data, []int{resolvable.dataRoot})
 	return
 }
 
 func (l *V2Loader) walkNode(node Node, items []int) {
-	if items == nil && l.data.RootNode != -1 {
-		items = []int{l.data.RootNode}
-	}
 	switch n := node.(type) {
 	case *Object:
 		l.walkObject(n, items)
@@ -215,6 +213,17 @@ func (l *V2Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res 
 	return nil
 }
 
+func (l *V2Loader) mergeErrors(ref int) {
+	if ref == -1 {
+		return
+	}
+	if l.errorsRoot == -1 {
+		l.errorsRoot = ref
+		return
+	}
+	l.data.MergeArrays(l.errorsRoot, ref)
+}
+
 func (l *V2Loader) mergeResult(res *result, items []int) error {
 	defer pool.BytesBuffer.Put(res.out)
 
@@ -234,8 +243,9 @@ func (l *V2Loader) mergeResult(res *result, items []int) error {
 	}
 	if res.postProcessing.SelectResponseDataPath != nil {
 		node = l.data.Get(node, res.postProcessing.SelectResponseDataPath)
-		if node == -1 {
-			return errors.WithStack(ErrUnableToResolve)
+		if node != -1 {
+			l.mergeErrors(node)
+			return nil
 		}
 	}
 	withPostProcessing := res.postProcessing.ResponseTemplate != nil
@@ -343,7 +353,7 @@ func (l *V2Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, item
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, fetch.DataSourceIdentifier, preparedInput.Bytes(), res.out)
+	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -401,7 +411,7 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 		return errors.WithStack(err)
 	}
 
-	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, fetch.DataSourceIdentifier, preparedInput.Bytes(), res.out)
+	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -498,26 +508,29 @@ WithNextItem:
 		return errors.WithStack(err)
 	}
 
-	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, fetch.DataSourceIdentifier, preparedInput.Bytes(), res.out)
+	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	return nil
 }
 
-func (l *V2Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, identifier []byte, input []byte, out io.Writer) error {
+func (l *V2Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, input []byte, out io.Writer) error {
 	if !l.enableSingleFlight || disallowSingleFlight {
 		return source.Load(ctx, input, out)
 	}
-	keyGen := pool.Hash64.Get()
-	defer pool.Hash64.Put(keyGen)
-	_, _ = keyGen.Write(identifier)
-	_, _ = keyGen.Write(input)
-	key := strconv.FormatUint(keyGen.Sum64(), 10)
+	key := *(*string)(unsafe.Pointer(&input))
 	maybeSharedBuf, err, _ := l.sf.Do(key, func() (interface{}, error) {
-		singleBuffer := &bytes.Buffer{}
+		singleBuffer := pool.BytesBuffer.Get()
+		defer pool.BytesBuffer.Put(singleBuffer)
 		err := source.Load(ctx, input, singleBuffer)
-		return singleBuffer.Bytes(), err
+		if err != nil {
+			return nil, err
+		}
+		data := singleBuffer.Bytes()
+		cp := make([]byte, len(data))
+		copy(cp, data)
+		return cp, nil
 	})
 	if err != nil {
 		return errors.WithStack(err)

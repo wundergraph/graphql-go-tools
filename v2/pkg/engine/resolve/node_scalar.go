@@ -10,6 +10,10 @@ func (_ *Scalar) NodeKind() NodeKind {
 	return NodeKindScalar
 }
 
+func (s *Scalar) NodePath() []string {
+	return s.Path
+}
+
 type String struct {
 	Path                 []string
 	Nullable             bool
@@ -22,6 +26,10 @@ func (_ *String) NodeKind() NodeKind {
 	return NodeKindString
 }
 
+func (s *String) NodePath() []string {
+	return s.Path
+}
+
 type Boolean struct {
 	Path     []string
 	Nullable bool
@@ -30,6 +38,10 @@ type Boolean struct {
 
 func (_ *Boolean) NodeKind() NodeKind {
 	return NodeKindBoolean
+}
+
+func (b *Boolean) NodePath() []string {
+	return b.Path
 }
 
 type Float struct {
@@ -42,6 +54,10 @@ func (_ *Float) NodeKind() NodeKind {
 	return NodeKindFloat
 }
 
+func (f *Float) NodePath() []string {
+	return f.Path
+}
+
 type Integer struct {
 	Path     []string
 	Nullable bool
@@ -52,14 +68,22 @@ func (_ *Integer) NodeKind() NodeKind {
 	return NodeKindInteger
 }
 
+func (i *Integer) NodePath() []string {
+	return i.Path
+}
+
 type BigInt struct {
 	Path     []string
 	Nullable bool
 	Export   *FieldExport `json:"export,omitempty"`
 }
 
-func (BigInt) NodeKind() NodeKind {
+func (_ *BigInt) NodeKind() NodeKind {
 	return NodeKindBigInt
+}
+
+func (b *BigInt) NodePath() []string {
+	return b.Path
 }
 
 type Null struct {
@@ -73,6 +97,10 @@ type Defer struct {
 
 func (_ *Null) NodeKind() NodeKind {
 	return NodeKindNull
+}
+
+func (_ *Null) NodePath() []string {
+	return nil
 }
 
 // FieldExport takes the value of the field during evaluation (rendering of the field)

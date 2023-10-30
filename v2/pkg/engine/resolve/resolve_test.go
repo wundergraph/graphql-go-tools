@@ -4708,6 +4708,7 @@ func Benchmark_NestedBatchingWithoutChecks(b *testing.B) {
 						SelectResponseDataPath: []string{"data"},
 					},
 				},
+				DataSourceIdentifier: []byte("graphql"),
 			},
 			Fields: []*Field{
 				{
@@ -4718,6 +4719,7 @@ func Benchmark_NestedBatchingWithoutChecks(b *testing.B) {
 							Fetch: &ParallelFetch{
 								Fetches: []Fetch{
 									&BatchEntityFetch{
+										DataSourceIdentifier: []byte("graphql"),
 										Input: BatchInput{
 											Header: InputTemplate{
 												Segments: []TemplateSegment{
@@ -4776,6 +4778,7 @@ func Benchmark_NestedBatchingWithoutChecks(b *testing.B) {
 										},
 									},
 									&BatchEntityFetch{
+										DataSourceIdentifier: []byte("graphql"),
 										Input: BatchInput{
 											Header: InputTemplate{
 												Segments: []TemplateSegment{

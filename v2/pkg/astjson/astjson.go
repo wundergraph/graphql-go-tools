@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strconv"
 	"sync"
 	"unsafe"
 
@@ -127,7 +128,7 @@ func (j *JSON) SetObjectField(nodeRef, setFieldNodeRef int, path []string) bool 
 }
 
 func (j *JSON) objectFieldKeyEquals(objectFieldRef int, another string) bool {
-	key := j.objectFieldKey(objectFieldRef)
+	key := j.ObjectFieldKey(objectFieldRef)
 	if len(key) != len(another) {
 		return false
 	}
@@ -139,7 +140,7 @@ func (j *JSON) objectFieldKeyEquals(objectFieldRef int, another string) bool {
 	return true
 }
 
-func (j *JSON) objectFieldKey(objectFieldRef int) []byte {
+func (j *JSON) ObjectFieldKey(objectFieldRef int) []byte {
 	return j.storage[j.Nodes[objectFieldRef].keyStart:j.Nodes[objectFieldRef].keyEnd]
 }
 
@@ -213,6 +214,128 @@ func (j *JSON) Reset() {
 		}
 	}
 	j.Nodes = j.Nodes[:0]
+}
+
+func (j *JSON) InitResolvable(initialData []byte) (dataRoot, errorsRoot int, err error) {
+	j.RootNode = j.appendNode(Node{
+		Kind:         NodeKindObject,
+		ObjectFields: j.getIntSlice(),
+	})
+	dataRoot = j.appendNode(Node{
+		Kind:         NodeKindObject,
+		ObjectFields: j.getIntSlice(),
+	})
+	if len(initialData) != 0 {
+		mergeWithDataRoot, err := j.AppendObject(initialData)
+		if err != nil {
+			return -1, -1, err
+		}
+		j.MergeNodes(dataRoot, mergeWithDataRoot)
+	}
+	errorsRoot = j.appendNode(Node{
+		Kind:        NodeKindArray,
+		ArrayValues: j.getIntSlice(),
+	})
+	dataStart, dataEnd := j.appendString("data")
+	errorsStart, errorsEnd := j.appendString("errors")
+	dataField := j.appendNode(Node{
+		Kind:             NodeKindObjectField,
+		ObjectFieldValue: dataRoot,
+		keyStart:         dataStart,
+		keyEnd:           dataEnd,
+	})
+	errorsField := j.appendNode(Node{
+		Kind:             NodeKindObjectField,
+		ObjectFieldValue: errorsRoot,
+		keyStart:         errorsStart,
+		keyEnd:           errorsEnd,
+	})
+	j.Nodes[j.RootNode].ObjectFields = append(j.Nodes[j.RootNode].ObjectFields, errorsField)
+	j.Nodes[j.RootNode].ObjectFields = append(j.Nodes[j.RootNode].ObjectFields, dataField)
+	return dataRoot, errorsRoot, nil
+}
+
+type PathElement struct {
+	ArrayIndex int
+	Name       string
+}
+
+func (j *JSON) appendErrorPath(errorPath []PathElement) int {
+	errPathStart, errPathEnd := j.appendString("path")
+	errPathArray := j.appendNode(Node{
+		Kind:        NodeKindArray,
+		ArrayValues: j.getIntSlice(),
+	})
+	for _, elem := range errorPath {
+		if elem.Name != "" {
+			errPathArrayValueStart, errPathArrayValueEnd := j.appendString(elem.Name)
+			j.Nodes[errPathArray].ArrayValues = append(j.Nodes[errPathArray].ArrayValues, j.appendNode(Node{
+				Kind:       NodeKindString,
+				valueStart: errPathArrayValueStart,
+				valueEnd:   errPathArrayValueEnd,
+			}))
+		} else {
+			errPathArrayValueStart, errPathArrayValueEnd := j.appendString(strconv.FormatInt(int64(elem.ArrayIndex), 10))
+			j.Nodes[errPathArray].ArrayValues = append(j.Nodes[errPathArray].ArrayValues, j.appendNode(Node{
+				Kind:       NodeKindNumber,
+				valueStart: errPathArrayValueStart,
+				valueEnd:   errPathArrayValueEnd,
+			}))
+		}
+	}
+	errPathField := j.appendNode(Node{
+		Kind:             NodeKindObjectField,
+		keyStart:         errPathStart,
+		keyEnd:           errPathEnd,
+		ObjectFieldValue: errPathArray,
+	})
+	return errPathField
+}
+
+func (j *JSON) AppendNonNullableFieldIsNullErr(fieldPath string, errorPath []PathElement) int {
+	errObject := j.appendNode(Node{
+		Kind:         NodeKindObject,
+		ObjectFields: j.getIntSlice(),
+	})
+	errMessageStart, errMessageEnd := j.appendString("message")
+	errMessageValueStart, errMessageValueEnd := j.appendString(fmt.Sprintf("Cannot return null for non-nullable field %s.", fieldPath))
+	errMessageField := j.appendNode(Node{
+		Kind:     NodeKindObjectField,
+		keyStart: errMessageStart,
+		keyEnd:   errMessageEnd,
+		ObjectFieldValue: j.appendNode(Node{
+			Kind:       NodeKindString,
+			valueStart: errMessageValueStart,
+			valueEnd:   errMessageValueEnd,
+		}),
+	})
+	j.Nodes[errObject].ObjectFields = append(j.Nodes[errObject].ObjectFields, errMessageField)
+	errPathField := j.appendErrorPath(errorPath)
+	j.Nodes[errObject].ObjectFields = append(j.Nodes[errObject].ObjectFields, errPathField)
+	return errObject
+}
+
+func (j *JSON) AppendTypeMismatchError(message string, errorPath []PathElement) int {
+	errObject := j.appendNode(Node{
+		Kind:         NodeKindObject,
+		ObjectFields: j.getIntSlice(),
+	})
+	errMessageStart, errMessageEnd := j.appendString("message")
+	errMessageValueStart, errMessageValueEnd := j.appendString(message)
+	errMessageField := j.appendNode(Node{
+		Kind:     NodeKindObjectField,
+		keyStart: errMessageStart,
+		keyEnd:   errMessageEnd,
+		ObjectFieldValue: j.appendNode(Node{
+			Kind:       NodeKindString,
+			valueStart: errMessageValueStart,
+			valueEnd:   errMessageValueEnd,
+		}),
+	})
+	j.Nodes[errObject].ObjectFields = append(j.Nodes[errObject].ObjectFields, errMessageField)
+	errPathField := j.appendErrorPath(errorPath)
+	j.Nodes[errObject].ObjectFields = append(j.Nodes[errObject].ObjectFields, errPathField)
+	return errObject
 }
 
 func (j *JSON) getIntSlice() []int {
@@ -481,6 +604,22 @@ func (j *JSON) printNonStringScalar(node Node, out io.Writer) error {
 	return err
 }
 
+func (j *JSON) MergeArrays(left, right int) {
+	if !j.NodeIsDefined(left) {
+		return
+	}
+	if !j.NodeIsDefined(right) {
+		return
+	}
+	if j.Nodes[left].Kind != NodeKindArray {
+		return
+	}
+	if j.Nodes[right].Kind != NodeKindArray {
+		return
+	}
+	j.Nodes[left].ArrayValues = append(j.Nodes[left].ArrayValues, j.Nodes[right].ArrayValues...)
+}
+
 func (j *JSON) MergeNodes(left, right int) int {
 	if j.NodeIsDefined(left) && !j.NodeIsDefined(right) {
 		return left
@@ -499,9 +638,9 @@ func (j *JSON) MergeNodes(left, right int) int {
 	}
 WithNextLeftField:
 	for _, leftField := range j.Nodes[left].ObjectFields {
-		leftKey := j.objectFieldKey(leftField)
+		leftKey := j.ObjectFieldKey(leftField)
 		for _, rightField := range j.Nodes[right].ObjectFields {
-			rightKey := j.objectFieldKey(rightField)
+			rightKey := j.ObjectFieldKey(rightField)
 			if bytes.Equal(leftKey, rightKey) {
 				j.Nodes[leftField].ObjectFieldValue = j.MergeNodes(j.Nodes[leftField].ObjectFieldValue, j.Nodes[rightField].ObjectFieldValue)
 				continue WithNextLeftField
@@ -510,9 +649,9 @@ WithNextLeftField:
 	}
 WithNextRightField:
 	for _, rightField := range j.Nodes[right].ObjectFields {
-		rightKey := j.objectFieldKey(rightField)
+		rightKey := j.ObjectFieldKey(rightField)
 		for _, leftField := range j.Nodes[left].ObjectFields {
-			leftKey := j.objectFieldKey(leftField)
+			leftKey := j.ObjectFieldKey(leftField)
 			if bytes.Equal(leftKey, rightKey) {
 				continue WithNextRightField
 			}

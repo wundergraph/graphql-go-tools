@@ -36,6 +36,54 @@ func TestJSON_ParsePrintArray(t *testing.T) {
 	assert.Equal(t, `{"strings":["Alex","true","123",true,123,0.123,"foo"]}`, out.String())
 }
 
+func TestJSON_InitResolvable(t *testing.T) {
+	js := &JSON{}
+	dataRoot, errorsRoot, err := js.InitResolvable(nil)
+	assert.NoError(t, err)
+	assert.NotEqual(t, -1, dataRoot)
+	assert.NotEqual(t, -1, errorsRoot)
+	root := js.DebugPrintNode(js.RootNode)
+	data := js.DebugPrintNode(dataRoot)
+	errors := js.DebugPrintNode(errorsRoot)
+	assert.Equal(t, `{"errors":[],"data":{}}`, root)
+	assert.Equal(t, `{}`, data)
+	assert.Equal(t, `[]`, errors)
+
+	js = &JSON{}
+	dataRoot, errorsRoot, err = js.InitResolvable([]byte(`{"name":"Jens"}`))
+	assert.NoError(t, err)
+	assert.NotEqual(t, -1, dataRoot)
+	assert.NotEqual(t, -1, errorsRoot)
+	root = js.DebugPrintNode(js.RootNode)
+	data = js.DebugPrintNode(dataRoot)
+	errors = js.DebugPrintNode(errorsRoot)
+	assert.Equal(t, `{"errors":[],"data":{"name":"Jens"}}`, root)
+	assert.Equal(t, `{"name":"Jens"}`, data)
+	assert.Equal(t, `[]`, errors)
+
+}
+
+func TestJSON_MergeArrays(t *testing.T) {
+	js := &JSON{}
+	dataRoot, errorsRoot, err := js.InitResolvable([]byte(`{"name":"Jens"}`))
+	assert.NoError(t, err)
+	assert.NotEqual(t, -1, dataRoot)
+	assert.NotEqual(t, -1, errorsRoot)
+	exampleGraphQLErrorsObject := []byte(`{"errors":[{"message":"Cannot query field \"foo\" on type \"Query\".","locations":[{"line":1,"column":3}]}]}`)
+	example, err := js.AppendObject(exampleGraphQLErrorsObject)
+	assert.NoError(t, err)
+	assert.NotEqual(t, -1, example)
+	errorsRef := js.Get(example, []string{"errors"})
+	assert.NotEqual(t, -1, errorsRef)
+	js.MergeArrays(errorsRoot, errorsRef)
+	root := js.DebugPrintNode(js.RootNode)
+	data := js.DebugPrintNode(dataRoot)
+	errors := js.DebugPrintNode(errorsRoot)
+	assert.Equal(t, `{"errors":[{"message":"Cannot query field \"foo\" on type \"Query\".","locations":[{"line":1,"column":3}]}],"data":{"name":"Jens"}}`, root)
+	assert.Equal(t, `{"name":"Jens"}`, data)
+	assert.Equal(t, `[{"message":"Cannot query field \"foo\" on type \"Query\".","locations":[{"line":1,"column":3}]}]`, errors)
+}
+
 func TestJSON_ParsePrintNested(t *testing.T) {
 	js := &JSON{}
 	input := `{"data":{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}}`

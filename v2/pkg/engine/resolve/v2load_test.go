@@ -284,7 +284,7 @@ func TestV2Loader_LoadGraphQLResponseData(t *testing.T) {
 			},
 		},
 	}
-	err := loader.LoadGraphQLResponseData(ctx, response, data)
+	err := loader.LoadGraphQLResponseData(ctx, response, nil)
 	assert.NoError(t, err)
 	ctrl.Finish()
 	out := &bytes.Buffer{}
@@ -567,7 +567,7 @@ func BenchmarkV2Loader_LoadGraphQLResponseData(b *testing.B) {
 		out.Reset()
 		data.Reset()
 		loader.Free()
-		err := loader.LoadGraphQLResponseData(ctx, response, data)
+		err := loader.LoadGraphQLResponseData(ctx, response, nil)
 		if err != nil {
 			b.Fatal(err)
 		}

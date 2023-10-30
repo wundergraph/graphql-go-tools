@@ -142,7 +142,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	js := astjson.Pool.Get()
 	defer astjson.Pool.Put(js)
 
-	err = loader.LoadGraphQLResponseData(ctx, response, js)
+	err = loader.LoadGraphQLResponseData(ctx, response, nil)
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func (r *Resolver) resolveGraphQLSubscriptionResponse(ctx *Context, response *Gr
 	loader := r.getLoader()
 	defer r.freeLoader(loader)
 
-	err = loader.LoadGraphQLResponseData(ctx, response, js)
+	err = loader.LoadGraphQLResponseData(ctx, response, nil)
 	if err != nil {
 		return err
 	}

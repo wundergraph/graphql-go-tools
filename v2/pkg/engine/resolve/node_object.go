@@ -41,10 +41,18 @@ func (_ *Object) NodeKind() NodeKind {
 	return NodeKindObject
 }
 
+func (o *Object) NodePath() []string {
+	return o.Path
+}
+
 type EmptyObject struct{}
 
 func (_ *EmptyObject) NodeKind() NodeKind {
 	return NodeKindEmptyObject
+}
+
+func (_ *EmptyObject) NodePath() []string {
+	return nil
 }
 
 type Field struct {
