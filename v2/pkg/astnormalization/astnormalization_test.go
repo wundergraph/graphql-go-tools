@@ -55,14 +55,14 @@ func TestNormalizeOperation(t *testing.T) {
 	}
 
 	t.Run("complex", func(t *testing.T) {
-		run(t, testDefinition, `	
+		run(t, testDefinition, `
 				subscription sub {
 					... multipleSubscriptions
 					... on Subscription {
 						newMessage {
 							body
 							sender
-						}	
+						}
 					}
 				}
 				fragment newMessageFields on Message {
@@ -89,7 +89,7 @@ func TestNormalizeOperation(t *testing.T) {
 						newMessage {
 							body
 							sender
-						}	
+						}
 					}
 					disallowedSecondRootField
 				}`, `
@@ -108,6 +108,23 @@ func TestNormalizeOperation(t *testing.T) {
 			`query($a: elInput){elQuery(input: $a)}`, "",
 			`{"a":{"fieldB":"dupa","fieldA":"VALUE_A"}}`,
 		)
+	})
+	t.Run("field arguments", func(t *testing.T) {
+		run(t, testDefinition, `
+		query someQuery() {
+			dog {
+				doesKnowCommand(dogCommand: SIT)
+				doesKnowCommand(dogCommand: SIT)
+				isHousetrained(atOtherHomes: true)
+				isHousetrained(atOtherHomes: true)
+			}
+		}`, `
+		query someQuery($a: DogCommand!, $b: Boolean) {
+			dog {
+				doesKnowCommand(dogCommand: $a)
+				isHousetrained(atOtherHomes: $b)
+			}
+		}`, `{}`, `{"b":true,"a":"SIT"}`)
 	})
 	t.Run("fragments", func(t *testing.T) {
 		run(t, testDefinition, `
@@ -298,12 +315,12 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 			type Query {
 				items: Attributes
 			}
-		
+
 			type Attribute {
 				name: String
 				childAttributes: [Attribute]
 			}
-			
+
 			type Attributes {
 				name: String
 				childAttributes: [Attribute]
@@ -610,14 +627,14 @@ func runManyOnDefinition(t *testing.T, definition, expectedOutput string, normal
 	runMany(t, "", definition, expectedOutput, normalizeFuncs...)
 }
 
-const testOperation = `	
+const testOperation = `
 subscription sub {
 	... multipleSubscriptions
 	... on Subscription {
 		newMessage {
 			body
 			sender
-		}	
+		}
 	}
 }
 fragment newMessageFields on Message {
@@ -644,7 +661,7 @@ fragment multipleSubscriptions on Subscription {
 		newMessage {
 			body
 			sender
-		}	
+		}
 	}
 	disallowedSecondRootField
 }`
@@ -817,7 +834,7 @@ extend enum Planet {
 }
 
 extend input Location {
-	lat: Float 
+	lat: Float
 	lon: Float
 	planet: Planet
 }

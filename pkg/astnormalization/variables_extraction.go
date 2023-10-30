@@ -13,12 +13,19 @@ import (
 
 func extractVariables(walker *astvisitor.Walker) *variablesExtractionVisitor {
 	visitor := &variablesExtractionVisitor{
-		Walker: walker,
+		Walker:                walker,
+		importedVariables:     make(map[int]int),
+		varTypeAndValueToName: make(map[variableTypeValue]string),
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterEnterArgumentVisitor(visitor)
 	walker.RegisterEnterOperationVisitor(visitor)
 	return visitor
+}
+
+type variableTypeValue struct {
+	typeRef int
+	value   string
 }
 
 type variablesExtractionVisitor struct {
@@ -27,6 +34,12 @@ type variablesExtractionVisitor struct {
 	importer              astimport.Importer
 	operationName         []byte
 	skip                  bool
+	// Map from definition variable ref to operation variable ref. It prevents us
+	// from defining duplicate types inside the operation
+	importedVariables map[int]int
+	// Maps from an operation variable (type and value) to a variable name if
+	// already exists. Prevents us from creating unnecessary variable definitions
+	varTypeAndValueToName map[variableTypeValue]string
 }
 
 func (v *variablesExtractionVisitor) EnterOperationDefinition(ref int) {
@@ -66,19 +79,36 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 		return
 	}
 
-	variableNameBytes := v.operation.GenerateUnusedVariableDefinitionName(v.Ancestors[0].Ref)
+	defRef, ok := v.ArgumentInputValueDefinition(ref)
+	if !ok {
+		return
+	}
+
+	defType := v.definition.InputValueDefinitions[defRef].Type
 	valueBytes, err := v.operation.ValueToJSON(v.operation.Arguments[ref].Value)
 	if err != nil {
 		return
 	}
-	v.operation.Input.Variables, err = sjson.SetRawBytes(v.operation.Input.Variables, unsafebytes.BytesToString(variableNameBytes), valueBytes)
+
+	typeValue := variableTypeValue{
+		typeRef: defRef,
+		value:   string(valueBytes),
+	}
+	variableName, variableNotDefined := v.varTypeAndValueToName[typeValue]
+	if !variableNotDefined {
+		variableName = string(v.operation.GenerateUnusedVariableDefinitionName(v.Ancestors[0].Ref))
+		v.varTypeAndValueToName[typeValue] = variableName
+	}
+
+	// if a variable with same type and value exists, we don't need to create a nother one
+	v.operation.Input.Variables, err = sjson.SetRawBytes(v.operation.Input.Variables, variableName, valueBytes)
 	if err != nil {
 		v.StopWithInternalErr(err)
 		return
 	}
 
 	variable := ast.VariableValue{
-		Name: v.operation.Input.AppendInputBytes(variableNameBytes),
+		Name: v.operation.Input.AppendInputBytes([]byte(variableName)),
 	}
 
 	v.operation.VariableValues = append(v.operation.VariableValues, variable)
@@ -88,14 +118,11 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 	v.operation.Arguments[ref].Value.Ref = varRef
 	v.operation.Arguments[ref].Value.Kind = ast.ValueKindVariable
 
-	defRef, ok := v.ArgumentInputValueDefinition(ref)
+	importedDefType, ok := v.importedVariables[defType]
 	if !ok {
-		return
+		importedDefType = v.importer.ImportType(defType, v.definition, v.operation)
+		v.importedVariables[defType] = importedDefType
 	}
-
-	defType := v.definition.InputValueDefinitions[defRef].Type
-
-	importedDefType := v.importer.ImportType(defType, v.definition, v.operation)
 
 	v.operation.VariableDefinitions = append(v.operation.VariableDefinitions, ast.VariableDefinition{
 		VariableValue: ast.Value{
@@ -105,11 +132,14 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 		Type: importedDefType,
 	})
 
-	newVariableRef := len(v.operation.VariableDefinitions) - 1
+	if !variableNotDefined {
+		newVariableRef := len(v.operation.VariableDefinitions) - 1
 
-	v.operation.OperationDefinitions[v.Ancestors[0].Ref].VariableDefinitions.Refs =
-		append(v.operation.OperationDefinitions[v.Ancestors[0].Ref].VariableDefinitions.Refs, newVariableRef)
+		v.operation.OperationDefinitions[v.Ancestors[0].Ref].VariableDefinitions.Refs =
+			append(v.operation.OperationDefinitions[v.Ancestors[0].Ref].VariableDefinitions.Refs, newVariableRef)
+	}
 	v.operation.OperationDefinitions[v.Ancestors[0].Ref].HasVariableDefinitions = true
+
 }
 
 func (v *variablesExtractionVisitor) EnterDocument(operation, definition *ast.Document) {
