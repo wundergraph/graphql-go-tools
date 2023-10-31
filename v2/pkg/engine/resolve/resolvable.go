@@ -401,8 +401,8 @@ func (r *Resolvable) walkString(s *String, ref int) bool {
 		r.addNonNullableFieldError(s.Path)
 		return r.err()
 	}
-	value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindString {
+		value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
 		r.addTypeMismatchError(fmt.Sprintf("String cannot represent non-string value: \\\"%s\\\"", value), s.Path)
 		return r.err()
 	}

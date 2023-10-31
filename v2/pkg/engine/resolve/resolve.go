@@ -116,11 +116,6 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		return err
 	}
 
-	root := t.resolvable.storage.DebugPrintNode(t.resolvable.storage.RootNode)
-	dataDebug := t.resolvable.storage.DebugPrintNode(t.resolvable.dataRoot)
-	errorsDebug := t.resolvable.storage.DebugPrintNode(t.resolvable.errorsRoot)
-	_, _, _ = root, dataDebug, errorsDebug
-
 	return t.resolvable.Resolve(response.Data, writer)
 }
 

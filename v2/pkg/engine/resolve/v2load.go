@@ -22,6 +22,7 @@ type V2Loader struct {
 	ctx                *Context
 	sf                 *singleflight.Group
 	enableSingleFlight bool
+	intSlices          [][]int
 }
 
 func (l *V2Loader) Free() {
@@ -30,6 +31,7 @@ func (l *V2Loader) Free() {
 	l.data = nil
 	l.dataRoot = -1
 	l.errorsRoot = -1
+	l.enableSingleFlight = false
 }
 
 func (l *V2Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
@@ -84,6 +86,7 @@ func (l *V2Loader) selectNodeItems(parentItems []int, path []string) (items []in
 		}
 		return []int{field}
 	}
+	items = make([]int, 0, len(parentItems))
 	for _, parent := range parentItems {
 		field := l.data.Get(parent, path)
 		if field == -1 {
