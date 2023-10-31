@@ -13,6 +13,8 @@ var (
 	quotedComma       = []byte(`","`)
 	null              = []byte("null")
 	literalData       = []byte("data")
+	literalTrue       = []byte("true")
+	literalFalse      = []byte("false")
 	literalErrors     = []byte("errors")
 	literalMessage    = []byte("message")
 	literalLocations  = []byte("locations")

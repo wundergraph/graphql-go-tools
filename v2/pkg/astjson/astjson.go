@@ -71,6 +71,18 @@ func (j *JSON) Get(nodeRef int, path []string) int {
 	return -1
 }
 
+func (j *JSON) GetObjectField(nodeRef int, path string) int {
+	if j.Nodes[nodeRef].Kind != NodeKindObject {
+		return -1
+	}
+	for _, i := range j.Nodes[nodeRef].ObjectFields {
+		if j.objectFieldKeyEquals(i, path) {
+			return j.Nodes[i].ObjectFieldValue
+		}
+	}
+	return -1
+}
+
 func (j *JSON) isArrayElem(elem string) bool {
 	if len(elem) < 2 {
 		return false
@@ -201,6 +213,17 @@ func (j *JSON) AppendArray(input []byte) (ref int, err error) {
 	return j.parseArray(input, start)
 }
 
+func (j *JSON) AppendStringBytes(input []byte) int {
+	start := len(j.storage)
+	j.storage = append(j.storage, input...)
+	end := len(j.storage)
+	return j.appendNode(Node{
+		Kind:       NodeKindString,
+		valueStart: start,
+		valueEnd:   end,
+	})
+}
+
 func (j *JSON) Reset() {
 	j.storage = j.storage[:0]
 	j._intSlices = j._intSlices[:0]
@@ -315,7 +338,7 @@ func (j *JSON) AppendNonNullableFieldIsNullErr(fieldPath string, errorPath []Pat
 	return errObject
 }
 
-func (j *JSON) AppendTypeMismatchError(message string, errorPath []PathElement) int {
+func (j *JSON) AppendErrorWithMessage(message string, errorPath []PathElement) int {
 	errObject := j.appendNode(Node{
 		Kind:         NodeKindObject,
 		ObjectFields: j.getIntSlice(),

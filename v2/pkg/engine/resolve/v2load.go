@@ -237,15 +237,12 @@ func (l *V2Loader) mergeResult(res *result, items []int) error {
 	}
 	if res.postProcessing.SelectResponseErrorsPath != nil {
 		ref := l.data.Get(node, res.postProcessing.SelectResponseErrorsPath)
-		if ref != -1 {
-			return errors.WithStack(ErrOriginResponseError)
-		}
+		l.mergeErrors(ref)
 	}
 	if res.postProcessing.SelectResponseDataPath != nil {
 		node = l.data.Get(node, res.postProcessing.SelectResponseDataPath)
-		if node != -1 {
-			l.mergeErrors(node)
-			return nil
+		if node == -1 {
+			return errors.WithStack(ErrUnableToResolve)
 		}
 	}
 	withPostProcessing := res.postProcessing.ResponseTemplate != nil

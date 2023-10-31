@@ -7,15 +7,11 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
 )
 
 func TestV2Loader_LoadGraphQLResponseData(t *testing.T) {
-	loader := &V2Loader{}
-	ctx := &Context{
-		ctx: context.Background(),
-	}
-	data := &astjson.JSON{}
 	ctrl := gomock.NewController(t)
 	productsService := mockedDS(t, ctrl,
 		`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`,
@@ -284,22 +280,26 @@ func TestV2Loader_LoadGraphQLResponseData(t *testing.T) {
 			},
 		},
 	}
-	err := loader.LoadGraphQLResponseData(ctx, response, nil)
+	ctx := &Context{
+		ctx: context.Background(),
+	}
+	resolvable := &Resolvable{
+		storage: &astjson.JSON{},
+	}
+	loader := &V2Loader{}
+	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	assert.NoError(t, err)
+	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
 	assert.NoError(t, err)
 	ctrl.Finish()
 	out := &bytes.Buffer{}
-	err = data.PrintNode(data.Nodes[data.RootNode], out)
+	err = resolvable.storage.PrintNode(resolvable.storage.Nodes[resolvable.storage.RootNode], out)
 	assert.NoError(t, err)
-	expected := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
+	expected := `{"errors":[],"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
 	assert.Equal(t, expected, out.String())
 }
 
 func BenchmarkV2Loader_LoadGraphQLResponseData(b *testing.B) {
-	loader := &V2Loader{}
-	ctx := &Context{
-		ctx: context.Background(),
-	}
-	data := &astjson.JSON{}
 
 	productsService := FakeDataSource(`{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1"},{"name":"Couch","__typename":"Product","upc":"2"},{"name":"Chair","__typename":"Product","upc":"3"}]}}`)
 	reviewsService := FakeDataSource(`{"data":{"_entities":[{"__typename":"Product","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2"}}]},{"__typename":"Product","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1"}}]},{"__typename":"Product","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2"}}]}]}}`)
@@ -558,20 +558,31 @@ func BenchmarkV2Loader_LoadGraphQLResponseData(b *testing.B) {
 			},
 		},
 	}
-	expected := []byte(`{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`)
+	ctx := &Context{
+		ctx: context.Background(),
+	}
+	resolvable := &Resolvable{
+		storage: &astjson.JSON{},
+	}
+	loader := &V2Loader{}
+	expected := []byte(`{"errors":[],"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`)
 	out := &bytes.Buffer{}
 	b.SetBytes(int64(len(expected)))
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		out.Reset()
-		data.Reset()
 		loader.Free()
-		err := loader.LoadGraphQLResponseData(ctx, response, nil)
+		resolvable.Reset()
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 		if err != nil {
 			b.Fatal(err)
 		}
-		err = data.PrintNode(data.Nodes[data.RootNode], out)
+		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		if err != nil {
+			b.Fatal(err)
+		}
+		err = resolvable.storage.PrintNode(resolvable.storage.Nodes[resolvable.storage.RootNode], out)
 		if err != nil {
 			b.Fatal(err)
 		}
