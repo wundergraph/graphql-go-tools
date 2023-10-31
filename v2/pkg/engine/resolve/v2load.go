@@ -383,7 +383,7 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 	err = fetch.Input.Item.Render(l.ctx, itemData.Bytes(), item)
 	if err != nil {
 		if fetch.Input.SkipErrItem {
-			err = nil
+			err = nil // nolint:ineffassign
 			// skip fetch on render item error
 			return nil
 		}
@@ -449,12 +449,15 @@ WithNextItem:
 	for i, item := range items {
 		itemData.Reset()
 		err = l.data.PrintNode(l.data.Nodes[item], itemData)
+		if err != nil {
+			return errors.WithStack(err)
+		}
 		for j := range fetch.Input.Items {
 			itemInput.Reset()
 			err = fetch.Input.Items[j].Render(l.ctx, itemData.Bytes(), itemInput)
 			if err != nil {
 				if fetch.Input.SkipErrItems {
-					err = nil
+					err = nil // nolint:ineffassign
 					res.batchStats[i] = append(res.batchStats[i], -1)
 					continue
 				}

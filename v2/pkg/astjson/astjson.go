@@ -424,6 +424,7 @@ func (j *JSON) parseArray(array []byte, start int) (ref int, parseArrayErr error
 		Kind:        NodeKindArray,
 		ArrayValues: j.getIntSlice(),
 	}
+	// nolint:staticcheck
 	_, err := jsonparser.ArrayEach(array, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 		storageStart := start + offset
 		if dataType == jsonparser.String {
