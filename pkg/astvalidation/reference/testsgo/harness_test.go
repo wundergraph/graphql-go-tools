@@ -1,7 +1,7 @@
 package testsgo
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -314,7 +314,7 @@ func hasReportError(t *testing.T, report operationreport.Report) MessageCompare 
 var testSchema string
 
 func init() {
-	content, err := ioutil.ReadFile("test_schema.graphql")
+	content, err := os.ReadFile("test_schema.graphql")
 	if err != nil {
 		panic(err)
 	}
