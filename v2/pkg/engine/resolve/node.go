@@ -17,6 +17,7 @@ const (
 
 type Node interface {
 	NodeKind() NodeKind
+	NodePath() []string
 }
 
 type NodeKind int

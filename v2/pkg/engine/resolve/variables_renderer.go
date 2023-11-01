@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/buger/jsonparser"
 
@@ -145,6 +146,7 @@ type PlainVariableRenderer struct {
 	Kind          string
 	validator     *graphqljsonschema.Validator
 	rootValueType JsonRootType
+	mu            sync.RWMutex
 }
 
 func (p *PlainVariableRenderer) GetKind() string {
@@ -159,7 +161,9 @@ func (p *PlainVariableRenderer) RenderVariable(ctx context.Context, data []byte,
 		}
 	}
 
+	p.mu.RLock()
 	data, _ = extractStringWithQuotes(p.rootValueType, data)
+	p.mu.RUnlock()
 
 	_, err := out.Write(data)
 	return err
