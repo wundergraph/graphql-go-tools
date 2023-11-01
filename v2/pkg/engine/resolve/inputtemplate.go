@@ -118,7 +118,9 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []by
 		switch segment.Renderer.GetKind() {
 		case VariableRendererKindPlain, VariableRendererKindPlanWithValidation:
 			if plainRenderer, ok := (segment.Renderer).(*PlainVariableRenderer); ok {
+				plainRenderer.mu.Lock()
 				plainRenderer.rootValueType.Value = valueType
+				plainRenderer.mu.Unlock()
 			}
 		}
 	}
