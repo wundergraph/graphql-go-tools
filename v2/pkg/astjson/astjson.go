@@ -9,6 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/buger/jsonparser"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -19,6 +20,8 @@ var (
 			},
 		},
 	}
+	ErrParseJSONObject = errors.New("failed to parse json object")
+	ErrParseJSONArray  = errors.New("failed to parse json array")
 )
 
 type pool struct {
@@ -198,17 +201,61 @@ func (j *JSON) ParseArray(input []byte) (err error) {
 	return err
 }
 
-func (j *JSON) AppendObject(input []byte) (ref int, err error) {
-	start := len(j.storage)
+func (j *JSON) AppendAnyJSONBytes(input []byte) (ref int, err error) {
 	if j.storage == nil {
 		j.storage = make([]byte, 0, 4*1024)
 	}
+	start := len(j.storage)
+	j.storage = append(j.storage, input...)
+	jsonType := j.getJsonType(input)
+	return j.parseKnownValue(input, jsonType, start)
+}
+
+func (j *JSON) getJsonType(input []byte) jsonparser.ValueType {
+	// skip whitespace until we find the first non-whitespace byte
+	for i := range input {
+		switch input[i] {
+		case ' ', '\t', '\n', '\r':
+			continue
+		case '{':
+			return jsonparser.Object
+		case '[':
+			return jsonparser.Array
+		case '"':
+			return jsonparser.String
+		case 't':
+			if i+3 < len(input) && input[i+1] == 'r' && input[i+2] == 'u' && input[i+3] == 'e' {
+				return jsonparser.Boolean
+			}
+		case 'f':
+			if i+4 < len(input) && input[i+1] == 'a' && input[i+2] == 'l' && input[i+3] == 's' && input[i+4] == 'e' {
+				return jsonparser.Boolean
+			}
+		case 'n':
+			if i+3 < len(input) && input[i+1] == 'u' && input[i+2] == 'l' && input[i+3] == 'l' {
+				return jsonparser.Null
+			}
+		default:
+			return jsonparser.Number
+		}
+	}
+	return jsonparser.NotExist
+}
+
+func (j *JSON) AppendObject(input []byte) (ref int, err error) {
+	if j.storage == nil {
+		j.storage = make([]byte, 0, 4*1024)
+	}
+	start := len(j.storage)
 	j.storage = append(j.storage, input...)
 	return j.parseObject(input, start)
 }
 
 func (j *JSON) AppendArray(input []byte) (ref int, err error) {
-	start := len(j.storage) - 1
+	if j.storage == nil {
+		j.storage = make([]byte, 0, 4*1024)
+	}
+	start := len(j.storage)
 	j.storage = append(j.storage, input...)
 	return j.parseArray(input, start)
 }
@@ -398,7 +445,7 @@ func (j *JSON) parseObject(object []byte, start int) (int, error) {
 		return nil
 	})
 	if err != nil {
-		return -1, fmt.Errorf("failed to parse JSON")
+		return -1, errors.WithStack(ErrParseJSONObject)
 	}
 	j.Nodes = append(j.Nodes, node)
 	return len(j.Nodes) - 1, nil
@@ -438,7 +485,7 @@ func (j *JSON) parseArray(array []byte, start int) (ref int, parseArrayErr error
 		node.ArrayValues = append(node.ArrayValues, valueNodeRef)
 	})
 	if err != nil {
-		return -1, err
+		return -1, errors.WithStack(ErrParseJSONArray)
 	}
 	j.Nodes = append(j.Nodes, node)
 	ref = len(j.Nodes) - 1

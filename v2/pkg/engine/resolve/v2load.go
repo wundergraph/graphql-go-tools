@@ -22,7 +22,7 @@ type V2Loader struct {
 	ctx                *Context
 	sf                 *singleflight.Group
 	enableSingleFlight bool
-	intSlices          [][]int
+	path               []string
 }
 
 func (l *V2Loader) Free() {
@@ -32,6 +32,7 @@ func (l *V2Loader) Free() {
 	l.dataRoot = -1
 	l.errorsRoot = -1
 	l.enableSingleFlight = false
+	l.path = l.path[:0]
 }
 
 func (l *V2Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
@@ -39,34 +40,63 @@ func (l *V2Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLRespon
 	l.dataRoot = resolvable.dataRoot
 	l.errorsRoot = resolvable.errorsRoot
 	l.ctx = ctx
-	l.walkNode(response.Data, []int{resolvable.dataRoot})
-	return
+	return l.walkNode(response.Data, []int{resolvable.dataRoot})
 }
 
-func (l *V2Loader) walkNode(node Node, items []int) {
+func (l *V2Loader) walkNode(node Node, items []int) error {
 	switch n := node.(type) {
 	case *Object:
-		l.walkObject(n, items)
+		return l.walkObject(n, items)
 	case *Array:
-		l.walkArray(n, items)
+		return l.walkArray(n, items)
+	default:
+		return nil
 	}
 }
 
-func (l *V2Loader) walkObject(object *Object, parentItems []int) {
+func (l *V2Loader) pushPath(path []string) {
+	l.path = append(l.path, path...)
+}
+
+func (l *V2Loader) popPath(path []string) {
+	l.path = l.path[:len(l.path)-len(path)]
+}
+
+func (l *V2Loader) pushArrayPath() {
+	l.path = append(l.path, "@")
+}
+
+func (l *V2Loader) popArrayPath() {
+	l.path = l.path[:len(l.path)-1]
+}
+
+func (l *V2Loader) walkObject(object *Object, parentItems []int) (err error) {
+	l.pushPath(object.Path)
+	defer l.popPath(object.Path)
 	objectItems := l.selectNodeItems(parentItems, object.Path)
 	if object.Fetch != nil {
-		if err := l.resolveAndMergeFetch(object.Fetch, objectItems); err != nil {
-			return
+		err = l.resolveAndMergeFetch(object.Fetch, objectItems)
+		if err != nil {
+			return errors.WithStack(err)
 		}
 	}
 	for i := range object.Fields {
-		l.walkNode(object.Fields[i].Value, objectItems)
+		err = l.walkNode(object.Fields[i].Value, objectItems)
+		if err != nil {
+			return errors.WithStack(err)
+		}
 	}
+	return nil
 }
 
-func (l *V2Loader) walkArray(array *Array, parentItems []int) {
+func (l *V2Loader) walkArray(array *Array, parentItems []int) error {
+	l.pushPath(array.Path)
+	l.pushArrayPath()
 	nodeItems := l.selectNodeItems(parentItems, array.Path)
-	l.walkNode(array.Item, nodeItems)
+	err := l.walkNode(array.Item, nodeItems)
+	l.popArrayPath()
+	l.popPath(array.Path)
+	return err
 }
 
 func (l *V2Loader) selectNodeItems(parentItems []int, path []string) (items []int) {
@@ -137,9 +167,7 @@ func (l *V2Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		g, ctx := errgroup.WithContext(l.ctx.ctx)
 		for i := range f.Fetches {
 			i := i
-			results[i] = &result{
-				out: pool.BytesBuffer.Get(),
-			}
+			results[i] = &result{}
 			g.Go(func() error {
 				return l.loadFetch(ctx, f.Fetches[i], items, results[i])
 			})
@@ -149,9 +177,18 @@ func (l *V2Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			return errors.WithStack(err)
 		}
 		for i := range results {
-			err = l.mergeResult(results[i], items)
-			if err != nil {
-				return errors.WithStack(err)
+			if results[i].nestedMergeItems != nil {
+				for j := range results[i].nestedMergeItems {
+					err = l.mergeResult(results[i].nestedMergeItems[j], items[j:j+1])
+					if err != nil {
+						return errors.WithStack(err)
+					}
+				}
+			} else {
+				err = l.mergeResult(results[i], items)
+				if err != nil {
+					return errors.WithStack(err)
+				}
 			}
 		}
 	case *ParallelListItemFetch:
@@ -201,16 +238,35 @@ func (l *V2Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 func (l *V2Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res *result) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
+		res.out = pool.BytesBuffer.Get()
 		return l.loadSingleFetch(ctx, f, items, res)
 	case *SerialFetch:
 		return fmt.Errorf("serial fetch must not be nested")
 	case *ParallelFetch:
 		return fmt.Errorf("parallel fetch must not be nested")
 	case *ParallelListItemFetch:
-		return fmt.Errorf("parallel list item fetch must not be nested")
+		results := make([]*result, len(items))
+		g, ctx := errgroup.WithContext(l.ctx.ctx)
+		for i := range items {
+			i := i
+			results[i] = &result{
+				out: pool.BytesBuffer.Get(),
+			}
+			g.Go(func() error {
+				return l.loadFetch(ctx, f.Fetch, items[i:i+1], results[i])
+			})
+		}
+		err := g.Wait()
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		res.nestedMergeItems = results
+		return nil
 	case *EntityFetch:
+		res.out = pool.BytesBuffer.Get()
 		return l.loadEntityFetch(ctx, f, items, res)
 	case *BatchEntityFetch:
+		res.out = pool.BytesBuffer.Get()
 		return l.loadBatchEntityFetch(ctx, f, items, res)
 	}
 	return nil
@@ -229,12 +285,10 @@ func (l *V2Loader) mergeErrors(ref int) {
 
 func (l *V2Loader) mergeResult(res *result, items []int) error {
 	defer pool.BytesBuffer.Put(res.out)
-
 	if res.fetchAborted {
 		return nil
 	}
-
-	node, err := l.data.AppendObject(res.out.Bytes())
+	node, err := l.data.AppendAnyJSONBytes(res.out.Bytes())
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -244,8 +298,9 @@ func (l *V2Loader) mergeResult(res *result, items []int) error {
 	}
 	if res.postProcessing.SelectResponseDataPath != nil {
 		node = l.data.Get(node, res.postProcessing.SelectResponseDataPath)
-		if node == -1 {
-			return errors.WithStack(ErrUnableToResolve)
+		if !l.data.NodeIsDefined(node) {
+			// no data
+			return nil
 		}
 	}
 	withPostProcessing := res.postProcessing.ResponseTemplate != nil
@@ -334,10 +389,49 @@ func (l *V2Loader) mergeResult(res *result, items []int) error {
 }
 
 type result struct {
-	postProcessing PostProcessingConfiguration
-	out            *bytes.Buffer
-	batchStats     [][]int
-	fetchAborted   bool
+	postProcessing   PostProcessingConfiguration
+	out              *bytes.Buffer
+	batchStats       [][]int
+	fetchAborted     bool
+	nestedMergeItems []*result
+}
+
+var (
+	errorsInvalidInputHeader = []byte(`{"errors":[{"message":"invalid input","path":[`)
+	errorsInvalidInputFooter = []byte(`]}]}`)
+)
+
+func (l *V2Loader) renderErrorsInvalidInput(out *bytes.Buffer) error {
+	_, _ = out.Write(errorsInvalidInputHeader)
+	for i := range l.path {
+		if i != 0 {
+			_, _ = out.Write(comma)
+		}
+		_, _ = out.Write(quote)
+		_, _ = out.WriteString(l.path[i])
+		_, _ = out.Write(quote)
+	}
+	_, _ = out.Write(errorsInvalidInputFooter)
+	return nil
+}
+
+var (
+	errorsFailedToFetchHeader = []byte(`{"errors":[{"message":"failed to fetch","path":[`)
+	errorsFailedToFetchFooter = []byte(`]}]}`)
+)
+
+func (l *V2Loader) renderErrorsFailedToFetch(out *bytes.Buffer) error {
+	_, _ = out.Write(errorsFailedToFetchHeader)
+	for i := range l.path {
+		if i != 0 {
+			_, _ = out.Write(comma)
+		}
+		_, _ = out.Write(quote)
+		_, _ = out.WriteString(l.path[i])
+		_, _ = out.Write(quote)
+	}
+	_, _ = out.Write(errorsFailedToFetchFooter)
+	return nil
 }
 
 func (l *V2Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items []int, res *result) error {
@@ -351,11 +445,11 @@ func (l *V2Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, item
 	}
 	err = fetch.InputTemplate.Render(l.ctx, input.Bytes(), preparedInput)
 	if err != nil {
-		return errors.WithStack(err)
+		return l.renderErrorsInvalidInput(res.out)
 	}
 	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out)
 	if err != nil {
-		return errors.WithStack(err)
+		return l.renderErrorsFailedToFetch(res.out)
 	}
 	res.postProcessing = fetch.PostProcessing
 	return nil

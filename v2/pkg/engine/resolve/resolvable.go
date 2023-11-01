@@ -52,7 +52,7 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 		return
 	}
 	if len(ctx.Variables) != 0 {
-		r.variablesRoot, err = r.storage.AppendObject(ctx.Variables)
+		r.variablesRoot, err = r.storage.AppendAnyJSONBytes(ctx.Variables)
 	}
 	return
 }

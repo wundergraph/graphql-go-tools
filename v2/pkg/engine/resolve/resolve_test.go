@@ -3172,7 +3172,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						FetchConfiguration: FetchConfiguration{
 							DataSource: userService,
 							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data"},
+								SelectResponseDataPath:   []string{"data"},
+								SelectResponseErrorsPath: []string{"errors"},
 							},
 						},
 					},
