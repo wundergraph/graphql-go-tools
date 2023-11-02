@@ -36,6 +36,20 @@ type InputTemplate struct {
 	SetTemplateOutputToNullOnVariableNull bool
 }
 
+func SetInputUndefinedVariables(preparedInput *bytes.Buffer, undefinedVariables []string) error {
+	if len(undefinedVariables) > 0 {
+		output, err := httpclient.SetUndefinedVariables(preparedInput.Bytes(), undefinedVariables)
+		if err != nil {
+			return err
+		}
+
+		preparedInput.Reset()
+		_, _ = preparedInput.Write(output)
+	}
+
+	return nil
+}
+
 var setTemplateOutputNull = errors.New("set to null")
 
 func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *bytes.Buffer) error {
@@ -45,13 +59,12 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *bytes.B
 		return err
 	}
 
-	if len(undefinedVariables) > 0 {
-		output := httpclient.SetUndefinedVariables(preparedInput.Bytes(), undefinedVariables)
-		// The returned slice might be different, we need to copy back the data
-		preparedInput.Reset()
-		_, _ = preparedInput.Write(output)
-	}
-	return nil
+	return SetInputUndefinedVariables(preparedInput, undefinedVariables)
+}
+
+func (i *InputTemplate) RenderAndCollectUndefinedVariables(ctx *Context, data []byte, preparedInput *bytes.Buffer, undefinedVariables *[]string) (err error) {
+	err = i.renderSegments(ctx, data, i.Segments, preparedInput, undefinedVariables)
+	return
 }
 
 func (i *InputTemplate) renderSegments(ctx *Context, data []byte, segments []TemplateSegment, preparedInput *bytes.Buffer, undefinedVariables *[]string) (err error) {
@@ -105,7 +118,9 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []by
 		switch segment.Renderer.GetKind() {
 		case VariableRendererKindPlain, VariableRendererKindPlanWithValidation:
 			if plainRenderer, ok := (segment.Renderer).(*PlainVariableRenderer); ok {
+				plainRenderer.mu.Lock()
 				plainRenderer.rootValueType.Value = valueType
+				plainRenderer.mu.Unlock()
 			}
 		}
 	}

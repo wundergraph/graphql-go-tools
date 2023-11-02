@@ -41,10 +41,18 @@ func (_ *Object) NodeKind() NodeKind {
 	return NodeKindObject
 }
 
+func (o *Object) NodePath() []string {
+	return o.Path
+}
+
 type EmptyObject struct{}
 
 func (_ *EmptyObject) NodeKind() NodeKind {
 	return NodeKindEmptyObject
+}
+
+func (_ *EmptyObject) NodePath() []string {
+	return nil
 }
 
 type Field struct {
@@ -68,9 +76,14 @@ type FieldInfo struct {
 	// E.g. for a root field, this will be Query, Mutation, Subscription.
 	// For a field on an object type, this will be the name of that object type.
 	// For a field on an interface type, this will be the name of that interface type and all of its possible implementations.
-	// For a field on a union type, this will be the name of that union type and all of its possible members.
 	ParentTypeNames []string
-	Source          TypeFieldSource
+	// NamedType is the underlying node type of the field.
+	// E.g. for a field of type Hobby! this will be Hobby.
+	// For a field of type [Hobby] this will be Hobby.
+	// For a field of type [Hobby!]! this will be Hobby.
+	// For scalar fields, this will return string, int, float, boolean, ID.
+	NamedType string
+	Source    TypeFieldSource
 }
 
 type TypeFieldSource struct {

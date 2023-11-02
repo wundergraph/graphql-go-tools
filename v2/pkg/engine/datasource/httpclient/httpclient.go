@@ -3,11 +3,11 @@ package httpclient
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 
 	"github.com/buger/jsonparser"
 	bytetemplate "github.com/jensneuse/byte-template"
+	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
@@ -222,23 +222,15 @@ func GetSubscriptionInput(input []byte) (url, header, body []byte) {
 	return
 }
 
-func setUndefinedVariables(data []byte, undefinedVariables []string) ([]byte, error) {
+func SetUndefinedVariables(data []byte, undefinedVariables []string) ([]byte, error) {
 	if len(undefinedVariables) > 0 {
 		encoded, err := json.Marshal(undefinedVariables)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "could not set undefined variables")
 		}
 		return sjson.SetRawBytes(data, UNDEFINED_VARIABLES, encoded)
 	}
 	return data, nil
-}
-
-func SetUndefinedVariables(data []byte, undefinedVariables []string) []byte {
-	result, err := setUndefinedVariables(data, undefinedVariables)
-	if err != nil {
-		panic(fmt.Errorf("couldn't set undefined variables: %w", err))
-	}
-	return result
 }
 
 func UndefinedVariables(data []byte) []string {

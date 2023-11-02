@@ -3,7 +3,6 @@ package resolve
 import (
 	"io"
 
-	"github.com/buger/jsonparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -23,7 +22,7 @@ type GraphQLSubscriptionTrigger struct {
 }
 
 type GraphQLResponse struct {
-	Data            Node
+	Data            *Object
 	RenameTypeNames []RenameTypeName
 	Info            *GraphQLResponseInfo
 }
@@ -88,51 +87,4 @@ func writeAndFlush(writer FlushWriter, msg []byte) error {
 	}
 	writer.Flush()
 	return nil
-}
-
-func extractResponse(responseData []byte, bufPair *BufPair, cfg PostProcessingConfiguration) {
-	if len(responseData) == 0 {
-		return
-	}
-	switch {
-	case cfg.SelectResponseDataPath == nil && cfg.SelectResponseErrorsPath == nil:
-		bufPair.Data.WriteBytes(responseData)
-		return
-	case cfg.SelectResponseDataPath != nil && cfg.SelectResponseErrorsPath == nil:
-		data, _, _, _ := jsonparser.Get(responseData, cfg.SelectResponseDataPath...)
-		bufPair.Data.WriteBytes(data)
-		return
-	case cfg.SelectResponseDataPath == nil && cfg.SelectResponseErrorsPath != nil:
-		errors, _, _, _ := jsonparser.Get(responseData, cfg.SelectResponseErrorsPath...)
-		bufPair.Errors.WriteBytes(errors)
-	case cfg.SelectResponseDataPath != nil && cfg.SelectResponseErrorsPath != nil:
-		jsonparser.EachKey(responseData, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
-			switch i {
-			case 0:
-				bufPair.Data.WriteBytes(bytes)
-			case 1:
-				_, err := jsonparser.ArrayEach(bytes, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-					var (
-						message, locations, path, extensions []byte
-					)
-					jsonparser.EachKey(value, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
-						switch i {
-						case errorsMessagePathIndex:
-							message = bytes
-						case errorsLocationsPathIndex:
-							locations = bytes
-						case errorsPathPathIndex:
-							path = bytes
-						case errorsExtensionsPathIndex:
-							extensions = bytes
-						}
-					}, errorPaths...)
-					bufPair.WriteErr(message, locations, path, extensions)
-				})
-				if err != nil {
-					bufPair.WriteErr([]byte(err.Error()), nil, nil, nil)
-				}
-			}
-		}, cfg.SelectResponseDataPath, cfg.SelectResponseErrorsPath)
-	}
 }

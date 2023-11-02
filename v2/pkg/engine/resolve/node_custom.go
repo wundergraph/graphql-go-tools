@@ -13,3 +13,7 @@ type CustomNode struct {
 func (_ *CustomNode) NodeKind() NodeKind {
 	return NodeKindCustom
 }
+
+func (c *CustomNode) NodePath() []string {
+	return c.Path
+}

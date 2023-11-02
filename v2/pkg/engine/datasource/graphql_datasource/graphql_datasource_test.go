@@ -8396,7 +8396,9 @@ func TestSource_Load(t *testing.T) {
 
 			undefinedVariables := []string{"a", "c"}
 			ctx := context.Background()
-			input = httpclient.SetUndefinedVariables(input, undefinedVariables)
+			var err error
+			input, err = httpclient.SetUndefinedVariables(input, undefinedVariables)
+			assert.NoError(t, err)
 
 			require.NoError(t, src.Load(ctx, input, buf))
 			assert.Equal(t, `{"variables":{"b":null}}`, buf.String())

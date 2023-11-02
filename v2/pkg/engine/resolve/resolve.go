@@ -11,9 +11,9 @@ import (
 	"sync"
 
 	"github.com/buger/jsonparser"
-	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastbuffer"
@@ -21,67 +21,45 @@ import (
 )
 
 type Resolver struct {
-	ctx              context.Context
-	byteSlicesPool   sync.Pool
-	waitGroupPool    sync.Pool
-	bufPairPool      sync.Pool
-	bufPairSlicePool sync.Pool
-	errChanPool      sync.Pool
-	hash64Pool       sync.Pool
-	loaders          sync.Pool
-
+	ctx                      context.Context
 	enableSingleFlightLoader bool
 	sf                       *singleflight.Group
+	toolPool                 sync.Pool
+}
+
+type tools struct {
+	resolvable *Resolvable
+	loader     *V2Loader
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
 func New(ctx context.Context, enableSingleFlightLoader bool) *Resolver {
 	return &Resolver{
-		ctx: ctx,
-		byteSlicesPool: sync.Pool{
-			New: func() interface{} {
-				slice := make([][]byte, 0, 24)
-				return &slice
-			},
-		},
-		waitGroupPool: sync.Pool{
-			New: func() interface{} {
-				return &sync.WaitGroup{}
-			},
-		},
-		bufPairPool: sync.Pool{
-			New: func() interface{} {
-				pair := BufPair{
-					Data:   fastbuffer.New(),
-					Errors: fastbuffer.New(),
-				}
-				return &pair
-			},
-		},
-		bufPairSlicePool: sync.Pool{
-			New: func() interface{} {
-				slice := make([]*BufPair, 0, 24)
-				return &slice
-			},
-		},
-		errChanPool: sync.Pool{
-			New: func() interface{} {
-				return make(chan error, 1)
-			},
-		},
-		hash64Pool: sync.Pool{
-			New: func() interface{} {
-				return xxhash.New()
-			},
-		},
-		loaders: sync.Pool{
-			New: func() interface{} {
-				return &Loader{}
-			},
-		},
+		ctx:                      ctx,
 		enableSingleFlightLoader: enableSingleFlightLoader,
 		sf:                       &singleflight.Group{},
+		toolPool: sync.Pool{
+			New: func() interface{} {
+				return &tools{
+					resolvable: NewResolvable(),
+					loader:     &V2Loader{},
+				}
+			},
+		},
 	}
+}
+
+func (r *Resolver) getTools() *tools {
+	t := r.toolPool.Get().(*tools)
+	t.loader.sf = r.sf
+	t.loader.enableSingleFlight = r.enableSingleFlightLoader
+	return t
+}
+
+func (r *Resolver) putTools(t *tools) {
+	t.loader.Free()
+	t.resolvable.Reset()
+	r.toolPool.Put(t)
 }
 
 func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *BufPair) (err error) {
@@ -120,81 +98,25 @@ func (r *Resolver) resolveNode(ctx *Context, node Node, data []byte, bufPair *Bu
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
 
-	dataBuf := pool.FastBuffer.Get()
-	defer pool.FastBuffer.Put(dataBuf)
+	if response.Info == nil {
+		response.Info = &GraphQLResponseInfo{
+			OperationType: ast.OperationTypeQuery,
+		}
+	}
 
-	loader := r.loaders.Get().(*Loader)
-	defer func() {
-		loader.Free()
-		r.loaders.Put(loader)
-	}()
-	loader.sf = r.sf
-	loader.sfEnabled = r.enableSingleFlightLoader
-
-	hasErrors, err := loader.LoadGraphQLResponseData(ctx, response, data, dataBuf)
+	t := r.getTools()
+	defer r.putTools(t)
+	err = t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
 		return err
 	}
 
-	buf := r.getBufPair()
-	defer r.freeBufPair(buf)
-
-	if hasErrors {
-		_, err = writer.Write(dataBuf.Bytes())
-		return
-	}
-
-	ignoreData := false
-	err = r.resolveNode(ctx, response.Data, dataBuf.Bytes(), buf)
-	if err != nil {
-		if !errors.Is(err, errNonNullableFieldValueIsNull) {
-			return
-		}
-		ignoreData = true
-	}
-
-	return writeGraphqlResponse(buf, writer, ignoreData)
-}
-
-func (r *Resolver) resolveGraphQLSubscriptionResponse(ctx *Context, response *GraphQLResponse, subscriptionData *BufPair, writer io.Writer) (err error) {
-
-	dataBuf := pool.FastBuffer.Get()
-	defer pool.FastBuffer.Put(dataBuf)
-
-	loader := r.loaders.Get().(*Loader)
-	defer func() {
-		loader.Free()
-		r.loaders.Put(loader)
-	}()
-	loader.sf = r.sf
-	loader.sfEnabled = r.enableSingleFlightLoader
-
-	hasErrors, err := loader.LoadGraphQLResponseData(ctx, response, subscriptionData.Data.Bytes(), dataBuf)
+	err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
 	if err != nil {
 		return err
 	}
 
-	if hasErrors {
-		_, err = writer.Write(dataBuf.Bytes())
-		return
-	}
-
-	buf := r.getBufPair()
-	defer r.freeBufPair(buf)
-
-	ignoreData := false
-	err = r.resolveNode(ctx, response.Data, subscriptionData.Data.Bytes(), buf)
-	if err != nil {
-		if !errors.Is(err, errNonNullableFieldValueIsNull) {
-			return
-		}
-		ignoreData = true
-	}
-	if subscriptionData.HasErrors() {
-		r.MergeBufPairErrors(subscriptionData, buf)
-	}
-
-	return writeGraphqlResponse(buf, writer, ignoreData)
+	return t.resolvable.Resolve(response.Data, writer)
 }
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer FlushWriter) error {
@@ -229,8 +151,8 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return err
 	}
 
-	responseBuf := r.getBufPair()
-	defer r.freeBufPair(responseBuf)
+	t := r.getTools()
+	defer r.putTools(t)
 
 	for {
 		select {
@@ -241,9 +163,14 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 			if !ok {
 				return nil
 			}
-			responseBuf.Reset()
-			extractResponse(data, responseBuf, subscription.Trigger.PostProcessing)
-			if err := r.resolveGraphQLSubscriptionResponse(ctx, subscription.Response, responseBuf, writer); err != nil {
+			t.resolvable.Reset()
+			if err := t.resolvable.InitSubscription(ctx, data, subscription.Trigger.PostProcessing); err != nil {
+				return err
+			}
+			if err := t.loader.LoadGraphQLResponseData(ctx, subscription.Response, t.resolvable); err != nil {
+				return err
+			}
+			if err := t.resolvable.Resolve(subscription.Response.Data, writer); err != nil {
 				return err
 			}
 			writer.Flush()
@@ -717,39 +644,25 @@ func (r *Resolver) MergeBufPairErrors(from, to *BufPair) {
 }
 
 func (r *Resolver) getBufPair() *BufPair {
-	return r.bufPairPool.Get().(*BufPair)
+	return nil
 }
 
-func (r *Resolver) freeBufPair(pair *BufPair) {
-	pair.Data.Reset()
-	pair.Errors.Reset()
-	r.bufPairPool.Put(pair)
-}
+func (r *Resolver) freeBufPair(pair *BufPair) {}
 
 func (r *Resolver) getBufPairSlice() *[]*BufPair {
-	return r.bufPairSlicePool.Get().(*[]*BufPair)
+	return nil
 }
 
-func (r *Resolver) freeBufPairSlice(slice *[]*BufPair) {
-	for i := range *slice {
-		r.freeBufPair((*slice)[i])
-	}
-	*slice = (*slice)[:0]
-	r.bufPairSlicePool.Put(slice)
-}
+func (r *Resolver) freeBufPairSlice(slice *[]*BufPair) {}
 
 func (r *Resolver) getErrChan() chan error {
-	return r.errChanPool.Get().(chan error)
+	return nil
 }
 
-func (r *Resolver) freeErrChan(ch chan error) {
-	r.errChanPool.Put(ch)
-}
+func (r *Resolver) freeErrChan(ch chan error) {}
 
 func (r *Resolver) getWaitGroup() *sync.WaitGroup {
-	return r.waitGroupPool.Get().(*sync.WaitGroup)
+	return nil
 }
 
-func (r *Resolver) freeWaitGroup(wg *sync.WaitGroup) {
-	r.waitGroupPool.Put(wg)
-}
+func (r *Resolver) freeWaitGroup(wg *sync.WaitGroup) {}

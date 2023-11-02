@@ -95,8 +95,9 @@ func (d *DataSourceFetch) createEntityBatchFetch(fetch *resolve.SingleFetch) res
 					SetTemplateOutputToNullOnVariableNull: fetch.InputTemplate.SetTemplateOutputToNullOnVariableNull,
 				},
 			},
-			SkipNullItems: true,
-			SkipErrItems:  true,
+			SkipNullItems:        true,
+			SkipEmptyObjectItems: true,
+			SkipErrItems:         true,
 			Separator: resolve.InputTemplate{
 				Segments: []resolve.TemplateSegment{
 					{

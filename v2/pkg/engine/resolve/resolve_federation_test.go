@@ -19,7 +19,6 @@ type TestingTB interface {
 
 func mockedDS(t TestingTB, ctrl *gomock.Controller, expectedInput, responseData string) *MockDataSource {
 	t.Helper()
-
 	service := NewMockDataSource(ctrl)
 	service.EXPECT().
 		Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -381,7 +380,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{ user { name info {id __typename} address {id __typename} } }"}}`
 					assert.Equal(t, expected, actual)
 					pair := NewBufPair()
-					pair.Data.WriteString(`{"user":{"name":"Bill","info":{"id":11,"__typename":"Info"},"address":{"id": 55,"__typename":"Address"}}`)
+					pair.Data.WriteString(`{"user":{"name":"Bill","info":{"id":11,"__typename":"Info"},"address":{"id": 55,"__typename":"Address"}}}`)
 					return writeGraphqlResponse(pair, w, false)
 				})
 
@@ -1439,7 +1438,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 						},
 					},
 				},
-			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"users":[{"name":"Bill","info":{"age":21},"address":null},{"name":"John","info":{"age":22},"address":{"line1":"Berlin"}},{"name":"Jane","info":{"age":23},"address":{"line1":"Hamburg"}}]}}`
+			}, Context{ctx: context.Background(), Variables: nil}, `{"errors":[{"message":"Cannot return null for non-nullable field Query.users.address.line1.","path":["users",0,"address","line1"]}],"data":{"users":[{"name":"Bill","info":{"age":21},"address":null},{"name":"John","info":{"age":22},"address":{"line1":"Berlin"}},{"name":"Jane","info":{"age":23},"address":{"line1":"Hamburg"}}]}}`
 		}))
 	})
 
