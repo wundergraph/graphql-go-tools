@@ -326,6 +326,11 @@ type SubscriptionConfiguration struct {
 	URL           string
 	UseSSE        bool
 	SSEMethodPost bool
+	// ForwardedClientHeaders indicates headers that might be forwarded from the
+	// client to the upstream server. This is used to determine which connections
+	// can be multiplexed together, but the subscription engine does not forward
+	// these headers by itself.
+	ForwardedClientHeaders []string
 }
 
 type FetchConfiguration struct {
@@ -446,6 +451,16 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 	header, err := json.Marshal(p.config.Fetch.Header)
 	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
 		input = httpclient.SetInputHeader(input, header)
+	}
+
+	if len(p.config.Subscription.ForwardedClientHeaders) > 0 {
+		jsonHeaders, err := json.Marshal(p.config.Subscription.ForwardedClientHeaders)
+		if err != nil {
+			// XXX: Since this is a very unlikely error, to avoid breaking
+			// the API we panic here
+			panic(err)
+		}
+		input = httpclient.SetForwardedClientHeaders(input, jsonHeaders)
 	}
 
 	return plan.SubscriptionConfiguration{
@@ -1606,6 +1621,7 @@ type Factory struct {
 	HTTPClient                 *http.Client
 	StreamingClient            *http.Client
 	OnWsConnectionInitCallback *OnWsConnectionInitCallback
+	ForwardedClientHeaders     []string
 	SubscriptionClient         *SubscriptionClient
 	Logger                     abstractlogger.Logger
 }
@@ -1726,11 +1742,12 @@ type GraphQLSubscriptionClient interface {
 }
 
 type GraphQLSubscriptionOptions struct {
-	URL           string      `json:"url"`
-	Body          GraphQLBody `json:"body"`
-	Header        http.Header `json:"header"`
-	UseSSE        bool        `json:"use_sse"`
-	SSEMethodPost bool        `json:"sse_method_post"`
+	URL                    string      `json:"url"`
+	Body                   GraphQLBody `json:"body"`
+	Header                 http.Header `json:"header"`
+	UseSSE                 bool        `json:"use_sse"`
+	SSEMethodPost          bool        `json:"sse_method_post"`
+	ForwardedClientHeaders []string    `json:"forwarded_client_headers"`
 }
 
 type GraphQLBody struct {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/textproto"
 	"sync"
 	"time"
 
@@ -30,6 +31,7 @@ type SubscriptionClient struct {
 	handlersMu                 sync.Mutex
 	wsSubProtocol              string
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
+	forwardedClientHeaders     []string
 
 	readTimeout time.Duration
 }
@@ -60,11 +62,18 @@ func WithOnWsConnectionInitCallback(callback *OnWsConnectionInitCallback) Option
 	}
 }
 
+func WithForwardedClientHeaders(headers []string) Options {
+	return func(options *opts) {
+		options.forwardedClientHeaders = headers
+	}
+}
+
 type opts struct {
 	readTimeout                time.Duration
 	log                        abstractlogger.Logger
 	wsSubProtocol              string
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
+	forwardedClientHeaders     []string
 }
 
 // GraphQLSubscriptionClientFactory abstracts the way of creating a new GraphQLSubscriptionClient.
@@ -88,12 +97,13 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		option(op)
 	}
 	return &SubscriptionClient{
-		httpClient:      httpClient,
-		streamingClient: streamingClient,
-		engineCtx:       engineCtx,
-		handlers:        make(map[uint64]ConnectionHandler),
-		log:             op.log,
-		readTimeout:     op.readTimeout,
+		httpClient:             httpClient,
+		streamingClient:        streamingClient,
+		engineCtx:              engineCtx,
+		handlers:               make(map[uint64]ConnectionHandler),
+		forwardedClientHeaders: op.forwardedClientHeaders,
+		log:                    op.log,
+		readTimeout:            op.readTimeout,
 		hashPool: sync.Pool{
 			New: func() interface{} {
 				return xxhash.New()
@@ -196,25 +206,20 @@ func (c *SubscriptionClient) generateHandlerIDHash(ctx *resolve.Context, options
 	if err := options.Header.Write(xxh); err != nil {
 		return 0, err
 	}
-	// The client request headers might be propagated to the outgoing
-	// request by the caller. We need to take them into account as well.
-	// However, to improve the changes of connection reuse we do skip
-	// some headers that are very likely to be different but very unlikely
-	// to cause different responses, otherwise no connections would be reused.
-	for key, values := range ctx.Request.Header {
-		if key == "Sec-Websocket-Key" || key == "Content-Length" {
-			continue
-		}
-		if _, err := xxh.WriteString(key); err != nil {
+	// Make sure any header that will be forwarded to the subgraph
+	// is hashed to create the handlerID, this way requests with
+	// different headers will use separate connections.
+	for _, headerName := range options.ForwardedClientHeaders {
+		if _, err := xxh.WriteString(headerName); err != nil {
 			return 0, err
 		}
-		for _, val := range values {
+		for _, val := range ctx.Request.Header[textproto.CanonicalMIMEHeaderKey(headerName)] {
 			if _, err := xxh.WriteString(val); err != nil {
 				return 0, err
 			}
 		}
-	}
 
+	}
 	return xxh.Sum64(), nil
 }
 
