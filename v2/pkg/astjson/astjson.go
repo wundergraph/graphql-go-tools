@@ -16,7 +16,9 @@ var (
 	Pool = &pool{
 		p: sync.Pool{
 			New: func() interface{} {
-				return &JSON{}
+				return &JSON{
+					Nodes: make([]Node, 0, 4096),
+				}
 			},
 		},
 	}
@@ -468,8 +470,7 @@ func (j *JSON) findKeyEnd(pos int) int {
 
 func (j *JSON) parseArray(array []byte, start int) (ref int, parseArrayErr error) {
 	node := Node{
-		Kind:        NodeKindArray,
-		ArrayValues: j.getIntSlice(),
+		Kind: NodeKindArray,
 	}
 	// nolint:staticcheck
 	_, err := jsonparser.ArrayEach(array, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
@@ -481,6 +482,9 @@ func (j *JSON) parseArray(array []byte, start int) (ref int, parseArrayErr error
 		if err != nil {
 			parseArrayErr = err
 			return
+		}
+		if node.ArrayValues == nil {
+			node.ArrayValues = j.getIntSlice()
 		}
 		node.ArrayValues = append(node.ArrayValues, valueNodeRef)
 	})
