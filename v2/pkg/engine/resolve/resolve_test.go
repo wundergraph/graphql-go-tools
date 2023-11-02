@@ -1814,7 +1814,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			t.Run("interface response with matching type", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 				return obj(`{"thing":{"id":"1","abstractThing":{"__typename":"ConcreteOne","name":"foo"}}}`),
 					Context{ctx: context.Background()},
-					`{"data":{"thing":{"id":"1","abstractThing":{"name":"foo"}}}}`
+					`{"data":{"thing":{"id":"1","abstractThing":{"name":"foo","__typename":"ConcreteOne"}}}}`
 			}))
 
 			t.Run("interface response with not matching type", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
