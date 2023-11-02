@@ -27,7 +27,9 @@ type Resolvable struct {
 
 func NewResolvable() *Resolvable {
 	return &Resolvable{
-		storage: &astjson.JSON{},
+		storage: &astjson.JSON{
+			Nodes: make([]astjson.Node, 0, 4096),
+		},
 	}
 }
 
