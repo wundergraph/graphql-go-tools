@@ -14,8 +14,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"golang.org/x/sync/singleflight"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastbuffer"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
@@ -23,7 +21,7 @@ import (
 type Resolver struct {
 	ctx                      context.Context
 	enableSingleFlightLoader bool
-	sf                       *singleflight.Group
+	sf                       *Group
 	toolPool                 sync.Pool
 }
 
@@ -37,7 +35,7 @@ func New(ctx context.Context, enableSingleFlightLoader bool) *Resolver {
 	return &Resolver{
 		ctx:                      ctx,
 		enableSingleFlightLoader: enableSingleFlightLoader,
-		sf:                       &singleflight.Group{},
+		sf:                       &Group{},
 		toolPool: sync.Pool{
 			New: func() interface{} {
 				return &tools{

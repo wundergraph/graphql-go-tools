@@ -1792,6 +1792,14 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 														},
 														OnTypeNames: [][]byte{[]byte("ConcreteOne")},
 													},
+													{
+														Name: []byte("__typename"),
+														Value: &String{
+															Nullable: true,
+															Path:     []string{"__typename"},
+														},
+														OnTypeNames: [][]byte{[]byte("ConcreteOne")},
+													},
 												},
 											},
 										},
