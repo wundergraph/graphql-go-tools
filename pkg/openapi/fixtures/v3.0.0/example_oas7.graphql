@@ -19,6 +19,7 @@ type Mutation {
     replaceDeviceByName(deviceInput: DeviceInput!, deviceName: String!): Device
 }
 
+"A device is an object connected to the network"
 type Device {
     "The device name in the network"
     name: String!

@@ -10,18 +10,23 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/iancoleman/strcase"
+
 	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/introspection"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/literal"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
-	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/iancoleman/strcase"
 )
 
 type converter struct {
 	openapi        *openapi3.T
-	knownFullTypes map[string]struct{}
+	knownFullTypes map[string]*knownFullTypeDetails
 	fullTypes      []introspection.FullType
+}
+
+type knownFullTypeDetails struct {
+	hasDescription bool
 }
 
 func isValidResponse(status int) bool {
@@ -203,7 +208,7 @@ func (c *converter) processArray(schema *openapi3.SchemaRef) error {
 	if ok {
 		return nil
 	}
-	c.knownFullTypes[fullTypeName] = struct{}{}
+	c.knownFullTypes[fullTypeName] = &knownFullTypeDetails{}
 
 	ft := introspection.FullType{
 		Kind: introspection.OBJECT,
@@ -231,11 +236,21 @@ func (c *converter) processArray(schema *openapi3.SchemaRef) error {
 
 func (c *converter) processObject(schema *openapi3.SchemaRef) error {
 	fullTypeName := extractFullTypeNameFromRef(schema.Ref)
-	_, ok := c.knownFullTypes[fullTypeName]
+	details, ok := c.knownFullTypes[fullTypeName]
 	if ok {
-		return nil
+		needsUpdate := checkForNewKnownFullTypeDetails(schema, details)
+		if !needsUpdate {
+			return nil
+		}
+
+		ok = c.updateFullTypeDetails(schema, fullTypeName)
+		if ok {
+			return nil
+		}
 	}
-	c.knownFullTypes[fullTypeName] = struct{}{}
+	c.knownFullTypes[fullTypeName] = &knownFullTypeDetails{
+		hasDescription: len(schema.Value.Description) > 0,
+	}
 
 	ft := introspection.FullType{
 		Kind:        introspection.OBJECT,
@@ -256,7 +271,7 @@ func (c *converter) processInputObject(schema *openapi3.SchemaRef) error {
 	if ok {
 		return nil
 	}
-	c.knownFullTypes[fullTypeName] = struct{}{}
+	c.knownFullTypes[fullTypeName] = &knownFullTypeDetails{}
 
 	ft := introspection.FullType{
 		Kind: introspection.INPUTOBJECT,
@@ -624,10 +639,31 @@ func (c *converter) importMutationType() (*introspection.FullType, error) {
 	return mutationType, nil
 }
 
+func (c *converter) updateFullTypeDetails(schema *openapi3.SchemaRef, typeName string) (ok bool) {
+	var introspectionFullType *introspection.FullType
+	for i := 0; i < len(c.fullTypes); i++ {
+		if c.fullTypes[i].Name == typeName {
+			introspectionFullType = &c.fullTypes[i]
+			break
+		}
+	}
+
+	if introspectionFullType == nil {
+		return false
+	}
+
+	if !c.knownFullTypes[typeName].hasDescription {
+		introspectionFullType.Description = schema.Value.Description
+		c.knownFullTypes[typeName].hasDescription = true
+	}
+
+	return true
+}
+
 func ImportParsedOpenAPIv3Document(document *openapi3.T, report *operationreport.Report) *ast.Document {
 	c := &converter{
 		openapi:        document,
-		knownFullTypes: make(map[string]struct{}),
+		knownFullTypes: make(map[string]*knownFullTypeDetails),
 		fullTypes:      make([]introspection.FullType, 0),
 	}
 	data := introspection.Data{}
@@ -702,4 +738,12 @@ func ImportOpenAPIDocumentByte(input []byte) (*ast.Document, operationreport.Rep
 
 func ImportOpenAPIDocumentString(input string) (*ast.Document, operationreport.Report) {
 	return ImportOpenAPIDocumentByte([]byte(input))
+}
+
+// checkForNewKnownFullTypeDetails will return `true` if the `openapi3.SchemaRef` contains new type details and `false` if not.
+func checkForNewKnownFullTypeDetails(schema *openapi3.SchemaRef, currentDetails *knownFullTypeDetails) bool {
+	if !currentDetails.hasDescription && len(schema.Value.Description) > 0 {
+		return true
+	}
+	return false
 }
