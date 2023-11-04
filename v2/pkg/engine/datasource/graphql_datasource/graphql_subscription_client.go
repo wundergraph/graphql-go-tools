@@ -62,18 +62,11 @@ func WithOnWsConnectionInitCallback(callback *OnWsConnectionInitCallback) Option
 	}
 }
 
-func WithForwardedClientHeaders(headers []string) Options {
-	return func(options *opts) {
-		options.forwardedClientHeaders = headers
-	}
-}
-
 type opts struct {
 	readTimeout                time.Duration
 	log                        abstractlogger.Logger
 	wsSubProtocol              string
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
-	forwardedClientHeaders     []string
 }
 
 // GraphQLSubscriptionClientFactory abstracts the way of creating a new GraphQLSubscriptionClient.
@@ -97,13 +90,12 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		option(op)
 	}
 	return &SubscriptionClient{
-		httpClient:             httpClient,
-		streamingClient:        streamingClient,
-		engineCtx:              engineCtx,
-		handlers:               make(map[uint64]ConnectionHandler),
-		forwardedClientHeaders: op.forwardedClientHeaders,
-		log:                    op.log,
-		readTimeout:            op.readTimeout,
+		httpClient:      httpClient,
+		streamingClient: streamingClient,
+		engineCtx:       engineCtx,
+		handlers:        make(map[uint64]ConnectionHandler),
+		log:             op.log,
+		readTimeout:     op.readTimeout,
 		hashPool: sync.Pool{
 			New: func() interface{} {
 				return xxhash.New()
@@ -209,7 +201,7 @@ func (c *SubscriptionClient) generateHandlerIDHash(ctx *resolve.Context, options
 	// Make sure any header that will be forwarded to the subgraph
 	// is hashed to create the handlerID, this way requests with
 	// different headers will use separate connections.
-	for _, headerName := range options.ForwardedClientHeaders {
+	for _, headerName := range options.ForwardedClientHeaderNames {
 		if _, err := xxh.WriteString(headerName); err != nil {
 			return 0, err
 		}
@@ -218,7 +210,20 @@ func (c *SubscriptionClient) generateHandlerIDHash(ctx *resolve.Context, options
 				return 0, err
 			}
 		}
-
+	}
+	for _, headerRegexp := range options.ForwardedClientHeaderRegularExpressions {
+		if _, err := xxh.WriteString(headerRegexp.String()); err != nil {
+			return 0, err
+		}
+		for headerName, values := range ctx.Request.Header {
+			if headerRegexp.MatchString(headerName) {
+				for _, val := range values {
+					if _, err := xxh.WriteString(val); err != nil {
+						return 0, err
+					}
+				}
+			}
+		}
 	}
 	return xxh.Sum64(), nil
 }

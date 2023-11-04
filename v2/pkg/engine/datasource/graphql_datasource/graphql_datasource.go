@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 
 	"github.com/buger/jsonparser"
 	"github.com/jensneuse/abstractlogger"
@@ -326,11 +327,16 @@ type SubscriptionConfiguration struct {
 	URL           string
 	UseSSE        bool
 	SSEMethodPost bool
-	// ForwardedClientHeaders indicates headers that might be forwarded from the
+	// ForwardedClientHeaderNames indicates headers names that might be forwarded from the
 	// client to the upstream server. This is used to determine which connections
 	// can be multiplexed together, but the subscription engine does not forward
 	// these headers by itself.
-	ForwardedClientHeaders []string
+	ForwardedClientHeaderNames []string
+	// ForwardedClientHeaderRegularExpressions regular expressions that if matched to the header
+	// name might be forwarded from the client to the upstream server. This is used to determine
+	// which connections can be multiplexed together, but the subscription engine does not forward
+	// these headers by itself.
+	ForwardedClientHeaderRegularExpressions []*regexp.Regexp
 }
 
 type FetchConfiguration struct {
@@ -453,14 +459,24 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 		input = httpclient.SetInputHeader(input, header)
 	}
 
-	if len(p.config.Subscription.ForwardedClientHeaders) > 0 {
-		jsonHeaders, err := json.Marshal(p.config.Subscription.ForwardedClientHeaders)
+	if len(p.config.Subscription.ForwardedClientHeaderNames) > 0 {
+		headers, err := json.Marshal(p.config.Subscription.ForwardedClientHeaderNames)
 		if err != nil {
 			// XXX: Since this is a very unlikely error, to avoid breaking
 			// the API we panic here
 			panic(err)
 		}
-		input = httpclient.SetForwardedClientHeaders(input, jsonHeaders)
+		input = httpclient.SetForwardedClientHeaderNames(input, headers)
+	}
+
+	if len(p.config.Subscription.ForwardedClientHeaderRegularExpressions) > 0 {
+		headers, err := json.Marshal(p.config.Subscription.ForwardedClientHeaderRegularExpressions)
+		if err != nil {
+			// XXX: Since this is a very unlikely error, to avoid breaking
+			// the API we panic here
+			panic(err)
+		}
+		input = httpclient.SetForwardedClientHeaderRegularExpressions(input, headers)
 	}
 
 	return plan.SubscriptionConfiguration{
@@ -1742,12 +1758,13 @@ type GraphQLSubscriptionClient interface {
 }
 
 type GraphQLSubscriptionOptions struct {
-	URL                    string      `json:"url"`
-	Body                   GraphQLBody `json:"body"`
-	Header                 http.Header `json:"header"`
-	UseSSE                 bool        `json:"use_sse"`
-	SSEMethodPost          bool        `json:"sse_method_post"`
-	ForwardedClientHeaders []string    `json:"forwarded_client_headers"`
+	URL                                     string           `json:"url"`
+	Body                                    GraphQLBody      `json:"body"`
+	Header                                  http.Header      `json:"header"`
+	UseSSE                                  bool             `json:"use_sse"`
+	SSEMethodPost                           bool             `json:"sse_method_post"`
+	ForwardedClientHeaderNames              []string         `json:"forwarded_client_header_names"`
+	ForwardedClientHeaderRegularExpressions []*regexp.Regexp `json:"forwarded_client_header_regular_expressions"`
 }
 
 type GraphQLBody struct {
