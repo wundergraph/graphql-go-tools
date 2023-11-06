@@ -102,7 +102,7 @@ func (p *Planner) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration) 
 		panic(err)
 	}
 
-	definition := ast.NewDocument()
+	definition := ast.NewSmallDocument()
 	definitionParser := astparser.NewParser()
 	report := &operationreport.Report{}
 
@@ -769,7 +769,7 @@ func (p *Planner) EnterArgument(_ int) {
 
 func (p *Planner) EnterDocument(_, _ *ast.Document) {
 	if p.upstreamOperation == nil {
-		p.upstreamOperation = ast.NewDocument()
+		p.upstreamOperation = ast.NewSmallDocument()
 	} else {
 		p.upstreamOperation.Reset()
 	}
@@ -794,7 +794,7 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 
 	p.upstreamDefinition = nil
 	if p.config.UpstreamSchema != "" {
-		p.upstreamDefinition = ast.NewDocument()
+		p.upstreamDefinition = ast.NewSmallDocument()
 		p.upstreamDefinition.Input.ResetInputString(p.config.UpstreamSchema)
 		parser := astparser.NewParser()
 		var report operationreport.Report
@@ -1385,8 +1385,8 @@ func (p *Planner) printOperation() []byte {
 	rawQuery := buf.Bytes()
 
 	// create empty operation and definition documents
-	operation := ast.NewDocument()
-	definition := ast.NewDocument()
+	operation := ast.NewSmallDocument()
+	definition := ast.NewSmallDocument()
 	report := &operationreport.Report{}
 	operationParser := astparser.NewParser()
 	definitionParser := astparser.NewParser()

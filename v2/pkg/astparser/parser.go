@@ -29,7 +29,7 @@ func ParseGraphqlDocumentString(input string) (ast.Document, operationreport.Rep
 // Instead create a parser as well as AST objects and re-use them.
 func ParseGraphqlDocumentBytes(input []byte) (ast.Document, operationreport.Report) {
 	parser := NewParser()
-	doc := *ast.NewDocument()
+	doc := *ast.NewSmallDocument()
 	doc.Input.ResetInputBytes(input)
 	report := operationreport.Report{}
 	parser.Parse(&doc, &report)
