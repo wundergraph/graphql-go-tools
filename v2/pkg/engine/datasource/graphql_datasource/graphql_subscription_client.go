@@ -31,7 +31,6 @@ type SubscriptionClient struct {
 	handlersMu                 sync.Mutex
 	wsSubProtocol              string
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
-	forwardedClientHeaders     []string
 
 	readTimeout time.Duration
 }

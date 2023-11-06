@@ -1637,7 +1637,6 @@ type Factory struct {
 	HTTPClient                 *http.Client
 	StreamingClient            *http.Client
 	OnWsConnectionInitCallback *OnWsConnectionInitCallback
-	ForwardedClientHeaders     []string
 	SubscriptionClient         *SubscriptionClient
 	Logger                     abstractlogger.Logger
 }

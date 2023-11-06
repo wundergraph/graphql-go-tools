@@ -401,8 +401,8 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 		resolveCtx1.Request.Header = make(http.Header)
 		resolveCtx1.Request.Header.Set(headerName, headerValue)
 		err := client.Subscribe(resolveCtx1, GraphQLSubscriptionOptions{
-			URL:                    server.URL,
-			ForwardedClientHeaders: forwardedHeaderNames,
+			URL:                        server.URL,
+			ForwardedClientHeaderNames: forwardedHeaderNames,
 		}, next)
 		assert.NoError(t, err)
 
@@ -410,8 +410,8 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 		resolveCtx2.Request.Header = make(http.Header)
 		resolveCtx2.Request.Header.Set(headerName, headerValue)
 		err = client.Subscribe(resolveCtx2, GraphQLSubscriptionOptions{
-			URL:                    server.URL,
-			ForwardedClientHeaders: forwardedHeaderNames,
+			URL:                        server.URL,
+			ForwardedClientHeaderNames: forwardedHeaderNames,
 		}, next)
 		assert.NoError(t, err)
 
@@ -429,8 +429,8 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 		resolveCtx1.Request.Header = make(http.Header)
 		resolveCtx1.Request.Header.Set(headerName, "1")
 		err := client.Subscribe(resolveCtx1, GraphQLSubscriptionOptions{
-			URL:                    server.URL,
-			ForwardedClientHeaders: forwardedHeaderNames,
+			URL:                        server.URL,
+			ForwardedClientHeaderNames: forwardedHeaderNames,
 		}, next)
 		assert.NoError(t, err)
 
@@ -438,8 +438,8 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 		resolveCtx2.Request.Header = make(http.Header)
 		resolveCtx2.Request.Header.Set(headerName, "2")
 		err = client.Subscribe(resolveCtx2, GraphQLSubscriptionOptions{
-			URL:                    server.URL,
-			ForwardedClientHeaders: forwardedHeaderNames,
+			URL:                        server.URL,
+			ForwardedClientHeaderNames: forwardedHeaderNames,
 		}, next)
 		assert.NoError(t, err)
 
