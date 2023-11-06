@@ -230,6 +230,13 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		walker: &other,
 	})
 
+	mergeInlineFragments := astvisitor.NewWalker(48)
+	mergeInlineFragmentSelections(&mergeInlineFragments)
+	o.operationWalkers = append(o.operationWalkers, walkerStage{
+		name:   "mergeInlineFragmentSelections",
+		walker: &mergeInlineFragments,
+	})
+
 	cleanup := astvisitor.NewWalker(48)
 	deduplicateFields(&cleanup)
 	if o.options.removeFragmentDefinitions {

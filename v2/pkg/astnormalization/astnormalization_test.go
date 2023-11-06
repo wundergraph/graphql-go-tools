@@ -128,6 +128,26 @@ func TestNormalizeOperation(t *testing.T) {
 					}
 				}`, `{"unused":"foo"}`, `{}`)
 	})
+	t.Run("inline fragment spreads and merge fragments", func(t *testing.T) {
+		run(t, testDefinition, `
+				query q {
+					pet {
+						...DogName
+						...DogBarkVolume
+					}
+				}
+				fragment DogName on Pet { ... on Dog { name } }
+				fragment DogBarkVolume on Pet { ... on Dog { barkVolume } }`, `
+				query q {
+					pet {
+						... on Dog {
+							name
+							barkVolume
+						}
+					}
+				}`, ``, ``)
+	})
+
 	t.Run("fragments", func(t *testing.T) {
 		run(t, variablesExtractionDefinition, `
 			mutation HttpBinPost{
