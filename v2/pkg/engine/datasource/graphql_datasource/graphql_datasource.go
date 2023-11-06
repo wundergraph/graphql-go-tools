@@ -336,9 +336,8 @@ type SubscriptionConfiguration struct {
 	// name might be forwarded from the client to the upstream server. This is used to determine
 	// which connections can be multiplexed together, but the subscription engine does not forward
 	// these headers by itself.
-	ForwardedClientHeaderRegularExpressions []*regexp.Regexp
+	ForwardedClientHeaderRegularExpressions []*regexp.Regexp // keep this in sync with go1.20.go
 }
-
 type FetchConfiguration struct {
 	URL    string
 	Method string
@@ -470,7 +469,14 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 	}
 
 	if len(p.config.Subscription.ForwardedClientHeaderRegularExpressions) > 0 {
-		headers, err := json.Marshal(p.config.Subscription.ForwardedClientHeaderRegularExpressions)
+		// XXX: This a workaround for Go 1.20 and below, which doesn't support
+		// encoding/decoding of regexp.Regexp. Once we drop support for 1.20,
+		// we can serialize p.config.Subscription.ForwardedClientHeaderRegularExpressions directly.
+		expressions := make([]string, 0, len(p.config.Subscription.ForwardedClientHeaderRegularExpressions))
+		for _, re := range p.config.Subscription.ForwardedClientHeaderRegularExpressions {
+			expressions = append(expressions, re.String())
+		}
+		headers, err := json.Marshal(expressions)
 		if err != nil {
 			// XXX: Since this is a very unlikely error, to avoid breaking
 			// the API we panic here
@@ -1763,7 +1769,7 @@ type GraphQLSubscriptionOptions struct {
 	UseSSE                                  bool             `json:"use_sse"`
 	SSEMethodPost                           bool             `json:"sse_method_post"`
 	ForwardedClientHeaderNames              []string         `json:"forwarded_client_header_names"`
-	ForwardedClientHeaderRegularExpressions []*regexp.Regexp `json:"forwarded_client_header_regular_expressions"`
+	ForwardedClientHeaderRegularExpressions []*regexp.Regexp `json:"forwarded_client_header_regular_expressions"` // keep this in sync with go1.20.go
 }
 
 type GraphQLBody struct {
