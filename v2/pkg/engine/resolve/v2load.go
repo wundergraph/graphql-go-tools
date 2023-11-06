@@ -10,9 +10,10 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
-	"golang.org/x/sync/errgroup"
 )
 
 type V2Loader struct {
@@ -325,7 +326,7 @@ func (l *V2Loader) mergeResult(res *result, items []int) error {
 		l.data.RootNode = node
 		return nil
 	}
-	if len(items) == 1 {
+	if len(items) == 1 && res.batchStats == nil {
 		l.data.MergeNodesWithPath(items[0], node, res.postProcessing.MergePath)
 		return nil
 	}
