@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"testing"
 	"time"
 
@@ -360,7 +361,6 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
 
-	next := make(chan []byte)
 	t.Run("reuse connections when they have no forwarded headers in common", func(t *testing.T) {
 		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 			WithReadTimeout(time.Millisecond),
@@ -371,13 +371,13 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 		resolveCtx1 := resolve.NewContext(ctx)
 		err := client.Subscribe(resolveCtx1, GraphQLSubscriptionOptions{
 			URL: server.URL,
-		}, next)
+		}, make(chan []byte))
 		assert.NoError(t, err)
 
 		resolveCtx2 := resolve.NewContext(ctx)
 		err = client.Subscribe(resolveCtx2, GraphQLSubscriptionOptions{
 			URL: server.URL,
-		}, next)
+		}, make(chan []byte))
 		assert.NoError(t, err)
 
 		assert.Len(t, client.handlers, 1)
@@ -390,60 +390,89 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 
 	forwardedHeaderNames := []string{headerName}
 
+	connectionReuseCases := []struct {
+		Name                                    string
+		ForwardedClientHeaderNames              []string
+		ForwardedClientHeaderRegularExpressions []*regexp.Regexp
+	}{
+		{
+			Name:                       "by header name",
+			ForwardedClientHeaderNames: forwardedHeaderNames,
+		},
+		{
+			Name:                                    "by regular expression",
+			ForwardedClientHeaderRegularExpressions: []*regexp.Regexp{regexp.MustCompile("^X-.*")},
+		},
+	}
+
 	t.Run("reuse connections when the forwarded header has the same value", func(t *testing.T) {
-		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-			WithReadTimeout(time.Millisecond),
-			WithLogger(logger()),
-			WithWSSubProtocol(ProtocolGraphQLWS),
-		)
+		for _, c := range connectionReuseCases {
+			c := c
+			t.Run(c.Name, func(t *testing.T) {
+				client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+					WithReadTimeout(time.Millisecond),
+					WithLogger(logger()),
+					WithWSSubProtocol(ProtocolGraphQLWS),
+				)
 
-		resolveCtx1 := resolve.NewContext(ctx)
-		resolveCtx1.Request.Header = make(http.Header)
-		resolveCtx1.Request.Header.Set(headerName, headerValue)
-		err := client.Subscribe(resolveCtx1, GraphQLSubscriptionOptions{
-			URL:                        server.URL,
-			ForwardedClientHeaderNames: forwardedHeaderNames,
-		}, next)
-		assert.NoError(t, err)
+				resolveCtx1 := resolve.NewContext(ctx)
+				resolveCtx1.Request.Header = make(http.Header)
+				resolveCtx1.Request.Header.Set(headerName, headerValue)
+				err := client.Subscribe(resolveCtx1, GraphQLSubscriptionOptions{
+					URL:                                     server.URL,
+					ForwardedClientHeaderNames:              c.ForwardedClientHeaderNames,
+					ForwardedClientHeaderRegularExpressions: c.ForwardedClientHeaderRegularExpressions,
+				}, make(chan []byte))
+				assert.NoError(t, err)
 
-		resolveCtx2 := resolve.NewContext(ctx)
-		resolveCtx2.Request.Header = make(http.Header)
-		resolveCtx2.Request.Header.Set(headerName, headerValue)
-		err = client.Subscribe(resolveCtx2, GraphQLSubscriptionOptions{
-			URL:                        server.URL,
-			ForwardedClientHeaderNames: forwardedHeaderNames,
-		}, next)
-		assert.NoError(t, err)
+				resolveCtx2 := resolve.NewContext(ctx)
+				resolveCtx2.Request.Header = make(http.Header)
+				resolveCtx2.Request.Header.Set(headerName, headerValue)
+				err = client.Subscribe(resolveCtx2, GraphQLSubscriptionOptions{
+					URL:                                     server.URL,
+					ForwardedClientHeaderNames:              c.ForwardedClientHeaderNames,
+					ForwardedClientHeaderRegularExpressions: c.ForwardedClientHeaderRegularExpressions,
+				}, make(chan []byte))
+				assert.NoError(t, err)
 
-		assert.Len(t, client.handlers, 1)
+				assert.Len(t, client.handlers, 1)
+			})
+		}
 	})
 
 	t.Run("avoid reusing connections when a forwarded header has different values", func(t *testing.T) {
-		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-			WithReadTimeout(time.Millisecond),
-			WithLogger(logger()),
-			WithWSSubProtocol(ProtocolGraphQLWS),
-		)
+		for _, c := range connectionReuseCases {
+			c := c
+			t.Run(c.Name, func(t *testing.T) {
+				client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+					WithReadTimeout(time.Millisecond),
+					WithLogger(logger()),
+					WithWSSubProtocol(ProtocolGraphQLWS),
+				)
 
-		resolveCtx1 := resolve.NewContext(ctx)
-		resolveCtx1.Request.Header = make(http.Header)
-		resolveCtx1.Request.Header.Set(headerName, "1")
-		err := client.Subscribe(resolveCtx1, GraphQLSubscriptionOptions{
-			URL:                        server.URL,
-			ForwardedClientHeaderNames: forwardedHeaderNames,
-		}, next)
-		assert.NoError(t, err)
+				resolveCtx1 := resolve.NewContext(ctx)
+				resolveCtx1.Request.Header = make(http.Header)
+				resolveCtx1.Request.Header.Set(headerName, "1")
+				err := client.Subscribe(resolveCtx1, GraphQLSubscriptionOptions{
+					URL:                                     server.URL,
+					ForwardedClientHeaderNames:              c.ForwardedClientHeaderNames,
+					ForwardedClientHeaderRegularExpressions: c.ForwardedClientHeaderRegularExpressions,
+				}, make(chan []byte))
+				assert.NoError(t, err)
 
-		resolveCtx2 := resolve.NewContext(ctx)
-		resolveCtx2.Request.Header = make(http.Header)
-		resolveCtx2.Request.Header.Set(headerName, "2")
-		err = client.Subscribe(resolveCtx2, GraphQLSubscriptionOptions{
-			URL:                        server.URL,
-			ForwardedClientHeaderNames: forwardedHeaderNames,
-		}, next)
-		assert.NoError(t, err)
+				resolveCtx2 := resolve.NewContext(ctx)
+				resolveCtx2.Request.Header = make(http.Header)
+				resolveCtx2.Request.Header.Set(headerName, "2")
+				err = client.Subscribe(resolveCtx2, GraphQLSubscriptionOptions{
+					URL:                                     server.URL,
+					ForwardedClientHeaderNames:              c.ForwardedClientHeaderNames,
+					ForwardedClientHeaderRegularExpressions: c.ForwardedClientHeaderRegularExpressions,
+				}, make(chan []byte))
+				assert.NoError(t, err)
 
-		assert.Len(t, client.handlers, 2)
+				assert.Len(t, client.handlers, 2)
+			})
+		}
 	})
 }
 
