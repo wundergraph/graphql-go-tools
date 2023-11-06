@@ -3,6 +3,7 @@ package graphql_datasource
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -56,7 +57,9 @@ func (h *gqlWSConnectionHandler) StartBlocking(sub Subscription) {
 	for {
 		err := h.ctx.Err()
 		if err != nil {
-			h.log.Error("gqlWSConnectionHandler.StartBlocking", abstractlogger.Error(err))
+			if !errors.Is(err, context.Canceled) {
+				h.log.Error("gqlWSConnectionHandler.StartBlocking", abstractlogger.Error(err))
+			}
 			h.broadcastErrorMessage(err)
 			return
 		}
@@ -70,7 +73,9 @@ func (h *gqlWSConnectionHandler) StartBlocking(sub Subscription) {
 		case sub = <-h.subscribeCh:
 			h.subscribe(sub)
 		case err = <-errCh:
-			h.log.Error("gqlWSConnectionHandler.StartBlocking", abstractlogger.Error(err))
+			if !errors.Is(err, context.Canceled) {
+				h.log.Error("gqlWSConnectionHandler.StartBlocking", abstractlogger.Error(err))
+			}
 			h.broadcastErrorMessage(err)
 			return
 		case data := <-dataCh:

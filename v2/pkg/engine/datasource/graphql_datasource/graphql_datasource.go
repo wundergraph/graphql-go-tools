@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 
 	"github.com/buger/jsonparser"
 	"github.com/jensneuse/abstractlogger"
@@ -326,6 +327,16 @@ type SubscriptionConfiguration struct {
 	URL           string
 	UseSSE        bool
 	SSEMethodPost bool
+	// ForwardedClientHeaderNames indicates headers names that might be forwarded from the
+	// client to the upstream server. This is used to determine which connections
+	// can be multiplexed together, but the subscription engine does not forward
+	// these headers by itself.
+	ForwardedClientHeaderNames []string
+	// ForwardedClientHeaderRegularExpressions regular expressions that if matched to the header
+	// name might be forwarded from the client to the upstream server. This is used to determine
+	// which connections can be multiplexed together, but the subscription engine does not forward
+	// these headers by itself.
+	ForwardedClientHeaderRegularExpressions []*regexp.Regexp
 }
 
 type FetchConfiguration struct {
@@ -369,7 +380,7 @@ func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
 
 	if p.unnulVariables {
-		input = httpclient.SetInputFlag(input, httpclient.UNNULLVARIABLES)
+		input = httpclient.SetInputFlag(input, httpclient.UNNULL_VARIABLES)
 	}
 
 	header, err := json.Marshal(p.config.Fetch.Header)
@@ -437,15 +448,35 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
 	input = httpclient.SetInputURL(input, []byte(p.config.Subscription.URL))
 	if p.config.Subscription.UseSSE {
-		input = httpclient.SetInputFlag(input, httpclient.USESSE)
+		input = httpclient.SetInputFlag(input, httpclient.USE_SSE)
 		if p.config.Subscription.SSEMethodPost {
-			input = httpclient.SetInputFlag(input, httpclient.SSEMETHODPOST)
+			input = httpclient.SetInputFlag(input, httpclient.SSE_METHOD_POST)
 		}
 	}
 
 	header, err := json.Marshal(p.config.Fetch.Header)
 	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
 		input = httpclient.SetInputHeader(input, header)
+	}
+
+	if len(p.config.Subscription.ForwardedClientHeaderNames) > 0 {
+		headers, err := json.Marshal(p.config.Subscription.ForwardedClientHeaderNames)
+		if err != nil {
+			// XXX: Since this is a very unlikely error, to avoid breaking
+			// the API we panic here
+			panic(err)
+		}
+		input = httpclient.SetForwardedClientHeaderNames(input, headers)
+	}
+
+	if len(p.config.Subscription.ForwardedClientHeaderRegularExpressions) > 0 {
+		headers, err := json.Marshal(p.config.Subscription.ForwardedClientHeaderRegularExpressions)
+		if err != nil {
+			// XXX: Since this is a very unlikely error, to avoid breaking
+			// the API we panic here
+			panic(err)
+		}
+		input = httpclient.SetForwardedClientHeaderRegularExpressions(input, headers)
 	}
 
 	return plan.SubscriptionConfiguration{
@@ -1651,7 +1682,7 @@ func (s *Source) compactAndUnNullVariables(input []byte) []byte {
 		variables = buf.Bytes()
 	}
 
-	removeNullVariables := httpclient.IsInputFlagSet(input, httpclient.UNNULLVARIABLES)
+	removeNullVariables := httpclient.IsInputFlagSet(input, httpclient.UNNULL_VARIABLES)
 	variables = s.cleanupVariables(variables, removeNullVariables, undefinedVariables)
 
 	input, _ = jsonparser.Set(input, variables, "body", "variables")
@@ -1722,15 +1753,17 @@ func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err 
 }
 
 type GraphQLSubscriptionClient interface {
-	Subscribe(ctx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error
+	Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error
 }
 
 type GraphQLSubscriptionOptions struct {
-	URL           string      `json:"url"`
-	Body          GraphQLBody `json:"body"`
-	Header        http.Header `json:"header"`
-	UseSSE        bool        `json:"use_sse"`
-	SSEMethodPost bool        `json:"sse_method_post"`
+	URL                                     string           `json:"url"`
+	Body                                    GraphQLBody      `json:"body"`
+	Header                                  http.Header      `json:"header"`
+	UseSSE                                  bool             `json:"use_sse"`
+	SSEMethodPost                           bool             `json:"sse_method_post"`
+	ForwardedClientHeaderNames              []string         `json:"forwarded_client_header_names"`
+	ForwardedClientHeaderRegularExpressions []*regexp.Regexp `json:"forwarded_client_header_regular_expressions"`
 }
 
 type GraphQLBody struct {
@@ -1744,7 +1777,7 @@ type SubscriptionSource struct {
 	client GraphQLSubscriptionClient
 }
 
-func (s *SubscriptionSource) Start(ctx context.Context, input []byte, next chan<- []byte) error {
+func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, next chan<- []byte) error {
 	var options GraphQLSubscriptionOptions
 	err := json.Unmarshal(input, &options)
 	if err != nil {

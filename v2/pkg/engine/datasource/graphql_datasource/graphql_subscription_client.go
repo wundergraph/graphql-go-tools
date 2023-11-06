@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/textproto"
 	"sync"
 	"time"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"nhooyr.io/websocket"
 )
 
@@ -107,7 +109,7 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 // If an existing WS connection with the same ID (Hash) exists, it is being re-used
 // If connection protocol is SSE, a new connection is always created
 // If no connection exists, the client initiates a new one
-func (c *SubscriptionClient) Subscribe(reqCtx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+func (c *SubscriptionClient) Subscribe(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
 	if options.UseSSE {
 		return c.subscribeSSE(reqCtx, options, next)
 	}
@@ -115,13 +117,13 @@ func (c *SubscriptionClient) Subscribe(reqCtx context.Context, options GraphQLSu
 	return c.subscribeWS(reqCtx, options, next)
 }
 
-func (c *SubscriptionClient) subscribeSSE(reqCtx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+func (c *SubscriptionClient) subscribeSSE(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
 	if c.streamingClient == nil {
 		return fmt.Errorf("streaming http client is nil")
 	}
 
 	sub := Subscription{
-		ctx:     reqCtx,
+		ctx:     reqCtx.Context(),
 		options: options,
 		next:    next,
 	}
@@ -135,19 +137,19 @@ func (c *SubscriptionClient) subscribeSSE(reqCtx context.Context, options GraphQ
 	return nil
 }
 
-func (c *SubscriptionClient) subscribeWS(reqCtx context.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+func (c *SubscriptionClient) subscribeWS(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
 	if c.httpClient == nil {
 		return fmt.Errorf("http client is nil")
 	}
 
 	sub := Subscription{
-		ctx:     reqCtx,
+		ctx:     reqCtx.Context(),
 		options: options,
 		next:    next,
 	}
 
 	// each WS connection to an origin is uniquely identified by the Hash(URL,Headers,Body)
-	handlerID, err := c.generateHandlerIDHash(options)
+	handlerID, err := c.generateHandlerIDHash(reqCtx, options)
 	if err != nil {
 		return err
 	}
@@ -158,12 +160,12 @@ func (c *SubscriptionClient) subscribeWS(reqCtx context.Context, options GraphQL
 	if exists {
 		select {
 		case handler.SubscribeCH() <- sub:
-		case <-reqCtx.Done():
+		case <-reqCtx.Context().Done():
 		}
 		return nil
 	}
 
-	handler, err = c.newWSConnectionHandler(reqCtx, options)
+	handler, err = c.newWSConnectionHandler(reqCtx.Context(), options)
 	if err != nil {
 		return err
 	}
@@ -181,7 +183,7 @@ func (c *SubscriptionClient) subscribeWS(reqCtx context.Context, options GraphQL
 }
 
 // generateHandlerIDHash generates a Hash based on: URL and Headers to uniquely identify Upgrade Requests
-func (c *SubscriptionClient) generateHandlerIDHash(options GraphQLSubscriptionOptions) (uint64, error) {
+func (c *SubscriptionClient) generateHandlerIDHash(ctx *resolve.Context, options GraphQLSubscriptionOptions) (uint64, error) {
 	var (
 		err error
 	)
@@ -189,15 +191,39 @@ func (c *SubscriptionClient) generateHandlerIDHash(options GraphQLSubscriptionOp
 	defer c.hashPool.Put(xxh)
 	xxh.Reset()
 
-	_, err = xxh.WriteString(options.URL)
-	if err != nil {
+	if _, err = xxh.WriteString(options.URL); err != nil {
 		return 0, err
 	}
-	err = options.Header.Write(xxh)
-	if err != nil {
+	if err := options.Header.Write(xxh); err != nil {
 		return 0, err
 	}
-
+	// Make sure any header that will be forwarded to the subgraph
+	// is hashed to create the handlerID, this way requests with
+	// different headers will use separate connections.
+	for _, headerName := range options.ForwardedClientHeaderNames {
+		if _, err := xxh.WriteString(headerName); err != nil {
+			return 0, err
+		}
+		for _, val := range ctx.Request.Header[textproto.CanonicalMIMEHeaderKey(headerName)] {
+			if _, err := xxh.WriteString(val); err != nil {
+				return 0, err
+			}
+		}
+	}
+	for _, headerRegexp := range options.ForwardedClientHeaderRegularExpressions {
+		if _, err := xxh.WriteString(headerRegexp.String()); err != nil {
+			return 0, err
+		}
+		for headerName, values := range ctx.Request.Header {
+			if headerRegexp.MatchString(headerName) {
+				for _, val := range values {
+					if _, err := xxh.WriteString(val); err != nil {
+						return 0, err
+					}
+				}
+			}
+		}
+	}
 	return xxh.Sum64(), nil
 }
 

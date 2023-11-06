@@ -77,13 +77,17 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	return t.resolvable.Resolve(response.Data, writer)
 }
 
-func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer FlushWriter) (err error) {
+func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer FlushWriter) error {
+
+	if subscription.Trigger.Source == nil {
+		msg := []byte(`{"errors":[{"message":"no data source found"}]}`)
+		return writeAndFlush(writer, msg)
+	}
 
 	buf := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(buf)
-	err = subscription.Trigger.InputTemplate.Render(ctx, nil, buf)
-	if err != nil {
-		return
+	if err := subscription.Trigger.InputTemplate.Render(ctx, nil, buf); err != nil {
+		return err
 	}
 	rendered := buf.Bytes()
 	subscriptionInput := make([]byte, len(rendered))
@@ -94,13 +98,10 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	resolverDone := r.ctx.Done()
 
 	next := make(chan []byte)
-	if subscription.Trigger.Source == nil {
-		msg := []byte(`{"errors":[{"message":"no data source found"}]}`)
-		return writeAndFlush(writer, msg)
-	}
 
-	err = subscription.Trigger.Source.Start(c, subscriptionInput, next)
-	if err != nil {
+	cancellableContext := ctx.WithContext(c)
+
+	if err := subscription.Trigger.Source.Start(cancellableContext, subscriptionInput, next); err != nil {
 		if errors.Is(err, ErrUnableToResolve) {
 			msg := []byte(`{"errors":[{"message":"unable to resolve"}]}`)
 			return writeAndFlush(writer, msg)
@@ -121,16 +122,13 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 				return nil
 			}
 			t.resolvable.Reset()
-			err = t.resolvable.InitSubscription(ctx, data, subscription.Trigger.PostProcessing)
-			if err != nil {
+			if err := t.resolvable.InitSubscription(ctx, data, subscription.Trigger.PostProcessing); err != nil {
 				return err
 			}
-			err = t.loader.LoadGraphQLResponseData(ctx, subscription.Response, t.resolvable)
-			if err != nil {
+			if err := t.loader.LoadGraphQLResponseData(ctx, subscription.Response, t.resolvable); err != nil {
 				return err
 			}
-			err = t.resolvable.Resolve(subscription.Response.Data, writer)
-			if err != nil {
+			if err := t.resolvable.Resolve(subscription.Response.Data, writer); err != nil {
 				return err
 			}
 			writer.Flush()

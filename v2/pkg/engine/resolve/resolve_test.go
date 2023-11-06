@@ -3807,7 +3807,7 @@ type _fakeStream struct {
 	messageFunc func(counter int) (message string, ok bool)
 }
 
-func (f *_fakeStream) Start(ctx context.Context, input []byte, next chan<- []byte) error {
+func (f *_fakeStream) Start(ctx *Context, input []byte, next chan<- []byte) error {
 	go func() {
 		time.Sleep(time.Millisecond)
 		count := 0

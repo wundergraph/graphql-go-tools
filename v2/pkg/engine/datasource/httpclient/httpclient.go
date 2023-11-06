@@ -16,20 +16,22 @@ import (
 )
 
 const (
-	PATH                = "path"
-	URL                 = "url"
-	URLENCODEBODY       = "url_encode_body"
-	BASEURL             = "base_url"
-	METHOD              = "method"
-	BODY                = "body"
-	HEADER              = "header"
-	QUERYPARAMS         = "query_params"
-	USESSE              = "use_sse"
-	SSEMETHODPOST       = "sse_method_post"
-	SCHEME              = "scheme"
-	HOST                = "host"
-	UNNULLVARIABLES     = "unnull_variables"
-	UNDEFINED_VARIABLES = "undefined"
+	PATH                                        = "path"
+	URL                                         = "url"
+	URLENCODE_BODY                              = "url_encode_body"
+	BASEURL                                     = "base_url"
+	METHOD                                      = "method"
+	BODY                                        = "body"
+	HEADER                                      = "header"
+	QUERYPARAMS                                 = "query_params"
+	USE_SSE                                     = "use_sse"
+	SSE_METHOD_POST                             = "sse_method_post"
+	SCHEME                                      = "scheme"
+	HOST                                        = "host"
+	UNNULL_VARIABLES                            = "unnull_variables"
+	UNDEFINED_VARIABLES                         = "undefined"
+	FORWARDED_CLIENT_HEADER_NAMES               = "forwarded_client_header_names"
+	FORWARDED_CLIENT_HEADER_REGULAR_EXPRESSIONS = "forwarded_client_header_regular_expressions"
 )
 
 var (
@@ -105,7 +107,7 @@ func SetInputURLEncodeBody(input []byte, urlEncodeBody bool) []byte {
 	if !urlEncodeBody {
 		return input
 	}
-	out, _ := sjson.SetRawBytes(input, URLENCODEBODY, []byte("true"))
+	out, _ := sjson.SetRawBytes(input, URLENCODE_BODY, []byte("true"))
 	return out
 }
 
@@ -155,6 +157,22 @@ func SetInputHeader(input, headers []byte) []byte {
 		return input
 	}
 	out, _ := sjson.SetRawBytes(input, HEADER, wrapQuotesIfString(headers))
+	return out
+}
+
+func SetForwardedClientHeaderNames(input, headers []byte) []byte {
+	if len(headers) == 0 {
+		return input
+	}
+	out, _ := sjson.SetRawBytes(input, FORWARDED_CLIENT_HEADER_NAMES, wrapQuotesIfString(headers))
+	return out
+}
+
+func SetForwardedClientHeaderRegularExpressions(input, headers []byte) []byte {
+	if len(headers) == 0 {
+		return input
+	}
+	out, _ := sjson.SetRawBytes(input, FORWARDED_CLIENT_HEADER_REGULAR_EXPRESSIONS, wrapQuotesIfString(headers))
 	return out
 }
 
