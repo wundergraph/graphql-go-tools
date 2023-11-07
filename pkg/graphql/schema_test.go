@@ -684,19 +684,19 @@ extend type Query {
 
 interface IDType {
 	id: ID!
-  label(lang: String): String
+	label(lang: String): String
 }
 
 type WithChildren implements IDType {
 	id: ID!
-  label(lang: String): String
+	label(lang: String): String
 	name: String
 	nested: Nested
 }
 
 type Nested implements IDType {
 	id: ID!
-  label(lang: String): String
+	label(lang: String): String
 	name: String!
 }
 
