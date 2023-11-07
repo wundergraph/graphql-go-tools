@@ -28,7 +28,7 @@ func (f *RequiredFieldExtractor) GetAllRequiredFields() FieldConfigurations {
 	f.addFieldsForObjectExtensionDefinitions(&fieldRequires)
 	f.addFieldsForObjectDefinitions(&fieldRequires)
 
-	// f.addFieldsForInterfaceExtensionDefinitions(&fieldRequires)
+	f.addFieldsForInterfaceExtensionDefinitions(&fieldRequires)
 	f.addFieldsForInterfaceDefinitions(&fieldRequires)
 
 	return fieldRequires
@@ -88,6 +88,38 @@ func (f *RequiredFieldExtractor) addFieldsForObjectDefinitions(fieldRequires *Fi
 
 			requiredFields := make([]string, len(primaryKeys))
 			copy(requiredFields, primaryKeys)
+
+			*fieldRequires = append(*fieldRequires, FieldConfiguration{
+				TypeName:       typeName,
+				FieldName:      fieldName,
+				RequiresFields: requiredFields,
+			})
+		}
+	}
+}
+
+func (f *RequiredFieldExtractor) addFieldsForInterfaceExtensionDefinitions(fieldRequires *FieldConfigurations) {
+	for _, interfaceTypeExt := range f.document.InterfaceTypeExtensions {
+		interfaceType := interfaceTypeExt.InterfaceTypeDefinition
+		typeName := f.document.Input.ByteSliceString(interfaceType.Name)
+
+		primaryKeys, exists := f.primaryKeyFieldsIfInterfaceTypeIsEntity(interfaceType)
+		if !exists {
+			continue
+		}
+
+		for _, fieldDefinitionRef := range interfaceType.FieldsDefinition.Refs {
+			if f.document.FieldDefinitionHasNamedDirective(fieldDefinitionRef, federationExternalDirectiveName) {
+				continue
+			}
+
+			fieldName := f.document.FieldDefinitionNameString(fieldDefinitionRef)
+
+			requiredFields := make([]string, len(primaryKeys))
+			copy(requiredFields, primaryKeys)
+
+			requiredFieldsByRequiresDirective := requiredFieldsByRequiresDirective(f.document, fieldDefinitionRef)
+			requiredFields = append(requiredFields, requiredFieldsByRequiresDirective...)
 
 			*fieldRequires = append(*fieldRequires, FieldConfiguration{
 				TypeName:       typeName,
