@@ -28,6 +28,9 @@ func (f *RequiredFieldExtractor) GetAllRequiredFields() FieldConfigurations {
 	f.addFieldsForObjectExtensionDefinitions(&fieldRequires)
 	f.addFieldsForObjectDefinitions(&fieldRequires)
 
+	// f.addFieldsForInterfaceExtensionDefinitions(&fieldRequires)
+	f.addFieldsForInterfaceDefinitions(&fieldRequires)
+
 	return fieldRequires
 }
 
@@ -95,6 +98,38 @@ func (f *RequiredFieldExtractor) addFieldsForObjectDefinitions(fieldRequires *Fi
 	}
 }
 
+func (f *RequiredFieldExtractor) addFieldsForInterfaceDefinitions(fieldRequires *FieldConfigurations) {
+	for _, interfaceType := range f.document.InterfaceTypeDefinitions {
+		typeName := f.document.Input.ByteSliceString(interfaceType.Name)
+
+		primaryKeys, exists := f.primaryKeyFieldsIfInterfaceTypeIsEntity(interfaceType)
+		if !exists {
+			continue
+		}
+
+		primaryKeysSet := make(map[string]struct{}, len(primaryKeys))
+		for _, val := range primaryKeys {
+			primaryKeysSet[val] = struct{}{}
+		}
+
+		for _, fieldRef := range interfaceType.FieldsDefinition.Refs {
+			fieldName := f.document.FieldDefinitionNameString(fieldRef)
+			if _, exists := primaryKeysSet[fieldName]; exists { // Field is part of primary key, it couldn't have any required fields
+				continue
+			}
+
+			requiredFields := make([]string, len(primaryKeys))
+			copy(requiredFields, primaryKeys)
+
+			*fieldRequires = append(*fieldRequires, FieldConfiguration{
+				TypeName:       typeName,
+				FieldName:      fieldName,
+				RequiresFields: requiredFields,
+			})
+		}
+	}
+}
+
 func requiredFieldsByRequiresDirective(document *ast.Document, fieldDefinitionRef int) []string {
 	for _, directiveRef := range document.FieldDefinitions[fieldDefinitionRef].Directives.Refs {
 		if directiveName := document.DirectiveNameString(directiveRef); directiveName != federationRequireDirectiveName {
@@ -119,6 +154,28 @@ func requiredFieldsByRequiresDirective(document *ast.Document, fieldDefinitionRe
 
 func (f *RequiredFieldExtractor) primaryKeyFieldsIfObjectTypeIsEntity(objectType ast.ObjectTypeDefinition) (keyFields []string, ok bool) {
 	for _, directiveRef := range objectType.Directives.Refs {
+		if directiveName := f.document.DirectiveNameString(directiveRef); directiveName != FederationKeyDirectiveName {
+			continue
+		}
+
+		value, exists := f.document.DirectiveArgumentValueByName(directiveRef, fieldsArgumentNameBytes)
+		if !exists {
+			continue
+		}
+		if value.Kind != ast.ValueKindString {
+			continue
+		}
+
+		fieldsStr := f.document.StringValueContentString(value.Ref)
+
+		return strings.Split(fieldsStr, " "), true
+	}
+
+	return nil, false
+}
+
+func (f *RequiredFieldExtractor) primaryKeyFieldsIfInterfaceTypeIsEntity(interfaceType ast.InterfaceTypeDefinition) (keyFields []string, ok bool) {
+	for _, directiveRef := range interfaceType.Directives.Refs {
 		if directiveName := f.document.DirectiveNameString(directiveRef); directiveName != FederationKeyDirectiveName {
 			continue
 		}
