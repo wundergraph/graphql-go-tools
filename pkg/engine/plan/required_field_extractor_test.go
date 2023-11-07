@@ -83,4 +83,19 @@ func TestRequiredFieldExtractor_GetAllFieldRequires(t *testing.T) {
 			{TypeName: "Review", FieldName: "slug", RequiresFields: []string{"id", "title", "author"}},
 		})
 	})
+	t.Run("Entity interface implementations", func(t *testing.T) {
+		run(t, `
+		interface Author @key(fields: "id"){
+			id: Int!
+			name: String
+		}
+		type User implements Author @key(fields: "id"){
+			id: Int!
+			name: String
+		}
+		`, FieldConfigurations{
+			{TypeName: "User", FieldName: "name", RequiresFields: []string{"id"}},
+			{TypeName: "Author", FieldName: "name", RequiresFields: []string{"id"}},
+		})
+	})
 }

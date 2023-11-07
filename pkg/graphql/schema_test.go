@@ -448,6 +448,16 @@ func TestSchema_GetAllFieldArguments(t *testing.T) {
 				ArgumentNames: []string{"lvl", "number"},
 			},
 			{
+				TypeName:      "WithChildren",
+				FieldName:     "label",
+				ArgumentNames: []string{"lang"},
+			},
+			{
+				TypeName:      "Nested",
+				FieldName:     "label",
+				ArgumentNames: []string{"lang"},
+			},
+			{
 				TypeName:      "SingleArgLevel1",
 				FieldName:     "singleArgLevel2",
 				ArgumentNames: []string{"lvl"},
@@ -466,6 +476,11 @@ func TestSchema_GetAllFieldArguments(t *testing.T) {
 				TypeName:      "__Type",
 				FieldName:     "enumValues",
 				ArgumentNames: []string{"includeDeprecated"},
+			},
+			{
+				TypeName:      "IDType",
+				FieldName:     "label",
+				ArgumentNames: []string{"lang"},
 			},
 		}
 		assert.Equal(t, expectedFieldArguments, fieldArguments)
@@ -490,6 +505,16 @@ func TestSchema_GetAllFieldArguments(t *testing.T) {
 				ArgumentNames: []string{"lvl", "number"},
 			},
 			{
+				TypeName:      "WithChildren",
+				FieldName:     "label",
+				ArgumentNames: []string{"lang"},
+			},
+			{
+				TypeName:      "Nested",
+				FieldName:     "label",
+				ArgumentNames: []string{"lang"},
+			},
+			{
 				TypeName:      "SingleArgLevel1",
 				FieldName:     "singleArgLevel2",
 				ArgumentNames: []string{"lvl"},
@@ -498,6 +523,11 @@ func TestSchema_GetAllFieldArguments(t *testing.T) {
 				TypeName:      "MultiArgLevel1",
 				FieldName:     "multiArgLevel2",
 				ArgumentNames: []string{"lvl", "number"},
+			},
+			{
+				TypeName:      "IDType",
+				FieldName:     "label",
+				ArgumentNames: []string{"lang"},
 			},
 		}
 		assert.Equal(t, expectedFieldArguments, fieldArguments)
@@ -654,18 +684,21 @@ extend type Query {
 
 interface IDType {
 	id: ID!
+  label(lang: String): String
 }
 
-type WithChildren implements IDType { 
+type WithChildren implements IDType {
 	id: ID!
+  label(lang: String): String
 	name: String
 	nested: Nested
 }
 
-type Nested implements IDType { 
-	id: ID! 
-	name: String! 
-} 
+type Nested implements IDType {
+	id: ID!
+  label(lang: String): String
+	name: String!
+}
 
 type SingleArgLevel1 {
 	singleArgLevel2(lvl: int): String
