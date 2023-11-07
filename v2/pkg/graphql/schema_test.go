@@ -417,6 +417,16 @@ func TestSchema_GetAllFieldArguments(t *testing.T) {
 				ArgumentNames: []string{"lvl", "number"},
 			},
 			{
+				TypeName:      "WithChildren",
+				FieldName:     "label",
+				ArgumentNames: []string{"lang"},
+			},
+			{
+				TypeName:      "Nested",
+				FieldName:     "label",
+				ArgumentNames: []string{"lang"},
+			},
+			{
 				TypeName:      "SingleArgLevel1",
 				FieldName:     "singleArgLevel2",
 				ArgumentNames: []string{"lvl"},
@@ -457,6 +467,16 @@ func TestSchema_GetAllFieldArguments(t *testing.T) {
 				TypeName:      "Query",
 				FieldName:     "multiArgLevel1",
 				ArgumentNames: []string{"lvl", "number"},
+			},
+			{
+				TypeName:      "WithChildren",
+				FieldName:     "label",
+				ArgumentNames: []string{"lang"},
+			},
+			{
+				TypeName:      "Nested",
+				FieldName:     "label",
+				ArgumentNames: []string{"lang"},
 			},
 			{
 				TypeName:      "SingleArgLevel1",
@@ -623,18 +643,21 @@ extend type Query {
 
 interface IDType {
 	id: ID!
+	label(lang: String): String
 }
 
-type WithChildren implements IDType { 
+type WithChildren implements IDType {
 	id: ID!
+	label(lang: String): String
 	name: String
 	nested: Nested
 }
 
-type Nested implements IDType { 
-	id: ID! 
-	name: String! 
-} 
+type Nested implements IDType {
+	id: ID!
+	label(lang: String): String
+	name: String!
+}
 
 type SingleArgLevel1 {
 	singleArgLevel2(lvl: int): String

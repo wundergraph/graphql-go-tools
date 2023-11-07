@@ -5,15 +5,15 @@ import (
 	"io"
 	"strings"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
+	"github.com/wundergraph/graphql-go-tools/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/pkg/astnormalization"
+	"github.com/wundergraph/graphql-go-tools/pkg/astparser"
+	"github.com/wundergraph/graphql-go-tools/pkg/astprinter"
+	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
+	"github.com/wundergraph/graphql-go-tools/pkg/astvalidation"
+	"github.com/wundergraph/graphql-go-tools/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
+	"github.com/wundergraph/graphql-go-tools/pkg/pool"
 )
 
 type TypeFields struct {
@@ -195,6 +195,16 @@ func (s *Schema) GetAllFieldArguments(skipFieldFuncs ...SkipFieldFunc) []TypeFie
 		objectTypeExtensions[typeName] = objectTypeExtension
 	}
 
+	interfaceTypeExtensions := make(map[string]ast.InterfaceTypeExtension)
+	for _, interfaceTypeExtension := range s.document.InterfaceTypeExtensions {
+		typeName, ok := s.typeNameOfInterfaceTypeIfHavingFields(interfaceTypeExtension.InterfaceTypeDefinition)
+		if !ok {
+			continue
+		}
+
+		interfaceTypeExtensions[typeName] = interfaceTypeExtension
+	}
+
 	typeFieldArguments := make([]TypeFieldArguments, 0)
 	for _, objectType := range s.document.ObjectTypeDefinitions {
 		typeName, ok := s.typeNameOfObjectTypeIfHavingFields(objectType)
@@ -226,6 +236,36 @@ func (s *Schema) GetAllFieldArguments(skipFieldFuncs ...SkipFieldFunc) []TypeFie
 		}
 	}
 
+	for _, interfaceType := range s.document.InterfaceTypeDefinitions {
+		typeName, ok := s.typeNameOfInterfaceTypeIfHavingFields(interfaceType)
+		if !ok {
+			continue
+		}
+
+		for _, fieldRef := range interfaceType.FieldsDefinition.Refs {
+			fieldName, skip := s.determineIfFieldWithFieldNameShouldBeSkipped(fieldRef, typeName, skipFieldFuncs...)
+			if skip {
+				continue
+			}
+
+			s.addTypeFieldArgsForFieldRef(fieldRef, typeName, fieldName, &typeFieldArguments)
+		}
+
+		interfaceTypeExt, ok := interfaceTypeExtensions[typeName]
+		if !ok {
+			continue
+		}
+
+		for _, fieldRef := range interfaceTypeExt.FieldsDefinition.Refs {
+			fieldName, skip := s.determineIfFieldWithFieldNameShouldBeSkipped(fieldRef, typeName, skipFieldFuncs...)
+			if skip {
+				continue
+			}
+
+			s.addTypeFieldArgsForFieldRef(fieldRef, typeName, fieldName, &typeFieldArguments)
+		}
+	}
+
 	return typeFieldArguments
 }
 
@@ -237,6 +277,13 @@ func (s *Schema) typeNameOfObjectTypeIfHavingFields(objectType ast.ObjectTypeDef
 	return s.document.Input.ByteSliceString(objectType.Name), true
 }
 
+func (s *Schema) typeNameOfInterfaceTypeIfHavingFields(interfaceType ast.InterfaceTypeDefinition) (typeName string, ok bool) {
+	if !interfaceType.HasFieldDefinitions {
+		return "", false
+	}
+
+	return s.document.Input.ByteSliceString(interfaceType.Name), true
+}
 func (s *Schema) fieldNameOfFieldDefinitionIfHavingArguments(field ast.FieldDefinition, ref int) (fieldName string, ok bool) {
 	if !field.HasArgumentsDefinitions {
 		return "", false
