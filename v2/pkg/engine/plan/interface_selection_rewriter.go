@@ -32,36 +32,6 @@ func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document
 	}
 }
 
-func (r *fieldSelectionRewriter) fieldTypeNode(fieldRef int, enclosingNode ast.Node) (node ast.Node, ok bool) {
-	var (
-		fieldDefRef int
-		hasField    bool
-	)
-
-	switch enclosingNode.Kind {
-	case ast.NodeKindObjectTypeDefinition:
-		fieldDefRef, hasField = r.definition.ObjectTypeDefinitionFieldWithName(enclosingNode.Ref, r.operation.FieldNameBytes(fieldRef))
-		if !hasField {
-			return
-		}
-	case ast.NodeKindInterfaceTypeDefinition:
-		fieldDefRef, hasField = r.definition.InterfaceTypeDefinitionFieldWithName(enclosingNode.Ref, r.operation.FieldNameBytes(fieldRef))
-		if !hasField {
-			return
-		}
-	default:
-		return
-	}
-
-	fieldDefTypeName := r.definition.FieldDefinitionTypeNameBytes(fieldDefRef)
-	node, hasNode := r.definition.NodeByName(fieldDefTypeName)
-	if !hasNode {
-		return
-	}
-
-	return node, true
-}
-
 func (r *fieldSelectionRewriter) datasourceHasEntitiesWithName(dsConfiguration *DataSourceConfiguration, typeNames []string) (entityNames []string, ok bool) {
 	hasEntities := false
 	for _, typeName := range typeNames {
@@ -487,7 +457,7 @@ func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInf
 }
 
 func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNode ast.Node, dsConfiguration *DataSourceConfiguration) (rewritten bool, err error) {
-	fieldTypeNode, ok := r.fieldTypeNode(fieldRef, enclosingNode)
+	fieldTypeNode, ok := r.definition.FieldTypeNode(r.operation.FieldNameBytes(fieldRef), enclosingNode)
 	if !ok {
 		return false, nil
 	}
