@@ -18,6 +18,9 @@ import (
 
 func TestExecutorEngine_StartExecutionBackoff(t *testing.T) {
 	t.Run("default retry case", func(t *testing.T) {
+		wg := sync.WaitGroup{}
+		wg.Add(2)
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -25,18 +28,21 @@ func TestExecutorEngine_StartExecutionBackoff(t *testing.T) {
 		defer cancelFunc()
 
 		executorMock := NewMockExecutor(ctrl)
-		executorMock.EXPECT().SetContext(gomock.AssignableToTypeOf(ctx)).Times(1)
+		executorMock.EXPECT().SetContext(gomock.Eq(ctx)).Times(1)
 
-		executeTimes := 0
+		executeTimes := backoffTestData{
+			executionCounter: 0,
+			mu:               sync.RWMutex{},
+		}
 		var lastTime time.Time
-		nextBackOff := time.Second
+		nextBackOff := 100 * time.Millisecond
 		sampleErr := errors.New("failed to WebSocket dial")
 		executorMock.EXPECT().Execute(gomock.AssignableToTypeOf(&graphql.EngineResultWriter{})).Do(func(arg interface{}) {
 			defer func() {
 				lastTime = time.Now()
-				executeTimes++
+				executeTimes.IncreaseExecutionCounter()
 			}()
-			if executeTimes == 0 {
+			if executeTimes.GetExecutionCounterValue() == 0 {
 				return
 			}
 			duration := time.Since(lastTime)
@@ -47,6 +53,9 @@ func TestExecutorEngine_StartExecutionBackoff(t *testing.T) {
 		}).Return(sampleErr).AnyTimes()
 
 		executorPoolMock := NewMockExecutorPool(ctrl)
+		executorPoolMock.EXPECT().Put(gomock.Eq(executorMock)).Do(func(executor Executor) {
+			wg.Done()
+		})
 
 		eventHandlerMock := NewMockEventHandler(ctrl)
 		eventHandlerMock.EXPECT().Emit(EventTypeOnError, "testID", gomock.AssignableToTypeOf([]byte{}), gomock.AssignableToTypeOf(&ErrorTimeoutExecutingSubscription{})).AnyTimes()
@@ -63,13 +72,20 @@ func TestExecutorEngine_StartExecutionBackoff(t *testing.T) {
 			},
 			subscriptionUpdateInterval: time.Second,
 			maxExecutionTries:          5,
+			initialRetryWaitTime:       100 * time.Millisecond,
 		}
 
 		go engine.startSubscription(ctx, "testID", executorMock, eventHandlerMock)
 
 		assert.Eventually(t, func() bool {
-			return executeTimes >= 4
-		}, time.Second*15, time.Millisecond*100)
+			result := executeTimes.GetExecutionCounterValue() >= 4
+			if result {
+				cancelFunc()
+				wg.Done()
+				wg.Wait()
+			}
+			return result
+		}, time.Second*3, time.Millisecond*100)
 	})
 
 	t.Run("test max backoff", func(t *testing.T) {
@@ -87,10 +103,14 @@ func TestExecutorEngine_StartExecutionBackoff(t *testing.T) {
 
 		executorPoolMock := NewMockExecutorPool(ctrl)
 		executorPoolMock.EXPECT().Put(gomock.Eq(executorMock))
-		var gottenError bool
+
+		gottenError := backoffTestData{
+			gottenError: false,
+			mu:          sync.RWMutex{},
+		}
 		eventHandlerMock := NewMockEventHandler(ctrl)
 		eventHandlerMock.EXPECT().Emit(EventTypeOnError, "testID", gomock.AssignableToTypeOf([]byte{}), gomock.AssignableToTypeOf(&ErrorTimeoutExecutingSubscription{})).Times(1).Do(func(arg0, arg1, arg2, arg3 interface{}) {
-			gottenError = true
+			gottenError.SetGottenError(true)
 		})
 
 		executorMock.EXPECT().Execute(gomock.AssignableToTypeOf(&graphql.EngineResultWriter{})).Return(sampleErr).Times(maxRetries)
@@ -107,13 +127,18 @@ func TestExecutorEngine_StartExecutionBackoff(t *testing.T) {
 			},
 			subscriptionUpdateInterval: time.Second,
 			maxExecutionTries:          maxRetries,
+			initialRetryWaitTime:       100 * time.Millisecond,
 		}
 
 		go engine.startSubscription(ctx, "testID", executorMock, eventHandlerMock)
 
 		assert.Eventually(t, func() bool {
-			return gottenError
-		}, time.Second*8, time.Millisecond*100)
+			result := gottenError.GetGottenError()
+			if result {
+				cancelFunc()
+			}
+			return result
+		}, time.Second*2, time.Millisecond*100)
 	})
 }
 
@@ -603,4 +628,34 @@ func TestExecutorEngine_TerminateAllConnections(t *testing.T) {
 func assignableToContextWithCancel(ctx context.Context) gomock.Matcher {
 	ctxWithCancel, _ := context.WithCancel(ctx) //nolint:govet
 	return gomock.AssignableToTypeOf(ctxWithCancel)
+}
+
+type backoffTestData struct {
+	executionCounter int
+	gottenError      bool
+	mu               sync.RWMutex
+}
+
+func (b *backoffTestData) IncreaseExecutionCounter() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.executionCounter++
+}
+
+func (b *backoffTestData) GetExecutionCounterValue() int {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.executionCounter
+}
+
+func (b *backoffTestData) SetGottenError(value bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.gottenError = value
+}
+
+func (b *backoffTestData) GetGottenError() bool {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.gottenError
 }

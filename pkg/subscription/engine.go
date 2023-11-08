@@ -60,6 +60,8 @@ type ExecutorEngine struct {
 	subscriptionUpdateInterval time.Duration
 	// maxExecutionTries is the max amount of times the executeWithBackoff is allowed to run to before closing the connection
 	maxExecutionTries int
+	// initialRetryWaitTime is the time that will initially be set for waiting for the next retry attempt.
+	initialRetryWaitTime time.Duration
 }
 
 // StartOperation will start any operation.
@@ -149,7 +151,7 @@ func (e *ExecutorEngine) startSubscription(ctx context.Context, id string, execu
 
 	defer e.bufferPool.Put(buf)
 
-	if err := e.executeSubscription(buf, id, executor, eventHandler); err != nil {
+	if err := e.executeSubscription(ctx, buf, id, executor, eventHandler); err != nil {
 		e.logger.Error("subscription.Handle.startSubscription(): error executing subscription, terminating",
 			abstractlogger.Error(err),
 		)
@@ -162,7 +164,7 @@ func (e *ExecutorEngine) startSubscription(ctx context.Context, id string, execu
 		case <-ctx.Done():
 			return
 		case <-time.After(e.subscriptionUpdateInterval):
-			if err := e.executeSubscription(buf, id, executor, eventHandler); err != nil {
+			if err := e.executeSubscription(ctx, buf, id, executor, eventHandler); err != nil {
 				e.logger.Error("subscription.Handle.startSubscription(): error executing subscription, terminating",
 					abstractlogger.Error(err),
 				)
@@ -173,7 +175,7 @@ func (e *ExecutorEngine) startSubscription(ctx context.Context, id string, execu
 
 }
 
-func (e *ExecutorEngine) executeSubscription(buf *graphql.EngineResultWriter, id string, executor Executor, eventHandler EventHandler) error {
+func (e *ExecutorEngine) executeSubscription(ctx context.Context, buf *graphql.EngineResultWriter, id string, executor Executor, eventHandler EventHandler) error {
 	buf.SetFlushCallback(func(data []byte) {
 		e.logger.Debug("subscription.Handle.executeSubscription()",
 			abstractlogger.ByteString("execution_result", data),
@@ -182,7 +184,7 @@ func (e *ExecutorEngine) executeSubscription(buf *graphql.EngineResultWriter, id
 	})
 	defer buf.SetFlushCallback(nil)
 
-	err := e.executeWithBackOff(executor, buf)
+	err := e.executeWithBackOff(ctx, executor, buf)
 	if err != nil {
 		e.logger.Error("subscription.Handle.executeSubscription()",
 			abstractlogger.Error(err),
@@ -204,30 +206,46 @@ func (e *ExecutorEngine) executeSubscription(buf *graphql.EngineResultWriter, id
 }
 
 // executeWithBackOff runs the executor wrapped in an exponential backOff algorithm of t=b^c
-func (e *ExecutorEngine) executeWithBackOff(executor Executor, buf *graphql.EngineResultWriter) error {
-	nextRetry := time.Second
+func (e *ExecutorEngine) executeWithBackOff(ctx context.Context, executor Executor, buf *graphql.EngineResultWriter) error {
 	var err error
+	nextRetryTimeWasInitiallySet := false
+	nextRetry := time.Duration(0)
 	trialCount := 0
-	for {
-		trialCount++
-		err = executor.Execute(buf)
-		if err == nil {
-			break
-		}
-		nextRetry *= 2
-		e.logger.Error("subscription.Handle.executeSubscription()",
-			abstractlogger.Error(fmt.Errorf("%w. retrying in %s", err, nextRetry.String())),
-		)
+	currentTimer := time.NewTimer(nextRetry)
 
-		if trialCount == e.maxExecutionTries {
-			break
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-currentTimer.C:
+			if !nextRetryTimeWasInitiallySet {
+				nextRetryTimeWasInitiallySet = true
+				if e.initialRetryWaitTime != 0 {
+					nextRetry = e.initialRetryWaitTime
+				} else {
+					// Fallback to a second if no initial retry time has been set
+					nextRetry = 1 * time.Second
+				}
+			} else {
+				nextRetry *= 2
+			}
+
+			trialCount++
+			err = executor.Execute(buf)
+			if err == nil {
+				return nil
+			}
+
+			currentTimer.Reset(nextRetry)
+			e.logger.Error("subscription.Handle.executeSubscription()",
+				abstractlogger.Error(fmt.Errorf("%w. retrying in %s", err, nextRetry.String())),
+			)
+
+			if trialCount == e.maxExecutionTries {
+				return &ErrorTimeoutExecutingSubscription{err}
+			}
 		}
-		time.Sleep(nextRetry)
 	}
-	if err != nil {
-		return &ErrorTimeoutExecutingSubscription{err}
-	}
-	return nil
 }
 
 func (e *ExecutorEngine) handleNonSubscriptionOperation(ctx context.Context, id string, executor Executor, eventHandler EventHandler) {

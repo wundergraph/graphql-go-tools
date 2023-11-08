@@ -106,6 +106,7 @@ func NewUniversalProtocolHandlerWithOptions(client TransportClient, protocol Pro
 					return &writer
 				},
 			},
+			initialRetryWaitTime: time.Second,
 		}
 
 		if options.CustomSubscriptionUpdateInterval != 0 {
