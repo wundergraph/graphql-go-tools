@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/IBM/sarama"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,11 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/IBM/sarama"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
-
-	"github.com/go-zookeeper/zk"
-	"github.com/ory/dockertest"
-	"github.com/ory/dockertest/docker"
+	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,35 +24,32 @@ import (
 // Solution: docker network prune
 
 const (
-	testBrokerAddr         = "localhost:9092"
-	testClientID           = "graphql-go-tools-test"
-	messageTemplate        = "topic: %s - message: %d"
-	testTopic              = "start-consuming-latest-test"
-	testConsumerGroup      = "start-consuming-latest-cg"
-	testSASLUser           = "admin"
-	testSASLPassword       = "admin-secret"
-	initialBrokerPort      = 9092
-	maxIdleConsumerSeconds = 10 * time.Second
+	testBrokerAddr    = "localhost:9092"
+	testClientID      = "graphql-go-tools-test"
+	messageTemplate   = "topic: %s - message: %d"
+	testTopic         = "start-consuming-latest-test"
+	testConsumerGroup = "start-consuming-latest-cg"
+	testSASLUser      = "admin"
+	testSASLPassword  = "admin-secret"
+	initialBrokerPort = 9092
+	maxIdleConsumer   = 10 * time.Second
 )
-
-var defaultZooKeeperEnvVars = []string{
-	"ALLOW_ANONYMOUS_LOGIN=yes",
-}
 
 // See the following blogpost to understand how Kafka listeners works:
 // https://www.confluent.io/blog/kafka-listeners-explained/
 
-var defaultKafkaEnvVars = []string{
-	"KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181",
-	"ALLOW_PLAINTEXT_LISTENER=yes",
-	"KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT",
-	"KAFKA_INTER_BROKER_LISTENER_NAME=INSIDE",
+type member struct {
+	hostname string
+	port     int
 }
 
 type kafkaCluster struct {
-	pool            *dockertest.Pool
-	network         *docker.Network
-	kafkaRunOptions kafkaClusterOptions
+	pool             *dockertest.Pool
+	network          *docker.Network
+	saslAuthRequired bool
+	members          map[int]member
+	//environmentVariables  []string
+	environmentVariablesm map[string]string
 }
 
 func newKafkaCluster(t *testing.T) *kafkaCluster {
@@ -64,12 +58,25 @@ func newKafkaCluster(t *testing.T) *kafkaCluster {
 
 	require.NoError(t, pool.Client.Ping())
 
-	network, err := pool.Client.CreateNetwork(docker.CreateNetworkOptions{Name: "zookeeper_kafka_network"})
+	network, err := pool.Client.CreateNetwork(docker.CreateNetworkOptions{Name: "bitnami_kafka_network"})
 	require.NoError(t, err)
 
 	return &kafkaCluster{
 		pool:    pool,
 		network: network,
+		members: make(map[int]member),
+		environmentVariablesm: map[string]string{
+			// KRaft settings
+			"KAFKA_CFG_PROCESS_ROLES": "controller,broker",
+			"KAFKA_KRAFT_CLUSTER_ID":  "tyk-kafka-test-cluster",
+			// Listeners
+			"KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP": "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT",
+			"KAFKA_CFG_CONTROLLER_LISTENER_NAMES":      "CONTROLLER",
+			//Clustering
+			"KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR":         "1",
+			"KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR": "1",
+			"KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR":            "1",
+		},
 	}
 }
 
@@ -77,107 +84,60 @@ func getPortID(port int) string {
 	return fmt.Sprintf("%d/tcp", port)
 }
 
-func (k *kafkaCluster) startZooKeeper(t *testing.T) {
-	t.Log("Trying to run ZooKeeper")
-
-	resource, err := k.pool.RunWithOptions(&dockertest.RunOptions{
-		Name:         "zookeeper-tyk-graphql",
-		Repository:   "zookeeper",
-		Tag:          "3.8.0",
-		NetworkID:    k.network.ID,
-		Hostname:     "zookeeper",
-		ExposedPorts: []string{"2181"},
-		Env:          defaultZooKeeperEnvVars,
-	}, func(config *docker.HostConfig) {
-		config.AutoRemove = true
-	})
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		if err = k.pool.Purge(resource); err != nil {
-			require.NoError(t, err)
-		}
-	})
-
-	conn, _, err := zk.Connect([]string{fmt.Sprintf("127.0.0.1:%s", resource.GetPort("2181/tcp"))}, 10*time.Second)
-	require.NoError(t, err)
-
-	defer conn.Close()
-
-	retryFn := func() error {
-		switch conn.State() {
-		case zk.StateHasSession, zk.StateConnected:
-			return nil
-		default:
-			return errors.New("not yet connected")
-		}
-	}
-
-	require.NoError(t, k.pool.Retry(retryFn))
-	t.Log("ZooKeeper has been started")
+func getNodeID(port int) int {
+	return port % initialBrokerPort
 }
 
-type kafkaClusterOption func(k *kafkaClusterOptions)
-
-type kafkaClusterOptions struct {
-	envVars  []string
-	saslAuth bool
-}
-
-func withKafkaEnvVars(envVars []string) kafkaClusterOption {
-	return func(k *kafkaClusterOptions) {
-		k.envVars = envVars
-	}
-}
-
-func withKafkaSASLAuth() kafkaClusterOption {
-	return func(k *kafkaClusterOptions) {
-		k.saslAuth = true
-	}
-}
-
-func (k *kafkaCluster) startKafka(t *testing.T, port int, envVars []string) *dockertest.Resource {
+func (k *kafkaCluster) startKafka(t *testing.T, port int) *dockertest.Resource {
 	t.Logf("Trying to run Kafka on %d", port)
-
-	internalPort := port + 1
-	hostname := fmt.Sprintf("kafka%d", port)
 
 	// We need a deterministic way to produce broker IDs. Kafka produces random IDs if we don't set
 	// deliberately. We need to use the same ID to handle node restarts properly.
 	// All port numbers have to be bigger or equal to 9092
 	//
-	// * If the port number is 9092, brokerID is 0
-	// * If the port number is 9094, brokerID is 2
-	brokerID := port % initialBrokerPort
+	// * If the port number is 9092, nodeID is 0
+	// * If the port number is 9094, nodeID is 2
+	nodeID := getNodeID(port)
+	hostname := fmt.Sprintf("kafka-%d", nodeID)
 
-	envVars = append(envVars, fmt.Sprintf("KAFKA_CFG_BROKER_ID=%d", brokerID))
-	envVars = append(envVars, fmt.Sprintf("KAFKA_ADVERTISED_LISTENERS=INSIDE://%s:%d,OUTSIDE://localhost:%d", hostname, internalPort, port))
-	envVars = append(envVars, fmt.Sprintf("KAFKA_LISTENERS=INSIDE://0.0.0.0:%d,OUTSIDE://0.0.0.0:%d", internalPort, port))
+	k.members[nodeID] = member{
+		hostname: hostname,
+		port:     port,
+	}
 
-	portID := getPortID(port)
+	k.environmentVariablesm["KAFKA_CFG_NODE_ID"] = strconv.Itoa(nodeID)
+	k.environmentVariablesm["KAFKA_CFG_LISTENERS"] = fmt.Sprintf("PLAINTEXT://:%d,CONTROLLER://:%d", port, port+1)
+	k.environmentVariablesm["KAFKA_CFG_ADVERTISED_LISTENERS"] = fmt.Sprintf("PLAINTEXT://localhost:%d", port)
+
+	voters := fmt.Sprintf("%d@%s:%d", nodeID, hostname, port+1)
+	for id, clusterMember := range k.members {
+		if id == nodeID {
+			continue
+		}
+		voters = fmt.Sprintf("%s,%d@%s:%d", voters, id, clusterMember.hostname, clusterMember.port+1)
+	}
+	k.environmentVariablesm["KAFKA_CFG_CONTROLLER_QUORUM_VOTERS"] = voters
+
+	var environmentVariables []string
+	for key, value := range k.environmentVariablesm {
+		environmentVariables = append(environmentVariables, fmt.Sprintf("%s=%s", key, value))
+	}
 
 	// Name and Hostname have to be unique
+	portID := getPortID(port)
 	resource, err := k.pool.RunWithOptions(&dockertest.RunOptions{
 		Name:       fmt.Sprintf("kafka-tyk-graphql-%d", port),
 		Repository: "bitnami/kafka",
-		Tag:        "3.1",
+		Tag:        "3.6.0",
 		NetworkID:  k.network.ID,
 		Hostname:   hostname,
-		Env:        envVars,
+		Env:        environmentVariables,
 		PortBindings: map[docker.Port][]docker.PortBinding{
 			docker.Port(portID): {{HostIP: "localhost", HostPort: portID}},
 		},
 		ExposedPorts: []string{portID},
 	}, func(config *docker.HostConfig) {
 		config.RestartPolicy = docker.RestartOnFailure(10)
-		if k.kafkaRunOptions.saslAuth {
-			wd, _ := os.Getwd()
-			config.Mounts = []docker.HostMount{{
-				Target: "/opt/bitnami/kafka/config/kafka_jaas.conf",
-				Source: fmt.Sprintf("%s/testdata/kafka_jaas.conf", wd),
-				Type:   "bind",
-			}}
-		}
 	})
 	require.NoError(t, err)
 
@@ -198,7 +158,7 @@ func (k *kafkaCluster) startKafka(t *testing.T, port int, envVars []string) *doc
 		config := sarama.NewConfig()
 		config.Producer.Return.Successes = true
 		config.Producer.Return.Errors = true
-		if k.kafkaRunOptions.saslAuth {
+		if k.saslAuthRequired {
 			config.Net.SASL.Enable = true
 			config.Net.SASL.User = testSASLUser
 			config.Net.SASL.Password = testSASLPassword
@@ -247,72 +207,41 @@ func (k *kafkaCluster) startKafka(t *testing.T, port int, envVars []string) *doc
 	return resource
 }
 
-func (k *kafkaCluster) start(t *testing.T, numMembers int, options ...kafkaClusterOption) map[string]*dockertest.Resource {
-	for _, opt := range options {
-		opt(&k.kafkaRunOptions)
-	}
-	if len(k.kafkaRunOptions.envVars) == 0 {
-		k.kafkaRunOptions.envVars = defaultKafkaEnvVars
-	}
-
+func (k *kafkaCluster) start(t *testing.T, numMembers int) map[string]*dockertest.Resource {
 	t.Cleanup(func() {
 		require.NoError(t, k.pool.Client.RemoveNetwork(k.network.ID))
 	})
 
-	k.startZooKeeper(t)
-
 	resources := make(map[string]*dockertest.Resource)
 	var port = initialBrokerPort // Initial port
 	for i := 0; i < numMembers; i++ {
-		var envVars []string
-		envVars = append(envVars, k.kafkaRunOptions.envVars...)
 		portID := getPortID(port)
-		resources[portID] = k.startKafka(t, port, envVars)
+		resources[portID] = k.startKafka(t, port)
 
 		// Increase the port numbers. Every member uses different a hostname and port numbers.
 		// It was good for debugging:
 		//
 		// Member 1:
-		// 9092 - INSIDE
-		// 9093 - OUTSIDE
+		// 9092 - BROKER
+		// 9093 - CONTROLLER
 		//
 		// Member 2:
-		// 9094 - INSIDE
-		// 9095 - OUTSIDE
+		// 9094 - BROKER
+		// 9095 - CONTROLLER
 		port = port + 2
 	}
 	require.NotEmpty(t, resources)
 	return resources
 }
 
-func (k *kafkaCluster) restart(t *testing.T, port int, broker *dockertest.Resource, options ...kafkaClusterOption) (*dockertest.Resource, error) {
+func (k *kafkaCluster) restart(t *testing.T, port int, broker *dockertest.Resource) (*dockertest.Resource, error) {
 	if err := broker.Close(); err != nil {
 		return nil, err
 	}
 
-	for _, opt := range options {
-		opt(&k.kafkaRunOptions)
-	}
-	if len(k.kafkaRunOptions.envVars) == 0 {
-		k.kafkaRunOptions.envVars = defaultKafkaEnvVars
-	}
+	delete(k.members, getNodeID(port))
 
-	var envVars []string
-	envVars = append(envVars, k.kafkaRunOptions.envVars...)
-	return k.startKafka(t, port, envVars), nil
-}
-
-func (k *kafkaCluster) addNewBroker(t *testing.T, port int, options ...kafkaClusterOption) (*dockertest.Resource, error) {
-	for _, opt := range options {
-		opt(&k.kafkaRunOptions)
-	}
-	if len(k.kafkaRunOptions.envVars) == 0 {
-		k.kafkaRunOptions.envVars = defaultKafkaEnvVars
-	}
-
-	var envVars []string
-	envVars = append(envVars, k.kafkaRunOptions.envVars...)
-	return k.startKafka(t, port, envVars), nil
+	return k.startKafka(t, port), nil
 }
 
 func produceTestMessages(t *testing.T, options *GraphQLSubscriptionOptions, messages map[string][]string) {
@@ -351,8 +280,8 @@ func consumeTestMessages(t *testing.T, messages chan *sarama.ConsumerMessage, pr
 L:
 	for {
 		select {
-		case <-time.After(maxIdleConsumerSeconds):
-			require.Failf(t, "all produced messages could not be consumed", "consumer is idle for %s", maxIdleConsumerSeconds)
+		case <-time.After(maxIdleConsumer):
+			require.Failf(t, "all produced messages could not be consumed", "consumer is idle for %s", maxIdleConsumer)
 		case msg := <-messages:
 			numMessages++
 			topic := msg.Topic
@@ -446,7 +375,7 @@ func TestSarama_StartConsumingLatest_True(t *testing.T) {
 
 	// Important note about offset management in Kafka:
 	//
-	// config.Consumer.Offsets.Initial only takes effect when offsets are not committed to Kafka/Zookeeper.
+	// config.Consumer.Offsets.Initial only takes effect when offsets are not committed to Kafka.
 	// If the consumer group already has offsets committed, the consumer will resume from the committed offset.
 
 	k := newKafkaCluster(t)
@@ -564,18 +493,16 @@ func TestSarama_StartConsuming_And_Restart(t *testing.T) {
 }
 
 func TestSarama_ConsumerGroup_SASL_Authentication(t *testing.T) {
-	kafkaEnvVars := []string{
-		"ALLOW_PLAINTEXT_LISTENER=yes",
-		"KAFKA_OPTS=-Djava.security.auth.login.config=/opt/bitnami/kafka/config/kafka_jaas.conf",
-		"KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181",
-		"KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=INSIDE:PLAINTEXT,OUTSIDE:SASL_PLAINTEXT",
-		"KAFKA_CFG_SASL_ENABLED_MECHANISMS=PLAIN",
-		"KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL=PLAIN",
-		"KAFKA_CFG_INTER_BROKER_LISTENER_NAME=INSIDE",
-	}
 	k := newKafkaCluster(t)
-	brokers := k.start(t, 1, withKafkaEnvVars(kafkaEnvVars), withKafkaSASLAuth())
 
+	k.saslAuthRequired = true
+	k.environmentVariablesm["KAFKA_CFG_SASL_ENABLED_MECHANISMS"] = "PLAIN"
+	k.environmentVariablesm["KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL"] = "PLAIN"
+	k.environmentVariablesm["KAFKA_CLIENT_USERS"] = testSASLUser
+	k.environmentVariablesm["KAFKA_CLIENT_PASSWORDS"] = testSASLPassword
+	k.environmentVariablesm["KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP"] = "PLAINTEXT:SASL_PLAINTEXT,CONTROLLER:PLAINTEXT"
+
+	brokers := k.start(t, 1)
 	options := &GraphQLSubscriptionOptions{
 		BrokerAddresses:      getBrokerAddresses(brokers),
 		Topics:               []string{testTopic},
@@ -704,7 +631,7 @@ func TestSarama_Config_SASL_Authentication(t *testing.T) {
 	require.Equal(t, "password", sc.Net.SASL.Password)
 }
 
-func TestSarama_Multiple_Broker(t *testing.T) {
+func TestSarama_Kafka_Cluster(t *testing.T) {
 	k := newKafkaCluster(t)
 	brokers := k.start(t, 3)
 
@@ -812,8 +739,7 @@ func TestSarama_Cluster_Add_Member(t *testing.T) {
 	sort.Ints(ports)
 	// [9092, 9094, 9096]
 	port := ports[len(ports)-1] + 2 // A Kafka node uses 2 ports. Increase by 2 to find an unoccupied port.
-	_, err := k.addNewBroker(t, port)
-	require.NoError(t, err)
+	k.startKafka(t, port)
 
 	// Stop publishMessagesContinuously properly. A leaking goroutine
 	// may lead to inconsistencies in the other tests.
