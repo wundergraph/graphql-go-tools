@@ -1024,7 +1024,9 @@ func (p *printVisitor) LeaveSchemaExtension(ref int) {
 	if p.indent != nil {
 		p.write(literal.LINETERMINATOR)
 	}
-	p.write(literal.RBRACE)
+	if len(p.document.SchemaExtensions[ref].SchemaDefinition.RootOperationTypeDefinitions.Refs) > 0 {
+		p.write(literal.RBRACE)
+	}
 	if !p.document.NodeIsLastRootNode(ast.Node{Kind: ast.NodeKindSchemaExtension, Ref: ref}) {
 		if p.indent != nil {
 			p.write(literal.LINETERMINATOR)
