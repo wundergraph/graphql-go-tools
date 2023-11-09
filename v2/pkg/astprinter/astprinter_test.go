@@ -209,6 +209,11 @@ vary: [String]! = []) on QUERY directive @include(if: Boolean!) repeatable on FI
 					subscription: Subscription
 				}`, `extend schema @foo {query: Query mutation: Mutation subscription: Subscription}`)
 	})
+
+	t.Run("schema extension only directives", func(t *testing.T) {
+		run(t, `extend schema @foo `, `extend schema @foo `)
+	})
+
 	t.Run("object type definition", func(t *testing.T) {
 		run(t, `
 				type Foo {
