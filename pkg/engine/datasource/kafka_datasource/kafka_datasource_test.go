@@ -82,7 +82,6 @@ func testWithFactory(factory *Factory) runTestOnTestDefinitionOptions {
 func TestKafkaDataSource(t *testing.T) {
 	factory := &Factory{}
 	ctx := resolve.NewContext(context.Background())
-	defer ctx.Context().Done()
 
 	t.Run("subscription", runTestOnTestDefinition(`
 		subscription RemainingJedis {
@@ -227,7 +226,6 @@ func TestKafkaDataSource_Subscription_Start(t *testing.T) {
 
 	t.Run("should return error when input is invalid", func(t *testing.T) {
 		ctx := resolve.NewContext(context.Background())
-		defer ctx.Context().Done()
 
 		source := SubscriptionSource{client: FailingSubscriptionClient{}}
 		err := source.Start(ctx.Context(), []byte(`{"broker_addresses":"",topic":"","group_id":""}`), nil)
@@ -236,7 +234,6 @@ func TestKafkaDataSource_Subscription_Start(t *testing.T) {
 
 	t.Run("should send and receive a message, then cancel subscription", func(t *testing.T) {
 		resolveCtx := resolve.NewContext(context.Background())
-		defer resolveCtx.Context().Done()
 
 		subscriptionLifecycle, cancelSubscription := context.WithCancel(resolveCtx.Context())
 		resolverLifecycle, cancelResolver := context.WithCancel(context.Background())
@@ -295,7 +292,6 @@ func TestKafkaConsumerGroupBridge_Subscribe(t *testing.T) {
 	fr.SetMessageWithKey(topic, defaultPartition, 0, testMessageKey, testMessageValue)
 
 	ctx := resolve.NewContext(context.Background())
-	defer ctx.Context().Done()
 
 	cg := NewKafkaConsumerGroupBridge(ctx.Context(), logger()) // use abstractlogger.NoopLogger if there is no available logger.
 	options := GraphQLSubscriptionOptions{
