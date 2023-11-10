@@ -167,6 +167,7 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 				ID: "https://swapi.dev/api",
 				Factory: &FakeFactory{
 					upstreamSchema: &def,
+					signalClosed:   make(chan struct{}),
 				},
 				Custom: []byte(fmt.Sprintf(`{"UpstreamSchema":"%s"}`, schemaUsageInfoTestSchema)),
 			},

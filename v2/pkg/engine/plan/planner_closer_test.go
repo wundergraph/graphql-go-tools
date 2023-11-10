@@ -5,12 +5,19 @@ import (
 	"io"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
+	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 func TestCloser(t *testing.T) {
-	/*definition := `schema {query:Query} type Query { me: String! }`
+	definition := `schema {query:Query} type Query { me: String! }`
 	operation := `{me}`
 
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
@@ -57,7 +64,7 @@ func TestCloser(t *testing.T) {
 	cancel()     // terminate all stateful sources
 	<-ctx.Done() // stateful source closed from closer
 	<-closedSignal
-	// test terminates only if stateful source closed*/
+	// test terminates only if stateful source closed
 }
 
 type StatefulSource struct {
