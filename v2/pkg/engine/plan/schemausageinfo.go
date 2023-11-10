@@ -12,34 +12,41 @@ import (
 )
 
 type SchemaUsageInfo struct {
-	OperationType   ast.OperationType
-	TypeFields      []TypeFieldUsageInfo
-	Arguments       []ArgumentUsageInfo
-	InputTypeFields []TypeFieldUsageInfo
+	// OperationType is the type of the operation that was executed, e.g. query, mutation, subscription
+	OperationType ast.OperationType
+	// TypeFields is a list of all fields that were used to define the response shape
+	TypeFields []TypeFieldUsageInfo
+	// Arguments is a list of all arguments that were used on response fields
+	Arguments []ArgumentUsageInfo
+	// InputTypeFields is a list of all fields that were used to define the input shape
+	InputTypeFields []InputTypeFieldUsageInfo
 }
 
 type TypeFieldUsageInfo struct {
-	Count      int
-	FieldName  string
-	NamedType  string
-	TypeNames  []string
-	Path       []string
-	Source     TypeFieldSource
-	EnumValues []string
+	// FieldName is the name of the field, e.g. "id" for this selection set: { id }
+	FieldName string
+	// FieldTypeName is the name of the field type, e.g. "ID" for this selection set: { id }
+	FieldTypeName string
+	// EnclosingTypeNames is a list of all possible enclosing types, e.g. ["User"] for the "id" field: { user { id } }
+	EnclosingTypeNames []string
+	// Path is a list of field names that lead to the field, e.g. ["user", "id"] for this selection set: { user { id } }
+	Path []string
+	// Source is a list of data source IDs that can be used to resolve the field
+	Source TypeFieldSource
 }
 
 func (t *TypeFieldUsageInfo) Equals(other TypeFieldUsageInfo) bool {
 	if t.FieldName != other.FieldName {
 		return false
 	}
-	if t.NamedType != other.NamedType {
+	if t.FieldTypeName != other.FieldTypeName {
 		return false
 	}
-	if len(t.TypeNames) != len(other.TypeNames) {
+	if len(t.EnclosingTypeNames) != len(other.EnclosingTypeNames) {
 		return false
 	}
-	for i := range t.TypeNames {
-		if t.TypeNames[i] != other.TypeNames[i] {
+	for i := range t.EnclosingTypeNames {
+		if t.EnclosingTypeNames[i] != other.EnclosingTypeNames[i] {
 			return false
 		}
 	}
@@ -59,6 +66,47 @@ func (t *TypeFieldUsageInfo) Equals(other TypeFieldUsageInfo) bool {
 			return false
 		}
 	}
+	return true
+}
+
+type InputTypeFieldUsageInfo struct {
+	// IsRootVariable is true if the field is a root variable, e.g. $id
+	IsRootVariable bool
+	// Count is the number of times this field usage was captured, it's usually 1 but can be higher if the field is used multiple times
+	Count int
+	// FieldName is the name of the field, e.g. "id" for this selection set: { id }
+	FieldName string
+	// FieldTypeName is the name of the field type, e.g. "ID" for this selection set: { id }
+	FieldTypeName string
+	// EnclosingTypeNames is a list of all possible enclosing types, e.g. ["User"] for the "id" field: { user { id } }
+	EnclosingTypeNames []string
+	// IsEnumField is true if the field is an enum
+	IsEnumField bool
+	// EnumValues is a list of all enum values that were used for this field
+	EnumValues []string
+}
+
+func (t *InputTypeFieldUsageInfo) Equals(other InputTypeFieldUsageInfo) bool {
+	if t.IsRootVariable != other.IsRootVariable {
+		return false
+	}
+	if t.FieldName != other.FieldName {
+		return false
+	}
+	if t.FieldTypeName != other.FieldTypeName {
+		return false
+	}
+	if len(t.EnclosingTypeNames) != len(other.EnclosingTypeNames) {
+		return false
+	}
+	for i := range t.EnclosingTypeNames {
+		if t.EnclosingTypeNames[i] != other.EnclosingTypeNames[i] {
+			return false
+		}
+	}
+	if t.IsEnumField != other.IsEnumField {
+		return false
+	}
 	if len(t.EnumValues) != len(other.EnumValues) {
 		return false
 	}
@@ -71,10 +119,10 @@ func (t *TypeFieldUsageInfo) Equals(other TypeFieldUsageInfo) bool {
 }
 
 type ArgumentUsageInfo struct {
-	FieldName        string
-	NamedType        string
-	ArgumentName     string
-	ArgumentTypeName string
+	FieldName         string
+	EnclosingTypeName string
+	ArgumentName      string
+	ArgumentTypeName  string
 }
 
 type TypeFieldSource struct {
@@ -135,10 +183,10 @@ func (p *planVisitor) visitNode(node resolve.Node, path []string) {
 			}
 			newPath := append([]string{}, append(path, field.Info.Name)...)
 			p.usage.TypeFields = append(p.usage.TypeFields, TypeFieldUsageInfo{
-				FieldName: field.Info.Name,
-				TypeNames: field.Info.ParentTypeNames,
-				NamedType: field.Info.NamedType,
-				Path:      newPath,
+				FieldName:          field.Info.Name,
+				EnclosingTypeNames: field.Info.ParentTypeNames,
+				FieldTypeName:      field.Info.NamedType,
+				Path:               newPath,
 				Source: TypeFieldSource{
 					IDs: field.Info.Source.IDs,
 				},
@@ -170,7 +218,7 @@ func (s *schemaUsageInfoVisitor) EnterVariableDefinition(ref int) {
 	s.traverseVariable(jsonField, varName, varTypeName, "")
 }
 
-func (s *schemaUsageInfoVisitor) addUniqueInputFieldUsageInfoOrIncrementCount(info TypeFieldUsageInfo) {
+func (s *schemaUsageInfoVisitor) addUniqueInputFieldUsageInfoOrIncrementCount(info InputTypeFieldUsageInfo) {
 	for i := range s.usage.InputTypeFields {
 		if s.usage.InputTypeFields[i].Equals(info) {
 			s.usage.InputTypeFields[i].Count++
@@ -186,9 +234,9 @@ func (s *schemaUsageInfoVisitor) traverseVariable(jsonNodeRef int, fieldName, ty
 	if !ok {
 		return
 	}
-	usageInfo := TypeFieldUsageInfo{
-		FieldName: fieldName,
-		NamedType: typeName,
+	usageInfo := InputTypeFieldUsageInfo{
+		FieldName:     fieldName,
+		FieldTypeName: typeName,
 	}
 	switch defNode.Kind {
 	case ast.NodeKindInputObjectTypeDefinition:
@@ -212,6 +260,7 @@ func (s *schemaUsageInfoVisitor) traverseVariable(jsonNodeRef int, fieldName, ty
 			}
 		}
 	case ast.NodeKindEnumTypeDefinition:
+		usageInfo.IsEnumField = true
 		switch s.variables.Nodes[jsonNodeRef].Kind {
 		case astjson.NodeKindString:
 			usageInfo.EnumValues = []string{string(s.variables.Nodes[jsonNodeRef].ValueBytes(s.variables))}
@@ -223,9 +272,10 @@ func (s *schemaUsageInfoVisitor) traverseVariable(jsonNodeRef int, fieldName, ty
 		}
 	}
 	if parentTypeName != "" {
-		usageInfo.TypeNames = []string{parentTypeName}
+		usageInfo.EnclosingTypeNames = []string{parentTypeName}
 	} else {
 		usageInfo.FieldName = ""
+		usageInfo.IsRootVariable = true
 	}
 	s.addUniqueInputFieldUsageInfoOrIncrementCount(usageInfo)
 }
@@ -257,10 +307,10 @@ func (s *schemaUsageInfoVisitor) EnterArgument(ref int) {
 	argType := s.definition.InputValueDefinitionType(argDef)
 	typeName := s.definition.ResolveTypeNameBytes(argType)
 	s.usage.Arguments = append(s.usage.Arguments, ArgumentUsageInfo{
-		FieldName:        string(fieldName),
-		NamedType:        string(enclosingTypeName),
-		ArgumentName:     string(argName),
-		ArgumentTypeName: string(typeName),
+		FieldName:         string(fieldName),
+		EnclosingTypeName: string(enclosingTypeName),
+		ArgumentName:      string(argName),
+		ArgumentTypeName:  string(typeName),
 	})
 }
 

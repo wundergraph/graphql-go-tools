@@ -116,6 +116,9 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 					length
 				}
 			}
+			hero {
+				name
+			}
 		}
 `
 
@@ -143,7 +146,7 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 				RootNodes: []TypeField{
 					{
 						TypeName:   "Query",
-						FieldNames: []string{"searchResults"},
+						FieldNames: []string{"searchResults", "hero"},
 					},
 				},
 				ChildNodes: []TypeField{
@@ -162,6 +165,10 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 					{
 						TypeName:   "SearchResult",
 						FieldNames: []string{"__typename"},
+					},
+					{
+						TypeName:   "Character",
+						FieldNames: []string{"name", "friends"},
 					},
 				},
 				ID: "https://swapi.dev/api",
@@ -198,55 +205,73 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 		OperationType: ast.OperationTypeQuery,
 		TypeFields: []TypeFieldUsageInfo{
 			{
-				FieldName: "searchResults",
-				TypeNames: []string{"Query"},
-				Path:      []string{"searchResults"},
-				NamedType: "SearchResult",
+				FieldName:          "searchResults",
+				EnclosingTypeNames: []string{"Query"},
+				Path:               []string{"searchResults"},
+				FieldTypeName:      "SearchResult",
 				Source: TypeFieldSource{
 					IDs: []string{"https://swapi.dev/api"},
 				},
 			},
 			{
-				Path:      []string{"searchResults", "__typename"},
-				TypeNames: []string{"SearchResult"},
-				FieldName: "__typename",
-				NamedType: "String",
+				Path:               []string{"searchResults", "__typename"},
+				EnclosingTypeNames: []string{"SearchResult"},
+				FieldName:          "__typename",
+				FieldTypeName:      "String",
 				Source: TypeFieldSource{
 					IDs: []string{"https://swapi.dev/api"},
 				},
 			},
 			{
-				Path:      []string{"searchResults", "name"},
-				TypeNames: []string{"Human"},
-				FieldName: "name",
-				NamedType: "String",
+				Path:               []string{"searchResults", "name"},
+				EnclosingTypeNames: []string{"Human"},
+				FieldName:          "name",
+				FieldTypeName:      "String",
 				Source: TypeFieldSource{
 					IDs: []string{"https://swapi.dev/api"},
 				},
 			},
 			{
-				Path:      []string{"searchResults", "inlineName"},
-				TypeNames: []string{"Human"},
-				FieldName: "inlineName",
-				NamedType: "String",
+				Path:               []string{"searchResults", "inlineName"},
+				EnclosingTypeNames: []string{"Human"},
+				FieldName:          "inlineName",
+				FieldTypeName:      "String",
 				Source: TypeFieldSource{
 					IDs: []string{"https://swapi.dev/api"},
 				},
 			},
 			{
-				Path:      []string{"searchResults", "name"},
-				TypeNames: []string{"Droid"},
-				FieldName: "name",
-				NamedType: "String",
+				Path:               []string{"searchResults", "name"},
+				EnclosingTypeNames: []string{"Droid"},
+				FieldName:          "name",
+				FieldTypeName:      "String",
 				Source: TypeFieldSource{
 					IDs: []string{"https://swapi.dev/api"},
 				},
 			},
 			{
-				Path:      []string{"searchResults", "length"},
-				TypeNames: []string{"Starship"},
-				NamedType: "Float",
-				FieldName: "length",
+				Path:               []string{"searchResults", "length"},
+				EnclosingTypeNames: []string{"Starship"},
+				FieldTypeName:      "Float",
+				FieldName:          "length",
+				Source: TypeFieldSource{
+					IDs: []string{"https://swapi.dev/api"},
+				},
+			},
+			{
+				FieldName:          "hero",
+				EnclosingTypeNames: []string{"Query"},
+				Path:               []string{"hero"},
+				FieldTypeName:      "Character",
+				Source: TypeFieldSource{
+					IDs: []string{"https://swapi.dev/api"},
+				},
+			},
+			{
+				FieldName:          "name",
+				EnclosingTypeNames: []string{"Character"},
+				Path:               []string{"hero", "name"},
+				FieldTypeName:      "String",
 				Source: TypeFieldSource{
 					IDs: []string{"https://swapi.dev/api"},
 				},
@@ -254,97 +279,107 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 		},
 		Arguments: []ArgumentUsageInfo{
 			{
-				NamedType:        "Query",
-				FieldName:        "searchResults",
-				ArgumentName:     "name",
-				ArgumentTypeName: "String",
+				EnclosingTypeName: "Query",
+				FieldName:         "searchResults",
+				ArgumentName:      "name",
+				ArgumentTypeName:  "String",
 			},
 			{
-				NamedType:        "Query",
-				FieldName:        "searchResults",
-				ArgumentName:     "filter",
-				ArgumentTypeName: "SearchFilter",
+				EnclosingTypeName: "Query",
+				FieldName:         "searchResults",
+				ArgumentName:      "filter",
+				ArgumentTypeName:  "SearchFilter",
 			},
 			{
-				NamedType:        "Query",
-				FieldName:        "searchResults",
-				ArgumentName:     "filter2",
-				ArgumentTypeName: "SearchFilter",
+				EnclosingTypeName: "Query",
+				FieldName:         "searchResults",
+				ArgumentName:      "filter2",
+				ArgumentTypeName:  "SearchFilter",
 			},
 			{
-				NamedType:        "Query",
-				FieldName:        "searchResults",
-				ArgumentName:     "enumValue",
-				ArgumentTypeName: "Episode",
+				EnclosingTypeName: "Query",
+				FieldName:         "searchResults",
+				ArgumentName:      "enumValue",
+				ArgumentTypeName:  "Episode",
 			},
 			{
-				NamedType:        "Query",
-				FieldName:        "searchResults",
-				ArgumentName:     "enumList",
-				ArgumentTypeName: "Episode",
+				EnclosingTypeName: "Query",
+				FieldName:         "searchResults",
+				ArgumentName:      "enumList",
+				ArgumentTypeName:  "Episode",
 			},
 			{
-				NamedType:        "Query",
-				FieldName:        "searchResults",
-				ArgumentName:     "enumList2",
-				ArgumentTypeName: "Episode",
+				EnclosingTypeName: "Query",
+				FieldName:         "searchResults",
+				ArgumentName:      "enumList2",
+				ArgumentTypeName:  "Episode",
 			},
 			{
-				NamedType:        "Query",
-				FieldName:        "searchResults",
-				ArgumentName:     "filterList",
-				ArgumentTypeName: "SearchFilter",
+				EnclosingTypeName: "Query",
+				FieldName:         "searchResults",
+				ArgumentName:      "filterList",
+				ArgumentTypeName:  "SearchFilter",
 			},
 			{
-				NamedType:        "Human",
-				FieldName:        "inlineName",
-				ArgumentName:     "name",
-				ArgumentTypeName: "String",
+				EnclosingTypeName: "Human",
+				FieldName:         "inlineName",
+				ArgumentName:      "name",
+				ArgumentTypeName:  "String",
 			},
 		},
-		InputTypeFields: []TypeFieldUsageInfo{
+		InputTypeFields: []InputTypeFieldUsageInfo{
 			{
-				Count:     2,
-				NamedType: "String",
+				Count:          2,
+				FieldTypeName:  "String",
+				IsRootVariable: true,
 			},
 			{
-				Count:      1,
-				FieldName:  "enumField",
-				NamedType:  "Episode",
-				TypeNames:  []string{"SearchFilter"},
-				EnumValues: []string{"NEWHOPE"},
+				Count:              1,
+				FieldName:          "enumField",
+				FieldTypeName:      "Episode",
+				EnclosingTypeNames: []string{"SearchFilter"},
+				EnumValues:         []string{"NEWHOPE"},
+				IsEnumField:        true,
 			},
 			{
-				Count:     5,
-				NamedType: "SearchFilter",
+				Count:          5,
+				FieldTypeName:  "SearchFilter",
+				IsRootVariable: true,
 			},
 			{
-				Count:      1,
-				NamedType:  "Episode",
-				EnumValues: []string{"EMPIRE"},
+				Count:          1,
+				FieldTypeName:  "Episode",
+				EnumValues:     []string{"EMPIRE"},
+				IsEnumField:    true,
+				IsRootVariable: true,
 			},
 			{
-				Count:      1,
-				NamedType:  "Episode",
-				EnumValues: []string{"JEDI", "EMPIRE", "NEWHOPE"},
+				Count:          1,
+				FieldTypeName:  "Episode",
+				EnumValues:     []string{"JEDI", "EMPIRE", "NEWHOPE"},
+				IsEnumField:    true,
+				IsRootVariable: true,
 			},
 			{
-				Count:     3,
-				FieldName: "excludeName",
-				NamedType: "String",
-				TypeNames: []string{"SearchFilter"},
+				Count:              3,
+				FieldName:          "excludeName",
+				FieldTypeName:      "String",
+				EnclosingTypeNames: []string{"SearchFilter"},
 			},
 			{
-				Count:      1,
-				FieldName:  "enumField",
-				NamedType:  "Episode",
-				TypeNames:  []string{"SearchFilter"},
-				EnumValues: []string{"JEDI"},
+				Count:              1,
+				FieldName:          "enumField",
+				FieldTypeName:      "Episode",
+				EnclosingTypeNames: []string{"SearchFilter"},
+				EnumValues:         []string{"JEDI"},
+				IsEnumField:        true,
 			},
 			{
-				Count:      1,
-				NamedType:  "Episode",
-				EnumValues: []string{"JEDI", "EMPIRE"},
+				Count:          1,
+				FieldTypeName:  "Episode",
+				EnumValues:     []string{"JEDI", "EMPIRE"},
+				IsEnumField:    true,
+				IsRootVariable: true,
 			},
 		},
 	}
@@ -352,15 +387,15 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 	assert.Equal(t, len(expected.TypeFields), len(syncUsage.TypeFields))
 	for i := range expected.TypeFields {
 		assert.Equal(t, expected.TypeFields[i].FieldName, syncUsage.TypeFields[i].FieldName, "Field %d", i)
-		assert.Equal(t, expected.TypeFields[i].TypeNames, syncUsage.TypeFields[i].TypeNames, "Field %d", i)
+		assert.Equal(t, expected.TypeFields[i].EnclosingTypeNames, syncUsage.TypeFields[i].EnclosingTypeNames, "Field %d", i)
 		assert.Equal(t, expected.TypeFields[i].Path, syncUsage.TypeFields[i].Path, "Field %d", i)
-		assert.Equal(t, expected.TypeFields[i].NamedType, syncUsage.TypeFields[i].NamedType, "Field %d", i)
+		assert.Equal(t, expected.TypeFields[i].FieldTypeName, syncUsage.TypeFields[i].FieldTypeName, "Field %d", i)
 		assert.Equal(t, expected.TypeFields[i].Source.IDs, syncUsage.TypeFields[i].Source.IDs, "Field %d", i)
 	}
 	assert.Equal(t, len(expected.Arguments), len(syncUsage.Arguments))
 	for i := range expected.Arguments {
 		assert.Equal(t, expected.Arguments[i].FieldName, syncUsage.Arguments[i].FieldName, "Argument %d", i)
-		assert.Equal(t, expected.Arguments[i].NamedType, syncUsage.Arguments[i].NamedType, "Argument %d", i)
+		assert.Equal(t, expected.Arguments[i].EnclosingTypeName, syncUsage.Arguments[i].EnclosingTypeName, "Argument %d", i)
 		assert.Equal(t, expected.Arguments[i].ArgumentName, syncUsage.Arguments[i].ArgumentName, "Argument %d", i)
 		assert.Equal(t, expected.Arguments[i].ArgumentTypeName, syncUsage.Arguments[i].ArgumentTypeName, "Argument %d", i)
 	}
@@ -368,8 +403,8 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 	for i := range expected.InputTypeFields {
 		assert.Equal(t, expected.InputTypeFields[i].Count, syncUsage.InputTypeFields[i].Count, "InputTypeField %d", i)
 		assert.Equal(t, expected.InputTypeFields[i].FieldName, syncUsage.InputTypeFields[i].FieldName, "InputTypeField %d", i)
-		assert.Equal(t, expected.InputTypeFields[i].NamedType, syncUsage.InputTypeFields[i].NamedType, "InputTypeField %d", i)
-		assert.Equal(t, expected.InputTypeFields[i].TypeNames, syncUsage.InputTypeFields[i].TypeNames, "InputTypeField %d", i)
+		assert.Equal(t, expected.InputTypeFields[i].FieldTypeName, syncUsage.InputTypeFields[i].FieldTypeName, "InputTypeField %d", i)
+		assert.Equal(t, expected.InputTypeFields[i].EnclosingTypeNames, syncUsage.InputTypeFields[i].EnclosingTypeNames, "InputTypeField %d", i)
 	}
 	assert.Equal(t, expected, syncUsage)
 	assert.Equal(t, expected, subscriptionUsage)
