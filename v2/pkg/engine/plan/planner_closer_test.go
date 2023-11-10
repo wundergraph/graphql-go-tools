@@ -18,6 +18,7 @@ import (
 
 func TestCloser(t *testing.T) {
 	t.Skip("This test is flaky and needs to be fixed")
+	return
 	definition := `schema {query:Query} type Query { me: String! }`
 	operation := `{me}`
 
