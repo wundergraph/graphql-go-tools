@@ -13,6 +13,8 @@ var (
 	quotedComma       = []byte(`","`)
 	null              = []byte("null")
 	literalData       = []byte("data")
+	literalTrue       = []byte("true")
+	literalFalse      = []byte("false")
 	literalErrors     = []byte("errors")
 	literalMessage    = []byte("message")
 	literalLocations  = []byte("locations")
@@ -28,6 +30,7 @@ var (
 
 var (
 	errNonNullableFieldValueIsNull = errors.New("non Nullable field value is null")
+	errInvalidFieldValue           = errors.New("invalid field value")
 	errTypeNameSkipped             = errors.New("skipped because of __typename condition")
 	errHeaderPathInvalid           = errors.New("invalid header path: header variables must be of this format: .request.header.{{ key }} ")
 

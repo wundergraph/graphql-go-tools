@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
@@ -61,7 +60,7 @@ func (s *Schema) calcHash() error {
 }
 
 func NewSchemaFromReader(reader io.Reader) (*Schema, error) {
-	schemaContent, err := ioutil.ReadAll(reader)
+	schemaContent, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, err
 	}

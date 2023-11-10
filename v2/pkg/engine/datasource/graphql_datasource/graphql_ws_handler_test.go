@@ -5,10 +5,12 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 
 	"github.com/stretchr/testify/assert"
 	"nhooyr.io/websocket"
@@ -71,7 +73,7 @@ func TestWebSocketSubscriptionClientInitIncludeKA_GQLWS(t *testing.T) {
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
@@ -138,7 +140,7 @@ func TestWebsocketSubscriptionClient_GQLWS(t *testing.T) {
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
@@ -201,7 +203,7 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
-	err := client.Subscribe(clientCtx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(clientCtx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomNam: "room"){text}}`,
@@ -256,7 +258,7 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
-	err := client.Subscribe(clientCtx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(clientCtx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomNam: "room"){text}}`,
@@ -319,7 +321,7 @@ func TestWebsocketSubscriptionClient_GQLWS_Upstream_Dies(t *testing.T) {
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	next := make(chan []byte)
-	err := client.Subscribe(ctx, GraphQLSubscriptionOptions{
+	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
@@ -341,6 +343,137 @@ func TestWebsocketSubscriptionClient_GQLWS_Upstream_Dies(t *testing.T) {
 		defer client.handlersMu.Unlock()
 		return len(client.handlers) == 0
 	}, time.Second, time.Millisecond, "client handlers not 0")
+}
+
+func TestWebsocketConnectionReuse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		require.NoError(t, err)
+		msgType, data, err := conn.Read(r.Context())
+		assert.NoError(t, err)
+		assert.Equal(t, websocket.MessageText, msgType)
+		assert.Equal(t, `{"type":"connection_init"}`, string(data))
+		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+		assert.NoError(t, err)
+	}))
+	defer server.Close()
+	ctx := context.Background()
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+	defer serverCancel()
+
+	t.Run("reuse connections when they have no forwarded headers in common", func(t *testing.T) {
+		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+			WithReadTimeout(time.Millisecond),
+			WithLogger(logger()),
+			WithWSSubProtocol(ProtocolGraphQLWS),
+		)
+
+		resolveCtx1 := resolve.NewContext(ctx)
+		err := client.Subscribe(resolveCtx1, GraphQLSubscriptionOptions{
+			URL: server.URL,
+		}, make(chan []byte))
+		assert.NoError(t, err)
+
+		resolveCtx2 := resolve.NewContext(ctx)
+		err = client.Subscribe(resolveCtx2, GraphQLSubscriptionOptions{
+			URL: server.URL,
+		}, make(chan []byte))
+		assert.NoError(t, err)
+
+		assert.Len(t, client.handlers, 1)
+	})
+
+	const (
+		headerName  = "X-Test-Header"
+		headerValue = "test"
+	)
+
+	forwardedHeaderNames := []string{headerName}
+
+	connectionReuseCases := []struct {
+		Name                                    string
+		ForwardedClientHeaderNames              []string
+		ForwardedClientHeaderRegularExpressions []*regexp.Regexp
+	}{
+		{
+			Name:                       "by header name",
+			ForwardedClientHeaderNames: forwardedHeaderNames,
+		},
+		{
+			Name:                                    "by regular expression",
+			ForwardedClientHeaderRegularExpressions: []*regexp.Regexp{regexp.MustCompile("^X-.*")},
+		},
+	}
+
+	t.Run("reuse connections when the forwarded header has the same value", func(t *testing.T) {
+		for _, c := range connectionReuseCases {
+			c := c
+			t.Run(c.Name, func(t *testing.T) {
+				client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+					WithReadTimeout(time.Millisecond),
+					WithLogger(logger()),
+					WithWSSubProtocol(ProtocolGraphQLWS),
+				)
+
+				resolveCtx1 := resolve.NewContext(ctx)
+				resolveCtx1.Request.Header = make(http.Header)
+				resolveCtx1.Request.Header.Set(headerName, headerValue)
+				err := client.Subscribe(resolveCtx1, GraphQLSubscriptionOptions{
+					URL:                                     server.URL,
+					ForwardedClientHeaderNames:              c.ForwardedClientHeaderNames,
+					ForwardedClientHeaderRegularExpressions: c.ForwardedClientHeaderRegularExpressions,
+				}, make(chan []byte))
+				assert.NoError(t, err)
+
+				resolveCtx2 := resolve.NewContext(ctx)
+				resolveCtx2.Request.Header = make(http.Header)
+				resolveCtx2.Request.Header.Set(headerName, headerValue)
+				err = client.Subscribe(resolveCtx2, GraphQLSubscriptionOptions{
+					URL:                                     server.URL,
+					ForwardedClientHeaderNames:              c.ForwardedClientHeaderNames,
+					ForwardedClientHeaderRegularExpressions: c.ForwardedClientHeaderRegularExpressions,
+				}, make(chan []byte))
+				assert.NoError(t, err)
+
+				assert.Len(t, client.handlers, 1)
+			})
+		}
+	})
+
+	t.Run("avoid reusing connections when a forwarded header has different values", func(t *testing.T) {
+		for _, c := range connectionReuseCases {
+			c := c
+			t.Run(c.Name, func(t *testing.T) {
+				client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+					WithReadTimeout(time.Millisecond),
+					WithLogger(logger()),
+					WithWSSubProtocol(ProtocolGraphQLWS),
+				)
+
+				resolveCtx1 := resolve.NewContext(ctx)
+				resolveCtx1.Request.Header = make(http.Header)
+				resolveCtx1.Request.Header.Set(headerName, "1")
+				err := client.Subscribe(resolveCtx1, GraphQLSubscriptionOptions{
+					URL:                                     server.URL,
+					ForwardedClientHeaderNames:              c.ForwardedClientHeaderNames,
+					ForwardedClientHeaderRegularExpressions: c.ForwardedClientHeaderRegularExpressions,
+				}, make(chan []byte))
+				assert.NoError(t, err)
+
+				resolveCtx2 := resolve.NewContext(ctx)
+				resolveCtx2.Request.Header = make(http.Header)
+				resolveCtx2.Request.Header.Set(headerName, "2")
+				err = client.Subscribe(resolveCtx2, GraphQLSubscriptionOptions{
+					URL:                                     server.URL,
+					ForwardedClientHeaderNames:              c.ForwardedClientHeaderNames,
+					ForwardedClientHeaderRegularExpressions: c.ForwardedClientHeaderRegularExpressions,
+				}, make(chan []byte))
+				assert.NoError(t, err)
+
+				assert.Len(t, client.handlers, 2)
+			})
+		}
+	})
 }
 
 type listenerWrapper struct {

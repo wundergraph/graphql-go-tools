@@ -3,7 +3,7 @@ package introspection
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/jensneuse/diffview"
@@ -16,7 +16,7 @@ import (
 )
 
 func TestJSONConverter_GraphQLDocument(t *testing.T) {
-	starwarsSchemaBytes, err := ioutil.ReadFile("./fixtures/starwars.golden")
+	starwarsSchemaBytes, err := os.ReadFile("./fixtures/starwars.golden")
 	require.NoError(t, err)
 
 	definition, report := astparser.ParseGraphqlDocumentBytes(starwarsSchemaBytes)
@@ -56,7 +56,7 @@ func TestJSONConverter_GraphQLDocument(t *testing.T) {
 	// Check that recreated sdl is the same as original
 	goldie.Assert(t, "starwars", schemaOutputPretty)
 	if t.Failed() {
-		fixture, err := ioutil.ReadFile("./fixtures/starwars.golden")
+		fixture, err := os.ReadFile("./fixtures/starwars.golden")
 		require.NoError(t, err)
 
 		diffview.NewGoland().DiffViewBytes("startwars", fixture, schemaOutputPretty)
@@ -64,7 +64,7 @@ func TestJSONConverter_GraphQLDocument(t *testing.T) {
 }
 
 func BenchmarkJsonConverter_GraphQLDocument(b *testing.B) {
-	introspectedBytes, err := ioutil.ReadFile("./testdata/swapi_introspection_response.json")
+	introspectedBytes, err := os.ReadFile("./testdata/swapi_introspection_response.json")
 	require.NoError(b, err)
 	b.ResetTimer()
 

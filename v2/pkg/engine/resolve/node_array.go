@@ -29,8 +29,16 @@ func (_ *Array) NodeKind() NodeKind {
 	return NodeKindArray
 }
 
+func (a *Array) NodePath() []string {
+	return a.Path
+}
+
 type EmptyArray struct{}
 
 func (_ *EmptyArray) NodeKind() NodeKind {
 	return NodeKindEmptyArray
+}
+
+func (_ *EmptyArray) NodePath() []string {
+	return nil
 }

@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"sync"
@@ -188,7 +187,7 @@ func (h *HttpPollingStreamDataSource) startPolling(ctx context.Context) {
 				)
 				return
 			}
-			data, err = ioutil.ReadAll(response.Body)
+			data, err = io.ReadAll(response.Body)
 			if err != nil {
 				h.Log.Error("HttpPollingStreamDataSource.startPolling.ioutil.ReadAll",
 					log.Error(err),

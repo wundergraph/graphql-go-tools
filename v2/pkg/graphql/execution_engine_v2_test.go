@@ -159,8 +159,6 @@ type ExecutionEngineV2TestCase struct {
 }
 
 func TestExecutionEngineV2_Execute(t *testing.T) {
-	// t.Skip("FIXME")
-
 	run := func(testCase ExecutionEngineV2TestCase, withError bool, expectedErrorMessage string) func(t *testing.T) {
 		t.Helper()
 
@@ -207,7 +205,6 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			execCtx, execCtxCancel := context.WithCancel(context.Background())
 			defer execCtxCancel()
 			err = engine.Execute(execCtx, &operation, &resultWriter, testCase.engineOptions...)
-
 			actualResponse := resultWriter.String()
 			assert.Equal(t, testCase.expectedResponse, actualResponse)
 
@@ -220,10 +217,6 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				assert.NoError(t, err)
 			}
 		}
-	}
-
-	runWithError := func(testCase ExecutionEngineV2TestCase) func(t *testing.T) {
-		return run(testCase, true, "")
 	}
 
 	runWithAndCompareError := func(testCase ExecutionEngineV2TestCase, expectedErrorMessage string) func(t *testing.T) {
@@ -416,54 +409,51 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
       asset: Asset
     }
   `)
-	t.Run("FIXME", func(t *testing.T) {
-		t.Skip("TODO: FIXME")
-		t.Run("query with custom scalar", runWithoutError(
-			ExecutionEngineV2TestCase{
-				schema: schemaWithCustomScalar,
-				operation: func(t *testing.T) Request {
-					return Request{
-						Query: `{asset{id}}`,
-					}
-				},
-				dataSources: []plan.DataSourceConfiguration{
-					{
-						RootNodes: []plan.TypeField{
-							{
-								TypeName:   "Query",
-								FieldNames: []string{"asset"},
-							},
+	t.Run("query with custom scalar", runWithoutError(
+		ExecutionEngineV2TestCase{
+			schema: schemaWithCustomScalar,
+			operation: func(t *testing.T) Request {
+				return Request{
+					Query: `{asset{id}}`,
+				}
+			},
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"asset"},
 						},
-						ChildNodes: []plan.TypeField{
-							{
-								TypeName:   "Asset",
-								FieldNames: []string{"id"},
-							},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Asset",
+							FieldNames: []string{"id"},
 						},
-						Factory: &graphql_datasource.Factory{
-							HTTPClient: testNetHttpClient(t, roundTripperTestCase{
-								expectedHost:     "example.com",
-								expectedPath:     "/",
-								expectedBody:     "",
-								sendResponseBody: `{"data":{"asset":{"id":1}}}`,
-								sendStatusCode:   200,
-							}),
-						},
-						Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-							Fetch: graphql_datasource.FetchConfiguration{
-								URL:    "https://example.com/",
-								Method: "GET",
-							},
+					},
+					Factory: &graphql_datasource.Factory{
+						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"data":{"asset":{"id":1}}}`,
+							sendStatusCode:   200,
 						}),
 					},
+					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+						Fetch: graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+					}),
 				},
-				customResolveMap: map[string]resolve.CustomResolve{
-					"Long": &customResolver{},
-				},
-				expectedResponse: `{"data":{"asset":{"id":1}}}`,
 			},
-		))
-	})
+			customResolveMap: map[string]resolve.CustomResolve{
+				"Long": &customResolver{},
+			},
+			expectedResponse: `{"data":{"asset":{"id":1}}}`,
+		},
+	))
 
 	t.Run("execute operation with variables for arguments", runWithoutError(
 		ExecutionEngineV2TestCase{
@@ -631,7 +621,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		expectedResponse: `{"data":{"heroes":[]}}`,
 	}))
 
-	t.Run("execute operation with null variable on required type", runWithError(ExecutionEngineV2TestCase{
+	t.Run("execute operation with null variable on required type", runWithoutError(ExecutionEngineV2TestCase{
 		schema: func(t *testing.T) *Schema {
 			t.Helper()
 			schema := `
@@ -678,7 +668,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				},
 			},
 		},
-		expectedResponse: ``,
+		expectedResponse: `{"errors":[{"message":"Cannot return null for non-nullable field Query.hero.","path":["hero"]}],"data":null}`,
 	}))
 
 	t.Run("execute operation and apply input coercion for lists without variables", runWithoutError(ExecutionEngineV2TestCase{
@@ -1181,7 +1171,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			},
 			expectedResponse: ``,
 		},
-		"fragment spread: fragment reviewFields must be spread on type Review and not type Droid",
+		"fragment spread: fragment reviewFields must be spread on type Review and not type Droid, locations: [], path: [query,droid]",
 	))
 
 	t.Run("execute the correct operation when sending multiple queries", runWithoutError(

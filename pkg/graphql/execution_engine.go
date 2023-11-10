@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"sync"
 
@@ -163,7 +162,7 @@ func (r *ExecutionResult) GetAsHTTPResponse() (res *http.Response) {
 	}
 
 	res = &http.Response{}
-	res.Body = ioutil.NopCloser(r.buf)
+	res.Body = io.NopCloser(r.buf)
 	res.Header = make(http.Header)
 	res.StatusCode = 200
 

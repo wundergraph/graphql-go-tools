@@ -44,7 +44,7 @@ func (s *schemaBuilder) buildFederationSchema(baseSchema, serviceSDL string) (st
 }
 
 func (s *schemaBuilder) extendQueryTypeWithFederationFields(schema string, hasEntities bool) string {
-	doc := ast.NewDocument()
+	doc := ast.NewSmallDocument()
 	doc.Input.ResetInputString(schema)
 	parser := astparser.NewParser()
 	report := &operationreport.Report{}
@@ -120,7 +120,7 @@ func (s *schemaBuilder) extendQueryType(doc *ast.Document, ref int, hasEntities 
 // _service: _Service!
 
 func (s *schemaBuilder) entityUnionTypes(serviceSDL string) []string {
-	doc := ast.NewDocument()
+	doc := ast.NewSmallDocument()
 	doc.Input.ResetInputString(serviceSDL)
 	parser := astparser.NewParser()
 	report := &operationreport.Report{}
