@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -174,7 +175,6 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 				ID: "https://swapi.dev/api",
 				Factory: &FakeFactory{
 					upstreamSchema: &def,
-					signalClosed:   make(chan struct{}),
 				},
 				Custom: []byte(fmt.Sprintf(`{"UpstreamSchema":"%s"}`, schemaUsageInfoTestSchema)),
 			},
@@ -408,4 +408,73 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 	}
 	assert.Equal(t, expected, syncUsage)
 	assert.Equal(t, expected, subscriptionUsage)
+}
+
+type StatefulSource struct {
+}
+
+func (s *StatefulSource) Start(ctx context.Context) {
+
+}
+
+type FakeFactory struct {
+	upstreamSchema *ast.Document
+}
+
+func (f *FakeFactory) Planner(ctx context.Context) DataSourcePlanner {
+	source := &StatefulSource{}
+	go source.Start(ctx)
+	return &FakePlanner{
+		source:         source,
+		upstreamSchema: f.upstreamSchema,
+	}
+}
+
+type FakePlanner struct {
+	source         *StatefulSource
+	upstreamSchema *ast.Document
+}
+
+func (f *FakePlanner) UpstreamSchema(dataSourceConfig DataSourceConfiguration) *ast.Document {
+	return f.upstreamSchema
+}
+
+func (f *FakePlanner) EnterDocument(operation, definition *ast.Document) {
+
+}
+
+func (f *FakePlanner) Register(visitor *Visitor, _ DataSourceConfiguration, _ DataSourcePlannerConfiguration) error {
+	visitor.Walker.RegisterEnterDocumentVisitor(f)
+	return nil
+}
+
+func (f *FakePlanner) ConfigureFetch() resolve.FetchConfiguration {
+	return resolve.FetchConfiguration{
+		DataSource: &FakeDataSource{
+			source: f.source,
+		},
+	}
+}
+
+func (f *FakePlanner) ConfigureSubscription() SubscriptionConfiguration {
+	return SubscriptionConfiguration{}
+}
+
+func (f *FakePlanner) DataSourcePlanningBehavior() DataSourcePlanningBehavior {
+	return DataSourcePlanningBehavior{
+		MergeAliasedRootNodes:      false,
+		OverrideFieldPathFromAlias: false,
+	}
+}
+
+func (f *FakePlanner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
+	return
+}
+
+type FakeDataSource struct {
+	source *StatefulSource
+}
+
+func (f *FakeDataSource) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
+	return
 }
