@@ -161,6 +161,10 @@ func (j *JSON) ObjectFieldKey(objectFieldRef int) []byte {
 	return j.storage[j.Nodes[objectFieldRef].keyStart:j.Nodes[objectFieldRef].keyEnd]
 }
 
+func (j *JSON) ObjectFieldValue(objectFieldRef int) int {
+	return j.Nodes[objectFieldRef].ObjectFieldValue
+}
+
 type Node struct {
 	Kind             NodeKind
 	ObjectFieldValue int
