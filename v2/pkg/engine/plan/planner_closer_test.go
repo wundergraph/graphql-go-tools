@@ -17,7 +17,6 @@ import (
 )
 
 func TestCloser(t *testing.T) {
-
 	definition := `schema {query:Query} type Query { me: String! }`
 	operation := `{me}`
 
@@ -78,7 +77,8 @@ func (s *StatefulSource) Start(ctx context.Context) {
 }
 
 type FakeFactory struct {
-	signalClosed chan struct{}
+	signalClosed   chan struct{}
+	upstreamSchema *ast.Document
 }
 
 func (f *FakeFactory) Planner(ctx context.Context) DataSourcePlanner {
@@ -87,16 +87,18 @@ func (f *FakeFactory) Planner(ctx context.Context) DataSourcePlanner {
 	}
 	go source.Start(ctx)
 	return &FakePlanner{
-		source: source,
+		source:         source,
+		upstreamSchema: f.upstreamSchema,
 	}
 }
 
 type FakePlanner struct {
-	source *StatefulSource
+	source         *StatefulSource
+	upstreamSchema *ast.Document
 }
 
 func (f *FakePlanner) UpstreamSchema(dataSourceConfig DataSourceConfiguration) *ast.Document {
-	return nil
+	return f.upstreamSchema
 }
 
 func (f *FakePlanner) EnterDocument(operation, definition *ast.Document) {
