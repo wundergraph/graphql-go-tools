@@ -316,9 +316,6 @@ func (e *LocalTypeFieldExtractor) createChildNodes() {
 		typeName := e.childrenToProcess[len(e.childrenToProcess)-1]
 		e.childrenToProcess = e.childrenToProcess[:len(e.childrenToProcess)-1]
 		nodeInfo, ok := e.nodeInfoMap[typeName]
-		if typeName == "Store" {
-			println("here")
-		}
 
 		if !ok {
 			continue
