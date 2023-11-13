@@ -87,7 +87,7 @@ func (r *fieldSelectionRewriter) entityNamesWithFragments(inlineFragments []inli
 
 func (r *fieldSelectionRewriter) allEntitiesImplementsInterfaces(inlineFragmentsOnInterfaces []inlineFragmentSelectionOnInterface, entityNames []string) bool {
 	for _, inlineFragmentsOnInterface := range inlineFragmentsOnInterfaces {
-		entitiesImplementingInterface := r.entitiesImplementingInterface(inlineFragmentsOnInterface.typeNamesImplementingInterface, entityNames)
+		entitiesImplementingInterface := r.entitiesImplementingInterface(inlineFragmentsOnInterface.typeNamesImplementingInterfaceInCurrentDS, entityNames)
 		if len(entitiesImplementingInterface) == 0 {
 			continue
 		}
@@ -102,7 +102,7 @@ func (r *fieldSelectionRewriter) allEntitiesImplementsInterfaces(inlineFragments
 
 func (r *fieldSelectionRewriter) allEntityFragmentsSatisfyInterfaces(inlineFragmentsOnInterfaces []inlineFragmentSelectionOnInterface, inlineFragmentsOnObjects []inlineFragmentSelection, entityNames []string) bool {
 	for _, inlineFragmentsOnInterface := range inlineFragmentsOnInterfaces {
-		entitiesImplementingInterface := r.entitiesImplementingInterface(inlineFragmentsOnInterface.typeNamesImplementingInterface, entityNames)
+		entitiesImplementingInterface := r.entitiesImplementingInterface(inlineFragmentsOnInterface.typeNamesImplementingInterfaceInCurrentDS, entityNames)
 		if len(entitiesImplementingInterface) == 0 {
 			continue
 		}
@@ -153,16 +153,6 @@ func (r *fieldSelectionRewriter) allFragmentTypesExistsOnDatasource(inlineFragme
 	return true
 }
 
-func (r *fieldSelectionRewriter) allInterfaceFragmentTypesExistsOnDatasource(inlineFragments []inlineFragmentSelectionOnInterface) bool {
-	for _, inlineFragment := range inlineFragments {
-		if !r.hasTypeOnDataSource(inlineFragment.typeName) {
-			return false
-		}
-	}
-
-	return true
-}
-
 func (r *fieldSelectionRewriter) interfaceFragmentsRequiresCleanup(inlineFragments []inlineFragmentSelectionOnInterface, parentSelectionValidTypes []string) bool {
 	for _, fragment := range inlineFragments {
 		if r.interfaceFragmentNeedCleanup(fragment, parentSelectionValidTypes) {
@@ -173,17 +163,11 @@ func (r *fieldSelectionRewriter) interfaceFragmentsRequiresCleanup(inlineFragmen
 	return false
 }
 
-func (r *fieldSelectionRewriter) allObjectFragmentsDoNotRequireCleanup(inlineFragments []inlineFragmentSelection) bool {
-	for _, fragment := range inlineFragments {
-		if r.objectFragmentNeedCleanup(fragment) {
-			return false
-		}
+func (r *fieldSelectionRewriter) objectFragmentNeedCleanup(inlineFragment inlineFragmentSelection) bool {
+	if !r.hasTypeOnDataSource(inlineFragment.typeName) {
+		return true
 	}
 
-	return true
-}
-
-func (r *fieldSelectionRewriter) objectFragmentNeedCleanup(inlineFragment inlineFragmentSelection) bool {
 	for _, fragmentOnInterface := range inlineFragment.selectionSetInfo.inlineFragmentsOnInterfaces {
 		if r.interfaceFragmentNeedCleanup(fragmentOnInterface, []string{inlineFragment.typeName}) {
 			return true

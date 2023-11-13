@@ -32,16 +32,16 @@ type inlineFragmentSelection struct {
 
 type inlineFragmentSelectionOnInterface struct {
 	inlineFragmentSelection
-	typeNamesImplementingInterface   []string
-	entityNamesImplementingInterface []string
+	typeNamesImplementingInterfaceInCurrentDS []string
+	entityNamesImplementingInterface          []string
 }
 
 func (s *inlineFragmentSelectionOnInterface) hasTypeImplementingInterface(typeName string) bool {
-	if len(s.typeNamesImplementingInterface) == 0 {
+	if len(s.typeNamesImplementingInterfaceInCurrentDS) == 0 {
 		return false
 	}
 
-	return slices.Contains(s.typeNamesImplementingInterface, typeName)
+	return slices.Contains(s.typeNamesImplementingInterfaceInCurrentDS, typeName)
 }
 
 func (s *inlineFragmentSelection) isFragmentOnInterface() bool {
@@ -93,6 +93,8 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 
 	hasDirectives := r.operation.InlineFragmentHasDirectives(inlineFragmentRef)
 
+	// Note: We are getting inline fragment type from the FEDERATED graph definition,
+	// because it could be absent in the current SUBGRAPH document
 	node, hasNode := r.definition.NodeByNameStr(typeCondition)
 	if !hasNode {
 		return InlineFragmentTypeIsNotExistsErr
@@ -117,13 +119,14 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 		return nil
 	}
 
-	typeNamesImplementingInterface, _ := r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
+	// Note: We are getting type names implementing interface from the current SUBGRAPH definion
+	typeNamesImplementingInterface, _ := r.upstreamDefinition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
 	entityNames, _ := r.datasourceHasEntitiesWithName(typeNamesImplementingInterface)
 
 	inlineFragmentSelectionOnInterface := inlineFragmentSelectionOnInterface{
-		inlineFragmentSelection:          inlineFragmentSelection,
-		typeNamesImplementingInterface:   typeNamesImplementingInterface,
-		entityNamesImplementingInterface: entityNames,
+		inlineFragmentSelection:                   inlineFragmentSelection,
+		typeNamesImplementingInterfaceInCurrentDS: typeNamesImplementingInterface,
+		entityNamesImplementingInterface:          entityNames,
 	}
 
 	*inlineFragmentsOnInterfaces = append(*inlineFragmentsOnInterfaces, inlineFragmentSelectionOnInterface)

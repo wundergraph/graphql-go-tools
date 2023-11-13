@@ -149,10 +149,6 @@ func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInf
 		return false
 	}
 
-	if !r.allInterfaceFragmentTypesExistsOnDatasource(selectionSetInfo.inlineFragmentsOnInterfaces) {
-		return true
-	}
-
 	if r.interfaceFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnInterfaces, unionTypeNames) {
 		return true
 	}
@@ -297,24 +293,24 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 		return false, errors.New("unexpected error: node kind is not interface type definition in the upstream schema")
 	}
 
-	typeNames, ok := r.upstreamDefinition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
+	interfaceTypeNames, ok := r.upstreamDefinition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
 	if !ok {
 		return false, nil
 	}
 
-	entityNames, _ := r.datasourceHasEntitiesWithName(typeNames)
+	entityNames, _ := r.datasourceHasEntitiesWithName(interfaceTypeNames)
 
 	selectionSetInfo, err := r.collectFieldInformation(fieldRef)
 	if err != nil {
 		return false, err
 	}
 
-	entitiesWithoutFragment, needRewrite := r.interfaceFieldSelectionNeedsRewrite(selectionSetInfo, entityNames, typeNames)
+	needRewrite := r.interfaceFieldSelectionNeedsRewrite(selectionSetInfo, interfaceTypeNames, entityNames)
 	if !needRewrite {
 		return false, nil
 	}
 
-	err = r.rewriteInterfaceSelection(fieldRef, selectionSetInfo, entitiesWithoutFragment, typeNames)
+	err = r.rewriteInterfaceSelection(fieldRef, selectionSetInfo, interfaceTypeNames, entityNames)
 	if err != nil {
 		return false, err
 	}
@@ -322,56 +318,69 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 	return true, nil
 }
 
-func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, entityNames []string, interfaceTypeNames []string) (entitiesWithoutFragment []string, needRewrite bool) {
-	entitiesWithoutFragment = r.entityNamesWithoutFragments(selectionSetInfo.inlineFragmentsOnObjects, entityNames)
-
-	// TODO: we are not checking inline fragments on interfaces - this is the case when we have on interface fragment within interface field selection
-
-	/*
-
-		case we do not have fragment on objects,
-		but we do have fragment on interface and inside we have fragments on objects
-
-		what we need to check?
-	*/
-
-	// case 1. we do not have fragments
-	if len(selectionSetInfo.inlineFragmentsOnObjects) == 0 {
+func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, interfaceTypeNames []string, entityNames []string) (needRewrite bool) {
+	// when we do not have fragments
+	if !selectionSetInfo.hasInlineFragmentsOnInterfaces && !selectionSetInfo.hasInlineFragmentsOnObjects {
 		// check that all types implementing the interface have a root node with the requested fields
-		return entitiesWithoutFragment, !r.allEntitiesHaveFieldsAsRootNode(entityNames, selectionSetInfo.fields)
+		return !r.allEntitiesHaveFieldsAsRootNode(entityNames, selectionSetInfo.fields)
 	}
 
-	// check that all inline fragments types are implementing the interface in the current datasource
-	if !r.allFragmentTypesImplementsInterfaceTypes(selectionSetInfo.inlineFragmentsOnObjects, interfaceTypeNames) {
-		return entitiesWithoutFragment, true
-	}
+	if selectionSetInfo.hasInlineFragmentsOnObjects {
+		// check that all inline fragments types are present in the current datasource
+		if !r.allFragmentTypesExistsOnDatasource(selectionSetInfo.inlineFragmentsOnObjects) {
+			return true
+		}
 
-	// check that all inline fragments types are present in the current datasource
-	if !r.allFragmentTypesExistsOnDatasource(selectionSetInfo.inlineFragmentsOnObjects) {
-		return entitiesWithoutFragment, true
-	}
-
-	// case 2. we do not have shared fields, but only fragments
-	if len(selectionSetInfo.fields) == 0 {
-		// if we do not have shared fields but do have fragments - we do not need to rewrite
-		return entitiesWithoutFragment, false
-	}
-
-	// case 3. we have both shared fields and inline fragments
-	// 3.1 check first case for types for which we do not have inline fragments
-
-	if !r.allEntitiesHaveFieldsAsRootNode(entitiesWithoutFragment, selectionSetInfo.fields) {
-		return entitiesWithoutFragment, true
-	}
-
-	// 3.2 check that fragment types have all requested fields or all not selected fields are local for the datasource
-	for _, inlineFragmentSelection := range selectionSetInfo.inlineFragmentsOnObjects {
-		if !r.inlineFragmentHasAllFieldsLocalToDatasource(inlineFragmentSelection, selectionSetInfo.fields) {
-			return entitiesWithoutFragment, true
+		// check that all inline fragments types are implementing the interface in the current datasource
+		if !r.allFragmentTypesImplementsInterfaceTypes(selectionSetInfo.inlineFragmentsOnObjects, interfaceTypeNames) {
+			return true
 		}
 	}
 
-	return entitiesWithoutFragment, false
+	entitiesWithoutFragment := r.entityNamesWithoutFragments(selectionSetInfo.inlineFragmentsOnObjects, entityNames)
+
+	// check that all entities without fragments have a root node with the requested fields
+	if selectionSetInfo.hasFields {
+		if !r.allEntitiesHaveFieldsAsRootNode(entitiesWithoutFragment, selectionSetInfo.fields) {
+			return true
+		}
+	}
+
+	if selectionSetInfo.hasFields && selectionSetInfo.hasInlineFragmentsOnObjects {
+		// check that fragment types have all requested fields or all not selected fields are local for the datasource
+		for _, inlineFragmentSelection := range selectionSetInfo.inlineFragmentsOnObjects {
+			if !r.inlineFragmentHasAllFieldsLocalToDatasource(inlineFragmentSelection, selectionSetInfo.fields) {
+				return true
+			}
+		}
+	}
+
+	if selectionSetInfo.hasInlineFragmentsOnInterfaces {
+		if r.interfaceFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnInterfaces, interfaceTypeNames) {
+			return true
+		}
+	}
+
+	if selectionSetInfo.hasInlineFragmentsOnInterfaces && selectionSetInfo.hasInlineFragmentsOnObjects {
+		if len(entitiesWithoutFragment) > 0 {
+			if !r.allEntitiesImplementsInterfaces(selectionSetInfo.inlineFragmentsOnInterfaces, entitiesWithoutFragment) {
+				return true
+			}
+		}
+
+		// for each existing fragment we need to check:
+		// - is it entity
+		// - is it implements each interface
+		// - does it have all requested fields from this interface
+		entityNamesWithFragments := r.entityNamesWithFragments(selectionSetInfo.inlineFragmentsOnObjects, entityNames)
+		if len(entityNamesWithFragments) > 0 {
+			if !r.allEntityFragmentsSatisfyInterfaces(selectionSetInfo.inlineFragmentsOnInterfaces, selectionSetInfo.inlineFragmentsOnObjects, entityNamesWithFragments) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldInfo selectionSetInfo, entitiesWithoutFragment []string, interfaceTypeNames []string) error {
