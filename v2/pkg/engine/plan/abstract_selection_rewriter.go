@@ -79,7 +79,7 @@ func (r *fieldSelectionRewriter) SetDatasourceConfiguration(dsConfiguration *Dat
 	r.dsConfiguration = dsConfiguration
 }
 
-func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNode ast.Node, dsConfiguration *DataSourceConfiguration) (rewritten bool, err error) {
+func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNode ast.Node) (rewritten bool, err error) {
 	fieldTypeNode, ok := r.definition.FieldTypeNode(r.operation.FieldNameBytes(fieldRef), enclosingNode)
 	if !ok {
 		return false, nil
@@ -87,15 +87,15 @@ func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNo
 
 	switch fieldTypeNode.Kind {
 	case ast.NodeKindInterfaceTypeDefinition:
-		return r.processInterfaceSelection(fieldRef, fieldTypeNode.Ref, dsConfiguration)
+		return r.processInterfaceSelection(fieldRef, fieldTypeNode.Ref)
 	case ast.NodeKindUnionTypeDefinition:
-		return r.processUnionSelection(fieldRef, fieldTypeNode.Ref, dsConfiguration)
+		return r.processUnionSelection(fieldRef, fieldTypeNode.Ref)
 	default:
 		return false, nil
 	}
 }
 
-func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef int, dsConfiguration *DataSourceConfiguration) (rewritten bool, err error) {
+func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef int) (rewritten bool, err error) {
 	/*
 		1) extract inline fragments selections with interface types
 		2) extract inline fragments selections with members of the union
@@ -125,12 +125,12 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 		return false, err
 	}
 
-	needRewrite := r.unionFieldSelectionNeedsRewrite(selectionSetInfo, dsConfiguration, entityNames)
+	needRewrite := r.unionFieldSelectionNeedsRewrite(selectionSetInfo, entityNames)
 	if !needRewrite {
 		return false, nil
 	}
 
-	err = r.rewriteUnionSelection(fieldRef, selectionSetInfo, dsConfiguration, unionTypeNames, entityNames)
+	err = r.rewriteUnionSelection(fieldRef, selectionSetInfo, unionTypeNames, entityNames)
 	if err != nil {
 		return false, err
 	}
@@ -138,7 +138,7 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 	return needRewrite, nil
 }
 
-func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, dsConfiguration *DataSourceConfiguration, entityNames []string) (needRewrite bool) {
+func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, entityNames []string) (needRewrite bool) {
 
 	/*
 
@@ -149,7 +149,7 @@ func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInf
 	*/
 
 	// when we have types not exists in the current datasource - we need to rewrite
-	if !r.allFragmentTypesExistsOnDatasource(selectionSetInfo.inlineFragmentsOnObjects, dsConfiguration) {
+	if !r.allFragmentTypesExistsOnDatasource(selectionSetInfo.inlineFragmentsOnObjects) {
 		return true
 	}
 
@@ -163,7 +163,7 @@ func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInf
 	// e.g. { ... on Interface { a } }
 
 	if len(selectionSetInfo.inlineFragmentsOnObjects) == 0 {
-		return !r.allEntitiesImplementsInterfaces(selectionSetInfo.inlineFragmentsOnInterfaces, dsConfiguration, entityNames)
+		return !r.allEntitiesImplementsInterfaces(selectionSetInfo.inlineFragmentsOnInterfaces, entityNames)
 	}
 
 	// when we have fragments on both interfaces and objects
@@ -171,7 +171,7 @@ func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInf
 
 	entitiesWithoutFragment := r.entityNamesWithoutFragments(selectionSetInfo.inlineFragmentsOnObjects, entityNames)
 	if len(entitiesWithoutFragment) > 0 {
-		if !r.allEntitiesImplementsInterfaces(selectionSetInfo.inlineFragmentsOnInterfaces, dsConfiguration, entitiesWithoutFragment) {
+		if !r.allEntitiesImplementsInterfaces(selectionSetInfo.inlineFragmentsOnInterfaces, entitiesWithoutFragment) {
 			return true
 		}
 	}
@@ -182,7 +182,7 @@ func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInf
 	// - does it have all requested fields from this interface
 	entityNamesWithFragments := r.entityNamesWithFragments(selectionSetInfo.inlineFragmentsOnObjects, entityNames)
 	if len(entityNamesWithFragments) > 0 {
-		if !r.allEntityFragmentsSatisfyInterfaces(selectionSetInfo.inlineFragmentsOnInterfaces, selectionSetInfo.inlineFragmentsOnObjects, dsConfiguration, entityNamesWithFragments) {
+		if !r.allEntityFragmentsSatisfyInterfaces(selectionSetInfo.inlineFragmentsOnInterfaces, selectionSetInfo.inlineFragmentsOnObjects, entityNamesWithFragments) {
 			return true
 		}
 	}
@@ -190,7 +190,7 @@ func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInf
 	return false
 }
 
-func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo selectionSetInfo, dsConfiguration *DataSourceConfiguration, unionTypeNames, entityNames []string) error {
+func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo selectionSetInfo, unionTypeNames, entityNames []string) error {
 	newSelectionRefs := make([]int, 0, len(unionTypeNames)+1) // 1 for __typename
 	if fieldInfo.hasTypeNameSelection {
 		// we should preserve __typename if it was in the original query as it is explicitly requested
@@ -200,8 +200,7 @@ func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo s
 
 	unionTypeNamesToProcess := make([]string, 0, len(unionTypeNames))
 	for _, typeName := range unionTypeNames {
-		hasTypeOnDatasource := dsConfiguration.HasRootNodeWithTypename(typeName) ||
-			dsConfiguration.HasChildNodeWithTypename(typeName)
+		hasTypeOnDatasource := r.hasTypeOnDataSource(typeName)
 
 		if !hasTypeOnDatasource {
 			// remove/skip fragments with type not exists in the current datasource
@@ -221,14 +220,14 @@ func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo s
 		// if yes - add fields from the interface
 		// if no - just copy fragment
 
-		fieldsToAdd := make([]fieldSelection, 0, len(existingObjectFragment.fields))
+		fieldsToAdd := make([]fieldSelection, 0, len(existingObjectFragment.selectionSetInfo.fields))
 
 		for _, fragmentSelectionOnInterface := range fieldInfo.inlineFragmentsOnInterfaces {
 			if !fragmentSelectionOnInterface.hasTypeImplementingInterface(existingObjectFragment.typeName) {
 				continue
 			}
 
-			fieldsToAdd = append(fieldsToAdd, fragmentSelectionOnInterface.fields...)
+			fieldsToAdd = append(fieldsToAdd, fragmentSelectionOnInterface.selectionSetInfo.fields...)
 		}
 
 		fragmentSelectionRef, err := r.copyFragmentSelectionWithFieldsAppend(existingObjectFragment, fieldsToAdd)
@@ -253,7 +252,7 @@ func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo s
 				continue
 			}
 
-			fieldsToAdd = append(fieldsToAdd, fragmentSelectionOnInterface.fields...)
+			fieldsToAdd = append(fieldsToAdd, fragmentSelectionOnInterface.selectionSetInfo.fields...)
 		}
 
 		if len(fieldsToAdd) == 0 {
@@ -282,7 +281,7 @@ func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo s
 	return nil
 }
 
-func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfaceDefRef int, dsConfiguration *DataSourceConfiguration) (rewritten bool, err error) {
+func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfaceDefRef int) (rewritten bool, err error) {
 	/*
 		1) extract selections which is not inline-fragments - e.g. shared selections
 		2) extract selections for each inline fragment
@@ -311,12 +310,12 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 		return false, err
 	}
 
-	entitiesWithoutFragment, needRewrite := r.interfaceFieldSelectionNeedsRewrite(selectionSetInfo, dsConfiguration, entityNames, typeNames)
+	entitiesWithoutFragment, needRewrite := r.interfaceFieldSelectionNeedsRewrite(selectionSetInfo, entityNames, typeNames)
 	if !needRewrite {
 		return false, nil
 	}
 
-	err = r.rewriteInterfaceSelection(fieldRef, selectionSetInfo, dsConfiguration, entitiesWithoutFragment, typeNames)
+	err = r.rewriteInterfaceSelection(fieldRef, selectionSetInfo, entitiesWithoutFragment, typeNames)
 	if err != nil {
 		return false, err
 	}
@@ -377,6 +376,7 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 }
 
 func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldInfo selectionSetInfo, entitiesWithoutFragment []string, interfaceTypeNames []string) error {
+	newSelectionRefs := make([]int, 0, len(entitiesWithoutFragment)+len(fieldInfo.inlineFragmentsOnObjects)+1) // 1 for __typename
 
 	fieldSelectionSetRef, _ := r.operation.FieldSelectionSet(fieldRef)
 	r.operation.EmptySelectionSet(fieldSelectionSetRef)

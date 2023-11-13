@@ -85,14 +85,14 @@ func (r *fieldSelectionRewriter) entityNamesWithFragments(inlineFragments []inli
 	return nil
 }
 
-func (r *fieldSelectionRewriter) allEntitiesImplementsInterfaces(inlineFragmentsOnInterfaces []inlineFragmentSelection, dsConfiguration *DataSourceConfiguration, entityNames []string) bool {
+func (r *fieldSelectionRewriter) allEntitiesImplementsInterfaces(inlineFragmentsOnInterfaces []inlineFragmentSelectionOnInterface, entityNames []string) bool {
 	for _, inlineFragmentsOnInterface := range inlineFragmentsOnInterfaces {
 		entitiesImplementingInterface := r.entitiesImplementingInterface(inlineFragmentsOnInterface.typeNamesImplementingInterface, entityNames)
 		if len(entitiesImplementingInterface) == 0 {
 			continue
 		}
 
-		if !r.allEntitiesHaveFieldsAsRootNode(entitiesImplementingInterface, inlineFragmentsOnInterface.fields) {
+		if !r.allEntitiesHaveFieldsAsRootNode(entitiesImplementingInterface, inlineFragmentsOnInterface.selectionSetInfo.fields) {
 			return false
 		}
 	}
@@ -100,7 +100,7 @@ func (r *fieldSelectionRewriter) allEntitiesImplementsInterfaces(inlineFragments
 	return true
 }
 
-func (r *fieldSelectionRewriter) allEntityFragmentsSatisfyInterfaces(inlineFragmentsOnInterfaces, inlineFragmentsOnObjects []inlineFragmentSelection, dsConfiguration *DataSourceConfiguration, entityNames []string) bool {
+func (r *fieldSelectionRewriter) allEntityFragmentsSatisfyInterfaces(inlineFragmentsOnInterfaces []inlineFragmentSelectionOnInterface, inlineFragmentsOnObjects []inlineFragmentSelection, entityNames []string) bool {
 	for _, inlineFragmentsOnInterface := range inlineFragmentsOnInterfaces {
 		entitiesImplementingInterface := r.entitiesImplementingInterface(inlineFragmentsOnInterface.typeNamesImplementingInterface, entityNames)
 		if len(entitiesImplementingInterface) == 0 {
@@ -111,8 +111,8 @@ func (r *fieldSelectionRewriter) allEntityFragmentsSatisfyInterfaces(inlineFragm
 
 		if len(entityFragments) > 0 {
 			for _, entityFragment := range entityFragments {
-				satisfies := r.inlineFragmentHasAllFieldsLocalToDatasource(entityFragment, inlineFragmentsOnInterface.fields) ||
-					r.entityHasFieldsAsRootNode(entityFragment.typeName, inlineFragmentsOnInterface.fields)
+				satisfies := r.inlineFragmentHasAllFieldsLocalToDatasource(entityFragment, inlineFragmentsOnInterface.selectionSetInfo.fields) ||
+					r.entityHasFieldsAsRootNode(entityFragment.typeName, inlineFragmentsOnInterface.selectionSetInfo.fields)
 				if !satisfies {
 					return false
 				}
@@ -123,7 +123,7 @@ func (r *fieldSelectionRewriter) allEntityFragmentsSatisfyInterfaces(inlineFragm
 	return true
 }
 
-func (r *fieldSelectionRewriter) =entityHasFieldsAsRootNode(entityName string, fields []fieldSelection) bool {
+func (r *fieldSelectionRewriter) entityHasFieldsAsRootNode(entityName string, fields []fieldSelection) bool {
 	for _, fieldSelection := range fields {
 		if !r.dsConfiguration.HasRootNode(entityName, fieldSelection.fieldName) {
 			return false
@@ -188,7 +188,7 @@ func (r *fieldSelectionRewriter) notSelectedFieldsForInlineFragment(inlineFragme
 	notSelectedFields := make([]fieldSelection, 0, len(fields))
 	for _, fieldSelection := range fields {
 		fieldIsSelected := false
-		for _, fragmentField := range inlineFragmentSelection.fields {
+		for _, fragmentField := range inlineFragmentSelection.selectionSetInfo.fields {
 			if fieldSelection.fieldName == fragmentField.fieldName {
 				fieldIsSelected = true
 				break
