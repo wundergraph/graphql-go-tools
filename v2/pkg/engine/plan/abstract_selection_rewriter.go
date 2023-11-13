@@ -125,7 +125,7 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 		return false, err
 	}
 
-	needRewrite := r.unionFieldSelectionNeedsRewrite(selectionSetInfo, entityNames)
+	needRewrite := r.unionFieldSelectionNeedsRewrite(selectionSetInfo, unionTypeNames, entityNames)
 	if !needRewrite {
 		return false, nil
 	}
@@ -138,31 +138,30 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 	return needRewrite, nil
 }
 
-func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, entityNames []string) (needRewrite bool) {
-
-	/*
-
-		case we do not have fragment on objects,
-		but we do have fragment on interface and inside we have fragments on objects
-
-		what we need to check?
-	*/
-
+func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, unionTypeNames, entityNames []string) (needRewrite bool) {
 	// when we have types not exists in the current datasource - we need to rewrite
 	if !r.allFragmentTypesExistsOnDatasource(selectionSetInfo.inlineFragmentsOnObjects) {
 		return true
 	}
 
 	// when we do not have fragments on interfaces, but only on objects - we do not need to rewrite
-	if len(selectionSetInfo.inlineFragmentsOnInterfaces) == 0 {
+	if !selectionSetInfo.hasInlineFragmentsOnInterfaces {
 		return false
+	}
+
+	if !r.allInterfaceFragmentTypesExistsOnDatasource(selectionSetInfo.inlineFragmentsOnInterfaces) {
+		return true
+	}
+
+	if r.interfaceFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnInterfaces, unionTypeNames) {
+		return true
 	}
 
 	// when we do not have fragments on objects, but only on interfaces
 	// we need to check that all entities implementing each interface have a root node with the requested fields
 	// e.g. { ... on Interface { a } }
 
-	if len(selectionSetInfo.inlineFragmentsOnObjects) == 0 {
+	if !selectionSetInfo.hasInlineFragmentsOnObjects {
 		return !r.allEntitiesImplementsInterfaces(selectionSetInfo.inlineFragmentsOnInterfaces, entityNames)
 	}
 

@@ -153,6 +153,84 @@ func (r *fieldSelectionRewriter) allFragmentTypesExistsOnDatasource(inlineFragme
 	return true
 }
 
+func (r *fieldSelectionRewriter) allInterfaceFragmentTypesExistsOnDatasource(inlineFragments []inlineFragmentSelectionOnInterface) bool {
+	for _, inlineFragment := range inlineFragments {
+		if !r.hasTypeOnDataSource(inlineFragment.typeName) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (r *fieldSelectionRewriter) interfaceFragmentsRequiresCleanup(inlineFragments []inlineFragmentSelectionOnInterface, parentSelectionValidTypes []string) bool {
+	for _, fragment := range inlineFragments {
+		if r.interfaceFragmentNeedCleanup(fragment, parentSelectionValidTypes) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (r *fieldSelectionRewriter) allObjectFragmentsDoNotRequireCleanup(inlineFragments []inlineFragmentSelection) bool {
+	for _, fragment := range inlineFragments {
+		if r.objectFragmentNeedCleanup(fragment) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (r *fieldSelectionRewriter) objectFragmentNeedCleanup(inlineFragment inlineFragmentSelection) bool {
+	for _, fragmentOnInterface := range inlineFragment.selectionSetInfo.inlineFragmentsOnInterfaces {
+		if r.interfaceFragmentNeedCleanup(fragmentOnInterface, []string{inlineFragment.typeName}) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (r *fieldSelectionRewriter) interfaceFragmentNeedCleanup(inlineFragment inlineFragmentSelectionOnInterface, parentSelectionValidTypes []string) bool {
+	// check that interface type exists on datasource
+	if !r.hasTypeOnDataSource(inlineFragment.typeName) {
+		return true
+	}
+
+	if !inlineFragment.selectionSetInfo.hasInlineFragmentsOnInterfaces && !inlineFragment.selectionSetInfo.hasInlineFragmentsOnObjects {
+		return false
+	}
+
+	// if interface fragment has inline fragments on objects
+	// check that object type is present within parent selection valid types - e.g. members of union or parent interface
+	// check each fragment for the presence of other interface fragments
+	if inlineFragment.selectionSetInfo.hasInlineFragmentsOnObjects {
+		for _, fragmentOnObject := range inlineFragment.selectionSetInfo.inlineFragmentsOnObjects {
+			if !slices.Contains(parentSelectionValidTypes, fragmentOnObject.typeName) {
+				return true
+			}
+
+			if r.objectFragmentNeedCleanup(fragmentOnObject) {
+				return true
+			}
+		}
+	}
+
+	// if interface fragment has inline fragments on interfaces
+	// recursively check each fragment for the presence of other interface fragments with the same parent selection valid types
+	if inlineFragment.selectionSetInfo.hasInlineFragmentsOnInterfaces {
+		for _, fragmentOnInterface := range inlineFragment.selectionSetInfo.inlineFragmentsOnInterfaces {
+			if r.interfaceFragmentNeedCleanup(fragmentOnInterface, parentSelectionValidTypes) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func (r *fieldSelectionRewriter) allFragmentTypesImplementsInterfaceTypes(inlineFragments []inlineFragmentSelection, interfaceTypes []string) bool {
 	for _, inlineFragment := range inlineFragments {
 		if !slices.Contains(interfaceTypes, inlineFragment.typeName) {
