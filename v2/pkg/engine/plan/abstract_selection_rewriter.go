@@ -7,6 +7,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 )
 
 var (
@@ -193,63 +194,22 @@ func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo s
 		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
 	}
 
-	if fieldInfo.hasInlineFragmentsOnInterfaces {
-		// we need to recursively flatten nested fragments
-		r.flattenFragmentOnInterface(fieldRef, fieldInfo, entityNames, unionTypeNames)
+	for _, inlineFragmentOnInterface := range fieldInfo.inlineFragmentsOnInterfaces {
+		// we need to recursively flatten nested fragments on interfaces
+		r.flattenFragmentOnInterface(
+			inlineFragmentOnInterface.selectionSetInfo,
+			inlineFragmentOnInterface.typeNamesImplementingInterfaceInCurrentDS,
+			unionTypeNames,
+			&newSelectionRefs)
 	}
 
-	existingObjectFragments, missingFragmentTypeNames := r.filterFragmentsByTypeNames(fieldInfo.inlineFragmentsOnObjects, unionTypeNames)
-
-	addedFragments := 0
-
-	// handle existing fragments
-	for _, existingObjectFragment := range existingObjectFragments {
-		// check if it implements interface
-		// if yes - add fields from the interface
-		// if no - just copy fragment
-
-		fieldsToAdd := make([]fieldSelection, 0, len(existingObjectFragment.selectionSetInfo.fields))
-
-		for _, fragmentSelectionOnInterface := range fieldInfo.inlineFragmentsOnInterfaces {
-			if !fragmentSelectionOnInterface.hasTypeImplementingInterface(existingObjectFragment.typeName) {
-				continue
-			}
-
-			fieldsToAdd = append(fieldsToAdd, fragmentSelectionOnInterface.selectionSetInfo.fields...)
-		}
-
-		fragmentSelectionRef, err := r.copyFragmentSelectionWithFieldsAppend(existingObjectFragment, fieldsToAdd)
-		if err != nil {
-			return err
-		}
-
+	// filter existing fragments by type names exists in the current datasource
+	// TODO: do not need to iterate 2 times in filter and here
+	filteredObjectFragments, _ := r.filterFragmentsByTypeNames(fieldInfo.inlineFragmentsOnObjects, unionTypeNames)
+	// copy existing fragments on objects
+	for _, existingObjectFragment := range filteredObjectFragments {
+		fragmentSelectionRef := r.operation.CopySelection(existingObjectFragment.selectionRef)
 		newSelectionRefs = append(newSelectionRefs, fragmentSelectionRef)
-
-		addedFragments++
-	}
-
-	// handle missing fragments
-	for _, missingFragmentTypeName := range missingFragmentTypeNames {
-		// check if it implements each interface
-		// and add field from each interface fragment selection
-
-		fieldsToAdd := make([]fieldSelection, 0, 2)
-
-		for _, fragmentSelectionOnInterface := range fieldInfo.inlineFragmentsOnInterfaces {
-			if !fragmentSelectionOnInterface.hasTypeImplementingInterface(missingFragmentTypeName) {
-				continue
-			}
-
-			fieldsToAdd = append(fieldsToAdd, fragmentSelectionOnInterface.selectionSetInfo.fields...)
-		}
-
-		if len(fieldsToAdd) == 0 {
-			continue
-		}
-
-		fragmentSelectionRef := r.createFragmentSelection(missingFragmentTypeName, fieldsToAdd)
-		newSelectionRefs = append(newSelectionRefs, fragmentSelectionRef)
-		addedFragments++
 	}
 
 	fieldSelectionSetRef, _ := r.operation.FieldSelectionSet(fieldRef)
@@ -259,10 +219,15 @@ func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo s
 		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, newSelectionRef)
 	}
 
-	if addedFragments == 0 && !fieldInfo.hasTypeNameSelection {
-		// we have to add __typename selection as we do not have any other selections
+	if len(newSelectionRefs) == 0 {
+		// we have to add __typename selection - but we should skip it in response
 		typeNameSelectionRef, _ := r.typeNameSelection()
 		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, typeNameSelectionRef)
+	}
+
+	normalizer := astnormalization.NewAbstractFieldNormalizer(r.operation, r.definition, fieldRef)
+	if err := normalizer.Normalize(); err != nil {
+		return err
 	}
 
 	return nil
@@ -304,7 +269,7 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 		return false, nil
 	}
 
-	err = r.rewriteInterfaceSelection(fieldRef, selectionSetInfo, interfaceTypeNames, entityNames)
+	err = r.rewriteInterfaceSelection(fieldRef, selectionSetInfo, interfaceTypeNames)
 	if err != nil {
 		return false, err
 	}
@@ -377,24 +342,7 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 	return false
 }
 
-func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldInfo selectionSetInfo, entitiesWithoutFragment []string, interfaceTypeNames []string) error {
-	newSelectionRefs := make([]int, 0, len(entitiesWithoutFragment)+len(fieldInfo.inlineFragmentsOnObjects)+1) // 1 for __typename
-
-	fieldSelectionSetRef, _ := r.operation.FieldSelectionSet(fieldRef)
-	r.operation.EmptySelectionSet(fieldSelectionSetRef)
-
-	for _, newSelectionRef := range newSelectionRefs {
-		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, newSelectionRef)
-	}
-
-	if addedFragments == 0 && !fieldInfo.hasTypeNameSelection {
-		// we have to add __typename selection - but we should skip it in response
-		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection()
-		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, typeNameSelectionRef)
-	}
-}
-
-func (r *fieldSelectionRewriter) flattenFragmentOnInterface(fieldRef int, fieldInfo selectionSetInfo, interfaceTypeNames []string) error {
+func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldInfo selectionSetInfo, interfaceTypeNames []string) error {
 	newSelectionRefs := make([]int, 0, len(interfaceTypeNames)+1) // 1 for __typename
 
 	if fieldInfo.hasTypeNameSelection {
@@ -403,85 +351,68 @@ func (r *fieldSelectionRewriter) flattenFragmentOnInterface(fieldRef int, fieldI
 		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
 	}
 
-	addedFragments := 0
+	r.flattenFragmentOnInterface(
+		fieldInfo,
+		interfaceTypeNames,
+		interfaceTypeNames,
+		&newSelectionRefs)
 
-	if len(fieldInfo.fields) > 0 {
-		for _, entityName := range entitiesWithoutFragment {
-			newSelectionRefs = append(newSelectionRefs, r.createFragmentSelection(entityName, fieldInfo.fields))
-			addedFragments++
-		}
+	fieldSelectionSetRef, _ := r.operation.FieldSelectionSet(fieldRef)
+	r.operation.EmptySelectionSet(fieldSelectionSetRef)
+
+	for _, newSelectionRef := range newSelectionRefs {
+		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, newSelectionRef)
 	}
 
-	for _, inlineFragmentInfo := range fieldInfo.inlineFragmentsOnObjects {
-		if !r.hasTypeOnDataSource(inlineFragmentInfo.typeName) {
-			// remove fragments with type not exists in the current datasource
-			continue
-		}
+	if len(newSelectionRefs) == 0 {
+		// we have to add __typename selection - but we should skip it in response
+		typeNameSelectionRef, _ := r.typeNameSelection()
+		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, typeNameSelectionRef)
+	}
 
-		if !slices.Contains(interfaceTypeNames, inlineFragmentInfo.typeName) {
-			// remove fragment which not implements interface in the current datasource
-			continue
-		}
-
-		fragmentSelectionRef, err := r.copyFragmentSelectionWithFieldsAppend(inlineFragmentInfo, fieldInfo.fields)
-		if err != nil {
-			return err
-		}
-
-		newSelectionRefs = append(newSelectionRefs, fragmentSelectionRef)
-		addedFragments++
+	normalizer := astnormalization.NewAbstractFieldNormalizer(r.operation, r.definition, fieldRef)
+	if err := normalizer.Normalize(); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-/*
-func (r *fieldSelectionRewriter) flattenFragmentOnInterface(fragmentSelection inlineFragmentSelection) {
-
-
-		recursively traverse fragment
-		for each nested fragment check does it contain other fragment
-
-		when merging level up check that all type fragments are matching current implements interface types - remove not matching types
-
-		fragments with directives what to do with them?
-		we could not merge them
-
-
-		after flattening we could merge this fragments with other fragments
-
-		if there are inline fragments and shared fields:
-		- we probably will merge them immediately
-
-		if there are only shared fields, we could create new inline fragment with shared fields
-
-		and merge them after words in case there is any other existing fragments
-
-		could there be disruption between fragments for example on union and nested within interface fragment?
-		probably yes, types from interface could be not present in the union
-		and we could discard not matching types
-
-
-		in case interface fragment contains nested fragments - we always rewrite
-		- this should be also checked in needRewrite method
-
-
-
-	if fragmentSelection.hasDirectives {
-		// we have to propagate directives to nested fragments
+func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo selectionSetInfo, typeNamesImplementingInterfaceInCurrentDS []string, allowedTypeNames []string, selectionRefs *[]int) {
+	if selectionSetInfo.hasFields {
+		for _, typeName := range allowedTypeNames {
+			*selectionRefs = append(*selectionRefs, r.createFragmentSelection(typeName, selectionSetInfo.fields))
+		}
 	}
 
-	if fragmentSelection.selectionSetInfo.hasInlineFragmentsOnInterfaces {
-		// we need to recursively flatten nested fragments
+	filteredImplementingTypes := make([]string, 0, len(typeNamesImplementingInterfaceInCurrentDS))
+	for _, typeName := range typeNamesImplementingInterfaceInCurrentDS {
+		if slices.Contains(allowedTypeNames, typeName) {
+			filteredImplementingTypes = append(filteredImplementingTypes, typeName)
+		}
 	}
 
-	if fragmentSelection.selectionSetInfo.hasInlineFragmentsOnObjects {
-		// we need to check if it contains fragments on interface types
+	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnObjects {
+		if !slices.Contains(filteredImplementingTypes, inlineFragmentInfo.typeName) {
+			// remove fragment which not allowed
+			continue
+		}
+
+		fragmentSelectionRef := r.operation.CopySelection(inlineFragmentInfo.selectionRef)
+		*selectionRefs = append(*selectionRefs, fragmentSelectionRef)
 	}
 
-	if fragmentSelection.selectionSetInfo.hasFields {
+	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnInterfaces {
+		if !r.hasTypeOnDataSource(inlineFragmentInfo.typeName) {
+			// remove fragments with type not exists in the current datasource
+			continue
+		}
 
+		r.flattenFragmentOnInterface(
+			inlineFragmentInfo.selectionSetInfo,
+			inlineFragmentInfo.typeNamesImplementingInterfaceInCurrentDS,
+			filteredImplementingTypes,
+			selectionRefs,
+		)
 	}
-
 }
-*/

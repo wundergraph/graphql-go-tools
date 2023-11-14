@@ -315,42 +315,6 @@ func (r *fieldSelectionRewriter) createFragmentSelection(typeName string, fields
 	})
 }
 
-func (r *fieldSelectionRewriter) copyFragmentSelectionWithFieldsAppend(inlineFragmentInfo inlineFragmentSelection, fields []fieldSelection) (selectionRef int, err error) {
-	notSelectedFields := r.notSelectedFieldsForInlineFragment(inlineFragmentInfo, fields)
-
-	inlineFragmentSelectionCopyRef := r.operation.CopySelection(inlineFragmentInfo.selectionRef)
-	inlineFragmentRef := r.operation.Selections[inlineFragmentSelectionCopyRef].Ref
-
-	inlineFragmentSelectionSetRef, ok := r.operation.InlineFragmentSelectionSet(inlineFragmentRef)
-	if !ok {
-		return ast.InvalidRef, InlineFragmentDoesntHaveSelectionSetErr
-	}
-
-	for _, notSelectedField := range notSelectedFields {
-		r.operation.AddSelectionRefToSelectionSet(inlineFragmentSelectionSetRef, r.operation.CopySelection(notSelectedField.fieldSelectionRef))
-	}
-
-	return inlineFragmentSelectionCopyRef, nil
-}
-
-func (r *fieldSelectionRewriter) copyFragmentSelectionWithFragmentAppend(inlineFragmentInfo inlineFragmentSelection, append inlineFragmentSelection) (selectionRef int, err error) {
-	notSelectedFields := r.notSelectedFieldsForInlineFragment(inlineFragmentInfo, append.selectionSetInfo.fields)
-
-	inlineFragmentSelectionCopyRef := r.operation.CopySelection(inlineFragmentInfo.selectionRef)
-	inlineFragmentRef := r.operation.Selections[inlineFragmentSelectionCopyRef].Ref
-
-	inlineFragmentSelectionSetRef, ok := r.operation.InlineFragmentSelectionSet(inlineFragmentRef)
-	if !ok {
-		return ast.InvalidRef, InlineFragmentDoesntHaveSelectionSetErr
-	}
-
-	for _, notSelectedField := range notSelectedFields {
-		r.operation.AddSelectionRefToSelectionSet(inlineFragmentSelectionSetRef, r.operation.CopySelection(notSelectedField.fieldSelectionRef))
-	}
-
-	return inlineFragmentSelectionCopyRef, nil
-}
-
 func (r *fieldSelectionRewriter) typeNameSelection() (selectionRef int, fieldRef int) {
 	field := r.operation.AddField(ast.Field{
 		Name: r.operation.Input.AppendInputString("__typename"),
