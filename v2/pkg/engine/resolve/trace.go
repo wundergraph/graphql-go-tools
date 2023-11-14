@@ -11,22 +11,22 @@ const (
 	TraceFetchTypeBatchEntity      TraceFetchType = "batchEntity"
 )
 
-type FetchNodeType string
+type TraceNodeType string
 
 const (
-	FetchNodeTypeObject      FetchNodeType = "object"
-	FetchNodeTypeEmptyObject FetchNodeType = "emptyObject"
-	FetchNodeTypeArray       FetchNodeType = "array"
-	FetchNodeTypeEmptyArray  FetchNodeType = "emptyArray"
-	FetchNodeTypeNull        FetchNodeType = "null"
-	FetchNodeTypeString      FetchNodeType = "string"
-	FetchNodeTypeBoolean     FetchNodeType = "boolean"
-	FetchNodeTypeInteger     FetchNodeType = "integer"
-	FetchNodeTypeFloat       FetchNodeType = "float"
-	FetchNodeTypeBigInt      FetchNodeType = "bigint"
-	FetchNodeTypeCustom      FetchNodeType = "custom"
-	FetchNodeTypeScalar      FetchNodeType = "scalar"
-	FetchNodeTypeUnknown     FetchNodeType = "unknown"
+	TraceNodeTypeObject      TraceNodeType = "object"
+	TraceNodeTypeEmptyObject TraceNodeType = "emptyObject"
+	TraceNodeTypeArray       TraceNodeType = "array"
+	TraceNodeTypeEmptyArray  TraceNodeType = "emptyArray"
+	TraceNodeTypeNull        TraceNodeType = "null"
+	TraceNodeTypeString      TraceNodeType = "string"
+	TraceNodeTypeBoolean     TraceNodeType = "boolean"
+	TraceNodeTypeInteger     TraceNodeType = "integer"
+	TraceNodeTypeFloat       TraceNodeType = "float"
+	TraceNodeTypeBigInt      TraceNodeType = "bigint"
+	TraceNodeTypeCustom      TraceNodeType = "custom"
+	TraceNodeTypeScalar      TraceNodeType = "scalar"
+	TraceNodeTypeUnknown     TraceNodeType = "unknown"
 )
 
 type TraceFetch struct {
@@ -45,7 +45,7 @@ type TraceField struct {
 
 type TraceNode struct {
 	Fetch                *TraceFetch   `json:"fetch,omitempty"`
-	NodeType             FetchNodeType `json:"node_type,omitempty"`
+	NodeType             TraceNodeType `json:"node_type,omitempty"`
 	Nullable             bool          `json:"nullable,omitempty"`
 	Path                 []string      `json:"path,omitempty"`
 	Fields               []*TraceField `json:"fields,omitempty"`
@@ -54,34 +54,34 @@ type TraceNode struct {
 	IsTypeName           bool          `json:"is_type_name,omitempty"`
 }
 
-func getTypeName(kind NodeKind) FetchNodeType {
+func getNodeType(kind NodeKind) TraceNodeType {
 	switch kind {
 	case NodeKindObject:
-		return FetchNodeTypeObject
+		return TraceNodeTypeObject
 	case NodeKindEmptyObject:
-		return FetchNodeTypeEmptyObject
+		return TraceNodeTypeEmptyObject
 	case NodeKindArray:
-		return FetchNodeTypeArray
+		return TraceNodeTypeArray
 	case NodeKindEmptyArray:
-		return FetchNodeTypeEmptyArray
+		return TraceNodeTypeEmptyArray
 	case NodeKindNull:
-		return FetchNodeTypeNull
+		return TraceNodeTypeNull
 	case NodeKindString:
-		return FetchNodeTypeString
+		return TraceNodeTypeString
 	case NodeKindBoolean:
-		return FetchNodeTypeBoolean
+		return TraceNodeTypeBoolean
 	case NodeKindInteger:
-		return FetchNodeTypeInteger
+		return TraceNodeTypeInteger
 	case NodeKindFloat:
-		return FetchNodeTypeFloat
+		return TraceNodeTypeFloat
 	case NodeKindBigInt:
-		return FetchNodeTypeBigInt
+		return TraceNodeTypeBigInt
 	case NodeKindCustom:
-		return FetchNodeTypeCustom
+		return TraceNodeTypeCustom
 	case NodeKindScalar:
-		return FetchNodeTypeScalar
+		return TraceNodeTypeScalar
 	default:
-		return FetchNodeTypeUnknown
+		return TraceNodeTypeUnknown
 	}
 }
 
@@ -144,7 +144,7 @@ func parseFetch(fetch Fetch) *TraceFetch {
 
 func parseNode(n Node) *TraceNode {
 	node := &TraceNode{
-		NodeType: getTypeName(n.NodeKind()),
+		NodeType: getNodeType(n.NodeKind()),
 		Nullable: n.NodeKind() == NodeKindNull || n.NodePath() == nil,
 		Path:     n.NodePath(),
 	}
