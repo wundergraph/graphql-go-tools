@@ -2,6 +2,7 @@ package plan
 
 import (
 	"errors"
+	"sort"
 
 	"golang.org/x/exp/slices"
 
@@ -34,7 +35,7 @@ and not all of these fragments are valid for the current datasource - e.g. in th
 	}
 
 3. We have inline fragment selections on the field with the Union return type
-and not all types of fragments exists in the current datasource or part of a union in this datasource
+and not all types of fragments exists in the current datasource or not a part of the union in this datasource
 
 	unionField {
 		... on A { // A - is exists in this datasource and part of a union
@@ -59,15 +60,12 @@ type fieldSelectionRewriter struct {
 
 	upstreamDefinition *ast.Document
 	dsConfiguration    *DataSourceConfiguration
-
-	skipTypeNameFieldRef int
 }
 
 func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document) *fieldSelectionRewriter {
 	return &fieldSelectionRewriter{
-		operation:            operation,
-		definition:           definition,
-		skipTypeNameFieldRef: ast.InvalidRef,
+		operation:  operation,
+		definition: definition,
 	}
 }
 
@@ -117,6 +115,8 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 	if !ok {
 		return false, nil
 	}
+
+	sort.Strings(unionTypeNames)
 
 	entityNames, _ := r.datasourceHasEntitiesWithName(unionTypeNames)
 
@@ -193,19 +193,12 @@ func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo s
 		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
 	}
 
-	unionTypeNamesToProcess := make([]string, 0, len(unionTypeNames))
-	for _, typeName := range unionTypeNames {
-		hasTypeOnDatasource := r.hasTypeOnDataSource(typeName)
-
-		if !hasTypeOnDatasource {
-			// remove/skip fragments with type not exists in the current datasource
-			continue
-		}
-
-		unionTypeNamesToProcess = append(unionTypeNamesToProcess, typeName)
+	if fieldInfo.hasInlineFragmentsOnInterfaces {
+		// we need to recursively flatten nested fragments
+		r.flattenFragmentOnInterface(fieldRef, fieldInfo, entityNames, unionTypeNames)
 	}
 
-	existingObjectFragments, missingFragmentTypeNames := r.filterFragmentsByTypeNames(fieldInfo.inlineFragmentsOnObjects, unionTypeNamesToProcess)
+	existingObjectFragments, missingFragmentTypeNames := r.filterFragmentsByTypeNames(fieldInfo.inlineFragmentsOnObjects, unionTypeNames)
 
 	addedFragments := 0
 
@@ -267,10 +260,9 @@ func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo s
 	}
 
 	if addedFragments == 0 && !fieldInfo.hasTypeNameSelection {
-		// we have to add __typename selection - but we should skip it in response
-		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection()
+		// we have to add __typename selection as we do not have any other selections
+		typeNameSelectionRef, _ := r.typeNameSelection()
 		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, typeNameSelectionRef)
-		r.skipTypeNameFieldRef = typeNameFieldRef
 	}
 
 	return nil
@@ -297,6 +289,8 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 	if !ok {
 		return false, nil
 	}
+
+	sort.Strings(interfaceTypeNames)
 
 	entityNames, _ := r.datasourceHasEntitiesWithName(interfaceTypeNames)
 
@@ -397,12 +391,11 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 		// we have to add __typename selection - but we should skip it in response
 		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection()
 		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, typeNameSelectionRef)
-		r.skipTypeNameFieldRef = typeNameFieldRef
 	}
 }
 
-func (r *fieldSelectionRewriter) flattenFragmentOnInterface(fieldRef int, fieldInfo selectionSetInfo, entitiesWithoutFragment []string, interfaceTypeNames []string) error {
-	newSelectionRefs := make([]int, 0, len(entitiesWithoutFragment)+len(fieldInfo.inlineFragmentsOnObjects)+1) // 1 for __typename
+func (r *fieldSelectionRewriter) flattenFragmentOnInterface(fieldRef int, fieldInfo selectionSetInfo, interfaceTypeNames []string) error {
+	newSelectionRefs := make([]int, 0, len(interfaceTypeNames)+1) // 1 for __typename
 
 	if fieldInfo.hasTypeNameSelection {
 		// we should preserve __typename if it was in the original query as it is explicitly requested
