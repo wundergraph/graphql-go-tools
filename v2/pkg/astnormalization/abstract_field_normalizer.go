@@ -51,6 +51,11 @@ func (v *AbstractFieldNormalizer) AllowVisitor(kind astvisitor.VisitorKind, ref 
 		return true
 	}
 
+	switch kind {
+	case astvisitor.EnterDocument, astvisitor.LeaveDocument:
+		return true
+	}
+
 	return v.allow
 }
 
