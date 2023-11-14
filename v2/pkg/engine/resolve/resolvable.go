@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -23,6 +24,7 @@ type Resolvable struct {
 	depth           int
 	operationType   ast.OperationType
 	renameTypeNames []RenameTypeName
+	enableTracing   bool
 }
 
 func NewResolvable() *Resolvable {
@@ -129,6 +131,7 @@ func (r *Resolvable) Resolve(root *Object, out io.Writer) error {
 	if r.hasErrors() {
 		r.printErrors()
 	}
+
 	if err {
 		r.printBytes(quote)
 		r.printBytes(literalData)
@@ -137,8 +140,13 @@ func (r *Resolvable) Resolve(root *Object, out io.Writer) error {
 		r.printBytes(null)
 	} else {
 		r.printData(root)
+		if r.hasExtensions() {
+			r.printBytes(comma)
+			r.printExtensions(root)
+		}
 	}
 	r.printBytes(rBrace)
+
 	return r.printErr
 }
 
@@ -165,6 +173,39 @@ func (r *Resolvable) printData(root *Object) {
 	_ = r.walkObject(root, r.dataRoot)
 	r.print = false
 	r.printBytes(rBrace)
+}
+
+func (r *Resolvable) printExtensions(root *Object) {
+	r.printBytes(quote)
+	r.printBytes(literalExtensions)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrace)
+
+	if r.enableTracing {
+		r.printTrace(root)
+	}
+
+	r.printBytes(rBrace)
+}
+
+func (r *Resolvable) printTrace(root *Object) {
+	trace := GetTrace(root)
+
+	traceData, err := json.Marshal(trace)
+	if err != nil {
+		return
+	}
+
+	r.printBytes(quote)
+	r.printBytes(literalTrace)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(traceData)
+}
+
+func (r *Resolvable) hasExtensions() bool {
+	return r.enableTracing
 }
 
 func (r *Resolvable) hasErrors() bool {

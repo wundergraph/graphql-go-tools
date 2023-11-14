@@ -23,6 +23,7 @@ type Context struct {
 	afterFetchHook   AfterFetchHook
 	position         Position
 	RenameTypeNames  []RenameTypeName
+	EnableTracing    bool
 }
 
 type Request struct {
