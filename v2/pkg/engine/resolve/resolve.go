@@ -55,7 +55,6 @@ func (r *Resolver) putTools(t *tools) {
 }
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
-
 	if response.Info == nil {
 		response.Info = &GraphQLResponseInfo{
 			OperationType: ast.OperationTypeQuery,
@@ -64,6 +63,9 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 
 	t := r.getTools()
 	defer r.putTools(t)
+
+	t.resolvable.enableTracing = ctx.EnableTracing
+
 	err = t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
 		return err
@@ -111,6 +113,8 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 
 	t := r.getTools()
 	defer r.putTools(t)
+
+	t.resolvable.enableTracing = ctx.EnableTracing
 
 	for {
 		select {

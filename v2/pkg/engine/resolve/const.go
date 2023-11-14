@@ -22,6 +22,7 @@ var (
 	literalColumn     = []byte("column")
 	literalPath       = []byte("path")
 	literalExtensions = []byte("extensions")
+	literalTrace      = []byte("trace")
 
 	unableToResolveMsg = []byte("unable to resolve")
 	emptyArray         = []byte("[]")
