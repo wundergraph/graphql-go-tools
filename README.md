@@ -619,6 +619,23 @@ I hope this tutorial gave you a good overview of what you can do with this libra
 If you have any questions, feel free to open an issue.
 Following, here's a list of all the important packages in this library and what problems they solve.
 
+- ast: the GraphQL AST and all the logic to work with it.
+- astimport: import GraphQL documents from one AST into another
+- astnormalization: normalize a GraphQL document
+- astparser: parse a string into a GraphQL AST
+- astprinter: print a GraphQL AST into a string
+- asttransform: transform a GraphQL AST, e.g. merge it with a base schema
+- astvalidation: validate a GraphQL AST against a schema
+- astvisitor: walk through a GraphQL AST and execute callbacks for every node
+- engine/datasource: the DataSource interface and some implementations
+- engine/datasource/graphql_datasource: the GraphQL DataSource implementation, including support for Federation
+- engine/plan: plan the execution of a GraphQL document
+- engine/resolve: execute the plan
+- introspection: convert a GraphQL Schema into an introspection JSON document
+- lexer: turn a string containing a GraphQL document into a list of tokens
+- playground: add a GraphQL Playground to your Go HTTP server
+- subscription: implements GraphQL Subscriptions over WebSockets and SSE
+
 ## Contributors
 
 - [Jens Neuse][jens-neuse-github] (Project Lead & Active Maintainer)
