@@ -34,6 +34,21 @@ Please consider the v1 module as deprecated and move to v2 as soon as possible.
 We have customers who pay us to maintain this library and steer the direction of the project.
 [Contact us](https://wundergraph.com/contact/sales) if you're looking for commercial support, features or consulting.
 
+## Performance
+
+The architecture of this library is designed for performance, high-throughput and low garbage collection overhead.
+The following benchmark measures the "overhead" of loading and resolving a GraphQL response from four static in-memory Subgraphs at 0,007459 ms/op.
+In more complete end-to-end benchmarks, we've measured up to 8x more requests per second and 8x lower p99 latency compared to Apollo Router, which is written in Rust.
+
+```shell
+cd v2/pkg/engine
+go test -run=nothing -bench=Benchmark_NestedBatchingWithoutChecks -memprofile memprofile.out -benchtime 3s && go tool pprof memprofile.out
+goos: darwin
+goarch: arm64
+pkg: github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve
+Benchmark_NestedBatchingWithoutChecks-10          473186              7134 ns/op          52.00 MB/s        2086 B/op         36 allocs/op
+```
+
 ## Tutorial
 
 If you're here to learn how to use this library to build your own custom GraphQL Router or API Gateway,
