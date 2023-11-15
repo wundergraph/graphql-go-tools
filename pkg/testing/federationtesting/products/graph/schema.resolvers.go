@@ -27,18 +27,34 @@ func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(updateInterval):
-				product := hats[0]
+			case <-time.After(r.updateInterval):
+				currentProduct := hats[0]
 				if randomnessEnabled {
-					product = hats[rand.Intn(len(hats)-1)]
-					product.Price = rand.Intn(maxPrice-minPrice+1) + minPrice
-					updatedPrice <- product
+					randIndex := rand.Intn(len(hats) - 1)
+					currentProduct := hats[randIndex]
+
+					updatedProduct := &model.Product{
+						Upc:     currentProduct.Upc,
+						Name:    currentProduct.Name,
+						Price:   rand.Intn(maxPrice-minPrice+1) + minPrice,
+						InStock: currentProduct.InStock,
+					}
+
+					updatedPrice <- updatedProduct
+					hats[randIndex] = updatedProduct
 					continue
 				}
 
-				product.Price = currentPrice
+				updatedProduct := &model.Product{
+					Upc:     currentProduct.Upc,
+					Name:    currentProduct.Name,
+					Price:   currentPrice,
+					InStock: currentProduct.InStock,
+				}
+
 				currentPrice += 1
-				updatedPrice <- product
+				updatedPrice <- updatedProduct
+				hats[0] = updatedProduct
 			}
 		}
 	}()

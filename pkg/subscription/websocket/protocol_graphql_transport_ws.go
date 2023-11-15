@@ -335,7 +335,9 @@ func NewProtocolGraphQLTransportWSHandlerWithOptions(client subscription.Transpo
 	}
 
 	// Pass event functions
-	protocolHandler.eventHandler.OnConnectionOpened = protocolHandler.startConnectionInitTimer
+	protocolHandler.eventHandler.OnConnectionOpened = func() {
+		protocolHandler.startConnectionInitTimer(time.NewTimer(protocolHandler.connectionInitTimeOutDuration))
+	}
 
 	return protocolHandler, nil
 }
@@ -343,7 +345,7 @@ func NewProtocolGraphQLTransportWSHandlerWithOptions(client subscription.Transpo
 // Handle will handle the actual graphql-transport-ws protocol messages. It's an implementation of subscription.Protocol.
 func (p *ProtocolGraphQLTransportWSHandler) Handle(ctx context.Context, engine subscription.Engine, data []byte) error {
 	if !p.connectionAcknowledged && !p.connectionInitTimerStarted {
-		p.startConnectionInitTimer()
+		p.startConnectionInitTimer(time.NewTimer(p.connectionInitTimeOutDuration))
 	}
 
 	message, err := p.reader.Read(data)
@@ -393,11 +395,12 @@ func (p *ProtocolGraphQLTransportWSHandler) EventHandler() subscription.EventHan
 	return &p.eventHandler
 }
 
-func (p *ProtocolGraphQLTransportWSHandler) startConnectionInitTimer() {
+func (p *ProtocolGraphQLTransportWSHandler) startConnectionInitTimer(timer *time.Timer) context.Context {
 	if p.connectionInitTimerStarted {
-		return
+		return context.Background()
 	}
 
+	timeOutActionContext, timeOutActionContextCancel := context.WithCancel(context.Background())
 	timeOutContext, timeOutContextCancel := context.WithCancel(context.Background())
 	p.connectionInitTimeOutCancel = timeOutContextCancel
 	p.connectionInitTimerStarted = true
@@ -409,10 +412,12 @@ func (p *ProtocolGraphQLTransportWSHandler) startConnectionInitTimer() {
 			p.closeConnectionWithReason(
 				NewCloseReason(4408, "Connection initialisation timeout"),
 			)
+			timeOutActionContextCancel()
 		},
-		TimeOutDuration: p.connectionInitTimeOutDuration,
+		Timer: timer,
 	}
 	go subscription.TimeOutChecker(timeOutParams)
+	return timeOutActionContext
 }
 
 func (p *ProtocolGraphQLTransportWSHandler) stopConnectionInitTimer() bool {

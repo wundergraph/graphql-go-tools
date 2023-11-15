@@ -1,0 +1,28 @@
+schema {
+    query: Query
+    mutation: Mutation
+}
+
+type Query {
+    "Uses the getEmployees Db2 z/OS asset"
+    employees: [EmployeeBody]
+}
+
+type Mutation {
+    "Uses the updateEmployee Db2 z/OS asset"
+    putEmployeesId(employeeBodyInput: EmployeeBodyInput, id: String!): EmployeeBody
+}
+
+type EmployeeBody {
+    employeeNumber: String
+    firstName: String
+    lastName: String
+    salary: Float
+}
+
+input EmployeeBodyInput {
+    employeeNumber: String
+    firstName: String
+    lastName: String
+    salary: Float
+}

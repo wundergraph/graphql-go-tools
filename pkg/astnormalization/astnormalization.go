@@ -1,69 +1,70 @@
-/*Package astnormalization helps to transform parsed GraphQL AST's into a easier to use structure.
+/*
+Package astnormalization helps to transform parsed GraphQL AST's into a easier to use structure.
 
-Example
+# Example
 
 This examples shows how the normalization package helps "simplifying" a GraphQL AST.
 
 Input:
 
- subscription sub {
- 	... multipleSubscriptions
-	... on Subscription {
+	 subscription sub {
+	 	... multipleSubscriptions
+		... on Subscription {
+			newMessage {
+				body
+				sender
+			}
+		}
+	 }
+	 fragment newMessageFields on Message {
+	 	body: body
+	 	sender
+	 	... on Body {
+	 		body
+	 	}
+	 }
+	 fragment multipleSubscriptions on Subscription {
+	 	newMessage {
+	 		body
+	 		sender
+	 	}
+	 	newMessage {
+	 		... newMessageFields
+	 	}
+	 	newMessage {
+	 		body
+	 		body
+			sender
+	 	}
+	 	... on Subscription {
+	 		newMessage {
+	 			body
+	 			sender
+	 		}
+	 	}
+	 	disallowedSecondRootField
+	 }
+
+Output:
+
+	subscription sub {
 		newMessage {
 			body
 			sender
 		}
+		disallowedSecondRootField
 	}
- }
- fragment newMessageFields on Message {
- 	body: body
- 	sender
- 	... on Body {
- 		body
- 	}
- }
- fragment multipleSubscriptions on Subscription {
- 	newMessage {
- 		body
- 		sender
- 	}
- 	newMessage {
- 		... newMessageFields
- 	}
- 	newMessage {
- 		body
- 		body
+	fragment newMessageFields on Message {
+		body
 		sender
- 	}
- 	... on Subscription {
- 		newMessage {
- 			body
- 			sender
- 		}
- 	}
- 	disallowedSecondRootField
- }
-
-Output:
-
- subscription sub {
- 	newMessage {
- 		body
- 		sender
- 	}
- 	disallowedSecondRootField
- }
- fragment newMessageFields on Message {
- 	body
- 	sender
- }
- fragment multipleSubscriptions on Subscription {
- 	newMessage {
- 		body
- 		sender
- 	}
- 	disallowedSecondRootField
- }
+	}
+	fragment multipleSubscriptions on Subscription {
+		newMessage {
+			body
+			sender
+		}
+		disallowedSecondRootField
+	}
 */
 package astnormalization
 

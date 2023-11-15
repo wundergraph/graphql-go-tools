@@ -342,10 +342,10 @@ func TestStreamAndDefer(t *testing.T) {
 					InputTemplate: InputTemplate{
 						Segments: []TemplateSegment{
 							{
-								SegmentType:                  VariableSegmentType,
-								VariableKind:                 ObjectVariableKind,
-								VariableSourcePath:           []string{"id"},
-								Renderer: NewGraphQLVariableRenderer(`{"type":"number"}`),
+								SegmentType:        VariableSegmentType,
+								VariableKind:       ObjectVariableKind,
+								VariableSourcePath: []string{"id"},
+								Renderer:           NewGraphQLVariableRenderer(`{"type":"number"}`),
 							},
 						},
 					},

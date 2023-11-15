@@ -1,0 +1,41 @@
+#file: testdata\schema.graphql
+
+
+schema {
+    query: Query
+    mutation: Mutation
+}
+
+
+#file: testdata\scalars\json.graphql
+
+scalar JSON
+
+
+#file: testdata\types\query.graphql
+
+type Query {
+    foo: Foo
+}
+
+
+#file: testdata\nested\nested.graphql
+
+
+type Bar {
+    baz: Int
+}
+
+
+#file: testdata\nested2\nested2.graphql
+
+type Bat {
+    bar: String
+}
+
+
+#file: testdata\deep\deeper\custom_types.graphql
+
+type Foo {
+    field: String
+}

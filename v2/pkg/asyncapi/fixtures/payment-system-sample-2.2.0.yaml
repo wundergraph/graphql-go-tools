@@ -1,0 +1,234 @@
+# source: https://eltonminetto.dev/en/post/2022-01-30-asyncapi/
+asyncapi: 2.2.0
+info:
+  title: AsyncAPI Sample
+  version: 1.0.0
+servers:
+  rabbitmq-dev:
+    url: localhost:5672
+    description: Local RabbitMQ
+    protocol: amqp
+    protocolVersion: "0.9.1"
+  rabbitmq-staging:
+    url: staging-rabbitmq.server.saas.com:5672
+    description: Staging RabbitMQ
+    protocol: amqp
+    protocolVersion: "0.9.1"
+  rabbitmq-prod:
+    url: rabbitmq.server.saas.com:5672
+    description: Production RabbitMQ
+    protocol: amqp
+    protocolVersion: "0.9.1"
+channels:
+  user-registered:
+    publish:
+      operationId: userRegisteredPub
+      description: The payload of user registration
+      message:
+        $ref: "#/components/messages/user"
+      bindings:
+        amqp:
+          timestamp: true
+          ack: false
+          bindingVersion: 0.2.0
+    subscribe:
+      operationId: userRegisteredSub
+      description: The payload of user registration
+      message:
+        $ref: "#/components/messages/user"
+    bindings:
+      amqp:
+        is: routingKey
+        exchange:
+          name: userExchange
+          type: direct
+          durable: true
+          vhost: /
+        bindingVersion: 0.2.0
+  user-subscribed:
+    publish:
+      operationId: userSubscribedPub
+      description: The payload of user subscription
+      message:
+        $ref: "#/components/messages/subscription"
+      bindings:
+        amqp:
+          timestamp: true
+          ack: false
+          bindingVersion: 0.2.0
+    subscribe:
+      operationId: userSubscribedSub
+      description: The payload of user subscription
+      message:
+        $ref: "#/components/messages/subscription"
+    bindings:
+      amqp:
+        is: routingKey
+        exchange:
+          name: subscriptionExchange
+          type: direct
+          durable: true
+          vhost: /
+        bindingVersion: 0.2.0
+  user-unsubscribed:
+    publish:
+      operationId: userUnsubscribedPub
+      description: The payload of user unsubscription
+      message:
+        $ref: "#/components/messages/unsubscription"
+      bindings:
+        amqp:
+          timestamp: true
+          ack: false
+          bindingVersion: 0.2.0
+    subscribe:
+      operationId: userUnsubscribedSub
+      description: The payload of user unsubscription
+      message:
+        $ref: "#/components/messages/unsubscription"
+    bindings:
+      amqp:
+        is: routingKey
+        exchange:
+          name: unsubscriptionExchange
+          type: direct
+          durable: true
+          vhost: /
+        bindingVersion: 0.2.0
+  payment-succeeded:
+    publish:
+      operationId: paymentSucceededPub
+      description: The payload of successful payment
+      message:
+        $ref: "#/components/messages/payment"
+      bindings:
+        amqp:
+          timestamp: true
+          ack: false
+          bindingVersion: 0.2.0
+    subscribe:
+      operationId: paymentSucceededSub
+      description: The payload of successful payment
+      message:
+        $ref: "#/components/messages/payment"
+    bindings:
+      amqp:
+        is: routingKey
+        exchange:
+          name: paymentSucceededExchange
+          type: direct
+          durable: true
+          vhost: /
+        bindingVersion: 0.2.0
+  payment-failed:
+    publish:
+      operationId: paymentFailedPub
+      description: The payload of failed payment
+      message:
+        $ref: "#/components/messages/payment"
+      bindings:
+        amqp:
+          timestamp: true
+          ack: false
+          bindingVersion: 0.2.0
+    subscribe:
+      operationId: paymentFailedSub
+      description: The payload of failed payment
+      message:
+        $ref: "#/components/messages/payment"
+    bindings:
+      amqp:
+        is: routingKey
+        exchange:
+          name: paymentFailedExchange
+          type: direct
+          durable: true
+          vhost: /
+        bindingVersion: 0.2.0
+components:
+  messages:
+    user:
+      payload:
+        type: object
+        properties:
+          id:
+            type: integer
+            format: int64
+            description: ID of user
+          name:
+            type: string
+            description: Name of user
+          email:
+            type: string
+            description: E-mail of user
+          password:
+            type: string
+            format: password
+            description: Password of user
+          registered_at:
+            type: string
+            format: date-time
+            description: Timestamp of registration
+    subscription:
+      payload:
+        type: object
+        properties:
+          id:
+            type: integer
+            format: int64
+            description: ID of subscription
+          user_id:
+            type: integer
+            format: int64
+            description: ID of user
+          plan_id:
+            type: integer
+            format: int64
+            description: ID of plan
+          plan_name:
+            type: string
+            description: Name of plan
+          plan_value:
+            type: number
+            format: float
+            description: Value of plan
+          subscribed_at:
+            type: string
+            format: date-time
+            description: Timestamp of subscription
+    unsubscription:
+      payload:
+        type: object
+        properties:
+          id:
+            type: integer
+            format: int64
+            description: ID of subscription
+          unsubscribed_at:
+            type: string
+            format: date-time
+            description: Timestamp of unsubscription
+    payment:
+      payload:
+        type: object
+        properties:
+          id:
+            type: integer
+            format: int64
+            description: ID of payment
+          user_id:
+            type: integer
+            format: int64
+            description: ID of user
+          plan_id:
+            type: integer
+            format: int64
+            description: ID of plan
+          value:
+            type: number
+            format: float
+            description: Value of payment
+          created_at:
+            type: string
+            format: date-time
+            description: Timestamp of payment

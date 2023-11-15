@@ -1,0 +1,41 @@
+schema {
+    query: Query
+    subscription: Subscription
+}
+
+type Query {
+    _: Boolean
+}
+
+type Subscription {
+    dimLight(streetlightId: String): DimLight
+    turnOff(streetlightId: String): TurnOnOff
+    turnOn(streetlightId: String): TurnOnOff
+}
+
+enum Command {
+    ON
+    OFF
+}
+
+"""
+Dim light
+Command a particular streetlight to dim the lights.
+"""
+type DimLight {
+    "Percentage to which the light should be dimmed to."
+    percentage: Int
+    "Date and time when the message was sent."
+    sentAt: String
+}
+
+"""
+Turn on/off
+Command a particular streetlight to turn the lights on or off.
+"""
+type TurnOnOff {
+    "Whether to turn on or off the light."
+    command: Command
+    "Date and time when the message was sent."
+    sentAt: String
+}

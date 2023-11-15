@@ -369,20 +369,29 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 		t.Run("should time out if no connection_init message is sent", func(t *testing.T) {
 			testClient := NewTestClient(false)
 			protocol := NewTestProtocolGraphQLTransportWSHandler(testClient)
-			protocol.connectionInitTimeOutDuration = 2 * time.Millisecond
-			protocol.eventHandler.OnConnectionOpened = protocol.startConnectionInitTimer
+
+			var timeOutActionContext context.Context
+			protocol.connectionInitTimeOutDuration = 5 * time.Millisecond
+			protocol.eventHandler.OnConnectionOpened = func() {
+				timeOutActionContext = protocol.startConnectionInitTimer(time.NewTimer(protocol.connectionInitTimeOutDuration))
+			}
 
 			protocol.eventHandler.Emit(subscription.EventTypeOnConnectionOpened, "", nil, nil)
-			time.Sleep(10 * time.Millisecond)
-			assert.True(t, protocol.connectionInitTimerStarted)
-			assert.False(t, protocol.eventHandler.Writer.Client.IsConnected())
+			assert.Eventuallyf(t, func() bool {
+				<-timeOutActionContext.Done()
+				assert.True(t, protocol.connectionInitTimerStarted)
+				assert.False(t, protocol.eventHandler.Writer.Client.IsConnected())
+				return true
+			}, 1*time.Second, 2*time.Millisecond, "connection_init timer did not time out")
 		})
 
 		t.Run("should close connection after multiple connection_init messages", func(t *testing.T) {
 			testClient := NewTestClient(false)
 			protocol := NewTestProtocolGraphQLTransportWSHandler(testClient)
 			protocol.connectionInitTimeOutDuration = 50 * time.Millisecond
-			protocol.eventHandler.OnConnectionOpened = protocol.startConnectionInitTimer
+			protocol.eventHandler.OnConnectionOpened = func() {
+				protocol.startConnectionInitTimer(time.NewTimer(protocol.connectionInitTimeOutDuration))
+			}
 
 			ctrl := gomock.NewController(t)
 			mockEngine := NewMockEngine(ctrl)
@@ -411,7 +420,9 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 			protocol := NewTestProtocolGraphQLTransportWSHandler(testClient)
 			protocol.heartbeatInterval = 4 * time.Millisecond
 			protocol.connectionInitTimeOutDuration = 25 * time.Millisecond
-			protocol.eventHandler.OnConnectionOpened = protocol.startConnectionInitTimer
+			protocol.eventHandler.OnConnectionOpened = func() {
+				protocol.startConnectionInitTimer(time.NewTimer(protocol.connectionInitTimeOutDuration))
+			}
 
 			ctrl := gomock.NewController(t)
 			mockEngine := NewMockEngine(ctrl)
@@ -468,13 +479,17 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 
 		operation := []byte(`{"operationName":"Hello","query":"query Hello { hello }"}`)
 		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 		mockEngine := NewMockEngine(ctrl)
-		mockEngine.EXPECT().StartOperation(gomock.Eq(ctx), gomock.Eq("1"), gomock.Eq(operation), gomock.Eq(&protocol.eventHandler))
+		mockEngine.EXPECT().StartOperation(gomock.Eq(ctx), gomock.Eq("2"), gomock.Eq(operation), gomock.Eq(&protocol.eventHandler))
 
 		assert.Eventually(t, func() bool {
-			inputMessage := []byte(`{"id":"1","type":"subscribe","payload":{"operationName":"Hello","query":"query Hello { hello }"}}`)
-			err := protocol.Handle(ctx, mockEngine, inputMessage)
+			initMessage := []byte(`{"id":"1","type":"connection_init"}`)
+			err := protocol.Handle(ctx, mockEngine, initMessage)
 			assert.NoError(t, err)
+			subscribeMessage := []byte(`{"id":"2","type":"subscribe","payload":` + string(operation) + `}`)
+			err2 := protocol.Handle(ctx, mockEngine, subscribeMessage)
+			assert.NoError(t, err2)
 			return true
 		}, 1*time.Second, 2*time.Millisecond)
 	})
@@ -526,7 +541,6 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		mockEngine := NewMockEngine(ctrl)
-		mockEngine.EXPECT().StopSubscription(gomock.Eq("1"), gomock.Eq(&protocol.eventHandler))
 
 		assert.Eventually(t, func() bool {
 			inputMessage := []byte(`{"type":"connection_init","payload":{something}}`)

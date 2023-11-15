@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	log "github.com/jensneuse/abstractlogger"
-	"github.com/jensneuse/pipeline/pkg/pipe"
 	"io"
 	"os"
+
+	log "github.com/jensneuse/abstractlogger"
+	"github.com/jensneuse/pipeline/pkg/pipe"
 
 	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/literal"

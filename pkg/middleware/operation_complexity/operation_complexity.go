@@ -1,23 +1,23 @@
 /*
-	package operation_complexity implements two common algorithms used by GitHub to calculate GraphQL query complexity
+package operation_complexity implements two common algorithms used by GitHub to calculate GraphQL query complexity
 
-	1. Node count, the maximum number of Nodes a query may return
-	2. Complexity, the maximum number of Node requests that might be needed to execute the query
+1. Node count, the maximum number of Nodes a query may return
+2. Complexity, the maximum number of Node requests that might be needed to execute the query
 
-	OperationComplexityEstimator takes a schema definition and a query and then walks recursively through the query to calculate both variables.
+OperationComplexityEstimator takes a schema definition and a query and then walks recursively through the query to calculate both variables.
 
-	The calculation can be influenced by integer arguments on fields that indicate the amount of Nodes returned by a field.
+The calculation can be influenced by integer arguments on fields that indicate the amount of Nodes returned by a field.
 
-	To help the algorithm understand your schema you could make use of these two directives:
+To help the algorithm understand your schema you could make use of these two directives:
 
-	- directive @nodeCountMultiply on ARGUMENT_DEFINITION
-	- directive @nodeCountSkip on FIELD
+- directive @nodeCountMultiply on ARGUMENT_DEFINITION
+- directive @nodeCountSkip on FIELD
 
-	nodeCountMultiply:
-	Indicates that the Int value the directive is applied on should be used as a Node multiplier
+nodeCountMultiply:
+Indicates that the Int value the directive is applied on should be used as a Node multiplier
 
-	nodeCountSkip:
-	Indicates that the algorithm should skip this Node. This is useful to whitelist certain query paths, e.g. for introspection.
+nodeCountSkip:
+Indicates that the algorithm should skip this Node. This is useful to whitelist certain query paths, e.g. for introspection.
 */
 package operation_complexity
 

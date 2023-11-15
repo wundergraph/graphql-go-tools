@@ -1,0 +1,8 @@
+{
+  "kind": "OBJECT",
+  "name": "Query",
+  "description": "",
+  "inputFields": [],
+  "interfaces": [],
+  "possibleTypes": []
+}

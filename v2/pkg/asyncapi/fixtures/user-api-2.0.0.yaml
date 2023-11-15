@@ -1,0 +1,44 @@
+# source: https://github.com/dutradda/asyncapi-python
+asyncapi: 2.0.0
+
+info:
+  title: User API
+  version: '1.0.0'
+  description: API to manage users
+
+servers:
+  development:
+    url: localhost
+    protocol: redis
+    description: Development Broker Server
+
+channels:
+  user/update:
+    description: Topic for user updates
+    subscribe:
+      operationId: receive_user_update
+      message:
+        $ref: '#/components/messages/UserUpdate'
+    publish:
+      message:
+        $ref: '#/components/messages/UserUpdate'
+
+components:
+  messages:
+    UserUpdate:
+      name: userUpdate
+      title: User Update
+      summary: Inform about users updates
+      payload:
+        type: object
+        required:
+          - id
+        properties:
+          id:
+            type: string
+          name:
+            type: string
+          age:
+            type: integer
+
+defaultContentType: application/json

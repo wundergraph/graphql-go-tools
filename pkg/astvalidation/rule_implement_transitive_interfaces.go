@@ -35,11 +35,14 @@ func (v *implementTransitiveInterfacesVisitor) EnterDocument(operation, definiti
 // and check if a types with interfaces has all the transitive interfaces in their slice.
 //
 // Valid (typeName contains interfaceBase from interfaceOne):
-//		typeName -> [interfaceOne, interfaceBase]
-//		interfaceOne -> [interfaceBase]
+//
+//	typeName -> [interfaceOne, interfaceBase]
+//	interfaceOne -> [interfaceBase]
+//
 // Invalid (typeName does not contain interfaceBase from interfaceOne):
-//		typeName -> [interfaceOne]
-//		interfaceOne -> [interfaceBase]
+//
+//	typeName -> [interfaceOne]
+//	interfaceOne -> [interfaceBase]
 func (v *implementTransitiveInterfacesVisitor) LeaveDocument(operation, definition *ast.Document) {
 	for typeName, interfaceNames := range v.typesImplementingInterfaces {
 		interfaceNamesLookupList := map[string]bool{}
@@ -111,8 +114,9 @@ func (v *implementTransitiveInterfacesVisitor) EnterObjectTypeExtension(ref int)
 // names can be saved into the lookup map on the visitor
 //
 // Result:
-//      typeName -> [interfaceOne, interfaceBase]
-//      interfaceOne -> [interfaceBase]
+//
+//	typeName -> [interfaceOne, interfaceBase]
+//	interfaceOne -> [interfaceBase]
 func (v *implementTransitiveInterfacesVisitor) collectImplementedInterfaces(typeName string, implementedInterfacesRefs []int) {
 	for i := 0; i < len(implementedInterfacesRefs); i++ {
 		implementedInterfaceRef := implementedInterfacesRefs[i]

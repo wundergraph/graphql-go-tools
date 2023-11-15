@@ -174,7 +174,7 @@ func (u *UniversalProtocolHandler) Handle(ctx context.Context) {
 					TimeOutAction: func() {
 						cancel() // stop the handler if timer runs out
 					},
-					TimeOutDuration: u.readErrorTimeOut,
+					Timer: time.NewTimer(u.readErrorTimeOut),
 				}
 				go TimeOutChecker(params)
 				u.isReadTimeOutTimerRunning = true

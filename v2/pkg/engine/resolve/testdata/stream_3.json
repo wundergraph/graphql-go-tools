@@ -1,0 +1,10 @@
+[
+  {
+    "op": "add",
+    "path": "/data/users/1",
+    "value": {
+      "id": 2,
+      "name": "Ervin Howell"
+    }
+  }
+]

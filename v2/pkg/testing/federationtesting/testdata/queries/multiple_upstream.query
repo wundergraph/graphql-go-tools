@@ -1,0 +1,11 @@
+query MultipleServers {
+	topProducts {
+        name
+        reviews {
+          body
+          author {
+            username
+          }
+        }
+    }
+}

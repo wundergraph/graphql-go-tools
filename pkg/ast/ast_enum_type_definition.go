@@ -9,12 +9,13 @@ import (
 
 // EnumTypeDefinition
 // example:
-// enum Direction {
-//  NORTH
-//  EAST
-//  SOUTH
-//  WEST
-// }
+//
+//	enum Direction {
+//	 NORTH
+//	 EAST
+//	 SOUTH
+//	 WEST
+//	}
 type EnumTypeDefinition struct {
 	Description             Description        // optional, describes enum
 	EnumLiteral             position.Position  // enum

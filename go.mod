@@ -15,7 +15,7 @@ require (
 	github.com/getkin/kin-openapi v0.89.0
 	github.com/go-test/deep v1.0.8
 	github.com/gobwas/ws v1.0.4
-	github.com/golang/mock v1.4.4
+	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.5.8
 	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/golang-lru v0.5.4

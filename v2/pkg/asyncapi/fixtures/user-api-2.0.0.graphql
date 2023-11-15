@@ -1,0 +1,22 @@
+schema {
+    query: Query
+    subscription: Subscription
+}
+
+type Query {
+    _: Boolean
+}
+
+type Subscription {
+    receiveUserUpdate: UserUpdate
+}
+
+"""
+User Update
+Inform about users updates
+"""
+type UserUpdate {
+    age: Int
+    id: String
+    name: String
+}

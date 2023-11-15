@@ -1,0 +1,12 @@
+query InterfaceFragmentsOnUnion {
+    histories {
+        ... on Store {
+            __typename
+            location
+        }
+        ... on Info {
+            __typename
+            quantity
+        }
+    }
+}

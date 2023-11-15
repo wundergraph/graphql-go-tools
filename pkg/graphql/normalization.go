@@ -7,8 +7,10 @@ import (
 
 type NormalizationResult struct {
 	Successful bool
-	Errors     Errors
+	Errors     NormalizationErrors
 }
+
+type NormalizationErrors Errors
 
 func (r *Request) Normalize(schema *Schema) (result NormalizationResult, err error) {
 	if schema == nil {

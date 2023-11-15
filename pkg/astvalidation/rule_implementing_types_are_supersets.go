@@ -38,14 +38,16 @@ func (v *implementingTypesAreSupersetsVisitor) EnterDocument(operation, definiti
 // as invalid.
 //
 // Valid:
-//		( interfaceBase -> [fieldA] )
-// 		interfaceOneImplementingInterfaceBase -> [fieldA, fieldB]
-//		objectTypeImplementingInterfaceOne -> [fieldA, fieldB, fieldC]
+//
+//	( interfaceBase -> [fieldA] )
+//	interfaceOneImplementingInterfaceBase -> [fieldA, fieldB]
+//	objectTypeImplementingInterfaceOne -> [fieldA, fieldB, fieldC]
 //
 // Invalid:
-//		( interfaceBase -> [fieldA] )
-// 		interfaceOneImplementingInterfaceBase -> [fieldA, fieldB]
-//		objectTypeImplementingInterfaceOne -> [fieldA, fieldC]
+//
+//	( interfaceBase -> [fieldA] )
+//	interfaceOneImplementingInterfaceBase -> [fieldA, fieldB]
+//	objectTypeImplementingInterfaceOne -> [fieldA, fieldC]
 func (v *implementingTypesAreSupersetsVisitor) LeaveDocument(operation, definition *ast.Document) {
 	for typeName, interfacesNames := range v.implementingTypesWithInterfacesNames {
 		typeNameHasFields := true
@@ -186,8 +188,9 @@ func (v *implementingTypesAreSupersetsVisitor) EnterObjectTypeExtension(ref int)
 // map entry, so that it can be used as a lookup table later on.
 //
 // Example:
-// 		interfaceOne -> [fieldA, fieldB]
-//		objectType -> [fieldA, fieldB, fieldC]
+//
+//	interfaceOne -> [fieldA, fieldB]
+//	objectType -> [fieldA, fieldB, fieldC]
 func (v *implementingTypesAreSupersetsVisitor) collectFieldsForTypeName(typeName string, fieldDefinitionRefs []int) {
 	if _, ok := v.implementingTypesWithFields[typeName]; !ok {
 		v.implementingTypesWithFields[typeName] = []string{}
@@ -216,8 +219,9 @@ func (v *implementingTypesAreSupersetsVisitor) collectFieldsForTypeName(typeName
 // so it can be used to iterate over them when leaving the document.
 //
 // Example:
-// 		interfaceOne -> [interfaceBase]
-//		objectType -> [interfaceOne, interfaceBase]
+//
+//	interfaceOne -> [interfaceBase]
+//	objectType -> [interfaceOne, interfaceBase]
 func (v *implementingTypesAreSupersetsVisitor) collectInterfaceNamesForImplementedInterfacesByTypeName(typeName string, typeRefs []int) {
 	if _, ok := v.implementingTypesWithInterfacesNames[typeName]; !ok {
 		v.implementingTypesWithInterfacesNames[typeName] = []string{}

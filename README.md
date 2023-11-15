@@ -1,5 +1,5 @@
-[![GoDoc](https://godoc.org/github.com/jensneuse/graphql-go-tools?status.svg)](https://godoc.org/github.com/jensneuse/graphql-go-tools)
-[![CI](https://github.com/jensneuse/graphql-go-tools/workflows/ci/badge.svg)](https://github.com/jensneuse/graphql-go-tools/workflows/ci/badge.svg)
+[![GoDoc](https://godoc.org/github.com/wundergraph/graphql-go-tools?status.svg)](https://godoc.org/github.com/wundergraph/graphql-go-tools)
+[![v1-ci](https://github.com/wundergraph/graphql-go-tools/workflows/v1-ci/badge.svg)](https://github.com/wundergraph/graphql-go-tools/actions/workflows/v1.yml)
 # graphql-go-tools
 
 ## Sponsors

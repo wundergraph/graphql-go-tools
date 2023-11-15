@@ -1,0 +1,61 @@
+# source: https://docs.mulesoft.com/release-notes/platform/event-driven-api
+asyncapi: 2.0.0
+info:
+  title: Async Request/Trade API
+  version: 0.1.0
+
+channels:
+  book_trade:
+    publish:
+      operationId: bookTrade
+      message:
+        payload:
+          type: object
+          properties:
+            trade-id:
+              type: integer
+              minimum: 0
+              description: the order id of the message coming
+            trade-symbol:
+              type: string
+              minimum: 0
+              Description: ticker symbol of the stock.
+            trade-type:
+              type: string
+              format: string
+              description: BUY or SELL
+            trade-amount:
+              type: number
+              format: float
+              description: the number of shares to be traded.
+  trade_result:
+    subscribe:
+      operationId: tradeResult
+      message:
+        payload:
+          type: object
+          properties:
+            trade-id:
+              type: integer
+              minimum: 0
+              description: the order id of the message coming
+            trade-symbol:
+              type: string
+              format: string
+              description: ticker symbol of the stock.
+            trade-time:
+              type: string
+              format: date-time
+              description: date and time of the order.
+            trade-amount:
+              type: number
+              format: float
+              description: the number of shares to be traded.
+            trade-type:
+              type: string
+              format: string
+              description: BUY or SELL
+            trade-status:
+              type: string
+              format: string
+              description: PENDING, PROCESSED and FAILED
