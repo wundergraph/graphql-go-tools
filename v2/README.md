@@ -34,6 +34,21 @@ Please consider the v1 module as deprecated and move to v2 as soon as possible.
 We have customers who pay us to maintain this library and steer the direction of the project.
 [Contact us](https://wundergraph.com/contact/sales) if you're looking for commercial support, features or consulting.
 
+## Performance
+
+The architecture of this library is designed for performance, high-throughput and low garbage collection overhead.
+The following benchmark measures the "overhead" of loading and resolving a GraphQL response from four static in-memory Subgraphs at 0,007459 ms/op.
+In more complete end-to-end benchmarks, we've measured up to 8x more requests per second and 8x lower p99 latency compared to Apollo Router, which is written in Rust.
+
+```shell
+cd v2/pkg/engine
+go test -run=nothing -bench=Benchmark_NestedBatchingWithoutChecks -memprofile memprofile.out -benchtime 3s && go tool pprof memprofile.out
+goos: darwin
+goarch: arm64
+pkg: github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve
+Benchmark_NestedBatchingWithoutChecks-10          473186              7134 ns/op          52.00 MB/s        2086 B/op         36 allocs/op
+```
+
 ## Tutorial
 
 If you're here to learn how to use this library to build your own custom GraphQL Router or API Gateway,
@@ -67,26 +82,26 @@ It parses a GraphQL document and prints it back to a writer.
 */
 func ExampleParsePrintDocument() {
 
-  input := []byte(`query { hello }`)
+	input := []byte(`query { hello }`)
 
-  report := &operationreport.Report{}
-  document := ast.NewSmallDocument()
-  parser := astparser.NewParser()
-  printer := &astprinter.Printer{}
+	report := &operationreport.Report{}
+	document := ast.NewSmallDocument()
+	parser := astparser.NewParser()
+	printer := &astprinter.Printer{}
 
-  document.Input.ResetInputBytes(input)
-  parser.Parse(document, report)
+	document.Input.ResetInputBytes(input)
+	parser.Parse(document, report)
 
-  if report.HasErrors() {
-    panic(report.Error())
-  }
+	if report.HasErrors() {
+		panic(report.Error())
+	}
 
-  out := &bytes.Buffer{}
-  err := printer.Print(document, nil, out)
-  if err != nil {
-    panic(err)
-  }
-  fmt.Println(out.String()) // Output: query { hello }
+	out := &bytes.Buffer{}
+	err := printer.Print(document, nil, out)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(out.String()) // Output: query { hello }
 }
 
 /*
@@ -97,7 +112,7 @@ Let's try to parse a more complex document and print it back to a writer.
 // ExampleParseComplexDocument shows a special feature of the printer
 func ExampleParseComplexDocument() {
 
-  input := []byte(`
+	input := []byte(`
 		query {
 			hello
 			foo {
@@ -106,24 +121,24 @@ func ExampleParseComplexDocument() {
 		}
 	`)
 
-  report := &operationreport.Report{}
-  document := ast.NewSmallDocument()
-  parser := astparser.NewParser()
-  printer := &astprinter.Printer{}
+	report := &operationreport.Report{}
+	document := ast.NewSmallDocument()
+	parser := astparser.NewParser()
+	printer := &astprinter.Printer{}
 
-  document.Input.ResetInputBytes(input)
-  parser.Parse(document, report)
+	document.Input.ResetInputBytes(input)
+	parser.Parse(document, report)
 
-  if report.HasErrors() {
-    panic(report.Error())
-  }
+	if report.HasErrors() {
+		panic(report.Error())
+	}
 
-  out := &bytes.Buffer{}
-  err := printer.Print(document, nil, out)
-  if err != nil {
-    panic(err)
-  }
-  fmt.Println(out.String()) // Output: query { hello foo { bar } }
+	out := &bytes.Buffer{}
+	err := printer.Print(document, nil, out)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(out.String()) // Output: query { hello foo { bar } }
 }
 
 /*
@@ -133,7 +148,7 @@ But what if we wanted to print the document with indentation?
 
 func ExamplePrintWithIndentation() {
 
-  input := []byte(`
+	input := []byte(`
 		query {
 			hello
 			foo {
@@ -142,28 +157,28 @@ func ExamplePrintWithIndentation() {
 		}
 	`)
 
-  report := &operationreport.Report{}
-  document := ast.NewSmallDocument()
-  parser := astparser.NewParser()
+	report := &operationreport.Report{}
+	document := ast.NewSmallDocument()
+	parser := astparser.NewParser()
 
-  document.Input.ResetInputBytes(input)
-  parser.Parse(document, report)
+	document.Input.ResetInputBytes(input)
+	parser.Parse(document, report)
 
-  if report.HasErrors() {
-    panic(report.Error())
-  }
+	if report.HasErrors() {
+		panic(report.Error())
+	}
 
-  out, err := astprinter.PrintStringIndent(document, nil, "  ")
-  if err != nil {
-    panic(err)
-  }
-  fmt.Println(out)
-  // Output: query {
-  //   hello
-  //   foo {
-  //     bar
-  //   }
-  // }
+	out, err := astprinter.PrintStringIndent(document, nil, "  ")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(out)
+	// Output: query {
+	//   hello
+	//   foo {
+	//     bar
+	//   }
+	// }
 }
 
 /*
@@ -175,7 +190,7 @@ And what if we wanted to know about the Operation type?
 
 func ExampleParseOperationNameAndType() {
 
-  input := []byte(`
+	input := []byte(`
 		query MyQuery {
 			hello
 			foo {
@@ -184,36 +199,36 @@ func ExampleParseOperationNameAndType() {
 		}
 	`)
 
-  report := &operationreport.Report{}
-  document := ast.NewSmallDocument()
-  parser := astparser.NewParser()
+	report := &operationreport.Report{}
+	document := ast.NewSmallDocument()
+	parser := astparser.NewParser()
 
-  document.Input.ResetInputBytes(input)
-  parser.Parse(document, report)
+	document.Input.ResetInputBytes(input)
+	parser.Parse(document, report)
 
-  if report.HasErrors() {
-    panic(report.Error())
-  }
+	if report.HasErrors() {
+		panic(report.Error())
+	}
 
-  operationCount := 0
-  var (
-    operationNames []string
-    operationTypes []ast.OperationType
-  )
+	operationCount := 0
+	var (
+		operationNames []string
+		operationTypes []ast.OperationType
+	)
 
-  for _, node := range document.RootNodes {
-    if node.Kind != ast.NodeKindOperationDefinition {
-      continue
-    }
-    operationCount++
-    name := document.RootOperationTypeDefinitionNameString(node.Ref)
-    operationNames = append(operationNames, name)
-    operationType := document.RootOperationTypeDefinitions[node.Ref].OperationType
-    operationTypes = append(operationTypes, operationType)
-  }
+	for _, node := range document.RootNodes {
+		if node.Kind != ast.NodeKindOperationDefinition {
+			continue
+		}
+		operationCount++
+		name := document.RootOperationTypeDefinitionNameString(node.Ref)
+		operationNames = append(operationNames, name)
+		operationType := document.RootOperationTypeDefinitions[node.Ref].OperationType
+		operationTypes = append(operationTypes, operationType)
+	}
 
-  fmt.Println(operationCount) // Output: 1
-  fmt.Println(operationNames) // Output: [MyQuery]
+	fmt.Println(operationCount) // Output: 1
+	fmt.Println(operationNames) // Output: [MyQuery]
 }
 
 /*
@@ -238,7 +253,7 @@ So, let's normalize the document!
 
 func ExampleNormalizeDocument() {
 
-  input := []byte(`
+	input := []byte(`
 		query MyQuery {
 			hello
 			hello
@@ -257,7 +272,7 @@ func ExampleNormalizeDocument() {
 		}
 	`)
 
-  schema := []byte(`
+	schema := []byte(`
 		type Query {
 			hello: String
 			foo: Foo
@@ -268,63 +283,63 @@ func ExampleNormalizeDocument() {
 		}
 	`)
 
-  report := &operationreport.Report{}
-  document := ast.NewSmallDocument()
-  parser := astparser.NewParser()
+	report := &operationreport.Report{}
+	document := ast.NewSmallDocument()
+	parser := astparser.NewParser()
 
-  document.Input.ResetInputBytes(input)
-  parser.Parse(document, report)
+	document.Input.ResetInputBytes(input)
+	parser.Parse(document, report)
 
-  if report.HasErrors() {
-    panic(report.Error())
-  }
+	if report.HasErrors() {
+		panic(report.Error())
+	}
 
-  schemaDocument := ast.NewSmallDocument()
-  schemaParser := astparser.NewParser()
-  schemaDocument.Input.ResetInputBytes(schema)
-  schemaParser.Parse(schemaDocument, report)
+	schemaDocument := ast.NewSmallDocument()
+	schemaParser := astparser.NewParser()
+	schemaDocument.Input.ResetInputBytes(schema)
+	schemaParser.Parse(schemaDocument, report)
 
-  if report.HasErrors() {
-    panic(report.Error())
-  }
+	if report.HasErrors() {
+		panic(report.Error())
+	}
 
-  // graphql-go-tools is very strict about the schema
-  // the above GraphQL Schema is not fully valid, e.g. the `schema { query: Query }` part is missing
-  // we can fix this automatically by merging the schema with a base schema
-  err := asttransform.MergeDefinitionWithBaseSchema(schemaDocument)
-  if err != nil {
-    panic(err)
-  }
+	// graphql-go-tools is very strict about the schema
+	// the above GraphQL Schema is not fully valid, e.g. the `schema { query: Query }` part is missing
+	// we can fix this automatically by merging the schema with a base schema
+	err := asttransform.MergeDefinitionWithBaseSchema(schemaDocument)
+	if err != nil {
+		panic(err)
+	}
 
-  // you can customize what rules the normalizer should apply
-  normalizer := astnormalization.NewWithOpts(
-    astnormalization.WithExtractVariables(),
-    astnormalization.WithInlineFragmentSpreads(),
-    astnormalization.WithRemoveFragmentDefinitions(),
-    astnormalization.WithRemoveNotMatchingOperationDefinitions(),
-  )
+	// you can customize what rules the normalizer should apply
+	normalizer := astnormalization.NewWithOpts(
+		astnormalization.WithExtractVariables(),
+		astnormalization.WithInlineFragmentSpreads(),
+		astnormalization.WithRemoveFragmentDefinitions(),
+		astnormalization.WithRemoveNotMatchingOperationDefinitions(),
+	)
 
-  // It's generally recommended to always give your operation a name
-  // If it doesn't have a name, just add one to the AST before normalizing it
-  // This is not strictly necessary, but ensures that all normalization rules work as expected
-  normalizer.NormalizeNamedOperation(document, schemaDocument, []byte("MyQuery"), report)
+	// It's generally recommended to always give your operation a name
+	// If it doesn't have a name, just add one to the AST before normalizing it
+	// This is not strictly necessary, but ensures that all normalization rules work as expected
+	normalizer.NormalizeNamedOperation(document, schemaDocument, []byte("MyQuery"), report)
 
-  if report.HasErrors() {
-    panic(report.Error())
-  }
+	if report.HasErrors() {
+		panic(report.Error())
+	}
 
-  out, err := astprinter.PrintStringIndent(document, nil, "  ")
-  if err != nil {
-    panic(err)
-  }
+	out, err := astprinter.PrintStringIndent(document, nil, "  ")
+	if err != nil {
+		panic(err)
+	}
 
-  fmt.Println(out)
-  // Output: query MyQuery {
-  //   hello
-  //   foo {
-  //     bar
-  //   }
-  // }
+	fmt.Println(out)
+	// Output: query MyQuery {
+	//   hello
+	//   foo {
+	//     bar
+	//   }
+	// }
 }
 
 /*
@@ -338,14 +353,14 @@ Alright. Let's do it!
 */
 
 func ExampleValidateDocument() {
-  schemaDocument := ast.NewSmallDocument()
-  operationDocument := ast.NewSmallDocument()
-  report := &operationreport.Report{}
-  validator := astvalidation.DefaultOperationValidator()
-  validator.Validate(schemaDocument, operationDocument, report)
-  if report.HasErrors() {
-    panic(report.Error())
-  }
+	schemaDocument := ast.NewSmallDocument()
+	operationDocument := ast.NewSmallDocument()
+	report := &operationreport.Report{}
+	validator := astvalidation.DefaultOperationValidator()
+	validator.Validate(schemaDocument, operationDocument, report)
+	if report.HasErrors() {
+		panic(report.Error())
+	}
 }
 
 /*
@@ -358,35 +373,35 @@ Let's take a look!
 */
 
 func ExampleGenerateCacheKey() {
-  operationDocument := ast.NewSmallDocument()
-  schemaDocument := ast.NewSmallDocument()
-  report := &operationreport.Report{}
+	operationDocument := ast.NewSmallDocument()
+	schemaDocument := ast.NewSmallDocument()
+	report := &operationreport.Report{}
 
-  normalizer := astnormalization.NewWithOpts(
-    astnormalization.WithExtractVariables(),
-    astnormalization.WithInlineFragmentSpreads(),
-    astnormalization.WithRemoveFragmentDefinitions(),
-    astnormalization.WithRemoveNotMatchingOperationDefinitions(),
-  )
+	normalizer := astnormalization.NewWithOpts(
+		astnormalization.WithExtractVariables(),
+		astnormalization.WithInlineFragmentSpreads(),
+		astnormalization.WithRemoveFragmentDefinitions(),
+		astnormalization.WithRemoveNotMatchingOperationDefinitions(),
+	)
 
-  normalizer.NormalizeNamedOperation(operationDocument, schemaDocument, []byte("MyQuery"), report)
-  printer := &astprinter.Printer{}
-  keyGen := xxhash.New()
-  err := printer.Print(operationDocument, schemaDocument, keyGen)
-  if err != nil {
-    panic(err)
-  }
+	normalizer.NormalizeNamedOperation(operationDocument, schemaDocument, []byte("MyQuery"), report)
+	printer := &astprinter.Printer{}
+	keyGen := xxhash.New()
+	err := printer.Print(operationDocument, schemaDocument, keyGen)
+	if err != nil {
+		panic(err)
+	}
 
-  // you might be thinking that we're done now, but we're not
-  // we've extracted the variables, so we need to add them to the cache key
+	// you might be thinking that we're done now, but we're not
+	// we've extracted the variables, so we need to add them to the cache key
 
-  _, err = keyGen.Write(operationDocument.Input.Variables)
-  if err != nil {
-    panic(err)
-  }
+	_, err = keyGen.Write(operationDocument.Input.Variables)
+	if err != nil {
+		panic(err)
+	}
 
-  key := keyGen.Sum64()
-  fmt.Printf("%x", key) // Output: {cache key}
+	key := keyGen.Sum64()
+	fmt.Printf("%x", key) // Output: {cache key}
 }
 
 /*
@@ -402,55 +417,55 @@ Let's change out code to account for this.
 
 func ExampleGenerateCacheKeyWithStaticOperationName() {
 
-  staticOperationName := []byte("O")
+	staticOperationName := []byte("O")
 
-  operationDocument := ast.NewSmallDocument()
-  schemaDocument := ast.NewSmallDocument()
-  report := &operationreport.Report{}
+	operationDocument := ast.NewSmallDocument()
+	schemaDocument := ast.NewSmallDocument()
+	report := &operationreport.Report{}
 
-  normalizer := astnormalization.NewWithOpts(
-    astnormalization.WithExtractVariables(),
-    astnormalization.WithInlineFragmentSpreads(),
-    astnormalization.WithRemoveFragmentDefinitions(),
-    astnormalization.WithRemoveNotMatchingOperationDefinitions(),
-  )
+	normalizer := astnormalization.NewWithOpts(
+		astnormalization.WithExtractVariables(),
+		astnormalization.WithInlineFragmentSpreads(),
+		astnormalization.WithRemoveFragmentDefinitions(),
+		astnormalization.WithRemoveNotMatchingOperationDefinitions(),
+	)
 
-  // First, we add the static operation name to the document and get an "address" to the byte slice (string) in the document
-  // We cannot just add a string to an AST because the AST only stores references to byte slices
-  // Storing strings in AST nodes would be very inefficient and would require a lot of allocations
-  nameRef := operationDocument.Input.AppendInputBytes(staticOperationName)
+	// First, we add the static operation name to the document and get an "address" to the byte slice (string) in the document
+	// We cannot just add a string to an AST because the AST only stores references to byte slices
+	// Storing strings in AST nodes would be very inefficient and would require a lot of allocations
+	nameRef := operationDocument.Input.AppendInputBytes(staticOperationName)
 
-  for _, node := range operationDocument.RootNodes {
-    if node.Kind != ast.NodeKindOperationDefinition {
-      continue
-    }
-    name := operationDocument.OperationDefinitionNameString(node.Ref)
-    if name != "MyQuery" {
-      continue
-    }
-    // Then we set the name of the operation to the address of the static operation name
-    // Now we have renamed MyQuery to O
-    operationDocument.OperationDefinitions[node.Ref].Name = nameRef
-  }
+	for _, node := range operationDocument.RootNodes {
+		if node.Kind != ast.NodeKindOperationDefinition {
+			continue
+		}
+		name := operationDocument.OperationDefinitionNameString(node.Ref)
+		if name != "MyQuery" {
+			continue
+		}
+		// Then we set the name of the operation to the address of the static operation name
+		// Now we have renamed MyQuery to O
+		operationDocument.OperationDefinitions[node.Ref].Name = nameRef
+	}
 
-  // Now we can normalize the modified document
-  // All Operations that don't have the name O will be removed
-  normalizer.NormalizeNamedOperation(operationDocument, schemaDocument, staticOperationName, report)
+	// Now we can normalize the modified document
+	// All Operations that don't have the name O will be removed
+	normalizer.NormalizeNamedOperation(operationDocument, schemaDocument, staticOperationName, report)
 
-  printer := &astprinter.Printer{}
-  keyGen := xxhash.New()
-  err := printer.Print(operationDocument, schemaDocument, keyGen)
-  if err != nil {
-    panic(err)
-  }
+	printer := &astprinter.Printer{}
+	keyGen := xxhash.New()
+	err := printer.Print(operationDocument, schemaDocument, keyGen)
+	if err != nil {
+		panic(err)
+	}
 
-  _, err = keyGen.Write(operationDocument.Input.Variables)
-  if err != nil {
-    panic(err)
-  }
+	_, err = keyGen.Write(operationDocument.Input.Variables)
+	if err != nil {
+		panic(err)
+	}
 
-  key := keyGen.Sum64()
-  fmt.Printf("%x", key) // Output: {cache key}
+	key := keyGen.Sum64()
+	fmt.Printf("%x", key) // Output: {cache key}
 }
 
 /*
@@ -480,43 +495,43 @@ so that the planner knows how to create an execution plan for the DataSource and
 */
 
 func ExamplePlanOperation() {
-  config := plan.Configuration{
-    DataSources: []plan.DataSourceConfiguration{
-      {
-        RootNodes: []plan.TypeField{
-          {
-            TypeName:   "Query",
-            FieldNames: []string{"hello"},
-          },
-        },
-        Custom: staticdatasource.ConfigJSON(staticdatasource.Configuration{
-          Data: `{"hello":"world"}`,
-        }),
-        Factory: &staticdatasource.Factory{},
-      },
-    },
-    Fields: []plan.FieldConfiguration{
-      {
-        TypeName:              "Query", // attach this config to the Query type and the field hello
-        FieldName:             "hello",
-        DisableDefaultMapping: true,              // disable the default mapping for this field which only applies to GraphQL APIs
-        Path:                  []string{"hello"}, // returns the value of the field "hello" from the JSON data
-      },
-    },
-    IncludeInfo: true,
-  }
+	config := plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"hello"},
+					},
+				},
+				Custom: staticdatasource.ConfigJSON(staticdatasource.Configuration{
+					Data: `{"hello":"world"}`,
+				}),
+				Factory: &staticdatasource.Factory{},
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:              "Query", // attach this config to the Query type and the field hello
+				FieldName:             "hello",
+				DisableDefaultMapping: true,              // disable the default mapping for this field which only applies to GraphQL APIs
+				Path:                  []string{"hello"}, // returns the value of the field "hello" from the JSON data
+			},
+		},
+		IncludeInfo: true,
+	}
 
-  operationDocument := ast.NewSmallDocument() // containing the following query: query O { hello }
-  schemaDocument := ast.NewSmallDocument()
-  report := &operationreport.Report{}
-  operationName := "O"
+	operationDocument := ast.NewSmallDocument() // containing the following query: query O { hello }
+	schemaDocument := ast.NewSmallDocument()
+	report := &operationreport.Report{}
+	operationName := "O"
 
-  planner := plan.NewPlanner(context.Background(), config)
-  executionPlan := planner.Plan(operationDocument, schemaDocument, operationName, report)
-  if report.HasErrors() {
-    panic(report.Error())
-  }
-  fmt.Printf("%+v", executionPlan) // Output: Plan...
+	planner := plan.NewPlanner(context.Background(), config)
+	executionPlan := planner.Plan(operationDocument, schemaDocument, operationName, report)
+	if report.HasErrors() {
+		panic(report.Error())
+	}
+	fmt.Printf("%+v", executionPlan) // Output: Plan...
 }
 
 /*
@@ -525,22 +540,22 @@ This plan can now be executed by using the Resolver.
 */
 
 func ExampleExecuteOperation() {
-  var preparedPlan plan.Plan
-  resolver := resolve.New(context.Background(), true)
+	var preparedPlan plan.Plan
+	resolver := resolve.New(context.Background(), true)
 
-  ctx := resolve.NewContext(context.Background())
+	ctx := resolve.NewContext(context.Background())
 
-  switch p := preparedPlan.(type) {
-  case *plan.SynchronousResponsePlan:
-    out := &bytes.Buffer{}
-    err := resolver.ResolveGraphQLResponse(ctx, p.Response, nil, out)
-    if err != nil {
-      panic(err)
-    }
-    fmt.Println(out.String()) // Output: {"data":{"hello":"world"}}
-  case *plan.SubscriptionResponsePlan:
-    // this is a Query, so we ignore Subscriptions for now, but they are supported
-  }
+	switch p := preparedPlan.(type) {
+	case *plan.SynchronousResponsePlan:
+		out := &bytes.Buffer{}
+		err := resolver.ResolveGraphQLResponse(ctx, p.Response, nil, out)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(out.String()) // Output: {"data":{"hello":"world"}}
+	case *plan.SubscriptionResponsePlan:
+		// this is a Query, so we ignore Subscriptions for now, but they are supported
+	}
 }
 
 /*
@@ -563,46 +578,46 @@ This is useful, e.g. when you want to extract information about the fields that 
 */
 
 type visitor struct {
-  walker                *astvisitor.Walker
-  operation, definition *ast.Document
-  typeFields            [][]string
+	walker                *astvisitor.Walker
+	operation, definition *ast.Document
+	typeFields            [][]string
 }
 
 func (v *visitor) EnterField(ref int) {
-  // get the name of the enclosing type (Query)
-  enclosingTypeName := v.walker.EnclosingTypeDefinition.NameString(v.definition)
-  // get the name of the field (hello)
-  fieldName := v.operation.FieldNameString(ref)
-  // get the type definition of the field (String)
-  definitionRef, exists := v.walker.FieldDefinition(ref)
-  if !exists {
-    return
-  }
-  // get the name of the field type (String)
-  fieldTypeName := v.definition.FieldDefinitionTypeNameString(definitionRef)
-  v.typeFields = append(v.typeFields, []string{enclosingTypeName, fieldName, fieldTypeName})
+	// get the name of the enclosing type (Query)
+	enclosingTypeName := v.walker.EnclosingTypeDefinition.NameString(v.definition)
+	// get the name of the field (hello)
+	fieldName := v.operation.FieldNameString(ref)
+	// get the type definition of the field (String)
+	definitionRef, exists := v.walker.FieldDefinition(ref)
+	if !exists {
+		return
+	}
+	// get the name of the field type (String)
+	fieldTypeName := v.definition.FieldDefinitionTypeNameString(definitionRef)
+	v.typeFields = append(v.typeFields, []string{enclosingTypeName, fieldName, fieldTypeName})
 }
 
 func ExampleWalkAST() {
 
-  operationDocument := ast.NewSmallDocument() // containing the following query: query O { hello }
-  schemaDocument := ast.NewSmallDocument()    // containing the following schema: type Query { hello: String }
-  report := &operationreport.Report{}
+	operationDocument := ast.NewSmallDocument() // containing the following query: query O { hello }
+	schemaDocument := ast.NewSmallDocument()    // containing the following schema: type Query { hello: String }
+	report := &operationreport.Report{}
 
-  walker := astvisitor.NewWalker(24)
+	walker := astvisitor.NewWalker(24)
 
-  vis := &visitor{
-    walker:     &walker,
-    operation:  operationDocument,
-    definition: schemaDocument,
-  }
+	vis := &visitor{
+		walker:     &walker,
+		operation:  operationDocument,
+		definition: schemaDocument,
+	}
 
-  walker.RegisterEnterFieldVisitor(vis)
-  walker.Walk(operationDocument, schemaDocument, report)
-  if report.HasErrors() {
-    panic(report.Error())
-  }
-  fmt.Printf("%+v", vis.typeFields) // Output: [[Query hello String]]
+	walker.RegisterEnterFieldVisitor(vis)
+	walker.Walk(operationDocument, schemaDocument, report)
+	if report.HasErrors() {
+		panic(report.Error())
+	}
+	fmt.Printf("%+v", vis.typeFields) // Output: [[Query hello String]]
 }
 
 /*
