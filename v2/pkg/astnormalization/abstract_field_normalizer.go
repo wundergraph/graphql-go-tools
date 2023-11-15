@@ -37,6 +37,8 @@ func NewAbstractFieldNormalizer(operation *ast.Document, definition *ast.Documen
 }
 
 func (v *AbstractFieldNormalizer) Normalize() error {
+	v.allow = false
+
 	report := &operationreport.Report{}
 	v.Walk(v.operation, v.definition, report)
 	if report.HasErrors() {
@@ -68,7 +70,6 @@ func (v *AbstractFieldNormalizer) EnterField(ref int) {
 func (v *AbstractFieldNormalizer) LeaveField(ref int) {
 	if ref == v.targetFieldRef {
 		v.allow = false
+		v.Stop()
 	}
-
-	v.Stop()
 }
