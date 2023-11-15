@@ -48,15 +48,18 @@ func (s *inlineFragmentSelection) isFragmentOnInterface() bool {
 	return s.definitionNodeKind == ast.NodeKindInterfaceTypeDefinition
 }
 
-func (r *fieldSelectionRewriter) selectionSetFieldSelections(selectionSetRef int) (fieldSelections []fieldSelection, hasTypename bool) {
+func (r *fieldSelectionRewriter) selectionSetFieldSelections(selectionSetRef int, skipTypeName bool) (fieldSelections []fieldSelection, hasTypename bool) {
 	fieldSelectionRefs := r.operation.SelectionSetFieldSelections(selectionSetRef)
 	fieldSelections = make([]fieldSelection, 0, len(fieldSelectionRefs))
 	for _, fieldSelectionRef := range fieldSelectionRefs {
 		fieldRef := r.operation.Selections[fieldSelectionRef].Ref
 		fieldName := r.operation.FieldNameString(fieldRef)
+
 		if fieldName == "__typename" {
 			hasTypename = true
-			continue
+			if skipTypeName {
+				continue
+			}
 		}
 
 		fieldSelections = append(fieldSelections, fieldSelection{
@@ -74,7 +77,10 @@ func (r *fieldSelectionRewriter) collectFieldInformation(fieldRef int) (selectio
 		return selectionSetInfo{}, FieldDoesntHaveSelectionSetErr
 	}
 
-	return r.collectSelectionSetInformation(fieldSelectionSetRef)
+	// we should skip typename field in the list of fields for the root field information
+	// it should not be included when we are checking list of fields in the selection set
+	// it will be added later in case it was selected
+	return r.collectSelectionSetInformation(fieldSelectionSetRef, true)
 }
 
 func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
@@ -100,7 +106,7 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 		return InlineFragmentTypeIsNotExistsErr
 	}
 
-	selectionSetInfo, err := r.collectSelectionSetInformation(inlineFragmentSelectionSetRef)
+	selectionSetInfo, err := r.collectSelectionSetInformation(inlineFragmentSelectionSetRef, false)
 	if err != nil {
 		return err
 	}
@@ -134,8 +140,8 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 	return nil
 }
 
-func (r *fieldSelectionRewriter) collectSelectionSetInformation(selectionSetRef int) (selectionSetInfo, error) {
-	fieldSelections, hasSharedTypename := r.selectionSetFieldSelections(selectionSetRef)
+func (r *fieldSelectionRewriter) collectSelectionSetInformation(selectionSetRef int, skipTypeName bool) (selectionSetInfo, error) {
+	fieldSelections, hasSharedTypename := r.selectionSetFieldSelections(selectionSetRef, skipTypeName)
 
 	inlineFragmentSelectionRefs := r.operation.SelectionSetInlineFragmentSelections(selectionSetRef)
 	inlineFragmentSelectionsOnObjects := make([]inlineFragmentSelection, 0, len(inlineFragmentSelectionRefs))
