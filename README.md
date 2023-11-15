@@ -24,6 +24,16 @@ Cosmo Router wraps this library and provides a complete solution for Federated G
 - [x] Traffic Shaping (Timeouts, Retries, Header & Body Size Limits, Subgraph Header forwarding)
 - [x] Custom Modules & Middleware
 
+## Notes
+
+This library is used in production at [WunderGraph](https://wundergraph.com/).
+We've recently introduced a v2 module that is not completely backwards compatible with v1, hence the major version bump.
+The v2 module contains big rewrites in the engine package, mainly to better support GraphQL Federation.
+Please consider the v1 module as deprecated and move to v2 as soon as possible.
+
+We have customers who pay us to maintain this library and steer the direction of the project.
+[Contact us](https://wundergraph.com/contact/sales) if you're looking for commercial support, features or consulting.
+
 ## Tutorial
 
 If you're here to learn how to use this library to build your own custom GraphQL Router or API Gateway,
@@ -612,25 +622,30 @@ Following, here's a list of all the important packages in this library and what 
 ## Contributors
 
 - [Jens Neuse][jens-neuse-github] (Project Lead & Active Maintainer)
-- [Mantas Vidutis][mantas-vidutis-github]
-    - Contributions to the http proxy & the Context Middleware
-- [Jonas Bergner][jonas-bergner-github]
-    - Contributions to the initial version of the parser, contributions to the tests
-    - Implemented Type Extension merging [#108](https://github.com/wundergraph/graphql-go-tools/pull/108)
-- [Patric Vormstein][patric-vormstein-github] (Active Maintainer)
-    - Fixed lexer on windows [#92](https://github.com/wundergraph/graphql-go-tools/pull/92)
-    - Author of the graphql package to simplify the usage of the library
-    - Refactored the http package to simplify usage with http servers
-    - Author of the starwars package to enhance testing
+  - Initial version of graphql-go-tools
+  - Currently responsible for the loader and resolver implementation
 - [Sergey Petrunin][sergey-petrunin-github] (Active Maintainer)
-    - Helped cleaning up the API of the pipeline package [#166](https://github.com/wundergraph/graphql-go-tools/pull/166)
-    - Refactored the ast package into multiple files
-    - Author of the introspection converter (introspection JSON -> AST)
-    - Fixed various bugs in the parser & visitor & printer
-    - Refactored and enhanced the astimport package
-- [Vasyl Domanchuk][vasyl-github]
-    - Implemented the logic to generate a federation configuration
-    - Added federation example
+  - Helped cleaning up the API of the pipeline package
+  - Refactored the ast package into multiple files
+  - Author of the introspection converter (introspection JSON -> AST)
+  - Fixed various bugs in the parser & visitor & printer
+  - Refactored and enhanced the astimport package
+  - Current maintainer of the plan package
+- [Patric Vormstein][patric-vormstein-github] (Active Maintainer)
+  - Fixed lexer on windows
+  - Author of the graphql package to simplify the usage of the library
+  - Refactored the http package to simplify usage with http servers
+  - Author of the starwars package to enhance testing
+  - Refactor of the Subscriptions Implementation
+- [Mantas Vidutis][mantas-vidutis-github] (Inactive)
+  - Contributions to the http proxy & the Context Middleware
+- [Jonas Bergner][jonas-bergner-github] (Inactive)
+  - Contributions to the initial version of the parser, contributions to the tests
+  - Implemented Type Extension merging (deprecated)
+- [Vasyl Domanchuk][vasyl-github] (Inactive)
+  - Implemented the logic to generate a federation configuration
+  - Added federation example
+  - Added the initial version of the batching implementation
 
 [jens-neuse-github]: https://github.com/jensneuse
 [mantas-vidutis-github]: https://github.com/mvid
