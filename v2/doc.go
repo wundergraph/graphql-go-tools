@@ -33,6 +33,7 @@ import (
 	"fmt"
 
 	"github.com/cespare/xxhash/v2"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
@@ -199,6 +200,7 @@ func ExampleParseOperationNameAndType() {
 
 	fmt.Println(operationCount) // Output: 1
 	fmt.Println(operationNames) // Output: [MyQuery]
+	fmt.Println(operationTypes) // Output: [query]
 }
 
 /*
