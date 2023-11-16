@@ -237,3 +237,11 @@ func (d *Document) SelectionSetFieldNames(set int) (fieldNames []string) {
 	}
 	return
 }
+
+func (d *Document) SelectionIsFieldSelection(ref int) bool {
+	return d.Selections[ref].Kind == SelectionKindField
+}
+
+func (d *Document) SelectionIsInlineFragmentSelection(ref int) bool {
+	return d.Selections[ref].Kind == SelectionKindInlineFragment
+}

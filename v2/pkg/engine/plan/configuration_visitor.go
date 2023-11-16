@@ -929,15 +929,11 @@ func (c *configurationVisitor) rewriteSelectionSetOfFieldWithInterfaceType(field
 
 	upstreamSchema := c.planners[plannerIdx].planner.UpstreamSchema(c.planners[plannerIdx].dataSourceConfiguration)
 
-	rewriter := newFieldSelectionRewriter(
-		c.operation,
-		c.definition,
-		upstreamSchema,
-	)
+	rewriter := newFieldSelectionRewriter(c.operation, c.definition)
+	rewriter.SetUpstreamDefinition(upstreamSchema)
+	rewriter.SetDatasourceConfiguration(&c.planners[plannerIdx].dataSourceConfiguration)
 
-	rewritten, err := rewriter.RewriteFieldSelection(fieldRef,
-		c.walker.EnclosingTypeDefinition,
-		&c.planners[plannerIdx].dataSourceConfiguration)
+	rewritten, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
 
 	if err != nil {
 		c.walker.StopWithInternalErr(err)
@@ -945,11 +941,6 @@ func (c *configurationVisitor) rewriteSelectionSetOfFieldWithInterfaceType(field
 
 	if !rewritten {
 		return
-	}
-
-	// we should skip typename field ref when it was added by the rewriter, e.g. not requested by user
-	if rewriter.skipTypeNameFieldRef != ast.InvalidRef {
-		c.skipFieldsRefs = append(c.skipFieldsRefs, rewriter.skipTypeNameFieldRef)
 	}
 
 	c.hasNewFields = true

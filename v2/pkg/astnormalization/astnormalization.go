@@ -223,11 +223,18 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	other := astvisitor.NewWalker(48)
 	removeSelfAliasing(&other)
-	mergeInlineFragments(&other)
+	inlineSelectionsFromInlineFragments(&other)
 	mergeFieldSelections(&other)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
-		name:   "removeSelfAliasing, mergeInlineFragments, mergeFieldSelections",
+		name:   "removeSelfAliasing, inlineSelectionsFromInlineFragments, mergeFieldSelections",
 		walker: &other,
+	})
+
+	mergeInlineFragments := astvisitor.NewWalker(48)
+	mergeInlineFragmentSelections(&mergeInlineFragments)
+	o.operationWalkers = append(o.operationWalkers, walkerStage{
+		name:   "mergeInlineFragmentSelections",
+		walker: &mergeInlineFragments,
 	})
 
 	cleanup := astvisitor.NewWalker(48)
