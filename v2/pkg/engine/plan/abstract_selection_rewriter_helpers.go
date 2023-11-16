@@ -212,7 +212,25 @@ func (r *fieldSelectionRewriter) interfaceFragmentNeedCleanup(inlineFragment inl
 		}
 	}
 
+	if inlineFragment.selectionSetInfo.hasFields {
+		for _, typeName := range inlineFragment.typeNamesImplementingInterfaceInCurrentDS {
+			if !r.typeHasAllFieldLocal(typeName, inlineFragment.selectionSetInfo.fields) {
+				return true
+			}
+		}
+	}
+
 	return false
+}
+
+func (r *fieldSelectionRewriter) typeHasAllFieldLocal(typeName string, fields []fieldSelection) bool {
+	for _, field := range fields {
+		if !r.hasFieldOnDataSource(typeName, field.fieldName) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (r *fieldSelectionRewriter) allFragmentTypesImplementsInterfaceTypes(inlineFragments []inlineFragmentSelection, interfaceTypes []string) bool {
@@ -272,8 +290,7 @@ func (r *fieldSelectionRewriter) inlineFragmentHasAllFieldsLocalToDatasource(inl
 	}
 
 	for _, notSelectedField := range notSelectedFields {
-		hasField := r.dsConfiguration.HasRootNode(inlineFragmentSelection.typeName, notSelectedField.fieldName) ||
-			r.dsConfiguration.HasChildNode(inlineFragmentSelection.typeName, notSelectedField.fieldName)
+		hasField := r.hasFieldOnDataSource(inlineFragmentSelection.typeName, notSelectedField.fieldName)
 
 		if !hasField {
 			return false
@@ -286,6 +303,11 @@ func (r *fieldSelectionRewriter) inlineFragmentHasAllFieldsLocalToDatasource(inl
 func (r *fieldSelectionRewriter) hasTypeOnDataSource(typeName string) bool {
 	return r.dsConfiguration.HasRootNodeWithTypename(typeName) ||
 		r.dsConfiguration.HasChildNodeWithTypename(typeName)
+}
+
+func (r *fieldSelectionRewriter) hasFieldOnDataSource(typeName string, fieldName string) bool {
+	return r.dsConfiguration.HasRootNode(typeName, fieldName) ||
+		r.dsConfiguration.HasChildNode(typeName, fieldName)
 }
 
 func (r *fieldSelectionRewriter) createFragmentSelection(typeName string, fields []fieldSelection) (selectionRef int) {

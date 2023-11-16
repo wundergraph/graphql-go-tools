@@ -1797,6 +1797,185 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				}`,
 			shouldRewrite: true,
 		},
+		{
+			name: "interface field having only other interface fragment with fragments inside",
+			definition: `
+				interface HasName {
+					name: String!
+				}
+
+				type User implements HasName {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin implements HasName {
+					id: ID!
+					name: String!
+				}
+				
+				type Query {
+					iface: HasName!
+				}`,
+			upstreamDefinition: `
+				interface HasName {
+					name: String!
+				}
+
+				type User implements HasName {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin implements HasName {
+					id: ID!
+					name: String! @external
+				}
+				
+				type Query {
+					iface: HasName!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				ChildNode("HasName", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DSPtr(),
+			operation: `
+				query {
+					iface {
+						... on HasName {
+							name
+							... on HasName {
+								... on User {
+									isUser
+								}
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					iface {
+						... on Admin {
+							name
+						}
+						... on User {
+							name
+							isUser
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:      "interface field having only other interface fragment with fragments inside",
+			fieldName: "returnsUnion",
+			definition: `
+				interface HasName {
+					name: String!
+				}
+
+				type User implements HasName {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin implements HasName {
+					id: ID!
+					name: String!
+				}
+				
+				type Moderator implements HasName {
+					id: ID!
+					name: String!
+				}
+
+				union Account = User | Admin | Moderator
+
+				type Query {
+					returnsUnion: Account!
+				}`,
+			upstreamDefinition: `
+				interface HasName {
+					name: String!
+				}
+
+				type User implements HasName {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin implements HasName {
+					id: ID!
+					name: String! @external
+				}
+
+				union Account = User | Admin
+
+				type Query {
+					returnsUnion: Account!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				ChildNode("HasName", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DSPtr(),
+			operation: `
+				query {
+					returnsUnion {
+						... on HasName {
+							name
+							... on HasName {
+								... on User {
+									isUser
+								}
+								... on Moderator {
+									name
+								}
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					returnsUnion {
+						... on Admin {
+							name
+						}
+						... on User {
+							name
+							isUser
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
 	}
 
 	for _, testCase := range testCases {

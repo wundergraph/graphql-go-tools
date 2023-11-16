@@ -212,6 +212,10 @@ func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo s
 		newSelectionRefs = append(newSelectionRefs, fragmentSelectionRef)
 	}
 
+	return r.replaceFieldSelections(fieldRef, newSelectionRefs)
+}
+
+func (r *fieldSelectionRewriter) replaceFieldSelections(fieldRef int, newSelectionRefs []int) error {
 	fieldSelectionSetRef, _ := r.operation.FieldSelectionSet(fieldRef)
 	r.operation.EmptySelectionSet(fieldSelectionSetRef)
 
@@ -220,7 +224,7 @@ func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo s
 	}
 
 	if len(newSelectionRefs) == 0 {
-		// we have to add __typename selection - but we should skip it in response
+		// we have to add __typename selection in case there is no other selections
 		typeNameSelectionRef, _ := r.typeNameSelection()
 		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, typeNameSelectionRef)
 	}
@@ -357,25 +361,7 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 		interfaceTypeNames,
 		&newSelectionRefs)
 
-	fieldSelectionSetRef, _ := r.operation.FieldSelectionSet(fieldRef)
-	r.operation.EmptySelectionSet(fieldSelectionSetRef)
-
-	for _, newSelectionRef := range newSelectionRefs {
-		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, newSelectionRef)
-	}
-
-	if len(newSelectionRefs) == 0 {
-		// we have to add __typename selection - but we should skip it in response
-		typeNameSelectionRef, _ := r.typeNameSelection()
-		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, typeNameSelectionRef)
-	}
-
-	normalizer := astnormalization.NewAbstractFieldNormalizer(r.operation, r.definition, fieldRef)
-	if err := normalizer.Normalize(); err != nil {
-		return err
-	}
-
-	return nil
+	return r.replaceFieldSelections(fieldRef, newSelectionRefs)
 }
 
 func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo selectionSetInfo, typeNamesImplementingInterfaceInCurrentDS []string, allowedTypeNames []string, selectionRefs *[]int) {
