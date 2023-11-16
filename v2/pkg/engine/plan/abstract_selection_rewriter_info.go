@@ -125,14 +125,21 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 		return nil
 	}
 
-	// Note: We are getting type names implementing interface from the current SUBGRAPH definion
-	typeNamesImplementingInterface, _ := r.upstreamDefinition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
-	entityNames, _ := r.datasourceHasEntitiesWithName(typeNamesImplementingInterface)
-
 	inlineFragmentSelectionOnInterface := inlineFragmentSelectionOnInterface{
-		inlineFragmentSelection:                   inlineFragmentSelection,
-		typeNamesImplementingInterfaceInCurrentDS: typeNamesImplementingInterface,
-		entityNamesImplementingInterface:          entityNames,
+		inlineFragmentSelection: inlineFragmentSelection,
+	}
+
+	// NOTE: We are getting type names implementing interface from the current SUBGRAPH definion
+	// NOTE: at this point we ignore case when upstreamNode is not exists in the upstream schema
+	upstreamNode, hasUpstreamNode := r.upstreamDefinition.NodeByNameStr(typeCondition)
+	if hasUpstreamNode {
+		if upstreamNode.Kind == ast.NodeKindInterfaceTypeDefinition {
+			typeNamesImplementingInterface, _ := r.upstreamDefinition.InterfaceTypeDefinitionImplementedByObjectWithNames(upstreamNode.Ref)
+			entityNames, _ := r.datasourceHasEntitiesWithName(typeNamesImplementingInterface)
+
+			inlineFragmentSelectionOnInterface.typeNamesImplementingInterfaceInCurrentDS = typeNamesImplementingInterface
+			inlineFragmentSelectionOnInterface.entityNamesImplementingInterface = entityNames
+		}
 	}
 
 	*inlineFragmentsOnInterfaces = append(*inlineFragmentsOnInterfaces, inlineFragmentSelectionOnInterface)
