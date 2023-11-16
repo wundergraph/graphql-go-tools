@@ -365,6 +365,10 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 }
 
 func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo selectionSetInfo, typeNamesImplementingInterfaceInCurrentDS []string, allowedTypeNames []string, selectionRefs *[]int) {
+	if len(typeNamesImplementingInterfaceInCurrentDS) == 0 {
+		return
+	}
+
 	if selectionSetInfo.hasFields {
 		for _, typeName := range allowedTypeNames {
 			*selectionRefs = append(*selectionRefs, r.createFragmentSelection(typeName, selectionSetInfo.fields))
