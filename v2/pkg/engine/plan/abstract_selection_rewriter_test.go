@@ -1976,6 +1976,83 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				}`,
 			shouldRewrite: true,
 		},
+		{
+			name:      "don't have an interface in the datasource",
+			fieldName: "returnsUnion",
+			definition: `
+				interface HasName {
+					name: String!
+				}
+
+				type User implements HasName {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin implements HasName {
+					id: ID!
+					name: String!
+				}
+
+				union Account = User | Admin
+
+				type Query {
+					returnsUnion: Account!
+				}`,
+			upstreamDefinition: `
+				type User {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin {
+					id: ID!
+					name: String! @external
+				}
+
+				union Account = User | Admin
+
+				type Query {
+					returnsUnion: Account!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DSPtr(),
+			operation: `
+				query {
+					returnsUnion {
+						... on HasName {
+							name
+							... on HasName {
+								... on User {
+									isUser
+								}
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					returnsUnion {
+						__typename
+					}
+				}`,
+			shouldRewrite: true,
+		},
 	}
 
 	for _, testCase := range testCases {
