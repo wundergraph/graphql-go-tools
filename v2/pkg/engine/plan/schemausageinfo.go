@@ -58,10 +58,7 @@ func (t *TypeFieldUsageInfo) Equals(other TypeFieldUsageInfo) bool {
 			return false
 		}
 	}
-	if len(t.Source.IDs) != len(other.Source.IDs) {
-		return false
-	}
-	return true
+	return len(t.Source.IDs) == len(other.Source.IDs)
 }
 
 type InputTypeFieldUsageInfo struct {

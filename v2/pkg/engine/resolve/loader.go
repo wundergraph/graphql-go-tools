@@ -463,7 +463,9 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items 
 	if l.traceOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.traceOptions.ExcludeRawInputData {
-			fetch.Trace.RawInputData = []byte(input.String())
+			inputCopy := make([]byte, input.Len())
+			copy(inputCopy, input.Bytes())
+			fetch.Trace.RawInputData = inputCopy
 		}
 	}
 	err = fetch.InputTemplate.Render(l.ctx, input.Bytes(), preparedInput)
@@ -493,7 +495,9 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 	if l.traceOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.traceOptions.ExcludeRawInputData {
-			fetch.Trace.RawInputData = []byte(itemData.String())
+			itemDataCopy := make([]byte, itemData.Len())
+			copy(itemDataCopy, itemData.Bytes())
+			fetch.Trace.RawInputData = itemDataCopy
 		}
 	}
 
