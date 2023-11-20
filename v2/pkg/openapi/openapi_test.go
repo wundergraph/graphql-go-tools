@@ -7,9 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/astprinter"
+	"github.com/stretchr/testify/require"
 )
 
 func testFixtureFile(t *testing.T, version, name string) {
@@ -25,7 +24,14 @@ func testFixtureFile(t *testing.T, version, name string) {
 	err = astprinter.PrintIndent(doc, nil, []byte("  "), w)
 	require.NoError(t, err)
 
-	name = strings.Trim(strings.Trim(name, ".yaml"), ".json")
+	if strings.HasSuffix(name, ".yaml") {
+		name = strings.Trim(name, ".yaml")
+	} else if strings.HasSuffix(name, ".json") {
+		name = strings.Trim(name, ".json")
+	} else {
+		require.Fail(t, "unrecognized file: %s", name)
+	}
+
 	graphqlDoc, err := os.ReadFile(fmt.Sprintf("./fixtures/%s/%s.graphql", version, name))
 	require.NoError(t, err)
 	require.Equal(t, string(graphqlDoc), w.String())
@@ -60,4 +66,7 @@ func TestOpenAPI_v3_0_0(t *testing.T) {
 		testFixtureFile(t, "v3.0.0", "example_oas3.json")
 	})
 
+	t.Run("carts-api-oas.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "carts-api-oas.yaml")
+	})
 }

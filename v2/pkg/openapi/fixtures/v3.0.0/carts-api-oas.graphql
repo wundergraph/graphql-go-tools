@@ -1,0 +1,19 @@
+schema {
+    query: Query
+}
+
+type Query {
+    "Get single cart by its id"
+    getCartById(id: Int!): Cart
+    "Returns list of all carts"
+    getCarts: [Cart]
+}
+
+type Cart {
+    id: Int
+    products: [ProductsListItem]
+}
+
+type ProductsListItem {
+    productId: Int
+}

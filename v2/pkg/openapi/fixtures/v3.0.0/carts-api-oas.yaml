@@ -1,0 +1,53 @@
+openapi: "3.0.0"
+info:
+  title: Carts API
+  version: 1.0.0
+servers:
+  - url: http://localhost:3004/
+paths:
+  /carts:
+    get:
+      description: Returns list of all carts
+      operationId: getCarts
+      responses:
+        '200':
+          description: carts response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Cart'
+  /carts/{id}:
+    get:
+      description: Get single cart by its id
+      operationId: getCartById
+      parameters:
+        - name: id
+          in: path
+          description: ID of user to fetch
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: cart response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+components:
+  schemas:
+    Cart:
+      type: object
+      properties:
+        id:
+          type: integer
+        products:
+          type: array
+          items:
+            type: object
+            properties:
+              product_id:
+                type: integer
