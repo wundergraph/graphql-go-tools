@@ -1,5 +1,9 @@
 package resolve
 
+import (
+	"encoding/json"
+)
+
 type FetchKind int
 
 const (
@@ -22,6 +26,8 @@ type SingleFetch struct {
 	SerialID             int
 	InputTemplate        InputTemplate
 	DataSourceIdentifier []byte
+	Trace                *DataSourceLoadTrace
+	Info                 *FetchInfo
 }
 
 type PostProcessingConfiguration struct {
@@ -78,6 +84,8 @@ type BatchEntityFetch struct {
 	PostProcessing       PostProcessingConfiguration
 	DataSourceIdentifier []byte
 	DisallowSingleFlight bool
+	Trace                *DataSourceLoadTrace
+	Info                 *FetchInfo
 }
 
 type BatchInput struct {
@@ -105,6 +113,8 @@ type EntityFetch struct {
 	PostProcessing       PostProcessingConfiguration
 	DataSourceIdentifier []byte
 	DisallowSingleFlight bool
+	Trace                *DataSourceLoadTrace
+	Info                 *FetchInfo
 }
 
 type EntityInput struct {
@@ -122,7 +132,8 @@ func (_ *EntityFetch) FetchKind() FetchKind {
 // Usually, you want to batch fetches within a list, which is the default behavior of SingleFetch
 // However, if the data source does not support batching, you can use this fetch to make parallel fetches within a list
 type ParallelListItemFetch struct {
-	Fetch *SingleFetch
+	Fetch  *SingleFetch
+	Traces []*SingleFetch
 }
 
 func (_ *ParallelListItemFetch) FetchKind() FetchKind {
@@ -153,4 +164,22 @@ type FetchConfiguration struct {
 	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
 	// Returning null in this case tells the batch implementation to skip this item
 	SetTemplateOutputToNullOnVariableNull bool
+}
+
+type FetchInfo struct {
+	DataSourceID string
+}
+
+type DataSourceLoadTrace struct {
+	RawInputData               json.RawMessage `json:"raw_input_data,omitempty"`
+	Input                      json.RawMessage `json:"input,omitempty"`
+	Output                     json.RawMessage `json:"output,omitempty"`
+	LoadError                  string          `json:"error,omitempty"`
+	DurationSinceStartNano     int64           `json:"duration_since_start_nanoseconds,omitempty"`
+	DurationSinceStartPretty   string          `json:"duration_since_start_pretty,omitempty"`
+	DurationLoadNano           int64           `json:"duration_load_nanoseconds,omitempty"`
+	DurationLoadPretty         string          `json:"duration_load_pretty,omitempty"`
+	SingleFlightUsed           bool            `json:"single_flight_used"`
+	SingleFlightSharedResponse bool            `json:"single_flight_shared_response"`
+	LoadSkipped                bool            `json:"load_skipped"`
 }

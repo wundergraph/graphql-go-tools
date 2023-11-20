@@ -32,6 +32,7 @@ const (
 	UNDEFINED_VARIABLES                         = "undefined"
 	FORWARDED_CLIENT_HEADER_NAMES               = "forwarded_client_header_names"
 	FORWARDED_CLIENT_HEADER_REGULAR_EXPRESSIONS = "forwarded_client_header_regular_expressions"
+	TRACE                                       = "__trace__"
 )
 
 var (
@@ -41,6 +42,7 @@ var (
 		{BODY},
 		{HEADER},
 		{QUERYPARAMS},
+		{TRACE},
 	}
 	subscriptionInputPaths = [][]string{
 		{URL},
@@ -208,7 +210,7 @@ func SetInputPath(input, path []byte) []byte {
 	return out
 }
 
-func requestInputParams(input []byte) (url, method, body, headers, queryParams []byte) {
+func requestInputParams(input []byte) (url, method, body, headers, queryParams []byte, trace bool) {
 	jsonparser.EachKey(input, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
 		switch i {
 		case 0:
@@ -221,6 +223,8 @@ func requestInputParams(input []byte) (url, method, body, headers, queryParams [
 			headers = bytes
 		case 4:
 			queryParams = bytes
+		case 5:
+			trace = bytes[0] == 't'
 		}
 	}, inputPaths...)
 	return

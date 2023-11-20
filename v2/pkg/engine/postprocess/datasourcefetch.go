@@ -84,6 +84,7 @@ func (d *DataSourceFetch) createEntityBatchFetch(fetch *resolve.SingleFetch) res
 	}
 
 	return &resolve.BatchEntityFetch{
+		Info: fetch.Info,
 		Input: resolve.BatchInput{
 			Header: resolve.InputTemplate{
 				Segments:                              fetch.InputTemplate.Segments[:representationsVariableIndex],
@@ -128,6 +129,7 @@ func (d *DataSourceFetch) createEntityFetch(fetch *resolve.SingleFetch) resolve.
 	}
 
 	return &resolve.EntityFetch{
+		Info: fetch.Info,
 		Input: resolve.EntityInput{
 			Header: resolve.InputTemplate{
 				Segments:                              fetch.InputTemplate.Segments[:representationsVariableIndex],

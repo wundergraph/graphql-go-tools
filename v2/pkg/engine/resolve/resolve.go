@@ -21,7 +21,7 @@ type Resolver struct {
 
 type tools struct {
 	resolvable *Resolvable
-	loader     *V2Loader
+	loader     *Loader
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -34,7 +34,7 @@ func New(ctx context.Context, enableSingleFlightLoader bool) *Resolver {
 			New: func() interface{} {
 				return &tools{
 					resolvable: NewResolvable(),
-					loader:     &V2Loader{},
+					loader:     &Loader{},
 				}
 			},
 		},
@@ -64,7 +64,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	t := r.getTools()
 	defer r.putTools(t)
 
-	t.resolvable.enableTracing = ctx.EnableTracing
+	t.resolvable.requestTraceOptions = ctx.RequestTracingOptions
 
 	err = t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
@@ -76,7 +76,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		return err
 	}
 
-	return t.resolvable.Resolve(response.Data, writer)
+	return t.resolvable.Resolve(ctx.ctx, response.Data, writer)
 }
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer FlushWriter) error {
@@ -114,7 +114,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	t := r.getTools()
 	defer r.putTools(t)
 
-	t.resolvable.enableTracing = ctx.EnableTracing
+	t.resolvable.requestTraceOptions = ctx.RequestTracingOptions
 
 	for {
 		select {
@@ -131,7 +131,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 			if err := t.loader.LoadGraphQLResponseData(ctx, subscription.Response, t.resolvable); err != nil {
 				return err
 			}
-			if err := t.resolvable.Resolve(subscription.Response.Data, writer); err != nil {
+			if err := t.resolvable.Resolve(ctx.ctx, subscription.Response.Data, writer); err != nil {
 				return err
 			}
 			writer.Flush()

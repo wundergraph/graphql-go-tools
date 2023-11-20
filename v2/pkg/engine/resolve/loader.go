@@ -8,15 +8,18 @@ import (
 	"runtime"
 	"runtime/debug"
 	"sync"
+	"time"
 
+	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
+	"github.com/tidwall/gjson"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
-type V2Loader struct {
+type Loader struct {
 	data               *astjson.JSON
 	dataRoot           int
 	errorsRoot         int
@@ -24,9 +27,10 @@ type V2Loader struct {
 	sf                 *Group
 	enableSingleFlight bool
 	path               []string
+	traceOptions       RequestTraceOptions
 }
 
-func (l *V2Loader) Free() {
+func (l *Loader) Free() {
 	l.ctx = nil
 	l.sf = nil
 	l.data = nil
@@ -36,15 +40,16 @@ func (l *V2Loader) Free() {
 	l.path = l.path[:0]
 }
 
-func (l *V2Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
+func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
 	l.data = resolvable.storage
 	l.dataRoot = resolvable.dataRoot
 	l.errorsRoot = resolvable.errorsRoot
+	l.traceOptions = resolvable.requestTraceOptions
 	l.ctx = ctx
 	return l.walkNode(response.Data, []int{resolvable.dataRoot})
 }
 
-func (l *V2Loader) walkNode(node Node, items []int) error {
+func (l *Loader) walkNode(node Node, items []int) error {
 	switch n := node.(type) {
 	case *Object:
 		return l.walkObject(n, items)
@@ -55,23 +60,23 @@ func (l *V2Loader) walkNode(node Node, items []int) error {
 	}
 }
 
-func (l *V2Loader) pushPath(path []string) {
+func (l *Loader) pushPath(path []string) {
 	l.path = append(l.path, path...)
 }
 
-func (l *V2Loader) popPath(path []string) {
+func (l *Loader) popPath(path []string) {
 	l.path = l.path[:len(l.path)-len(path)]
 }
 
-func (l *V2Loader) pushArrayPath() {
+func (l *Loader) pushArrayPath() {
 	l.path = append(l.path, "@")
 }
 
-func (l *V2Loader) popArrayPath() {
+func (l *Loader) popArrayPath() {
 	l.path = l.path[:len(l.path)-1]
 }
 
-func (l *V2Loader) walkObject(object *Object, parentItems []int) (err error) {
+func (l *Loader) walkObject(object *Object, parentItems []int) (err error) {
 	l.pushPath(object.Path)
 	defer l.popPath(object.Path)
 	objectItems := l.selectNodeItems(parentItems, object.Path)
@@ -90,7 +95,7 @@ func (l *V2Loader) walkObject(object *Object, parentItems []int) (err error) {
 	return nil
 }
 
-func (l *V2Loader) walkArray(array *Array, parentItems []int) error {
+func (l *Loader) walkArray(array *Array, parentItems []int) error {
 	l.pushPath(array.Path)
 	l.pushArrayPath()
 	nodeItems := l.selectNodeItems(parentItems, array.Path)
@@ -100,7 +105,7 @@ func (l *V2Loader) walkArray(array *Array, parentItems []int) error {
 	return err
 }
 
-func (l *V2Loader) selectNodeItems(parentItems []int, path []string) (items []int) {
+func (l *Loader) selectNodeItems(parentItems []int, path []string) (items []int) {
 	if parentItems == nil {
 		return nil
 	}
@@ -132,7 +137,7 @@ func (l *V2Loader) selectNodeItems(parentItems []int, path []string) (items []in
 	return
 }
 
-func (l *V2Loader) itemsData(items []int, out io.Writer) error {
+func (l *Loader) itemsData(items []int, out io.Writer) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -145,7 +150,7 @@ func (l *V2Loader) itemsData(items []int, out io.Writer) error {
 	}, out)
 }
 
-func (l *V2Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
+func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		res := &result{
@@ -236,7 +241,7 @@ func (l *V2Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 	return nil
 }
 
-func (l *V2Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res *result) error {
+func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res *result) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		res.out = pool.BytesBuffer.Get()
@@ -247,11 +252,22 @@ func (l *V2Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res 
 		return fmt.Errorf("parallel fetch must not be nested")
 	case *ParallelListItemFetch:
 		results := make([]*result, len(items))
+		if l.traceOptions.Enable {
+			f.Traces = make([]*SingleFetch, len(items))
+		}
 		g, ctx := errgroup.WithContext(l.ctx.ctx)
 		for i := range items {
 			i := i
 			results[i] = &result{
 				out: pool.BytesBuffer.Get(),
+			}
+			if l.traceOptions.Enable {
+				f.Traces[i] = new(SingleFetch)
+				*f.Traces[i] = *f.Fetch
+				g.Go(func() error {
+					return l.loadFetch(ctx, f.Traces[i], items[i:i+1], results[i])
+				})
+				continue
 			}
 			g.Go(func() error {
 				return l.loadFetch(ctx, f.Fetch, items[i:i+1], results[i])
@@ -273,7 +289,7 @@ func (l *V2Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res 
 	return nil
 }
 
-func (l *V2Loader) mergeErrors(ref int) {
+func (l *Loader) mergeErrors(ref int) {
 	if ref == -1 {
 		return
 	}
@@ -284,7 +300,7 @@ func (l *V2Loader) mergeErrors(ref int) {
 	l.data.MergeArrays(l.errorsRoot, ref)
 }
 
-func (l *V2Loader) mergeResult(res *result, items []int) error {
+func (l *Loader) mergeResult(res *result, items []int) error {
 	defer pool.BytesBuffer.Put(res.out)
 	if res.fetchAborted {
 		return nil
@@ -402,7 +418,7 @@ var (
 	errorsInvalidInputFooter = []byte(`]}]}`)
 )
 
-func (l *V2Loader) renderErrorsInvalidInput(out *bytes.Buffer) error {
+func (l *Loader) renderErrorsInvalidInput(out *bytes.Buffer) error {
 	_, _ = out.Write(errorsInvalidInputHeader)
 	for i := range l.path {
 		if i != 0 {
@@ -421,7 +437,7 @@ var (
 	errorsFailedToFetchFooter = []byte(`]}]}`)
 )
 
-func (l *V2Loader) renderErrorsFailedToFetch(out *bytes.Buffer) error {
+func (l *Loader) renderErrorsFailedToFetch(out *bytes.Buffer) error {
 	_, _ = out.Write(errorsFailedToFetchHeader)
 	for i := range l.path {
 		if i != 0 {
@@ -435,7 +451,7 @@ func (l *V2Loader) renderErrorsFailedToFetch(out *bytes.Buffer) error {
 	return nil
 }
 
-func (l *V2Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items []int, res *result) error {
+func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items []int, res *result) error {
 	input := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(input)
 	preparedInput := pool.BytesBuffer.Get()
@@ -444,11 +460,19 @@ func (l *V2Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, item
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	if l.traceOptions.Enable {
+		fetch.Trace = &DataSourceLoadTrace{}
+		if !l.traceOptions.ExcludeRawInputData {
+			inputCopy := make([]byte, input.Len())
+			copy(inputCopy, input.Bytes())
+			fetch.Trace.RawInputData = inputCopy
+		}
+	}
 	err = fetch.InputTemplate.Render(l.ctx, input.Bytes(), preparedInput)
 	if err != nil {
 		return l.renderErrorsInvalidInput(res.out)
 	}
-	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out)
+	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	if err != nil {
 		return l.renderErrorsFailedToFetch(res.out)
 	}
@@ -456,7 +480,7 @@ func (l *V2Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, item
 	return nil
 }
 
-func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items []int, res *result) error {
+func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items []int, res *result) error {
 	itemData := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(itemData)
 	preparedInput := pool.BytesBuffer.Get()
@@ -466,6 +490,15 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 	err := l.itemsData(items, itemData)
 	if err != nil {
 		return errors.WithStack(err)
+	}
+
+	if l.traceOptions.Enable {
+		fetch.Trace = &DataSourceLoadTrace{}
+		if !l.traceOptions.ExcludeRawInputData {
+			itemDataCopy := make([]byte, itemData.Len())
+			copy(itemDataCopy, itemData.Bytes())
+			fetch.Trace.RawInputData = itemDataCopy
+		}
 	}
 
 	var undefinedVariables []string
@@ -480,6 +513,9 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 		if fetch.Input.SkipErrItem {
 			err = nil // nolint:ineffassign
 			// skip fetch on render item error
+			if l.traceOptions.Enable {
+				fetch.Trace.LoadSkipped = true
+			}
 			return nil
 		}
 		return errors.WithStack(err)
@@ -488,11 +524,17 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 	if bytes.Equal(renderedItem, null) {
 		// skip fetch if item is null
 		res.fetchAborted = true
+		if l.traceOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		}
 		return nil
 	}
 	if bytes.Equal(renderedItem, emptyObject) {
 		// skip fetch if item is empty
 		res.fetchAborted = true
+		if l.traceOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		}
 		return nil
 	}
 	_, _ = item.WriteTo(preparedInput)
@@ -506,7 +548,7 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 		return errors.WithStack(err)
 	}
 
-	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out)
+	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -514,8 +556,19 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 	return nil
 }
 
-func (l *V2Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityFetch, items []int, res *result) error {
+func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityFetch, items []int, res *result) error {
 	res.postProcessing = fetch.PostProcessing
+	if l.traceOptions.Enable {
+		fetch.Trace = &DataSourceLoadTrace{}
+		if !l.traceOptions.ExcludeRawInputData {
+			buf := &bytes.Buffer{}
+			err := l.itemsData(items, buf)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			fetch.Trace.RawInputData = buf.Bytes()
+		}
+	}
 
 	preparedInput := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(preparedInput)
@@ -556,6 +609,9 @@ WithNextItem:
 					res.batchStats[i] = append(res.batchStats[i], -1)
 					continue
 				}
+				if l.traceOptions.Enable {
+					fetch.Trace.LoadSkipped = true
+				}
 				return errors.WithStack(err)
 			}
 			if fetch.Input.SkipNullItems && itemInput.Len() == 4 && bytes.Equal(itemInput.Bytes(), null) {
@@ -593,6 +649,9 @@ WithNextItem:
 	if len(itemHashes) == 0 {
 		// all items were skipped - discard fetch
 		res.fetchAborted = true
+		if l.traceOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		}
 		return nil
 	}
 
@@ -605,17 +664,33 @@ WithNextItem:
 	if err != nil {
 		return errors.WithStack(err)
 	}
-
-	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out)
+	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	return nil
 }
 
-func (l *V2Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, input []byte, out io.Writer) error {
+func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, input []byte, out io.Writer, trace *DataSourceLoadTrace) error {
+	if l.traceOptions.Enable {
+		if !l.traceOptions.ExcludeInput {
+			trace.Input = []byte(string(input)) // copy input explicitly, omit __trace__ field
+		}
+		if gjson.ValidBytes(input) {
+			inputCopy := make([]byte, len(input))
+			copy(inputCopy, input)
+			input, _ = jsonparser.Set(inputCopy, []byte("true"), "__trace__")
+		}
+		if !l.traceOptions.ExcludeLoadStats {
+			trace.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
+			trace.DurationSinceStartPretty = time.Duration(trace.DurationSinceStartNano).String()
+		}
+	}
 	if !l.enableSingleFlight || disallowSingleFlight {
 		return source.Load(ctx, input, out)
+	}
+	if l.traceOptions.Enable {
+		trace.SingleFlightUsed = true
 	}
 	keyGen := pool.Hash64.Get()
 	defer pool.Hash64.Put(keyGen)
@@ -624,7 +699,7 @@ func (l *V2Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight b
 		return errors.WithStack(err)
 	}
 	key := keyGen.Sum64()
-	data, err, _ := l.sf.Do(key, func() ([]byte, error) {
+	data, err, shared := l.sf.Do(key, func() ([]byte, error) {
 		singleBuffer := pool.BytesBuffer.Get()
 		defer pool.BytesBuffer.Put(singleBuffer)
 		err := source.Load(ctx, input, singleBuffer)
@@ -636,7 +711,28 @@ func (l *V2Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight b
 		copy(cp, data)
 		return cp, nil
 	})
+	if l.traceOptions.Enable {
+		if !l.traceOptions.ExcludeOutput && data != nil {
+			if l.traceOptions.EnablePredictableDebugTimings {
+				trace.Output = jsonparser.Delete([]byte(string(data)), "extensions", "trace", "response", "headers", "Date")
+			} else {
+				trace.Output = []byte(string(data))
+			}
+		}
+		trace.SingleFlightSharedResponse = shared
+		if !l.traceOptions.ExcludeLoadStats {
+			if l.traceOptions.EnablePredictableDebugTimings {
+				trace.DurationLoadNano = 1
+			} else {
+				trace.DurationLoadNano = GetDurationNanoSinceTraceStart(ctx) - trace.DurationSinceStartNano
+			}
+			trace.DurationLoadPretty = time.Duration(trace.DurationLoadNano).String()
+		}
+	}
 	if err != nil {
+		if l.traceOptions.Enable {
+			trace.LoadError = err.Error()
+		}
 		return errors.WithStack(err)
 	}
 	_, err = out.Write(data)
