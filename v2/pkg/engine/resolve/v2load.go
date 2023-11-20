@@ -8,8 +8,11 @@ import (
 	"runtime"
 	"runtime/debug"
 	"sync"
+	"time"
 
+	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
+	"github.com/tidwall/gjson"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
@@ -24,6 +27,7 @@ type V2Loader struct {
 	sf                 *Group
 	enableSingleFlight bool
 	path               []string
+	traceOptions       RequestTraceOptions
 }
 
 func (l *V2Loader) Free() {
@@ -40,6 +44,7 @@ func (l *V2Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLRespon
 	l.data = resolvable.storage
 	l.dataRoot = resolvable.dataRoot
 	l.errorsRoot = resolvable.errorsRoot
+	l.traceOptions = resolvable.requestTraceOptions
 	l.ctx = ctx
 	return l.walkNode(response.Data, []int{resolvable.dataRoot})
 }
@@ -247,11 +252,22 @@ func (l *V2Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res 
 		return fmt.Errorf("parallel fetch must not be nested")
 	case *ParallelListItemFetch:
 		results := make([]*result, len(items))
+		if l.traceOptions.Enable {
+			f.Traces = make([]*SingleFetch, len(items))
+		}
 		g, ctx := errgroup.WithContext(l.ctx.ctx)
 		for i := range items {
 			i := i
 			results[i] = &result{
 				out: pool.BytesBuffer.Get(),
+			}
+			if l.traceOptions.Enable {
+				f.Traces[i] = new(SingleFetch)
+				*f.Traces[i] = *f.Fetch
+				g.Go(func() error {
+					return l.loadFetch(ctx, f.Traces[i], items[i:i+1], results[i])
+				})
+				continue
 			}
 			g.Go(func() error {
 				return l.loadFetch(ctx, f.Fetch, items[i:i+1], results[i])
@@ -444,11 +460,17 @@ func (l *V2Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, item
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	if l.traceOptions.Enable {
+		fetch.Trace = &DataSourceLoadTrace{}
+		if !l.traceOptions.ExcludeRawInputData {
+			fetch.Trace.RawInputData = []byte(input.String())
+		}
+	}
 	err = fetch.InputTemplate.Render(l.ctx, input.Bytes(), preparedInput)
 	if err != nil {
 		return l.renderErrorsInvalidInput(res.out)
 	}
-	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out)
+	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	if err != nil {
 		return l.renderErrorsFailedToFetch(res.out)
 	}
@@ -468,6 +490,13 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 		return errors.WithStack(err)
 	}
 
+	if l.traceOptions.Enable {
+		fetch.Trace = &DataSourceLoadTrace{}
+		if !l.traceOptions.ExcludeRawInputData {
+			fetch.Trace.RawInputData = []byte(itemData.String())
+		}
+	}
+
 	var undefinedVariables []string
 
 	err = fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
@@ -480,6 +509,9 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 		if fetch.Input.SkipErrItem {
 			err = nil // nolint:ineffassign
 			// skip fetch on render item error
+			if l.traceOptions.Enable {
+				fetch.Trace.LoadSkipped = true
+			}
 			return nil
 		}
 		return errors.WithStack(err)
@@ -488,11 +520,17 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 	if bytes.Equal(renderedItem, null) {
 		// skip fetch if item is null
 		res.fetchAborted = true
+		if l.traceOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		}
 		return nil
 	}
 	if bytes.Equal(renderedItem, emptyObject) {
 		// skip fetch if item is empty
 		res.fetchAborted = true
+		if l.traceOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		}
 		return nil
 	}
 	_, _ = item.WriteTo(preparedInput)
@@ -506,7 +544,7 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 		return errors.WithStack(err)
 	}
 
-	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out)
+	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -516,6 +554,17 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 
 func (l *V2Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityFetch, items []int, res *result) error {
 	res.postProcessing = fetch.PostProcessing
+	if l.traceOptions.Enable {
+		fetch.Trace = &DataSourceLoadTrace{}
+		if !l.traceOptions.ExcludeRawInputData {
+			buf := &bytes.Buffer{}
+			err := l.itemsData(items, buf)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			fetch.Trace.RawInputData = buf.Bytes()
+		}
+	}
 
 	preparedInput := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(preparedInput)
@@ -556,6 +605,9 @@ WithNextItem:
 					res.batchStats[i] = append(res.batchStats[i], -1)
 					continue
 				}
+				if l.traceOptions.Enable {
+					fetch.Trace.LoadSkipped = true
+				}
 				return errors.WithStack(err)
 			}
 			if fetch.Input.SkipNullItems && itemInput.Len() == 4 && bytes.Equal(itemInput.Bytes(), null) {
@@ -593,6 +645,9 @@ WithNextItem:
 	if len(itemHashes) == 0 {
 		// all items were skipped - discard fetch
 		res.fetchAborted = true
+		if l.traceOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		}
 		return nil
 	}
 
@@ -605,17 +660,33 @@ WithNextItem:
 	if err != nil {
 		return errors.WithStack(err)
 	}
-
-	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out)
+	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	return nil
 }
 
-func (l *V2Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, input []byte, out io.Writer) error {
+func (l *V2Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, input []byte, out io.Writer, trace *DataSourceLoadTrace) error {
+	if l.traceOptions.Enable {
+		if !l.traceOptions.ExcludeInput {
+			trace.Input = []byte(string(input)) // copy input explicitly, omit __trace__ field
+		}
+		if gjson.ValidBytes(input) {
+			inputCopy := make([]byte, len(input))
+			copy(inputCopy, input)
+			input, _ = jsonparser.Set(inputCopy, []byte("true"), "__trace__")
+		}
+		if !l.traceOptions.ExcludeLoadStats {
+			trace.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
+			trace.DurationSinceStartPretty = time.Duration(trace.DurationSinceStartNano).String()
+		}
+	}
 	if !l.enableSingleFlight || disallowSingleFlight {
 		return source.Load(ctx, input, out)
+	}
+	if l.traceOptions.Enable {
+		trace.SingleFlightUsed = true
 	}
 	keyGen := pool.Hash64.Get()
 	defer pool.Hash64.Put(keyGen)
@@ -624,7 +695,7 @@ func (l *V2Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight b
 		return errors.WithStack(err)
 	}
 	key := keyGen.Sum64()
-	data, err, _ := l.sf.Do(key, func() ([]byte, error) {
+	data, err, shared := l.sf.Do(key, func() ([]byte, error) {
 		singleBuffer := pool.BytesBuffer.Get()
 		defer pool.BytesBuffer.Put(singleBuffer)
 		err := source.Load(ctx, input, singleBuffer)
@@ -636,7 +707,28 @@ func (l *V2Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight b
 		copy(cp, data)
 		return cp, nil
 	})
+	if l.traceOptions.Enable {
+		if !l.traceOptions.ExcludeOutput && data != nil {
+			if l.traceOptions.EnablePredictableDebugTimings {
+				trace.Output = jsonparser.Delete([]byte(string(data)), "extensions", "trace", "response", "headers", "Date")
+			} else {
+				trace.Output = []byte(string(data))
+			}
+		}
+		trace.SingleFlightSharedResponse = shared
+		if !l.traceOptions.ExcludeLoadStats {
+			if l.traceOptions.EnablePredictableDebugTimings {
+				trace.DurationLoadNano = 1
+			} else {
+				trace.DurationLoadNano = GetDurationNanoSinceTraceStart(ctx) - trace.DurationSinceStartNano
+			}
+			trace.DurationLoadPretty = time.Duration(trace.DurationLoadNano).String()
+		}
+	}
 	if err != nil {
+		if l.traceOptions.Enable {
+			trace.LoadError = err.Error()
+		}
 		return errors.WithStack(err)
 	}
 	_, err = out.Write(data)

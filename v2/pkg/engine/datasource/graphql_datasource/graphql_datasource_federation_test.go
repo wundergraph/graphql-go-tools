@@ -512,6 +512,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								DataSource:     &Source{},
 								PostProcessing: DefaultPostProcessingConfiguration,
 							},
+							Info: &resolve.FetchInfo{
+								DataSourceID: "user.service",
+							},
 						},
 						Fields: []*resolve.Field{
 							{
@@ -589,7 +592,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 												},
 												Fetch: &resolve.SingleFetch{
-													SerialID:             1,
+													SerialID: 1,
+													Info: &resolve.FetchInfo{
+														DataSourceID: "account.service",
+													},
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,

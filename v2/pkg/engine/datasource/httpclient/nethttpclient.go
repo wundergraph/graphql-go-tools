@@ -5,6 +5,7 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"time"
@@ -40,9 +41,26 @@ var (
 	}
 )
 
+type TraceHTTP struct {
+	Request  TraceHTTPRequest  `json:"request"`
+	Response TraceHTTPResponse `json:"response"`
+}
+
+type TraceHTTPRequest struct {
+	Method  string      `json:"method"`
+	URL     string      `json:"url"`
+	Headers http.Header `json:"headers"`
+}
+
+type TraceHTTPResponse struct {
+	StatusCode int         `json:"status_code"`
+	Status     string      `json:"status"`
+	Headers    http.Header `json:"headers"`
+}
+
 func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Writer) (err error) {
 
-	url, method, body, headers, queryParams := requestInputParams(requestInput)
+	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
 
 	request, err := http.NewRequestWithContext(ctx, string(method), string(url), bytes.NewReader(body))
 	if err != nil {
@@ -113,8 +131,38 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 		return err
 	}
 
-	_, err = io.Copy(out, respReader)
-	return
+	if !enableTrace {
+		_, err = io.Copy(out, respReader)
+		return
+	}
+
+	buf := &bytes.Buffer{}
+	_, err = io.Copy(buf, respReader)
+	if err != nil {
+		return err
+	}
+	responseTrace := TraceHTTP{
+		Request: TraceHTTPRequest{
+			Method:  request.Method,
+			URL:     request.URL.String(),
+			Headers: request.Header,
+		},
+		Response: TraceHTTPResponse{
+			StatusCode: response.StatusCode,
+			Status:     response.Status,
+			Headers:    response.Header,
+		},
+	}
+	trace, err := json.Marshal(responseTrace)
+	if err != nil {
+		return err
+	}
+	responseWithTraceExtension, err := jsonparser.Set(buf.Bytes(), trace, "extensions", "trace")
+	if err != nil {
+		return err
+	}
+	_, err = out.Write(responseWithTraceExtension)
+	return err
 }
 
 func respBodyReader(resp *http.Response) (io.ReadCloser, error) {

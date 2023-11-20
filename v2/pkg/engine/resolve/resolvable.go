@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,18 +14,18 @@ import (
 )
 
 type Resolvable struct {
-	storage         *astjson.JSON
-	dataRoot        int
-	errorsRoot      int
-	variablesRoot   int
-	print           bool
-	out             io.Writer
-	printErr        error
-	path            []astjson.PathElement
-	depth           int
-	operationType   ast.OperationType
-	renameTypeNames []RenameTypeName
-	enableTracing   bool
+	storage             *astjson.JSON
+	dataRoot            int
+	errorsRoot          int
+	variablesRoot       int
+	print               bool
+	out                 io.Writer
+	printErr            error
+	path                []astjson.PathElement
+	depth               int
+	operationType       ast.OperationType
+	renameTypeNames     []RenameTypeName
+	requestTraceOptions RequestTraceOptions
 }
 
 func NewResolvable() *Resolvable {
@@ -122,7 +123,7 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	return
 }
 
-func (r *Resolvable) Resolve(root *Object, out io.Writer) error {
+func (r *Resolvable) Resolve(ctx context.Context, root *Object, out io.Writer) error {
 	r.out = out
 	r.print = false
 	r.printErr = nil
@@ -142,7 +143,7 @@ func (r *Resolvable) Resolve(root *Object, out io.Writer) error {
 		r.printData(root)
 		if r.hasExtensions() {
 			r.printBytes(comma)
-			r.printExtensions(root)
+			r.printExtensions(ctx, root)
 		}
 	}
 	r.printBytes(rBrace)
@@ -175,22 +176,22 @@ func (r *Resolvable) printData(root *Object) {
 	r.printBytes(rBrace)
 }
 
-func (r *Resolvable) printExtensions(root *Object) {
+func (r *Resolvable) printExtensions(ctx context.Context, root *Object) {
 	r.printBytes(quote)
 	r.printBytes(literalExtensions)
 	r.printBytes(quote)
 	r.printBytes(colon)
 	r.printBytes(lBrace)
 
-	if r.enableTracing {
-		r.printTrace(root)
+	if r.requestTraceOptions.IncludeTraceOutputInResponseExtensions {
+		r.printTrace(ctx, root)
 	}
 
 	r.printBytes(rBrace)
 }
 
-func (r *Resolvable) printTrace(root *Object) {
-	trace := GetTrace(root)
+func (r *Resolvable) printTrace(ctx context.Context, root *Object) {
+	trace := GetTrace(ctx, root)
 
 	traceData, err := json.Marshal(trace)
 	if err != nil {
@@ -205,7 +206,7 @@ func (r *Resolvable) printTrace(root *Object) {
 }
 
 func (r *Resolvable) hasExtensions() bool {
-	return r.enableTracing
+	return r.requestTraceOptions.IncludeTraceOutputInResponseExtensions
 }
 
 func (r *Resolvable) hasErrors() bool {

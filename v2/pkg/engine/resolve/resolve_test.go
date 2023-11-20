@@ -4885,16 +4885,3 @@ func Benchmark_NestedBatchingWithoutChecks(b *testing.B) {
 		}
 	})
 }
-
-type hookContextPathMatcher struct {
-	path string
-}
-
-func (h hookContextPathMatcher) Matches(x interface{}) bool {
-	path := string(x.(HookContext).CurrentPath)
-	return path == h.path
-}
-
-func (h hookContextPathMatcher) String() string {
-	return fmt.Sprintf("is equal to %s", h.path)
-}

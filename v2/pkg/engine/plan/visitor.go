@@ -339,6 +339,7 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int) *resolve.FieldInfo {
 	}
 
 	sourceIDs := make([]string, 0, 1)
+
 	for i := range v.planners {
 		for j := range v.planners[i].paths {
 			if v.planners[i].paths[j].fieldRef == ref {
@@ -1036,6 +1037,12 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external res
 		FetchConfiguration:   external,
 		SerialID:             internal.fetchID,
 		DataSourceIdentifier: []byte(dataSourceType),
+	}
+
+	if v.Config.IncludeInfo {
+		singleFetch.Info = &resolve.FetchInfo{
+			DataSourceID: internal.sourceID,
+		}
 	}
 
 	return singleFetch

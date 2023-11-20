@@ -154,18 +154,6 @@ type WebsocketBeforeStartHook interface {
 
 type ExecutionOptionsV2 func(ctx *internalExecutionContext)
 
-func WithBeforeFetchHook(hook resolve.BeforeFetchHook) ExecutionOptionsV2 {
-	return func(ctx *internalExecutionContext) {
-		ctx.resolveContext.SetBeforeFetchHook(hook)
-	}
-}
-
-func WithAfterFetchHook(hook resolve.AfterFetchHook) ExecutionOptionsV2 {
-	return func(ctx *internalExecutionContext) {
-		ctx.resolveContext.SetAfterFetchHook(hook)
-	}
-}
-
 func WithAdditionalHttpHeaders(headers http.Header, excludeByKeys ...string) ExecutionOptionsV2 {
 	return func(ctx *internalExecutionContext) {
 		if len(headers) == 0 {
