@@ -60,7 +60,8 @@ func (c *Context) Free() {
 type traceStartKey struct{}
 
 type TraceInfo struct {
-	TraceStart     time.Time    `json:"trace_start_time"`
+	TraceStart     time.Time    `json:"-"`
+	TraceStartTime string       `json:"trace_start_time"`
 	TraceStartUnix int64        `json:"trace_start_unix"`
 	PlannerStats   PlannerStats `json:"planner_stats"`
 	debug          bool
@@ -79,9 +80,11 @@ func SetTraceStart(ctx context.Context, predictableDebugTimings bool) context.Co
 		info.debug = true
 		info.TraceStart = time.UnixMilli(0)
 		info.TraceStartUnix = 0
+		info.TraceStartTime = ""
 	} else {
 		info.TraceStart = time.Now()
 		info.TraceStartUnix = info.TraceStart.Unix()
+		info.TraceStartTime = info.TraceStart.Format(time.RFC3339)
 	}
 	return context.WithValue(ctx, traceStartKey{}, info)
 }
