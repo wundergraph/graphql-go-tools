@@ -19,6 +19,8 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/pkg/operationreport"
 )
 
+var errTypeNameExtractionImpossible = errors.New("type name extraction is impossible")
+
 type converter struct {
 	openapi        *openapi3.T
 	knownFullTypes map[string]*knownFullTypeDetails
@@ -127,28 +129,49 @@ func getPrimitiveGraphQLTypeName(openapiType string) (string, error) {
 }
 
 func (c *converter) getGraphQLTypeName(schemaRef *openapi3.SchemaRef) (string, error) {
-	if schemaRef.Value.Type == "object" {
-		gqlType := extractFullTypeNameFromRef(schemaRef.Ref)
-		if gqlType == "" {
-			return "", errors.New("schema reference is empty")
-		}
-		err := c.processObject(schemaRef)
+	if schemaRef.Value.Type == "object" || schemaRef.Value.Type == "array" {
+		graphqlTypeName, err := extractFullTypeNameFromRef(schemaRef.Ref)
 		if err != nil {
 			return "", err
 		}
-		return gqlType, nil
+		return graphqlTypeName, nil
 	}
 	return getPrimitiveGraphQLTypeName(schemaRef.Value.Type)
 }
 
-func extractFullTypeNameFromRef(ref string) string {
+func extractFullTypeNameFromRef(ref string) (string, error) {
+	if ref == "" {
+		return "", fmt.Errorf("%w: schema reference is empty", errTypeNameExtractionImpossible)
+	}
 	parsed := strings.Split(ref, "/")
-	return strcase.ToCamel(parsed[len(parsed)-1])
+	return strcase.ToCamel(parsed[len(parsed)-1]), nil
+}
+
+func makeTypeNameFromPropertyName(name string, schemaRef *openapi3.SchemaRef) (string, error) {
+	if schemaRef.Value.Type == "array" {
+		return fmt.Sprintf("%sListItem", strcase.ToCamel(name)), nil
+	}
+	return "", fmt.Errorf("error while making type name from property name: %s is a unsupported type", name)
 }
 
 func (c *converter) processSchemaProperties(fullType *introspection.FullType, schema openapi3.Schema) error {
 	for name, schemaRef := range schema.Properties {
-		gqlType, err := c.getGraphQLTypeName(schemaRef)
+		name = strcase.ToLowerCamel(name)
+
+		graphQLTypeName, err := c.getGraphQLTypeName(schemaRef)
+		if errors.Is(err, errTypeNameExtractionImpossible) {
+			graphQLTypeName, err = makeTypeNameFromPropertyName(name, schemaRef)
+		}
+		if err != nil {
+			return err
+		}
+
+		switch schemaRef.Value.Type {
+		case "object":
+			err = c.processObject(schemaRef)
+		case "array":
+			err = c.processArrayWithFullTypeName(graphQLTypeName, schemaRef)
+		}
 		if err != nil {
 			return err
 		}
@@ -157,9 +180,13 @@ func (c *converter) processSchemaProperties(fullType *introspection.FullType, sc
 		if err != nil {
 			return err
 		}
-		typeRef.Name = &gqlType
+		typeRef.Name = &graphQLTypeName
 		if isNonNullable(name, schema.Required) {
 			typeRef = convertToNonNull(&typeRef)
+		}
+
+		if schemaRef.Value.Type == "array" {
+			typeRef.OfType = &introspection.TypeRef{Kind: 3, Name: &graphQLTypeName}
 		}
 
 		field := introspection.Field{
@@ -203,7 +230,14 @@ func (c *converter) processInputFields(ft *introspection.FullType, schemaRef *op
 }
 
 func (c *converter) processArray(schema *openapi3.SchemaRef) error {
-	fullTypeName := extractFullTypeNameFromRef(schema.Value.Items.Ref)
+	fullTypeName, err := extractFullTypeNameFromRef(schema.Value.Items.Ref)
+	if err != nil {
+		return err
+	}
+	return c.processArrayWithFullTypeName(fullTypeName, schema)
+}
+
+func (c *converter) processArrayWithFullTypeName(fullTypeName string, schema *openapi3.SchemaRef) error {
 	_, ok := c.knownFullTypes[fullTypeName]
 	if ok {
 		return nil
@@ -235,7 +269,11 @@ func (c *converter) processArray(schema *openapi3.SchemaRef) error {
 }
 
 func (c *converter) processObject(schema *openapi3.SchemaRef) error {
-	fullTypeName := extractFullTypeNameFromRef(schema.Ref)
+	fullTypeName, err := extractFullTypeNameFromRef(schema.Ref)
+	if err != nil {
+		return err
+	}
+
 	details, ok := c.knownFullTypes[fullTypeName]
 	if ok {
 		needsUpdate := checkForNewKnownFullTypeDetails(schema, details)
@@ -257,7 +295,7 @@ func (c *converter) processObject(schema *openapi3.SchemaRef) error {
 		Name:        fullTypeName,
 		Description: schema.Value.Description,
 	}
-	err := c.processSchemaProperties(&ft, *schema.Value)
+	err = c.processSchemaProperties(&ft, *schema.Value)
 	if err != nil {
 		return err
 	}
@@ -336,16 +374,17 @@ func (c *converter) importFullTypes() ([]introspection.FullType, error) {
 	return c.fullTypes, nil
 }
 
-func extractTypeName(status int, operation *openapi3.Operation) string {
+func extractTypeName(status int, operation *openapi3.Operation) (string, error) {
 	response := operation.Responses.Get(status)
 	if response == nil {
-		// Nil response?
-		return ""
+		return "", fmt.Errorf("%w: response is nil for operation id: %s, status code: %d", errTypeNameExtractionImpossible, operation.OperationID, status)
 	}
+
 	schema := getJSONSchema(status, operation)
 	if schema == nil {
-		return ""
+		return "", fmt.Errorf("%w: schema is nil for operation id: %s, status code: %d", errTypeNameExtractionImpossible, operation.OperationID, status)
 	}
+
 	if schema.Value.Type == "array" {
 		return extractFullTypeNameFromRef(schema.Value.Items.Ref)
 	}
@@ -486,7 +525,11 @@ func (c *converter) importQueryType() (*introspection.FullType, error) {
 					kind = "object"
 				}
 
-				typeName := strcase.ToCamel(extractTypeName(status, operation))
+				typeName, err := extractTypeName(status, operation)
+				if err != nil {
+					return nil, err
+				}
+				typeName = strcase.ToCamel(typeName)
 				typeRef, err := getTypeRef(kind)
 				if err != nil {
 					return nil, err
@@ -580,13 +623,17 @@ func (c *converter) importMutationType() (*introspection.FullType, error) {
 					continue
 				}
 
-				typeName := strcase.ToCamel(extractTypeName(status, operation))
-				if typeName == "" {
+				typeName, err := extractTypeName(status, operation)
+				if errors.Is(err, errTypeNameExtractionImpossible) {
 					// IBM/openapi-to-graphql uses String as return type.
 					// TODO: https://stackoverflow.com/questions/44737043/is-it-possible-to-not-return-any-data-when-using-a-graphql-mutation/44773532#44773532
 					typeName = "String"
+					err = nil
 				}
-
+				if err != nil {
+					return nil, err
+				}
+				typeName = strcase.ToCamel(typeName)
 				typeRef, err := getTypeRef("object")
 				if err != nil {
 					return nil, err
@@ -605,7 +652,11 @@ func (c *converter) importMutationType() (*introspection.FullType, error) {
 				var inputValue *introspection.InputValue
 				if operation.RequestBody != nil {
 					schema := getJSONSchemaFromRequestBody(operation)
-					inputValue, err = c.addParameters(extractFullTypeNameFromRef(schema.Ref), schema)
+					fullTypeName, err := extractFullTypeNameFromRef(schema.Ref)
+					if err != nil {
+						return nil, err
+					}
+					inputValue, err = c.addParameters(fullTypeName, schema)
 					if err != nil {
 						return nil, err
 					}
