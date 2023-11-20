@@ -19,7 +19,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
-type V2Loader struct {
+type Loader struct {
 	data               *astjson.JSON
 	dataRoot           int
 	errorsRoot         int
@@ -30,7 +30,7 @@ type V2Loader struct {
 	traceOptions       RequestTraceOptions
 }
 
-func (l *V2Loader) Free() {
+func (l *Loader) Free() {
 	l.ctx = nil
 	l.sf = nil
 	l.data = nil
@@ -40,7 +40,7 @@ func (l *V2Loader) Free() {
 	l.path = l.path[:0]
 }
 
-func (l *V2Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
+func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
 	l.data = resolvable.storage
 	l.dataRoot = resolvable.dataRoot
 	l.errorsRoot = resolvable.errorsRoot
@@ -49,7 +49,7 @@ func (l *V2Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLRespon
 	return l.walkNode(response.Data, []int{resolvable.dataRoot})
 }
 
-func (l *V2Loader) walkNode(node Node, items []int) error {
+func (l *Loader) walkNode(node Node, items []int) error {
 	switch n := node.(type) {
 	case *Object:
 		return l.walkObject(n, items)
@@ -60,23 +60,23 @@ func (l *V2Loader) walkNode(node Node, items []int) error {
 	}
 }
 
-func (l *V2Loader) pushPath(path []string) {
+func (l *Loader) pushPath(path []string) {
 	l.path = append(l.path, path...)
 }
 
-func (l *V2Loader) popPath(path []string) {
+func (l *Loader) popPath(path []string) {
 	l.path = l.path[:len(l.path)-len(path)]
 }
 
-func (l *V2Loader) pushArrayPath() {
+func (l *Loader) pushArrayPath() {
 	l.path = append(l.path, "@")
 }
 
-func (l *V2Loader) popArrayPath() {
+func (l *Loader) popArrayPath() {
 	l.path = l.path[:len(l.path)-1]
 }
 
-func (l *V2Loader) walkObject(object *Object, parentItems []int) (err error) {
+func (l *Loader) walkObject(object *Object, parentItems []int) (err error) {
 	l.pushPath(object.Path)
 	defer l.popPath(object.Path)
 	objectItems := l.selectNodeItems(parentItems, object.Path)
@@ -95,7 +95,7 @@ func (l *V2Loader) walkObject(object *Object, parentItems []int) (err error) {
 	return nil
 }
 
-func (l *V2Loader) walkArray(array *Array, parentItems []int) error {
+func (l *Loader) walkArray(array *Array, parentItems []int) error {
 	l.pushPath(array.Path)
 	l.pushArrayPath()
 	nodeItems := l.selectNodeItems(parentItems, array.Path)
@@ -105,7 +105,7 @@ func (l *V2Loader) walkArray(array *Array, parentItems []int) error {
 	return err
 }
 
-func (l *V2Loader) selectNodeItems(parentItems []int, path []string) (items []int) {
+func (l *Loader) selectNodeItems(parentItems []int, path []string) (items []int) {
 	if parentItems == nil {
 		return nil
 	}
@@ -137,7 +137,7 @@ func (l *V2Loader) selectNodeItems(parentItems []int, path []string) (items []in
 	return
 }
 
-func (l *V2Loader) itemsData(items []int, out io.Writer) error {
+func (l *Loader) itemsData(items []int, out io.Writer) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -150,7 +150,7 @@ func (l *V2Loader) itemsData(items []int, out io.Writer) error {
 	}, out)
 }
 
-func (l *V2Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
+func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		res := &result{
@@ -241,7 +241,7 @@ func (l *V2Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 	return nil
 }
 
-func (l *V2Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res *result) error {
+func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res *result) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		res.out = pool.BytesBuffer.Get()
@@ -289,7 +289,7 @@ func (l *V2Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res 
 	return nil
 }
 
-func (l *V2Loader) mergeErrors(ref int) {
+func (l *Loader) mergeErrors(ref int) {
 	if ref == -1 {
 		return
 	}
@@ -300,7 +300,7 @@ func (l *V2Loader) mergeErrors(ref int) {
 	l.data.MergeArrays(l.errorsRoot, ref)
 }
 
-func (l *V2Loader) mergeResult(res *result, items []int) error {
+func (l *Loader) mergeResult(res *result, items []int) error {
 	defer pool.BytesBuffer.Put(res.out)
 	if res.fetchAborted {
 		return nil
@@ -418,7 +418,7 @@ var (
 	errorsInvalidInputFooter = []byte(`]}]}`)
 )
 
-func (l *V2Loader) renderErrorsInvalidInput(out *bytes.Buffer) error {
+func (l *Loader) renderErrorsInvalidInput(out *bytes.Buffer) error {
 	_, _ = out.Write(errorsInvalidInputHeader)
 	for i := range l.path {
 		if i != 0 {
@@ -437,7 +437,7 @@ var (
 	errorsFailedToFetchFooter = []byte(`]}]}`)
 )
 
-func (l *V2Loader) renderErrorsFailedToFetch(out *bytes.Buffer) error {
+func (l *Loader) renderErrorsFailedToFetch(out *bytes.Buffer) error {
 	_, _ = out.Write(errorsFailedToFetchHeader)
 	for i := range l.path {
 		if i != 0 {
@@ -451,7 +451,7 @@ func (l *V2Loader) renderErrorsFailedToFetch(out *bytes.Buffer) error {
 	return nil
 }
 
-func (l *V2Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items []int, res *result) error {
+func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items []int, res *result) error {
 	input := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(input)
 	preparedInput := pool.BytesBuffer.Get()
@@ -478,7 +478,7 @@ func (l *V2Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, item
 	return nil
 }
 
-func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items []int, res *result) error {
+func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items []int, res *result) error {
 	itemData := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(itemData)
 	preparedInput := pool.BytesBuffer.Get()
@@ -552,7 +552,7 @@ func (l *V2Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, item
 	return nil
 }
 
-func (l *V2Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityFetch, items []int, res *result) error {
+func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityFetch, items []int, res *result) error {
 	res.postProcessing = fetch.PostProcessing
 	if l.traceOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
@@ -667,7 +667,7 @@ WithNextItem:
 	return nil
 }
 
-func (l *V2Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, input []byte, out io.Writer, trace *DataSourceLoadTrace) error {
+func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, input []byte, out io.Writer, trace *DataSourceLoadTrace) error {
 	if l.traceOptions.Enable {
 		if !l.traceOptions.ExcludeInput {
 			trace.Input = []byte(string(input)) // copy input explicitly, omit __trace__ field

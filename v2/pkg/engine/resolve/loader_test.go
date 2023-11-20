@@ -286,7 +286,7 @@ func TestV2Loader_LoadGraphQLResponseData(t *testing.T) {
 	resolvable := &Resolvable{
 		storage: &astjson.JSON{},
 	}
-	loader := &V2Loader{}
+	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 	assert.NoError(t, err)
 	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
@@ -564,7 +564,7 @@ func BenchmarkV2Loader_LoadGraphQLResponseData(b *testing.B) {
 	resolvable := &Resolvable{
 		storage: &astjson.JSON{},
 	}
-	loader := &V2Loader{}
+	loader := &Loader{}
 	expected := []byte(`{"errors":[],"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`)
 	out := &bytes.Buffer{}
 	b.SetBytes(int64(len(expected)))
