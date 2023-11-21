@@ -22,9 +22,10 @@ import (
 var errTypeNameExtractionImpossible = errors.New("type name extraction is impossible")
 
 type converter struct {
-	openapi        *openapi3.T
-	knownFullTypes map[string]*knownFullTypeDetails
-	fullTypes      []introspection.FullType
+	openapi         *openapi3.T
+	knownFullTypes  map[string]*knownFullTypeDetails
+	fullTypes       []introspection.FullType
+	currentPathName string
 }
 
 type knownFullTypeDetails struct {
@@ -36,6 +37,11 @@ func isValidResponse(status int) bool {
 		return true
 	}
 	return false
+}
+
+func MakeTypeNameFromPathName(name string) string {
+	parsed := strings.Split(name, "/")
+	return strcase.ToCamel(parsed[len(parsed)-1])
 }
 
 func MakeInputTypeName(name string) string {
@@ -270,6 +276,10 @@ func (c *converter) processArrayWithFullTypeName(fullTypeName string, schema *op
 
 func (c *converter) processObject(schema *openapi3.SchemaRef) error {
 	fullTypeName, err := extractFullTypeNameFromRef(schema.Ref)
+	if errors.Is(err, errTypeNameExtractionImpossible) {
+		fullTypeName = MakeTypeNameFromPathName(c.currentPathName)
+		err = nil
+	}
 	if err != nil {
 		return err
 	}
@@ -337,7 +347,8 @@ func (c *converter) processSchema(schema *openapi3.SchemaRef) error {
 }
 
 func (c *converter) importFullTypes() ([]introspection.FullType, error) {
-	for _, pathItem := range c.openapi.Paths {
+	for pathName, pathItem := range c.openapi.Paths {
+		c.currentPathName = pathName
 		for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodDelete, http.MethodPut} {
 			operation := pathItem.GetOperation(method)
 			if operation == nil {
@@ -495,7 +506,8 @@ func (c *converter) importQueryType() (*introspection.FullType, error) {
 		Kind: introspection.OBJECT,
 		Name: "Query",
 	}
-	for key, pathItem := range c.openapi.Paths {
+	for pathName, pathItem := range c.openapi.Paths {
+		c.currentPathName = pathName
 		// We only support HTTP GET operation.
 		for _, method := range []string{http.MethodGet} {
 			operation := pathItem.GetOperation(method)
@@ -544,7 +556,7 @@ func (c *converter) importQueryType() (*introspection.FullType, error) {
 					return nil, err
 				}
 				if queryField.Name == "" {
-					queryField.Name = strings.Trim(key, "/")
+					queryField.Name = strings.Trim(pathName, "/")
 				}
 				queryType.Fields = append(queryType.Fields, *queryField)
 			}
@@ -604,7 +616,8 @@ func (c *converter) importMutationType() (*introspection.FullType, error) {
 		Kind: introspection.OBJECT,
 		Name: "Mutation",
 	}
-	for key, pathItem := range c.openapi.Paths {
+	for pathName, pathItem := range c.openapi.Paths {
+		c.currentPathName = pathName
 		for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete} {
 			operation := pathItem.GetOperation(method)
 			if operation == nil {
@@ -625,10 +638,24 @@ func (c *converter) importMutationType() (*introspection.FullType, error) {
 
 				typeName, err := extractTypeName(status, operation)
 				if errors.Is(err, errTypeNameExtractionImpossible) {
-					// IBM/openapi-to-graphql uses String as return type.
-					// TODO: https://stackoverflow.com/questions/44737043/is-it-possible-to-not-return-any-data-when-using-a-graphql-mutation/44773532#44773532
-					typeName = "String"
-					err = nil
+					// Try to make a new type name for unnamed objects.
+					responseRef := operation.Responses.Get(status)
+					if responseRef != nil && responseRef.Value != nil {
+						mediaType := responseRef.Value.Content.Get("application/json")
+						if mediaType != nil && mediaType.Schema != nil && mediaType.Schema.Value != nil {
+							if mediaType.Schema.Value.Type == "object" {
+								typeName = MakeTypeNameFromPathName(c.currentPathName)
+								err = nil
+							}
+						}
+					}
+
+					if typeName == "" {
+						// IBM/openapi-to-graphql uses String as return type.
+						// TODO: https://stackoverflow.com/questions/44737043/is-it-possible-to-not-return-any-data-when-using-a-graphql-mutation/44773532#44773532
+						typeName = "String"
+						err = nil
+					}
 				}
 				if err != nil {
 					return nil, err
@@ -646,7 +673,7 @@ func (c *converter) importMutationType() (*introspection.FullType, error) {
 					Description: getOperationDescription(operation),
 				}
 				if f.Name == "" {
-					f.Name = MakeFieldNameFromEndpoint(method, key)
+					f.Name = MakeFieldNameFromEndpoint(method, pathName)
 				}
 
 				var inputValue *introspection.InputValue

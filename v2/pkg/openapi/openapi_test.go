@@ -69,4 +69,8 @@ func TestOpenAPI_v3_0_0(t *testing.T) {
 	t.Run("carts-api-oas.yaml", func(t *testing.T) {
 		testFixtureFile(t, "v3.0.0", "carts-api-oas.yaml")
 	})
+
+	t.Run("unnamed-object.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "unnamed-object.yaml")
+	})
 }
