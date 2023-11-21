@@ -305,6 +305,9 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 	if res.fetchAborted {
 		return nil
 	}
+	if res.out.Len() == 0 {
+		return nil
+	}
 	node, err := l.data.AppendAnyJSONBytes(res.out.Bytes())
 	if err != nil {
 		return errors.WithStack(err)
