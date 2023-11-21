@@ -3,6 +3,7 @@ package resolve
 import (
 	"context"
 	"encoding/json"
+	"github.com/google/uuid"
 )
 
 type RequestTraceOptions struct {
@@ -75,6 +76,7 @@ const (
 )
 
 type TraceFetch struct {
+	Id                   string                 `json:"id,omitempty"`
 	Type                 TraceFetchType         `json:"type,omitempty"`
 	DataSourceID         string                 `json:"data_source_id,omitempty"`
 	Fetches              []*TraceFetch          `json:"fetches,omitempty"`
@@ -159,7 +161,9 @@ func parseField(f *Field) *TraceField {
 }
 
 func parseFetch(fetch Fetch) *TraceFetch {
-	traceFetch := &TraceFetch{}
+	traceFetch := &TraceFetch{
+		Id: uuid.NewString(),
+	}
 
 	switch f := fetch.(type) {
 	case *SingleFetch:
