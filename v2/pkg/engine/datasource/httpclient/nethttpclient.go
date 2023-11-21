@@ -165,13 +165,16 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 	return err
 }
 
-func respBodyReader(resp *http.Response) (io.ReadCloser, error) {
-	switch resp.Header.Get(ContentEncodingHeader) {
+func respBodyReader(res *http.Response) (io.Reader, error) {
+	if res.StatusCode != http.StatusOK {
+		return bytes.NewReader([]byte(`{"errors":[{"message":"origin server returned non-200 status code"}],"data":null}`)), nil
+	}
+	switch res.Header.Get(ContentEncodingHeader) {
 	case EncodingGzip:
-		return gzip.NewReader(resp.Body)
+		return gzip.NewReader(res.Body)
 	case EncodingDeflate:
-		return flate.NewReader(resp.Body), nil
+		return flate.NewReader(res.Body), nil
 	default:
-		return resp.Body, nil
+		return res.Body, nil
 	}
 }

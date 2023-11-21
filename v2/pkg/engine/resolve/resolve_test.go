@@ -2036,7 +2036,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos",0,"name"]},{"message":"Array cannot represent non-array value.","path":[]}],"data":null}`
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos",0,"name"]}],"data":null}`
 	}))
 	t.Run("complex GraphQL Server plan", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		serviceOne := NewMockDataSource(ctrl)
@@ -3877,7 +3877,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(out.flushed))
-		assert.Equal(t, `{"errors":[{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Cannot return null for non-nullable field Subscription.counter.","path":["counter"]}],"data":null}`, out.flushed[0])
+		assert.Equal(t, `{"errors":[{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":null}`, out.flushed[0])
 	})
 
 	t.Run("should return an error if the data source has not been defined", func(t *testing.T) {

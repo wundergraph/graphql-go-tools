@@ -6,8 +6,7 @@ import (
 
 type Response struct {
 	Errors Errors `json:"errors,omitempty"`
-	// TODO: Data
-	// TODO: Extensions
+	Data   any    `json:"data"` // we add this here to ensure that "data":null is added to an error response
 }
 
 func (r Response) Marshal() ([]byte, error) {
