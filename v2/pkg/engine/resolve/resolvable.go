@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/tidwall/gjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
@@ -309,9 +310,6 @@ func (r *Resolvable) walkNode(node Node, ref int) bool {
 }
 
 func (r *Resolvable) walkObject(obj *Object, ref int) bool {
-	r.pushNodePathElement(obj.Path)
-	isRoot := r.depth < 2
-	defer r.popNodePathElement(obj.Path)
 	ref = r.storage.Get(ref, obj.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if obj.Nullable {
@@ -320,6 +318,10 @@ func (r *Resolvable) walkObject(obj *Object, ref int) bool {
 		r.addNonNullableFieldError(obj.Path)
 		return r.err()
 	}
+	r.pushNodePathElement(obj.Path)
+	isRoot := r.depth < 2
+	defer r.popNodePathElement(obj.Path)
+
 	if r.storage.Nodes[ref].Kind == astjson.NodeKindNull {
 		return r.walkNull()
 	}

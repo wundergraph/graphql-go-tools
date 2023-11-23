@@ -374,7 +374,7 @@ func (j *JSON) AppendNonNullableFieldIsNullErr(fieldPath string, errorPath []Pat
 		ObjectFields: j.getIntSlice(),
 	})
 	errMessageStart, errMessageEnd := j.appendString("message")
-	errMessageValueStart, errMessageValueEnd := j.appendString(fmt.Sprintf("Cannot return null for non-nullable field %s.", fieldPath))
+	errMessageValueStart, errMessageValueEnd := j.appendString(fmt.Sprintf("Cannot return null for non-nullable field '%s'.", fieldPath))
 	errMessageField := j.appendNode(Node{
 		Kind:     NodeKindObjectField,
 		keyStart: errMessageStart,
