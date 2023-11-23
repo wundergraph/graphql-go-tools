@@ -182,4 +182,87 @@ type DataSourceLoadTrace struct {
 	SingleFlightUsed           bool            `json:"single_flight_used"`
 	SingleFlightSharedResponse bool            `json:"single_flight_shared_response"`
 	LoadSkipped                bool            `json:"load_skipped"`
+	LoadStats                  *LoadStats      `json:"load_stats,omitempty"`
+}
+
+type LoadStats struct {
+	GetConn              GetConnStats              `json:"get_conn"`
+	GotConn              GotConnStats              `json:"got_conn"`
+	GotFirstResponseByte GotFirstResponseByteStats `json:"got_first_response_byte"`
+	DNSStart             DNSStartStats             `json:"dns_start"`
+	DNSDone              DNSDoneStats              `json:"dns_done"`
+	ConnectStart         ConnectStartStats         `json:"connect_start"`
+	ConnectDone          ConnectDoneStats          `json:"connect_done"`
+	TLSHandshakeStart    TLSHandshakeStartStats    `json:"tls_handshake_start"`
+	TLSHandshakeDone     TLSHandshakeDoneStats     `json:"tls_handshake_done"`
+	WroteHeaders         WroteHeadersStats         `json:"wrote_headers"`
+	WroteRequest         WroteRequestStats         `json:"wrote_request"`
+}
+
+type GetConnStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+	HostPort                 string `json:"host_port"`
+}
+
+type GotConnStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+	Reused                   bool   `json:"reused"`
+	WasIdle                  bool   `json:"was_idle"`
+	IdleTimeNano             int64  `json:"idle_time_nanoseconds"`
+	IdleTimePretty           string `json:"idle_time_pretty"`
+}
+
+type GotFirstResponseByteStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+}
+
+type DNSStartStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+	Host                     string `json:"host"`
+}
+
+type DNSDoneStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+}
+
+type ConnectStartStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+	Network                  string `json:"network"`
+	Addr                     string `json:"addr"`
+}
+
+type ConnectDoneStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+	Network                  string `json:"network"`
+	Addr                     string `json:"addr"`
+	Err                      string `json:"err,omitempty"`
+}
+
+type TLSHandshakeStartStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+}
+
+type TLSHandshakeDoneStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+	Err                      string `json:"err,omitempty"`
+}
+
+type WroteHeadersStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+}
+
+type WroteRequestStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+	Err                      string `json:"err,omitempty"`
 }

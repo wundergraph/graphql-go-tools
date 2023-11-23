@@ -3,8 +3,10 @@ package resolve
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
+	"net/http/httptrace"
 	"runtime"
 	"runtime/debug"
 	"sync"
@@ -687,6 +689,88 @@ func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight boo
 		if !l.traceOptions.ExcludeLoadStats {
 			trace.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
 			trace.DurationSinceStartPretty = time.Duration(trace.DurationSinceStartNano).String()
+			trace.LoadStats = &LoadStats{}
+			clientTrace := &httptrace.ClientTrace{
+				GetConn: func(hostPort string) {
+					trace.LoadStats.GetConn.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
+					trace.LoadStats.GetConn.DurationSinceStartPretty = time.Duration(trace.LoadStats.GetConn.DurationSinceStartNano).String()
+					if !l.traceOptions.EnablePredictableDebugTimings {
+						trace.LoadStats.GetConn.HostPort = hostPort
+					}
+				},
+				GotConn: func(info httptrace.GotConnInfo) {
+					trace.LoadStats.GotConn.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
+					trace.LoadStats.GotConn.DurationSinceStartPretty = time.Duration(trace.LoadStats.GotConn.DurationSinceStartNano).String()
+					if !l.traceOptions.EnablePredictableDebugTimings {
+						trace.LoadStats.GotConn.Reused = info.Reused
+						trace.LoadStats.GotConn.WasIdle = info.WasIdle
+						trace.LoadStats.GotConn.IdleTimeNano = info.IdleTime.Nanoseconds()
+						trace.LoadStats.GotConn.IdleTimePretty = info.IdleTime.String()
+					}
+				},
+				PutIdleConn: nil,
+				GotFirstResponseByte: func() {
+					trace.LoadStats.GotFirstResponseByte.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
+					trace.LoadStats.GotFirstResponseByte.DurationSinceStartPretty = time.Duration(trace.LoadStats.GotFirstResponseByte.DurationSinceStartNano).String()
+				},
+				Got100Continue: nil,
+				Got1xxResponse: nil,
+				DNSStart: func(info httptrace.DNSStartInfo) {
+					trace.LoadStats.DNSStart.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
+					trace.LoadStats.DNSStart.DurationSinceStartPretty = time.Duration(trace.LoadStats.DNSStart.DurationSinceStartNano).String()
+					if !l.traceOptions.EnablePredictableDebugTimings {
+						trace.LoadStats.DNSStart.Host = info.Host
+					}
+				},
+				DNSDone: func(info httptrace.DNSDoneInfo) {
+					trace.LoadStats.DNSDone.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
+					trace.LoadStats.DNSDone.DurationSinceStartPretty = time.Duration(trace.LoadStats.DNSDone.DurationSinceStartNano).String()
+				},
+				ConnectStart: func(network, addr string) {
+					trace.LoadStats.ConnectStart.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
+					trace.LoadStats.ConnectStart.DurationSinceStartPretty = time.Duration(trace.LoadStats.ConnectStart.DurationSinceStartNano).String()
+					if !l.traceOptions.EnablePredictableDebugTimings {
+						trace.LoadStats.ConnectStart.Network = network
+						trace.LoadStats.ConnectStart.Addr = addr
+					}
+				},
+				ConnectDone: func(network, addr string, err error) {
+					trace.LoadStats.ConnectDone.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
+					trace.LoadStats.ConnectDone.DurationSinceStartPretty = time.Duration(trace.LoadStats.ConnectDone.DurationSinceStartNano).String()
+					if !l.traceOptions.EnablePredictableDebugTimings {
+						trace.LoadStats.ConnectDone.Network = network
+						trace.LoadStats.ConnectDone.Addr = addr
+					}
+					if err != nil {
+						trace.LoadStats.ConnectDone.Err = err.Error()
+					}
+				},
+				TLSHandshakeStart: func() {
+					trace.LoadStats.TLSHandshakeStart.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
+					trace.LoadStats.TLSHandshakeStart.DurationSinceStartPretty = time.Duration(trace.LoadStats.TLSHandshakeStart.DurationSinceStartNano).String()
+				},
+				TLSHandshakeDone: func(state tls.ConnectionState, err error) {
+					trace.LoadStats.TLSHandshakeDone.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
+					trace.LoadStats.TLSHandshakeDone.DurationSinceStartPretty = time.Duration(trace.LoadStats.TLSHandshakeDone.DurationSinceStartNano).String()
+					if err != nil {
+						trace.LoadStats.TLSHandshakeDone.Err = err.Error()
+					}
+				},
+				WroteHeaderField: nil,
+				WroteHeaders: func() {
+					trace.LoadStats.WroteHeaders.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
+					trace.LoadStats.WroteHeaders.DurationSinceStartPretty = time.Duration(trace.LoadStats.WroteHeaders.DurationSinceStartNano).String()
+				},
+				Wait100Continue: nil,
+				WroteRequest: func(info httptrace.WroteRequestInfo) {
+					trace.LoadStats.WroteRequest.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
+					trace.LoadStats.WroteRequest.DurationSinceStartPretty = time.Duration(trace.LoadStats.WroteRequest.DurationSinceStartNano).String()
+					if info.Err != nil {
+						trace.LoadStats.WroteRequest.Err = info.Err.Error()
+					}
+				},
+			}
+			ctx = httptrace.WithClientTrace(ctx, clientTrace)
 		}
 	}
 	if !l.enableSingleFlight || disallowSingleFlight {
