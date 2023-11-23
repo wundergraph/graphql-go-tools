@@ -60,7 +60,7 @@ func TestOperationValidationErrors_WriteResponse(t *testing.T) {
 	buf := new(bytes.Buffer)
 	n, err := validationErrs.WriteResponse(buf)
 
-	expectedResponse := `{"errors":[{"message":"error in operation","locations":[{"line":1,"column":1}],"path":["hello"]}]}`
+	expectedResponse := `{"errors":[{"message":"error in operation","locations":[{"line":1,"column":1}],"path":["hello"]}],"data":null}`
 
 	assert.NoError(t, err)
 	assert.Greater(t, n, 0)

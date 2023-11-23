@@ -128,6 +128,21 @@ func (r *Resolvable) Resolve(ctx context.Context, root *Object, out io.Writer) e
 	r.out = out
 	r.print = false
 	r.printErr = nil
+
+	// if we have errors and no data, we only print the errors and set data to null
+	// in this case, we're skipping the walk because it would lead to unnecessary non-null errors
+	if r.hasErrors() && !r.hasData() {
+		r.printBytes(lBrace)
+		r.printErrors()
+		r.printBytes(quote)
+		r.printBytes(literalData)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printBytes(null)
+		r.printBytes(rBrace)
+		return nil
+	}
+
 	err := r.walkObject(root, r.dataRoot)
 	r.printBytes(lBrace)
 	if r.hasErrors() {
@@ -211,10 +226,18 @@ func (r *Resolvable) hasExtensions() bool {
 }
 
 func (r *Resolvable) hasErrors() bool {
-	if r.errorsRoot == -1 {
+	return r.storage.NodeIsDefined(r.errorsRoot) &&
+		len(r.storage.Nodes[r.errorsRoot].ArrayValues) > 0
+}
+
+func (r *Resolvable) hasData() bool {
+	if !r.storage.NodeIsDefined(r.dataRoot) {
 		return false
 	}
-	return len(r.storage.Nodes[r.errorsRoot].ArrayValues) > 0
+	if r.storage.Nodes[r.dataRoot].Kind != astjson.NodeKindObject {
+		return false
+	}
+	return len(r.storage.Nodes[r.dataRoot].ObjectFields) > 0
 }
 
 func (r *Resolvable) printBytes(b []byte) {
