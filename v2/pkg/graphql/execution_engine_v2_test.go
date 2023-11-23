@@ -668,7 +668,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				},
 			},
 		},
-		expectedResponse: `{"errors":[{"message":"Cannot return null for non-nullable field Query.hero.","path":["hero"]}],"data":null}`,
+		expectedResponse: `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.hero'","path":["hero"]}],"data":null}`,
 	}))
 
 	t.Run("execute operation and apply input coercion for lists without variables", runWithoutError(ExecutionEngineV2TestCase{
