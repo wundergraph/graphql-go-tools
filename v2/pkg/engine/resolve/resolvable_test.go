@@ -225,7 +225,7 @@ func TestResolvable_ResolveWithErrorBubbleUp(t *testing.T) {
 	out := &bytes.Buffer{}
 	err = res.Resolve(context.Background(), object, out)
 	assert.NoError(t, err)
-	assert.Equal(t, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.topProducts.reviews.author.name'","path":["topProducts",0,"reviews",0,"author","name"]}],"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":null},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`, out.String())
+	assert.Equal(t, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.topProducts.reviews.author.name'.","path":["topProducts",0,"reviews",0,"author","name"]}],"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":null},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`, out.String())
 }
 
 func TestResolvable_ResolveWithErrorBubbleUpUntilData(t *testing.T) {
@@ -297,7 +297,7 @@ func TestResolvable_ResolveWithErrorBubbleUpUntilData(t *testing.T) {
 	out := &bytes.Buffer{}
 	err = res.Resolve(context.Background(), object, out)
 	assert.NoError(t, err)
-	assert.Equal(t, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.topProducts.reviews.author.name'","path":["topProducts",0,"reviews",1,"author","name"]}],"data":null}`, out.String())
+	assert.Equal(t, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.topProducts.reviews.author.name'.","path":["topProducts",0,"reviews",1,"author","name"]}],"data":null}`, out.String())
 }
 
 func BenchmarkResolvable_Resolve(b *testing.B) {
