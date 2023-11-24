@@ -56,6 +56,7 @@ type TraceHTTPResponse struct {
 	StatusCode int         `json:"status_code"`
 	Status     string      `json:"status"`
 	Headers    http.Header `json:"headers"`
+	BodySize   int         `json:"body_size"`
 }
 
 func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Writer) (err error) {
@@ -151,6 +152,7 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 			StatusCode: response.StatusCode,
 			Status:     response.Status,
 			Headers:    response.Header,
+			BodySize:   buf.Len(),
 		},
 	}
 	trace, err := json.Marshal(responseTrace)

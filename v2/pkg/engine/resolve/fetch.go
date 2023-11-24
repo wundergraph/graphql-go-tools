@@ -60,6 +60,7 @@ func (_ *SingleFetch) FetchKind() FetchKind {
 // should be used only for object fields which could be fetched parallel
 type ParallelFetch struct {
 	Fetches []Fetch
+	Trace   *DataSourceLoadTrace
 }
 
 func (_ *ParallelFetch) FetchKind() FetchKind {
@@ -70,6 +71,7 @@ func (_ *ParallelFetch) FetchKind() FetchKind {
 // should be used only for object fields which should be fetched serial
 type SerialFetch struct {
 	Fetches []Fetch
+	Trace   *DataSourceLoadTrace
 }
 
 func (_ *SerialFetch) FetchKind() FetchKind {
@@ -134,6 +136,7 @@ func (_ *EntityFetch) FetchKind() FetchKind {
 type ParallelListItemFetch struct {
 	Fetch  *SingleFetch
 	Traces []*SingleFetch
+	Trace  *DataSourceLoadTrace
 }
 
 func (_ *ParallelListItemFetch) FetchKind() FetchKind {
@@ -183,6 +186,7 @@ type DataSourceLoadTrace struct {
 	SingleFlightSharedResponse bool            `json:"single_flight_shared_response"`
 	LoadSkipped                bool            `json:"load_skipped"`
 	LoadStats                  *LoadStats      `json:"load_stats,omitempty"`
+	Path                       string          `json:"-"`
 }
 
 type LoadStats struct {

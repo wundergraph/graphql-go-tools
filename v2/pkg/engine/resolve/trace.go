@@ -3,6 +3,7 @@ package resolve
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/google/uuid"
 )
 
@@ -78,6 +79,7 @@ const (
 type TraceFetch struct {
 	Id                   string                 `json:"id,omitempty"`
 	Type                 TraceFetchType         `json:"type,omitempty"`
+	Path                 string                 `json:"path,omitempty"`
 	DataSourceID         string                 `json:"data_source_id,omitempty"`
 	Fetches              []*TraceFetch          `json:"fetches,omitempty"`
 	DataSourceLoadTrace  *DataSourceLoadTrace   `json:"datasource_load_trace,omitempty"`
@@ -170,6 +172,7 @@ func parseFetch(fetch Fetch) *TraceFetch {
 		traceFetch.Type = TraceFetchTypeSingle
 		if f.Trace != nil {
 			traceFetch.DataSourceLoadTrace = f.Trace
+			traceFetch.Path = f.Trace.Path
 		}
 		if f.Info != nil {
 			traceFetch.DataSourceID = f.Info.DataSourceID
@@ -177,18 +180,27 @@ func parseFetch(fetch Fetch) *TraceFetch {
 
 	case *ParallelFetch:
 		traceFetch.Type = TraceFetchTypeParallel
+		if f.Trace != nil {
+			traceFetch.Path = f.Trace.Path
+		}
 		for _, subFetch := range f.Fetches {
 			traceFetch.Fetches = append(traceFetch.Fetches, parseFetch(subFetch))
 		}
 
 	case *SerialFetch:
 		traceFetch.Type = TraceFetchTypeSerial
+		if f.Trace != nil {
+			traceFetch.Path = f.Trace.Path
+		}
 		for _, subFetch := range f.Fetches {
 			traceFetch.Fetches = append(traceFetch.Fetches, parseFetch(subFetch))
 		}
 
 	case *ParallelListItemFetch:
 		traceFetch.Type = TraceFetchTypeParallelListItem
+		if f.Trace != nil {
+			traceFetch.Path = f.Trace.Path
+		}
 		traceFetch.Fetches = append(traceFetch.Fetches, parseFetch(f.Fetch))
 		if f.Traces != nil {
 			for _, trace := range f.Traces {
@@ -204,6 +216,7 @@ func parseFetch(fetch Fetch) *TraceFetch {
 		traceFetch.Type = TraceFetchTypeEntity
 		if f.Trace != nil {
 			traceFetch.DataSourceLoadTrace = f.Trace
+			traceFetch.Path = f.Trace.Path
 		}
 		if f.Info != nil {
 			traceFetch.DataSourceID = f.Info.DataSourceID
@@ -213,6 +226,7 @@ func parseFetch(fetch Fetch) *TraceFetch {
 		traceFetch.Type = TraceFetchTypeBatchEntity
 		if f.Trace != nil {
 			traceFetch.DataSourceLoadTrace = f.Trace
+			traceFetch.Path = f.Trace.Path
 		}
 		if f.Info != nil {
 			traceFetch.DataSourceID = f.Info.DataSourceID
