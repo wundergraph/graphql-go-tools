@@ -9,12 +9,14 @@ import (
 	"net/http/httptrace"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
@@ -30,9 +32,11 @@ type Loader struct {
 	enableSingleFlight bool
 	path               []string
 	traceOptions       RequestTraceOptions
+	info               *GraphQLResponseInfo
 }
 
 func (l *Loader) Free() {
+	l.info = nil
 	l.ctx = nil
 	l.sf = nil
 	l.data = nil
@@ -48,6 +52,7 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 	l.errorsRoot = resolvable.errorsRoot
 	l.traceOptions = resolvable.requestTraceOptions
 	l.ctx = ctx
+	l.info = response.Info
 	return l.walkNode(response.Data, []int{resolvable.dataRoot})
 }
 
@@ -76,6 +81,28 @@ func (l *Loader) pushArrayPath() {
 
 func (l *Loader) popArrayPath() {
 	l.path = l.path[:len(l.path)-1]
+}
+
+func (l *Loader) renderPath() string {
+	builder := strings.Builder{}
+	if l.info != nil {
+		switch l.info.OperationType {
+		case ast.OperationTypeQuery:
+			builder.WriteString("query")
+		case ast.OperationTypeMutation:
+			builder.WriteString("mutation")
+		case ast.OperationTypeSubscription:
+			builder.WriteString("subscription")
+		}
+	}
+	if len(l.path) == 0 {
+		return builder.String()
+	}
+	for i := range l.path {
+		builder.WriteByte('.')
+		builder.WriteString(l.path[i])
+	}
+	return builder.String()
 }
 
 func (l *Loader) walkObject(object *Object, parentItems []int) (err error) {
@@ -164,6 +191,11 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		return l.mergeResult(res, items)
 	case *SerialFetch:
+		if l.traceOptions.Enable {
+			f.Trace = &DataSourceLoadTrace{
+				Path: l.renderPath(),
+			}
+		}
 		for i := range f.Fetches {
 			err := l.resolveAndMergeFetch(f.Fetches[i], items)
 			if err != nil {
@@ -171,6 +203,11 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			}
 		}
 	case *ParallelFetch:
+		if l.traceOptions.Enable {
+			f.Trace = &DataSourceLoadTrace{
+				Path: l.renderPath(),
+			}
+		}
 		results := make([]*result, len(f.Fetches))
 		g, ctx := errgroup.WithContext(l.ctx.ctx)
 		for i := range f.Fetches {
@@ -200,6 +237,11 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			}
 		}
 	case *ParallelListItemFetch:
+		if l.traceOptions.Enable {
+			f.Trace = &DataSourceLoadTrace{
+				Path: l.renderPath(),
+			}
+		}
 		results := make([]*result, len(items))
 		g, ctx := errgroup.WithContext(l.ctx.ctx)
 		for i := range items {
@@ -678,8 +720,10 @@ WithNextItem:
 
 func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, input []byte, out io.Writer, trace *DataSourceLoadTrace) error {
 	if l.traceOptions.Enable {
+		trace.Path = l.renderPath()
 		if !l.traceOptions.ExcludeInput {
-			trace.Input = []byte(string(input)) // copy input explicitly, omit __trace__ field
+			trace.Input = make([]byte, len(input))
+			copy(trace.Input, input) // copy input explicitly, omit __trace__ field
 		}
 		if gjson.ValidBytes(input) {
 			inputCopy := make([]byte, len(input))
@@ -801,9 +845,12 @@ func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight boo
 	if l.traceOptions.Enable {
 		if !l.traceOptions.ExcludeOutput && data != nil {
 			if l.traceOptions.EnablePredictableDebugTimings {
-				trace.Output = jsonparser.Delete([]byte(string(data)), "extensions", "trace", "response", "headers", "Date")
+				dataCopy := make([]byte, len(data))
+				copy(dataCopy, data)
+				trace.Output = jsonparser.Delete(dataCopy, "extensions", "trace", "response", "headers", "Date")
 			} else {
-				trace.Output = []byte(string(data))
+				trace.Output = make([]byte, len(data))
+				copy(trace.Output, data)
 			}
 		}
 		trace.SingleFlightSharedResponse = shared
