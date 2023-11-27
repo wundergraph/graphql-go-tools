@@ -87,12 +87,6 @@ func (b *BigInt) NodePath() []string {
 }
 
 type Null struct {
-	Defer Defer
-}
-
-type Defer struct {
-	Enabled    bool
-	PatchIndex int
 }
 
 func (_ *Null) NodeKind() NodeKind {

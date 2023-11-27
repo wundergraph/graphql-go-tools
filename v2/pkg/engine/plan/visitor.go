@@ -32,6 +32,7 @@ type Visitor struct {
 	objects                      []*resolve.Object
 	currentFields                []objectFields
 	currentField                 *resolve.Field
+	fieldByPaths                 map[string]*resolve.Field
 	planners                     []*plannerConfiguration
 	fetchConfigurations          []objectFetchConfiguration
 	skipFieldsRefs               []int
@@ -547,6 +548,16 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 					Nullable: nullable,
 					Export:   fieldExport,
 				}
+			case "JSON":
+				if unescapeResponseJson {
+					return &resolve.String{
+						Path:                 path,
+						Nullable:             nullable,
+						Export:               fieldExport,
+						UnescapeResponseJson: unescapeResponseJson,
+					}
+				}
+				fallthrough
 			default:
 				return &resolve.Scalar{
 					Path:     path,
@@ -756,6 +767,7 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.fieldConfigs = map[int]*FieldConfiguration{}
 	v.exportedVariables = map[string]struct{}{}
 	v.skipIncludeFields = map[int]skipIncludeField{}
+	v.fieldByPaths = map[string]*resolve.Field{}
 }
 
 func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
