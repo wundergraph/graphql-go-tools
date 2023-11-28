@@ -3,6 +3,7 @@ package plan
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -34,7 +36,16 @@ func TestPlanner_Plan(t *testing.T) {
 		config.DataSources[0].Factory = &FakeFactory{upstreamSchema: &def}
 
 		p := NewPlanner(ctx, config)
-		return p.Plan(&op, &def, operationName, report)
+
+		printedInitialOp, _ := astprinter.PrintStringIndent(&op, &def, "  ")
+		fmt.Println("initial Op:", printedInitialOp)
+
+		pln := p.Plan(&op, &def, operationName, report)
+
+		printedFinalOp, _ := astprinter.PrintStringIndent(&op, &def, "  ")
+		fmt.Println("printedOp:", printedFinalOp)
+
+		return pln
 	}
 
 	test := func(definition, operation, operationName string, expectedPlan Plan, config Configuration) func(t *testing.T) {
@@ -129,6 +140,253 @@ func TestPlanner_Plan(t *testing.T) {
 		DisableResolveFieldPositions: true,
 		DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
 	}))
+
+	t.Run("Merging duplicate fields in response", func(t *testing.T) {
+		t.Run("Interface response type with type fragments and shared field", test(testDefinition, `
+			query Hero {
+				hero {
+					name
+					... on Droid {
+						name
+					}
+					... on Human {
+						name
+					}
+				}
+			}
+			`, "Hero", &SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Nullable: false,
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("hero"),
+							Value: &resolve.Object{
+								Path:     []string{"hero"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
+									},
+								},
+							},
+						},
+					},
+					Fetch: &resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &FakeDataSource{&StatefulSource{}},
+						},
+						DataSourceIdentifier: []byte("plan.FakeDataSource"),
+					},
+				},
+			},
+		}, Configuration{
+			DisableResolveFieldPositions: true,
+			DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+		}))
+
+		t.Run("Interface response type with type fragments", test(testDefinition, `
+			query Hero {
+				hero {
+					... on Droid {
+						name
+					}
+					... on Human {
+						name
+					}
+				}
+			}
+			`, "Hero", &SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Nullable: false,
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("hero"),
+							Value: &resolve.Object{
+								Path:     []string{"hero"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
+										OnTypeNames: [][]byte{[]byte("Droid"), []byte("Human")},
+									},
+								},
+							},
+						},
+					},
+					Fetch: &resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &FakeDataSource{&StatefulSource{}},
+						},
+						DataSourceIdentifier: []byte("plan.FakeDataSource"),
+					},
+				},
+			},
+		}, Configuration{
+			DisableResolveFieldPositions: true,
+			DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+		}))
+
+		t.Run("skip on fragments", func(t *testing.T) {
+			t.Run("skip on wrapping fragments", test(testDefinition, `
+				query Hero($skip: Boolean!) {
+					hero {
+						... on Character @skip(if: $skip) {
+							... on Droid {
+								name
+							}
+							... on Human {
+								name
+							}
+						}
+					}
+				}`,
+				"Hero", &SynchronousResponsePlan{
+					Response: &resolve.GraphQLResponse{
+						Data: &resolve.Object{
+							Nullable: false,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("hero"),
+									Value: &resolve.Object{
+										Path:     []string{"hero"},
+										Nullable: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("name"),
+												Value: &resolve.String{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+												OnTypeNames:          [][]byte{[]byte("Droid"), []byte("Human")},
+												SkipDirectiveDefined: true,
+												SkipVariableName:     "skip",
+											},
+										},
+									},
+								},
+							},
+							Fetch: &resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+				}, Configuration{
+					DisableResolveFieldPositions: true,
+					DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+				}))
+
+			t.Run("only one of fields has skip - should remove skip", test(testDefinition, `
+				query Hero($skip: Boolean!) {
+					hero {
+						... on Character @skip(if: $skip) {
+							... on Droid {
+								name
+							}
+						}
+						... on Human {
+							name
+						}
+					}
+				}`,
+				"Hero", &SynchronousResponsePlan{
+					Response: &resolve.GraphQLResponse{
+						Data: &resolve.Object{
+							Nullable: false,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("hero"),
+									Value: &resolve.Object{
+										Path:     []string{"hero"},
+										Nullable: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("name"),
+												Value: &resolve.String{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+												OnTypeNames: [][]byte{[]byte("Droid"), []byte("Human")},
+											},
+										},
+									},
+								},
+							},
+							Fetch: &resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+				}, Configuration{
+					DisableResolveFieldPositions: true,
+					DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+				}))
+
+			t.Run("2 fragments has skip", test(testDefinition, `
+				query Hero($skip: Boolean!) {
+					hero {
+						... on Droid @skip(if: $skip) {
+							name
+						}
+						... on Human @skip(if: $skip) {
+							name
+						}
+					}
+				}`,
+				"Hero", &SynchronousResponsePlan{
+					Response: &resolve.GraphQLResponse{
+						Data: &resolve.Object{
+							Nullable: false,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("hero"),
+									Value: &resolve.Object{
+										Path:     []string{"hero"},
+										Nullable: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("name"),
+												Value: &resolve.String{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+												OnTypeNames:          [][]byte{[]byte("Droid"), []byte("Human")},
+												SkipDirectiveDefined: true,
+												SkipVariableName:     "skip",
+											},
+										},
+									},
+								},
+							},
+							Fetch: &resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+				}, Configuration{
+					DisableResolveFieldPositions: true,
+					DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+				}))
+		})
+	})
 
 	t.Run("operation selection", func(t *testing.T) {
 		cfg := Configuration{
@@ -476,8 +734,8 @@ var testDefinitionDSConfiguration = dsb().
 	ChildNode("Character", "name", "friends").
 	ChildNode("Human", "name", "friends", "height").
 	ChildNode("Droid", "name", "friends", "primaryFunction", "favoriteEpisode").
-	ChildNode("Vehicle", "length").
-	ChildNode("Starship", "name", "length").
+	ChildNode("Vehicle", "length", "width").
+	ChildNode("Starship", "name", "length", "width").
 	DS()
 
 const testDefinition = `
@@ -548,11 +806,13 @@ type Droid implements Character {
 }
 
 interface Vehicle {
+	width: Float!
 	length: Float!
 }
 
 type Starship implements Vehicle {
     name: String!
+	width: Float!
     length: Float!
 }
 `
