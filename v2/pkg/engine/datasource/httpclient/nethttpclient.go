@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"golang.org/x/exp/slices"
 	"io"
 	"net/http"
 	"time"
@@ -146,12 +147,12 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 		Request: TraceHTTPRequest{
 			Method:  request.Method,
 			URL:     request.URL.String(),
-			Headers: request.Header,
+			Headers: redactHeaders(request.Header),
 		},
 		Response: TraceHTTPResponse{
 			StatusCode: response.StatusCode,
 			Status:     response.Status,
-			Headers:    response.Header,
+			Headers:    redactHeaders(response.Header),
 			BodySize:   buf.Len(),
 		},
 	}
@@ -165,6 +166,27 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 	}
 	_, err = out.Write(responseWithTraceExtension)
 	return err
+}
+
+var headersToRedact = []string{
+	"authorization",
+	"www-authenticate",
+	"proxy-authenticate",
+	"proxy-authorization",
+	"cookie",
+	"set-cookie",
+}
+
+func redactHeaders(headers http.Header) http.Header {
+	redactedHeaders := make(http.Header)
+	for key, values := range headers {
+		if slices.Contains(headersToRedact, key) {
+			redactedHeaders[key] = []string{"****"}
+		} else {
+			redactedHeaders[key] = values
+		}
+	}
+	return redactedHeaders
 }
 
 func respBodyReader(res *http.Response) (io.Reader, error) {
