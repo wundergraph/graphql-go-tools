@@ -88,6 +88,18 @@ func (j *JSON) GetObjectField(nodeRef int, path string) int {
 	return -1
 }
 
+func (j *JSON) GetObjectFieldBytes(nodeRef int, path []byte) int {
+	if j.Nodes[nodeRef].Kind != NodeKindObject {
+		return -1
+	}
+	for _, i := range j.Nodes[nodeRef].ObjectFields {
+		if j.objectFieldKeyEqualsBytes(i, path) {
+			return j.Nodes[i].ObjectFieldValue
+		}
+	}
+	return -1
+}
+
 func (j *JSON) isArrayElem(elem string) bool {
 	if len(elem) < 2 {
 		return false
@@ -145,6 +157,19 @@ func (j *JSON) SetObjectField(nodeRef, setFieldNodeRef int, path []string) bool 
 }
 
 func (j *JSON) objectFieldKeyEquals(objectFieldRef int, another string) bool {
+	key := j.ObjectFieldKey(objectFieldRef)
+	if len(key) != len(another) {
+		return false
+	}
+	for i := range key {
+		if key[i] != another[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (j *JSON) objectFieldKeyEqualsBytes(objectFieldRef int, another []byte) bool {
 	key := j.ObjectFieldKey(objectFieldRef)
 	if len(key) != len(another) {
 		return false

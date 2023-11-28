@@ -1,7 +1,6 @@
 package astnormalization
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/buger/jsonparser"
@@ -182,9 +181,8 @@ func (v *inputFieldDefaultInjectionVisitor) processObjectOrListInput(fieldType i
 		if err != nil {
 			return nil, false, err
 		}
-	} else {
-		return nil, false, errors.New("mismatched input value")
 	}
+	// mismatching types are handled by variablesvalidation package
 	return finalVal, replaced, nil
 }
 
