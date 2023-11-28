@@ -662,9 +662,10 @@ func TestLoader_RedactHeaders(t *testing.T) {
 	loader := &Loader{}
 
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
-
 	assert.NoError(t, err)
+
 	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	assert.NoError(t, err)
 
 	var input struct {
 		Header map[string][]string
