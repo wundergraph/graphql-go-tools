@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"golang.org/x/exp/slices"
 	"io"
 	"net/http/httptrace"
 	"runtime"
@@ -718,12 +720,54 @@ WithNextItem:
 	return nil
 }
 
+func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
+	var obj map[string]interface{}
+
+	sensitiveHeaders := []string{
+		"authorization",
+		"www-authenticate",
+		"proxy-authenticate",
+		"proxy-authorization",
+		"cookie",
+		"set-cookie",
+	}
+
+	err := json.Unmarshal(rawJSON, &obj)
+	if err != nil {
+		return nil, err
+	}
+
+	if headers, ok := obj["header"]; ok {
+		if headerMap, isMap := headers.(map[string]interface{}); isMap {
+			for key, values := range headerMap {
+				if slices.Contains(sensitiveHeaders, key) {
+					headerMap[key] = []string{"****"}
+				} else {
+					headerMap[key] = values
+				}
+			}
+		}
+	}
+
+	redactedJSON, err := json.Marshal(obj)
+	if err != nil {
+		return nil, err
+	}
+
+	return json.RawMessage(redactedJSON), nil
+}
+
 func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, input []byte, out io.Writer, trace *DataSourceLoadTrace) error {
 	if l.traceOptions.Enable {
 		trace.Path = l.renderPath()
 		if !l.traceOptions.ExcludeInput {
 			trace.Input = make([]byte, len(input))
 			copy(trace.Input, input) // copy input explicitly, omit __trace__ field
+			redactedInput, err := redactHeaders(trace.Input)
+			if err != nil {
+				return err
+			}
+			trace.Input = redactedInput
 		}
 		if gjson.ValidBytes(input) {
 			inputCopy := make([]byte, len(input))
