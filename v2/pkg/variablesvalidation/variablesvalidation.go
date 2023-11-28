@@ -133,7 +133,20 @@ func (v *variablesVisitor) EnterVariableDefinition(ref int) {
 	v.pushObjectPath(varName)
 	v.currentVariableName = varName
 	v.currentVariableJsonNodeRef = jsonField
-	v.traverseNode(jsonField, varName, varTypeName, nil)
+	if v.operation.TypeIsList(varTypeRef) {
+		if v.variables.Nodes[jsonField].Kind != astjson.NodeKindArray {
+			v.renderVariableInvalidTypeError(varTypeName, v.variables.Nodes[jsonField])
+			return
+		}
+		for i, arrayValue := range v.variables.Nodes[jsonField].ArrayValues {
+			v.pushArrayPath(i)
+			v.traverseNode(arrayValue, varTypeName)
+			v.popPath()
+			continue
+		}
+		return
+	}
+	v.traverseNode(jsonField, varTypeName)
 }
 
 func (v *variablesVisitor) renderVariableRequiredError(variableName []byte, typeRef int) {
@@ -266,21 +279,6 @@ func (v *variablesVisitor) renderVariableEnumValueDoesNotExistError(typeName []b
 	}
 }
 
-func (v *variablesVisitor) renderVariableEnumValueInvalidTypeError(typeName []byte, enumValue []byte) {
-	buf := &bytes.Buffer{}
-	variableName := string(v.currentVariableName)
-	err := v.variables.PrintNode(v.variables.Nodes[v.currentVariableJsonNodeRef], buf)
-	if err != nil {
-		v.err = err
-		return
-	}
-	invalidValue := buf.String()
-	path := v.renderPath()
-	v.err = &InvalidVariableError{
-		Message: fmt.Sprintf(`Variable "$%s" got invalid value %s at "%s"; Enum "%s" cannot represent non-string value: %s.`, variableName, invalidValue, path, string(typeName), string(enumValue)),
-	}
-}
-
 func (v *variablesVisitor) renderVariableInvalidNullError(variableName []byte, typeRef int) {
 	buf := &bytes.Buffer{}
 	err := v.operation.PrintType(typeRef, buf)
@@ -294,7 +292,7 @@ func (v *variablesVisitor) renderVariableInvalidNullError(variableName []byte, t
 	}
 }
 
-func (v *variablesVisitor) traverseNode(jsonNodeRef int, fieldName, typeName, parentTypeName []byte) {
+func (v *variablesVisitor) traverseNode(jsonNodeRef int, typeName []byte) {
 	if v.err != nil {
 		return
 	}
@@ -329,7 +327,7 @@ func (v *variablesVisitor) traverseNode(jsonNodeRef int, fieldName, typeName, pa
 				v.pushObjectPath(fieldName)
 				for i, arrayValue := range v.variables.Nodes[fieldVariablesJsonNodeRef].ArrayValues {
 					v.pushArrayPath(i)
-					v.traverseNode(arrayValue, fieldName, fieldTypeName, typeName)
+					v.traverseNode(arrayValue, fieldTypeName)
 					v.popPath()
 					continue
 				}
@@ -339,7 +337,7 @@ func (v *variablesVisitor) traverseNode(jsonNodeRef int, fieldName, typeName, pa
 				continue
 			}
 			v.pushObjectPath(fieldName)
-			v.traverseNode(fieldVariablesJsonNodeRef, fieldName, v.definition.ResolveTypeNameBytes(fieldType), typeName)
+			v.traverseNode(fieldVariablesJsonNodeRef, v.definition.ResolveTypeNameBytes(fieldType))
 			v.popPath()
 		}
 		for _, field := range v.variables.Nodes[jsonNodeRef].ObjectFields {
