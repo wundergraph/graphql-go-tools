@@ -740,7 +740,7 @@ func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
 	if headers, ok := obj["header"]; ok {
 		if headerMap, isMap := headers.(map[string]interface{}); isMap {
 			for key, values := range headerMap {
-				if slices.Contains(sensitiveHeaders, key) {
+				if slices.Contains(sensitiveHeaders, strings.ToLower(key)) {
 					headerMap[key] = []string{"****"}
 				} else {
 					headerMap[key] = values

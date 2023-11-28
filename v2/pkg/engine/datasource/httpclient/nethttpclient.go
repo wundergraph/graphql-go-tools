@@ -9,6 +9,7 @@ import (
 	"golang.org/x/exp/slices"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/buger/jsonparser"
@@ -180,7 +181,7 @@ var headersToRedact = []string{
 func redactHeaders(headers http.Header) http.Header {
 	redactedHeaders := make(http.Header)
 	for key, values := range headers {
-		if slices.Contains(headersToRedact, key) {
+		if slices.Contains(headersToRedact, strings.ToLower(key)) {
 			redactedHeaders[key] = []string{"****"}
 		} else {
 			redactedHeaders[key] = values
