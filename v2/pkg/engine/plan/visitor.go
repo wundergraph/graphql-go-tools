@@ -52,7 +52,8 @@ func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
 	switch kind {
 	case ast.NodeKindField:
 		fieldName := v.Operation.FieldNameString(ref)
-		v.debugPrint("EnterField : ", fieldName, " ref: ", ref)
+		fullPath := v.currentFullPath(false)
+		v.debugPrint("EnterField : ", fieldName, " ref: ", ref, " path: ", fullPath)
 	case ast.NodeKindInlineFragment:
 		fragmentTypeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
 		v.debugPrint("EnterInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
@@ -69,7 +70,8 @@ func (v *Visitor) debugOnLeaveNode(kind ast.NodeKind, ref int) {
 	switch kind {
 	case ast.NodeKindField:
 		fieldName := v.Operation.FieldNameString(ref)
-		v.debugPrint("LeaveField : ", fieldName, " ref: ", ref)
+		fullPath := v.currentFullPath(false)
+		v.debugPrint("LeaveField : ", fieldName, " ref: ", ref, " path: ", fullPath)
 	case ast.NodeKindInlineFragment:
 		fragmentTypeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
 		v.debugPrint("LeaveInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
@@ -374,6 +376,24 @@ func (v *Visitor) handleExistingField(currentFieldRef int, fieldDefinitionTypeRe
 
 	// set field as current field
 	v.currentField = resolveField
+
+	var obj *resolve.Object
+	switch node := v.currentField.Value.(type) {
+	case *resolve.Array:
+		obj, _ = node.Item.(*resolve.Object)
+	case *resolve.Object:
+		obj = node
+	}
+
+	if obj != nil {
+		v.objects = append(v.objects, obj)
+		v.Walker.DefferOnEnterField(func() {
+			v.currentFields = append(v.currentFields, objectFields{
+				popOnField: currentFieldRef,
+				fields:     &obj.Fields,
+			})
+		})
+	}
 
 	// we have to map field config again with a different ref because it is used in input templates rendering
 	v.mapFieldConfig(currentFieldRef)
