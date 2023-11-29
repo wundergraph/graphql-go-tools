@@ -328,6 +328,9 @@ func (v *variablesVisitor) traverseNode(jsonNodeRef int, typeName []byte) {
 					v.renderVariableInvalidNestedTypeError(fieldVariablesJsonNodeRef, fieldTypeDefinitionNode.Kind, typeName)
 					return
 				}
+				if len(v.variables.Nodes[fieldVariablesJsonNodeRef].ArrayValues) == 0 {
+					continue
+				}
 				fieldTypeName := v.definition.ResolveTypeNameBytes(fieldType)
 				v.pushObjectPath(fieldName)
 				for i, arrayValue := range v.variables.Nodes[fieldVariablesJsonNodeRef].ArrayValues {
@@ -337,7 +340,6 @@ func (v *variablesVisitor) traverseNode(jsonNodeRef int, typeName []byte) {
 					continue
 				}
 				v.popPath()
-
 				continue
 			}
 
