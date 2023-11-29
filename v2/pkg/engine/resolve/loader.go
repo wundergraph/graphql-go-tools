@@ -718,7 +718,13 @@ WithNextItem:
 	return nil
 }
 
-func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, input []byte, out io.Writer, trace *DataSourceLoadTrace) error {
+func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, input []byte, out io.Writer, trace *DataSourceLoadTrace) (err error) {
+	if l.ctx.Extensions != nil {
+		input, err = jsonparser.Set(input, l.ctx.Extensions, "body", "extensions")
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	}
 	if l.traceOptions.Enable {
 		trace.Path = l.renderPath()
 		if !l.traceOptions.ExcludeInput {
@@ -825,7 +831,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight boo
 	}
 	keyGen := pool.Hash64.Get()
 	defer pool.Hash64.Put(keyGen)
-	_, err := keyGen.Write(input)
+	_, err = keyGen.Write(input)
 	if err != nil {
 		return errors.WithStack(err)
 	}
