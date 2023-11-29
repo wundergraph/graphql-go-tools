@@ -12,6 +12,7 @@ type Context struct {
 	Request               Request
 	RenameTypeNames       []RenameTypeName
 	RequestTracingOptions RequestTraceOptions
+	Extensions            []byte
 }
 
 type Request struct {
