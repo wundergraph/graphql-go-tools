@@ -318,6 +318,11 @@ func (v *variablesVisitor) traverseNode(jsonNodeRef int, typeName []byte) {
 				v.renderVariableRequiredNotProvidedError(fieldName, fieldType)
 				return
 			}
+
+			if !v.variables.NodeIsDefined(fieldVariablesJsonNodeRef) {
+				continue
+			}
+
 			if v.definition.TypeIsList(fieldType) {
 				if v.variables.Nodes[fieldVariablesJsonNodeRef].Kind != astjson.NodeKindArray {
 					v.renderVariableInvalidNestedTypeError(fieldVariablesJsonNodeRef, fieldTypeDefinitionNode.Kind, typeName)
@@ -332,10 +337,10 @@ func (v *variablesVisitor) traverseNode(jsonNodeRef int, typeName []byte) {
 					continue
 				}
 				v.popPath()
-			}
-			if !v.variables.NodeIsDefined(fieldVariablesJsonNodeRef) {
+
 				continue
 			}
+
 			v.pushObjectPath(fieldName)
 			v.traverseNode(fieldVariablesJsonNodeRef, v.definition.ResolveTypeNameBytes(fieldType))
 			v.popPath()
