@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -598,7 +599,7 @@ func TestLoader_RedactHeaders(t *testing.T) {
 	defer ctrl.Finish()
 
 	productsService := mockedDS(t, ctrl,
-		`{"method":"POST","url":"http://products","header":{"Authorization":["$$4$$"]},"body":{"query":"query{topProducts{name __typename upc}}"},"__trace__":true}`,
+		`{"method":"POST","url":"http://products","header":{"Authorization":"value"},"body":{"query":"query{topProducts{name __typename upc}}"},"__trace__":true}`,
 		`{"topProducts":[{"name":"Table","__typename":"Product","upc":"1"},{"name":"Couch","__typename":"Product","upc":"2"},{"name":"Chair","__typename":"Product","upc":"3"}]}`)
 
 	response := &GraphQLResponse{
@@ -607,7 +608,16 @@ func TestLoader_RedactHeaders(t *testing.T) {
 				InputTemplate: InputTemplate{
 					Segments: []TemplateSegment{
 						{
-							Data:        []byte(`{"method":"POST","url":"http://products","header":{"Authorization":["$$4$$"]},"body":{"query":"query{topProducts{name __typename upc}}"}}`),
+							Data:        []byte(`{"method":"POST","url":"http://products","header":{"Authorization":"`),
+							SegmentType: StaticSegmentType,
+						},
+						{
+							SegmentType:        VariableSegmentType,
+							VariableKind:       HeaderVariableKind,
+							VariableSourcePath: []string{"Authorization"},
+						},
+						{
+							Data:        []byte(`"},"body":{"query":"query{topProducts{name __typename upc}}"},"__trace__":true}`),
 							SegmentType: StaticSegmentType,
 						},
 					},
@@ -654,6 +664,9 @@ func TestLoader_RedactHeaders(t *testing.T) {
 
 	ctx := &Context{
 		ctx: context.Background(),
+		Request: Request{
+			Header: http.Header{"Authorization": []string{"value"}},
+		},
 	}
 	resolvable := &Resolvable{
 		storage:             &astjson.JSON{},
@@ -677,7 +690,7 @@ func TestLoader_RedactHeaders(t *testing.T) {
 		{
 			_ = json.Unmarshal(f.Trace.Input, &input)
 			authHeader := input.Header["Authorization"]
-			assert.Equal(t, authHeader, []string{"****"})
+			assert.Equal(t, []string{"****"}, authHeader)
 		}
 	default:
 		{
