@@ -3805,9 +3805,17 @@ func FakeStream(cancelFunc func(), messageFunc func(count int) (message string, 
 type _fakeStream struct {
 	cancel      context.CancelFunc
 	messageFunc func(counter int) (message string, ok bool)
+	onStart     func(input []byte)
+}
+
+func (f *_fakeStream) SetOnStart(fn func(input []byte)) {
+	f.onStart = fn
 }
 
 func (f *_fakeStream) Start(ctx *Context, input []byte, next chan<- []byte) error {
+	if f.onStart != nil {
+		f.onStart(input)
+	}
 	go func() {
 		time.Sleep(time.Millisecond)
 		count := 0
@@ -3834,6 +3842,14 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
 				Source: stream,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`),
+						},
+					},
+				},
 				PostProcessing: PostProcessingConfiguration{
 					SelectResponseDataPath:   []string{"data"},
 					SelectResponseErrorsPath: []string{"errors"},
@@ -3897,7 +3913,6 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should successfully get result from upstream", func(t *testing.T) {
-		t.Skip("TODO: This test hangs with the race detector enabled")
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -3917,6 +3932,35 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.Equal(t, `{"data":{"counter":0}}`, out.flushed[0])
 		assert.Equal(t, `{"data":{"counter":1}}`, out.flushed[1])
 		assert.Equal(t, `{"data":{"counter":2}}`, out.flushed[2])
+	})
+
+	t.Run("should propagate extensions to stream", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := FakeStream(cancel, func(count int) (message string, ok bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, count), true
+		})
+
+		resolver, plan, out := setup(c, fakeStream)
+
+		ctx := Context{
+			ctx:        c,
+			Extensions: []byte(`{"foo":"bar"}`),
+		}
+
+		var inputResult string
+
+		fakeStream.SetOnStart(func(input []byte) {
+			inputResult = string(input)
+		})
+		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
+		assert.NoError(t, err)
+		assert.Equal(t, 3, len(out.flushed))
+		assert.Equal(t, `{"data":{"counter":0}}`, out.flushed[0])
+		assert.Equal(t, `{"data":{"counter":1}}`, out.flushed[1])
+		assert.Equal(t, `{"data":{"counter":2}}`, out.flushed[2])
+		assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }","extensions":{"foo":"bar"}}}`, inputResult)
 	})
 }
 

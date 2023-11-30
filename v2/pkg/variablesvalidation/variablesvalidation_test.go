@@ -594,6 +594,48 @@ func TestVariablesValidation(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, `Variable "$bar" got invalid value 123 at "bar.[0]"; String cannot represent a non string value: 123`, err.Error())
 	})
+
+	t.Run("optional nested list argument provided with null", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bars : [String] bat: Int! } type Query { hello(arg: Foo): String }`,
+			operation: `query Foo($input: Foo) { hello(arg: $input) }`,
+			variables: `{"input":{"bars":null,"bat":1}}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+
+	t.Run("optional nested list argument provided with empty list", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bars : [String] bat: Int! } type Query { hello(arg: Foo): String }`,
+			operation: `query Foo($input: Foo) { hello(arg: $input) }`,
+			variables: `{"input":{"bars":[],"bat":1}}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+
+	t.Run("optional nested list argument provided with empty list and missing Int", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bars : [String] bat: Int! } type Query { hello(arg: Foo): String }`,
+			operation: `query Foo($input: Foo) { hello(arg: $input) }`,
+			variables: `{"input":{"bars":[]}}`,
+		}
+		err := runTest(t, tc)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$input" got invalid value {"bars":[]}; Field "bat" of required type "Int!" was not provided.`, err.Error())
+	})
+
+	t.Run("optional nested field is null followed by required nested field of wrong type", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bar: String! } input Bar { foo: Foo bat: Int! } type Query { hello(arg: Bar): String }`,
+			operation: `query Foo($input: Bar) { hello(arg: $input) }`,
+			variables: `{"input":{"foo":null,"bat":"hello"}}`,
+		}
+		err := runTest(t, tc)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$input" got invalid value "hello" at "input.bat"; Int cannot represent non-integer value: "hello"`, err.Error())
+	})
 }
 
 type testCase struct {
