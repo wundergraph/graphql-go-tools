@@ -19,7 +19,10 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/operationreport"
 )
 
-var errTypeNameExtractionImpossible = errors.New("type name extraction is impossible")
+var (
+	errTypeNameExtractionImpossible = errors.New("type name extraction is impossible")
+	errNotPrimitiveType             = errors.New("not a primitive type")
+)
 
 type converter struct {
 	openapi         *openapi3.T
@@ -130,15 +133,18 @@ func getPrimitiveGraphQLTypeName(openapiType string) (string, error) {
 	case "boolean":
 		return string(literal.BOOLEAN), nil
 	default:
-		return "", fmt.Errorf("unknown type: %s", openapiType)
+		return "", fmt.Errorf("%w: %s", errNotPrimitiveType, openapiType)
 	}
 }
 
-func (c *converter) getGraphQLTypeName(schemaRef *openapi3.SchemaRef) (string, error) {
+func (c *converter) getGraphQLTypeName(schemaRef *openapi3.SchemaRef, inputType bool) (string, error) {
 	if schemaRef.Value.Type == "object" || schemaRef.Value.Type == "array" {
 		graphqlTypeName, err := extractFullTypeNameFromRef(schemaRef.Ref)
 		if err != nil {
 			return "", err
+		}
+		if inputType {
+			return MakeInputTypeName(graphqlTypeName), nil
 		}
 		return graphqlTypeName, nil
 	}
@@ -160,44 +166,54 @@ func makeTypeNameFromPropertyName(name string, schemaRef *openapi3.SchemaRef) (s
 	return "", fmt.Errorf("error while making type name from property name: %s is a unsupported type", name)
 }
 
+func (c *converter) makeTypeRefFromSchemaRef(schemaRef *openapi3.SchemaRef, name string, inputType, required bool) (*introspection.TypeRef, error) {
+	name = strcase.ToLowerCamel(name)
+
+	graphQLTypeName, err := c.getGraphQLTypeName(schemaRef, inputType)
+	if errors.Is(err, errTypeNameExtractionImpossible) {
+		graphQLTypeName, err = makeTypeNameFromPropertyName(name, schemaRef)
+		if inputType {
+			graphQLTypeName = MakeInputTypeName(graphQLTypeName)
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	switch schemaRef.Value.Type {
+	case "object":
+		err = c.processObject(schemaRef)
+	case "array":
+		err = c.processArrayWithFullTypeName(graphQLTypeName, schemaRef)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	typeRef, err := getTypeRef(schemaRef.Value.Type)
+	if err != nil {
+		return nil, err
+	}
+	typeRef.Name = &graphQLTypeName
+	if required {
+		typeRef = convertToNonNull(&typeRef)
+	}
+
+	if schemaRef.Value.Type == "array" {
+		typeRef.OfType = &introspection.TypeRef{Kind: 3, Name: &graphQLTypeName}
+	}
+	return &typeRef, nil
+}
+
 func (c *converter) processSchemaProperties(fullType *introspection.FullType, schema openapi3.Schema) error {
 	for name, schemaRef := range schema.Properties {
-		name = strcase.ToLowerCamel(name)
-
-		graphQLTypeName, err := c.getGraphQLTypeName(schemaRef)
-		if errors.Is(err, errTypeNameExtractionImpossible) {
-			graphQLTypeName, err = makeTypeNameFromPropertyName(name, schemaRef)
-		}
+		typeRef, err := c.makeTypeRefFromSchemaRef(schemaRef, name, false, isNonNullable(name, schema.Required))
 		if err != nil {
 			return err
 		}
-
-		switch schemaRef.Value.Type {
-		case "object":
-			err = c.processObject(schemaRef)
-		case "array":
-			err = c.processArrayWithFullTypeName(graphQLTypeName, schemaRef)
-		}
-		if err != nil {
-			return err
-		}
-
-		typeRef, err := getTypeRef(schemaRef.Value.Type)
-		if err != nil {
-			return err
-		}
-		typeRef.Name = &graphQLTypeName
-		if isNonNullable(name, schema.Required) {
-			typeRef = convertToNonNull(&typeRef)
-		}
-
-		if schemaRef.Value.Type == "array" {
-			typeRef.OfType = &introspection.TypeRef{Kind: 3, Name: &graphQLTypeName}
-		}
-
 		field := introspection.Field{
 			Name:        name,
-			Type:        typeRef,
+			Type:        *typeRef,
 			Description: schemaRef.Value.Description,
 		}
 
@@ -210,22 +226,14 @@ func (c *converter) processSchemaProperties(fullType *introspection.FullType, sc
 }
 
 func (c *converter) processInputFields(ft *introspection.FullType, schemaRef *openapi3.SchemaRef) error {
-	for propertyName, property := range schemaRef.Value.Properties {
-		gqlType, err := getPrimitiveGraphQLTypeName(property.Value.Type)
+	for name, property := range schemaRef.Value.Properties {
+		typeRef, err := c.makeTypeRefFromSchemaRef(property, name, true, isNonNullable(name, schemaRef.Value.Required))
 		if err != nil {
 			return err
-		}
-		typeRef, err := getTypeRef(property.Value.Type)
-		if err != nil {
-			return err
-		}
-		typeRef.Name = &gqlType
-		if isNonNullable(propertyName, schemaRef.Value.Required) {
-			typeRef = convertToNonNull(&typeRef)
 		}
 		f := introspection.InputValue{
-			Name: propertyName,
-			Type: typeRef,
+			Name: name,
+			Type: *typeRef,
 		}
 		ft.InputFields = append(ft.InputFields, f)
 		sort.Slice(ft.InputFields, func(i, j int) bool {
