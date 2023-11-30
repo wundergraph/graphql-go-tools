@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"time"
+
+	"go.uber.org/atomic"
 )
 
 type Context struct {
@@ -13,6 +15,23 @@ type Context struct {
 	RenameTypeNames       []RenameTypeName
 	RequestTracingOptions RequestTraceOptions
 	Extensions            []byte
+	Stats                 Stats
+}
+
+type Stats struct {
+	NumberOfFetches      atomic.Int32
+	CombinedResponseSize atomic.Int64
+	ResolvedNodes        int
+	ResolvedObjects      int
+	ResolvedLeafs        int
+}
+
+func (s *Stats) Reset() {
+	s.NumberOfFetches.Store(0)
+	s.CombinedResponseSize.Store(0)
+	s.ResolvedNodes = 0
+	s.ResolvedObjects = 0
+	s.ResolvedLeafs = 0
 }
 
 type Request struct {
@@ -56,6 +75,8 @@ func (c *Context) Free() {
 	c.Request.Header = nil
 	c.RenameTypeNames = nil
 	c.RequestTracingOptions.DisableAll()
+	c.Extensions = nil
+	c.Stats.Reset()
 }
 
 type traceStartKey struct{}

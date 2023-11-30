@@ -956,11 +956,11 @@ func TestLoader_RedactHeaders(t *testing.T) {
 		Request: Request{
 			Header: http.Header{"Authorization": []string{"value"}},
 		},
+		RequestTracingOptions: RequestTraceOptions{
+			Enable: true,
+		},
 	}
-	resolvable := &Resolvable{
-		storage:             &astjson.JSON{},
-		requestTraceOptions: RequestTraceOptions{Enable: true},
-	}
+	resolvable := NewResolvable()
 	loader := &Loader{}
 
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
