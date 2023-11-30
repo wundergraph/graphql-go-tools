@@ -3962,6 +3962,36 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.Equal(t, `{"data":{"counter":2}}`, out.flushed[2])
 		assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }","extensions":{"foo":"bar"}}}`, inputResult)
 	})
+
+	t.Run("should propagate initial payload to stream", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := FakeStream(cancel, func(count int) (message string, ok bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, count), true
+		})
+
+		resolver, plan, out := setup(c, fakeStream)
+
+		ctx := Context{
+			ctx:            c,
+			InitialPayload: []byte(`{"hello":"world"}`),
+		}
+
+		var inputResult string
+
+		fakeStream.SetOnStart(func(input []byte) {
+			inputResult = string(input)
+		})
+		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
+		assert.NoError(t, err)
+		assert.Equal(t, 3, len(out.flushed))
+		assert.Equal(t, `{"data":{"counter":0}}`, out.flushed[0])
+		assert.Equal(t, `{"data":{"counter":1}}`, out.flushed[1])
+		assert.Equal(t, `{"data":{"counter":2}}`, out.flushed[2])
+		assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"},"initial_payload":{"hello":"world"}}`, inputResult)
+	})
+
 }
 
 func Benchmark_ResolveGraphQLResponse(b *testing.B) {

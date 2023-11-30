@@ -96,6 +96,13 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	subscriptionInput := make([]byte, len(rendered))
 	copy(subscriptionInput, rendered)
 
+	if len(ctx.InitialPayload) > 0 {
+		subscriptionInput, err = jsonparser.Set(subscriptionInput, ctx.InitialPayload, "initial_payload")
+		if err != nil {
+			return err
+		}
+	}
+
 	if ctx.Extensions != nil {
 		subscriptionInput, err = jsonparser.Set(subscriptionInput, ctx.Extensions, "body", "extensions")
 	}
