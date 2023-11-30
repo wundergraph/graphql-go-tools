@@ -3,6 +3,8 @@ package resolve
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"net/http"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -877,6 +879,111 @@ func BenchmarkLoader_LoadGraphQLResponseData(b *testing.B) {
 		}
 		if !bytes.Equal(expected, out.Bytes()) {
 			b.Fatal("not equal")
+		}
+	}
+}
+
+func TestLoader_RedactHeaders(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	productsService := mockedDS(t, ctrl,
+		`{"method":"POST","url":"http://products","header":{"Authorization":"value"},"body":{"query":"query{topProducts{name __typename upc}}"},"__trace__":true}`,
+		`{"topProducts":[{"name":"Table","__typename":"Product","upc":"1"},{"name":"Couch","__typename":"Product","upc":"2"},{"name":"Chair","__typename":"Product","upc":"3"}]}`)
+
+	response := &GraphQLResponse{
+		Data: &Object{
+			Fetch: &SingleFetch{
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{"method":"POST","url":"http://products","header":{"Authorization":"`),
+							SegmentType: StaticSegmentType,
+						},
+						{
+							SegmentType:        VariableSegmentType,
+							VariableKind:       HeaderVariableKind,
+							VariableSourcePath: []string{"Authorization"},
+						},
+						{
+							Data:        []byte(`"},"body":{"query":"query{topProducts{name __typename upc}}"},"__trace__":true}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				FetchConfiguration: FetchConfiguration{
+					DataSource: productsService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
+					},
+				},
+			},
+			Fields: []*Field{
+				{
+					Name: []byte("topProducts"),
+					Value: &Array{
+						Path: []string{"topProducts"},
+						Item: &Object{
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
+									},
+								},
+								{
+									Name: []byte("__typename"),
+									Value: &String{
+										Path: []string{"__typename"},
+									},
+								},
+								{
+									Name: []byte("upc"),
+									Value: &String{
+										Path: []string{"upc"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ctx := &Context{
+		ctx: context.Background(),
+		Request: Request{
+			Header: http.Header{"Authorization": []string{"value"}},
+		},
+	}
+	resolvable := &Resolvable{
+		storage:             &astjson.JSON{},
+		requestTraceOptions: RequestTraceOptions{Enable: true},
+	}
+	loader := &Loader{}
+
+	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	assert.NoError(t, err)
+
+	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	assert.NoError(t, err)
+
+	var input struct {
+		Header map[string][]string
+	}
+
+	fetch := response.Data.Fetch
+	switch f := fetch.(type) {
+	case *SingleFetch:
+		{
+			_ = json.Unmarshal(f.Trace.Input, &input)
+			authHeader := input.Header["Authorization"]
+			assert.Equal(t, []string{"****"}, authHeader)
+		}
+	default:
+		{
+			t.Errorf("Incorrect fetch type")
 		}
 	}
 }
