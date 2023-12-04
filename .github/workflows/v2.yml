@@ -21,6 +21,10 @@ jobs:
         go: [ '1.21' ]
         os: [ubuntu-latest, windows-latest]
     steps:
+      - name: Set git to use LF
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
       - name: Check out code into the Go module directory
         uses: actions/checkout@v3
       - name: Set up Go ${{ matrix.go }}
@@ -28,10 +32,6 @@ jobs:
         with:
           go-version: ^${{ matrix.go }}
         id: go
-      - name: Set git to use LF
-        run: |
-          git config --global core.autocrlf false
-          git config --global core.eol lf
       - name: CI
         working-directory: v2
         run: make -f ../Makefile ci
