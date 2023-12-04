@@ -34,7 +34,6 @@ type Visitor struct {
 	objects                      []*resolve.Object
 	currentFields                []objectFields
 	currentField                 *resolve.Field
-	fieldByPaths                 map[string]*resolve.Field
 	planners                     []*plannerConfiguration
 	fetchConfigurations          []objectFetchConfiguration
 	skipFieldsRefs               []int
@@ -42,6 +41,9 @@ type Visitor struct {
 	exportedVariables            map[string]struct{}
 	skipIncludeOnFragments       map[int]skipIncludeInfo
 	disableResolveFieldPositions bool
+
+	fieldByPaths    map[string]*resolve.Field
+	allowFieldMerge bool
 }
 
 func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
@@ -121,9 +123,8 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 			switch kind {
 			case astvisitor.EnterField, astvisitor.LeaveField:
 				fieldName := v.Operation.FieldNameString(ref)
-				_ = fieldName
-
 				enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
+
 				shouldWalkFieldsOnPath :=
 					// check if the field path has type condition and matches the enclosing type
 					config.shouldWalkFieldsOnPath(path, enclosingTypeName) ||
@@ -222,10 +223,10 @@ func (v *Visitor) EnterInlineFragment(ref int) {
 	v.debugOnEnterNode(ast.NodeKindInlineFragment, ref)
 
 	directives := v.Operation.InlineFragments[ref].Directives.Refs
-	skip, skipVariableName := v.resolveSkip(directives)
-	include, includeVariableName := v.resolveInclude(directives)
-	set := v.Operation.InlineFragments[ref].SelectionSet
-	if set == -1 {
+	skipVariableName, skip := v.Operation.ResolveSkipDirectiveVariable(directives)
+	includeVariableName, include := v.Operation.ResolveIncludeDirectiveVariable(directives)
+	setRef := v.Operation.InlineFragments[ref].SelectionSet
+	if setRef == ast.InvalidRef {
 		return
 	}
 
@@ -249,7 +250,6 @@ func (v *Visitor) EnterSelectionSet(ref int) {
 
 func (v *Visitor) LeaveSelectionSet(ref int) {
 	v.debugOnLeaveNode(ast.NodeKindSelectionSet, ref)
-
 }
 
 func (v *Visitor) EnterField(ref int) {
@@ -275,7 +275,7 @@ func (v *Visitor) EnterField(ref int) {
 	fullFieldPathWithoutFragments := v.currentFullPath(true)
 
 	// if we already have a field with the same path we merge existing field with the current one
-	if v.handleExistingField(ref, fieldDefinitionTypeRef, fullFieldPathWithoutFragments) {
+	if v.allowFieldMerge && v.handleExistingField(ref, fieldDefinitionTypeRef, fullFieldPathWithoutFragments) {
 		return
 	}
 
@@ -329,27 +329,6 @@ func (v *Visitor) handleExistingField(currentFieldRef int, fieldDefinitionTypeRe
 	resolveField := v.fieldByPaths[fullFieldPathWithoutFragments]
 	if resolveField == nil {
 		return false
-	}
-
-	skipIncludeInfo := v.resolveSkipIncludeForField(currentFieldRef)
-
-	// TODO: clarify - if both fields has skip but on the different condition?
-	// look like we should check all variables during resolving?
-
-	// merge skip include
-	// we preserve them only in case on both fields they are present
-	// if they are present on one field and not present on the other, we remove them
-	// because it means we anyway will have this field in the response
-	hasSkip := resolveField.SkipDirectiveDefined && skipIncludeInfo.skip
-	if !hasSkip {
-		resolveField.SkipDirectiveDefined = false
-		resolveField.SkipVariableName = ""
-	}
-
-	hasInclude := resolveField.IncludeDirectiveDefined && skipIncludeInfo.include
-	if !hasInclude {
-		resolveField.IncludeDirectiveDefined = false
-		resolveField.IncludeVariableName = ""
 	}
 
 	// merge on type names
@@ -504,8 +483,9 @@ func (v *Visitor) resolveSkipIncludeForField(fieldRef int) skipIncludeInfo {
 		return info
 	}
 
-	skip, skipVariableName := v.resolveSkip(v.Operation.Fields[fieldRef].Directives.Refs)
-	include, includeVariableName := v.resolveInclude(v.Operation.Fields[fieldRef].Directives.Refs)
+	directiveRefs := v.Operation.Fields[fieldRef].Directives.Refs
+	skipVariableName, skip := v.Operation.ResolveSkipDirectiveVariable(directiveRefs)
+	includeVariableName, include := v.Operation.ResolveIncludeDirectiveVariable(directiveRefs)
 
 	if skip || include {
 		return skipIncludeInfo{
@@ -517,34 +497,6 @@ func (v *Visitor) resolveSkipIncludeForField(fieldRef int) skipIncludeInfo {
 	}
 
 	return skipIncludeInfo{}
-}
-
-func (v *Visitor) resolveSkip(directiveRefs []int) (bool, string) {
-	for _, i := range directiveRefs {
-		if v.Operation.DirectiveNameString(i) != "skip" {
-			continue
-		}
-		if value, ok := v.Operation.DirectiveArgumentValueByName(i, literal.IF); ok {
-			if value.Kind == ast.ValueKindVariable {
-				return true, v.Operation.VariableValueNameString(value.Ref)
-			}
-		}
-	}
-	return false, ""
-}
-
-func (v *Visitor) resolveInclude(directiveRefs []int) (bool, string) {
-	for _, i := range directiveRefs {
-		if v.Operation.DirectiveNameString(i) != "include" {
-			continue
-		}
-		if value, ok := v.Operation.DirectiveArgumentValueByName(i, literal.IF); ok {
-			if value.Kind == ast.ValueKindVariable {
-				return true, v.Operation.VariableValueNameString(value.Ref)
-			}
-		}
-	}
-	return false, ""
 }
 
 func (v *Visitor) resolveOnTypeNames() [][]byte {

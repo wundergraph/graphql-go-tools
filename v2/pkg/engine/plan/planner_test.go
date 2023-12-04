@@ -3,7 +3,6 @@ package plan
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -11,7 +10,6 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -37,15 +35,9 @@ func TestPlanner_Plan(t *testing.T) {
 
 		p := NewPlanner(ctx, config)
 
-		printedInitialOp, _ := astprinter.PrintStringIndent(&op, &def, "  ")
-		fmt.Println("initial Op:", printedInitialOp)
+		pp := p.Plan(&op, &def, operationName, report)
 
-		pln := p.Plan(&op, &def, operationName, report)
-
-		printedFinalOp, _ := astprinter.PrintStringIndent(&op, &def, "  ")
-		fmt.Println("printedOp:", printedFinalOp)
-
-		return pln
+		return pp
 	}
 
 	test := func(definition, operation, operationName string, expectedPlan Plan, config Configuration) func(t *testing.T) {
@@ -236,16 +228,77 @@ func TestPlanner_Plan(t *testing.T) {
 			DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
 		}))
 
+		t.Run("skip on fields", func(t *testing.T) {
+			t.Run("skip on one of the fields", test(testDefinition, `
+				query Hero($skip: Boolean!) {
+					hero {
+						... on Droid {
+							name @skip(if: $skip)
+						}
+						... on Human {
+							height
+						}
+					}
+				}`,
+				"Hero", &SynchronousResponsePlan{
+					Response: &resolve.GraphQLResponse{
+						Data: &resolve.Object{
+							Nullable: false,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("hero"),
+									Value: &resolve.Object{
+										Path:     []string{"hero"},
+										Nullable: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("name"),
+												Value: &resolve.String{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+												OnTypeNames:          [][]byte{[]byte("Droid")},
+												SkipDirectiveDefined: true,
+												SkipVariableName:     "skip",
+											},
+											{
+												Name: []byte("height"),
+												Value: &resolve.String{
+													Path:     []string{"height"},
+													Nullable: false,
+												},
+												OnTypeNames: [][]byte{[]byte("Human")},
+											},
+										},
+									},
+								},
+							},
+							Fetch: &resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+				}, Configuration{
+					DisableResolveFieldPositions: true,
+					DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+				}))
+		})
+
 		t.Run("skip on fragments", func(t *testing.T) {
 			t.Run("skip on wrapping fragments", test(testDefinition, `
-				query Hero($skip: Boolean!) {
+				query Hero($skip: Boolean!, $skip2: Boolean!) {
 					hero {
 						... on Character @skip(if: $skip) {
 							... on Droid {
 								name
 							}
+						}
+						... on Character @skip(if: $skip2) {
 							... on Human {
-								name
+								height
 							}
 						}
 					}
@@ -267,9 +320,19 @@ func TestPlanner_Plan(t *testing.T) {
 													Path:     []string{"name"},
 													Nullable: false,
 												},
-												OnTypeNames:          [][]byte{[]byte("Droid"), []byte("Human")},
+												OnTypeNames:          [][]byte{[]byte("Droid")},
 												SkipDirectiveDefined: true,
 												SkipVariableName:     "skip",
+											},
+											{
+												Name: []byte("height"),
+												Value: &resolve.String{
+													Path:     []string{"height"},
+													Nullable: false,
+												},
+												OnTypeNames:          [][]byte{[]byte("Human")},
+												SkipDirectiveDefined: true,
+												SkipVariableName:     "skip2",
 											},
 										},
 									},
@@ -288,7 +351,7 @@ func TestPlanner_Plan(t *testing.T) {
 					DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
 				}))
 
-			t.Run("only one of fields has skip - should remove skip", test(testDefinition, `
+			t.Run("only one of fields has skip", test(testDefinition, `
 				query Hero($skip: Boolean!) {
 					hero {
 						... on Character @skip(if: $skip) {
@@ -318,7 +381,17 @@ func TestPlanner_Plan(t *testing.T) {
 													Path:     []string{"name"},
 													Nullable: false,
 												},
-												OnTypeNames: [][]byte{[]byte("Droid"), []byte("Human")},
+												OnTypeNames:          [][]byte{[]byte("Droid")},
+												SkipDirectiveDefined: true,
+												SkipVariableName:     "skip",
+											},
+											{
+												Name: []byte("name"),
+												Value: &resolve.String{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+												OnTypeNames: [][]byte{[]byte("Human")},
 											},
 										},
 									},
@@ -365,7 +438,17 @@ func TestPlanner_Plan(t *testing.T) {
 													Path:     []string{"name"},
 													Nullable: false,
 												},
-												OnTypeNames:          [][]byte{[]byte("Droid"), []byte("Human")},
+												OnTypeNames:          [][]byte{[]byte("Droid")},
+												SkipDirectiveDefined: true,
+												SkipVariableName:     "skip",
+											},
+											{
+												Name: []byte("name"),
+												Value: &resolve.String{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+												OnTypeNames:          [][]byte{[]byte("Human")},
 												SkipDirectiveDefined: true,
 												SkipVariableName:     "skip",
 											},
