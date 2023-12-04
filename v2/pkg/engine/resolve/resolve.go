@@ -7,6 +7,7 @@ import (
 	"io"
 	"sync"
 
+	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
@@ -64,8 +65,6 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	t := r.getTools()
 	defer r.putTools(t)
 
-	t.resolvable.requestTraceOptions = ctx.RequestTracingOptions
-
 	err = t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
 		return err
@@ -79,7 +78,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	return t.resolvable.Resolve(ctx.ctx, response.Data, writer)
 }
 
-func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer FlushWriter) error {
+func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer FlushWriter) (err error) {
 
 	if subscription.Trigger.Source == nil {
 		msg := []byte(`{"errors":[{"message":"no data source found"}]}`)
@@ -94,6 +93,17 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	rendered := buf.Bytes()
 	subscriptionInput := make([]byte, len(rendered))
 	copy(subscriptionInput, rendered)
+
+	if len(ctx.InitialPayload) > 0 {
+		subscriptionInput, err = jsonparser.Set(subscriptionInput, ctx.InitialPayload, "initial_payload")
+		if err != nil {
+			return err
+		}
+	}
+
+	if ctx.Extensions != nil {
+		subscriptionInput, err = jsonparser.Set(subscriptionInput, ctx.Extensions, "body", "extensions")
+	}
 
 	c, cancel := context.WithCancel(ctx.Context())
 	defer cancel()
@@ -113,8 +123,6 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 
 	t := r.getTools()
 	defer r.putTools(t)
-
-	t.resolvable.requestTraceOptions = ctx.RequestTracingOptions
 
 	for {
 		select {

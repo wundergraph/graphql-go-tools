@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"github.com/tidwall/sjson"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -194,5 +195,25 @@ func TestHttpClientDo(t *testing.T) {
 		input = SetInputBody(input, body)
 		input = SetInputURL(input, []byte(server.URL))
 		t.Run("net", runTest(background, input, `ok`))
+	})
+
+	t.Run("redact sensitive headers", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, err := httputil.DumpRequest(r, true)
+			assert.NoError(t, err)
+			w.Header().Set("Authorization", "test")
+			_, err = w.Write([]byte(`{"extensions": {"trace": {}}"}`))
+			assert.NoError(t, err)
+		}))
+		defer server.Close()
+		var input []byte
+		input = SetInputMethod(input, []byte("GET"))
+		input = SetInputURL(input, []byte(server.URL))
+		input, err := sjson.SetBytes(input, TRACE, true)
+		assert.NoError(t, err)
+		out := &bytes.Buffer{}
+		err = Do(http.DefaultClient, context.Background(), input, out)
+		assert.NoError(t, err)
+		assert.Contains(t, out.String(), `"Authorization":["****"]`)
 	})
 }

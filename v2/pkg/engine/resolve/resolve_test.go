@@ -3805,9 +3805,17 @@ func FakeStream(cancelFunc func(), messageFunc func(count int) (message string, 
 type _fakeStream struct {
 	cancel      context.CancelFunc
 	messageFunc func(counter int) (message string, ok bool)
+	onStart     func(input []byte)
+}
+
+func (f *_fakeStream) SetOnStart(fn func(input []byte)) {
+	f.onStart = fn
 }
 
 func (f *_fakeStream) Start(ctx *Context, input []byte, next chan<- []byte) error {
+	if f.onStart != nil {
+		f.onStart(input)
+	}
 	go func() {
 		time.Sleep(time.Millisecond)
 		count := 0
@@ -3834,6 +3842,14 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
 				Source: stream,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`),
+						},
+					},
+				},
 				PostProcessing: PostProcessingConfiguration{
 					SelectResponseDataPath:   []string{"data"},
 					SelectResponseErrorsPath: []string{"errors"},
@@ -3897,7 +3913,26 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should successfully get result from upstream", func(t *testing.T) {
-		t.Skip("TODO: This test hangs with the race detector enabled")
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := FakeStream(cancel, func(count int) (message string, ok bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, count), true
+		})
+
+		resolver, plan, out := setup(c, fakeStream)
+
+		ctx := NewContext(c)
+
+		err := resolver.ResolveGraphQLSubscription(ctx, plan, out)
+		assert.NoError(t, err)
+		assert.Equal(t, 3, len(out.flushed))
+		assert.Equal(t, `{"data":{"counter":0}}`, out.flushed[0])
+		assert.Equal(t, `{"data":{"counter":1}}`, out.flushed[1])
+		assert.Equal(t, `{"data":{"counter":2}}`, out.flushed[2])
+	})
+
+	t.Run("should propagate extensions to stream", func(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -3908,16 +3943,53 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		resolver, plan, out := setup(c, fakeStream)
 
 		ctx := Context{
-			ctx: c,
+			ctx:        c,
+			Extensions: []byte(`{"foo":"bar"}`),
 		}
 
+		var inputResult string
+
+		fakeStream.SetOnStart(func(input []byte) {
+			inputResult = string(input)
+		})
 		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
 		assert.NoError(t, err)
 		assert.Equal(t, 3, len(out.flushed))
 		assert.Equal(t, `{"data":{"counter":0}}`, out.flushed[0])
 		assert.Equal(t, `{"data":{"counter":1}}`, out.flushed[1])
 		assert.Equal(t, `{"data":{"counter":2}}`, out.flushed[2])
+		assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }","extensions":{"foo":"bar"}}}`, inputResult)
 	})
+
+	t.Run("should propagate initial payload to stream", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := FakeStream(cancel, func(count int) (message string, ok bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, count), true
+		})
+
+		resolver, plan, out := setup(c, fakeStream)
+
+		ctx := Context{
+			ctx:            c,
+			InitialPayload: []byte(`{"hello":"world"}`),
+		}
+
+		var inputResult string
+
+		fakeStream.SetOnStart(func(input []byte) {
+			inputResult = string(input)
+		})
+		err := resolver.ResolveGraphQLSubscription(&ctx, plan, out)
+		assert.NoError(t, err)
+		assert.Equal(t, 3, len(out.flushed))
+		assert.Equal(t, `{"data":{"counter":0}}`, out.flushed[0])
+		assert.Equal(t, `{"data":{"counter":1}}`, out.flushed[1])
+		assert.Equal(t, `{"data":{"counter":2}}`, out.flushed[2])
+		assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"},"initial_payload":{"hello":"world"}}`, inputResult)
+	})
+
 }
 
 func Benchmark_ResolveGraphQLResponse(b *testing.B) {
@@ -4157,6 +4229,305 @@ func Benchmark_ResolveGraphQLResponse(b *testing.B) {
 			ctxPool.Put(ctx)
 		}
 	})
+}
+
+func Test_NestedBatching_WithStats(t *testing.T) {
+	rCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	resolver := newResolver(rCtx, true)
+
+	productsService := fakeDataSourceWithInputCheck(t,
+		[]byte(`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`),
+		[]byte(`{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1"},{"name":"Couch","__typename":"Product","upc":"2"},{"name":"Chair","__typename":"Product","upc":"3"}]}}`))
+	stockService := fakeDataSourceWithInputCheck(t,
+		[]byte(`{"method":"POST","url":"http://stock","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {stock}}}","variables":{"representations":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"2"},{"__typename":"Product","upc":"3"}]}}}`),
+		[]byte(`{"data":{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}}`))
+	reviewsService := fakeDataSourceWithInputCheck(t,
+		[]byte(`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"2"},{"__typename":"Product","upc":"3"}]}}}`),
+		[]byte(`{"data":{"_entities":[{"__typename":"Product","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2"}}]},{"__typename":"Product","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1"}}]},{"__typename":"Product","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2"}}]}]}}`))
+	usersService := fakeDataSourceWithInputCheck(t,
+		[]byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"2"}]}}}`),
+		[]byte(`{"data":{"_entities":[{"name":"user-1"},{"name":"user-2"}]}}`))
+
+	plan := &GraphQLResponse{
+		Data: &Object{
+			Fetch: &SingleFetch{
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				FetchConfiguration: FetchConfiguration{
+					DataSource: productsService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
+					},
+				},
+			},
+			Fields: []*Field{
+				{
+					Name: []byte("topProducts"),
+					Value: &Array{
+						Path: []string{"topProducts"},
+						Item: &Object{
+							Fetch: &ParallelFetch{
+								Fetches: []Fetch{
+									&BatchEntityFetch{
+										Input: BatchInput{
+											Header: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+											Items: []InputTemplate{
+												{
+													Segments: []TemplateSegment{
+														{
+															SegmentType:  VariableSegmentType,
+															VariableKind: ResolvableObjectVariableKind,
+															Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																Fields: []*Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &String{
+																			Path: []string{"__typename"},
+																		},
+																	},
+																	{
+																		Name: []byte("upc"),
+																		Value: &String{
+																			Path: []string{"upc"},
+																		},
+																	},
+																},
+															}),
+														},
+													},
+												},
+											},
+											Separator: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`,`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+											Footer: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`]}}}`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+										},
+										DataSource: reviewsService,
+										PostProcessing: PostProcessingConfiguration{
+											SelectResponseDataPath: []string{"data", "_entities"},
+										},
+									},
+									&BatchEntityFetch{
+										Input: BatchInput{
+											Header: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`{"method":"POST","url":"http://stock","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {stock}}}","variables":{"representations":[`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+											Items: []InputTemplate{
+												{
+													Segments: []TemplateSegment{
+														{
+															SegmentType:  VariableSegmentType,
+															VariableKind: ResolvableObjectVariableKind,
+															Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																Fields: []*Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &String{
+																			Path: []string{"__typename"},
+																		},
+																	},
+																	{
+																		Name: []byte("upc"),
+																		Value: &String{
+																			Path: []string{"upc"},
+																		},
+																	},
+																},
+															}),
+														},
+													},
+												},
+											},
+											Separator: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`,`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+											Footer: InputTemplate{
+												Segments: []TemplateSegment{
+													{
+														Data:        []byte(`]}}}`),
+														SegmentType: StaticSegmentType,
+													},
+												},
+											},
+										},
+										DataSource: stockService,
+										PostProcessing: PostProcessingConfiguration{
+											SelectResponseDataPath: []string{"data", "_entities"},
+										},
+									},
+								},
+							},
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
+									},
+								},
+								{
+									Name: []byte("stock"),
+									Value: &Integer{
+										Path: []string{"stock"},
+									},
+								},
+								{
+									Name: []byte("reviews"),
+									Value: &Array{
+										Path: []string{"reviews"},
+										Item: &Object{
+											Fields: []*Field{
+												{
+													Name: []byte("body"),
+													Value: &String{
+														Path: []string{"body"},
+													},
+												},
+												{
+													Name: []byte("author"),
+													Value: &Object{
+														Path: []string{"author"},
+														Fetch: &BatchEntityFetch{
+															Input: BatchInput{
+																Header: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			Data:        []byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[`),
+																			SegmentType: StaticSegmentType,
+																		},
+																	},
+																},
+																Items: []InputTemplate{
+																	{
+																		Segments: []TemplateSegment{
+																			{
+																				SegmentType:  VariableSegmentType,
+																				VariableKind: ResolvableObjectVariableKind,
+																				Renderer: NewGraphQLVariableResolveRenderer(&Object{
+																					Fields: []*Field{
+																						{
+																							Name: []byte("__typename"),
+																							Value: &String{
+																								Path: []string{"__typename"},
+																							},
+																						},
+																						{
+																							Name: []byte("id"),
+																							Value: &String{
+																								Path: []string{"id"},
+																							},
+																						},
+																					},
+																				}),
+																			},
+																		},
+																	},
+																},
+																Separator: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			Data:        []byte(`,`),
+																			SegmentType: StaticSegmentType,
+																		},
+																	},
+																},
+																Footer: InputTemplate{
+																	Segments: []TemplateSegment{
+																		{
+																			Data:        []byte(`]}}}`),
+																			SegmentType: StaticSegmentType,
+																		},
+																	},
+																},
+															},
+															DataSource: usersService,
+															PostProcessing: PostProcessingConfiguration{
+																SelectResponseDataPath: []string{"data", "_entities"},
+															},
+														},
+														Fields: []*Field{
+															{
+																Name: []byte("name"),
+																Value: &String{
+																	Path: []string{"name"},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	expected := []byte(`{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`)
+
+	ctx := NewContext(context.Background())
+	buf := &bytes.Buffer{}
+
+	err := resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
+	assert.NoError(t, err)
+	assert.Equal(t, string(expected), buf.String())
+	assert.Equal(t, 29, ctx.Stats.ResolvedNodes, "resolved nodes")
+	assert.Equal(t, 11, ctx.Stats.ResolvedObjects, "resolved objects")
+	assert.Equal(t, 14, ctx.Stats.ResolvedLeafs, "resolved leafs")
+	assert.Equal(t, int64(711), ctx.Stats.CombinedResponseSize.Load(), "combined response size")
+	assert.Equal(t, int32(4), ctx.Stats.NumberOfFetches.Load(), "number of fetches")
+
+	ctx.Free()
+	ctx = ctx.WithContext(context.Background())
+	buf.Reset()
+	err = resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
+	assert.NoError(t, err)
+	assert.Equal(t, string(expected), buf.String())
+	assert.Equal(t, 29, ctx.Stats.ResolvedNodes, "resolved nodes")
+	assert.Equal(t, 11, ctx.Stats.ResolvedObjects, "resolved objects")
+	assert.Equal(t, 14, ctx.Stats.ResolvedLeafs, "resolved leafs")
+	assert.Equal(t, int64(711), ctx.Stats.CombinedResponseSize.Load(), "combined response size")
+	assert.Equal(t, int32(4), ctx.Stats.NumberOfFetches.Load(), "number of fetches")
 }
 
 func Benchmark_NestedBatching(b *testing.B) {

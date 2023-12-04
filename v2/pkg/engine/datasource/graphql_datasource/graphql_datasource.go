@@ -1758,6 +1758,7 @@ type GraphQLSubscriptionClient interface {
 
 type GraphQLSubscriptionOptions struct {
 	URL                                     string           `json:"url"`
+	InitialPayload                          json.RawMessage  `json:"initial_payload"`
 	Body                                    GraphQLBody      `json:"body"`
 	Header                                  http.Header      `json:"header"`
 	UseSSE                                  bool             `json:"use_sse"`

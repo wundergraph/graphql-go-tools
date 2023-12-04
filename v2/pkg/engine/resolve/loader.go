@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http/httptrace"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/exp/slices"
 
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
@@ -718,12 +721,60 @@ WithNextItem:
 	return nil
 }
 
-func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, input []byte, out io.Writer, trace *DataSourceLoadTrace) error {
+func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
+	var obj map[string]interface{}
+
+	sensitiveHeaders := []string{
+		"authorization",
+		"www-authenticate",
+		"proxy-authenticate",
+		"proxy-authorization",
+		"cookie",
+		"set-cookie",
+	}
+
+	err := json.Unmarshal(rawJSON, &obj)
+	if err != nil {
+		return nil, err
+	}
+
+	if headers, ok := obj["header"]; ok {
+		if headerMap, isMap := headers.(map[string]interface{}); isMap {
+			for key, values := range headerMap {
+				if slices.Contains(sensitiveHeaders, strings.ToLower(key)) {
+					headerMap[key] = []string{"****"}
+				} else {
+					headerMap[key] = values
+				}
+			}
+		}
+	}
+
+	redactedJSON, err := json.Marshal(obj)
+	if err != nil {
+		return nil, err
+	}
+
+	return redactedJSON, nil
+}
+
+func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, input []byte, out io.Writer, trace *DataSourceLoadTrace) (err error) {
+	if l.ctx.Extensions != nil {
+		input, err = jsonparser.Set(input, l.ctx.Extensions, "body", "extensions")
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	}
 	if l.traceOptions.Enable {
 		trace.Path = l.renderPath()
 		if !l.traceOptions.ExcludeInput {
 			trace.Input = make([]byte, len(input))
 			copy(trace.Input, input) // copy input explicitly, omit __trace__ field
+			redactedInput, err := redactHeaders(trace.Input)
+			if err != nil {
+				return err
+			}
+			trace.Input = redactedInput
 		}
 		if gjson.ValidBytes(input) {
 			inputCopy := make([]byte, len(input))
@@ -825,7 +876,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight boo
 	}
 	keyGen := pool.Hash64.Get()
 	defer pool.Hash64.Put(keyGen)
-	_, err := keyGen.Write(input)
+	_, err = keyGen.Write(input)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -863,6 +914,8 @@ func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight boo
 			trace.DurationLoadPretty = time.Duration(trace.DurationLoadNano).String()
 		}
 	}
+	l.ctx.Stats.NumberOfFetches.Inc()
+	l.ctx.Stats.CombinedResponseSize.Add(int64(len(data)))
 	if err != nil {
 		if l.traceOptions.Enable {
 			trace.LoadError = err.Error()
