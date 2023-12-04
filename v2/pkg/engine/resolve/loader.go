@@ -10,17 +10,17 @@ import (
 	"net/http/httptrace"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
-	"golang.org/x/exp/slices"
-
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
