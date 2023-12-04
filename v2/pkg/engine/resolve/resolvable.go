@@ -27,6 +27,7 @@ type Resolvable struct {
 	operationType       ast.OperationType
 	renameTypeNames     []RenameTypeName
 	requestTraceOptions RequestTraceOptions
+	ctx                 *Context
 }
 
 func NewResolvable() *Resolvable {
@@ -48,11 +49,14 @@ func (r *Resolvable) Reset() {
 	r.printErr = nil
 	r.path = r.path[:0]
 	r.operationType = ast.OperationTypeUnknown
+	r.renameTypeNames = r.renameTypeNames[:0]
 }
 
 func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.OperationType) (err error) {
+	r.ctx = ctx
 	r.operationType = operationType
 	r.renameTypeNames = ctx.RenameTypeNames
+	r.requestTraceOptions = ctx.RequestTracingOptions
 	r.dataRoot, r.errorsRoot, err = r.storage.InitResolvable(initialData)
 	if err != nil {
 		return
@@ -64,6 +68,7 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 }
 
 func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProcessing PostProcessingConfiguration) (err error) {
+	r.ctx = ctx
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
 	if len(ctx.Variables) != 0 {
@@ -279,6 +284,9 @@ func (r *Resolvable) popNodePathElement(path []string) {
 }
 
 func (r *Resolvable) walkNode(node Node, ref int) bool {
+	if r.print {
+		r.ctx.Stats.ResolvedNodes++
+	}
 	switch n := node.(type) {
 	case *Object:
 		return r.walkObject(n, ref)
@@ -331,6 +339,7 @@ func (r *Resolvable) walkObject(obj *Object, ref int) bool {
 	}
 	if r.print && !isRoot {
 		r.printBytes(lBrace)
+		r.ctx.Stats.ResolvedObjects++
 	}
 	addComma := false
 	for i := range obj.Fields {
@@ -457,11 +466,15 @@ func (r *Resolvable) walkArray(arr *Array, ref int) bool {
 func (r *Resolvable) walkNull() bool {
 	if r.print {
 		r.printBytes(null)
+		r.ctx.Stats.ResolvedLeafs++
 	}
 	return false
 }
 
 func (r *Resolvable) walkString(s *String, ref int) bool {
+	if r.print {
+		r.ctx.Stats.ResolvedLeafs++
+	}
 	ref = r.storage.Get(ref, s.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if s.Nullable {
@@ -507,6 +520,9 @@ func (r *Resolvable) walkString(s *String, ref int) bool {
 }
 
 func (r *Resolvable) walkBoolean(b *Boolean, ref int) bool {
+	if r.print {
+		r.ctx.Stats.ResolvedLeafs++
+	}
 	ref = r.storage.Get(ref, b.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if b.Nullable {
@@ -527,6 +543,9 @@ func (r *Resolvable) walkBoolean(b *Boolean, ref int) bool {
 }
 
 func (r *Resolvable) walkInteger(i *Integer, ref int) bool {
+	if r.print {
+		r.ctx.Stats.ResolvedLeafs++
+	}
 	ref = r.storage.Get(ref, i.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if i.Nullable {
@@ -547,6 +566,9 @@ func (r *Resolvable) walkInteger(i *Integer, ref int) bool {
 }
 
 func (r *Resolvable) walkFloat(f *Float, ref int) bool {
+	if r.print {
+		r.ctx.Stats.ResolvedLeafs++
+	}
 	ref = r.storage.Get(ref, f.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if f.Nullable {
@@ -567,6 +589,9 @@ func (r *Resolvable) walkFloat(f *Float, ref int) bool {
 }
 
 func (r *Resolvable) walkBigInt(b *BigInt, ref int) bool {
+	if r.print {
+		r.ctx.Stats.ResolvedLeafs++
+	}
 	ref = r.storage.Get(ref, b.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if b.Nullable {
@@ -582,6 +607,9 @@ func (r *Resolvable) walkBigInt(b *BigInt, ref int) bool {
 }
 
 func (r *Resolvable) walkScalar(s *Scalar, ref int) bool {
+	if r.print {
+		r.ctx.Stats.ResolvedLeafs++
+	}
 	ref = r.storage.Get(ref, s.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if s.Nullable {
@@ -613,6 +641,9 @@ func (r *Resolvable) walkEmptyArray(_ *EmptyArray) bool {
 }
 
 func (r *Resolvable) walkCustom(c *CustomNode, ref int) bool {
+	if r.print {
+		r.ctx.Stats.ResolvedLeafs++
+	}
 	ref = r.storage.Get(ref, c.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if c.Nullable {

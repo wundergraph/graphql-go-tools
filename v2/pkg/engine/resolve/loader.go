@@ -755,7 +755,7 @@ func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
 		return nil, err
 	}
 
-	return json.RawMessage(redactedJSON), nil
+	return redactedJSON, nil
 }
 
 func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, input []byte, out io.Writer, trace *DataSourceLoadTrace) (err error) {
@@ -914,6 +914,8 @@ func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight boo
 			trace.DurationLoadPretty = time.Duration(trace.DurationLoadNano).String()
 		}
 	}
+	l.ctx.Stats.NumberOfFetches.Inc()
+	l.ctx.Stats.CombinedResponseSize.Add(int64(len(data)))
 	if err != nil {
 		if l.traceOptions.Enable {
 			trace.LoadError = err.Error()
