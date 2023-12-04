@@ -8,11 +8,11 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"slices"
 
 	"github.com/buger/jsonparser"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/tidwall/sjson"
-	"golang.org/x/exp/slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"

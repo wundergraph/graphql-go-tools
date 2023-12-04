@@ -6,9 +6,9 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
-	"golang.org/x/exp/slices"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
