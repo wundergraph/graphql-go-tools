@@ -2215,14 +2215,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												Value: &resolve.String{
 													Path: []string{"title"},
 												},
-												OnTypeNames: [][]byte{[]byte("Admin")},
-											},
-											{
-												Name: []byte("title"),
-												Value: &resolve.String{
-													Path: []string{"title"},
-												},
-												OnTypeNames: [][]byte{[]byte("User")},
+												OnTypeNames: [][]byte{[]byte("Admin"), []byte("User")},
 											},
 										},
 										Fetch: &resolve.SingleFetch{
@@ -2683,21 +2676,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													Value: &resolve.String{
 														Path: []string{"title"},
 													},
-													OnTypeNames: [][]byte{[]byte("Admin")},
-												},
-												{
-													Name: []byte("title"),
-													Value: &resolve.String{
-														Path: []string{"title"},
-													},
-													OnTypeNames: [][]byte{[]byte("Moderator")},
-												},
-												{
-													Name: []byte("title"),
-													Value: &resolve.String{
-														Path: []string{"title"},
-													},
-													OnTypeNames: [][]byte{[]byte("User")},
+													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Moderator"), []byte("User")},
 												},
 											},
 											Fetch: &resolve.ParallelFetch{

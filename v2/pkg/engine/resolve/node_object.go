@@ -1,5 +1,9 @@
 package resolve
 
+import (
+	"slices"
+)
+
 type Object struct {
 	Nullable             bool
 	Path                 []string
@@ -84,6 +88,20 @@ type FieldInfo struct {
 	// For scalar fields, this will return string, int, float, boolean, ID.
 	NamedType string
 	Source    TypeFieldSource
+}
+
+func (i *FieldInfo) Merge(other *FieldInfo) {
+	for _, name := range other.ParentTypeNames {
+		if !slices.Contains(i.ParentTypeNames, name) {
+			i.ParentTypeNames = append(i.ParentTypeNames, name)
+		}
+	}
+
+	for _, sourceID := range other.Source.IDs {
+		if !slices.Contains(i.Source.IDs, sourceID) {
+			i.Source.IDs = append(i.Source.IDs, sourceID)
+		}
+	}
 }
 
 type TypeFieldSource struct {

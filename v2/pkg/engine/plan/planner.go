@@ -89,12 +89,18 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		p.debugMessage("Planning visitor:")
 	}
 
+	hasConditionalSkipInclude := hasConditionalSkipInclude(operation, definition, report)
+	if report.HasErrors() {
+		return nil
+	}
+
 	// configure planning visitor
 
 	p.planningVisitor.planners = p.configurationVisitor.planners
 	p.planningVisitor.Config = p.config
 	p.planningVisitor.fetchConfigurations = p.configurationVisitor.fetches
 	p.planningVisitor.skipFieldsRefs = p.configurationVisitor.skipFieldsRefs
+	p.planningVisitor.allowFieldMerge = !hasConditionalSkipInclude
 
 	p.planningWalker.ResetVisitors()
 	p.planningWalker.SetVisitorFilter(p.planningVisitor)
