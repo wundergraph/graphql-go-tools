@@ -1030,7 +1030,10 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 }
 
 func (v *Visitor) configureFetch(internal objectFetchConfiguration, external resolve.FetchConfiguration) resolve.Fetch {
-	dataSourceType := reflect.TypeOf(external.DataSource).String()
+	dataSourceType := "internal"
+	if external.DataSource != nil {
+		dataSourceType = reflect.TypeOf(external.DataSource).String()
+	}
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 
 	singleFetch := &resolve.SingleFetch{

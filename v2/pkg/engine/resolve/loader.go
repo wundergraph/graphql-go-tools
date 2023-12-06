@@ -759,6 +759,10 @@ func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
 }
 
 func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, input []byte, out io.Writer, trace *DataSourceLoadTrace) (err error) {
+	// TODO: hack
+	if source == nil {
+		return nil
+	}
 	if l.ctx.Extensions != nil {
 		input, err = jsonparser.Set(input, l.ctx.Extensions, "body", "extensions")
 		if err != nil {
@@ -1090,7 +1094,14 @@ func (g *Group) doCall(c *call, key uint64, fn func() ([]byte, error)) {
 				// the time we know that, the part of the stack trace relevant to the
 				// panic has been discarded.
 				if r := recover(); r != nil {
-					c.err = newPanicError(r.([]byte))
+					var v []byte
+					switch x := r.(type) {
+					case []byte:
+						v = x
+					default:
+						v = []byte(fmt.Sprintf("%v", r))
+					}
+					c.err = newPanicError(v)
 				}
 			}
 		}()

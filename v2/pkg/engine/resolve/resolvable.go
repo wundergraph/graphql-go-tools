@@ -73,58 +73,25 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	r.renameTypeNames = ctx.RenameTypeNames
 	if len(ctx.Variables) != 0 {
 		r.variablesRoot, err = r.storage.AppendObject(ctx.Variables)
+		if err != nil {
+			return
+		}
 	}
-	switch {
-	case postProcessing.SelectResponseErrorsPath == nil && postProcessing.SelectResponseDataPath == nil:
-		r.dataRoot, r.errorsRoot, err = r.storage.InitResolvable(initialData)
-		if err != nil {
-			return
-		}
-	case postProcessing.SelectResponseErrorsPath == nil && postProcessing.SelectResponseDataPath != nil:
-		r.dataRoot, r.errorsRoot, err = r.storage.InitResolvable(nil)
-		if err != nil {
-			return
-		}
-		raw, err := r.storage.AppendObject(initialData)
-		if err != nil {
-			return err
-		}
-		data := r.storage.Get(raw, postProcessing.SelectResponseDataPath)
-		if !r.storage.NodeIsDefined(data) {
-			return nil
-		}
-		r.storage.MergeNodes(r.dataRoot, data)
-	case postProcessing.SelectResponseErrorsPath != nil && postProcessing.SelectResponseDataPath == nil:
-		r.dataRoot, r.errorsRoot, err = r.storage.InitResolvable(nil)
-		if err != nil {
-			return
-		}
-		raw, err := r.storage.AppendObject(initialData)
-		if err != nil {
-			return err
-		}
-		errors := r.storage.Get(raw, postProcessing.SelectResponseErrorsPath)
-		if !r.storage.NodeIsDefined(errors) {
-			return nil
-		}
+	r.dataRoot, r.errorsRoot, err = r.storage.InitResolvable(nil)
+	if err != nil {
+		return
+	}
+	raw, err := r.storage.AppendObject(initialData)
+	if err != nil {
+		return err
+	}
+	data := r.storage.Get(raw, postProcessing.SelectResponseDataPath)
+	if r.storage.NodeIsDefined(data) {
+		r.storage.MergeNodesWithPath(r.dataRoot, data, postProcessing.MergePath)
+	}
+	errors := r.storage.Get(raw, postProcessing.SelectResponseErrorsPath)
+	if r.storage.NodeIsDefined(errors) {
 		r.storage.MergeArrays(r.errorsRoot, errors)
-	case postProcessing.SelectResponseErrorsPath != nil && postProcessing.SelectResponseDataPath != nil:
-		r.dataRoot, r.errorsRoot, err = r.storage.InitResolvable(nil)
-		if err != nil {
-			return
-		}
-		raw, err := r.storage.AppendObject(initialData)
-		if err != nil {
-			return err
-		}
-		data := r.storage.Get(raw, postProcessing.SelectResponseDataPath)
-		if r.storage.NodeIsDefined(data) {
-			r.storage.MergeNodes(r.dataRoot, data)
-		}
-		errors := r.storage.Get(raw, postProcessing.SelectResponseErrorsPath)
-		if r.storage.NodeIsDefined(errors) {
-			r.storage.MergeArrays(r.errorsRoot, errors)
-		}
 	}
 	return
 }

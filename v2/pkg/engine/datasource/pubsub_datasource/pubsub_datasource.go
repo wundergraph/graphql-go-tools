@@ -1,16 +1,30 @@
-package pubsub
+package pubsub_datasource
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 
 	"github.com/buger/jsonparser"
-	"github.com/nats-io/nats.go"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
+
+type Configuration struct {
+	TypeName  string `json:"typeName"`
+	FieldName string `json:"fieldName"`
+	Topic     string `json:"topic"`
+}
+
+func ConfigJson(config Configuration) json.RawMessage {
+	out, err := json.Marshal(config)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
 
 type Planner struct {
 	visitor      *plan.Visitor
@@ -18,6 +32,7 @@ type Planner struct {
 	rootFieldRef int
 	pubSub       PubSub
 	topic        string
+	config       Configuration
 }
 
 /*
@@ -77,28 +92,13 @@ func (p *Planner) EnterField(ref int) {
 		// This is a nested field, we don't need to do anything here
 		return
 	}
-	// This is the root field, we need to check if it has a @pubsub directive
-	definition, ok := p.visitor.Walker.FieldDefinition(ref)
-	if !ok {
+	fieldName := p.visitor.Operation.FieldNameString(ref)
+	typeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+	if fieldName != p.config.FieldName || typeName != p.config.TypeName {
 		return
 	}
-	directive, ok := p.visitor.Definition.FieldDefinitionDirectiveByName(definition, pubSubDirectiveName)
-	if !ok {
-		return
-	}
-	// We found a @pubsub directive, extract the topic from it
-	topicValue, ok := p.visitor.Definition.DirectiveArgumentValueByName(directive, pubSubDirectiveTopicArgumentName)
-	if !ok {
-		return
-	}
-	if topicValue.Kind != ast.ValueKindString {
-		return
-	}
-	topic := p.visitor.Definition.StringValueContentString(topicValue.Ref) // "channels.{{ args.id }}"
-	// We need to replace the {{ args.id }} with the actual value
-	// so we need to parse the template literal,
-	// extract the argument name and add a variable and placeholder to the subscription config
 
+	topic := p.config.Topic
 	rex, err := regexp.Compile(`{{ args.([a-zA-Z0-9_]+) }}`)
 	if err != nil {
 		return
@@ -117,7 +117,7 @@ func (p *Planner) EnterField(ref int) {
 	if argValue.Kind != ast.ValueKindVariable {
 		return
 	}
-	variableName := p.visitor.Operation.ValueContentBytes(argValue)
+	variableName := p.visitor.Operation.VariableValueNameBytes(argValue.Ref)
 	variableDefinition, ok := p.visitor.Operation.VariableDefinitionByNameAndOperation(p.visitor.Walker.Ancestors[0].Ref, variableName)
 	if !ok {
 		return
@@ -136,7 +136,7 @@ func (p *Planner) EnterField(ref int) {
 		return
 	}
 	// We need to replace the template literal with the variable placeholder
-	p.topic = rex.ReplaceAllString(topic, variablePlaceHolder)
+	p.topic = rex.ReplaceAllLiteralString(topic, variablePlaceHolder)
 }
 
 func (p *Planner) EnterDocument(operation, definition *ast.Document) {
@@ -148,6 +148,9 @@ func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceC
 	p.visitor = visitor
 	visitor.Walker.RegisterEnterFieldVisitor(p)
 	visitor.Walker.RegisterEnterDocumentVisitor(p)
+	if err := json.Unmarshal(configuration.Custom, &p.config); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -162,7 +165,9 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 		DataSource: &SubscriptionSource{
 			pubSub: p.pubSub,
 		},
-		PostProcessing: resolve.PostProcessingConfiguration{},
+		PostProcessing: resolve.PostProcessingConfiguration{
+			MergePath: []string{p.config.FieldName},
+		},
 	}
 }
 
@@ -170,7 +175,7 @@ func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 	return plan.DataSourcePlanningBehavior{
 		MergeAliasedRootNodes:      false,
 		OverrideFieldPathFromAlias: false,
-		IncludeTypeNameFields:      false,
+		IncludeTypeNameFields:      true,
 	}
 }
 
@@ -209,30 +214,6 @@ func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, next chan
 	if err != nil {
 		return err
 	}
+
 	return s.pubSub.Subscribe(ctx.Context(), topic, next)
-}
-
-type NatsPubSub struct {
-	nc *nats.Conn
-}
-
-func (n *NatsPubSub) Subscribe(ctx context.Context, topic string, next chan<- []byte) error {
-	ch := make(chan *nats.Msg)
-	sub, err := n.nc.ChanSubscribe(topic, ch)
-	if err != nil {
-		return err
-	}
-	done := ctx.Done()
-	go func() {
-		for {
-			select {
-			case <-done:
-				_ = sub.Unsubscribe()
-				return
-			case msg := <-ch:
-				next <- msg.Data
-			}
-		}
-	}()
-	return nil
 }
