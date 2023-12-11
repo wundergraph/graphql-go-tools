@@ -2,6 +2,7 @@ package plan
 
 import (
 	"slices"
+	"sort"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -127,6 +128,8 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 	}
 
 	typeNamesImplementingInterface, _ := r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(definitionNode.Ref)
+	sort.Strings(typeNamesImplementingInterface)
+
 	inlineFragmentSelectionOnInterface := inlineFragmentSelectionOnInterface{
 		inlineFragmentSelection:        inlineFragmentSelection,
 		typeNamesImplementingInterface: typeNamesImplementingInterface,
