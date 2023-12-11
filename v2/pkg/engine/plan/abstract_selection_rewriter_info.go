@@ -32,6 +32,7 @@ type inlineFragmentSelection struct {
 
 type inlineFragmentSelectionOnInterface struct {
 	inlineFragmentSelection
+	typeNamesImplementingInterface            []string
 	typeNamesImplementingInterfaceInCurrentDS []string
 	entityNamesImplementingInterface          []string
 }
@@ -101,7 +102,7 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 
 	// Note: We are getting inline fragment type from the FEDERATED graph definition,
 	// because it could be absent in the current SUBGRAPH document
-	node, hasNode := r.definition.NodeByNameStr(typeCondition)
+	definitionNode, hasNode := r.definition.NodeByNameStr(typeCondition)
 	if !hasNode {
 		return InlineFragmentTypeIsNotExistsErr
 	}
@@ -115,8 +116,8 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 		selectionRef:       inlineFragmentSelectionRef,
 		typeName:           typeCondition,
 		hasDirectives:      hasDirectives,
-		definitionNodeKind: node.Kind,
-		definitionNodeRef:  node.Ref,
+		definitionNodeKind: definitionNode.Kind,
+		definitionNodeRef:  definitionNode.Ref,
 		selectionSetInfo:   selectionSetInfo,
 	}
 
@@ -125,8 +126,10 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 		return nil
 	}
 
+	typeNamesImplementingInterface, _ := r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(definitionNode.Ref)
 	inlineFragmentSelectionOnInterface := inlineFragmentSelectionOnInterface{
-		inlineFragmentSelection: inlineFragmentSelection,
+		inlineFragmentSelection:        inlineFragmentSelection,
+		typeNamesImplementingInterface: typeNamesImplementingInterface,
 	}
 
 	// NOTE: We are getting type names implementing interface from the current SUBGRAPH definion

@@ -197,7 +197,7 @@ func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo s
 		// we need to recursively flatten nested fragments on interfaces
 		r.flattenFragmentOnInterface(
 			inlineFragmentOnInterface.selectionSetInfo,
-			inlineFragmentOnInterface.typeNamesImplementingInterfaceInCurrentDS,
+			inlineFragmentOnInterface.typeNamesImplementingInterface,
 			unionTypeNames,
 			&newSelectionRefs)
 	}
@@ -368,16 +368,16 @@ func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo sel
 		return
 	}
 
-	if selectionSetInfo.hasFields {
-		for _, typeName := range allowedTypeNames {
-			*selectionRefs = append(*selectionRefs, r.createFragmentSelection(typeName, selectionSetInfo.fields))
-		}
-	}
-
 	filteredImplementingTypes := make([]string, 0, len(typeNamesImplementingInterfaceInCurrentDS))
 	for _, typeName := range typeNamesImplementingInterfaceInCurrentDS {
 		if slices.Contains(allowedTypeNames, typeName) {
 			filteredImplementingTypes = append(filteredImplementingTypes, typeName)
+		}
+	}
+
+	if selectionSetInfo.hasFields {
+		for _, typeName := range filteredImplementingTypes {
+			*selectionRefs = append(*selectionRefs, r.createFragmentSelection(typeName, selectionSetInfo.fields))
 		}
 	}
 
@@ -399,7 +399,7 @@ func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo sel
 
 		r.flattenFragmentOnInterface(
 			inlineFragmentInfo.selectionSetInfo,
-			inlineFragmentInfo.typeNamesImplementingInterfaceInCurrentDS,
+			inlineFragmentInfo.typeNamesImplementingInterface,
 			filteredImplementingTypes,
 			selectionRefs,
 		)
