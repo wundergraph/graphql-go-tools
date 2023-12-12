@@ -3,6 +3,7 @@ package astnormalization
 import (
 	"bytes"
 
+	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafebytes"
@@ -27,6 +28,7 @@ type variablesExtractionVisitor struct {
 	importer              astimport.Importer
 	operationName         []byte
 	skip                  bool
+	extractedVariables    [][]byte
 }
 
 func (v *variablesExtractionVisitor) EnterOperationDefinition(ref int) {
@@ -65,17 +67,27 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 		v.traverseValue(v.operation.Arguments[ref].Value, ref, inputValueDefinition)
 		return
 	}
-
-	variableNameBytes := v.operation.GenerateUnusedVariableDefinitionName(v.Ancestors[0].Ref)
 	valueBytes, err := v.operation.ValueToJSON(v.operation.Arguments[ref].Value)
 	if err != nil {
 		return
 	}
+	if exists, name, _ := v.variableExists(valueBytes); exists {
+		variable := ast.VariableValue{
+			Name: v.operation.Input.AppendInputBytes(name),
+		}
+		value := v.operation.AddVariableValue(variable)
+		v.operation.Arguments[ref].Value.Kind = ast.ValueKindVariable
+		v.operation.Arguments[ref].Value.Ref = value
+		return
+	}
+	variableNameBytes := v.operation.GenerateUnusedVariableDefinitionName(v.Ancestors[0].Ref)
 	v.operation.Input.Variables, err = sjson.SetRawBytes(v.operation.Input.Variables, unsafebytes.BytesToString(variableNameBytes), valueBytes)
 	if err != nil {
 		v.StopWithInternalErr(err)
 		return
 	}
+
+	v.extractedVariables = append(v.extractedVariables, variableNameBytes)
 
 	variable := ast.VariableValue{
 		Name: v.operation.Input.AppendInputBytes(variableNameBytes),
@@ -114,6 +126,7 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 
 func (v *variablesExtractionVisitor) EnterDocument(operation, definition *ast.Document) {
 	v.operation, v.definition = operation, definition
+	v.extractedVariables = v.extractedVariables[:0]
 }
 
 func (v *variablesExtractionVisitor) traverseValue(value ast.Value, argRef, inputValueDefinition int) {
@@ -156,16 +169,27 @@ func (v *variablesExtractionVisitor) traverseValue(value ast.Value, argRef, inpu
 
 func (v *variablesExtractionVisitor) extractObjectValue(objectField int, fieldValue ast.Value, inputValueDefinition int) {
 
-	variableNameBytes := v.operation.GenerateUnusedVariableDefinitionName(v.Ancestors[0].Ref)
 	valueBytes, err := v.operation.ValueToJSON(fieldValue)
 	if err != nil {
 		return
 	}
+	if exists, name, _ := v.variableExists(valueBytes); exists {
+		variable := ast.VariableValue{
+			Name: v.operation.Input.AppendInputBytes(name),
+		}
+		value := v.operation.AddVariableValue(variable)
+		v.operation.ObjectFields[objectField].Value.Kind = ast.ValueKindVariable
+		v.operation.ObjectFields[objectField].Value.Ref = value
+		return
+	}
+	variableNameBytes := v.operation.GenerateUnusedVariableDefinitionName(v.Ancestors[0].Ref)
 	v.operation.Input.Variables, err = sjson.SetRawBytes(v.operation.Input.Variables, unsafebytes.BytesToString(variableNameBytes), valueBytes)
 	if err != nil {
 		v.StopWithInternalErr(err)
 		return
 	}
+
+	v.extractedVariables = append(v.extractedVariables, variableNameBytes)
 
 	variable := ast.VariableValue{
 		Name: v.operation.Input.AppendInputBytes(variableNameBytes),
@@ -195,4 +219,31 @@ func (v *variablesExtractionVisitor) extractObjectValue(objectField int, fieldVa
 	v.operation.OperationDefinitions[v.Ancestors[0].Ref].VariableDefinitions.Refs =
 		append(v.operation.OperationDefinitions[v.Ancestors[0].Ref].VariableDefinitions.Refs, newVariableRef)
 	v.operation.OperationDefinitions[v.Ancestors[0].Ref].HasVariableDefinitions = true
+}
+
+func (v *variablesExtractionVisitor) variableExists(variableValue []byte) (exists bool, name []byte, definition int) {
+	_ = jsonparser.ObjectEach(v.operation.Input.Variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+		if !v.extractedVariablesContainsKey(key) {
+			// skip variables that were not extracted but user defined
+			return nil
+		}
+		if bytes.Equal(value, variableValue) {
+			exists = true
+			name = key
+		}
+		return nil
+	})
+	if exists {
+		definition, exists = v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref, name)
+	}
+	return
+}
+
+func (v *variablesExtractionVisitor) extractedVariablesContainsKey(key []byte) bool {
+	for i := range v.extractedVariables {
+		if bytes.Equal(v.extractedVariables[i], key) {
+			return true
+		}
+	}
+	return false
 }
