@@ -227,6 +227,9 @@ func (v *variablesExtractionVisitor) variableExists(variableValue []byte) (exist
 			// skip variables that were not extracted but user defined
 			return nil
 		}
+		if dataType == jsonparser.String {
+			value = v.operation.Input.Variables[offset-len(value)-2 : offset]
+		}
 		if bytes.Equal(value, variableValue) {
 			exists = true
 			name = key

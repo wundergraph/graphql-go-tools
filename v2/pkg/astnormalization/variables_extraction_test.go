@@ -291,6 +291,8 @@ func TestVariablesExtraction(t *testing.T) {
 
 		type Mutation {
 			foo(input: FooInput): String
+			bar(string: String): String
+			baz(int: Int): String
 		}
 
 		input MyInput {
@@ -326,6 +328,50 @@ func TestVariablesExtraction(t *testing.T) {
 				foo(input: $a)
 			}`,
 			`{}`, `{"a":{"string":"foo"}}`)
+	})
+
+	t.Run("same string arg", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				bar(string: "foo")
+				bar(string: "foo")
+			}`,
+			"Foo", `
+			mutation Foo($a: String) {
+				bar(string: $a)
+				bar(string: $a)
+			}`,
+			`{}`, `{"a":"foo"}`)
+	})
+
+	t.Run("same string arg with user variables", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo ($another: String) {
+				another: bar(string: $another)
+				bar(string: "foo")
+				bar(string: "foo")
+			}`,
+			"Foo", `
+			mutation Foo($another: String $a: String) {
+				another: bar(string: $another)
+				bar(string: $a)
+				bar(string: $a)
+			}`,
+			`{"another":"foo"}`, `{"a":"foo","another":"foo"}`)
+	})
+
+	t.Run("same int arg", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				baz(int: 1)
+				baz(int: 1)
+			}`,
+			"Foo", `
+			mutation Foo($a: Int) {
+				baz(int: $a)
+				baz(int: $a)
+			}`,
+			`{}`, `{"a":1}`)
 	})
 
 	t.Run("same strings", func(t *testing.T) {
