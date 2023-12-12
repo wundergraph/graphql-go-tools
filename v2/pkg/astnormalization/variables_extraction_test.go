@@ -4,32 +4,6 @@ import (
 	"testing"
 )
 
-const (
-	variablesExtractionDefinition = `
-		schema { mutation: Mutation }
-		type Mutation {
-			httpBinPost(input: HttpBinPostInput): HttpBinPostResponse
-		}
-		input HttpBinPostInput {
-			foo: String!
-		}
-		type HttpBinPostResponse {
-			headers: Headers
-			data: HttpBinPostResponseData
-		}
-		type HttpBinPostResponseData {
-			foo: String
-		}
-		type Headers {
-			userAgent: String!
-			host: String!
-			acceptEncoding: String
-			Authorization: String
-		}
-		scalar String
-	`
-)
-
 func TestVariablesExtraction(t *testing.T) {
 	t.Run("simple http bin example", func(t *testing.T) {
 		runWithVariables(t, extractVariables, variablesExtractionDefinition, `
@@ -297,7 +271,397 @@ func TestVariablesExtraction(t *testing.T) {
 				}
 			}`, `{}`, `{"c":"lucky7|UAE","b":1,"a":false}`)
 	})
+
+	const (
+		sameVariableExtraction = `
+
+		schema { query: Query mutation: Mutation }
+
+		scalar ID
+		scalar CustomScalar
+
+		enum MyEnum {
+			FOO
+			BAR
+		}
+
+		type Query {
+			hello: String
+		}
+
+		type Mutation {
+			foo(input: FooInput): String
+			bar(string: String): String
+			baz(int: Int): String
+		}
+
+		input MyInput {
+			string: String
+			strings: [String]
+			int: Int
+			ints: [Int]
+			float: Float
+			floats: [Float]
+			boolean: Boolean
+			booleans: [Boolean]
+			id: ID
+			ids: [ID]
+			enum: MyEnum
+			enums: [MyEnum]
+			input: MyInput
+			inputs: [MyInput]
+			customScalar: CustomScalar
+			customScalars: [CustomScalar]
+		}
+`
+	)
+
+	t.Run("same string", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(input: {string: "foo"})
+				foo(input: {string: "foo"})
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput) {
+				foo(input: $a)
+				foo(input: $a)
+			}`,
+			`{}`, `{"a":{"string":"foo"}}`)
+	})
+
+	t.Run("same string arg", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				bar(string: "foo")
+				bar(string: "foo")
+			}`,
+			"Foo", `
+			mutation Foo($a: String) {
+				bar(string: $a)
+				bar(string: $a)
+			}`,
+			`{}`, `{"a":"foo"}`)
+	})
+
+	t.Run("same string arg with user variables", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo ($another: String) {
+				another: bar(string: $another)
+				bar(string: "foo")
+				bar(string: "foo")
+			}`,
+			"Foo", `
+			mutation Foo($another: String $a: String) {
+				another: bar(string: $another)
+				bar(string: $a)
+				bar(string: $a)
+			}`,
+			`{"another":"foo"}`, `{"a":"foo","another":"foo"}`)
+	})
+
+	t.Run("same int arg", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				baz(int: 1)
+				baz(int: 1)
+			}`,
+			"Foo", `
+			mutation Foo($a: Int) {
+				baz(int: $a)
+				baz(int: $a)
+			}`,
+			`{}`, `{"a":1}`)
+	})
+
+	t.Run("same strings", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(input: {strings: ["foo", "bar"]})
+				foo(input: {strings: ["foo", "bar"]})
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput) {
+				foo(input: $a)
+				foo(input: $a)
+			}`,
+			`{}`, `{"a":{"strings":["foo","bar"]}}`)
+	})
+
+	t.Run("same int", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(input: {int: 1})
+				foo(input: {int: 1})
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput) {
+				foo(input: $a)
+				foo(input: $a)
+			}`,
+			`{}`, `{"a":{"int":1}}`)
+	})
+
+	t.Run("same ints", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(input: {ints: [1, 2]})
+				foo(input: {ints: [1, 2]})
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput) {
+				foo(input: $a)
+				foo(input: $a)
+			}`,
+			`{}`, `{"a":{"ints":[1,2]}}`)
+	})
+
+	t.Run("same float", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(input: {float: 1.1})
+				foo(input: {float: 1.1})
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput) {
+				foo(input: $a)
+				foo(input: $a)
+			}`,
+			`{}`, `{"a":{"float":1.1}}`)
+	})
+
+	t.Run("same floats", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(input: {floats: [1.1, 2.2]})
+				foo(input: {floats: [1.1, 2.2]})
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput) {
+				foo(input: $a)
+				foo(input: $a)
+			}`,
+			`{}`, `{"a":{"floats":[1.1,2.2]}}`)
+	})
+
+	t.Run("same boolean", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(input: {boolean: true})
+				foo(input: {boolean: true})
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput) {
+				foo(input: $a)
+				foo(input: $a)
+			}`,
+			`{}`, `{"a":{"boolean":true}}`)
+	})
+
+	t.Run("same booleans", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(input: {booleans: [true, false]})
+				foo(input: {booleans: [true, false]})
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput) {
+				foo(input: $a)
+				foo(input: $a)
+			}`,
+			`{}`, `{"a":{"booleans":[true,false]}}`)
+	})
+
+	t.Run("same id", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(input: {id: "foo"})
+				foo(input: {id: "foo"})
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput) {
+				foo(input: $a)
+				foo(input: $a)
+			}`, `{}`, `{"a":{"id":"foo"}}`)
+	})
+
+	t.Run("same ids", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(input: {ids: ["foo", "bar"]})
+				foo(input: {ids: ["foo", "bar"]})
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput) {
+				foo(input: $a)
+				foo(input: $a)
+			}`, `{}`, `{"a":{"ids":["foo","bar"]}}`)
+	})
+
+	t.Run("same enum", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(input: {enum: Foo})
+				foo(input: {enum: Foo})
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput) {
+				foo(input: $a)
+				foo(input: $a)
+			}`, `{}`, `{"a":{"enum":"Foo"}}`)
+	})
+
+	t.Run("same enums", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(input: {enums: [Foo, Bar]})
+				foo(input: {enums: [Foo, Bar]})
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput) {
+				foo(input: $a)
+				foo(input: $a)
+			}`, `{}`, `{"a":{"enums":["Foo","Bar"]}}`)
+	})
+
+	t.Run("same input", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(input: {input: {string: "foo"}})
+				foo(input: {input: {string: "foo"}})
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput) {
+				foo(input: $a)
+				foo(input: $a)
+			}`, `{}`, `{"a":{"input":{"string":"foo"}}}`)
+	})
+
+	t.Run("same inputs", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(
+					input: {
+						inputs: [
+							{string: "foo"}
+							{string: "bar"}
+						]
+					}
+				)
+				foo(
+					input: {
+						inputs: [
+							{string: "foo"}
+							{string: "bar"}
+						]
+					}
+				)
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput) {
+				foo(
+					input: $a
+				)
+				foo(
+					input: $a
+				)
+			}`, `{}`, `{"a":{"inputs":[{"string":"foo"},{"string":"bar"}]}}`)
+	})
+
+	t.Run("same customScalar", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(input: {customScalar: "foo"})
+				foo(input: {customScalar: "foo"})
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput) {
+				foo(input: $a)
+				foo(input: $a)
+			}`, `{}`, `{"a":{"customScalar":"foo"}}`)
+	})
+
+	t.Run("same customScalars", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(input: {customScalars: ["foo", "bar"]})
+				foo(input: {customScalars: ["foo", "bar"]})
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput) {
+				foo(input: $a)
+				foo(input: $a)
+			}`, `{}`, `{"a":{"customScalars":["foo","bar"]}}`)
+	})
+
+	t.Run("same variable", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo($a: String!) {
+				foo(input: {string: $a})
+				foo(input: {string: $a})
+			}`,
+			"Foo", `
+			mutation Foo($a: String!) {
+				foo(input: {string: $a})
+				foo(input: {string: $a})
+			}`, `{"a":"foo"}`, `{"a":"foo"}`)
+	})
+
+	t.Run("same variables", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo($a: String!, $b: String!) {
+				foo(input: {string: $a})
+				foo(input: {string: $b})
+			}`,
+			"Foo", `
+			mutation Foo($a: String!, $b: String!) {
+				foo(input: {string: $a})
+				foo(input: {string: $b})
+			}`, `{"a":"foo","b":"bar"}`, `{"a":"foo","b":"bar"}`)
+	})
+
+	t.Run("ignore user variables same string", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo($fromUser: MyInput!) {
+				another: foo(input: $fromUser)
+				foo(input: {string: "foo"})
+				foo(input: {string: "foo"})
+			}`,
+			"Foo", `
+			mutation Foo($fromUser: MyInput! $a: FooInput) {
+				another: foo(input: $fromUser)
+				foo(input: $a)
+				foo(input: $a)
+			}`,
+			`{"fromUser":{"string":"foo"}}`, `{"a":{"string":"foo"},"fromUser":{"string":"foo"}}`)
+	})
 }
+
+const (
+	variablesExtractionDefinition = `
+		schema { mutation: Mutation }
+		type Mutation {
+			httpBinPost(input: HttpBinPostInput): HttpBinPostResponse
+		}
+		input HttpBinPostInput {
+			foo: String!
+		}
+		type HttpBinPostResponse {
+			headers: Headers
+			data: HttpBinPostResponseData
+		}
+		type HttpBinPostResponseData {
+			foo: String
+		}
+		type Headers {
+			userAgent: String!
+			host: String!
+			acceptEncoding: String
+			Authorization: String
+		}
+		scalar String
+	`
+)
 
 const forumExampleSchema = `
 schema {

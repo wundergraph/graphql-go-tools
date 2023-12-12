@@ -408,7 +408,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 														Renderer: resolve.NewPlainVariableRenderer(),
 													},
 													&resolve.ContextVariable{
-														Path:     []string{"c"},
+														Path:     []string{"b"},
 														Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["boolean","null"]}`),
 													},
 												),
