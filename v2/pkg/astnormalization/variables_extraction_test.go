@@ -272,50 +272,6 @@ func TestVariablesExtraction(t *testing.T) {
 			}`, `{}`, `{"c":"lucky7|UAE","b":1,"a":false}`)
 	})
 
-	const (
-		sameVariableExtraction = `
-
-		schema { query: Query mutation: Mutation }
-
-		scalar ID
-		scalar CustomScalar
-
-		enum MyEnum {
-			FOO
-			BAR
-		}
-
-		type Query {
-			hello: String
-		}
-
-		type Mutation {
-			foo(input: FooInput): String
-			bar(string: String): String
-			baz(int: Int): String
-		}
-
-		input MyInput {
-			string: String
-			strings: [String]
-			int: Int
-			ints: [Int]
-			float: Float
-			floats: [Float]
-			boolean: Boolean
-			booleans: [Boolean]
-			id: ID
-			ids: [ID]
-			enum: MyEnum
-			enums: [MyEnum]
-			input: MyInput
-			inputs: [MyInput]
-			customScalar: CustomScalar
-			customScalars: [CustomScalar]
-		}
-`
-	)
-
 	t.Run("same string", func(t *testing.T) {
 		runWithVariables(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
@@ -635,6 +591,32 @@ func TestVariablesExtraction(t *testing.T) {
 			}`,
 			`{"fromUser":{"string":"foo"}}`, `{"a":{"string":"foo"},"fromUser":{"string":"foo"}}`)
 	})
+
+	t.Run("don't re-use same input of different type", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(input: {string: "foo"})
+				bat(input: {string: "foo"})
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput $b: SimilarMyInput) {
+				foo(input: $a)
+				bat(input: $b)
+			}`, `{}`, `{"b":{"string":"foo"},"a":{"string":"foo"}}`)
+	})
+
+	t.Run("don't re-use same nested input of different type", func(t *testing.T) {
+		runWithVariables(t, extractVariables, sameVariableExtraction, `
+			mutation Foo {
+				foo(input: {input: {string: "foo"}})
+				bat(input: {input: {string: "foo"}})
+			}`,
+			"Foo", `
+			mutation Foo($a: FooInput $b: SimilarMyInput) {
+				foo(input: $a)
+				bat(input: $b)
+			}`, `{}`, `{"b":{"input":{"string":"foo"}},"a":{"input":{"string":"foo"}}}`)
+	})
 }
 
 const (
@@ -661,6 +643,56 @@ const (
 		}
 		scalar String
 	`
+)
+
+const (
+	sameVariableExtraction = `
+
+		schema { query: Query mutation: Mutation }
+
+		scalar ID
+		scalar CustomScalar
+
+		enum MyEnum {
+			FOO
+			BAR
+		}
+
+		type Query {
+			hello: String
+		}
+
+		type Mutation {
+			foo(input: FooInput): String
+			bar(string: String): String
+			baz(int: Int): String
+			bat(input: SimilarMyInput): String
+		}
+
+		input MyInput {
+			string: String
+			strings: [String]
+			int: Int
+			ints: [Int]
+			float: Float
+			floats: [Float]
+			boolean: Boolean
+			booleans: [Boolean]
+			id: ID
+			ids: [ID]
+			enum: MyEnum
+			enums: [MyEnum]
+			input: MyInput
+			inputs: [MyInput]
+			customScalar: CustomScalar
+			customScalars: [CustomScalar]
+		}
+
+		input SimilarMyInput {
+			string: String
+			input: SimilarMyInput
+		}
+`
 )
 
 const forumExampleSchema = `

@@ -24,11 +24,12 @@ func extractVariables(walker *astvisitor.Walker) *variablesExtractionVisitor {
 
 type variablesExtractionVisitor struct {
 	*astvisitor.Walker
-	operation, definition *ast.Document
-	importer              astimport.Importer
-	operationName         []byte
-	skip                  bool
-	extractedVariables    [][]byte
+	operation, definition     *ast.Document
+	importer                  astimport.Importer
+	operationName             []byte
+	skip                      bool
+	extractedVariables        [][]byte
+	extractedVariableTypeRefs []int
 }
 
 func (v *variablesExtractionVisitor) EnterOperationDefinition(ref int) {
@@ -71,7 +72,7 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 	if err != nil {
 		return
 	}
-	if exists, name, _ := v.variableExists(valueBytes); exists {
+	if exists, name, _ := v.variableExists(valueBytes, inputValueDefinition); exists {
 		variable := ast.VariableValue{
 			Name: v.operation.Input.AppendInputBytes(name),
 		}
@@ -88,6 +89,7 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 	}
 
 	v.extractedVariables = append(v.extractedVariables, variableNameBytes)
+	v.extractedVariableTypeRefs = append(v.extractedVariableTypeRefs, v.definition.InputValueDefinitions[inputValueDefinition].Type)
 
 	variable := ast.VariableValue{
 		Name: v.operation.Input.AppendInputBytes(variableNameBytes),
@@ -127,6 +129,7 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 func (v *variablesExtractionVisitor) EnterDocument(operation, definition *ast.Document) {
 	v.operation, v.definition = operation, definition
 	v.extractedVariables = v.extractedVariables[:0]
+	v.extractedVariableTypeRefs = v.extractedVariableTypeRefs[:0]
 }
 
 func (v *variablesExtractionVisitor) traverseValue(value ast.Value, argRef, inputValueDefinition int) {
@@ -173,7 +176,7 @@ func (v *variablesExtractionVisitor) extractObjectValue(objectField int, fieldVa
 	if err != nil {
 		return
 	}
-	if exists, name, _ := v.variableExists(valueBytes); exists {
+	if exists, name, _ := v.variableExists(valueBytes, inputValueDefinition); exists {
 		variable := ast.VariableValue{
 			Name: v.operation.Input.AppendInputBytes(name),
 		}
@@ -190,6 +193,7 @@ func (v *variablesExtractionVisitor) extractObjectValue(objectField int, fieldVa
 	}
 
 	v.extractedVariables = append(v.extractedVariables, variableNameBytes)
+	v.extractedVariableTypeRefs = append(v.extractedVariableTypeRefs, v.definition.InputValueDefinitions[inputValueDefinition].Type)
 
 	variable := ast.VariableValue{
 		Name: v.operation.Input.AppendInputBytes(variableNameBytes),
@@ -221,9 +225,9 @@ func (v *variablesExtractionVisitor) extractObjectValue(objectField int, fieldVa
 	v.operation.OperationDefinitions[v.Ancestors[0].Ref].HasVariableDefinitions = true
 }
 
-func (v *variablesExtractionVisitor) variableExists(variableValue []byte) (exists bool, name []byte, definition int) {
+func (v *variablesExtractionVisitor) variableExists(variableValue []byte, inputValueDefinition int) (exists bool, name []byte, definition int) {
 	_ = jsonparser.ObjectEach(v.operation.Input.Variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-		if !v.extractedVariablesContainsKey(key) {
+		if !v.extractedVariablesContainsKey(key, inputValueDefinition) {
 			// skip variables that were not extracted but user defined
 			return nil
 		}
@@ -242,9 +246,10 @@ func (v *variablesExtractionVisitor) variableExists(variableValue []byte) (exist
 	return
 }
 
-func (v *variablesExtractionVisitor) extractedVariablesContainsKey(key []byte) bool {
+func (v *variablesExtractionVisitor) extractedVariablesContainsKey(key []byte, inputValueDefinition int) bool {
+	typeRef := v.definition.InputValueDefinitions[inputValueDefinition].Type
 	for i := range v.extractedVariables {
-		if bytes.Equal(v.extractedVariables[i], key) {
+		if bytes.Equal(v.extractedVariables[i], key) && v.definition.TypesAreEqualDeep(typeRef, v.extractedVariableTypeRefs[i]) {
 			return true
 		}
 	}
