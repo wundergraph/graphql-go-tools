@@ -634,6 +634,10 @@ func extractStringWithQuotes(rootValueType JsonRootType, data []byte) ([]byte, j
 		}
 	}
 	if desiredType == jsonparser.String {
+		if len(data) == 3 {
+			// For a string like '"1"', return just '1'
+			return string(data[1]), desiredType
+	    	}
 		return data[1 : len(data)-1], desiredType
 	}
 	return data, desiredType
