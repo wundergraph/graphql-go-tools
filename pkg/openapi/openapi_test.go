@@ -77,4 +77,20 @@ func TestOpenAPI_v3_0_0(t *testing.T) {
 	t.Run("carts-api-oas_tt_10604.yaml", func(t *testing.T) {
 		testFixtureFile(t, "v3.0.0", "carts-api-oas_tt_10604.yaml")
 	})
+
+	t.Run("tt-10696.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "tt-10696.yaml")
+	})
+
+	t.Run("tt-10696-unnamed-object.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "tt-10696-unnamed-object.yaml")
+	})
+
+	t.Run("tt-10696-unnamed-array-of-objects.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "tt-10696-unnamed-array-of-objects.yaml")
+	})
+
+	t.Run("tt-10696-unnamed-array-of-primitive-types.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "tt-10696-unnamed-array-of-primitive-types.yaml")
+	})
 }

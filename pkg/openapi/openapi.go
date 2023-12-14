@@ -137,18 +137,87 @@ func getPrimitiveGraphQLTypeName(openapiType string) (string, error) {
 	}
 }
 
-func (c *converter) getGraphQLTypeName(schemaRef *openapi3.SchemaRef, inputType bool) (string, error) {
-	if schemaRef.Value.Type == "object" || schemaRef.Value.Type == "array" {
-		graphqlTypeName, err := extractFullTypeNameFromRef(schemaRef.Ref)
-		if err != nil {
-			return "", err
-		}
-		if inputType {
-			return MakeInputTypeName(graphqlTypeName), nil
-		}
-		return graphqlTypeName, nil
+func extractTypeName(status int, operation *openapi3.Operation) (string, error) {
+	response := operation.Responses.Get(status)
+	if response == nil {
+		return "", fmt.Errorf("%w: response is nil for operation id: %s, status code: %d", errTypeNameExtractionImpossible, operation.OperationID, status)
 	}
-	return getPrimitiveGraphQLTypeName(schemaRef.Value.Type)
+
+	schema := getJSONSchema(status, operation)
+	if schema == nil {
+		return "", fmt.Errorf("%w: schema is nil for operation id: %s, status code: %d", errTypeNameExtractionImpossible, operation.OperationID, status)
+	}
+
+	if schema.Value.Type == "array" {
+		return extractFullTypeNameFromRef(schema.Value.Items.Ref)
+	}
+	return extractFullTypeNameFromRef(schema.Ref)
+}
+
+// tryExtractTypeName attempts to extract the GraphQL type name from the given OpenAPI schema reference.
+// Returns the GraphQL type name and any error encountered.
+func (c *converter) tryExtractTypeName(schemaRef *openapi3.SchemaRef) (graphqlTypeName string, err error) {
+	if schemaRef.Value.Type == "object" {
+		// If the schema value doesn't have any properties, the object will be stored in an arbitrary JSON type.
+		if len(schemaRef.Value.Properties) == 0 {
+			graphqlTypeName = "JSON"
+			c.addScalarType(graphqlTypeName, preDefinedScalarTypes[graphqlTypeName])
+		} else {
+			// Unnamed object
+			graphqlTypeName = MakeTypeNameFromPathName(c.currentPathName)
+		}
+	} else if schemaRef.Value.Type == "array" {
+		typeOf := schemaRef.Value.Items.Value.Type
+		if typeOf == "object" {
+			// Array of unnamed objects
+			graphqlTypeName = makeListItemFromTypeName(MakeTypeNameFromPathName(c.currentPathName))
+		} else {
+			// Array of primitive types
+			graphqlTypeName, err = getPrimitiveGraphQLTypeName(typeOf)
+		}
+	}
+	return
+}
+
+func (c *converter) getReturnType(schemaRef *openapi3.SchemaRef) (graphqlTypeName string, err error) {
+	if schemaRef.Value.Type != "object" && schemaRef.Value.Type != "array" {
+		if schemaRef.Ref != "" {
+			return extractFullTypeNameFromRef(schemaRef.Ref)
+		}
+		return getPrimitiveGraphQLTypeName(schemaRef.Value.Type)
+	}
+
+	if schemaRef.Value.Type == "object" {
+		graphqlTypeName, err = extractFullTypeNameFromRef(schemaRef.Ref)
+	} else if schemaRef.Value.Type == "array" {
+		graphqlTypeName, err = extractFullTypeNameFromRef(schemaRef.Value.Items.Ref)
+	}
+	if errors.Is(err, errTypeNameExtractionImpossible) {
+		return c.tryExtractTypeName(schemaRef)
+	}
+	return graphqlTypeName, err
+}
+
+// getGraphQLTypeName returns the GraphQL type name corresponding to the given OpenAPI schema reference.
+// Returns the GraphQL type name and any error encountered.
+func (c *converter) getGraphQLTypeName(schemaRef *openapi3.SchemaRef, inputType bool) (graphqlTypeName string, err error) {
+	if schemaRef.Value.Type != "object" && schemaRef.Value.Type != "array" {
+		return getPrimitiveGraphQLTypeName(schemaRef.Value.Type)
+	}
+
+	if schemaRef.Value.Type == "object" {
+		graphqlTypeName, err = extractFullTypeNameFromRef(schemaRef.Ref)
+	} else if schemaRef.Value.Type == "array" {
+		graphqlTypeName, err = extractFullTypeNameFromRef(schemaRef.Value.Items.Ref)
+	}
+	if err != nil {
+		return "", err
+	}
+	if inputType {
+		return MakeInputTypeName(graphqlTypeName), nil
+	}
+
+	return graphqlTypeName, nil
 }
 
 func extractFullTypeNameFromRef(ref string) (string, error) {
@@ -161,7 +230,7 @@ func extractFullTypeNameFromRef(ref string) (string, error) {
 
 func makeTypeNameFromPropertyName(name string, schemaRef *openapi3.SchemaRef) (string, error) {
 	if schemaRef.Value.Type == "array" {
-		return fmt.Sprintf("%sListItem", strcase.ToCamel(name)), nil
+		return makeListItemFromTypeName(name), nil
 	}
 	return "", fmt.Errorf("error while making type name from property name: %s is a unsupported type", name)
 }
@@ -245,6 +314,10 @@ func (c *converter) processInputFields(ft *introspection.FullType, schemaRef *op
 
 func (c *converter) processArray(schema *openapi3.SchemaRef) error {
 	fullTypeName, err := extractFullTypeNameFromRef(schema.Value.Items.Ref)
+	if errors.Is(err, errTypeNameExtractionImpossible) {
+		fullTypeName = makeListItemFromTypeName(MakeTypeNameFromPathName(c.currentPathName))
+		err = nil
+	}
 	if err != nil {
 		return err
 	}
@@ -283,6 +356,11 @@ func (c *converter) processArrayWithFullTypeName(fullTypeName string, schema *op
 }
 
 func (c *converter) processObject(schema *openapi3.SchemaRef) error {
+	// If the schema value doesn't have any properties, the object will be stored in an arbitrary JSON type.
+	if len(schema.Value.Properties) == 0 {
+		return nil
+	}
+
 	fullTypeName, err := extractFullTypeNameFromRef(schema.Ref)
 	if errors.Is(err, errTypeNameExtractionImpossible) {
 		fullTypeName = MakeTypeNameFromPathName(c.currentPathName)
@@ -343,14 +421,15 @@ func (c *converter) processInputObject(schema *openapi3.SchemaRef) error {
 
 func (c *converter) processSchema(schema *openapi3.SchemaRef) error {
 	if schema.Value.Type == "array" {
+		arrayOf := schema.Value.Items.Value.Type
+		if arrayOf == "string" || arrayOf == "integer" || arrayOf == "number" || arrayOf == "boolean" {
+			return nil
+		}
 		return c.processArray(schema)
 	} else if schema.Value.Type == "object" {
 		return c.processObject(schema)
 	}
 
-	sort.Slice(c.fullTypes, func(i, j int) bool {
-		return c.fullTypes[i].Name < c.fullTypes[j].Name
-	})
 	return nil
 }
 
@@ -391,23 +470,6 @@ func (c *converter) importFullTypes() ([]introspection.FullType, error) {
 		return c.fullTypes[i].Name < c.fullTypes[j].Name
 	})
 	return c.fullTypes, nil
-}
-
-func extractTypeName(status int, operation *openapi3.Operation) (string, error) {
-	response := operation.Responses.Get(status)
-	if response == nil {
-		return "", fmt.Errorf("%w: response is nil for operation id: %s, status code: %d", errTypeNameExtractionImpossible, operation.OperationID, status)
-	}
-
-	schema := getJSONSchema(status, operation)
-	if schema == nil {
-		return "", fmt.Errorf("%w: schema is nil for operation id: %s, status code: %d", errTypeNameExtractionImpossible, operation.OperationID, status)
-	}
-
-	if schema.Value.Type == "array" {
-		return extractFullTypeNameFromRef(schema.Value.Items.Ref)
-	}
-	return extractFullTypeNameFromRef(schema.Ref)
 }
 
 func getJSONSchemaFromResponseRef(response *openapi3.ResponseRef) *openapi3.SchemaRef {
@@ -544,8 +606,7 @@ func (c *converter) importQueryType() (*introspection.FullType, error) {
 					// We assume that it is an object type.
 					kind = "object"
 				}
-
-				typeName, err := extractTypeName(status, operation)
+				typeName, err := c.getReturnType(schema)
 				if err != nil {
 					return nil, err
 				}
