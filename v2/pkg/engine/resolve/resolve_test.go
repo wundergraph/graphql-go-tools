@@ -53,8 +53,8 @@ func fakeDataSourceWithInputCheck(t TestingTB, input []byte, data []byte) *_fake
 	}
 }
 
-func newResolver(ctx context.Context, enableSingleFlight bool) *Resolver {
-	return New(ctx, enableSingleFlight)
+func newResolver(ctx context.Context) *Resolver {
+	return New(ctx)
 }
 
 type customResolver struct{}
@@ -74,7 +74,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		rCtx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		r := newResolver(rCtx, enableSingleFlight)
+		r := newResolver(rCtx)
 		node, ctx, expectedOutput := fn(t, ctrl)
 		if t.Skipped() {
 			return func(t *testing.T) {}
@@ -97,7 +97,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		r := newResolver(c, false)
+		r := newResolver(c)
 		node, ctx, expectedErr := fn(t, r, ctrl)
 		return func(t *testing.T) {
 			t.Helper()
@@ -1453,7 +1453,7 @@ func testFn(enableSingleFlight bool, fn func(t *testing.T, ctrl *gomock.Controll
 		ctrl := gomock.NewController(t)
 		rCtx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		r := newResolver(rCtx, enableSingleFlight)
+		r := newResolver(rCtx)
 		node, ctx, expectedOutput := fn(t, ctrl)
 
 		if t.Skipped() {
@@ -1474,7 +1474,7 @@ func testFnWithError(enableSingleFlight bool, fn func(t *testing.T, ctrl *gomock
 		ctrl := gomock.NewController(t)
 		rCtx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		r := newResolver(rCtx, enableSingleFlight)
+		r := newResolver(rCtx)
 		node, ctx, expectedOutput := fn(t, ctrl)
 
 		if t.Skipped() {
@@ -3724,7 +3724,7 @@ func TestResolver_WithHeader(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			rCtx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			resolver := newResolver(rCtx, false)
+			resolver := newResolver(rCtx)
 
 			header := make(http.Header)
 			header.Set(tc.header, "foo")
@@ -3873,7 +3873,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			buf: bytes.Buffer{},
 		}
 
-		return newResolver(ctx, false), plan, out
+		return newResolver(ctx), plan, out
 	}
 
 	t.Run("should return errors if the upstream data has errors", func(t *testing.T) {
@@ -3996,7 +3996,7 @@ func Benchmark_ResolveGraphQLResponse(b *testing.B) {
 	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := newResolver(rCtx, true)
+	resolver := newResolver(rCtx)
 
 	userService := FakeDataSource(`{"data":{"users":[{"name":"Bill","info":{"id":11,"__typename":"Info"},"address":{"id":55,"__typename":"Address"}},{"name":"John","info":{"id":12,"__typename":"Info"},"address":{"id":55,"__typename":"Address"}},{"name":"Jane","info":{"id":13,"__typename":"Info"},"address":{"id":55,"__typename":"Address"}}]}}`)
 	infoService := FakeDataSource(`{"data":{"_entities":[{"age":21,"__typename":"Info"},{"line1":"Munich","__typename":"Address"},{"age":22,"__typename":"Info"},{"age":23,"__typename":"Info"}]}}`)
@@ -4235,7 +4235,7 @@ func Test_NestedBatching_WithStats(t *testing.T) {
 	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := newResolver(rCtx, true)
+	resolver := newResolver(rCtx)
 
 	productsService := fakeDataSourceWithInputCheck(t,
 		[]byte(`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`),
@@ -4534,7 +4534,7 @@ func Benchmark_NestedBatching(b *testing.B) {
 	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := newResolver(rCtx, true)
+	resolver := newResolver(rCtx)
 
 	productsService := fakeDataSourceWithInputCheck(b,
 		[]byte(`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`),
@@ -4846,7 +4846,7 @@ func Benchmark_NestedBatchingWithoutChecks(b *testing.B) {
 	rCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	resolver := newResolver(rCtx, true)
+	resolver := newResolver(rCtx)
 
 	productsService := FakeDataSource(`{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1"},{"name":"Couch","__typename":"Product","upc":"2"},{"name":"Chair","__typename":"Product","upc":"3"}]}}`)
 	stockService := FakeDataSource(`{"data":{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}}`)
