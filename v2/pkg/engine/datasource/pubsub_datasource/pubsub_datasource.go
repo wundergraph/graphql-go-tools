@@ -3,19 +3,49 @@ package pubsub_datasource
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"regexp"
+	"strings"
 
 	"github.com/buger/jsonparser"
+	"github.com/tidwall/sjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
+type EventType string
+
+const (
+	EventTypePublish      EventType = "publish"
+	EventTypeRequestReply EventType = "request_reply"
+	EventTypeSubscribe    EventType = "subscribe"
+)
+
+func EventTypeFromString(s string) (EventType, error) {
+	switch strings.ToLower(s) {
+	case "publish":
+		return EventTypePublish, nil
+	case "request_reply":
+		return EventTypeRequestReply, nil
+	case "subscribe":
+		return EventTypeSubscribe, nil
+	default:
+		return "", fmt.Errorf("invalid event type: %q", s)
+	}
+}
+
+type EventConfiguration struct {
+	Type      EventType `json:"type"`
+	TypeName  string    `json:"typeName"`
+	FieldName string    `json:"fieldName"`
+	Topic     string    `json:"topic"`
+}
+
 type Configuration struct {
-	TypeName  string `json:"typeName"`
-	FieldName string `json:"fieldName"`
-	Topic     string `json:"topic"`
+	Events []EventConfiguration `json:"events"`
 }
 
 func ConfigJson(config Configuration) json.RawMessage {
@@ -31,8 +61,12 @@ type Planner struct {
 	variables    resolve.Variables
 	rootFieldRef int
 	pubSub       PubSub
-	topic        string
 	config       Configuration
+	current      struct {
+		topic  string
+		data   []byte
+		config *EventConfiguration
+	}
 }
 
 /*
@@ -80,11 +114,6 @@ Example PubSub Message:
 }
 */
 
-var (
-	pubSubDirectiveName              = []byte("pubsub")
-	pubSubDirectiveTopicArgumentName = []byte("topic")
-)
-
 func (p *Planner) EnterField(ref int) {
 	if p.rootFieldRef == -1 {
 		p.rootFieldRef = ref
@@ -94,11 +123,18 @@ func (p *Planner) EnterField(ref int) {
 	}
 	fieldName := p.visitor.Operation.FieldNameString(ref)
 	typeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
-	if fieldName != p.config.FieldName || typeName != p.config.TypeName {
+	var eventConfig *EventConfiguration
+	for _, cfg := range p.config.Events {
+		if cfg.TypeName == typeName && cfg.FieldName == fieldName {
+			eventConfig = &cfg
+			break
+		}
+	}
+	if eventConfig == nil {
 		return
 	}
 
-	topic := p.config.Topic
+	topic := eventConfig.Topic
 	rex, err := regexp.Compile(`{{ args.([a-zA-Z0-9_]+) }}`)
 	if err != nil {
 		return
@@ -136,12 +172,32 @@ func (p *Planner) EnterField(ref int) {
 		return
 	}
 	// We need to replace the template literal with the variable placeholder
-	p.topic = rex.ReplaceAllLiteralString(topic, variablePlaceHolder)
+	p.current.topic = rex.ReplaceAllLiteralString(topic, variablePlaceHolder)
+
+	// Collect the field arguments for fetch based operations
+	fieldArgs := p.visitor.Operation.FieldArguments(ref)
+	data := []byte(`{}`)
+	for _, arg := range fieldArgs {
+		argValue := p.visitor.Operation.ArgumentValue(arg)
+		renderer := resolve.NewJSONVariableRenderer()
+		variableName := p.visitor.Operation.VariableValueNameBytes(argValue.Ref)
+		contextVariable := &resolve.ContextVariable{
+			Path:     []string{string(variableName)},
+			Renderer: renderer,
+		}
+		variablePlaceHolder, _ := p.variables.AddVariable(contextVariable) // $$0$$
+		argumentName := p.visitor.Operation.ArgumentNameString(arg)
+		data, _ = sjson.SetBytes(data, argumentName, variablePlaceHolder)
+	}
+
+	p.current.config = eventConfig
+	p.current.data = data
 }
 
 func (p *Planner) EnterDocument(operation, definition *ast.Document) {
 	p.rootFieldRef = -1
-	p.topic = ""
+	p.current.topic = ""
+	p.current.config = nil
 }
 
 func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration, dataSourcePlannerConfiguration plan.DataSourcePlannerConfiguration) error {
@@ -155,18 +211,45 @@ func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceC
 }
 
 func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
-	return resolve.FetchConfiguration{}
+	if p.current.config == nil {
+		panic(errors.New("config is nil, maybe query was not planned?"))
+	}
+	var dataSource resolve.DataSource
+	var postProcessing resolve.PostProcessingConfiguration
+	switch p.current.config.Type {
+	case EventTypePublish:
+		dataSource = &PublishDataSource{
+			pubSub: p.pubSub,
+		}
+		postProcessing.MergePath = []string{p.current.config.FieldName}
+	case EventTypeRequestReply:
+		dataSource = &RequestDataSource{
+			pubSub: p.pubSub,
+		}
+		postProcessing.MergePath = []string{p.current.config.FieldName}
+	default:
+		panic(errors.New("invalid event type for fetch"))
+	}
+	return resolve.FetchConfiguration{
+		Input:          fmt.Sprintf(`{"topic":"%s", "data": %s}`, p.current.topic, p.current.data),
+		Variables:      p.variables,
+		DataSource:     dataSource,
+		PostProcessing: postProcessing,
+	}
 }
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
+	if p.current.config == nil || p.current.config.Type != EventTypeSubscribe {
+		panic(errors.New("invalid event type for subscription"))
+	}
 	return plan.SubscriptionConfiguration{
-		Input:     fmt.Sprintf(`{"topic":"%s"}`, p.topic),
+		Input:     fmt.Sprintf(`{"topic":"%s"}`, p.current.topic),
 		Variables: p.variables,
 		DataSource: &SubscriptionSource{
 			pubSub: p.pubSub,
 		},
 		PostProcessing: resolve.PostProcessingConfiguration{
-			MergePath: []string{p.config.FieldName},
+			MergePath: []string{p.current.config.FieldName},
 		},
 	}
 }
@@ -201,8 +284,14 @@ func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 	}
 }
 
+// PubSub describe the interface that implements the primitive operations for pubsub
 type PubSub interface {
+	// Subscribe starts listening on the given topic and sends the received messages to the given next channel
 	Subscribe(ctx context.Context, topic string, next chan<- []byte) error
+	// Publish sends the given data to the given topic
+	Publish(ctx context.Context, topic string, data []byte) error
+	// Request sends a request on the given topic and writes the response to the given writer
+	Request(ctx context.Context, topic string, data []byte, w io.Writer) error
 }
 
 type SubscriptionSource struct {
@@ -216,4 +305,39 @@ func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, next chan
 	}
 
 	return s.pubSub.Subscribe(ctx.Context(), topic, next)
+}
+
+type PublishDataSource struct {
+	pubSub PubSub
+}
+
+func (s *PublishDataSource) Load(ctx context.Context, input []byte, w io.Writer) error {
+	topic, err := jsonparser.GetString(input, "topic")
+	if err != nil {
+		return fmt.Errorf("error getting topic from input: %w", err)
+	}
+
+	data, _, _, err := jsonparser.Get(input, "data")
+	if err != nil {
+		return fmt.Errorf("error getting data from input: %w", err)
+	}
+
+	if err := s.pubSub.Publish(ctx, topic, data); err != nil {
+		return err
+	}
+	_, err = io.WriteString(w, `{"success": true}`)
+	return err
+}
+
+type RequestDataSource struct {
+	pubSub PubSub
+}
+
+func (s *RequestDataSource) Load(ctx context.Context, input []byte, w io.Writer) error {
+	topic, err := jsonparser.GetString(input, "topic")
+	if err != nil {
+		return err
+	}
+
+	return s.pubSub.Request(ctx, topic, nil, w)
 }
