@@ -2048,7 +2048,12 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			expectedOperation: `
 				query {
 					returnsUnion {
-						__typename
+						... on Admin {
+							name
+						}
+						... on User {
+							name
+						}
 					}
 				}`,
 			shouldRewrite: true,

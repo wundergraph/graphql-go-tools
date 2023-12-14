@@ -8,11 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http/httptrace"
-	"runtime"
-	"runtime/debug"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/buger/jsonparser"
@@ -31,7 +28,6 @@ type Loader struct {
 	dataRoot           int
 	errorsRoot         int
 	ctx                *Context
-	sf                 *Group
 	enableSingleFlight bool
 	path               []string
 	traceOptions       RequestTraceOptions
@@ -41,7 +37,6 @@ type Loader struct {
 func (l *Loader) Free() {
 	l.info = nil
 	l.ctx = nil
-	l.sf = nil
 	l.data = nil
 	l.dataRoot = -1
 	l.errorsRoot = -1
@@ -522,7 +517,7 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items 
 	if err != nil {
 		return l.renderErrorsInvalidInput(res.out)
 	}
-	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
+	err = l.executeSourceLoad(ctx, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	if err != nil {
 		return l.renderErrorsFailedToFetch(res.out)
 	}
@@ -598,7 +593,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 		return errors.WithStack(err)
 	}
 
-	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
+	err = l.executeSourceLoad(ctx, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -714,7 +709,7 @@ WithNextItem:
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
+	err = l.executeSourceLoad(ctx, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -758,11 +753,7 @@ func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
 	return redactedJSON, nil
 }
 
-func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, input []byte, out io.Writer, trace *DataSourceLoadTrace) (err error) {
-	// TODO: hack
-	if source == nil {
-		return nil
-	}
+func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input []byte, out *bytes.Buffer, trace *DataSourceLoadTrace) (err error) {
 	if l.ctx.Extensions != nil {
 		input, err = jsonparser.Set(input, l.ctx.Extensions, "body", "extensions")
 		if err != nil {
@@ -872,43 +863,18 @@ func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight boo
 			ctx = httptrace.WithClientTrace(ctx, clientTrace)
 		}
 	}
-	if !l.enableSingleFlight || disallowSingleFlight {
-		return source.Load(ctx, input, out)
-	}
+	err = source.Load(ctx, input, out)
 	if l.traceOptions.Enable {
-		trace.SingleFlightUsed = true
-	}
-	keyGen := pool.Hash64.Get()
-	defer pool.Hash64.Put(keyGen)
-	_, err = keyGen.Write(input)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	key := keyGen.Sum64()
-	data, err, shared := l.sf.Do(key, func() ([]byte, error) {
-		singleBuffer := pool.BytesBuffer.Get()
-		defer pool.BytesBuffer.Put(singleBuffer)
-		err := source.Load(ctx, input, singleBuffer)
-		if err != nil {
-			return nil, err
-		}
-		data := singleBuffer.Bytes()
-		cp := make([]byte, len(data))
-		copy(cp, data)
-		return cp, nil
-	})
-	if l.traceOptions.Enable {
-		if !l.traceOptions.ExcludeOutput && data != nil {
+		if !l.traceOptions.ExcludeOutput && out.Len() > 0 {
 			if l.traceOptions.EnablePredictableDebugTimings {
-				dataCopy := make([]byte, len(data))
-				copy(dataCopy, data)
+				dataCopy := make([]byte, out.Len())
+				copy(dataCopy, out.Bytes())
 				trace.Output = jsonparser.Delete(dataCopy, "extensions", "trace", "response", "headers", "Date")
 			} else {
-				trace.Output = make([]byte, len(data))
-				copy(trace.Output, data)
+				trace.Output = make([]byte, out.Len())
+				copy(trace.Output, out.Bytes())
 			}
 		}
-		trace.SingleFlightSharedResponse = shared
 		if !l.traceOptions.ExcludeLoadStats {
 			if l.traceOptions.EnablePredictableDebugTimings {
 				trace.DurationLoadNano = 1
@@ -919,16 +885,16 @@ func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight boo
 		}
 	}
 	l.ctx.Stats.NumberOfFetches.Inc()
-	l.ctx.Stats.CombinedResponseSize.Add(int64(len(data)))
+	l.ctx.Stats.CombinedResponseSize.Add(int64(out.Len()))
 	if err != nil {
 		if l.traceOptions.Enable {
 			trace.LoadError = err.Error()
 		}
 		return errors.WithStack(err)
 	}
-	_, err = out.Write(data)
 	return errors.WithStack(err)
 }
+<<<<<<< HEAD
 
 // call is an in-flight or completed singleflight.Do call
 type call struct {
@@ -1123,3 +1089,5 @@ func (g *Group) Forget(key uint64) {
 	delete(g.m, key)
 	g.mu.Unlock()
 }
+=======
+>>>>>>> origin/master

@@ -33,9 +33,9 @@ type configurationVisitor struct {
 	missingPathTracker map[string]missingPath // missingPathTracker is a map of paths which will be added on secondary runs
 	addedPathTracker   []pathConfiguration    // addedPathTracker is a list of paths which were added
 
-	pendingRequiredFields  map[int][]string // pendingRequiredFields is a map[selectionSetRef][]RequiredFieldsSelectionSet
-	handledRequires        map[int]struct{} // handledRequires is a map[FieldRef] of already processed fields which has @requires directive
-	rewritenAbstractFields map[int]struct{} // rewritenAbstractFields is a map[FieldRef] of already processed fields with abstract type, e.g. union or interface
+	pendingRequiredFields map[int][]string // pendingRequiredFields is a map[selectionSetRef][]RequiredFieldsSelectionSet
+	handledRequires       map[int]struct{} // handledRequires is a map[FieldRef] of already processed fields which has @requires directive
+	visitedFields         map[int]struct{} // visitedFields is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
 
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the planner not the first time
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
@@ -258,7 +258,7 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 
 	c.pendingRequiredFields = make(map[int][]string)
 	c.handledRequires = make(map[int]struct{})
-	c.rewritenAbstractFields = make(map[int]struct{})
+	c.visitedFields = make(map[int]struct{})
 }
 
 func (c *configurationVisitor) LeaveDocument(operation, definition *ast.Document) {
@@ -925,9 +925,10 @@ func (c *configurationVisitor) addRequiredFields(selectionSetRef int, requiredFi
 }
 
 func (c *configurationVisitor) rewriteSelectionSetOfFieldWithInterfaceType(fieldRef int, plannerIdx int) {
-	if _, ok := c.rewritenAbstractFields[fieldRef]; ok {
+	if _, ok := c.visitedFields[fieldRef]; ok {
 		return
 	}
+	c.visitedFields[fieldRef] = struct{}{}
 
 	upstreamSchema := c.planners[plannerIdx].planner.UpstreamSchema(c.planners[plannerIdx].dataSourceConfiguration)
 
@@ -947,5 +948,4 @@ func (c *configurationVisitor) rewriteSelectionSetOfFieldWithInterfaceType(field
 
 	c.hasNewFields = true
 	c.walker.Stop()
-	c.rewritenAbstractFields[fieldRef] = struct{}{}
 }

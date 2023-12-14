@@ -280,6 +280,8 @@ func (v *Visitor) EnterField(ref int) {
 
 	skipIncludeInfo := v.resolveSkipIncludeForField(ref)
 
+	onTypeNames := v.resolveOnTypeNames()
+
 	if bytes.Equal(fieldName, literal.TYPENAME) {
 		v.currentField = &resolve.Field{
 			Name: fieldAliasOrName,
@@ -288,13 +290,13 @@ func (v *Visitor) EnterField(ref int) {
 				Path:       []string{v.Operation.FieldAliasOrNameString(ref)},
 				IsTypeName: true,
 			},
-			OnTypeNames:             v.resolveOnTypeNames(),
+			OnTypeNames:             onTypeNames,
 			Position:                v.resolveFieldPosition(ref),
 			SkipDirectiveDefined:    skipIncludeInfo.skip,
 			SkipVariableName:        skipIncludeInfo.skipVariableName,
 			IncludeDirectiveDefined: skipIncludeInfo.include,
 			IncludeVariableName:     skipIncludeInfo.includeVariableName,
-			Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef),
+			Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
 		}
 		*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
 		return
@@ -304,16 +306,14 @@ func (v *Visitor) EnterField(ref int) {
 	v.currentField = &resolve.Field{
 		Name:                    fieldAliasOrName,
 		Value:                   v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path),
-		OnTypeNames:             v.resolveOnTypeNames(),
+		OnTypeNames:             onTypeNames,
 		Position:                v.resolveFieldPosition(ref),
 		SkipDirectiveDefined:    skipIncludeInfo.skip,
 		SkipVariableName:        skipIncludeInfo.skipVariableName,
 		IncludeDirectiveDefined: skipIncludeInfo.include,
 		IncludeVariableName:     skipIncludeInfo.includeVariableName,
+		Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
 	}
-
-	// to avoid running v.resolveOnTypeNames() again, we set the field info here
-	v.currentField.Info = v.resolveFieldInfo(ref, fieldDefinitionTypeRef)
 
 	// append the field to the current object
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
@@ -347,7 +347,7 @@ func (v *Visitor) handleExistingField(currentFieldRef int, fieldDefinitionTypeRe
 	}
 
 	// merge field info
-	maybeAdditionalInfo := v.resolveFieldInfo(currentFieldRef, fieldDefinitionTypeRef)
+	maybeAdditionalInfo := v.resolveFieldInfo(currentFieldRef, fieldDefinitionTypeRef, onTypeNames)
 	if resolveField.Info != nil && maybeAdditionalInfo != nil {
 		resolveField.Info.Merge(maybeAdditionalInfo)
 	}
@@ -389,12 +389,11 @@ func (v *Visitor) mapFieldConfig(ref int) {
 	v.fieldConfigs[ref] = fieldConfig
 }
 
-func (v *Visitor) resolveFieldInfo(ref, typeRef int) *resolve.FieldInfo {
+func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *resolve.FieldInfo {
 	if !v.Config.IncludeInfo {
 		return nil
 	}
 
-	onTypeNames := v.currentField.OnTypeNames
 	enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 	fieldName := v.Operation.FieldNameString(ref)
 	underlyingType := v.Definition.ResolveUnderlyingType(typeRef)
