@@ -8,11 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http/httptrace"
-	"runtime"
-	"runtime/debug"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/buger/jsonparser"
@@ -31,7 +28,6 @@ type Loader struct {
 	dataRoot           int
 	errorsRoot         int
 	ctx                *Context
-	sf                 *Group
 	enableSingleFlight bool
 	path               []string
 	traceOptions       RequestTraceOptions
@@ -41,7 +37,6 @@ type Loader struct {
 func (l *Loader) Free() {
 	l.info = nil
 	l.ctx = nil
-	l.sf = nil
 	l.data = nil
 	l.dataRoot = -1
 	l.errorsRoot = -1
@@ -522,7 +517,7 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items 
 	if err != nil {
 		return l.renderErrorsInvalidInput(res.out)
 	}
-	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
+	err = l.executeSourceLoad(ctx, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	if err != nil {
 		return l.renderErrorsFailedToFetch(res.out)
 	}
@@ -598,7 +593,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 		return errors.WithStack(err)
 	}
 
-	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
+	err = l.executeSourceLoad(ctx, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -714,7 +709,7 @@ WithNextItem:
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	err = l.executeSourceLoad(ctx, fetch.DisallowSingleFlight, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
+	err = l.executeSourceLoad(ctx, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -758,7 +753,7 @@ func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
 	return redactedJSON, nil
 }
 
-func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight bool, source DataSource, input []byte, out io.Writer, trace *DataSourceLoadTrace) (err error) {
+func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input []byte, out *bytes.Buffer, trace *DataSourceLoadTrace) (err error) {
 	if l.ctx.Extensions != nil {
 		input, err = jsonparser.Set(input, l.ctx.Extensions, "body", "extensions")
 		if err != nil {
@@ -868,43 +863,18 @@ func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight boo
 			ctx = httptrace.WithClientTrace(ctx, clientTrace)
 		}
 	}
-	if !l.enableSingleFlight || disallowSingleFlight {
-		return source.Load(ctx, input, out)
-	}
+	err = source.Load(ctx, input, out)
 	if l.traceOptions.Enable {
-		trace.SingleFlightUsed = true
-	}
-	keyGen := pool.Hash64.Get()
-	defer pool.Hash64.Put(keyGen)
-	_, err = keyGen.Write(input)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	key := keyGen.Sum64()
-	data, err, shared := l.sf.Do(key, func() ([]byte, error) {
-		singleBuffer := pool.BytesBuffer.Get()
-		defer pool.BytesBuffer.Put(singleBuffer)
-		err := source.Load(ctx, input, singleBuffer)
-		if err != nil {
-			return nil, err
-		}
-		data := singleBuffer.Bytes()
-		cp := make([]byte, len(data))
-		copy(cp, data)
-		return cp, nil
-	})
-	if l.traceOptions.Enable {
-		if !l.traceOptions.ExcludeOutput && data != nil {
+		if !l.traceOptions.ExcludeOutput && out.Len() > 0 {
 			if l.traceOptions.EnablePredictableDebugTimings {
-				dataCopy := make([]byte, len(data))
-				copy(dataCopy, data)
+				dataCopy := make([]byte, out.Len())
+				copy(dataCopy, out.Bytes())
 				trace.Output = jsonparser.Delete(dataCopy, "extensions", "trace", "response", "headers", "Date")
 			} else {
-				trace.Output = make([]byte, len(data))
-				copy(trace.Output, data)
+				trace.Output = make([]byte, out.Len())
+				copy(trace.Output, out.Bytes())
 			}
 		}
-		trace.SingleFlightSharedResponse = shared
 		if !l.traceOptions.ExcludeLoadStats {
 			if l.traceOptions.EnablePredictableDebugTimings {
 				trace.DurationLoadNano = 1
@@ -915,200 +885,12 @@ func (l *Loader) executeSourceLoad(ctx context.Context, disallowSingleFlight boo
 		}
 	}
 	l.ctx.Stats.NumberOfFetches.Inc()
-	l.ctx.Stats.CombinedResponseSize.Add(int64(len(data)))
+	l.ctx.Stats.CombinedResponseSize.Add(int64(out.Len()))
 	if err != nil {
 		if l.traceOptions.Enable {
 			trace.LoadError = err.Error()
 		}
 		return errors.WithStack(err)
 	}
-	_, err = out.Write(data)
 	return errors.WithStack(err)
-}
-
-// call is an in-flight or completed singleflight.Do call
-type call struct {
-	wg sync.WaitGroup
-
-	// These fields are written once before the WaitGroup is done
-	// and are only read after the WaitGroup is done.
-	val []byte
-	err error
-
-	// These fields are read and written with the singleflight
-	// mutex held before the WaitGroup is done, and are read but
-	// not written after the WaitGroup is done.
-	dups  int
-	chans []chan<- Result
-}
-
-type Group struct {
-	mu sync.Mutex       // protects m
-	m  map[uint64]*call // lazily initialized
-}
-
-// Result holds the results of Do, so they can be passed
-// on a channel.
-type Result struct {
-	Val    []byte
-	Err    error
-	Shared bool
-}
-
-// A panicError is an arbitrary value recovered from a panic
-// with the stack trace during the execution of given function.
-type panicError struct {
-	value []byte
-	stack []byte
-}
-
-// Error implements error interface.
-func (p *panicError) Error() string {
-	return fmt.Sprintf("%v\n\n%s", p.value, p.stack)
-}
-
-func newPanicError(v []byte) error {
-	stack := debug.Stack()
-
-	// The first line of the stack trace is of the form "goroutine N [status]:"
-	// but by the time the panic reaches Do the goroutine may no longer exist
-	// and its status will have changed. Trim out the misleading line.
-	if line := bytes.IndexByte(stack[:], '\n'); line >= 0 {
-		stack = stack[line+1:]
-	}
-	return &panicError{value: v, stack: stack}
-}
-
-// errGoexit indicates the runtime.Goexit was called in
-// the user given function.
-var errGoexit = errors.New("runtime.Goexit was called")
-
-// Do executes and returns the results of the given function, making
-// sure that only one execution is in-flight for a given key at a
-// time. If a duplicate comes in, the duplicate caller waits for the
-// original to complete and receives the same results.
-// The return value shared indicates whether v was given to multiple callers.
-func (g *Group) Do(key uint64, fn func() ([]byte, error)) (v []byte, err error, shared bool) {
-	g.mu.Lock()
-	if g.m == nil {
-		g.m = make(map[uint64]*call)
-	}
-	if c, ok := g.m[key]; ok {
-		c.dups++
-		g.mu.Unlock()
-		c.wg.Wait()
-
-		if e, ok := c.err.(*panicError); ok {
-			panic(e)
-		} else if c.err == errGoexit {
-			runtime.Goexit()
-		}
-		return c.val, c.err, true
-	}
-	c := new(call)
-	c.wg.Add(1)
-	g.m[key] = c
-	g.mu.Unlock()
-
-	g.doCall(c, key, fn)
-	return c.val, c.err, c.dups > 0
-}
-
-// DoChan is like Do but returns a channel that will receive the
-// results when they are ready.
-//
-// The returned channel will not be closed.
-func (g *Group) DoChan(key uint64, fn func() ([]byte, error)) <-chan Result {
-	ch := make(chan Result, 1)
-	g.mu.Lock()
-	if g.m == nil {
-		g.m = make(map[uint64]*call)
-	}
-	if c, ok := g.m[key]; ok {
-		c.dups++
-		c.chans = append(c.chans, ch)
-		g.mu.Unlock()
-		return ch
-	}
-	c := &call{chans: []chan<- Result{ch}}
-	c.wg.Add(1)
-	g.m[key] = c
-	g.mu.Unlock()
-
-	go g.doCall(c, key, fn)
-
-	return ch
-}
-
-// doCall handles the single call for a key.
-func (g *Group) doCall(c *call, key uint64, fn func() ([]byte, error)) {
-	normalReturn := false
-	recovered := false
-
-	// use double-defer to distinguish panic from runtime.Goexit,
-	// more details see https://golang.org/cl/134395
-	defer func() {
-		// the given function invoked runtime.Goexit
-		if !normalReturn && !recovered {
-			c.err = errGoexit
-		}
-
-		g.mu.Lock()
-		defer g.mu.Unlock()
-		c.wg.Done()
-		if g.m[key] == c {
-			delete(g.m, key)
-		}
-
-		if e, ok := c.err.(*panicError); ok {
-			// In order to prevent the waiting channels from being blocked forever,
-			// needs to ensure that this panic cannot be recovered.
-			if len(c.chans) > 0 {
-				go panic(e)
-				select {} // Keep this goroutine around so that it will appear in the crash dump.
-			} else {
-				panic(e)
-			}
-		} else if c.err == errGoexit {
-			// Already in the process of goexit, no need to call again
-		} else {
-			// Normal return
-			for _, ch := range c.chans {
-				ch <- Result{c.val, c.err, c.dups > 0}
-			}
-		}
-	}()
-
-	func() {
-		defer func() {
-			if !normalReturn {
-				// Ideally, we would wait to take a stack trace until we've determined
-				// whether this is a panic or a runtime.Goexit.
-				//
-				// Unfortunately, the only way we can distinguish the two is to see
-				// whether the recover stopped the goroutine from terminating, and by
-				// the time we know that, the part of the stack trace relevant to the
-				// panic has been discarded.
-				if r := recover(); r != nil {
-					c.err = newPanicError(r.([]byte))
-				}
-			}
-		}()
-
-		c.val, c.err = fn()
-		normalReturn = true
-	}()
-
-	if !normalReturn {
-		recovered = true
-	}
-}
-
-// Forget tells the singleflight to forget about a key.  Future calls
-// to Do for this key will call the function rather than waiting for
-// an earlier call to complete.
-func (g *Group) Forget(key uint64) {
-	g.mu.Lock()
-	delete(g.m, key)
-	g.mu.Unlock()
 }

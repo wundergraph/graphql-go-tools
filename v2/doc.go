@@ -513,7 +513,7 @@ This plan can now be executed by using the Resolver.
 
 func ExampleExecuteOperation() {
 	var preparedPlan plan.Plan
-	resolver := resolve.New(context.Background(), true)
+	resolver := resolve.New(context.Background())
 
 	ctx := resolve.NewContext(context.Background())
 
