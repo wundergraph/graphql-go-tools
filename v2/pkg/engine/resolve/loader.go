@@ -887,7 +887,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 			ctx = httptrace.WithClientTrace(ctx, clientTrace)
 		}
 	}
-	if l.info.OperationType == ast.OperationTypeMutation {
+	if l.info != nil && l.info.OperationType == ast.OperationTypeMutation {
 		ctx = context.WithValue(ctx, disallowSingleFlightContextKey{}, true)
 	}
 	err = source.Load(ctx, input, out)
