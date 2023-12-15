@@ -138,5 +138,7 @@ func SetPlannerStats(ctx context.Context, stats PlannerStats) {
 }
 
 func GetTraceInfo(ctx context.Context) *TraceInfo {
-	return ctx.Value(traceStartKey{}).(*TraceInfo)
+	// The context might not have trace info, in that case we return nil
+	info, _ := ctx.Value(traceStartKey{}).(*TraceInfo)
+	return info
 }
