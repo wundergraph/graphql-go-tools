@@ -87,10 +87,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 	firstDatasourceConfiguration := plan.DataSourceConfiguration{
 		RootNodes: []plan.TypeField{
 			{
-				TypeName:   "Account",
-				FieldNames: []string{"id", "title"},
-			},
-			{
 				TypeName:   "Admin",
 				FieldNames: []string{"id"},
 			},
@@ -105,6 +101,12 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 			{
 				TypeName:   "Query",
 				FieldNames: []string{"allAccountsInterface", "allAccountsUnion", "user", "admin"},
+			},
+		},
+		ChildNodes: []plan.TypeField{
+			{
+				TypeName:   "Account",
+				FieldNames: []string{"id", "title"},
 			},
 		},
 		Custom: ConfigJson(Configuration{
@@ -164,6 +166,18 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				FieldNames: []string{"id", "locations"},
 			},
 			{
+				TypeName:   "User",
+				FieldNames: []string{"id", "locations"},
+			},
+			{
+				TypeName:   "Moderator",
+				FieldNames: []string{"id", "locations"},
+			},
+			{
+				TypeName:   "Admin",
+				FieldNames: []string{"id", "locations"},
+			},
+			{
 				TypeName:   "Query",
 				FieldNames: []string{"accountLocations"},
 			},
@@ -191,6 +205,35 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 					TypeName:     "Account",
 					SelectionSet: "id",
 				},
+				{
+					TypeName:       "Admin",
+					InterfaceNames: []string{"Account"},
+					SelectionSet:   "id",
+				},
+				{
+					TypeName:       "Moderator",
+					InterfaceNames: []string{"Account"},
+					SelectionSet:   "id",
+				},
+				{
+					TypeName:       "User",
+					InterfaceNames: []string{"Account"},
+					SelectionSet:   "id",
+				},
+			},
+		},
+		RenameTypes: plan.TypeConfigurations{
+			{
+				TypeName: "Admin",
+				RenameTo: "Account",
+			},
+			{
+				TypeName: "Moderator",
+				RenameTo: "Account",
+			},
+			{
+				TypeName: "User",
+				RenameTo: "Account",
 			},
 		},
 	}
@@ -241,6 +284,18 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				TypeName:   "Account",
 				FieldNames: []string{"id", "age"},
 			},
+			{
+				TypeName:   "User",
+				FieldNames: []string{"id", "age"},
+			},
+			{
+				TypeName:   "Moderator",
+				FieldNames: []string{"id", "age"},
+			},
+			{
+				TypeName:   "Admin",
+				FieldNames: []string{"id", "age"},
+			},
 		},
 		Custom: ConfigJson(Configuration{
 			Fetch: FetchConfiguration{
@@ -259,6 +314,35 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 					TypeName:     "Account",
 					SelectionSet: "id",
 				},
+				{
+					TypeName:       "Admin",
+					InterfaceNames: []string{"Account"},
+					SelectionSet:   "id",
+				},
+				{
+					TypeName:       "Moderator",
+					InterfaceNames: []string{"Account"},
+					SelectionSet:   "id",
+				},
+				{
+					TypeName:       "User",
+					InterfaceNames: []string{"Account"},
+					SelectionSet:   "id",
+				},
+			},
+		},
+		RenameTypes: plan.TypeConfigurations{
+			{
+				TypeName: "Admin",
+				RenameTo: "Account",
+			},
+			{
+				TypeName: "Moderator",
+				RenameTo: "Account",
+			},
+			{
+				TypeName: "User",
+				RenameTo: "Account",
 			},
 		},
 	}
@@ -274,25 +358,33 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 		DataSources:                  ShuffleDS(dataSources),
 		DisableResolveFieldPositions: true,
 		Debug: plan.DebugConfiguration{
-			PrintQueryPlans: true,
+			PrintOperationTransformations: true,
+			PrintQueryPlans:               true,
+			PrintPlanningPaths:            true,
+			PrintNodeSuggestions:          true,
 		},
 	}
 
-	t.Run("query 1 - ", func(t *testing.T) {
+	t.Run("query 1 - Interface to interface object", func(t *testing.T) {
 
 		t.Run("run", RunTest(
 			definition,
 			`
-					query {
+				query _1_InterfaceToInterfaceObject {
+					allAccountsInterface {
+						id
+						locations {
+							country
+						}
 					}
-				`,
-			"Accounts",
+				}`,
+			"_1_InterfaceToInterfaceObject",
 			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{account {__typename ... on User {__typename id} ... on Admin {__typename id}}}"}}`,
+								Input:          `{"method":"POST","url":"http://first.service","body":{"query":""}}`,
 								PostProcessing: DefaultPostProcessingConfiguration,
 								DataSource:     &Source{},
 							},

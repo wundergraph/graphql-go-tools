@@ -924,7 +924,12 @@ func (p *Planner) addOnTypeInlineFragment() {
 
 	selectionSet := p.upstreamOperation.AddSelectionSet()
 	p.addTypenameToSelectionSet(p.nodes[len(p.nodes)-1].Ref)
+
 	onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchBytes([]byte(p.lastFieldEnclosingTypeName))
+
+	// rename type name in case it is required by entity interface
+	onTypeName = p.dataSourceConfig.RenameTypes.RenameTypeNameOnMatchBytes([]byte(p.lastFieldEnclosingTypeName))
+
 	typeRef := p.upstreamOperation.AddNamedType(onTypeName)
 	inlineFragment := p.upstreamOperation.AddInlineFragment(ast.InlineFragment{
 		HasSelections: true,
@@ -1429,7 +1434,7 @@ func (p *Planner) printOperation() []byte {
 		return nil
 	}
 
-	p.printQueryPlan(p.upstreamOperation)
+	p.printQueryPlan(operation)
 
 	buf.Reset()
 
