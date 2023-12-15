@@ -497,6 +497,7 @@ func (l *Loader) renderErrorsFailedToFetch(out *bytes.Buffer) error {
 }
 
 func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items []int, res *result) error {
+	res.postProcessing = fetch.PostProcessing
 	input := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(input)
 	preparedInput := pool.BytesBuffer.Get()
@@ -521,7 +522,6 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items 
 	if err != nil {
 		return l.renderErrorsFailedToFetch(res.out)
 	}
-	res.postProcessing = fetch.PostProcessing
 	return nil
 }
 

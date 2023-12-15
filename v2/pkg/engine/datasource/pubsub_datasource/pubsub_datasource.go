@@ -19,19 +19,16 @@ import (
 type EventType string
 
 const (
-	EventTypePublish      EventType = "publish"
-	EventTypeRequestReply EventType = "request_reply"
-	EventTypeSubscribe    EventType = "subscribe"
+	EventTypePublish   EventType = "publish"
+	EventTypeRequest   EventType = "request"
+	EventTypeSubscribe EventType = "subscribe"
 )
 
 func EventTypeFromString(s string) (EventType, error) {
-	switch strings.ToLower(s) {
-	case "publish":
-		return EventTypePublish, nil
-	case "request_reply":
-		return EventTypeRequestReply, nil
-	case "subscribe":
-		return EventTypeSubscribe, nil
+	et := EventType(strings.ToLower(s))
+	switch et {
+	case EventTypePublish, EventTypeRequest, EventTypeSubscribe:
+		return et, nil
 	default:
 		return "", fmt.Errorf("invalid event type: %q", s)
 	}
@@ -215,26 +212,26 @@ func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 		panic(errors.New("config is nil, maybe query was not planned?"))
 	}
 	var dataSource resolve.DataSource
-	var postProcessing resolve.PostProcessingConfiguration
 	switch p.current.config.Type {
 	case EventTypePublish:
 		dataSource = &PublishDataSource{
 			pubSub: p.pubSub,
 		}
-		postProcessing.MergePath = []string{p.current.config.FieldName}
-	case EventTypeRequestReply:
+	case EventTypeRequest:
 		dataSource = &RequestDataSource{
 			pubSub: p.pubSub,
 		}
-		postProcessing.MergePath = []string{p.current.config.FieldName}
 	default:
 		panic(errors.New("invalid event type for fetch"))
 	}
 	return resolve.FetchConfiguration{
-		Input:          fmt.Sprintf(`{"topic":"%s", "data": %s}`, p.current.topic, p.current.data),
-		Variables:      p.variables,
-		DataSource:     dataSource,
-		PostProcessing: postProcessing,
+		Input:      fmt.Sprintf(`{"topic":"%s", "data": %s}`, p.current.topic, p.current.data),
+		Variables:  p.variables,
+		DataSource: dataSource,
+		PostProcessing: resolve.PostProcessingConfiguration{
+			SelectResponseErrorsPath: []string{"errors"},
+			MergePath:                []string{p.current.config.FieldName},
+		},
 	}
 }
 
@@ -249,7 +246,8 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 			pubSub: p.pubSub,
 		},
 		PostProcessing: resolve.PostProcessingConfiguration{
-			MergePath: []string{p.current.config.FieldName},
+			SelectResponseErrorsPath: []string{"errors"},
+			MergePath:                []string{p.current.config.FieldName},
 		},
 	}
 }
