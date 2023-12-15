@@ -24,14 +24,13 @@ import (
 )
 
 type Loader struct {
-	data               *astjson.JSON
-	dataRoot           int
-	errorsRoot         int
-	ctx                *Context
-	enableSingleFlight bool
-	path               []string
-	traceOptions       RequestTraceOptions
-	info               *GraphQLResponseInfo
+	data         *astjson.JSON
+	dataRoot     int
+	errorsRoot   int
+	ctx          *Context
+	path         []string
+	traceOptions RequestTraceOptions
+	info         *GraphQLResponseInfo
 }
 
 func (l *Loader) Free() {
@@ -40,7 +39,6 @@ func (l *Loader) Free() {
 	l.data = nil
 	l.dataRoot = -1
 	l.errorsRoot = -1
-	l.enableSingleFlight = false
 	l.path = l.path[:0]
 }
 
@@ -753,6 +751,31 @@ func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
 	return redactedJSON, nil
 }
 
+type disallowSingleFlightContextKey struct{}
+
+func SingleFlightDisallowed(ctx context.Context) bool {
+	return ctx.Value(disallowSingleFlightContextKey{}) != nil
+}
+
+type singleFlightStatsKey struct{}
+
+type SingleFlightStats struct {
+	SingleFlightUsed           bool
+	SingleFlightSharedResponse bool
+}
+
+func GetSingleFlightStats(ctx context.Context) *SingleFlightStats {
+	maybeStats := ctx.Value(singleFlightStatsKey{})
+	if maybeStats == nil {
+		return nil
+	}
+	return maybeStats.(*SingleFlightStats)
+}
+
+func setSingleFlightStats(ctx context.Context, stats *SingleFlightStats) context.Context {
+	return context.WithValue(ctx, singleFlightStatsKey{}, stats)
+}
+
 func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input []byte, out *bytes.Buffer, trace *DataSourceLoadTrace) (err error) {
 	if l.ctx.Extensions != nil {
 		input, err = jsonparser.Set(input, l.ctx.Extensions, "body", "extensions")
@@ -761,6 +784,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 		}
 	}
 	if l.traceOptions.Enable {
+		ctx = setSingleFlightStats(ctx, &SingleFlightStats{})
 		trace.Path = l.renderPath()
 		if !l.traceOptions.ExcludeInput {
 			trace.Input = make([]byte, len(input))
@@ -863,8 +887,16 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 			ctx = httptrace.WithClientTrace(ctx, clientTrace)
 		}
 	}
+	if l.info.OperationType == ast.OperationTypeMutation {
+		ctx = context.WithValue(ctx, disallowSingleFlightContextKey{}, true)
+	}
 	err = source.Load(ctx, input, out)
 	if l.traceOptions.Enable {
+		stats := GetSingleFlightStats(ctx)
+		if stats != nil {
+			trace.SingleFlightUsed = stats.SingleFlightUsed
+			trace.SingleFlightSharedResponse = stats.SingleFlightSharedResponse
+		}
 		if !l.traceOptions.ExcludeOutput && out.Len() > 0 {
 			if l.traceOptions.EnablePredictableDebugTimings {
 				dataCopy := make([]byte, out.Len())
@@ -892,5 +924,5 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 		}
 		return errors.WithStack(err)
 	}
-	return errors.WithStack(err)
+	return nil
 }
