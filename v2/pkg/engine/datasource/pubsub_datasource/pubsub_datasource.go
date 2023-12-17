@@ -1,6 +1,7 @@
 package pubsub_datasource
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/buger/jsonparser"
-	"github.com/tidwall/sjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -173,8 +173,12 @@ func (p *Planner) EnterField(ref int) {
 
 	// Collect the field arguments for fetch based operations
 	fieldArgs := p.visitor.Operation.FieldArguments(ref)
-	data := []byte(`{}`)
-	for _, arg := range fieldArgs {
+	var dataBuffer bytes.Buffer
+	dataBuffer.WriteByte('{')
+	for ii, arg := range fieldArgs {
+		if ii > 0 {
+			dataBuffer.WriteByte(',')
+		}
 		argValue := p.visitor.Operation.ArgumentValue(arg)
 		renderer := resolve.NewJSONVariableRenderer()
 		variableName := p.visitor.Operation.VariableValueNameBytes(argValue.Ref)
@@ -182,13 +186,20 @@ func (p *Planner) EnterField(ref int) {
 			Path:     []string{string(variableName)},
 			Renderer: renderer,
 		}
-		variablePlaceHolder, _ := p.variables.AddVariable(contextVariable) // $$0$$
+		variablePlaceHolder, _ := p.variables.AddVariable(contextVariable)
 		argumentName := p.visitor.Operation.ArgumentNameString(arg)
-		data, _ = sjson.SetBytes(data, argumentName, variablePlaceHolder)
+		escapedKey, err := json.Marshal(argumentName)
+		if err != nil {
+			return
+		}
+		dataBuffer.Write(escapedKey)
+		dataBuffer.WriteByte(':')
+		dataBuffer.WriteString(variablePlaceHolder)
 	}
 
+	dataBuffer.WriteByte('}')
 	p.current.config = eventConfig
-	p.current.data = data
+	p.current.data = dataBuffer.Bytes()
 }
 
 func (p *Planner) EnterDocument(operation, definition *ast.Document) {
