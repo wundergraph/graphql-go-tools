@@ -66,51 +66,6 @@ type Planner struct {
 	}
 }
 
-/*
-Example Schema:
-
-type Subscription {
-	channelUpdates(id: ID!): ChannelUpdate! @pubsub(topic: "channels.{{ args.id }}")
-}
-
-type ChannelUpdate @key(fields: "id") {
-	id: ID!
-	name: String!
-	newMessages: [Message!]!
-}
-
-type Message {
-	id: ID!
-	text: String!
-}
-
-Example Subscription:
-
-subscription {
-	channelUpdates(id: "123") {
-		id
-		name
-		newMessages {
-			id
-			text
-		}
-	}
-}
-
-Example PubSub Message:
-
-{
-	"id": "123",
-	"name": "My Channel",
-	"newMessages": [
-		{
-			"id": "456",
-			"text": "Hello World"
-		}
-	]
-}
-*/
-
 func (p *Planner) EnterField(ref int) {
 	if p.rootFieldRef == -1 {
 		p.rootFieldRef = ref
