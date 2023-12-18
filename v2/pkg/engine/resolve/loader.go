@@ -89,6 +89,7 @@ func (l *Loader) renderPath() string {
 			builder.WriteString("mutation")
 		case ast.OperationTypeSubscription:
 			builder.WriteString("subscription")
+		case ast.OperationTypeUnknown:
 		}
 	}
 	if len(l.path) == 0 {
@@ -342,7 +343,10 @@ func (l *Loader) mergeErrors(ref int) {
 
 func (l *Loader) mergeResult(res *result, items []int) error {
 	defer pool.BytesBuffer.Put(res.out)
-	if res.fetchAborted {
+	if res.err != nil {
+		return l.renderErrorsFailedToFetch(res)
+	}
+	if res.fetchSkipped {
 		return nil
 	}
 	if res.out.Len() == 0 {
@@ -452,8 +456,18 @@ type result struct {
 	postProcessing   PostProcessingConfiguration
 	out              *bytes.Buffer
 	batchStats       [][]int
-	fetchAborted     bool
+	fetchSkipped     bool
 	nestedMergeItems []*result
+
+	err          error
+	subgraphName string
+}
+
+func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
+	r.postProcessing = postProcessing
+	if info != nil {
+		r.subgraphName = info.DataSourceID
+	}
 }
 
 var (
@@ -475,26 +489,27 @@ func (l *Loader) renderErrorsInvalidInput(out *bytes.Buffer) error {
 	return nil
 }
 
-var (
-	errorsFailedToFetchHeader = []byte(`{"errors":[{"message":"failed to fetch","path":[`)
-	errorsFailedToFetchFooter = []byte(`]}]}`)
-)
-
-func (l *Loader) renderErrorsFailedToFetch(out *bytes.Buffer) error {
-	_, _ = out.Write(errorsFailedToFetchHeader)
-	for i := range l.path {
-		if i != 0 {
-			_, _ = out.Write(comma)
+func (l *Loader) renderErrorsFailedToFetch(res *result) error {
+	path := l.renderPath()
+	l.ctx.appendSubgraphError(errors.Wrap(res.err, fmt.Sprintf("failed to fetch from subgraph '%s' at path '%s'", res.subgraphName, path)))
+	if res.subgraphName == "" {
+		errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Failed to fetch from Subgraph at path '%s'."}`, path)))
+		if err != nil {
+			return errors.WithStack(err)
 		}
-		_, _ = out.Write(quote)
-		_, _ = out.WriteString(l.path[i])
-		_, _ = out.Write(quote)
+		l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+	} else {
+		errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Failed to fetch from Subgraph '%s' at path '%s'."}`, res.subgraphName, path)))
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
 	}
-	_, _ = out.Write(errorsFailedToFetchFooter)
 	return nil
 }
 
 func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items []int, res *result) error {
+	res.init(fetch.PostProcessing, fetch.Info)
 	input := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(input)
 	preparedInput := pool.BytesBuffer.Get()
@@ -515,15 +530,12 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items 
 	if err != nil {
 		return l.renderErrorsInvalidInput(res.out)
 	}
-	err = l.executeSourceLoad(ctx, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
-	if err != nil {
-		return l.renderErrorsFailedToFetch(res.out)
-	}
-	res.postProcessing = fetch.PostProcessing
+	res.err = l.executeSourceLoad(ctx, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	return nil
 }
 
 func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items []int, res *result) error {
+	res.init(fetch.PostProcessing, fetch.Info)
 	itemData := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(itemData)
 	preparedInput := pool.BytesBuffer.Get()
@@ -566,7 +578,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 	renderedItem := item.Bytes()
 	if bytes.Equal(renderedItem, null) {
 		// skip fetch if item is null
-		res.fetchAborted = true
+		res.fetchSkipped = true
 		if l.traceOptions.Enable {
 			fetch.Trace.LoadSkipped = true
 		}
@@ -574,7 +586,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 	}
 	if bytes.Equal(renderedItem, emptyObject) {
 		// skip fetch if item is empty
-		res.fetchAborted = true
+		res.fetchSkipped = true
 		if l.traceOptions.Enable {
 			fetch.Trace.LoadSkipped = true
 		}
@@ -590,17 +602,13 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 	if err != nil {
 		return errors.WithStack(err)
 	}
-
-	err = l.executeSourceLoad(ctx, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	res.postProcessing = fetch.PostProcessing
+	res.err = l.executeSourceLoad(ctx, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	return nil
 }
 
 func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityFetch, items []int, res *result) error {
-	res.postProcessing = fetch.PostProcessing
+	res.init(fetch.PostProcessing, fetch.Info)
+
 	if l.traceOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.traceOptions.ExcludeRawInputData {
@@ -691,7 +699,7 @@ WithNextItem:
 
 	if len(itemHashes) == 0 {
 		// all items were skipped - discard fetch
-		res.fetchAborted = true
+		res.fetchSkipped = true
 		if l.traceOptions.Enable {
 			fetch.Trace.LoadSkipped = true
 		}
@@ -707,10 +715,7 @@ WithNextItem:
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	err = l.executeSourceLoad(ctx, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
-	if err != nil {
-		return errors.WithStack(err)
-	}
+	res.err = l.executeSourceLoad(ctx, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	return nil
 }
 
@@ -916,13 +921,13 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 			trace.DurationLoadPretty = time.Duration(trace.DurationLoadNano).String()
 		}
 	}
-	l.ctx.Stats.NumberOfFetches.Inc()
-	l.ctx.Stats.CombinedResponseSize.Add(int64(out.Len()))
 	if err != nil {
 		if l.traceOptions.Enable {
 			trace.LoadError = err.Error()
 		}
 		return errors.WithStack(err)
 	}
+	l.ctx.Stats.NumberOfFetches.Inc()
+	l.ctx.Stats.CombinedResponseSize.Add(int64(out.Len()))
 	return nil
 }
