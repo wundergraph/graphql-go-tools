@@ -469,6 +469,33 @@ func BenchmarkResolvable_ResolveWithErrorBubbleUp(b *testing.B) {
 	}
 }
 
+func TestResolvable_WithTracingNotStarted(t *testing.T) {
+	res := NewResolvable()
+	// Do not start a trace with SetTraceStart(), but request it to be output
+	ctx := NewContext(context.Background())
+	ctx.RequestTracingOptions.IncludeTraceOutputInResponseExtensions = true
+	err := res.Init(ctx, []byte(`{"hello": "world"}`), ast.OperationTypeQuery)
+	assert.NoError(t, err)
+	object := &Object{
+		Fields: []*Field{
+			{
+				Name: []byte("hello"),
+				Value: &String{
+					Path: []string{"hello"},
+				},
+			},
+		},
+	}
+	out := &bytes.Buffer{}
+	err = res.Resolve(ctx.ctx, object, out)
+
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{
+		"data": {"hello":"world"},
+		"extensions":{"trace":{"node_type":"object","nullable":true,"fields":[{"name":"hello","value":{"node_type":"string","path":["hello"]}}]}}
+	}`, out.String())
+}
+
 func TestResolvable_WithTracing(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
 	res := NewResolvable()
