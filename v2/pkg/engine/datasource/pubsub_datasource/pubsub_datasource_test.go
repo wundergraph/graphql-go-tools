@@ -130,7 +130,6 @@ func TestPubSub(t *testing.T) {
 	}
 
 	t.Run("query", func(t *testing.T) {
-		t.Parallel()
 		const operation = "query HelloQuery { helloQuery(id:42) }"
 		const operationName = `HelloQuery`
 		expect := &plan.SynchronousResponsePlan{
@@ -169,7 +168,6 @@ func TestPubSub(t *testing.T) {
 	})
 
 	t.Run("mutation", func(t *testing.T) {
-		t.Parallel()
 		const operation = "mutation HelloMutation { helloMutation(id: 42, input:\"world\") }"
 		const operationName = `HelloMutation`
 		expect := &plan.SynchronousResponsePlan{
@@ -212,7 +210,6 @@ func TestPubSub(t *testing.T) {
 	})
 
 	t.Run("subscription", func(t *testing.T) {
-		t.Parallel()
 		const operation = "subscription HelloSubscription { helloSubscription(id: 42) }"
 		const operationName = `HelloSubscription`
 		expect := &plan.SubscriptionResponsePlan{
