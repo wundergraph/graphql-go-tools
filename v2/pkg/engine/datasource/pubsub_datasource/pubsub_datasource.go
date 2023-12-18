@@ -195,8 +195,7 @@ func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 		Variables:  p.variables,
 		DataSource: dataSource,
 		PostProcessing: resolve.PostProcessingConfiguration{
-			SelectResponseErrorsPath: []string{"errors"},
-			MergePath:                []string{p.current.config.FieldName},
+			MergePath: []string{p.current.config.FieldName},
 		},
 	}
 }
@@ -212,8 +211,7 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 			pubSub: p.pubSub,
 		},
 		PostProcessing: resolve.PostProcessingConfiguration{
-			SelectResponseErrorsPath: []string{"errors"},
-			MergePath:                []string{p.current.config.FieldName},
+			MergePath: []string{p.current.config.FieldName},
 		},
 	}
 }
