@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -1681,6 +1682,69 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 			},
 		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage"}],"data":{"name":null}}`
+	}))
+	t.Run("fetch with returned err", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				return &net.AddrError{}
+			})
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: false,
+				Fetch: &SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: mockDataSource,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseErrorsPath: []string{"errors"},
+						},
+					},
+					Info: &FetchInfo{
+						DataSourceID: "Users",
+					},
+				},
+				Fields: []*Field{
+					{
+						Name: []byte("name"),
+						Value: &String{
+							Path:     []string{"name"},
+							Nullable: true,
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at path 'query'."}],"data":null}`
+	}))
+	t.Run("fetch with returned err", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				return &net.AddrError{}
+			})
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: false,
+				Fetch: &SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: mockDataSource,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseErrorsPath: []string{"errors"},
+						},
+					},
+				},
+				Fields: []*Field{
+					{
+						Name: []byte("name"),
+						Value: &String{
+							Path:     []string{"name"},
+							Nullable: true,
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph at path 'query'."}],"data":null}`
 	}))
 	t.Run("fetch with two Errors", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)

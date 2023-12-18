@@ -35,6 +35,8 @@ require (
 	github.com/agnivade/levenshtein v1.1.1 // indirect
 	github.com/gobwas/httphead v0.0.0-20180130184737-2c6c146eadee // indirect
 	github.com/gobwas/pool v0.2.0 // indirect
+	github.com/hashicorp/errwrap v1.0.0 // indirect
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/klauspost/compress v1.14.4 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/logrusorgru/aurora/v3 v3.0.0 // indirect
