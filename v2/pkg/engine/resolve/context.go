@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 )
 
@@ -17,6 +18,16 @@ type Context struct {
 	InitialPayload        []byte
 	Extensions            []byte
 	Stats                 Stats
+
+	subgraphErrors error
+}
+
+func (c *Context) SubgraphErrors() error {
+	return c.subgraphErrors
+}
+
+func (c *Context) appendSubgraphError(err error) {
+	c.subgraphErrors = multierror.Append(c.subgraphErrors, err)
 }
 
 type Stats struct {
@@ -78,6 +89,7 @@ func (c *Context) Free() {
 	c.RequestTracingOptions.DisableAll()
 	c.Extensions = nil
 	c.Stats.Reset()
+	c.subgraphErrors = nil
 }
 
 type traceStartKey struct{}
