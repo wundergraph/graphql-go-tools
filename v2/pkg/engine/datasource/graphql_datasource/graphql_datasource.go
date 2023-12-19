@@ -923,12 +923,16 @@ func (p *Planner) addOnTypeInlineFragment() {
 	}
 
 	selectionSet := p.upstreamOperation.AddSelectionSet()
-	p.addTypenameToSelectionSet(p.nodes[len(p.nodes)-1].Ref)
-
 	onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchBytes([]byte(p.lastFieldEnclosingTypeName))
 
 	// rename type name in case it is required by entity interface
-	onTypeName = p.dataSourceConfig.RenameTypes.RenameTypeNameOnMatchBytes([]byte(p.lastFieldEnclosingTypeName))
+	var renamed bool
+	onTypeName, renamed = p.dataSourceConfig.RenameTypes.RenameTypeNameOnMatchBytesWithResult([]byte(p.lastFieldEnclosingTypeName))
+
+	// we should not request a typename of interface object
+	if !renamed {
+		p.addTypenameToSelectionSet(p.nodes[len(p.nodes)-1].Ref)
+	}
 
 	typeRef := p.upstreamOperation.AddNamedType(onTypeName)
 	inlineFragment := p.upstreamOperation.AddInlineFragment(ast.InlineFragment{
@@ -1434,6 +1438,7 @@ func (p *Planner) printOperation() []byte {
 		return nil
 	}
 
+	// p.printQueryPlan(p.upstreamOperation) // uncomment to print upstream operation before normalization
 	p.printQueryPlan(operation)
 
 	buf.Reset()

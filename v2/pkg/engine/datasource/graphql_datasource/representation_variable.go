@@ -24,10 +24,11 @@ func buildRepresentationVariableNode(cfg plan.FederationFieldConfiguration, defi
 	walker := astvisitor.NewWalker(48)
 
 	visitor := &representationVariableVisitor{
-		typeName:    cfg.TypeName,
-		addOnType:   true,
-		addTypeName: true,
-		Walker:      &walker,
+		typeName:                cfg.TypeName,
+		interfaceObjectTypeName: cfg.InterfaceObjectTypeName,
+		addOnType:               true,
+		addTypeName:             true,
+		Walker:                  &walker,
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterFieldVisitor(visitor)
@@ -90,7 +91,9 @@ type representationVariableVisitor struct {
 	currentFields []objectFields
 	rootObject    *resolve.Object
 
-	typeName    string
+	typeName                string
+	interfaceObjectTypeName string
+
 	addOnType   bool
 	addTypeName bool
 }
@@ -103,9 +106,17 @@ func (v *representationVariableVisitor) EnterDocument(key, definition *ast.Docum
 	if v.addTypeName {
 		typeNameField := &resolve.Field{
 			Name: []byte("__typename"),
-			Value: &resolve.String{
+		}
+
+		if v.interfaceObjectTypeName != "" {
+			typeNameField.Value = &resolve.StaticString{
+				Path:  []string{"__typename"},
+				Value: v.interfaceObjectTypeName,
+			}
+		} else {
+			typeNameField.Value = &resolve.String{
 				Path: []string{"__typename"},
-			},
+			}
 		}
 
 		if v.addOnType {

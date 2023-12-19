@@ -13,6 +13,7 @@ const (
 	NodeKindBigInt
 	NodeKindCustom
 	NodeKindScalar
+	NodeKindStaticString
 )
 
 type Node interface {

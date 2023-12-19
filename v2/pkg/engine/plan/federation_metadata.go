@@ -7,10 +7,10 @@ type FederationMetaData struct {
 }
 
 type FederationFieldConfiguration struct {
-	TypeName       string
-	FieldName      string
-	SelectionSet   string
-	InterfaceNames []string
+	TypeName                string
+	FieldName               string
+	SelectionSet            string
+	InterfaceObjectTypeName string
 }
 
 type FederationFieldConfigurations []FederationFieldConfiguration
