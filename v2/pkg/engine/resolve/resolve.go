@@ -3,6 +3,7 @@
 package resolve
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"sync"
@@ -10,12 +11,13 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 type Resolver struct {
-	ctx      context.Context
-	toolPool sync.Pool
+	ctx                 context.Context
+	toolPool            sync.Pool
+	limitMaxConcurrency bool
+	maxConcurrency      chan struct{}
 }
 
 type tools struct {
@@ -23,9 +25,19 @@ type tools struct {
 	loader     *Loader
 }
 
+type ResolverOptions struct {
+	// MaxConcurrency limits the number of concurrent resolve operations
+	// if set to 0, no limit is applied
+	// It is advised to set this to a reasonable value to prevent excessive memory usage
+	// Each concurrent resolve operation allocates ~50kb of memory
+	// In addition, there's a limit of how many concurrent requests can be efficiently resolved
+	// This depends on the number of CPU cores available, the complexity of the operations, and the origin services
+	MaxConcurrency int
+}
+
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
-func New(ctx context.Context) *Resolver {
-	return &Resolver{
+func New(ctx context.Context, options ResolverOptions) *Resolver {
+	resolver := &Resolver{
 		ctx: ctx,
 		toolPool: sync.Pool{
 			New: func() interface{} {
@@ -36,9 +48,21 @@ func New(ctx context.Context) *Resolver {
 			},
 		},
 	}
+	if options.MaxConcurrency > 0 {
+		semaphore := make(chan struct{}, options.MaxConcurrency)
+		for i := 0; i < options.MaxConcurrency; i++ {
+			semaphore <- struct{}{}
+		}
+		resolver.limitMaxConcurrency = true
+		resolver.maxConcurrency = semaphore
+	}
+	return resolver
 }
 
 func (r *Resolver) getTools() *tools {
+	if r.limitMaxConcurrency {
+		<-r.maxConcurrency
+	}
 	t := r.toolPool.Get().(*tools)
 	return t
 }
@@ -47,6 +71,9 @@ func (r *Resolver) putTools(t *tools) {
 	t.loader.Free()
 	t.resolvable.Reset()
 	r.toolPool.Put(t)
+	if r.limitMaxConcurrency {
+		r.maxConcurrency <- struct{}{}
+	}
 }
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
@@ -79,14 +106,12 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return writeAndFlush(writer, msg)
 	}
 
-	buf := pool.BytesBuffer.Get()
-	defer pool.BytesBuffer.Put(buf)
-	if err := subscription.Trigger.InputTemplate.Render(ctx, nil, buf); err != nil {
+	buf := bytes.NewBuffer(nil)
+	err = subscription.Trigger.InputTemplate.Render(ctx, nil, buf)
+	if err != nil {
 		return err
 	}
-	rendered := buf.Bytes()
-	subscriptionInput := make([]byte, len(rendered))
-	copy(subscriptionInput, rendered)
+	subscriptionInput := buf.Bytes()
 
 	if len(ctx.InitialPayload) > 0 {
 		subscriptionInput, err = jsonparser.Set(subscriptionInput, ctx.InitialPayload, "initial_payload")
@@ -115,9 +140,6 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return err
 	}
 
-	t := r.getTools()
-	defer r.putTools(t)
-
 	for {
 		select {
 		case <-resolverDone:
@@ -126,17 +148,21 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 			if !ok {
 				return nil
 			}
-			t.resolvable.Reset()
+			t := r.getTools()
 			if err := t.resolvable.InitSubscription(ctx, data, subscription.Trigger.PostProcessing); err != nil {
+				r.putTools(t)
 				return err
 			}
 			if err := t.loader.LoadGraphQLResponseData(ctx, subscription.Response, t.resolvable); err != nil {
+				r.putTools(t)
 				return err
 			}
 			if err := t.resolvable.Resolve(ctx.ctx, subscription.Response.Data, writer); err != nil {
+				r.putTools(t)
 				return err
 			}
 			writer.Flush()
+			r.putTools(t)
 		}
 	}
 }

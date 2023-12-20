@@ -513,7 +513,9 @@ This plan can now be executed by using the Resolver.
 
 func ExampleExecuteOperation() {
 	var preparedPlan plan.Plan
-	resolver := resolve.New(context.Background())
+	resolver := resolve.New(context.Background(), resolve.ResolverOptions{
+		MaxConcurrency: 1024,
+	})
 
 	ctx := resolve.NewContext(context.Background())
 
