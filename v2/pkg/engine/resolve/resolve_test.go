@@ -55,7 +55,9 @@ func fakeDataSourceWithInputCheck(t TestingTB, input []byte, data []byte) *_fake
 }
 
 func newResolver(ctx context.Context) *Resolver {
-	return New(ctx)
+	return New(ctx, ResolverOptions{
+		MaxConcurrency: 1024,
+	})
 }
 
 type customResolver struct{}

@@ -201,10 +201,12 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 	}
 
 	return &ExecutionEngineV2{
-		logger:   logger,
-		config:   engineConfig,
-		planner:  plan.NewPlanner(ctx, engineConfig.plannerConfig),
-		resolver: resolve.New(ctx),
+		logger:  logger,
+		config:  engineConfig,
+		planner: plan.NewPlanner(ctx, engineConfig.plannerConfig),
+		resolver: resolve.New(ctx, resolve.ResolverOptions{
+			MaxConcurrency: 1024,
+		}),
 		internalExecutionContextPool: sync.Pool{
 			New: func() interface{} {
 				return newInternalExecutionContext()
