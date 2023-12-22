@@ -70,9 +70,9 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 				mutation simple($a: String) {
 			  		mixed(a: $a, b: "bar")
 				}`, "", `
-				mutation simple($a: String, $b: String, $c: String!) {
-			  		mixed(a: $a, b: "bar", input: $b, nonNullInput: $c)
-				}`, `{"a":"aaa"}`, `{"c":"bar","b":"foo","a":"aaa"}`)
+				mutation simple($a: String, $b: String, $c: String!, $d: String) {
+			  		mixed(a: $a, b: "bar", input: $b, nonNullInput: $c, nullableWithNullDefault: $d)
+				}`, `{"a":"aaa"}`, `{"d":null,"c":"bar","b":"foo","a":"aaa"}`)
 		})
 	})
 
