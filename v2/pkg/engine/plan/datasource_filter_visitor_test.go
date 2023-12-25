@@ -755,6 +755,31 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			},
 		},
 		{
+			Description: "Shareable: should select details from correct ds",
+			Definition:  shareableDefinition,
+			Query: `
+				query {
+					me {
+						details {
+							pets {
+								name
+							}
+						}
+					}
+				}
+			`,
+			DataSources: []DataSourceConfiguration{
+				shareableDS1,
+				shareableDS3,
+			},
+			ExpectedSuggestions: NodeSuggestions{
+				{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
+				{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
+				{TypeName: "Details", FieldName: "pets", DataSourceHash: 33, Path: "query.me.details.pets", ParentPath: "query.me.details", IsRootNode: false, selected: true},
+				{TypeName: "Pet", FieldName: "name", DataSourceHash: 33, Path: "query.me.details.pets.name", ParentPath: "query.me.details.pets", IsRootNode: false, selected: true},
+			},
+		},
+		{
 			Description: "Shareable: should use all ds",
 			Definition:  shareableDefinition,
 			Query: `
@@ -964,6 +989,11 @@ const shareableDefinition = `
 		surname: String!
 		middlename: String!
 		age: Int!
+		pets: [Pet!]
+	}
+
+	type Pet {
+		name: String!
 	}
 
 	type Query {
@@ -1022,12 +1052,18 @@ const shareableDS3Schema = `
 
 	type Details {
 		age: Int!
+		pets: [Pet!]
+	}
+
+	type Pet {
+		name: String!
 	}
 `
 
 var shareableDS3 = dsb().Hash(33).Schema(shareableDS3Schema).
 	RootNode("User", "id", "details").
-	ChildNode("Details", "age").
+	ChildNode("Details", "age", "pets").
+	ChildNode("Pet", "name").
 	DS()
 
 const conflictingPaths1Schema = `
