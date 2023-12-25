@@ -16,6 +16,8 @@ type DataSourceFilter struct {
 	operation  *ast.Document
 	definition *ast.Document
 	report     *operationreport.Report
+
+	nodes NodeSuggestions
 }
 
 func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report) *DataSourceFilter {
@@ -47,23 +49,23 @@ func (f *DataSourceFilter) FilterDataSources(dataSources []DataSourceConfigurati
 }
 
 func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSourceConfiguration, existingNodes NodeSuggestions) NodeSuggestions {
-	nodes := f.collectNodes(dataSources, existingNodes)
+	f.nodes = f.collectNodes(dataSources, existingNodes)
 	if f.report.HasErrors() {
 		return nil
 	}
 
-	nodes = selectUniqNodes(nodes)
-	nodes = selectDuplicateNodes(nodes, false)
-	nodes = selectDuplicateNodes(nodes, true)
+	f.selectUniqNodes()
+	f.selectDuplicateNodes(false)
+	f.selectDuplicateNodes(true)
 
-	nodes = selectedNodes(nodes)
+	f.nodes = f.selectedNodes()
 
-	f.isResolvable(nodes)
+	f.isResolvable(f.nodes)
 	if f.report.HasErrors() {
 		return nil
 	}
 
-	return nodes
+	return f.nodes
 }
 
 func (f *DataSourceFilter) collectNodes(dataSources []DataSourceConfiguration, existingNodes NodeSuggestions) (nodes NodeSuggestions) {
@@ -220,6 +222,20 @@ func (f NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
 		}
 	}
 	return
+}
+
+func (f NodeSuggestions) childNodesIsNotRoot(idx int) bool {
+	for i := range f {
+		if i == idx {
+			continue
+		}
+		if f[i].ParentPath == f[idx].Path || (f[i].parentPathWithoutFragment != nil && *f[i].parentPathWithoutFragment == f[idx].Path) {
+			if !f[i].IsRootNode {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (f NodeSuggestions) siblingNodesOnSameSource(idx int) (out []int) {
@@ -407,117 +423,153 @@ const (
 	ReasonStage3SelectAvailableNode = "stage3: select first available node"
 )
 
-func selectUniqNodes(nodes NodeSuggestions) []NodeSuggestion {
-	for i := range nodes {
-		if nodes[i].selected {
+func (f *DataSourceFilter) selectUniqNodes() {
+	for i := range f.nodes {
+		if f.nodes[i].selected {
 			continue
 		}
 
-		isNodeUnique := nodes.isNodeUniq(i)
+		isNodeUnique := f.nodes.isNodeUniq(i)
 		if !isNodeUnique {
 			continue
 		}
 
 		// unique nodes always have priority
-		nodes[i].selectWithReason(ReasonStage1Uniq)
+		f.nodes[i].selectWithReason(ReasonStage1Uniq)
 
-		if !nodes[i].onFragment { // on a first stage do not select parent of nodes on fragments
+		if !f.nodes[i].onFragment { // on a first stage do not select parent of nodes on fragments
 			// if node parent of the unique node is on the same source, prioritize it too
-			parentIdx, ok := nodes.parentNodeOnSameSource(i)
+			parentIdx, ok := f.nodes.parentNodeOnSameSource(i)
 			// Only select the parent on this stage if the node is a leaf; otherwise, the parent is selected elsewhere
-			if ok && nodes.isLeaf(i) {
-				nodes[parentIdx].selectWithReason(ReasonStage1SameSourceParent)
+			if ok && f.nodes.isLeaf(i) {
+				f.nodes[parentIdx].selectWithReason(ReasonStage1SameSourceParent)
 			}
 		}
 
 		// if node has leaf children on the same source, prioritize them too
-		children := nodes.childNodesOnSameSource(i)
+		children := f.nodes.childNodesOnSameSource(i)
 		for _, child := range children {
-			if nodes.isLeaf(child) && nodes.isNodeUniq(child) {
-				nodes[child].selectWithReason(ReasonStage1SameSourceLeafChild)
+			if f.nodes.isLeaf(child) && f.nodes.isNodeUniq(child) {
+				f.nodes[child].selectWithReason(ReasonStage1SameSourceLeafChild)
 			}
 		}
 
 		// prioritize leaf siblings of the node on the same source
-		siblings := nodes.siblingNodesOnSameSource(i)
+		siblings := f.nodes.siblingNodesOnSameSource(i)
 		for _, sibling := range siblings {
-			if nodes.isLeaf(sibling) && nodes.isNodeUniq(sibling) {
-				nodes[sibling].selectWithReason(ReasonStage1SameSourceLeafSibling)
+			if f.nodes.isLeaf(sibling) && f.nodes.isNodeUniq(sibling) {
+				f.nodes[sibling].selectWithReason(ReasonStage1SameSourceLeafSibling)
 			}
 		}
 	}
-	return nodes
 }
 
-func selectDuplicateNodes(nodes NodeSuggestions, secondRun bool) []NodeSuggestion {
-	for i := range nodes {
-		if nodes[i].selected {
+func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
+	for i := range f.nodes {
+		if f.nodes[i].selected {
 			continue
 		}
 
-		if nodes.isSelectedOnOtherSource(i) {
+		if f.nodes.isSelectedOnOtherSource(i) {
 			continue
 		}
 
-		// if node parent on the same source as the current node
-		parentIdx, ok := nodes.parentNodeOnSameSource(i)
-		if ok && nodes[parentIdx].selected {
-			nodes[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedParent)
-			continue
-		}
+		childNodesIsNotRoot := f.nodes.childNodesIsNotRoot(i)
+		nodeDuplicates := f.nodes.duplicatesOf(i)
 
-		isSelected := false
-
-		// check if duplicates are on the same source as parent node
-		nodeDuplicates := nodes.duplicatesOf(i)
-		for _, duplicate := range nodeDuplicates {
-			parentIdx, ok := nodes.parentNodeOnSameSource(duplicate)
-			if ok && nodes[parentIdx].selected {
-				nodes[duplicate].selectWithReason(ReasonStage2SameSourceDuplicateNodeOfSelectedParent)
-				isSelected = true
-				break
+		if !childNodesIsNotRoot {
+			// check for selected parent of a current node or its duplicates
+			if f.checkNodeParent(i) {
+				continue
+			}
+			if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeParent) {
+				continue
 			}
 		}
-		if isSelected {
+
+		// check for selected childs of a current node or its duplicates
+		if f.checkNodeChilds(i) {
+			continue
+		}
+		if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeChilds) {
 			continue
 		}
 
-		childs := nodes.childNodesOnSameSource(i)
-		for _, child := range childs {
-			if nodes[child].selected {
-				nodes[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedChild)
-				isSelected = true
-				break
+		// check for selected siblings of a current node or its duplicates
+		if f.checkNodeSiblings(i) {
+			continue
+		}
+		if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeSiblings) {
+			continue
+		}
+
+		if childNodesIsNotRoot {
+			// check for selected parent of a current node or its duplicates
+			if f.checkNodeParent(i) {
+				continue
+			}
+			if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeParent) {
+				continue
 			}
 		}
-		if isSelected {
-			continue
-		}
 
-		siblings := nodes.siblingNodesOnSameSource(i)
-		for _, sibling := range siblings {
-			if nodes[sibling].selected {
-				nodes[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedSibling)
-				isSelected = true
-				break
-			}
-		}
-		if isSelected {
-			continue
-		}
-
+		// if after all checks node was not selected, select it
+		// this could happen in case choises are fully equal
 		if secondRun {
-			nodes[i].selectWithReason(ReasonStage3SelectAvailableNode)
+			f.nodes[i].selectWithReason(ReasonStage3SelectAvailableNode)
 		}
 	}
-	return nodes
 }
 
-func selectedNodes(nodes NodeSuggestions) (out NodeSuggestions) {
-	for i := range nodes {
-		if nodes[i].selected {
-			out = append(out, nodes[i])
+func (f *DataSourceFilter) selectedNodes() (out NodeSuggestions) {
+	for i := range f.nodes {
+		if f.nodes[i].selected {
+			out = append(out, f.nodes[i])
 		}
 	}
+	return
+}
+
+func (f *DataSourceFilter) checkNodeDuplicates(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool)) (nodeIsSelected bool) {
+	for _, duplicate := range duplicates {
+		if callback(duplicate) {
+			nodeIsSelected = true
+			break
+		}
+	}
+	return
+}
+
+func (f *DataSourceFilter) checkNodeChilds(i int) (nodeIsSelected bool) {
+	childs := f.nodes.childNodesOnSameSource(i)
+	for _, child := range childs {
+		if f.nodes[child].selected {
+			f.nodes[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedChild)
+			nodeIsSelected = true
+			break
+		}
+	}
+	return
+}
+
+func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
+	siblings := f.nodes.siblingNodesOnSameSource(i)
+	for _, sibling := range siblings {
+		if f.nodes[sibling].selected {
+			f.nodes[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedSibling)
+			nodeIsSelected = true
+			break
+		}
+	}
+	return
+}
+
+func (f *DataSourceFilter) checkNodeParent(i int) (nodeIsSelected bool) {
+	parentIdx, ok := f.nodes.parentNodeOnSameSource(i)
+	if ok && f.nodes[parentIdx].selected {
+		f.nodes[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedParent)
+		nodeIsSelected = true
+	}
+
 	return
 }
