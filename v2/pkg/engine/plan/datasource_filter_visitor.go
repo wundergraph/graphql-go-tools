@@ -2,6 +2,7 @@ package plan
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/pkg/errors"
 
@@ -541,12 +542,9 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 }
 
 func (f *DataSourceFilter) selectedNodes() (out NodeSuggestions) {
-	for i := range f.nodes {
-		if f.nodes[i].selected {
-			out = append(out, f.nodes[i])
-		}
-	}
-	return
+	return slices.DeleteFunc(f.nodes, func(e NodeSuggestion) bool {
+		return !e.selected
+	})
 }
 
 func (f *DataSourceFilter) checkNodeDuplicates(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool)) (nodeIsSelected bool) {
