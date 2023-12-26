@@ -423,6 +423,10 @@ const (
 	ReasonStage3SelectAvailableNode = "stage3: select first available node"
 )
 
+// selectUniqNodes - selects nodes (e.g. fields) which are unique to a single datasource
+// In addition we select:
+//   - parent of such node if the node is a leaf and not nested under the fragment
+//   - siblings nodes
 func (f *DataSourceFilter) selectUniqNodes() {
 	for i := range f.nodes {
 		if f.nodes[i].selected {
@@ -464,6 +468,16 @@ func (f *DataSourceFilter) selectUniqNodes() {
 	}
 }
 
+// selectDuplicateNodes - selects nodes (e.g. fields) which are not unique to a single datasource,
+// e.g. could be resolved by multiple datasources
+// This method checks only nodes not already selected on the other datasource
+// On a first run we are doing set of checks of surrounding nodes selection for the current analyzed node and each of its duplicates:
+//   - check for selected parent of a current node or its duplicates
+//   - check for selected childs of a current node or its duplicates
+//   - check for selected siblings of a current node or its duplicates
+//
+// On a second run in additional to all the checks from the first run
+// we select nodes which was not choosen by previous stages, so we just pick first available datasource
 func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 	for i := range f.nodes {
 		if f.nodes[i].selected {
@@ -474,6 +488,12 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 			continue
 		}
 
+		// NOTE: We need to know is current node contains child nodes which is not root nodes
+		// In this case we could not reach such nodes from other datasources which do not provide these fields
+		// In order to correctly select parent for such nodes we should not select current node based on a parent node
+		// datasource, instead we are checking ds of current node childs and siblings first
+		//
+		// Mostly it is a fix for shareable behaviour
 		childNodesIsNotRoot := f.nodes.childNodesIsNotRoot(i)
 		nodeDuplicates := f.nodes.duplicatesOf(i)
 
