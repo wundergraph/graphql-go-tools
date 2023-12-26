@@ -55,8 +55,11 @@ func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSourceConfigu
 	}
 
 	f.selectUniqNodes()
+	// f.printNodes("uniq nodes")
 	f.selectDuplicateNodes(false)
+	// f.printNodes("duplicate nodes")
 	f.selectDuplicateNodes(true)
+	// f.printNodes("duplicate nodes after second run")
 
 	f.nodes = f.selectedNodes()
 
@@ -66,6 +69,13 @@ func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSourceConfigu
 	}
 
 	return f.nodes
+}
+
+func (f *DataSourceFilter) printNodes(msg string) {
+	fmt.Println(msg)
+	for i := range f.nodes {
+		fmt.Println(f.nodes[i].String())
+	}
 }
 
 func (f *DataSourceFilter) collectNodes(dataSources []DataSourceConfiguration, existingNodes NodeSuggestions) (nodes NodeSuggestions) {
@@ -126,7 +136,8 @@ func (n *NodeSuggestion) selectWithReason(reason string) {
 }
 
 func (n *NodeSuggestion) String() string {
-	return fmt.Sprintf(`{"ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t, "select reason": %v}`, n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode, n.selectionReasons)
+	return fmt.Sprintf(`{"ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t, "isSelected": %v,"select reason": %v}`,
+		n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode, n.selected, n.selectionReasons)
 }
 
 type NodeSuggestions []NodeSuggestion
@@ -222,20 +233,6 @@ func (f NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
 		}
 	}
 	return
-}
-
-func (f NodeSuggestions) childNodesIsNotRoot(idx int) bool {
-	for i := range f {
-		if i == idx {
-			continue
-		}
-		if f[i].ParentPath == f[idx].Path || (f[i].parentPathWithoutFragment != nil && *f[i].parentPathWithoutFragment == f[idx].Path) {
-			if !f[i].IsRootNode {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func (f NodeSuggestions) siblingNodesOnSameSource(idx int) (out []int) {
@@ -442,12 +439,8 @@ func (f *DataSourceFilter) selectUniqNodes() {
 		f.nodes[i].selectWithReason(ReasonStage1Uniq)
 
 		if !f.nodes[i].onFragment { // on a first stage do not select parent of nodes on fragments
-			// if node parent of the unique node is on the same source, prioritize it too
-			parentIdx, ok := f.nodes.parentNodeOnSameSource(i)
-			// Only select the parent on this stage if the node is a leaf; otherwise, the parent is selected elsewhere
-			if ok && f.nodes.isLeaf(i) {
-				f.nodes[parentIdx].selectWithReason(ReasonStage1SameSourceParent)
-			}
+			// if node parents of the unique node is on the same source, prioritize it too
+			f.selectUniqNodeParentsUpToRootNode(i)
 		}
 
 		// if node has leaf children on the same source, prioritize them too
@@ -464,6 +457,31 @@ func (f *DataSourceFilter) selectUniqNodes() {
 			if f.nodes.isLeaf(sibling) && f.nodes.isNodeUniq(sibling) {
 				f.nodes[sibling].selectWithReason(ReasonStage1SameSourceLeafSibling)
 			}
+		}
+	}
+}
+
+func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
+	// When we have a chain of datasource child nodes, we should select every parent until we reach the root node
+	// as root node is a starting point from where we could get all theese child nodes
+
+	if f.nodes[i].IsRootNode {
+		// no need to select parent of a root node here
+		// as it could be resolved by itself
+		return
+	}
+
+	current := i
+	for {
+		parentIdx, ok := f.nodes.parentNodeOnSameSource(current)
+		if !ok {
+			break
+		}
+		f.nodes[parentIdx].selectWithReason(ReasonStage1SameSourceParent)
+
+		current = parentIdx
+		if f.nodes[current].IsRootNode {
+			break
 		}
 	}
 }
@@ -488,23 +506,14 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 			continue
 		}
 
-		// NOTE: We need to know is current node contains child nodes which is not root nodes
-		// In this case we could not reach such nodes from other datasources which do not provide these fields
-		// In order to correctly select parent for such nodes we should not select current node based on a parent node
-		// datasource, instead we are checking ds of current node childs and siblings first
-		//
-		// Mostly it is a fix for shareable behaviour
-		childNodesIsNotRoot := f.nodes.childNodesIsNotRoot(i)
 		nodeDuplicates := f.nodes.duplicatesOf(i)
 
-		if !childNodesIsNotRoot {
-			// check for selected parent of a current node or its duplicates
-			if f.checkNodeParent(i) {
-				continue
-			}
-			if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeParent) {
-				continue
-			}
+		// check for selected parent of a current node or its duplicates
+		if f.checkNodeParent(i) {
+			continue
+		}
+		if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeParent) {
+			continue
 		}
 
 		// check for selected childs of a current node or its duplicates
@@ -521,16 +530,6 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 		}
 		if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeSiblings) {
 			continue
-		}
-
-		if childNodesIsNotRoot {
-			// check for selected parent of a current node or its duplicates
-			if f.checkNodeParent(i) {
-				continue
-			}
-			if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeParent) {
-				continue
-			}
 		}
 
 		// if after all checks node was not selected, select it

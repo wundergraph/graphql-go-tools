@@ -920,6 +920,58 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				},
 			},
 		},
+		{
+			Description: "Shareable: conflicting paths with relay style pagination over shareable child nodes",
+			Definition:  conflictingShareablePathsRelayStyleDefinition,
+			Query: `
+				query {
+					users {
+						edges {
+							node {
+								id
+								firstName
+								lastName
+								address {
+									street
+								}
+							}
+						}
+					}
+				}
+			`,
+			DataSources: []DataSourceConfiguration{
+				conflictingShareablePathsRelayStyle1,
+				conflictingShareablePathsRelayStyle2,
+			},
+			ExpectedVariants: []Variant{
+				{
+					dsOrder: []int{0, 1},
+					suggestions: NodeSuggestions{
+						{TypeName: "Query", FieldName: "users", DataSourceHash: 11, Path: "query.users", ParentPath: "query", IsRootNode: true, selected: true},
+						{TypeName: "PaginatedUser", FieldName: "edges", DataSourceHash: 11, Path: "query.users.edges", ParentPath: "query.users", IsRootNode: false, selected: true},
+						{TypeName: "UserToEdge", FieldName: "node", DataSourceHash: 11, Path: "query.users.edges.node", ParentPath: "query.users.edges", IsRootNode: false, selected: true},
+						{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.users.edges.node.id", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true},
+						{TypeName: "User", FieldName: "firstName", DataSourceHash: 11, Path: "query.users.edges.node.firstName", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true},
+						{TypeName: "User", FieldName: "lastName", DataSourceHash: 11, Path: "query.users.edges.node.lastName", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true},
+						{TypeName: "User", FieldName: "address", DataSourceHash: 22, Path: "query.users.edges.node.address", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true},
+						{TypeName: "Address", FieldName: "street", DataSourceHash: 22, Path: "query.users.edges.node.address.street", ParentPath: "query.users.edges.node.address", IsRootNode: true, selected: true},
+					},
+				},
+				{
+					dsOrder: []int{1, 0},
+					suggestions: NodeSuggestions{
+						{TypeName: "Query", FieldName: "users", DataSourceHash: 11, Path: "query.users", ParentPath: "query", IsRootNode: true, selected: true},
+						{TypeName: "PaginatedUser", FieldName: "edges", DataSourceHash: 11, Path: "query.users.edges", ParentPath: "query.users", IsRootNode: false, selected: true},
+						{TypeName: "UserToEdge", FieldName: "node", DataSourceHash: 11, Path: "query.users.edges.node", ParentPath: "query.users.edges", IsRootNode: false, selected: true},
+						{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.users.edges.node.id", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true},
+						{TypeName: "User", FieldName: "firstName", DataSourceHash: 11, Path: "query.users.edges.node.firstName", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true},
+						{TypeName: "User", FieldName: "lastName", DataSourceHash: 11, Path: "query.users.edges.node.lastName", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true},
+						{TypeName: "User", FieldName: "address", DataSourceHash: 22, Path: "query.users.edges.node.address", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true},
+						{TypeName: "Address", FieldName: "street", DataSourceHash: 22, Path: "query.users.edges.node.address.street", ParentPath: "query.users.edges.node.address", IsRootNode: true, selected: true},
+					},
+				},
+			},
+		},
 	}
 
 	run := func(t *testing.T, Definition, Query string, DataSources []DataSourceConfiguration, expected NodeSuggestions) {
@@ -1158,3 +1210,95 @@ var conflictingPathsDefinition = `
 		uniqueTwo: Int!
 	}
 `
+
+const conflictingShareablePathsRelayStyleSchema1 = `
+	type User @key(fields: "id") {
+		id: ID!
+		firstName: String!
+		lastName: String!
+	}
+	
+	type PaginatedUser @shareable {
+		edges: [UserToEdge!]
+		nodes: [User!]
+		totalCount: Int!
+		hasNextPage: Boolean!
+	}
+	
+	type UserToEdge @shareable {
+		node: User!
+	}
+	
+	type Query {
+		users: PaginatedUser!
+	}`
+
+var conflictingShareablePathsRelayStyle1 = dsb().Hash(11).Schema(conflictingShareablePathsRelayStyleSchema1).
+	RootNode("Query", "users").
+	RootNode("User", "id", "firstName", "lastName").
+	ChildNode("PaginatedUser", "edges", "nodes", "totalCount", "hasNextPage").
+	ChildNode("UserToEdge", "node").
+	DS()
+
+const conflictingShareablePathsRelayStyleSchema2 = `
+	type User @key(fields: "id") {
+		id: ID!
+		address: Address!
+	}
+	
+	type PaginatedUser @shareable {
+		edges: [UserToEdge!]
+		nodes: [User!]
+		totalCount: Int!
+		hasNextPage: Boolean!
+	}
+	
+	type UserToEdge @shareable {
+		node: User!
+	}
+
+	type Address @key(fields: "id") {
+		street: String!
+		residents: PaginatedUser!
+	}
+
+	type Query {
+		address(id: ID!): Address!
+	}`
+
+var conflictingShareablePathsRelayStyle2 = dsb().Hash(22).Schema(conflictingShareablePathsRelayStyleSchema2).
+	RootNode("Query", "address").
+	RootNode("User", "id", "address").
+	RootNode("Address", "street", "residents").
+	ChildNode("PaginatedUser", "edges", "nodes", "totalCount", "hasNextPage").
+	ChildNode("UserToEdge", "node").
+	DS()
+
+var conflictingShareablePathsRelayStyleDefinition = `
+	type User {
+		id: ID!
+		firstName: String!
+		lastName: String!
+		address: Address!
+	}
+	
+	type PaginatedUser {
+		edges: [UserToEdge!]
+		nodes: [User!]
+		totalCount: Int!
+		hasNextPage: Boolean!
+	}
+	
+	type UserToEdge {
+		node: User!
+	}
+
+	type Address {
+		street: String!
+		residents: PaginatedUser!
+	}
+	
+	type Query {
+		users: PaginatedUser!
+		address(id: ID!): Address!
+	}`
