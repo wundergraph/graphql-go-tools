@@ -52,6 +52,10 @@ type missingPath struct {
 	dsHash                DSHash
 }
 
+func (p *missingPath) String() string {
+	return fmt.Sprintf(`{"ds":%d,"path":"%s","precedingRootNodePath":"%s"}`, p.dsHash, p.path, p.precedingRootNodePath)
+}
+
 type objectFetchConfiguration struct {
 	object             *resolve.Object
 	trigger            *resolve.GraphQLSubscriptionTrigger
@@ -125,20 +129,16 @@ func (c *configurationVisitor) removeArrayField(fieldRef int) {
 }
 
 func (c *configurationVisitor) addPath(plannerIdx int, configuration pathConfiguration) {
-	if c.debug {
-		if pp, ok := c.planners[plannerIdx].planner.(DataSourceDebugger); ok {
-			pp.DebugPrint("[configurationVisitor.addPath] parentPath:", "path:", configuration.String())
-		}
-	}
-
-	configuration.depth = c.walker.Depth
-
 	c.planners[plannerIdx].addPath(configuration)
 
 	c.saveAddedPath(configuration)
 }
 
 func (c *configurationVisitor) saveAddedPath(configuration pathConfiguration) {
+	if c.debug {
+		c.debugPrint("saveAddedPath", configuration.String())
+	}
+
 	c.addedPathTracker = append(c.addedPathTracker, configuration)
 
 	c.removeMissingPath(configuration.path)
@@ -443,17 +443,21 @@ func (c *configurationVisitor) handleProvidesSuggestions(ref int, typeName, fiel
 }
 
 func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, fieldName, currentPath, parentPath, precedingParentPath string) (plannerIdx int, planned bool) {
-	dsHash, hasSuggestion := c.nodeSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
+	dsHashes := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
 
 	for plannerIdx, plannerConfig := range c.planners {
 		currentPlannerDSHash := plannerConfig.dataSourceConfiguration.Hash()
+		_, isProvided := plannerConfig.providedFields.HasSuggestionForPath(typeName, fieldName, currentPath)
 
-		providedDsHash, isProvided := plannerConfig.providedFields.HasSuggestionForPath(typeName, fieldName, currentPath)
-		if isProvided && currentPlannerDSHash != providedDsHash {
-			continue
+		hasSuggestion := false
+		for _, dsHash := range dsHashes {
+			if dsHash == currentPlannerDSHash {
+				hasSuggestion = true
+				break
+			}
 		}
 
-		if !isProvided && hasSuggestion && currentPlannerDSHash != dsHash {
+		if !isProvided && !hasSuggestion {
 			continue
 		}
 
@@ -658,7 +662,10 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		sourceID:           config.ID,
 	})
 
-	c.saveAddedPath(currentPathConfiguration)
+	for _, pathConfiguration := range paths {
+		c.saveAddedPath(pathConfiguration)
+	}
+
 	return len(c.planners) - 1, true
 }
 

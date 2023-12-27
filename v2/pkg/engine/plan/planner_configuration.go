@@ -115,7 +115,6 @@ type pathConfiguration struct {
 	fieldRef      int
 	enclosingNode ast.Node
 
-	depth      int
 	dsHash     DSHash
 	isRootNode bool
 	pathType   PathType
