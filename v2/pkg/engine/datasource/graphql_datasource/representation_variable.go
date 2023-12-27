@@ -197,7 +197,7 @@ func (v *representationVariableVisitor) resolveFieldValue(fieldRef, typeRef int,
 					Nullable: nullable,
 				}
 			default:
-				return &resolve.String{
+				return &resolve.Scalar{
 					Path:     path,
 					Nullable: nullable,
 				}
