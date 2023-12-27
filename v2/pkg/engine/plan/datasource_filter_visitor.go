@@ -155,23 +155,21 @@ func appendSuggestionWithPresenceCheck(nodes NodeSuggestions, node NodeSuggestio
 	return append(nodes, node)
 }
 
-func (f NodeSuggestions) SuggestionForPath(typeName, fieldName, path string) (suggestion NodeSuggestion, ok bool) {
-	if len(f) == 0 {
-		return NodeSuggestion{}, false
-	}
-
+func (f NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string) (dsHashes []DSHash) {
 	for i := range f {
 		if typeName == f[i].TypeName && fieldName == f[i].FieldName && path == f[i].Path {
-			return f[i], true
+			dsHashes = append(dsHashes, f[i].DataSourceHash)
 		}
 	}
-	return NodeSuggestion{}, false
+
+	return dsHashes
 }
 
 func (f NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string) (dsHash DSHash, ok bool) {
-	suggestion, ok := f.SuggestionForPath(typeName, fieldName, path)
-	if ok {
-		return suggestion.DataSourceHash, true
+	for i := range f {
+		if typeName == f[i].TypeName && fieldName == f[i].FieldName && path == f[i].Path {
+			return f[i].DataSourceHash, true
+		}
 	}
 
 	return 0, false

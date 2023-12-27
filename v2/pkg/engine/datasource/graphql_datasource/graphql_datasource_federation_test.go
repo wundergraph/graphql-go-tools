@@ -1758,6 +1758,157 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					))
 				})
 
+				t.Run("resolve from two subgraphs - shared and not shared field - should not depend on the order of ds", func(t *testing.T) {
+					expectedPlan := func(input1, input2 string) *plan.SynchronousResponsePlan {
+						return &plan.SynchronousResponsePlan{
+							Response: &resolve.GraphQLResponse{
+								Data: &resolve.Object{
+									Fetch: &resolve.SingleFetch{
+										SerialID:             0,
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
+										FetchConfiguration: resolve.FetchConfiguration{
+											Input:          input1,
+											PostProcessing: DefaultPostProcessingConfiguration,
+											DataSource:     &Source{},
+										},
+									},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("me"),
+											Value: &resolve.Object{
+												Path:     []string{"me"},
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("details"),
+														Value: &resolve.Object{
+															Path: []string{"details"},
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("forename"),
+																	Value: &resolve.String{
+																		Path: []string{"forename"},
+																	},
+																},
+																{
+																	Name: []byte("age"),
+																	Value: &resolve.Integer{
+																		Path: []string{"age"},
+																	},
+																},
+															},
+														},
+													},
+												},
+												Fetch: &resolve.SingleFetch{
+													SerialID:             1,
+													DataSourceIdentifier: []byte("graphql_datasource.Source"),
+													FetchConfiguration: resolve.FetchConfiguration{
+														Input:                                 input2,
+														SetTemplateOutputToNullOnVariableNull: true,
+														PostProcessing:                        SingleEntityPostProcessingConfiguration,
+														RequiresEntityFetch:                   true,
+														DataSource:                            &Source{},
+														Variables: []resolve.Variable{
+															&resolve.ResolvableObjectVariable{
+																Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																	Nullable: true,
+																	Fields: []*resolve.Field{
+																		{
+																			Name: []byte("__typename"),
+																			Value: &resolve.String{
+																				Path: []string{"__typename"},
+																			},
+																			OnTypeNames: [][]byte{[]byte("User")},
+																		},
+																		{
+																			Name: []byte("id"),
+																			Value: &resolve.String{
+																				Path: []string{"id"},
+																			},
+																			OnTypeNames: [][]byte{[]byte("User")},
+																		},
+																	},
+																}),
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						}
+					}
+
+					t.Run("variant 1", RunTest(
+						definition,
+						`
+						query basic {
+							me {
+								details {
+									forename
+									age
+								}
+							}
+						}
+					`,
+						"basic",
+						expectedPlan(
+							`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename} __typename id}}"}}`,
+							`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
+						),
+						plan.Configuration{
+							DataSources: []plan.DataSourceConfiguration{
+								firstDatasourceConfiguration,
+								thirdDatasourceConfiguration,
+							},
+							DisableResolveFieldPositions: true,
+							Debug: plan.DebugConfiguration{
+								PrintNodeSuggestions: true,
+								PrintPlanningPaths:   true,
+								PrintQueryPlans:      true,
+
+								ConfigurationVisitor: true,
+							},
+						},
+					))
+
+					t.Run("variant 2", RunTest(
+						definition,
+						`
+						query basic {
+							me {
+								details {
+									forename
+									age
+								}
+							}
+						}
+					`,
+						"basic",
+						expectedPlan(
+							`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename} __typename id}}"}}`,
+							`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
+						),
+						plan.Configuration{
+							DataSources: []plan.DataSourceConfiguration{
+								thirdDatasourceConfiguration,
+								firstDatasourceConfiguration,
+							},
+							DisableResolveFieldPositions: true,
+							Debug: plan.DebugConfiguration{
+								PrintNodeSuggestions: true,
+								PrintPlanningPaths:   true,
+								PrintQueryPlans:      true,
+
+								ConfigurationVisitor: true,
+							},
+						},
+					))
+				})
+
 				t.Run("resolve from three subgraphs", func(t *testing.T) {
 					planConfiguration := plan.Configuration{
 						DataSources: []plan.DataSourceConfiguration{

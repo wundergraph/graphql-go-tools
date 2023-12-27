@@ -195,17 +195,19 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 	for p.configurationVisitor.hasNewFields || p.configurationVisitor.hasMissingPaths() {
 		p.configurationVisitor.secondaryRun = true
 
-		// update suggestions for the new required fields
-		p.configurationVisitor.dataSources, p.configurationVisitor.nodeSuggestions =
-			dsFilter.FilterDataSources(p.config.DataSources, p.configurationVisitor.nodeSuggestions)
-		if report.HasErrors() {
-			return
-		}
+		if p.configurationVisitor.hasNewFields {
+			// update suggestions for the new required fields
+			p.configurationVisitor.dataSources, p.configurationVisitor.nodeSuggestions =
+				dsFilter.FilterDataSources(p.config.DataSources, p.configurationVisitor.nodeSuggestions)
+			if report.HasErrors() {
+				return
+			}
 
-		if p.config.Debug.PrintNodeSuggestions {
-			p.debugMessage("Recalculated node suggestions:")
-			for i := range p.configurationVisitor.nodeSuggestions {
-				fmt.Println(p.configurationVisitor.nodeSuggestions[i].String())
+			if p.config.Debug.PrintNodeSuggestions {
+				p.debugMessage("Recalculated node suggestions:")
+				for i := range p.configurationVisitor.nodeSuggestions {
+					fmt.Println(p.configurationVisitor.nodeSuggestions[i].String())
+				}
 			}
 		}
 
@@ -222,12 +224,6 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 
 		if p.config.Debug.PrintPlanningPaths {
 			p.debugMessage(fmt.Sprintf("After run #%d. Planning paths", i))
-			if p.configurationVisitor.hasMissingPaths() {
-				p.debugMessage("Missing paths:")
-				for path := range p.configurationVisitor.missingPathTracker {
-					fmt.Println(path)
-				}
-			}
 			p.printPlanningPaths()
 		}
 		i++
@@ -304,6 +300,13 @@ func (p *Planner) printPlanningPaths() {
 		fmt.Println("Paths for planner", i+1)
 		fmt.Println("Planner parent path", planner.parentPath)
 		for _, path := range planner.paths {
+			fmt.Println(path.String())
+		}
+	}
+
+	if p.configurationVisitor.hasMissingPaths() {
+		p.debugMessage("Missing paths:")
+		for _, path := range p.configurationVisitor.missingPathTracker {
 			fmt.Println(path.String())
 		}
 	}
