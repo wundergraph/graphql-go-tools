@@ -2913,4 +2913,390 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			))
 		})
 	})
+
+	t.Run("different entity keys jumps", func(t *testing.T) {
+		definition := `
+				type User {
+					id: ID!
+					uuid: ID!
+					title: String!
+					name: String!
+					address: Address!
+				}
+
+				type Address {
+					country: String!
+				}
+
+				type Query {
+					user: User
+				}
+			`
+
+		firstSubgraphSDL := `	
+				type User @key(fields: "id") {
+					id: ID!
+				}
+
+				type Query {
+					user: User
+				}
+			`
+
+		firstDatasourceConfiguration := plan.DataSourceConfiguration{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"user"},
+				},
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id"},
+				},
+			},
+			Custom: ConfigJson(Configuration{
+				Fetch: FetchConfiguration{
+					URL: "http://first.service",
+				},
+				Federation: FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: firstSubgraphSDL,
+				},
+				UpstreamSchema: firstSubgraphSDL,
+			}),
+			Factory: federationFactory,
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+				},
+			},
+		}
+
+		secondSubgraphSDL := `
+				type User @key(fields: "id") @key(fields: "uuid") {
+					id: ID!
+					uuid: ID!
+					name: String!
+				}
+			`
+		secondDatasourceConfiguration := plan.DataSourceConfiguration{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id", "uuid", "name"},
+				},
+			},
+			Custom: ConfigJson(Configuration{
+				Fetch: FetchConfiguration{
+					URL: "http://second.service",
+				},
+				Federation: FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: secondSubgraphSDL,
+				},
+				UpstreamSchema: secondSubgraphSDL,
+			}),
+			Factory: federationFactory,
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "User",
+						SelectionSet: "uuid",
+					},
+				},
+			},
+		}
+
+		thirdSubgraphSDL := `
+				type User @key(fields: "uuid") {
+					uuid: ID!
+					title: String!
+				}
+			`
+		thirdDatasourceConfiguration := plan.DataSourceConfiguration{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "User",
+					FieldNames: []string{"uuid", "title"},
+				},
+			},
+			Custom: ConfigJson(Configuration{
+				Fetch: FetchConfiguration{
+					URL: "http://third.service",
+				},
+				Federation: FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: thirdSubgraphSDL,
+				},
+				UpstreamSchema: thirdSubgraphSDL,
+			}),
+			Factory: federationFactory,
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "uuid",
+					},
+				},
+			},
+		}
+
+		fourthSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					address: Address!
+				}
+
+				type Address {
+					country: String!
+				}
+			`
+		fourthDatasourceConfiguration := plan.DataSourceConfiguration{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id", "address"},
+				},
+			},
+			ChildNodes: []plan.TypeField{
+				{
+					TypeName:   "Address",
+					FieldNames: []string{"country"},
+				},
+			},
+			Custom: ConfigJson(Configuration{
+				Fetch: FetchConfiguration{
+					URL: "http://fourth.service",
+				},
+				Federation: FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: fourthSubgraphSDL,
+				},
+				UpstreamSchema: fourthSubgraphSDL,
+			}),
+			Factory: federationFactory,
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+				},
+			},
+		}
+
+		dataSources := []plan.DataSourceConfiguration{
+			firstDatasourceConfiguration,
+			secondDatasourceConfiguration,
+			thirdDatasourceConfiguration,
+			fourthDatasourceConfiguration,
+		}
+
+		planConfiguration := plan.Configuration{
+			DataSources:                  ShuffleDS(dataSources),
+			DisableResolveFieldPositions: true,
+			Debug: plan.DebugConfiguration{
+				PrintOperationTransformations: true,
+				PrintQueryPlans:               true,
+				PrintPlanningPaths:            true,
+				PrintNodeSuggestions:          true,
+
+				// DatasourceVisitor: true,
+			},
+		}
+
+		t.Run("run", RunTest(
+			definition,
+			`
+				query User {
+					user {
+						id
+						name
+						title
+						address {
+							country
+						}
+					}
+				}`,
+			"User",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {id __typename}}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+								DataSource:     &Source{},
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("user"),
+								Value: &resolve.Object{
+									Path:     []string{"user"},
+									Nullable: false,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("id"),
+											Value: &resolve.String{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path: []string{"name"},
+											},
+										},
+										{
+											Name: []byte("title"),
+											Value: &resolve.String{
+												Path: []string{"title"},
+											},
+										},
+										{
+											Name: []byte("address"),
+											Value: &resolve.Object{
+												Path: []string{"address"},
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("country"),
+														Value: &resolve.String{
+															Path: []string{"country"},
+														},
+													},
+												},
+											},
+										},
+									},
+									Fetch: &resolve.ParallelFetch{
+										Fetches: []resolve.Fetch{
+											&resolve.SerialFetch{
+												Fetches: []resolve.Fetch{
+													&resolve.SingleFetch{
+														SerialID: 2,
+														FetchConfiguration: resolve.FetchConfiguration{
+															RequiresEntityBatchFetch:              false,
+															RequiresEntityFetch:                   true,
+															Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name uuid}}}","variables":{"representations":[$$0$$]}}}`,
+															DataSource:                            &Source{},
+															SetTemplateOutputToNullOnVariableNull: true,
+															Variables: []resolve.Variable{
+																&resolve.ResolvableObjectVariable{
+																	Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																		Nullable: true,
+																		Fields: []*resolve.Field{
+																			{
+																				Name: []byte("__typename"),
+																				Value: &resolve.String{
+																					Path: []string{"__typename"},
+																				},
+																				OnTypeNames: [][]byte{[]byte("User")},
+																			},
+																			{
+																				Name: []byte("id"),
+																				Value: &resolve.String{
+																					Path: []string{"id"},
+																				},
+																				OnTypeNames: [][]byte{[]byte("User")},
+																			},
+																		},
+																	}),
+																},
+															},
+															PostProcessing: SingleEntityPostProcessingConfiguration,
+														},
+														DataSourceIdentifier: []byte("graphql_datasource.Source"),
+													},
+													&resolve.SingleFetch{
+														SerialID: 3,
+														FetchConfiguration: resolve.FetchConfiguration{
+															RequiresEntityBatchFetch:              false,
+															RequiresEntityFetch:                   true,
+															Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {title}}}","variables":{"representations":[$$0$$]}}}`,
+															DataSource:                            &Source{},
+															SetTemplateOutputToNullOnVariableNull: true,
+															Variables: []resolve.Variable{
+																&resolve.ResolvableObjectVariable{
+																	Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																		Nullable: true,
+																		Fields: []*resolve.Field{
+																			{
+																				Name: []byte("__typename"),
+																				Value: &resolve.String{
+																					Path: []string{"__typename"},
+																				},
+																				OnTypeNames: [][]byte{[]byte("User")},
+																			},
+																			{
+																				Name: []byte("uuid"),
+																				Value: &resolve.String{
+																					Path: []string{"uuid"},
+																				},
+																				OnTypeNames: [][]byte{[]byte("User")},
+																			},
+																		},
+																	}),
+																},
+															},
+															PostProcessing: SingleEntityPostProcessingConfiguration,
+														},
+														DataSourceIdentifier: []byte("graphql_datasource.Source"),
+													},
+												},
+											},
+											&resolve.SingleFetch{
+												SerialID: 3,
+												FetchConfiguration: resolve.FetchConfiguration{
+													RequiresEntityBatchFetch:              false,
+													RequiresEntityFetch:                   true,
+													Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {address {country}}}}","variables":{"representations":[$$0$$]}}}`,
+													DataSource:                            &Source{},
+													SetTemplateOutputToNullOnVariableNull: true,
+													Variables: []resolve.Variable{
+														&resolve.ResolvableObjectVariable{
+															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																Nullable: true,
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &resolve.String{
+																			Path: []string{"__typename"},
+																		},
+																		OnTypeNames: [][]byte{[]byte("User")},
+																	},
+																	{
+																		Name: []byte("id"),
+																		Value: &resolve.String{
+																			Path: []string{"id"},
+																		},
+																		OnTypeNames: [][]byte{[]byte("User")},
+																	},
+																},
+															}),
+														},
+													},
+													PostProcessing: SingleEntityPostProcessingConfiguration,
+												},
+												DataSourceIdentifier: []byte("graphql_datasource.Source"),
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			planConfiguration,
+		))
+	})
 }
