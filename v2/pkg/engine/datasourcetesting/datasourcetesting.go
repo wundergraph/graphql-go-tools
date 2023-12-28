@@ -80,6 +80,9 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		expectedBytes, _ := json.MarshalIndent(expectedPlan, "", "  ")
 
 		if string(expectedBytes) != string(actualBytes) {
+			// os.WriteFile("actual_plan.json", actualBytes, 0644)
+			// os.WriteFile("expected_plan.json", expectedBytes, 0644)
+
 			assert.Equal(t, expectedPlan, actualPlan)
 			t.Error(cmp.Diff(string(expectedBytes), string(actualBytes)))
 		}

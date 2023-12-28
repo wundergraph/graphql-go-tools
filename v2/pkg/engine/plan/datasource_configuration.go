@@ -38,7 +38,6 @@ type DataSourceConfiguration struct {
 	Custom     json.RawMessage
 
 	FederationMetaData FederationMetaData
-	RenameTypes        TypeConfigurations
 
 	hash DSHash
 }

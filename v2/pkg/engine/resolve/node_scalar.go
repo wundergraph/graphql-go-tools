@@ -20,7 +20,6 @@ type String struct {
 	Export               *FieldExport `json:"export,omitempty"`
 	UnescapeResponseJson bool         `json:"unescape_response_json,omitempty"`
 	IsTypeName           bool         `json:"is_type_name,omitempty"`
-	StaticValue          string       `json:"static_value,omitempty"`
 }
 
 func (_ *String) NodeKind() NodeKind {

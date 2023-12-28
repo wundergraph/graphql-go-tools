@@ -393,6 +393,19 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 		hasRootNode := v.HasRootNode(typeName, fieldName) || (isTypeName && v.HasRootNodeWithTypename(typeName))
 		hasChildNode := v.HasChildNode(typeName, fieldName) || (isTypeName && v.HasChildNodeWithTypename(typeName))
 
+		allowTypeName := true
+		// we should not select a typename on the interface object
+		for _, k := range v.FederationMetaData.InterfaceObjects {
+			if k.InterfaceName == typeName || slices.Contains(k.ImplementingTypeNames, typeName) {
+				allowTypeName = false
+				break
+			}
+		}
+
+		if !allowTypeName && isTypeName {
+			continue
+		}
+
 		if hasRootNode || hasChildNode {
 			node := NodeSuggestion{
 				TypeName:                  typeName,

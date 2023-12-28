@@ -596,13 +596,24 @@ func (p *Planner) EnterInlineFragment(ref int) {
 	// we need to add __typename field to selection set
 	if hasTypeCondition && !IsOfTheSameType {
 		typeCondition := p.visitor.Operation.InlineFragmentTypeConditionName(ref)
-		fragmentTypeRef := p.upstreamOperation.AddNamedType(p.visitor.Config.Types.RenameTypeNameOnMatchBytes(typeCondition))
+
+		onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchBytes(typeCondition)
+
+		// rename type name in case it is required by entity interface
+		shouldRenameInterfaceObjectType, newName := p.interfaceObjectTypeShouldBeRenamed(string(onTypeName))
+		if shouldRenameInterfaceObjectType {
+			onTypeName = []byte(newName)
+		}
+
+		fragmentTypeRef := p.upstreamOperation.AddNamedType(onTypeName)
 
 		p.upstreamOperation.InlineFragments[inlineFragmentRef].TypeCondition.Type = fragmentTypeRef
 
-		// add __typename field to selection set which contains typeCondition
-		// so that the resolver can distinguish between the response types
-		p.addTypenameToSelectionSet(currentSelectionSet)
+		if !shouldRenameInterfaceObjectType {
+			// add __typename field to selection set which contains typeCondition
+			// so that the resolver can distinguish between the response types
+			p.addTypenameToSelectionSet(currentSelectionSet)
+		}
 	}
 
 	selection := ast.Selection{
@@ -809,7 +820,7 @@ func (p *Planner) addRepresentationsVariable() {
 func (p *Planner) buildRepresentationsVariable() resolve.Variable {
 	objects := make([]*resolve.Object, 0, len(p.dataSourcePlannerConfig.RequiredFields))
 	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
-		node, err := buildRepresentationVariableNode(cfg, p.visitor.Definition)
+		node, err := buildRepresentationVariableNode(p.visitor.Definition, cfg, p.dataSourceConfig)
 		if err != nil {
 			p.visitor.Walker.StopWithInternalErr(err)
 			return nil
@@ -908,6 +919,15 @@ func (p *Planner) isInEntitiesSelectionSet() bool {
 	return bytes.Equal(fieldName, []byte("_entities"))
 }
 
+func (p *Planner) interfaceObjectTypeShouldBeRenamed(typeName string) (ok bool, newName string) {
+	for _, interfaceObjectCfg := range p.dataSourceConfig.FederationMetaData.InterfaceObjects {
+		if slices.Contains(interfaceObjectCfg.ImplementingTypeNames, typeName) {
+			return true, interfaceObjectCfg.InterfaceName
+		}
+	}
+	return false, ""
+}
+
 func (p *Planner) addOnTypeInlineFragment() {
 	p.DebugPrint("addOnTypeInlineFragment")
 
@@ -926,11 +946,13 @@ func (p *Planner) addOnTypeInlineFragment() {
 	onTypeName := p.visitor.Config.Types.RenameTypeNameOnMatchBytes([]byte(p.lastFieldEnclosingTypeName))
 
 	// rename type name in case it is required by entity interface
-	var renamed bool
-	onTypeName, renamed = p.dataSourceConfig.RenameTypes.RenameTypeNameOnMatchBytesWithResult([]byte(p.lastFieldEnclosingTypeName))
+	shouldRenameInterfaceObjectType, newName := p.interfaceObjectTypeShouldBeRenamed(p.lastFieldEnclosingTypeName)
+	if shouldRenameInterfaceObjectType {
+		onTypeName = []byte(newName)
+	}
 
 	// we should not request a typename of interface object
-	if !renamed {
+	if !shouldRenameInterfaceObjectType {
 		p.addTypenameToSelectionSet(p.nodes[len(p.nodes)-1].Ref)
 	}
 
@@ -1253,8 +1275,10 @@ func (p *Planner) configureObjectFieldSource(upstreamFieldRef, downstreamFieldRe
 }
 
 const (
-	normalizationFailedErrMsg = "printOperation: normalization failed"
-	parseDocumentFailedErrMsg = "printOperation: parse %s failed"
+	normalizationFailedErrMsg  = "upstream operation: normalization failed: %s"
+	printOperationFailedErrMsg = "upstream operation: failed to print: %s"
+	validationFailedErrMsg     = "upstream operation: validation failed: %s"
+	parseDocumentFailedErrMsg  = "upstream operation: parse %s failed"
 )
 
 func (p *Planner) debugPrintOperationOnEnter(kind ast.NodeKind, ref int) {
@@ -1427,14 +1451,14 @@ func (p *Planner) printOperation() []byte {
 
 	// normalize upstream operation
 	if !p.normalizeOperation(operation, definition, report) {
-		p.stopWithError(normalizationFailedErrMsg)
+		p.stopWithError(normalizationFailedErrMsg, report.Error())
 		return nil
 	}
 
 	validator := astvalidation.DefaultOperationValidator()
 	validator.Validate(operation, definition, report)
 	if report.HasErrors() {
-		p.stopWithError("validation failed: %s", report.Error())
+		p.stopWithError(validationFailedErrMsg, report.Error())
 		return nil
 	}
 
@@ -1446,7 +1470,7 @@ func (p *Planner) printOperation() []byte {
 	// print upstream operation
 	err = astprinter.Print(operation, p.visitor.Definition, buf)
 	if err != nil {
-		p.stopWithError(normalizationFailedErrMsg)
+		p.stopWithError(printOperationFailedErrMsg, report.Error())
 		return nil
 	}
 

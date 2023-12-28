@@ -115,6 +115,12 @@ func EntityInterfacesPlanConfiguration(factory plan.PlannerFactory) *plan.Config
 		}),
 		Factory: factory,
 		FederationMetaData: plan.FederationMetaData{
+			EntityInterfaces: []plan.InterfaceObjectConfiguration{
+				{
+					InterfaceName:         "Account",
+					ImplementingTypeNames: []string{"Admin", "Moderator", "User"},
+				},
+			},
 			Keys: plan.FederationFieldConfigurations{
 				{
 					TypeName:     "Account",
@@ -191,40 +197,29 @@ func EntityInterfacesPlanConfiguration(factory plan.PlannerFactory) *plan.Config
 		}),
 		Factory: factory,
 		FederationMetaData: plan.FederationMetaData{
+			InterfaceObjects: []plan.InterfaceObjectConfiguration{
+				{
+					InterfaceName:         "Account",
+					ImplementingTypeNames: []string{"Admin", "Moderator", "User"},
+				},
+			},
 			Keys: plan.FederationFieldConfigurations{
 				{
 					TypeName:     "Account",
 					SelectionSet: "id",
 				},
 				{
-					TypeName:                "Admin",
-					InterfaceObjectTypeName: "Account",
-					SelectionSet:            "id",
+					TypeName:     "Admin",
+					SelectionSet: "id",
 				},
 				{
-					TypeName:                "Moderator",
-					InterfaceObjectTypeName: "Account",
-					SelectionSet:            "id",
+					TypeName:     "Moderator",
+					SelectionSet: "id",
 				},
 				{
-					TypeName:                "User",
-					InterfaceObjectTypeName: "Account",
-					SelectionSet:            "id",
+					TypeName:     "User",
+					SelectionSet: "id",
 				},
-			},
-		},
-		RenameTypes: plan.TypeConfigurations{
-			{
-				TypeName: "Admin",
-				RenameTo: "Account",
-			},
-			{
-				TypeName: "Moderator",
-				RenameTo: "Account",
-			},
-			{
-				TypeName: "User",
-				RenameTo: "Account",
 			},
 		},
 	}
@@ -300,40 +295,29 @@ func EntityInterfacesPlanConfiguration(factory plan.PlannerFactory) *plan.Config
 		}),
 		Factory: factory,
 		FederationMetaData: plan.FederationMetaData{
+			InterfaceObjects: []plan.InterfaceObjectConfiguration{
+				{
+					InterfaceName:         "Account",
+					ImplementingTypeNames: []string{"Admin", "Moderator", "User"},
+				},
+			},
 			Keys: plan.FederationFieldConfigurations{
 				{
 					TypeName:     "Account",
 					SelectionSet: "id",
 				},
 				{
-					TypeName:                "Admin",
-					InterfaceObjectTypeName: "Account",
-					SelectionSet:            "id",
+					TypeName:     "Admin",
+					SelectionSet: "id",
 				},
 				{
-					TypeName:                "Moderator",
-					InterfaceObjectTypeName: "Account",
-					SelectionSet:            "id",
+					TypeName:     "Moderator",
+					SelectionSet: "id",
 				},
 				{
-					TypeName:                "User",
-					InterfaceObjectTypeName: "Account",
-					SelectionSet:            "id",
+					TypeName:     "User",
+					SelectionSet: "id",
 				},
-			},
-		},
-		RenameTypes: plan.TypeConfigurations{
-			{
-				TypeName: "Admin",
-				RenameTo: "Account",
-			},
-			{
-				TypeName: "Moderator",
-				RenameTo: "Account",
-			},
-			{
-				TypeName: "User",
-				RenameTo: "Account",
 			},
 		},
 	}
@@ -353,6 +337,8 @@ func EntityInterfacesPlanConfiguration(factory plan.PlannerFactory) *plan.Config
 			PrintQueryPlans:               true,
 			PrintPlanningPaths:            true,
 			PrintNodeSuggestions:          true,
+
+			// DatasourceVisitor: true,
 		},
 	}
 
