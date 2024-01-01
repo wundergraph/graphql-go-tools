@@ -60,7 +60,6 @@ type Planner struct {
 	nodes                              []ast.Node
 	variables                          resolve.Variables
 	lastFieldEnclosingTypeName         string
-	disallowSingleFlight               bool
 	fetchClient                        *http.Client
 	subscriptionClient                 GraphQLSubscriptionClient
 	rootTypeName                       string // rootTypeName - holds name of top level type
@@ -406,7 +405,6 @@ func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 			httpClient: p.fetchClient,
 		},
 		Variables:                             p.variables,
-		DisallowSingleFlight:                  p.disallowSingleFlight,
 		RequiresEntityFetch:                   p.requiresEntityFetch(),
 		RequiresEntityBatchFetch:              p.requiresEntityBatchFetch(),
 		PostProcessing:                        postProcessing,
@@ -487,7 +485,6 @@ func (p *Planner) EnterOperationDefinition(ref int) {
 	definition := p.upstreamOperation.AddOperationDefinitionToRootNodes(ast.OperationDefinition{
 		OperationType: operationType,
 	})
-	p.disallowSingleFlight = operationType == ast.OperationTypeMutation
 	p.nodes = append(p.nodes, definition)
 }
 
@@ -761,7 +758,6 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 	p.parentTypeNodes = p.parentTypeNodes[:0]
 	p.upstreamVariables = nil
 	p.variables = p.variables[:0]
-	p.disallowSingleFlight = false
 	p.hasFederationRoot = false
 	p.extractEntities = false
 

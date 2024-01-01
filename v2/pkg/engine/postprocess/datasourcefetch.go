@@ -112,9 +112,8 @@ func (d *DataSourceFetch) createEntityBatchFetch(fetch *resolve.SingleFetch) res
 				SetTemplateOutputToNullOnVariableNull: fetch.InputTemplate.SetTemplateOutputToNullOnVariableNull,
 			},
 		},
-		DataSource:           fetch.DataSource,
-		PostProcessing:       fetch.PostProcessing,
-		DisallowSingleFlight: fetch.DisallowSingleFlight,
+		DataSource:     fetch.DataSource,
+		PostProcessing: fetch.PostProcessing,
 	}
 }
 
@@ -145,8 +144,7 @@ func (d *DataSourceFetch) createEntityFetch(fetch *resolve.SingleFetch) resolve.
 				SetTemplateOutputToNullOnVariableNull: fetch.InputTemplate.SetTemplateOutputToNullOnVariableNull,
 			},
 		},
-		DataSource:           fetch.DataSource,
-		PostProcessing:       fetch.PostProcessing,
-		DisallowSingleFlight: fetch.DisallowSingleFlight,
+		DataSource:     fetch.DataSource,
+		PostProcessing: fetch.PostProcessing,
 	}
 }

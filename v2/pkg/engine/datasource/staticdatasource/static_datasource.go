@@ -51,9 +51,8 @@ func (p *Planner) Register(_ *plan.Visitor, configuration plan.DataSourceConfigu
 
 func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 	return resolve.FetchConfiguration{
-		Input:                p.config.Data,
-		DataSource:           Source{},
-		DisallowSingleFlight: true,
+		Input:      p.config.Data,
+		DataSource: Source{},
 	}
 }
 
