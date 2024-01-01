@@ -93,7 +93,6 @@ type BatchEntityFetch struct {
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
 	DataSourceIdentifier []byte
-	DisallowSingleFlight bool
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
 }
@@ -122,7 +121,6 @@ type EntityFetch struct {
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
 	DataSourceIdentifier []byte
-	DisallowSingleFlight bool
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
 }
@@ -155,11 +153,6 @@ type FetchConfiguration struct {
 	Input      string
 	Variables  Variables
 	DataSource DataSource
-	// DisallowSingleFlight is used for write operations like mutations, POST, DELETE etc. to disable singleFlight
-	// By default SingleFlight for fetches is disabled and needs to be enabled on the Resolver first
-	// If the resolver allows SingleFlight it's up to each individual DataSource Planner to decide whether an Operation
-	// should be allowed to use SingleFlight
-	DisallowSingleFlight bool // TODO: remove - unused
 	// RequiresParallelListItemFetch is used to indicate that the single fetches should be executed without batching
 	// When we have multiple fetches attached to the object - after post-processing of a plan we will get ParallelListItemFetch instead of ParallelFetch
 	RequiresParallelListItemFetch bool
