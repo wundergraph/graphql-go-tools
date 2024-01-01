@@ -342,7 +342,7 @@ func TestDataSourceInput_Process(t *testing.T) {
 		},
 	}
 
-	processor := &ProcessDataSource{}
+	processor := &ResolveInputTemplates{}
 	actual := processor.Process(pre)
 
 	if !assert.Equal(t, expected, actual) {
@@ -415,7 +415,7 @@ func TestDataSourceInput_ProcessSerialFetch(t *testing.T) {
 		},
 	}
 
-	processor := &ProcessDataSource{}
+	processor := &ResolveInputTemplates{}
 	actual := processor.Process(pre)
 
 	if !assert.Equal(t, expected, actual) {
