@@ -362,9 +362,9 @@ func TestDataSourceInput_ProcessSerialFetch(t *testing.T) {
 			Data: &resolve.Object{
 				Fetch: &resolve.SerialFetch{
 					Fetches: []resolve.Fetch{
-						&resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: `a`}, SerialID: 0},
-						&resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: `b`}, SerialID: 2},
-						&resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: `c`}, SerialID: 5},
+						&resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: `a`}, FetchID: 0},
+						&resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: `b`}, FetchID: 2},
+						&resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: `c`}, FetchID: 5},
 					},
 				},
 			},
@@ -377,7 +377,7 @@ func TestDataSourceInput_ProcessSerialFetch(t *testing.T) {
 				Fetch: &resolve.SerialFetch{
 					Fetches: []resolve.Fetch{
 						&resolve.SingleFetch{
-							SerialID: 5,
+							FetchID: 5,
 							InputTemplate: resolve.InputTemplate{
 								Segments: []resolve.TemplateSegment{
 									{
@@ -388,7 +388,7 @@ func TestDataSourceInput_ProcessSerialFetch(t *testing.T) {
 							},
 						},
 						&resolve.SingleFetch{
-							SerialID: 2,
+							FetchID: 2,
 							InputTemplate: resolve.InputTemplate{
 								Segments: []resolve.TemplateSegment{
 									{
@@ -399,7 +399,7 @@ func TestDataSourceInput_ProcessSerialFetch(t *testing.T) {
 							},
 						},
 						&resolve.SingleFetch{
-							SerialID: 0,
+							FetchID: 0,
 							InputTemplate: resolve.InputTemplate{
 								Segments: []resolve.TemplateSegment{
 									{

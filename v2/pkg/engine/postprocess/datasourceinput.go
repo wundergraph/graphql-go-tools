@@ -50,7 +50,7 @@ func (d *ProcessDataSource) traverseFetch(fetch resolve.Fetch) {
 		slices.SortFunc(f.Fetches, func(a, b resolve.Fetch) int {
 			// serial fetch always has a single fetch as child
 			// sort descending by serial id
-			return b.(*resolve.SingleFetch).SerialID - a.(*resolve.SingleFetch).SerialID
+			return b.(*resolve.SingleFetch).FetchID - a.(*resolve.SingleFetch).FetchID
 		})
 		for i := range f.Fetches {
 			d.traverseFetch(f.Fetches[i])

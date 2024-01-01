@@ -98,7 +98,6 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 
 	p.planningVisitor.planners = p.configurationVisitor.planners
 	p.planningVisitor.Config = p.config
-	p.planningVisitor.fetchConfigurations = p.configurationVisitor.fetches
 	p.planningVisitor.skipFieldsRefs = p.configurationVisitor.skipFieldsRefs
 	p.planningVisitor.allowFieldMerge = !hasConditionalSkipInclude
 

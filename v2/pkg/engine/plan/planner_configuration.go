@@ -11,9 +11,10 @@ type plannerConfiguration struct {
 	parentPath     string
 	parentPathType PlannerPathType
 
-	planner                 DataSourcePlanner
-	paths                   []pathConfiguration
-	dataSourceConfiguration DataSourceConfiguration
+	planner                  DataSourcePlanner
+	paths                    []pathConfiguration
+	dataSourceConfiguration  DataSourceConfiguration
+	objectFetchConfiguration objectFetchConfiguration
 
 	requiredFields FederationFieldConfigurations
 	providedFields NodeSuggestions
