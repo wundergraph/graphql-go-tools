@@ -407,7 +407,6 @@ func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 		},
 		Variables:                             p.variables,
 		DisallowSingleFlight:                  p.disallowSingleFlight,
-		RequiresSerialFetch:                   p.requiresSerialFetch(),
 		RequiresEntityFetch:                   p.requiresEntityFetch(),
 		RequiresEntityBatchFetch:              p.requiresEntityBatchFetch(),
 		PostProcessing:                        postProcessing,
@@ -418,21 +417,6 @@ func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 func (p *Planner) shouldSelectSingleEntity() bool {
 	return p.dataSourcePlannerConfig.HasRequiredFields() &&
 		p.dataSourcePlannerConfig.PathType == plan.PlannerPathObject
-}
-
-func (p *Planner) requiresSerialFetch() bool {
-	if !p.dataSourcePlannerConfig.HasRequiredFields() {
-		return false
-	}
-
-	for _, fieldConfig := range p.dataSourcePlannerConfig.RequiredFields {
-		if fieldConfig.FieldName != "" {
-			// if there field name in field config representation variables includes fields from @requires directive
-			return true
-		}
-	}
-
-	return false
 }
 
 func (p *Planner) requiresEntityFetch() bool {

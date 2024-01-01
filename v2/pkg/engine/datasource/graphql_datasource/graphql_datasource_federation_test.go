@@ -372,7 +372,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
-							SerialID:             0,
+							FetchID:              0,
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
@@ -416,7 +416,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 												},
 												Fetch: &resolve.SingleFetch{
-													SerialID: 1,
+													FetchID: 1,
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
 														DataSource:                            &Source{},
@@ -505,7 +505,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					},
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
-							SerialID:             0,
+							FetchID:              0,
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
@@ -592,7 +592,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 												},
 												Fetch: &resolve.SingleFetch{
-													SerialID: 1,
+													FetchID: 1,
 													Info: &resolve.FetchInfo{
 														DataSourceID: "account.service",
 													},
@@ -682,7 +682,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Data: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									SerialID:             0,
+									FetchID:              0,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
 										Input:          input,
@@ -719,10 +719,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																	Fetch: &resolve.SerialFetch{
 																		Fetches: []resolve.Fetch{
 																			&resolve.SingleFetch{
-																				SerialID:             1,
+																				FetchID:              1,
 																				DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																				FetchConfiguration: resolve.FetchConfiguration{
-																					RequiresSerialFetch: true,
 																					Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":[$$0$$]}}}`,
 																					DataSource:          &Source{},
 																					PostProcessing:      SingleEntityPostProcessingConfiguration,
@@ -782,10 +781,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																				},
 																			},
 																			&resolve.SingleFetch{
-																				SerialID:             2,
+																				FetchID:              2,
 																				DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																				FetchConfiguration: resolve.FetchConfiguration{
-																					RequiresSerialFetch: true,
 																					Input:               `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":[$$0$$]}}}`,
 																					DataSource:          &Source{},
 																					PostProcessing:      SingleEntityPostProcessingConfiguration,
@@ -831,7 +829,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																				},
 																			},
 																			&resolve.SingleFetch{
-																				SerialID:             3,
+																				FetchID:              3,
 																				DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																				FetchConfiguration: resolve.FetchConfiguration{
 																					Input:               `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":[$$0$$]}}}`,
@@ -930,7 +928,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Response: &resolve.GraphQLResponse{
 						Data: &resolve.Object{
 							Fetch: &resolve.SingleFetch{
-								SerialID:             0,
+								FetchID:              0,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								FetchConfiguration: resolve.FetchConfiguration{
 									Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {oldAccount {name shippingInfo {zip}}}}"}}`,
@@ -1010,7 +1008,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Response: &resolve.GraphQLResponse{
 						Data: &resolve.Object{
 							Fetch: &resolve.SingleFetch{
-								SerialID:             0,
+								FetchID:              0,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								FetchConfiguration: resolve.FetchConfiguration{
 									Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}} oldAccount {name shippingInfo {zip}}}}"}}`,
@@ -1054,7 +1052,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														},
 													},
 													Fetch: &resolve.SingleFetch{
-														SerialID:             1,
+														FetchID:              1,
 														DataSourceIdentifier: []byte("graphql_datasource.Source"),
 														FetchConfiguration: resolve.FetchConfiguration{
 															Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
@@ -1436,7 +1434,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Data: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
-										SerialID:             0,
+										FetchID:              0,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										FetchConfiguration: resolve.FetchConfiguration{
 											Input:          `{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname}}}"}}`,
@@ -1488,7 +1486,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Data: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
-										SerialID:             0,
+										FetchID:              0,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										FetchConfiguration: resolve.FetchConfiguration{
 											Input:          input1,
@@ -1531,7 +1529,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 												},
 												Fetch: &resolve.SingleFetch{
-													SerialID:             1,
+													FetchID:              1,
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input:                                 input2,
@@ -1633,7 +1631,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Data: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
-										SerialID:             0,
+										FetchID:              0,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										FetchConfiguration: resolve.FetchConfiguration{
 											Input:          input1,
@@ -1664,7 +1662,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 												},
 												Fetch: &resolve.SingleFetch{
-													SerialID:             1,
+													FetchID:              1,
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input:                                 input2,
@@ -1764,7 +1762,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Data: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
-										SerialID:             0,
+										FetchID:              0,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										FetchConfiguration: resolve.FetchConfiguration{
 											Input:          input1,
@@ -1801,7 +1799,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 												},
 												Fetch: &resolve.SingleFetch{
-													SerialID:             1,
+													FetchID:              1,
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input:                                 input2,
@@ -1924,7 +1922,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Data: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
-										SerialID:             0,
+										FetchID:              0,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										FetchConfiguration: resolve.FetchConfiguration{
 											Input:          input1,
@@ -1975,7 +1973,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												Fetch: &resolve.ParallelFetch{
 													Fetches: []resolve.Fetch{
 														&resolve.SingleFetch{
-															SerialID:             1,
+															FetchID:              1,
 															DataSourceIdentifier: []byte("graphql_datasource.Source"),
 															FetchConfiguration: resolve.FetchConfiguration{
 																Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":[$$0$$]}}}`,
@@ -2009,7 +2007,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															},
 														},
 														&resolve.SingleFetch{
-															SerialID:             2,
+															FetchID:              2,
 															DataSourceIdentifier: []byte("graphql_datasource.Source"),
 															FetchConfiguration: resolve.FetchConfiguration{
 																Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
@@ -2276,7 +2274,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											},
 										},
 										Fetch: &resolve.SingleFetch{
-											SerialID: 1,
+											FetchID: 1,
 											FetchConfiguration: resolve.FetchConfiguration{
 												RequiresEntityBatchFetch:              false,
 												RequiresEntityFetch:                   true,
@@ -2370,7 +2368,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											},
 										},
 										Fetch: &resolve.SingleFetch{
-											SerialID: 1,
+											FetchID: 1,
 											FetchConfiguration: resolve.FetchConfiguration{
 												RequiresEntityBatchFetch:              false,
 												RequiresEntityFetch:                   true,
@@ -2699,7 +2697,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											Fetch: &resolve.ParallelFetch{
 												Fetches: []resolve.Fetch{
 													&resolve.SingleFetch{
-														SerialID: 1,
+														FetchID: 1,
 														FetchConfiguration: resolve.FetchConfiguration{
 															Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name} ... on Admin {adminName}}}","variables":{"representations":[$$0$$]}}}`,
 															DataSource:                            &Source{},
@@ -2747,7 +2745,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														DataSourceIdentifier: []byte("graphql_datasource.Source"),
 													},
 													&resolve.SingleFetch{
-														SerialID: 2,
+														FetchID: 2,
 														FetchConfiguration: resolve.FetchConfiguration{
 															Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Moderator {subject}}}","variables":{"representations":[$$0$$]}}}`,
 															DataSource:                            &Source{},
@@ -2833,7 +2831,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											Fetch: &resolve.ParallelFetch{
 												Fetches: []resolve.Fetch{
 													&resolve.SingleFetch{
-														SerialID: 1,
+														FetchID: 1,
 														FetchConfiguration: resolve.FetchConfiguration{
 															Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Moderator {title}}}","variables":{"representations":[$$0$$]}}}`,
 															DataSource:                            &Source{},
@@ -2867,7 +2865,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														DataSourceIdentifier: []byte("graphql_datasource.Source"),
 													},
 													&resolve.SingleFetch{
-														SerialID: 2,
+														FetchID: 2,
 														FetchConfiguration: resolve.FetchConfiguration{
 															Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {title}}}","variables":{"representations":[$$0$$]}}}`,
 															DataSource:                            &Source{},
@@ -3182,7 +3180,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											&resolve.SerialFetch{
 												Fetches: []resolve.Fetch{
 													&resolve.SingleFetch{
-														SerialID: 2,
+														FetchID: 2,
 														FetchConfiguration: resolve.FetchConfiguration{
 															RequiresEntityBatchFetch:              false,
 															RequiresEntityFetch:                   true,
@@ -3217,7 +3215,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														DataSourceIdentifier: []byte("graphql_datasource.Source"),
 													},
 													&resolve.SingleFetch{
-														SerialID: 3,
+														FetchID: 3,
 														FetchConfiguration: resolve.FetchConfiguration{
 															RequiresEntityBatchFetch:              false,
 															RequiresEntityFetch:                   true,
@@ -3254,7 +3252,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												},
 											},
 											&resolve.SingleFetch{
-												SerialID: 3,
+												FetchID: 3,
 												FetchConfiguration: resolve.FetchConfiguration{
 													RequiresEntityBatchFetch:              false,
 													RequiresEntityFetch:                   true,

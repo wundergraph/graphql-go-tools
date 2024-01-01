@@ -22,23 +22,29 @@ type configurationVisitor struct {
 
 	dataSources []DataSourceConfiguration
 	planners    []*plannerConfiguration
-	fetches     []objectFetchConfiguration
 
 	nodeSuggestions    NodeSuggestions        // nodeSuggestions holds information about suggested data sources for each field
-	currentFetchID     int                    // currentFetchID is used to generate serial fetch IDs for each fetch
 	parentTypeNodes    []ast.Node             // parentTypeNodes is a stack of parent type nodes - used to determine if the parent is abstract
 	arrayFields        []arrayField           // arrayFields is a stack of array fields - used to plan nested queries
 	selectionSetRefs   []int                  // selectionSetRefs is a stack of selection set refs - used to add a required fields
-	skipFieldsRefs     []int                  // skipFieldsRefs holds required field refs which should not be added to user response
+	skipFieldsRefs     []int                  // skipFieldsRefs holds required field refs added by planner and should not be added to user response
 	missingPathTracker map[string]missingPath // missingPathTracker is a map of paths which will be added on secondary runs
 	addedPathTracker   []pathConfiguration    // addedPathTracker is a list of paths which were added
 
-	pendingRequiredFields map[int][]string // pendingRequiredFields is a map[selectionSetRef][]RequiredFieldsSelectionSet
-	handledRequires       map[int]struct{} // handledRequires is a map[FieldRef] of already processed fields which has @requires directive
-	visitedFields         map[int]struct{} // visitedFields is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
+	pendingRequiredFields map[int][]fieldsRequiredByPlanner // pendingRequiredFields is a map[selectionSetRef][]fieldsRequiredByPlanner
+	handledRequires       map[int]struct{}                  // handledRequires is a map[FieldRef] of already processed fields which has @requires directive
+	visitedFields         map[int]struct{}                  // visitedFields is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
+	requiredFieldsMapping map[int][]int                     // requiredFieldsMapping is a map[FieldRef][]plannerIdx holds dependencies between fields and planners
 
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the planner not the first time
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
+}
+
+// fieldsRequiredByPlanner is a mapping between planner id which requested required fields
+// and a list of fields which should be added
+type fieldsRequiredByPlanner struct {
+	plannerIds      []int
+	fieldSelections string
 }
 
 type arrayField struct {
@@ -63,8 +69,9 @@ type objectFetchConfiguration struct {
 	isSubscription     bool
 	fieldRef           int
 	fieldDefinitionRef int
-	fetchID            int
 	sourceID           string
+	fetchID            int
+	dependsOnFetchIDs  []int
 }
 
 func (c *configurationVisitor) currentSelectionSet() int {
@@ -235,18 +242,13 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 	}
 
 	c.operation, c.definition = operation, definition
-	c.currentFetchID = -1
 	c.parentTypeNodes = c.parentTypeNodes[:0]
 	if c.planners == nil {
 		c.planners = make([]*plannerConfiguration, 0, 8)
 	} else {
 		c.planners = c.planners[:0]
 	}
-	if c.fetches == nil {
-		c.fetches = []objectFetchConfiguration{}
-	} else {
-		c.fetches = c.fetches[:0]
-	}
+
 	if c.skipFieldsRefs == nil {
 		c.skipFieldsRefs = make([]int, 0, 8)
 	} else {
@@ -256,7 +258,8 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 	c.missingPathTracker = make(map[string]missingPath)
 	c.addedPathTracker = make([]pathConfiguration, 0, 8)
 
-	c.pendingRequiredFields = make(map[int][]string)
+	c.pendingRequiredFields = make(map[int][]fieldsRequiredByPlanner)
+	c.requiredFieldsMapping = make(map[int][]int)
 	c.handledRequires = make(map[int]struct{})
 	c.visitedFields = make(map[int]struct{})
 }
@@ -354,8 +357,9 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 
 	if planned {
-		c.handleRequirements(plannerIdx, parentPath, currentPath, typeName, fieldName, ref)
+		c.handleRequirements(plannerIdx, parentPath, typeName, fieldName, ref)
 		c.rewriteSelectionSetOfFieldWithInterfaceType(ref, plannerIdx)
+		c.addPlannerDependencies(ref, plannerIdx)
 
 		return
 	}
@@ -363,7 +367,27 @@ func (c *configurationVisitor) EnterField(ref int) {
 	c.handleMissingPath(typeName, fieldName, currentPath)
 }
 
-func (c *configurationVisitor) handleRequirements(plannerIdx int, parentPath string, currentPath string, typeName, fieldName string, fieldRef int) {
+func (c *configurationVisitor) addPlannerDependencies(fieldRef int, plannerIdx int) {
+	plannerIds, mappingExists := c.requiredFieldsMapping[fieldRef]
+	if !mappingExists {
+		return
+	}
+
+	for _, notifyPlannerIdx := range plannerIds {
+		notified := false
+		for _, existingPlannerId := range c.planners[notifyPlannerIdx].objectFetchConfiguration.dependsOnFetchIDs {
+			if existingPlannerId == plannerIdx {
+				notified = true
+				break
+			}
+		}
+		if !notified {
+			c.planners[notifyPlannerIdx].objectFetchConfiguration.dependsOnFetchIDs = append(c.planners[notifyPlannerIdx].objectFetchConfiguration.dependsOnFetchIDs, plannerIdx)
+		}
+	}
+}
+
+func (c *configurationVisitor) handleRequirements(plannerIdx int, parentPath string, typeName, fieldName string, fieldRef int) {
 	plannerConfig := c.planners[plannerIdx]
 	dsHash := plannerConfig.dataSourceConfiguration.Hash()
 
@@ -374,7 +398,7 @@ func (c *configurationVisitor) handleRequirements(plannerIdx int, parentPath str
 	}
 
 	// add required fields for field and type (@requires)
-	c.handleFieldRequiredByRequires(plannerConfig, currentPath, typeName, fieldName, fieldRef)
+	c.handleFieldRequiredByRequires(plannerIdx, plannerConfig, typeName, fieldName, fieldRef)
 }
 
 func (c *configurationVisitor) handleProvidesSuggestions(ref int, typeName, fieldName, currentPath string) {
@@ -578,7 +602,6 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		return -1, false
 	}
 
-	fetchID := c.nextFetchID()
 	planner := config.Factory.Planner(c.ctx)
 	isParentAbstract := c.isParentTypeNodeAbstractType()
 
@@ -646,28 +669,33 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		plannerPath = precedingFragmentPath
 	}
 
-	plannerConfig := &plannerConfiguration{
-		dataSourceConfiguration: *config,
-		parentPath:              plannerPath,
-		planner:                 planner,
-		paths:                   paths,
-		parentPathType:          c.plannerPathType(plannerPath),
-	}
-
 	fieldDefinition, ok := c.walker.FieldDefinition(ref)
 	if !ok {
 		return -1, false
 	}
 
-	c.planners = append(c.planners, plannerConfig)
-	c.fetches = append(c.fetches, objectFetchConfiguration{
+	// fetch id is an index of the current planner
+	fetchID := len(c.planners)
+
+	fetchConfiguration := objectFetchConfiguration{
 		planner:            planner,
 		isSubscription:     isSubscription,
 		fieldRef:           ref,
 		fieldDefinitionRef: fieldDefinition,
 		fetchID:            fetchID,
 		sourceID:           config.ID,
-	})
+	}
+
+	plannerConfig := &plannerConfiguration{
+		dataSourceConfiguration:  *config,
+		objectFetchConfiguration: fetchConfiguration,
+		parentPath:               plannerPath,
+		planner:                  planner,
+		paths:                    paths,
+		parentPathType:           c.plannerPathType(plannerPath),
+	}
+
+	c.planners = append(c.planners, plannerConfig)
 
 	for _, pathConfiguration := range paths {
 		c.saveAddedPath(pathConfiguration)
@@ -822,12 +850,7 @@ func (c *configurationVisitor) isSubscription(root int, path string) bool {
 	return strings.Count(path, ".") == 1
 }
 
-func (c *configurationVisitor) nextFetchID() int {
-	c.currentFetchID++
-	return c.currentFetchID
-}
-
-func (c *configurationVisitor) handleFieldRequiredByRequires(config *plannerConfiguration, currentPath string, typeName, fieldName string, fieldRef int) {
+func (c *configurationVisitor) handleFieldRequiredByRequires(plannerIdx int, config *plannerConfiguration, typeName, fieldName string, fieldRef int) {
 	if _, ok := c.handledRequires[fieldRef]; ok {
 		return
 	}
@@ -835,7 +858,7 @@ func (c *configurationVisitor) handleFieldRequiredByRequires(config *plannerConf
 
 	requiredFieldsForTypeAndField := config.dataSourceConfiguration.RequiredFieldsByRequires(typeName, fieldName)
 	for _, requiredFieldsConfiguration := range requiredFieldsForTypeAndField {
-		c.planAddingRequiredFields(requiredFieldsConfiguration)
+		c.planAddingRequiredFields(plannerIdx, requiredFieldsConfiguration)
 		var added bool
 		config.requiredFields, added = appendRequiredFieldsConfigurationIfNotPresent(config.requiredFields, requiredFieldsConfiguration)
 		if added {
@@ -869,7 +892,7 @@ func (c *configurationVisitor) planKeyRequiredFields(plannerIdx int, parentPath 
 		}
 		for _, possibleRequiredFieldConfig := range possibleRequiredFields {
 			if c.planners[i].dataSourceConfiguration.HasKeyRequirement(typeName, possibleRequiredFieldConfig.SelectionSet) {
-				c.planAddingRequiredFields(possibleRequiredFieldConfig)
+				c.planAddingRequiredFields(plannerIdx, possibleRequiredFieldConfig)
 				return possibleRequiredFieldConfig, true
 			}
 		}
@@ -878,26 +901,50 @@ func (c *configurationVisitor) planKeyRequiredFields(plannerIdx int, parentPath 
 	return FederationFieldConfiguration{}, false
 }
 
-func (c *configurationVisitor) planAddingRequiredFields(fieldConfiguration FederationFieldConfiguration) {
+func (c *configurationVisitor) planAddingRequiredFields(plannerIdx int, fieldConfiguration FederationFieldConfiguration) {
 	currentSelectionSet := c.currentSelectionSet()
 
-	selectionSets, hasSelectionSet := c.pendingRequiredFields[currentSelectionSet]
-	if !hasSelectionSet {
-		selectionSets = make([]string, 0, 2)
-		c.pendingRequiredFields[currentSelectionSet] = append(selectionSets, fieldConfiguration.SelectionSet)
+	requirements, hasRequirements := c.pendingRequiredFields[currentSelectionSet]
+	// no requirement was added for the current selection set
+	if !hasRequirements {
+		requirements = make([]fieldsRequiredByPlanner, 0, 2)
+		c.pendingRequiredFields[currentSelectionSet] = append(requirements, fieldsRequiredByPlanner{
+			plannerIds:      []int{plannerIdx},
+			fieldSelections: fieldConfiguration.SelectionSet,
+		})
 		return
 	}
 
-	exists := false
-	for _, existingSelectionSet := range selectionSets {
-		if existingSelectionSet == fieldConfiguration.SelectionSet {
-			exists = true
+	requirementExists := false
+	for i := range requirements {
+		if requirements[i].fieldSelections == fieldConfiguration.SelectionSet {
+			requirementExists = true
+
+			plannerIdExists := false
+			for _, plannerId := range requirements[i].plannerIds {
+				if plannerId == plannerIdx {
+					plannerIdExists = true
+					break
+				}
+			}
+			// when we have already added the same requirements for the current selection set
+			// but not for such planner id
+			if !plannerIdExists {
+				requirements[i].plannerIds = append(requirements[i].plannerIds, plannerIdx)
+			}
 			break
 		}
 	}
-	if !exists {
-		c.pendingRequiredFields[currentSelectionSet] = append(selectionSets, fieldConfiguration.SelectionSet)
+
+	// when no such requirement was added for the current selection set
+	if !requirementExists {
+		requirements = append(requirements, fieldsRequiredByPlanner{
+			plannerIds:      []int{plannerIdx},
+			fieldSelections: fieldConfiguration.SelectionSet,
+		})
 	}
+
+	c.pendingRequiredFields[currentSelectionSet] = requirements
 }
 
 func (c *configurationVisitor) processPendingRequiredFields(selectionSetRef int) {
@@ -906,14 +953,14 @@ func (c *configurationVisitor) processPendingRequiredFields(selectionSetRef int)
 		return
 	}
 
-	for _, requiredFields := range configs {
-		c.addRequiredFields(selectionSetRef, requiredFields)
+	for _, requiredFieldsCfg := range configs {
+		c.addRequiredFields(selectionSetRef, requiredFieldsCfg.plannerIds, requiredFieldsCfg.fieldSelections)
 	}
 
 	delete(c.pendingRequiredFields, selectionSetRef)
 }
 
-func (c *configurationVisitor) addRequiredFields(selectionSetRef int, requiredFields string) {
+func (c *configurationVisitor) addRequiredFields(selectionSetRef int, plannerIds []int, requiredFields string) {
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
 	key, report := RequiredFieldsFragment(typeName, requiredFields, true)
 	if report.HasErrors() {
@@ -928,13 +975,18 @@ func (c *configurationVisitor) addRequiredFields(selectionSetRef int, requiredFi
 		definition:            c.definition,
 		report:                report,
 		operationSelectionSet: selectionSetRef,
-		skipFieldRefs:         &c.skipFieldsRefs,
 		parentPath:            parentPath,
 	}
 
-	addRequiredFields(input)
+	skipFieldRefs, requiredFieldRefs := addRequiredFields(input)
 	if report.HasErrors() {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields for %s", typeName))
+	}
+
+	c.skipFieldsRefs = append(c.skipFieldsRefs, skipFieldRefs...)
+
+	for _, fieldRef := range requiredFieldRefs {
+		c.requiredFieldsMapping[fieldRef] = append(c.requiredFieldsMapping[fieldRef], plannerIds...)
 	}
 }
 

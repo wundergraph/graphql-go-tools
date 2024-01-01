@@ -13,17 +13,25 @@ const (
 	FetchKindParallelListItem
 	FetchKindEntity
 	FetchKindEntityBatch
+	FetchKindMulti
 )
 
 type Fetch interface {
 	FetchKind() FetchKind
 }
 
-type Fetches []Fetch
+type MultiFetch struct {
+	Fetches []Fetch
+}
+
+func (_ *MultiFetch) FetchKind() FetchKind {
+	return FetchKindMulti
+}
 
 type SingleFetch struct {
 	FetchConfiguration
-	SerialID             int
+	FetchID              int
+	DependsOnFetchIDs    []int
 	InputTemplate        InputTemplate
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
@@ -151,10 +159,7 @@ type FetchConfiguration struct {
 	// By default SingleFlight for fetches is disabled and needs to be enabled on the Resolver first
 	// If the resolver allows SingleFlight it's up to each individual DataSource Planner to decide whether an Operation
 	// should be allowed to use SingleFlight
-	DisallowSingleFlight bool
-	// RequiresSerialFetch is used to indicate that the single fetches should be executed serially
-	// When we have multiple fetches attached to the object - after post-processing of a plan we will get SerialFetch instead of ParallelFetch
-	RequiresSerialFetch bool
+	DisallowSingleFlight bool // TODO: remove - unused
 	// RequiresParallelListItemFetch is used to indicate that the single fetches should be executed without batching
 	// When we have multiple fetches attached to the object - after post-processing of a plan we will get ParallelListItemFetch instead of ParallelFetch
 	RequiresParallelListItemFetch bool

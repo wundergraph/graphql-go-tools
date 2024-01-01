@@ -34,7 +34,6 @@ type Visitor struct {
 	currentFields                []objectFields
 	currentField                 *resolve.Field
 	planners                     []*plannerConfiguration
-	fetchConfigurations          []objectFetchConfiguration
 	skipFieldsRefs               []int
 	fieldConfigs                 map[int]*FieldConfiguration
 	exportedVariables            map[string]struct{}
@@ -434,15 +433,15 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 }
 
 func (v *Visitor) linkFetchConfiguration(fieldRef int) {
-	for i := range v.fetchConfigurations {
-		if fieldRef == v.fetchConfigurations[i].fieldRef {
-			if v.fetchConfigurations[i].isSubscription {
+	for i := range v.planners {
+		if fieldRef == v.planners[i].objectFetchConfiguration.fieldRef {
+			if v.planners[i].objectFetchConfiguration.isSubscription {
 				plan, ok := v.plan.(*SubscriptionResponsePlan)
 				if ok {
-					v.fetchConfigurations[i].trigger = &plan.Response.Trigger
+					v.planners[i].objectFetchConfiguration.trigger = &plan.Response.Trigger
 				}
 			} else {
-				v.fetchConfigurations[i].object = v.objects[len(v.objects)-1]
+				v.planners[i].objectFetchConfiguration.object = v.objects[len(v.objects)-1]
 			}
 		}
 	}
@@ -841,11 +840,11 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 }
 
 func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
-	for _, config := range v.fetchConfigurations {
-		if config.isSubscription {
-			v.configureSubscription(config)
+	for i := range v.planners {
+		if v.planners[i].objectFetchConfiguration.isSubscription {
+			v.configureSubscription(v.planners[i].objectFetchConfiguration)
 		} else {
-			v.configureObjectFetch(config)
+			v.configureObjectFetch(v.planners[i].objectFetchConfiguration)
 		}
 	}
 }
@@ -1093,20 +1092,11 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 	switch existing := config.object.Fetch.(type) {
 	case *resolve.SingleFetch:
 		copyOfExisting := *existing
-		if copyOfExisting.RequiresSerialFetch {
-			serial := &resolve.SerialFetch{
-				Fetches: []resolve.Fetch{&copyOfExisting, fetch},
-			}
-			config.object.Fetch = serial
-		} else {
-			parallel := &resolve.ParallelFetch{
-				Fetches: []resolve.Fetch{&copyOfExisting, fetch},
-			}
-			config.object.Fetch = parallel
+		multi := &resolve.MultiFetch{
+			Fetches: []resolve.Fetch{&copyOfExisting, fetch},
 		}
-	case *resolve.ParallelFetch:
-		existing.Fetches = append(existing.Fetches, fetch)
-	case *resolve.SerialFetch:
+		config.object.Fetch = multi
+	case *resolve.MultiFetch:
 		existing.Fetches = append(existing.Fetches, fetch)
 	}
 }
@@ -1117,7 +1107,8 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external res
 
 	singleFetch := &resolve.SingleFetch{
 		FetchConfiguration:   external,
-		SerialID:             internal.fetchID,
+		FetchID:              internal.fetchID,
+		DependsOnFetchIDs:    internal.dependsOnFetchIDs,
 		DataSourceIdentifier: []byte(dataSourceType),
 	}
 
