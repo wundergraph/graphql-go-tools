@@ -54,6 +54,8 @@ func (d *CreateMultiFetchTypes) processMultiFetch(fetch *resolve.MultiFetch) res
 		dependsOn = append(dependsOn, f.DependsOnFetchIDs...)
 	}
 
+	// at the beginning we collect all dependencies of the current fetches, which not in the list of current fetches
+	// that will be parent fetches from lower depth
 	seenParentFetches := make(map[int]struct{}, len(fetch.Fetches))
 	for _, parentID := range dependsOn {
 		if slices.ContainsFunc(currentFetches, func(f *resolve.SingleFetch) bool {
@@ -67,8 +69,15 @@ func (d *CreateMultiFetchTypes) processMultiFetch(fetch *resolve.MultiFetch) res
 
 	layers := make([][]resolve.Fetch, 0, len(fetch.Fetches))
 
+	// Here we create execution layers, layers will be fetched serially,
+	// but each layer items could be fetched in parallel.
+	// We iterate over items and look for fetches which depends on already seen fetches,
+	// such fetches added to the current layer, and removed from current fetches,
+	// we also mark them as seen after current layer is created
+
 	for len(currentFetches) > 0 {
 		currentLayer := make([]resolve.Fetch, 0, 2)
+		// as currentLayer is a slice of interfaces resolve.Fetch, we store fetch ids separately
 		currentLayerFetchIds := make([]int, 0, 2)
 
 		for _, fetch := range currentFetches {
@@ -76,6 +85,7 @@ func (d *CreateMultiFetchTypes) processMultiFetch(fetch *resolve.MultiFetch) res
 			for _, parentID := range fetch.DependsOnFetchIDs {
 				if _, ok := seenParentFetches[parentID]; !ok {
 					shouldAdd = false
+					break
 				}
 			}
 
