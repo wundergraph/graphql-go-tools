@@ -1080,20 +1080,18 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 	}
 	fetchConfig := config.planner.ConfigureFetch()
 	fetch := v.configureFetch(config, fetchConfig)
+	v.resolveInputTemplates(config, &fetch.Input, &fetch.Variables)
 
-	switch f := fetch.(type) {
-	case *resolve.SingleFetch:
-		v.resolveInputTemplates(config, &f.Input, &f.Variables)
-	}
 	if config.object.Fetch == nil {
 		config.object.Fetch = fetch
 		return
 	}
+
 	switch existing := config.object.Fetch.(type) {
 	case *resolve.SingleFetch:
 		copyOfExisting := *existing
 		multi := &resolve.MultiFetch{
-			Fetches: []resolve.Fetch{&copyOfExisting, fetch},
+			Fetches: []*resolve.SingleFetch{&copyOfExisting, fetch},
 		}
 		config.object.Fetch = multi
 	case *resolve.MultiFetch:
@@ -1101,7 +1099,7 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 	}
 }
 
-func (v *Visitor) configureFetch(internal objectFetchConfiguration, external resolve.FetchConfiguration) resolve.Fetch {
+func (v *Visitor) configureFetch(internal objectFetchConfiguration, external resolve.FetchConfiguration) *resolve.SingleFetch {
 	dataSourceType := reflect.TypeOf(external.DataSource).String()
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 

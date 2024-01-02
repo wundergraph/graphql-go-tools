@@ -1,6 +1,8 @@
 package postprocess
 
 import (
+	"slices"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -45,6 +47,75 @@ func (d *CreateMultiFetchTypes) traverseFetch(fetch resolve.Fetch) resolve.Fetch
 }
 
 func (d *CreateMultiFetchTypes) processMultiFetch(fetch *resolve.MultiFetch) resolve.Fetch {
+	currentFetches := fetch.Fetches
+	dependsOn := make([]int, 0, len(fetch.Fetches))
 
-	return fetch
+	for _, f := range fetch.Fetches {
+		dependsOn = append(dependsOn, f.DependsOnFetchIDs...)
+	}
+
+	seenParentFetches := make(map[int]struct{}, len(fetch.Fetches))
+	for _, parentID := range dependsOn {
+		if slices.ContainsFunc(currentFetches, func(f *resolve.SingleFetch) bool {
+			return parentID == f.FetchID
+		}) {
+			continue
+		}
+
+		seenParentFetches[parentID] = struct{}{}
+	}
+
+	layers := make([][]resolve.Fetch, 0, len(fetch.Fetches))
+
+	for len(currentFetches) > 0 {
+		currentLayer := make([]resolve.Fetch, 0, 2)
+		currentLayerFetchIds := make([]int, 0, 2)
+
+		for _, fetch := range currentFetches {
+			shouldAdd := true
+			for _, parentID := range fetch.DependsOnFetchIDs {
+				if _, ok := seenParentFetches[parentID]; !ok {
+					shouldAdd = false
+				}
+			}
+
+			if shouldAdd {
+				currentLayerFetchIds = append(currentLayerFetchIds, fetch.FetchID)
+				currentLayer = append(currentLayer, fetch)
+			}
+		}
+
+		layers = append(layers, currentLayer)
+
+		for _, fetchID := range currentLayerFetchIds {
+			seenParentFetches[fetchID] = struct{}{}
+		}
+
+		currentFetches = slices.DeleteFunc(currentFetches, func(f *resolve.SingleFetch) bool {
+			return slices.Contains(currentLayerFetchIds, f.FetchID)
+		})
+
+	}
+
+	if len(layers) == 1 {
+		return &resolve.ParallelFetch{
+			Fetches: layers[0],
+		}
+	}
+
+	fetches := make([]resolve.Fetch, 0, len(layers))
+	for _, layer := range layers {
+		if len(layer) == 1 {
+			fetches = append(fetches, layer[0])
+			continue
+		}
+
+		fetches = append(fetches, &resolve.ParallelFetch{
+			Fetches: layer,
+		})
+	}
+
+	return &resolve.SerialFetch{
+		Fetches: fetches,
+	}
 }
