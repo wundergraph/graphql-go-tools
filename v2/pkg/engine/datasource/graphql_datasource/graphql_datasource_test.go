@@ -8216,25 +8216,17 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 	})
 }
 
-type runTestOnTestDefinitionOptions func(planConfig *plan.Configuration, extraChecks *[]CheckFunc)
+type runTestOnTestDefinitionOptions func(planConfig *plan.Configuration)
 
 func testWithFactory(factory *Factory) runTestOnTestDefinitionOptions {
-	return func(planConfig *plan.Configuration, extraChecks *[]CheckFunc) {
+	return func(planConfig *plan.Configuration) {
 		for _, ds := range planConfig.DataSources {
 			ds.Factory = factory
 		}
 	}
 }
 
-// nolint:deadcode,unused
-func testWithExtraChecks(extraChecks ...CheckFunc) runTestOnTestDefinitionOptions {
-	return func(planConfig *plan.Configuration, availableChecks *[]CheckFunc) {
-		*availableChecks = append(*availableChecks, extraChecks...)
-	}
-}
-
 func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.Plan, options ...runTestOnTestDefinitionOptions) func(t *testing.T) {
-	extraChecks := make([]CheckFunc, 0)
 	config := plan.Configuration{
 		DataSources: []plan.DataSourceConfiguration{
 			{
@@ -8331,11 +8323,7 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 		DisableResolveFieldPositions: true,
 	}
 
-	for _, opt := range options {
-		opt(&config, &extraChecks)
-	}
-
-	return RunTest(testDefinition, operation, operationName, expectedPlan, config, extraChecks...)
+	return RunTest(testDefinition, operation, operationName, expectedPlan, config)
 }
 
 func TestSource_Load(t *testing.T) {
