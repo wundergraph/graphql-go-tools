@@ -21,7 +21,7 @@ type Fetch interface {
 }
 
 type MultiFetch struct {
-	Fetches []Fetch
+	Fetches []*SingleFetch
 }
 
 func (_ *MultiFetch) FetchKind() FetchKind {
