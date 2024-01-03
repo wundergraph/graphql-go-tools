@@ -197,7 +197,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 		if p.configurationVisitor.hasNewFields {
 			// update suggestions for the new required fields
 			p.configurationVisitor.dataSources, p.configurationVisitor.nodeSuggestions =
-				dsFilter.FilterDataSources(p.config.DataSources, p.configurationVisitor.nodeSuggestions)
+				dsFilter.FilterDataSources(p.config.DataSources, p.configurationVisitor.nodeSuggestions, p.configurationVisitor.nodeSuggestionHints...)
 			if report.HasErrors() {
 				return
 			}

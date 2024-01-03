@@ -2934,8 +2934,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 	})
 
 	t.Run("different entity keys jumps", func(t *testing.T) {
-		t.Skip("problem with node suggestions")
-
 		definition := `
 				type User {
 					id: ID!
@@ -3123,14 +3121,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 		planConfiguration := plan.Configuration{
 			DataSources:                  ShuffleDS(dataSources),
 			DisableResolveFieldPositions: true,
-			Debug: plan.DebugConfiguration{
-				// PrintOperationTransformations: true,
-				PrintQueryPlans:      true,
-				PrintPlanningPaths:   true,
-				PrintNodeSuggestions: true,
-
-				// DatasourceVisitor: true,
-			},
 		}
 
 		t.Run("run", RunTest(
