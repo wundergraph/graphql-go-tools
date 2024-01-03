@@ -1,0 +1,15 @@
+schema {
+    mutation: Mutation
+}
+
+type Mutation {
+    postColors(color: Color!): Color
+}
+
+enum Color {
+    BLACK
+    WHITE
+    RED
+    GREEN
+    BLUE
+}

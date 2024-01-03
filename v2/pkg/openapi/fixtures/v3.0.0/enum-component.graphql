@@ -1,0 +1,15 @@
+schema {
+    query: Query
+}
+
+type Query {
+    colors: Color
+}
+
+enum Color {
+    BLACK
+    WHITE
+    RED
+    GREEN
+    BLUE
+}

@@ -2,9 +2,10 @@ package openapi
 
 import (
 	"fmt"
+	"sort"
+
 	"github.com/TykTechnologies/graphql-go-tools/pkg/introspection"
 	"github.com/getkin/kin-openapi/openapi3"
-	"sort"
 )
 
 func (c *converter) processInputFields(ft *introspection.FullType, schemaRef *openapi3.SchemaRef) error {
@@ -46,28 +47,40 @@ func (c *converter) processInputObject(schema *openapi3.SchemaRef) error {
 }
 
 func (c *converter) getInputValue(name string, schema *openapi3.SchemaRef) (*introspection.InputValue, error) {
-	paramType := schema.Value.Type
-	if paramType == "array" {
-		paramType = schema.Value.Items.Value.Type
-	}
+	var (
+		err     error
+		gqlType string
+		typeRef introspection.TypeRef
+	)
 
-	typeRef, err := getParamTypeRef(paramType)
-	if err != nil {
-		return nil, err
-	}
+	if len(schema.Value.Enum) > 0 {
+		enumType := c.createOrGetEnumType(name, schema)
+		typeRef = getEnumTypeRef()
+		gqlType = enumType.Name
+	} else {
+		paramType := schema.Value.Type
+		if paramType == "array" {
+			paramType = schema.Value.Items.Value.Type
+		}
 
-	gqlType := name
-	if paramType != "object" {
-		gqlType, err = getPrimitiveGraphQLTypeName(paramType)
+		typeRef, err = getParamTypeRef(paramType)
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		name = MakeInputTypeName(name)
+
 		gqlType = name
-		err = c.processInputObject(schema)
-		if err != nil {
-			return nil, err
+		if paramType != "object" {
+			gqlType, err = getPrimitiveGraphQLTypeName(paramType)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			name = MakeInputTypeName(name)
+			gqlType = name
+			err = c.processInputObject(schema)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 

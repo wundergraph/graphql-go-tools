@@ -2,26 +2,9 @@ package openapi
 
 import (
 	"errors"
-	"fmt"
+
 	"github.com/getkin/kin-openapi/openapi3"
 )
-
-func extractTypeName(status int, operation *openapi3.Operation) (string, error) {
-	response := operation.Responses.Get(status)
-	if response == nil {
-		return "", fmt.Errorf("%w: response is nil for operation id: %s, status code: %d", errTypeNameExtractionImpossible, operation.OperationID, status)
-	}
-
-	schema := getJSONSchema(status, operation)
-	if schema == nil {
-		return "", fmt.Errorf("%w: schema is nil for operation id: %s, status code: %d", errTypeNameExtractionImpossible, operation.OperationID, status)
-	}
-
-	if schema.Value.Type == "array" {
-		return extractFullTypeNameFromRef(schema.Value.Items.Ref)
-	}
-	return extractFullTypeNameFromRef(schema.Ref)
-}
 
 // tryExtractTypeName attempts to extract the GraphQL type name from the given OpenAPI schema reference.
 // Returns the GraphQL type name and any error encountered.

@@ -1,0 +1,33 @@
+openapi: "3.0.0"
+info:
+  title: Colors API
+  version: 1.0.0
+servers:
+  - url: http://localhost:3004/
+paths:
+  /colors:
+    post:
+      requestBody:
+        description: Pet to add to the store
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Color'
+      responses:
+        '200':
+          description: Available colors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Color'
+components:
+  schemas:
+    Color:
+      type: string
+      enum:
+        - black
+        - white
+        - red
+        - green
+        - blue

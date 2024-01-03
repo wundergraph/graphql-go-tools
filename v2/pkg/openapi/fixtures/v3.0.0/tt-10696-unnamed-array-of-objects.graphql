@@ -7,9 +7,16 @@ type Query {
     Retrieve usage statistics for an application
     Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
     """
-    getStats(unit: String): [StatsListItem]
+    getStats(unit: Unit): [StatsListItem]
 }
 
 type StatsListItem {
     product_id: Int
+}
+
+enum Unit {
+    MINUTE
+    HOUR
+    DAY
+    MONTH
 }

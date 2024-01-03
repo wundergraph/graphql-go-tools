@@ -7,5 +7,12 @@ type Query {
     Retrieve usage statistics for an application
     Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
     """
-    getStats(unit: String): [Int]
+    getStats(unit: Unit): [Int]
+}
+
+enum Unit {
+    MINUTE
+    HOUR
+    DAY
+    MONTH
 }

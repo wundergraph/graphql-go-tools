@@ -8,7 +8,7 @@ type Query {
     Get all employee details
     Uses the getEmployees Db2 z/OS asset
     """
-    employeesGet(department: String, job: String): [EmployeeBodyFormatted]
+    employeesGet(department: Department, job: Job): [EmployeeBodyFormatted]
     """
     Get an employee
     Uses the getEmployee Db2 z/OS asset
@@ -32,6 +32,17 @@ type Mutation {
     Uses the addEmployee Db2 z/OS asset
     """
     employeesPost(employeeBodyInput: EmployeeBodyInput): EmployeeBody
+}
+
+enum Department {
+    A_00
+    B_01
+    C_01
+    E_01
+    D_11
+    D_21
+    E_11
+    E_21
 }
 
 type EmployeeBody {
@@ -104,4 +115,15 @@ type EmployeeWorkPay {
     bonus: Float
     commission: Float
     salary: Float
+}
+
+enum Job {
+    FIELDREP
+    OPERATOR
+    CLERK
+    DESIGNER
+    ANALYST
+    SALESREP
+    MANAGER
+    PRES
 }

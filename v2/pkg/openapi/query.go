@@ -20,6 +20,7 @@ func (c *converter) importQueryType() (*introspection.FullType, error) {
 	}
 	for pathName, pathItem := range c.openapi.Paths {
 		c.currentPathName = pathName
+		c.currentPathItem = pathItem
 		// We only support HTTP GET operation.
 		for _, method := range []string{http.MethodGet} {
 			operation := pathItem.GetOperation(method)
@@ -40,18 +41,29 @@ func (c *converter) importQueryType() (*introspection.FullType, error) {
 				}
 
 				schema := getJSONSchema(status, operation)
+
+				var (
+					kind     string
+					typeName string
+				)
 				if schema == nil {
-					continue
+					typeName = c.tryMakeTypeNameFromOperation(status, operation)
+				} else {
+					kind = schema.Value.Type
+					typeName, err = c.getReturnType(schema)
+					if err != nil {
+						return nil, err
+					}
+					if len(schema.Value.Enum) > 0 {
+						c.createOrGetEnumType(typeName, schema)
+					}
 				}
-				kind := schema.Value.Type
+
 				if kind == "" {
 					// We assume that it is an object type.
 					kind = "object"
 				}
-				typeName, err := c.getReturnType(schema)
-				if err != nil {
-					return nil, err
-				}
+
 				typeName = strcase.ToCamel(typeName)
 				typeRef, err := getTypeRef(kind)
 				if err != nil {
@@ -79,45 +91,67 @@ func (c *converter) importQueryType() (*introspection.FullType, error) {
 	return queryType, nil
 }
 
+func (c *converter) processParameter(field *introspection.Field, parameter *openapi3.ParameterRef) error {
+	schema := parameter.Value.Schema
+	if schema == nil {
+		mediaType := parameter.Value.Content.Get("application/json")
+		if mediaType != nil {
+			schema = mediaType.Schema
+		}
+	}
+	if schema == nil {
+		return nil
+	}
+	return c.importQueryTypeFieldParameter(field, parameter.Value, schema)
+}
+
 func (c *converter) importQueryTypeFields(typeRef *introspection.TypeRef, operation *openapi3.Operation) (*introspection.Field, error) {
-	f := introspection.Field{
+	field := &introspection.Field{
 		Name:        strcase.ToLowerCamel(operation.OperationID),
 		Type:        *typeRef,
 		Description: getOperationDescription(operation),
 	}
 
 	for _, parameter := range operation.Parameters {
-		schema := parameter.Value.Schema
-		if schema == nil {
-			mediaType := parameter.Value.Content.Get("application/json")
-			if mediaType != nil {
-				schema = mediaType.Schema
-			}
-		}
-		if schema == nil {
-			continue
-		}
-		err := c.importQueryTypeFieldParameter(&f, parameter.Value, schema)
-		if err != nil {
+		if err := c.processParameter(field, parameter); err != nil {
 			return nil, err
 		}
 	}
-	return &f, nil
+
+	for _, parameter := range c.currentPathItem.Parameters {
+		if err := c.processParameter(field, parameter); err != nil {
+			return nil, err
+		}
+	}
+
+	return field, nil
 }
 
 func (c *converter) importQueryTypeFieldParameter(field *introspection.Field, parameter *openapi3.Parameter, schema *openapi3.SchemaRef) error {
-	paramType := schema.Value.Type
-	if paramType == "array" {
-		paramType = schema.Value.Items.Value.Type
-	}
+	var (
+		err     error
+		gqlType string
+		typeRef introspection.TypeRef
+	)
 
-	typeRef, err := getTypeRef(paramType)
-	if err != nil {
-		return err
-	}
-	gqlType, err := getPrimitiveGraphQLTypeName(paramType)
-	if err != nil {
-		return err
+	if len(schema.Value.Enum) > 0 {
+		enumType := c.createOrGetEnumType(parameter.Name, schema)
+		typeRef = getEnumTypeRef()
+		gqlType = enumType.Name
+	} else {
+		paramType := schema.Value.Type
+		if paramType == "array" {
+			paramType = schema.Value.Items.Value.Type
+		}
+
+		typeRef, err = getTypeRef(paramType)
+		if err != nil {
+			return err
+		}
+		gqlType, err = getPrimitiveGraphQLTypeName(paramType)
+		if err != nil {
+			return err
+		}
 	}
 
 	if schema.Value.Items != nil {
@@ -135,7 +169,7 @@ func (c *converter) importQueryTypeFieldParameter(field *introspection.Field, pa
 		typeRef = convertToNonNull(&typeRef)
 	}
 	iv := introspection.InputValue{
-		Name: parameter.Name,
+		Name: strcase.ToLowerCamel(parameter.Name),
 		Type: typeRef,
 	}
 

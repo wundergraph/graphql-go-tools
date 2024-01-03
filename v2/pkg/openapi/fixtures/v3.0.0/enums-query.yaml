@@ -1,0 +1,145 @@
+openapi: "3.0.0"
+info:
+  title: AcmeCorp - getStats
+  version: 1.0.0
+servers:
+  - url: http://localhost:3004/
+paths:
+  /stats:
+    get:
+      description: The AcmeCorp system can be queried to obtain usage statistics for a given application, and results are provided aggregated across all channels in use in the application in the specified period. Stats may be used to track usage against account quotas.
+      operationId: getStats
+      parameters:
+        - $ref: "#/components/parameters/filterStart"
+        - $ref: "#/components/parameters/filterLimit"
+        - $ref: "#/components/parameters/filterEnd"
+        - $ref: "#/components/parameters/filterDirection"
+        - description: Specifies the unit of aggregation in the returned results.
+          in: query
+          name: unit
+          schema:
+            default: minute
+            enum:
+              - minute
+              - hour
+              - day
+              - month
+            type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                type: object
+          description: OK
+        default:
+          $ref: "#/components/responses/Error"
+      summary: Retrieve usage statistics for an application
+      tags:
+        - Stats
+    parameters:
+      - $ref: "#/components/parameters/versionHeader"
+      - $ref: "#/components/parameters/responseFormat"
+
+components:
+
+  responses:
+    Error:
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+        application/x-msgpack:
+          schema:
+            $ref: "#/components/schemas/Error"
+        text/html:
+          schema:
+            $ref: "#/components/schemas/Error"
+      description: Error
+
+  schemas:
+    Error:
+      description: Returned error from failed REST.
+      properties:
+        code:
+          description: Error code.
+          type: integer
+        href:
+          description: Link to help with error.
+          type: string
+        message:
+          description: Message explaining the error's cause.
+          type: string
+        serverId:
+          description: Server ID with which error was encountered.
+          type: string
+        statusCode:
+          description: Status error code.
+          type: integer
+      type: object
+
+  parameters:
+    channelId:
+      description: The [Channel's ID](https://www.AcmeCorp.io/documentation/rest/channels).
+      in: path
+      name: channel_id
+      required: true
+      schema:
+        type: string
+    deviceId:
+      description: Device's ID.
+      in: path
+      name: device_id
+      required: true
+      schema:
+        type: string
+    filterDirection:
+      in: query
+      name: direction
+      schema:
+        default: backwards
+        enum:
+          - forwards
+          - backwards
+        type: string
+    filterEnd:
+      in: query
+      name: end
+      schema:
+        default: now
+        type: string
+    filterLimit:
+      in: query
+      name: limit
+      schema:
+        default: 100
+        type: integer
+    filterStart:
+      in: query
+      name: start
+      schema:
+        type: string
+    key_name:
+      description: The [key name](https://www.AcmeCorp.io/documentation/rest-api/token-request-spec#api-key-format) comprises of the app ID and key ID of an API key.
+      in: path
+      name: keyName
+      required: true
+      schema:
+        type: string
+    responseFormat:
+      description: The response format you would like
+      in: query
+      name: format
+      schema:
+        enum:
+          - json
+          - jsonp
+          - msgpack
+          - html
+        type: string
+    versionHeader:
+      description: The version of the API you wish to use.
+      in: header
+      name: X-AcmeCorp-Version
+      schema:
+        type: string
