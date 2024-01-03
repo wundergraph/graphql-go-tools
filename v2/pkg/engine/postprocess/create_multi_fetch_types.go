@@ -101,10 +101,13 @@ func (d *CreateMultiFetchTypes) processMultiFetch(fetch *resolve.MultiFetch) res
 			seenParentFetches[fetchID] = struct{}{}
 		}
 
+		if len(currentLayer) == 0 {
+			panic("not able to setup fetch execution order - wrong execution plan")
+		}
+
 		currentFetches = slices.DeleteFunc(currentFetches, func(f *resolve.SingleFetch) bool {
 			return slices.Contains(currentLayerFetchIds, f.FetchID)
 		})
-
 	}
 
 	if len(layers) == 1 {
