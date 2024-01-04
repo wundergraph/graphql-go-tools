@@ -96,8 +96,6 @@ func EntityInterfacesPlanConfiguration(factory plan.PlannerFactory) *plan.Config
 				TypeName:   "Query",
 				FieldNames: []string{"allAccountsInterface", "allAccountsUnion", "user", "admin"},
 			},
-		},
-		ChildNodes: []plan.TypeField{
 			{
 				TypeName:   "Account",
 				FieldNames: []string{"id", "title"},
