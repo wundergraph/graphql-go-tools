@@ -354,10 +354,6 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 	isSubscription := c.isSubscription(root.Ref, currentPath)
 
-	if c.secondaryRun && c.pathIsPlannedOnAllPlanners(currentPath) {
-		return
-	}
-
 	plannerIdx, planned := c.planWithExistingPlanners(ref, typeName, fieldName, currentPath, parentPath, precedingParentPath)
 	if !planned {
 		plannerIdx, planned = c.addNewPlanner(ref, typeName, fieldName, currentPath, parentPath, isSubscription)
@@ -476,17 +472,6 @@ func (c *configurationVisitor) handleProvidesSuggestions(ref int, typeName, fiel
 			break
 		}
 	}
-}
-
-func (c *configurationVisitor) pathIsPlannedOnAllPlanners(currentPath string) bool {
-	allPlannersHasPath := true
-	for _, plannerConfig := range c.planners {
-		if !plannerConfig.hasPath(currentPath) {
-			allPlannersHasPath = false
-		}
-	}
-
-	return allPlannersHasPath
 }
 
 func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, fieldName, currentPath, parentPath, precedingParentPath string) (plannerIdx int, planned bool) {

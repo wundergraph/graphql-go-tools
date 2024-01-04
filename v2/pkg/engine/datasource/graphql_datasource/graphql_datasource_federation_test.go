@@ -1873,13 +1873,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								thirdDatasourceConfiguration,
 							},
 							DisableResolveFieldPositions: true,
-							Debug: plan.DebugConfiguration{
-								PrintNodeSuggestions: true,
-								PrintPlanningPaths:   true,
-								PrintQueryPlans:      true,
-
-								ConfigurationVisitor: true,
-							},
 						},
 					))
 
@@ -1906,13 +1899,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								firstDatasourceConfiguration,
 							},
 							DisableResolveFieldPositions: true,
-							Debug: plan.DebugConfiguration{
-								PrintNodeSuggestions: true,
-								PrintPlanningPaths:   true,
-								PrintQueryPlans:      true,
-
-								ConfigurationVisitor: true,
-							},
 						},
 					))
 				})
