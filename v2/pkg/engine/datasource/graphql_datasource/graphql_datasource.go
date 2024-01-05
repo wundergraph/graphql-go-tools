@@ -526,18 +526,18 @@ func (p *Planner) EnterSelectionSet(ref int) {
 		p.addRepresentationsQuery()
 	}
 
-	// if p.visitor.Walker.EnclosingTypeDefinition.Kind.IsAbstractType() {
-	// 	// Adding the typename to abstract (unions and interfaces) types is handled elsewhere
-	// 	return
-	// }
+	if p.visitor.Walker.EnclosingTypeDefinition.Kind != ast.NodeKindInterfaceTypeDefinition {
+		return
+	}
 
-	// for _, selectionRef := range p.visitor.Operation.SelectionSets[ref].SelectionRefs {
-	// 	if p.visitor.Operation.Selections[selectionRef].Kind == ast.SelectionKindField {
-	// 		if p.visitor.Operation.FieldNameUnsafeString(p.visitor.Operation.Selections[selectionRef].Ref) == "__typename" {
-	// 			p.addTypenameToSelectionSet(set.Ref)
-	// 		}
-	// 	}
-	// }
+	// handle adding typename for the InterfaceObject
+	typeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
+	for _, interfaceObjectCfg := range p.dataSourceConfig.FederationMetaData.InterfaceObjects {
+		if interfaceObjectCfg.InterfaceName == typeName {
+			p.addTypenameToSelectionSet(set.Ref)
+			return
+		}
+	}
 }
 
 func (p *Planner) addTypenameToSelectionSet(selectionSet int) {

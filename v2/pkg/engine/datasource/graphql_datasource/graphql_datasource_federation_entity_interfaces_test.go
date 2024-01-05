@@ -30,7 +30,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://localhost:4002/graphql","body":{"query":"{accountLocations {id}}"}}`,
+								Input:          `{"method":"POST","url":"http://localhost:4002/graphql","body":{"query":"{accountLocations {__typename id}}"}}`,
 								PostProcessing: DefaultPostProcessingConfiguration,
 								DataSource:     &Source{},
 							},
@@ -257,7 +257,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://localhost:4002/graphql","body":{"query":"{accountLocations {id}}"}}`,
+								Input:          `{"method":"POST","url":"http://localhost:4002/graphql","body":{"query":"{accountLocations {__typename id}}"}}`,
 								PostProcessing: DefaultPostProcessingConfiguration,
 								DataSource:     &Source{},
 							},
@@ -398,4 +398,5 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 			WithMultiFetchPostProcessor(),
 		))
 	})
+
 }
