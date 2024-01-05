@@ -48,6 +48,24 @@ func ImportParsedOpenAPIv3Document(document *openapi3.T, report *operationreport
 			Name: "Query",
 		}
 		data.Schema.Types = append(data.Schema.Types, *queryType)
+	} else {
+		data.Schema.QueryType = &introspection.TypeName{
+			Name: "QueryPlaceholder",
+		}
+		stringScalarType := "String"
+		placeholderObject := introspection.FullType{
+			Kind:        introspection.OBJECT,
+			Name:        "QueryPlaceholder",
+			Description: "Placeholder object",
+			Fields: []introspection.Field{
+				{
+					Name:        "message",
+					Description: "Placeholder field",
+					Type:        introspection.TypeRef{Kind: introspection.SCALAR, Name: &stringScalarType},
+				},
+			},
+		}
+		data.Schema.Types = append(data.Schema.Types, placeholderObject)
 	}
 
 	mutationType, err := c.importMutationType()
