@@ -279,7 +279,7 @@ func (v *Visitor) EnterField(ref int) {
 
 	skipIncludeInfo := v.resolveSkipIncludeForField(ref)
 
-	onTypeNames := v.resolveOnTypeNames()
+	onTypeNames := v.resolveOnTypeNames(ref)
 
 	if bytes.Equal(fieldName, literal.TYPENAME) {
 		v.currentField = &resolve.Field{
@@ -328,7 +328,7 @@ func (v *Visitor) handleExistingField(currentFieldRef int, fieldDefinitionTypeRe
 	}
 
 	// merge on type names
-	onTypeNames := v.resolveOnTypeNames()
+	onTypeNames := v.resolveOnTypeNames(currentFieldRef)
 	hasOnTypeNames := len(resolveField.OnTypeNames) > 0 && len(onTypeNames) > 0
 	if hasOnTypeNames {
 		for _, t := range onTypeNames {
@@ -494,7 +494,7 @@ func (v *Visitor) resolveSkipIncludeForField(fieldRef int) skipIncludeInfo {
 	return skipIncludeInfo{}
 }
 
-func (v *Visitor) resolveOnTypeNames() [][]byte {
+func (v *Visitor) resolveOnTypeNames(fieldRef int) [][]byte {
 	if len(v.Walker.Ancestors) < 2 {
 		return nil
 	}
@@ -509,7 +509,7 @@ func (v *Visitor) resolveOnTypeNames() [][]byte {
 	node, exists := v.Definition.NodeByName(typeName)
 	// If not an interface, return the concrete type
 	if !exists || !node.Kind.IsAbstractType() {
-		return [][]byte{v.Config.Types.RenameTypeNameOnMatchBytes(typeName)}
+		return v.addInterfaceObjectNameToTypeNames(fieldRef, typeName, [][]byte{v.Config.Types.RenameTypeNameOnMatchBytes(typeName)})
 	}
 	if node.Kind == ast.NodeKindUnionTypeDefinition {
 		// This should never be true. If it is, it's an error
@@ -525,6 +525,32 @@ func (v *Visitor) resolveOnTypeNames() [][]byte {
 	if len(onTypeNames) < 1 {
 		return nil
 	}
+
+	return onTypeNames
+}
+
+func (v *Visitor) addInterfaceObjectNameToTypeNames(fieldRef int, typeName []byte, onTypeNames [][]byte) [][]byte {
+	includeInterfaceObjectName := false
+	var interfaceObjectName string
+	for i, _ := range v.planners {
+		if !slices.ContainsFunc(v.planners[i].paths, func(path pathConfiguration) bool {
+			return path.fieldRef == fieldRef
+		}) {
+			continue
+		}
+
+		for _, interfaceObjCfg := range v.planners[i].dataSourceConfiguration.FederationMetaData.InterfaceObjects {
+			if slices.Contains(interfaceObjCfg.ImplementingTypeNames, string(typeName)) {
+				includeInterfaceObjectName = true
+				interfaceObjectName = interfaceObjCfg.InterfaceName
+				break
+			}
+		}
+	}
+	if includeInterfaceObjectName {
+		onTypeNames = append(onTypeNames, []byte(interfaceObjectName))
+	}
+
 	return onTypeNames
 }
 

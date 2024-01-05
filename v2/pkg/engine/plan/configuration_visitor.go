@@ -49,6 +49,7 @@ type fieldsRequiredByPlanner struct {
 	fieldSelections       string
 	requestedByPlannerIDs []int
 	providedByPlannerID   int
+	skipTypename          bool
 }
 
 type arrayField struct {
@@ -628,7 +629,11 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 
 	isEntityInterface := false
 	for _, interfaceObjCfg := range config.FederationMetaData.EntityInterfaces {
-		if interfaceObjCfg.InterfaceName == typeName {
+		hasMatch :=
+			interfaceObjCfg.InterfaceName == typeName ||
+				slices.Contains(interfaceObjCfg.ImplementingTypeNames, typeName)
+
+		if hasMatch {
 			isEntityInterface = true
 			break
 		}
@@ -936,7 +941,7 @@ func (c *configurationVisitor) handleFieldRequiredByRequires(plannerIdx int, con
 
 	requiredFieldsForTypeAndField := config.dataSourceConfiguration.RequiredFieldsByRequires(typeName, fieldName)
 	for _, requiredFieldsConfiguration := range requiredFieldsForTypeAndField {
-		c.planAddingRequiredFields(plannerIdx, -1, requiredFieldsConfiguration)
+		c.planAddingRequiredFields(plannerIdx, -1, requiredFieldsConfiguration, false)
 		var added bool
 		config.requiredFields, added = appendRequiredFieldsConfigurationIfNotPresent(config.requiredFields, requiredFieldsConfiguration)
 		if added {
@@ -948,7 +953,15 @@ func (c *configurationVisitor) handleFieldRequiredByRequires(plannerIdx int, con
 func (c *configurationVisitor) handleFieldsRequiredByKey(plannerIdx int, config *plannerConfiguration, typeName string) {
 	requiredFieldsForType := config.dataSourceConfiguration.RequiredFieldsByKey(typeName)
 	if len(requiredFieldsForType) > 0 {
-		requiredFieldsConfiguration, planned := c.planKeyRequiredFields(plannerIdx, typeName, requiredFieldsForType)
+		isInterfaceObject := false
+		for _, interfaceObjCfg := range config.dataSourceConfiguration.FederationMetaData.InterfaceObjects {
+			if slices.Contains(interfaceObjCfg.ImplementingTypeNames, typeName) {
+				isInterfaceObject = true
+				break
+			}
+		}
+
+		requiredFieldsConfiguration, planned := c.planKeyRequiredFields(plannerIdx, typeName, requiredFieldsForType, isInterfaceObject)
 		if planned {
 			var added bool
 			config.requiredFields, added = appendRequiredFieldsConfigurationIfNotPresent(config.requiredFields, requiredFieldsConfiguration)
@@ -982,7 +995,7 @@ func (c *configurationVisitor) couldHandleFieldsRequiredByKey(dsConfig DataSourc
 	return false
 }
 
-func (c *configurationVisitor) planKeyRequiredFields(currentPlannerIdx int, typeName string, possibleRequiredFields []FederationFieldConfiguration) (config FederationFieldConfiguration, planned bool) {
+func (c *configurationVisitor) planKeyRequiredFields(currentPlannerIdx int, typeName string, possibleRequiredFields []FederationFieldConfiguration, forInterfaceObject bool) (config FederationFieldConfiguration, planned bool) {
 	if len(possibleRequiredFields) == 0 {
 		return
 	}
@@ -993,7 +1006,17 @@ func (c *configurationVisitor) planKeyRequiredFields(currentPlannerIdx int, type
 		}
 		for _, possibleRequiredFieldConfig := range possibleRequiredFields {
 			if c.planners[i].dataSourceConfiguration.HasKeyRequirement(typeName, possibleRequiredFieldConfig.SelectionSet) {
-				c.planAddingRequiredFields(currentPlannerIdx, i, possibleRequiredFieldConfig)
+
+				isInterfaceObject := false
+				for _, interfaceObjCfg := range c.planners[i].dataSourceConfiguration.FederationMetaData.InterfaceObjects {
+					if slices.Contains(interfaceObjCfg.ImplementingTypeNames, typeName) {
+						isInterfaceObject = true
+						break
+					}
+				}
+				skipTypename := forInterfaceObject && isInterfaceObject
+
+				c.planAddingRequiredFields(currentPlannerIdx, i, possibleRequiredFieldConfig, skipTypename)
 				return possibleRequiredFieldConfig, true
 			}
 		}
@@ -1002,7 +1025,7 @@ func (c *configurationVisitor) planKeyRequiredFields(currentPlannerIdx int, type
 	return FederationFieldConfiguration{}, false
 }
 
-func (c *configurationVisitor) planAddingRequiredFields(currentPlannerIdx int, providedByPlannerIdx int, fieldConfiguration FederationFieldConfiguration) {
+func (c *configurationVisitor) planAddingRequiredFields(currentPlannerIdx int, providedByPlannerIdx int, fieldConfiguration FederationFieldConfiguration, skipTypename bool) {
 	currentSelectionSet := c.currentSelectionSet()
 
 	requirements, hasRequirements := c.pendingRequiredFields[currentSelectionSet]
@@ -1013,6 +1036,7 @@ func (c *configurationVisitor) planAddingRequiredFields(currentPlannerIdx int, p
 			requestedByPlannerIDs: []int{currentPlannerIdx},
 			providedByPlannerID:   providedByPlannerIdx,
 			fieldSelections:       fieldConfiguration.SelectionSet,
+			skipTypename:          skipTypename,
 		})
 		return
 	}
@@ -1066,7 +1090,7 @@ func (c *configurationVisitor) processPendingRequiredFields(selectionSetRef int)
 
 func (c *configurationVisitor) addRequiredFields(selectionSetRef int, requiredFieldsCfg fieldsRequiredByPlanner) {
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
-	key, report := RequiredFieldsFragment(typeName, requiredFieldsCfg.fieldSelections, true)
+	key, report := RequiredFieldsFragment(typeName, requiredFieldsCfg.fieldSelections, !requiredFieldsCfg.skipTypename)
 	if report.HasErrors() {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse required fields for %s", typeName))
 	}
