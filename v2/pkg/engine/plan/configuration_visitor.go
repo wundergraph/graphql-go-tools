@@ -3,6 +3,7 @@ package plan
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -178,18 +179,22 @@ func (c *configurationVisitor) findPreviousRootPath(currentPath string) (previou
 	}
 
 	for i := len(c.addedPathTracker) - 1; i >= 0; i-- {
-		if strings.HasPrefix(currentPath, c.addedPathTracker[i].path) && c.addedPathTracker[i].isRootNode {
+		hasMatch :=
+			strings.HasPrefix(currentPath, c.addedPathTracker[i].path) &&
+				currentPath != c.addedPathTracker[i].path &&
+				c.addedPathTracker[i].isRootNode
+
+		if hasMatch {
 			return c.addedPathTracker[i].path, true
 		}
 	}
 	return "", false
 }
 
-func (c *configurationVisitor) addMissingPath(path string, parentPath string, hash DSHash) {
+func (c *configurationVisitor) addMissingPath(path string, parentPath string) {
 	c.missingPathTracker[path] = missingPath{
 		path:                  path,
 		precedingRootNodePath: parentPath,
-		dsHash:                hash,
 	}
 }
 
@@ -748,11 +753,25 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 
 // handleMissingPath - records missing path for the case when we don't yet have a planner for the field
 func (c *configurationVisitor) handleMissingPath(typeName string, fieldName string, currentPath string) {
-	suggestedDataSourceHash, ok := c.nodeSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
-	if ok {
+	suggestedDataSourceHashes := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
+	if len(suggestedDataSourceHashes) > 0 {
 		parentPath, found := c.findPreviousRootPath(currentPath)
 		if found {
-			c.addMissingPath(currentPath, parentPath, suggestedDataSourceHash)
+			c.addMissingPath(currentPath, parentPath)
+			return
+		}
+
+		allPlannersHasPath := true
+		for i, _ := range c.planners {
+			if slices.Contains(suggestedDataSourceHashes, c.planners[i].dataSourceConfiguration.Hash()) {
+				if !c.planners[i].hasPath(currentPath) {
+					allPlannersHasPath = false
+					break
+				}
+			}
+		}
+
+		if allPlannersHasPath {
 			return
 		}
 	}

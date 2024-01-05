@@ -297,21 +297,19 @@ func (v *Visitor) EnterField(ref int) {
 			IncludeVariableName:     skipIncludeInfo.includeVariableName,
 			Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
 		}
-		*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
-		return
-	}
-
-	path := v.resolveFieldPath(ref)
-	v.currentField = &resolve.Field{
-		Name:                    fieldAliasOrName,
-		Value:                   v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path),
-		OnTypeNames:             onTypeNames,
-		Position:                v.resolveFieldPosition(ref),
-		SkipDirectiveDefined:    skipIncludeInfo.skip,
-		SkipVariableName:        skipIncludeInfo.skipVariableName,
-		IncludeDirectiveDefined: skipIncludeInfo.include,
-		IncludeVariableName:     skipIncludeInfo.includeVariableName,
-		Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
+	} else {
+		path := v.resolveFieldPath(ref)
+		v.currentField = &resolve.Field{
+			Name:                    fieldAliasOrName,
+			Value:                   v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path),
+			OnTypeNames:             onTypeNames,
+			Position:                v.resolveFieldPosition(ref),
+			SkipDirectiveDefined:    skipIncludeInfo.skip,
+			SkipVariableName:        skipIncludeInfo.skipVariableName,
+			IncludeDirectiveDefined: skipIncludeInfo.include,
+			IncludeVariableName:     skipIncludeInfo.includeVariableName,
+			Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
+		}
 	}
 
 	// append the field to the current object
