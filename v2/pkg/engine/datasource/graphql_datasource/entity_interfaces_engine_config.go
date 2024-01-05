@@ -330,6 +330,28 @@ func EntityInterfacesPlanConfiguration(factory plan.PlannerFactory) *plan.Config
 	planConfiguration := plan.Configuration{
 		DataSources:                  dataSources,
 		DisableResolveFieldPositions: true,
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "user",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "admin",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
 		Debug: plan.DebugConfiguration{
 			PrintOperationTransformations: true,
 			PrintQueryPlans:               true,
