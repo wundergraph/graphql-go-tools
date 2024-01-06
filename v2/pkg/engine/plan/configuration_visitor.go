@@ -446,6 +446,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 	dsHashes := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
 
 	for plannerIdx, plannerConfig := range c.planners {
+		planningBehaviour := plannerConfig.planner.DataSourcePlanningBehavior()
 		currentPlannerDSHash := plannerConfig.dataSourceConfiguration.Hash()
 		_, isProvided := plannerConfig.providedFields.HasSuggestionForPath(typeName, fieldName, currentPath)
 
@@ -454,6 +455,14 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 			if dsHash == currentPlannerDSHash {
 				hasSuggestion = true
 				break
+			}
+		}
+
+		// NOTE: revisit this logic
+		// On a union we will never get a node suggestion because union type is not in the root or child nodes
+		if !hasSuggestion && plannerConfig.hasPath(parentPath) && fieldName == typeNameField {
+			if pathAdded := c.addPlannerPathForTypename(plannerIdx, currentPath, ref, fieldName, typeName, planningBehaviour); pathAdded {
+				return plannerIdx, true
 			}
 		}
 
@@ -471,8 +480,6 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 			// on the second run we need to process only new fields added by the first run
 			return plannerIdx, true
 		}
-
-		planningBehaviour := plannerConfig.planner.DataSourcePlanningBehavior()
 
 		if (plannerConfig.hasParent(parentPath) || plannerConfig.hasParent(precedingParentPath)) &&
 			hasRootNode &&

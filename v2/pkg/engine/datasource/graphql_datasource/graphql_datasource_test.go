@@ -25,6 +25,84 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/subscriptiontesting"
 )
 
+func TestGraphQLDataSourceTypenames(t *testing.T) {
+	t.Run("__typename on union", func(t *testing.T) {
+		def := `
+			schema {
+				query: Query
+			}
+	
+			type A {
+				a: String
+			}
+	
+			union U = A
+	
+			type Query {
+				u: U
+			}`
+
+		t.Run("run", RunTest(
+			def, `
+			query TypenameOnUnion {
+				u {
+					__typename
+				}
+			}`,
+			"TypenameOnUnion", &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource:     &Source{},
+								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{u {__typename}}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("u"),
+								Value: &resolve.Object{
+									Path:     []string{"u"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path:       []string{"__typename"},
+												IsTypeName: true,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, plan.Configuration{
+				DataSources: []plan.DataSourceConfiguration{
+					{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"u"},
+							},
+						},
+						Factory: &Factory{},
+						Custom: ConfigJson(Configuration{
+							Fetch: FetchConfiguration{
+								URL: "https://example.com/graphql",
+							},
+							UpstreamSchema: def,
+						}),
+					},
+				},
+				DisableResolveFieldPositions: true,
+			}))
+	})
+}
+
 func TestGraphQLDataSource(t *testing.T) {
 	t.Skip("FIXME")
 
