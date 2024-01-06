@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash/v2"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -248,8 +249,11 @@ func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 
 // PubSub describe the interface that implements the primitive operations for pubsub
 type PubSub interface {
+	// ID is the unique identifier of the pubsub implementation (e.g. NATS)
+	// This is used to uniquely identify a subscription
+	ID() string
 	// Subscribe starts listening on the given topic and sends the received messages to the given next channel
-	Subscribe(ctx context.Context, topic string, next chan<- []byte) error
+	Subscribe(ctx context.Context, topic string, updater resolve.SubscriptionUpdater) error
 	// Publish sends the given data to the given topic
 	Publish(ctx context.Context, topic string, data []byte) error
 	// Request sends a request on the given topic and writes the response to the given writer
@@ -260,13 +264,26 @@ type SubscriptionSource struct {
 	pubSub PubSub
 }
 
-func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, next chan<- []byte) error {
+func (s *SubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte, xxh *xxhash.Digest) error {
+	topic, err := jsonparser.GetString(input, "topic")
+	if err != nil {
+		return err
+	}
+	_, err = xxh.WriteString(topic)
+	if err != nil {
+		return err
+	}
+	_, err = xxh.WriteString(s.pubSub.ID())
+	return err
+}
+
+func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, updater resolve.SubscriptionUpdater) error {
 	topic, err := jsonparser.GetString(input, "topic")
 	if err != nil {
 		return err
 	}
 
-	return s.pubSub.Subscribe(ctx.Context(), topic, next)
+	return s.pubSub.Subscribe(ctx.Context(), topic, updater)
 }
 
 type PublishDataSource struct {
