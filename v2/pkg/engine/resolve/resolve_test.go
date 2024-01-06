@@ -3854,13 +3854,17 @@ type SubscriptionRecorder struct {
 	buf      *bytes.Buffer
 	messages []string
 	complete atomic.Bool
+	mux      sync.Mutex
 }
 
 func (s *SubscriptionRecorder) AwaitMessages(t *testing.T, count int, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for {
-		if len(s.messages) == count {
+		s.mux.Lock()
+		current := len(s.messages)
+		s.mux.Unlock()
+		if current == count {
 			return
 		}
 		if time.Now().After(deadline) {
@@ -3885,10 +3889,14 @@ func (s *SubscriptionRecorder) AwaitComplete(t *testing.T, timeout time.Duration
 }
 
 func (s *SubscriptionRecorder) Write(p []byte) (n int, err error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	return s.buf.Write(p)
 }
 
 func (s *SubscriptionRecorder) Flush() {
+	s.mux.Lock()
+	defer s.mux.Unlock()
 	s.messages = append(s.messages, s.buf.String())
 	s.buf.Reset()
 }

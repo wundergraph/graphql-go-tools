@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -8008,6 +8009,7 @@ func (f *FailingSubscriptionClient) UniqueRequestID(ctx *resolve.Context, option
 type testSubscriptionUpdater struct {
 	updates []string
 	done    bool
+	mux     sync.Mutex
 }
 
 func (t *testSubscriptionUpdater) AwaitUpdates(tt *testing.T, timeout time.Duration, count int) {
@@ -8019,9 +8021,12 @@ func (t *testSubscriptionUpdater) AwaitUpdates(tt *testing.T, timeout time.Durat
 		case <-ticker.C:
 			tt.Fatalf("timed out waiting for updates")
 		default:
+			t.mux.Lock()
 			if len(t.updates) == count {
+				t.mux.Unlock()
 				return
 			}
+			t.mux.Unlock()
 		}
 	}
 }
@@ -8035,18 +8040,25 @@ func (t *testSubscriptionUpdater) AwaitDone(tt *testing.T, timeout time.Duration
 		case <-ticker.C:
 			tt.Fatalf("timed out waiting for done")
 		default:
+			t.mux.Lock()
 			if t.done {
+				t.mux.Unlock()
 				return
 			}
+			t.mux.Unlock()
 		}
 	}
 }
 
 func (t *testSubscriptionUpdater) Update(data []byte) {
+	t.mux.Lock()
+	defer t.mux.Unlock()
 	t.updates = append(t.updates, string(data))
 }
 
 func (t *testSubscriptionUpdater) Done() {
+	t.mux.Lock()
+	defer t.mux.Unlock()
 	t.done = true
 }
 
