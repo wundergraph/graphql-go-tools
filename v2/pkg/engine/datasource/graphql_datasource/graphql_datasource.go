@@ -11,6 +11,7 @@ import (
 	"slices"
 
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/tidwall/sjson"
 
@@ -1767,7 +1768,8 @@ func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err 
 }
 
 type GraphQLSubscriptionClient interface {
-	Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error
+	Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error
+	UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error)
 }
 
 type GraphQLSubscriptionOptions struct {
@@ -1792,7 +1794,7 @@ type SubscriptionSource struct {
 	client GraphQLSubscriptionClient
 }
 
-func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, next chan<- []byte) error {
+func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, updater resolve.SubscriptionUpdater) error {
 	var options GraphQLSubscriptionOptions
 	err := json.Unmarshal(input, &options)
 	if err != nil {
@@ -1801,5 +1803,22 @@ func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, next chan
 	if options.Body.Query == "" {
 		return resolve.ErrUnableToResolve
 	}
-	return s.client.Subscribe(ctx, options, next)
+	return s.client.Subscribe(ctx, options, updater)
+}
+
+var (
+	dataSouceName = []byte("graphql")
+)
+
+func (s *SubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte, xxh *xxhash.Digest) (err error) {
+	_, err = xxh.Write(dataSouceName)
+	if err != nil {
+		return err
+	}
+	var options GraphQLSubscriptionOptions
+	err = json.Unmarshal(input, &options)
+	if err != nil {
+		return err
+	}
+	return s.client.UniqueRequestID(ctx, options, xxh)
 }

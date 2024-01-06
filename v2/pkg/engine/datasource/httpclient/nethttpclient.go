@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"slices"
@@ -190,9 +191,13 @@ func redactHeaders(headers http.Header) http.Header {
 	return redactedHeaders
 }
 
+var (
+	ErrNonOkResponse = errors.New("server returned non 200 OK response")
+)
+
 func respBodyReader(res *http.Response) (io.Reader, error) {
 	if res.StatusCode != http.StatusOK {
-		return bytes.NewReader([]byte(`{"errors":[{"message":"origin server returned non-200 status code"}],"data":null}`)), nil
+		return nil, ErrNonOkResponse
 	}
 	switch res.Header.Get(ContentEncodingHeader) {
 	case EncodingGzip:

@@ -57,7 +57,7 @@ type ExecutorV2 struct {
 	reqCtx    context.Context
 }
 
-func (e *ExecutorV2) Execute(writer resolve.FlushWriter) error {
+func (e *ExecutorV2) Execute(writer resolve.SubscriptionResponseWriter) error {
 	options := make([]graphql.ExecutionOptionsV2, 0)
 	switch ctx := e.reqCtx.(type) {
 	case *InitialHttpRequestContext:
