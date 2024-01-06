@@ -37,7 +37,7 @@ func (m *MockExecutor) EXPECT() *MockExecutorMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockExecutor) Execute(arg0 resolve.FlushWriter) error {
+func (m *MockExecutor) Execute(arg0 resolve.SubscriptionResponseWriter) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Execute", arg0)
 	ret0, _ := ret[0].(error)
