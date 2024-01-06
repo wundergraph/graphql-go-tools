@@ -4019,7 +4019,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		defer cancel()
 
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
-			return fmt.Sprintf(`{"errors":[{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":null}`), true
+			return `{"errors":[{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":null}`, true
 		}, 0, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
 		})
@@ -4141,7 +4141,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
 		recorder.AwaitMessages(t, 1, time.Second)
-		resolver.AsyncUnsubscribeSubscription(id)
+		err = resolver.AsyncUnsubscribeSubscription(id)
+		assert.NoError(t, err)
 		recorder.AwaitComplete(t, time.Second)
 		fakeStream.AwaitIsDone(t, time.Second)
 	})
@@ -4163,7 +4164,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
 		recorder.AwaitMessages(t, 1, time.Second)
-		resolver.AsyncUnsubscribeClient(id.ConnectionID)
+		err = resolver.AsyncUnsubscribeClient(id.ConnectionID)
+		assert.NoError(t, err)
 		recorder.AwaitComplete(t, time.Second)
 		fakeStream.AwaitIsDone(t, time.Second)
 	})

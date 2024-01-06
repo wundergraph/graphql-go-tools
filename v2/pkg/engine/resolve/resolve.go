@@ -310,7 +310,7 @@ func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
 func (r *Resolver) handleRemoveClient(id int64) {
 	for u := range r.triggers {
 		for c, s := range r.triggers[u].subscriptions {
-			if s.id.ConnectionID == id && s.id.internal == false {
+			if s.id.ConnectionID == id && !s.id.internal {
 				s.mux.Lock()
 				s.writer.Complete()
 				s.writer = nil
