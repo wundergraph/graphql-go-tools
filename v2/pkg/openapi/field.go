@@ -9,8 +9,25 @@ import (
 	"github.com/iancoleman/strcase"
 )
 
+// makeTypeRefFromSchemaRef creates a TypeRef from a SchemaRef, name, inputType, and required flags.
+// It converts the name to lower camel case and checks if the enum type exists in the EnumType map.
+// If the SchemaRef has enum values, it returns the corresponding enum type reference.
+// Otherwise, it gets the GraphQL type name and handles object and array types accordingly.
+// If the required flag is true, it converts the type reference to a non-null type.
+// For array types, it sets the inner type as the list item type.
+// Returns the TypeRef and an error if any.
+//
+// If type name extraction is impossible, it falls back to making a type name from the property name.
+// If inputType is true, it appends "Input" to the type name.
 func (c *converter) makeTypeRefFromSchemaRef(schemaRef *openapi3.SchemaRef, name string, inputType, required bool) (*introspection.TypeRef, error) {
 	name = strcase.ToLowerCamel(name)
+
+	if len(schemaRef.Value.Enum) > 0 {
+		enumType := c.createOrGetEnumType(name, schemaRef)
+		typeRef := getEnumTypeRef()
+		typeRef.Name = &enumType.Name
+		return &typeRef, nil
+	}
 
 	graphQLTypeName, err := c.getGraphQLTypeName(schemaRef, inputType)
 	if errors.Is(err, errTypeNameExtractionImpossible) {

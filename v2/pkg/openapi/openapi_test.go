@@ -109,4 +109,8 @@ func TestOpenAPI_v3_0_0(t *testing.T) {
 	t.Run("enum-component-mutation.yaml", func(t *testing.T) {
 		testFixtureFile(t, "v3.0.0", "enum-component-mutation.yaml")
 	})
+
+	t.Run("enum-properties.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "enum-properties.yaml")
+	})
 }
