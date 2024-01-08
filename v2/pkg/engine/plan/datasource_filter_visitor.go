@@ -145,6 +145,9 @@ func (n *NodeSuggestion) String() string {
 type NodeSuggestionHint struct {
 	fieldRef int
 	dsHash   DSHash
+
+	fieldName  string
+	parentPath string
 }
 
 type NodeSuggestions []NodeSuggestion

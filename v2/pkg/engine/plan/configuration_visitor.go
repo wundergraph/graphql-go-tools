@@ -408,7 +408,7 @@ func (c *configurationVisitor) handleRequirements(plannerIdx int, parentPath str
 	parentDSHash, ok := c.addedPathDSHash(parentPath)
 	if ok && dsHash != parentDSHash {
 		// add required fields for type (@key)
-		c.handleFieldsRequiredByKey(plannerIdx, plannerConfig, typeName)
+		c.handleFieldsRequiredByKey(plannerIdx, plannerConfig, typeName, parentPath)
 	}
 
 	// add required fields for field and type (@requires)
@@ -496,11 +496,19 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 			}
 		}
 
-		// NOTE: revisit this logic
 		// On a union we will never get a node suggestion because union type is not in the root or child nodes
-		if !hasSuggestion && plannerConfig.hasPath(parentPath) && fieldName == typeNameField {
-			if pathAdded := c.addPlannerPathForTypename(plannerIdx, currentPath, ref, fieldName, typeName, planningBehaviour); pathAdded {
+		shouldHandleTypeNameOnUnion :=
+			!hasSuggestion && fieldName == typeNameField &&
+				c.walker.EnclosingTypeDefinition.Kind == ast.NodeKindUnionTypeDefinition &&
+				plannerConfig.hasPath(parentPath)
+
+		if shouldHandleTypeNameOnUnion {
+			pathAdded, halted := c.addPlannerPathForTypename(plannerIdx, currentPath, ref, fieldName, typeName, planningBehaviour)
+			switch {
+			case pathAdded:
 				return plannerIdx, true
+			case halted:
+				return -1, false
 			}
 		}
 
@@ -950,7 +958,7 @@ func (c *configurationVisitor) handleFieldRequiredByRequires(plannerIdx int, con
 	}
 }
 
-func (c *configurationVisitor) handleFieldsRequiredByKey(plannerIdx int, config *plannerConfiguration, typeName string) {
+func (c *configurationVisitor) handleFieldsRequiredByKey(plannerIdx int, config *plannerConfiguration, typeName string, parentPath string) {
 	requiredFieldsForType := config.dataSourceConfiguration.RequiredFieldsByKey(typeName)
 	if len(requiredFieldsForType) > 0 {
 		isInterfaceObject := false
@@ -961,7 +969,7 @@ func (c *configurationVisitor) handleFieldsRequiredByKey(plannerIdx int, config 
 			}
 		}
 
-		requiredFieldsConfiguration, planned := c.planKeyRequiredFields(plannerIdx, typeName, requiredFieldsForType, isInterfaceObject)
+		requiredFieldsConfiguration, planned := c.planKeyRequiredFields(plannerIdx, typeName, parentPath, requiredFieldsForType, isInterfaceObject)
 		if planned {
 			var added bool
 			config.requiredFields, added = appendRequiredFieldsConfigurationIfNotPresent(config.requiredFields, requiredFieldsConfiguration)
@@ -981,6 +989,11 @@ func (c *configurationVisitor) couldHandleFieldsRequiredByKey(dsConfig DataSourc
 	}
 
 	for i := range c.planners {
+		// TODO: here
+		// if !c.planners[i].hasPath(parentPath) {
+		// 	continue
+		// }
+
 		if c.planners[i].dataSourceConfiguration.Hash() == dsConfig.Hash() {
 			return true
 		}
@@ -995,7 +1008,7 @@ func (c *configurationVisitor) couldHandleFieldsRequiredByKey(dsConfig DataSourc
 	return false
 }
 
-func (c *configurationVisitor) planKeyRequiredFields(currentPlannerIdx int, typeName string, possibleRequiredFields []FederationFieldConfiguration, forInterfaceObject bool) (config FederationFieldConfiguration, planned bool) {
+func (c *configurationVisitor) planKeyRequiredFields(currentPlannerIdx int, typeName string, parentPath string, possibleRequiredFields []FederationFieldConfiguration, forInterfaceObject bool) (config FederationFieldConfiguration, planned bool) {
 	if len(possibleRequiredFields) == 0 {
 		return
 	}
@@ -1003,6 +1016,11 @@ func (c *configurationVisitor) planKeyRequiredFields(currentPlannerIdx int, type
 	for i := range c.planners {
 		if i == currentPlannerIdx {
 			continue // skip current planner
+		}
+		// we need to filter out the planners which do not have such parent path
+		// because we could have a planner with mathing datasource but on the wrong path
+		if !c.planners[i].hasPath(parentPath) {
+			continue
 		}
 		for _, possibleRequiredFieldConfig := range possibleRequiredFields {
 			if c.planners[i].dataSourceConfiguration.HasKeyRequirement(typeName, possibleRequiredFieldConfig.SelectionSet) {
@@ -1130,15 +1148,19 @@ func (c *configurationVisitor) addNodeSuggestionHint(fieldRef int, plannerIdx in
 
 	// but we should not add hints for a __typename field cause it collides with
 	// entity interfaces functionality
-	if c.operation.FieldNameUnsafeString(fieldRef) == typeNameField {
+	fieldName := c.operation.FieldNameString(fieldRef)
+	if fieldName == typeNameField {
 		return
 	}
 
 	dsHash := c.planners[plannerIdx].dataSourceConfiguration.Hash()
+	parentPath := c.walker.Path.DotDelimitedString()
 
 	c.nodeSuggestionHints = append(c.nodeSuggestionHints, NodeSuggestionHint{
-		fieldRef: fieldRef,
-		dsHash:   dsHash,
+		fieldRef:   fieldRef,
+		dsHash:     dsHash,
+		fieldName:  fieldName,
+		parentPath: parentPath,
 	})
 }
 
