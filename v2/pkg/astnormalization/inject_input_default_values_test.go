@@ -255,6 +255,19 @@ func TestInputDefaultValueExtraction(t *testing.T) {
 			}`, `{"a":[{"thirdField":1}]}`, `{"a":[{"thirdField":1,"firstField":"firstField","secondField":1}]}`)
 	})
 
+	t.Run("simple list nested input with more than 2 elements", func(t *testing.T) {
+		runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
+			injectInputFieldDefaults(walker)
+		}, testInputDefaultSchema, `
+			mutation mutationSimpleInputList($a: [SimpleTestInput]) {
+			  mutationSimpleInputList(data: $a)
+			}`, "", `
+			mutation mutationSimpleInputList($a: [SimpleTestInput]) {
+			  mutationSimpleInputList(data: $a)
+		}`, `{"a":[{"thirdField":1}, {"thirdField":2}, {"thirdField":3}]}`,
+			`{"a":[{"thirdField":1,"firstField":"firstField","secondField":1}, {"thirdField":2,"firstField":"firstField","secondField":1}, {"thirdField":3,"firstField":"firstField","secondField":1}]}`)
+	})
+
 	t.Run("use custom scalar variable", func(t *testing.T) {
 		runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
 			injectInputFieldDefaults(walker)
