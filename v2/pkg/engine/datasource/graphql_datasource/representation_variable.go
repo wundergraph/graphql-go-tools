@@ -26,15 +26,15 @@ func buildRepresentationVariableNode(definition *ast.Document, cfg plan.Federati
 
 	var interfaceObjectTypeName *string
 	for _, interfaceObjCfg := range dsCfg.FederationMetaData.InterfaceObjects {
-		if slices.Contains(interfaceObjCfg.ImplementingTypeNames, cfg.TypeName) {
-			interfaceObjectTypeName = &interfaceObjCfg.InterfaceName
+		if slices.Contains(interfaceObjCfg.ConcreteTypeNames, cfg.TypeName) {
+			interfaceObjectTypeName = &interfaceObjCfg.InterfaceTypeName
 			break
 		}
 	}
 	var entityInterfaceTypeName *string
 	for _, entityInterfaceCfg := range dsCfg.FederationMetaData.EntityInterfaces {
-		if slices.Contains(entityInterfaceCfg.ImplementingTypeNames, cfg.TypeName) {
-			entityInterfaceTypeName = &entityInterfaceCfg.InterfaceName
+		if slices.Contains(entityInterfaceCfg.ConcreteTypeNames, cfg.TypeName) {
+			entityInterfaceTypeName = &entityInterfaceCfg.InterfaceTypeName
 			break
 		}
 	}

@@ -630,8 +630,8 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 	isEntityInterface := false
 	for _, interfaceObjCfg := range config.FederationMetaData.EntityInterfaces {
 		hasMatch :=
-			interfaceObjCfg.InterfaceName == typeName ||
-				slices.Contains(interfaceObjCfg.ImplementingTypeNames, typeName)
+			interfaceObjCfg.InterfaceTypeName == typeName ||
+				slices.Contains(interfaceObjCfg.ConcreteTypeNames, typeName)
 
 		if hasMatch {
 			isEntityInterface = true
@@ -955,7 +955,7 @@ func (c *configurationVisitor) handleFieldsRequiredByKey(plannerIdx int, config 
 	if len(requiredFieldsForType) > 0 {
 		isInterfaceObject := false
 		for _, interfaceObjCfg := range config.dataSourceConfiguration.FederationMetaData.InterfaceObjects {
-			if slices.Contains(interfaceObjCfg.ImplementingTypeNames, typeName) {
+			if slices.Contains(interfaceObjCfg.ConcreteTypeNames, typeName) {
 				isInterfaceObject = true
 				break
 			}
@@ -1009,7 +1009,7 @@ func (c *configurationVisitor) planKeyRequiredFields(currentPlannerIdx int, type
 
 				isInterfaceObject := false
 				for _, interfaceObjCfg := range c.planners[i].dataSourceConfiguration.FederationMetaData.InterfaceObjects {
-					if slices.Contains(interfaceObjCfg.ImplementingTypeNames, typeName) {
+					if slices.Contains(interfaceObjCfg.ConcreteTypeNames, typeName) {
 						isInterfaceObject = true
 						break
 					}

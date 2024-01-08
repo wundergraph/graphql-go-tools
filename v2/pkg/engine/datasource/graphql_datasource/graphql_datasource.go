@@ -533,7 +533,7 @@ func (p *Planner) EnterSelectionSet(ref int) {
 	// handle adding typename for the InterfaceObject
 	typeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
 	for _, interfaceObjectCfg := range p.dataSourceConfig.FederationMetaData.InterfaceObjects {
-		if interfaceObjectCfg.InterfaceName == typeName {
+		if interfaceObjectCfg.InterfaceTypeName == typeName {
 			p.addTypenameToSelectionSet(set.Ref)
 			return
 		}
@@ -921,8 +921,8 @@ func (p *Planner) isInEntitiesSelectionSet() bool {
 
 func (p *Planner) interfaceObjectTypeShouldBeRenamed(typeName string) (ok bool, newName string) {
 	for _, interfaceObjectCfg := range p.dataSourceConfig.FederationMetaData.InterfaceObjects {
-		if slices.Contains(interfaceObjectCfg.ImplementingTypeNames, typeName) {
-			return true, interfaceObjectCfg.InterfaceName
+		if slices.Contains(interfaceObjectCfg.ConcreteTypeNames, typeName) {
+			return true, interfaceObjectCfg.InterfaceTypeName
 		}
 	}
 	return false, ""

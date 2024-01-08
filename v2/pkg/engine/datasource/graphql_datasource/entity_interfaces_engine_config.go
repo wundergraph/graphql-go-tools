@@ -113,10 +113,10 @@ func EntityInterfacesPlanConfiguration(factory plan.PlannerFactory) *plan.Config
 		}),
 		Factory: factory,
 		FederationMetaData: plan.FederationMetaData{
-			EntityInterfaces: []plan.InterfaceObjectConfiguration{
+			EntityInterfaces: []plan.EntityInterfaceConfiguration{
 				{
-					InterfaceName:         "Account",
-					ImplementingTypeNames: []string{"Admin", "Moderator", "User"},
+					InterfaceTypeName: "Account",
+					ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
 				},
 			},
 			Keys: plan.FederationFieldConfigurations{
@@ -195,10 +195,10 @@ func EntityInterfacesPlanConfiguration(factory plan.PlannerFactory) *plan.Config
 		}),
 		Factory: factory,
 		FederationMetaData: plan.FederationMetaData{
-			InterfaceObjects: []plan.InterfaceObjectConfiguration{
+			InterfaceObjects: []plan.EntityInterfaceConfiguration{
 				{
-					InterfaceName:         "Account",
-					ImplementingTypeNames: []string{"Admin", "Moderator", "User"},
+					InterfaceTypeName: "Account",
+					ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
 				},
 			},
 			Keys: plan.FederationFieldConfigurations{
@@ -293,10 +293,10 @@ func EntityInterfacesPlanConfiguration(factory plan.PlannerFactory) *plan.Config
 		}),
 		Factory: factory,
 		FederationMetaData: plan.FederationMetaData{
-			InterfaceObjects: []plan.InterfaceObjectConfiguration{
+			InterfaceObjects: []plan.EntityInterfaceConfiguration{
 				{
-					InterfaceName:         "Account",
-					ImplementingTypeNames: []string{"Admin", "Moderator", "User"},
+					InterfaceTypeName: "Account",
+					ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
 				},
 			},
 			Keys: plan.FederationFieldConfigurations{

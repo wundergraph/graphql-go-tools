@@ -540,9 +540,9 @@ func (v *Visitor) addInterfaceObjectNameToTypeNames(fieldRef int, typeName []byt
 		}
 
 		for _, interfaceObjCfg := range v.planners[i].dataSourceConfiguration.FederationMetaData.InterfaceObjects {
-			if slices.Contains(interfaceObjCfg.ImplementingTypeNames, string(typeName)) {
+			if slices.Contains(interfaceObjCfg.ConcreteTypeNames, string(typeName)) {
 				includeInterfaceObjectName = true
-				interfaceObjectName = interfaceObjCfg.InterfaceName
+				interfaceObjectName = interfaceObjCfg.InterfaceTypeName
 				break
 			}
 		}

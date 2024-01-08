@@ -252,9 +252,9 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 	if node.Kind != ast.NodeKindInterfaceTypeDefinition {
 		interfaceTypeNameStr := string(interfaceTypeName)
 		for _, k := range r.dsConfiguration.FederationMetaData.InterfaceObjects {
-			if k.InterfaceName == interfaceTypeNameStr {
+			if k.InterfaceTypeName == interfaceTypeNameStr {
 				isInterfaceObject = true
-				interfaceTypeNames = k.ImplementingTypeNames
+				interfaceTypeNames = k.ConcreteTypeNames
 				break
 			}
 		}

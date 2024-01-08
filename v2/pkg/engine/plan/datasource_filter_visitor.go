@@ -396,7 +396,7 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 		allowTypeName := true
 		// we should not select a typename on the interface object
 		for _, k := range v.FederationMetaData.InterfaceObjects {
-			if k.InterfaceName == typeName || slices.Contains(k.ImplementingTypeNames, typeName) {
+			if k.InterfaceTypeName == typeName || slices.Contains(k.ConcreteTypeNames, typeName) {
 				allowTypeName = false
 				break
 			}

@@ -4,13 +4,13 @@ type FederationMetaData struct {
 	Keys             FederationFieldConfigurations
 	Requires         FederationFieldConfigurations
 	Provides         FederationFieldConfigurations
-	EntityInterfaces []InterfaceObjectConfiguration
-	InterfaceObjects []InterfaceObjectConfiguration
+	EntityInterfaces []EntityInterfaceConfiguration
+	InterfaceObjects []EntityInterfaceConfiguration
 }
 
-type InterfaceObjectConfiguration struct {
-	InterfaceName         string
-	ImplementingTypeNames []string
+type EntityInterfaceConfiguration struct {
+	InterfaceTypeName string
+	ConcreteTypeNames []string
 }
 
 type FederationFieldConfiguration struct {

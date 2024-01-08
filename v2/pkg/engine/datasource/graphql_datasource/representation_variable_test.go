@@ -75,10 +75,10 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 			`id name`,
 			plan.DataSourceConfiguration{
 				FederationMetaData: plan.FederationMetaData{
-					InterfaceObjects: []plan.InterfaceObjectConfiguration{
+					InterfaceObjects: []plan.EntityInterfaceConfiguration{
 						{
-							InterfaceName:         "Account",
-							ImplementingTypeNames: []string{"User", "Admin"},
+							InterfaceTypeName: "Account",
+							ConcreteTypeNames: []string{"User", "Admin"},
 						},
 					},
 				},
