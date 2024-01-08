@@ -503,7 +503,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 				plannerConfig.hasPath(parentPath)
 
 		if shouldHandleTypeNameOnUnion {
-			pathAdded, halted := c.addPlannerPathForTypename(plannerIdx, currentPath, ref, fieldName, typeName, planningBehaviour)
+			pathAdded, halted := c.addPlannerPathForTypename(plannerIdx, currentPath, parentPath, ref, fieldName, typeName, planningBehaviour)
 			switch {
 			case pathAdded:
 				return plannerIdx, true
@@ -532,7 +532,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 			planningBehaviour.MergeAliasedRootNodes {
 			// same parent + root node = root sibling
 
-			if !c.couldHandleFieldsRequiredByKey(plannerConfig.dataSourceConfiguration, typeName) {
+			if !c.couldHandleFieldsRequiredByKey(plannerConfig.dataSourceConfiguration, typeName, parentPath) {
 				return -1, false
 			}
 
@@ -549,7 +549,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 			return plannerIdx, true
 		}
 		if plannerConfig.hasPath(parentPath) || plannerConfig.hasPath(precedingParentPath) {
-			pathAdded, halted := c.addPlannerPathForTypename(plannerIdx, currentPath, ref, fieldName, typeName, planningBehaviour)
+			pathAdded, halted := c.addPlannerPathForTypename(plannerIdx, currentPath, parentPath, ref, fieldName, typeName, planningBehaviour)
 			switch {
 			case pathAdded:
 				return plannerIdx, true
@@ -558,7 +558,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 			}
 
 			if isProvided || hasChildNode || (hasRootNode && planningBehaviour.MergeAliasedRootNodes) {
-				if !c.couldHandleFieldsRequiredByKey(plannerConfig.dataSourceConfiguration, typeName) {
+				if !c.couldHandleFieldsRequiredByKey(plannerConfig.dataSourceConfiguration, typeName, parentPath) {
 					return -1, false
 				}
 
@@ -576,7 +576,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 				return plannerIdx, true
 			}
 
-			pathAdded, halted = c.addPlannerPathForUnionChildOfObjectParent(plannerIdx, currentPath, ref, fieldName, typeName, planningBehaviour)
+			pathAdded, halted = c.addPlannerPathForUnionChildOfObjectParent(plannerIdx, currentPath, parentPath, ref, fieldName, typeName, planningBehaviour)
 			switch {
 			case pathAdded:
 				return plannerIdx, true
@@ -584,7 +584,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 				return -1, false
 			}
 
-			pathAdded, halted = c.addPlannerPathForChildOfAbstractParent(plannerIdx, currentPath, ref, fieldName, typeName, planningBehaviour)
+			pathAdded, halted = c.addPlannerPathForChildOfAbstractParent(plannerIdx, currentPath, parentPath, ref, fieldName, typeName, planningBehaviour)
 			switch {
 			case pathAdded:
 				return plannerIdx, true
@@ -658,7 +658,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		return -1, false
 	}
 
-	if !c.couldHandleFieldsRequiredByKey(*config, typeName) {
+	if !c.couldHandleFieldsRequiredByKey(*config, typeName, parentPath) {
 		return -1, false
 	}
 
@@ -817,7 +817,7 @@ func (c *configurationVisitor) LeaveField(ref int) {
 }
 
 func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(
-	plannerIndex int, currentPath string, fieldRef int, fieldName string, typeName string, planningBehaviour DataSourcePlanningBehavior,
+	plannerIndex int, currentPath string, parentPath string, fieldRef int, fieldName string, typeName string, planningBehaviour DataSourcePlanningBehavior,
 ) (pathAdded bool, halted bool) {
 
 	if c.walker.EnclosingTypeDefinition.Kind != ast.NodeKindObjectTypeDefinition {
@@ -835,7 +835,7 @@ func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(
 	}
 
 	if node.Kind == ast.NodeKindUnionTypeDefinition {
-		if !c.couldHandleFieldsRequiredByKey(c.planners[plannerIndex].dataSourceConfiguration, typeName) {
+		if !c.couldHandleFieldsRequiredByKey(c.planners[plannerIndex].dataSourceConfiguration, typeName, parentPath) {
 			return false, true
 		}
 
@@ -854,14 +854,14 @@ func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(
 }
 
 func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
-	plannerIndex int, currentPath string, fieldRef int, fieldName string, typeName string, planningBehaviour DataSourcePlanningBehavior,
+	plannerIndex int, currentPath string, parentPath string, fieldRef int, fieldName string, typeName string, planningBehaviour DataSourcePlanningBehavior,
 ) (pathAdded bool, halted bool) {
 
 	if !c.isParentTypeNodeAbstractType() {
 		return false, false
 	}
 
-	pathAdded, halted = c.addPlannerPathForTypename(plannerIndex, currentPath, fieldRef, fieldName, typeName, planningBehaviour)
+	pathAdded, halted = c.addPlannerPathForTypename(plannerIndex, currentPath, parentPath, fieldRef, fieldName, typeName, planningBehaviour)
 	switch {
 	case pathAdded:
 		return true, false
@@ -877,7 +877,7 @@ func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
 		}
 	}
 
-	if !c.couldHandleFieldsRequiredByKey(c.planners[plannerIndex].dataSourceConfiguration, typeName) {
+	if !c.couldHandleFieldsRequiredByKey(c.planners[plannerIndex].dataSourceConfiguration, typeName, parentPath) {
 		return false, true
 	}
 
@@ -897,7 +897,8 @@ func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
 // adding __typename should be done only in case particular planner has parent path
 // otherwise it will be added to all planners and will cause visiting of incorrect selection sets
 func (c *configurationVisitor) addPlannerPathForTypename(
-	plannerIndex int, currentPath string, fieldRef int, fieldName string, typeName string, planningBehaviour DataSourcePlanningBehavior,
+	plannerIndex int, currentPath string, parentPath string, fieldRef int, fieldName string, typeName string,
+	planningBehaviour DataSourcePlanningBehavior,
 ) (pathAdded bool, halted bool) {
 	if fieldName != typeNameField {
 		return false, false
@@ -911,7 +912,7 @@ func (c *configurationVisitor) addPlannerPathForTypename(
 		return true, false
 	}
 
-	if !c.couldHandleFieldsRequiredByKey(c.planners[plannerIndex].dataSourceConfiguration, typeName) {
+	if !c.couldHandleFieldsRequiredByKey(c.planners[plannerIndex].dataSourceConfiguration, typeName, parentPath) {
 		return false, true
 	}
 
@@ -982,17 +983,16 @@ func (c *configurationVisitor) handleFieldsRequiredByKey(plannerIdx int, config 
 
 // couldHandleFieldsRequiredByKey - checks wether we could plan the field now according to it's key requirements
 // if no existing planners datasources could provide us with the required fields we should postpone planning of the field
-func (c *configurationVisitor) couldHandleFieldsRequiredByKey(dsConfig DataSourceConfiguration, typeName string) bool {
+func (c *configurationVisitor) couldHandleFieldsRequiredByKey(dsConfig DataSourceConfiguration, typeName string, parentPath string) bool {
 	possibleRequiredFields := dsConfig.RequiredFieldsByKey(typeName)
 	if len(possibleRequiredFields) == 0 {
 		return true
 	}
 
 	for i := range c.planners {
-		// TODO: here
-		// if !c.planners[i].hasPath(parentPath) {
-		// 	continue
-		// }
+		if !c.planners[i].hasPath(parentPath) {
+			continue
+		}
 
 		if c.planners[i].dataSourceConfiguration.Hash() == dsConfig.Hash() {
 			return true
