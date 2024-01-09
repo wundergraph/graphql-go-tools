@@ -60,19 +60,21 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 		WithWSSubProtocol(ProtocolGraphQLTWS),
 	)
 
-	updater := &testSubscriptionUpdater{}
+	next := make(chan []byte)
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-	}, updater)
+	}, next)
 	assert.NoError(t, err)
-	updater.AwaitUpdates(t, time.Second, 3)
-	assert.Equal(t, 3, len(updater.updates))
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
+
+	first := <-next
+	second := <-next
+	third := <-next
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, string(first))
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, string(second))
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, string(third))
 
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
@@ -137,18 +139,17 @@ func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
 		WithWSSubProtocol(ProtocolGraphQLTWS),
 	)
 
-	updater := &testSubscriptionUpdater{}
+	next := make(chan []byte)
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-	}, updater)
+	}, next)
 	assert.NoError(t, err)
 
-	updater.AwaitUpdates(t, time.Second, 1)
-	assert.Equal(t, 1, len(updater.updates))
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+	first := <-next
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, string(first))
 
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
@@ -203,21 +204,21 @@ func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
 		WithWSSubProtocol(ProtocolGraphQLTWS),
 	)
 
-	updater := &testSubscriptionUpdater{}
+	next := make(chan []byte)
 	err := client.Subscribe(resolve.NewContext(clientCtx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `wrongQuery {messageAdded(roomName: "room"){text}}`,
 		},
-	}, updater)
+	}, next)
 	assert.NoError(t, err)
 
-	updater.AwaitUpdates(t, time.Second, 1)
-	assert.Equal(t, 1, len(updater.updates))
-	assert.Equal(t, `{"errors":[{"message":"Unexpected Name \"wrongQuery\"","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_PARSE_FAILED"}}]}`, updater.updates[0])
+	message := <-next
+	assert.Equal(t, `{"errors":[{"message":"Unexpected Name \"wrongQuery\"","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_PARSE_FAILED"}}]}`, string(message))
 
 	clientCancel()
-	updater.AwaitDone(t, time.Second)
+	_, ok := <-next
+	assert.False(t, ok)
 
 	serverCancel()
 	assert.Eventuallyf(t, func() bool {
@@ -288,18 +289,19 @@ func TestWebSocketSubscriptionClientInitIncludePing_GQLTWS(t *testing.T) {
 		WithLogger(logger()),
 		WithWSSubProtocol(ProtocolGraphQLTWS),
 	)
-	updater := &testSubscriptionUpdater{}
+	next := make(chan []byte)
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-	}, updater)
+	}, next)
 	assertion.NoError(err)
-	updater.AwaitUpdates(t, time.Second, 2)
-	assertion.Equal(2, len(updater.updates))
-	assertion.Equal(`{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
-	assertion.Equal(`{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+
+	first := <-next
+	second := <-next
+	assertion.Equal(`{"data":{"messageAdded":{"text":"first"}}}`, string(first))
+	assertion.Equal(`{"data":{"messageAdded":{"text":"second"}}}`, string(second))
 
 	clientCancel()
 	assertion.Eventuallyf(func() bool {
@@ -362,22 +364,22 @@ func TestWebsocketSubscriptionClient_GQLTWS_Upstream_Dies(t *testing.T) {
 		WithWSSubProtocol(ProtocolGraphQLTWS),
 	)
 
-	updater := &testSubscriptionUpdater{}
+	next := make(chan []byte)
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-	}, updater)
+	}, next)
 	assert.NoError(t, err)
 
-	updater.AwaitUpdates(t, time.Second, 1)
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+	first := <-next
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, string(first))
 
 	// Kill the upstream here. We should get an End-of-File error.
 	assert.NoError(t, wrappedListener.underlyingConnection.Close())
-	updater.AwaitUpdates(t, time.Second, 2)
-	assert.Equal(t, `{"errors":[{"message":"failed to get reader: failed to read frame header: EOF"}]}`, updater.updates[1])
+	errorMessage := <-next
+	assert.Equal(t, `{"errors":[{"message":"failed to get reader: failed to read frame header: EOF"}]}`, string(errorMessage))
 
 	clientCancel()
 	serverCancel()

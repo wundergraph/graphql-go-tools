@@ -30,10 +30,6 @@ type EngineResultWriter struct {
 	flushCallback func(data []byte)
 }
 
-func (e *EngineResultWriter) Complete() {
-
-}
-
 func NewEngineResultWriter() EngineResultWriter {
 	return EngineResultWriter{
 		buf: &bytes.Buffer{},
@@ -220,7 +216,7 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 	}, nil
 }
 
-func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, writer resolve.SubscriptionResponseWriter, options ...ExecutionOptionsV2) error {
+func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, writer resolve.FlushWriter, options ...ExecutionOptionsV2) error {
 	if !operation.IsNormalized() {
 		result, err := operation.Normalize(e.config.schema)
 		if err != nil {
@@ -259,7 +255,7 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 	case *plan.SynchronousResponsePlan:
 		err = e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
 	case *plan.SubscriptionResponsePlan:
-		err = e.resolver.AsyncResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer, resolve.SubscriptionIdentifier{})
+		err = e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
 	default:
 		return errors.New("execution of operation is not possible")
 	}

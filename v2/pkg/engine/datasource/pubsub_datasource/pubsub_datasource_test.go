@@ -14,11 +14,7 @@ import (
 type testPubsub struct {
 }
 
-func (t *testPubsub) ID() string {
-	return "test"
-}
-
-func (t *testPubsub) Subscribe(ctx context.Context, topic string, updater resolve.SubscriptionUpdater) error {
+func (t *testPubsub) Subscribe(ctx context.Context, topic string, next chan<- []byte) error {
 	return errors.New("not implemented")
 }
 func (t *testPubsub) Publish(ctx context.Context, topic string, data []byte) error {

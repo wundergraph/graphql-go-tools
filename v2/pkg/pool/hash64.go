@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"hash"
 	"sync"
 
 	"github.com/cespare/xxhash/v2"
@@ -20,12 +21,11 @@ type hash64Pool struct {
 	pool sync.Pool
 }
 
-func (b *hash64Pool) Get() *xxhash.Digest {
-	xxh := b.pool.Get().(*xxhash.Digest)
-	xxh.Reset()
-	return xxh
+func (b *hash64Pool) Get() hash.Hash64 {
+	return b.pool.Get().(hash.Hash64)
 }
 
-func (b *hash64Pool) Put(xxh *xxhash.Digest) {
-	b.pool.Put(xxh)
+func (b *hash64Pool) Put(hash64 hash.Hash64) {
+	hash64.Reset()
+	b.pool.Put(hash64)
 }

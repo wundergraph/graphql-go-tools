@@ -35,14 +35,9 @@ type RenameTypeName struct {
 	From, To []byte
 }
 
-type ResponseWriter interface {
+type FlushWriter interface {
 	io.Writer
-}
-
-type SubscriptionResponseWriter interface {
-	ResponseWriter
 	Flush()
-	Complete()
 }
 
 func writeGraphqlResponse(buf *BufPair, writer io.Writer, ignoreData bool) (err error) {
@@ -85,12 +80,11 @@ func writeSafe(err error, writer io.Writer, data []byte) error {
 	return err
 }
 
-func writeFlushComplete(writer SubscriptionResponseWriter, msg []byte) error {
+func writeAndFlush(writer FlushWriter, msg []byte) error {
 	_, err := writer.Write(msg)
 	if err != nil {
 		return err
 	}
 	writer.Flush()
-	writer.Complete()
 	return nil
 }

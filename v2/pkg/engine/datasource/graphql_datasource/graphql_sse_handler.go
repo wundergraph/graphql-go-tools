@@ -47,7 +47,7 @@ func (h *gqlSSEConnectionHandler) StartBlocking(sub Subscription) {
 	defer func() {
 		close(dataCh)
 		close(errCh)
-		sub.updater.Done()
+		close(sub.next)
 	}()
 
 	go h.subscribe(reqCtx, sub, dataCh, errCh)
@@ -55,9 +55,9 @@ func (h *gqlSSEConnectionHandler) StartBlocking(sub Subscription) {
 	for {
 		select {
 		case data := <-dataCh:
-			sub.updater.Update(data)
-		case data := <-errCh:
-			sub.updater.Update(data)
+			sub.next <- data
+		case err := <-errCh:
+			sub.next <- err
 			return
 		case <-reqCtx.Done():
 			return
@@ -75,7 +75,7 @@ func (h *gqlSSEConnectionHandler) subscribe(ctx context.Context, sub Subscriptio
 			return
 		}
 
-		sub.updater.Update([]byte(internalError))
+		sub.next <- []byte(internalError)
 
 		return
 	}

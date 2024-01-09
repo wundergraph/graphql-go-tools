@@ -51,7 +51,7 @@ func TestGraphQLSubscriptionClientSubscribe_SSE(t *testing.T) {
 		WithLogger(logger()),
 	)
 
-	updater := &testSubscriptionUpdater{}
+	next := make(chan []byte)
 
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
@@ -59,13 +59,13 @@ func TestGraphQLSubscriptionClientSubscribe_SSE(t *testing.T) {
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
 		UseSSE: true,
-	}, updater)
+	}, next)
 	assert.NoError(t, err)
 
-	updater.AwaitUpdates(t, time.Second, 2)
-	assert.Equal(t, 2, len(updater.updates))
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+	first := <-next
+	second := <-next
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, string(first))
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, string(second))
 
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
@@ -90,17 +90,20 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_RequestAbort(t *testing.T) {
 		WithLogger(logger()),
 	)
 
-	updater := &testSubscriptionUpdater{}
-
+	next := make(chan []byte)
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: "http://dummy",
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
 		UseSSE: true,
-	}, updater)
+	}, next)
 	assert.NoError(t, err)
-	updater.AwaitDone(t, time.Second)
+
+	assert.Eventuallyf(t, func() bool {
+		<-next
+		return true
+	}, time.Millisecond*100, time.Millisecond*10, "subscription did not close")
 }
 
 func TestGraphQLSubscriptionClientSubscribe_SSE_POST(t *testing.T) {
@@ -148,20 +151,19 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_POST(t *testing.T) {
 		WithLogger(logger()),
 	)
 
-	updater := &testSubscriptionUpdater{}
-
+	next := make(chan []byte)
 	err = client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL:           server.URL,
 		Body:          postReqBody,
 		UseSSE:        true,
 		SSEMethodPost: true,
-	}, updater)
+	}, next)
 	assert.NoError(t, err)
 
-	updater.AwaitUpdates(t, time.Second, 2)
-	assert.Equal(t, 2, len(updater.updates))
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+	first := <-next
+	second := <-next
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, string(first))
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, string(second))
 
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
@@ -207,21 +209,21 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_WithEvents(t *testing.T) {
 		WithLogger(logger()),
 	)
 
-	updater := &testSubscriptionUpdater{}
-
+	next := make(chan []byte)
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
 		UseSSE: true,
-	}, updater)
+	}, next)
 	assert.NoError(t, err)
 
-	updater.AwaitUpdates(t, time.Second, 2)
-	assert.Equal(t, 2, len(updater.updates))
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+	first := <-next
+	second := <-next
+
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, string(first))
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, string(second))
 
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
@@ -261,20 +263,19 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Error(t *testing.T) {
 		WithLogger(logger()),
 	)
 
-	updater := &testSubscriptionUpdater{}
-
+	next := make(chan []byte)
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
 		UseSSE: true,
-	}, updater)
+	}, next)
 	assert.NoError(t, err)
 
-	updater.AwaitUpdates(t, time.Second, 1)
-	assert.Equal(t, 1, len(updater.updates))
-	assert.Equal(t, `{"errors":[{"message":"Unexpected error.","locations":[{"line":2,"column":3}],"path":["countdown"]}]}`, updater.updates[0])
+	first := <-next
+
+	assert.Equal(t, `{"errors":[{"message":"Unexpected error.","locations":[{"line":2,"column":3}],"path":["countdown"]}]}`, string(first))
 
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
@@ -314,20 +315,19 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Error_Without_Header(t *testing.
 		WithLogger(logger()),
 	)
 
-	updater := &testSubscriptionUpdater{}
-
+	next := make(chan []byte)
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
 		UseSSE: true,
-	}, updater)
+	}, next)
 	assert.NoError(t, err)
 
-	updater.AwaitUpdates(t, time.Second, 1)
-	assert.Equal(t, 1, len(updater.updates))
-	assert.Equal(t, `{"errors":[{"message":"Unexpected error.","locations":[{"line":2,"column":3}],"path":["countdown"]}]}`, updater.updates[0])
+	first := <-next
+
+	assert.Equal(t, `{"errors":[{"message":"Unexpected error.","locations":[{"line":2,"column":3}],"path":["countdown"]}]}`, string(first))
 
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
@@ -372,8 +372,7 @@ func TestGraphQLSubscriptionClientSubscribe_QueryParams(t *testing.T) {
 		WithLogger(logger()),
 	)
 
-	updater := &testSubscriptionUpdater{}
-
+	next := make(chan []byte)
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
@@ -383,12 +382,11 @@ func TestGraphQLSubscriptionClientSubscribe_QueryParams(t *testing.T) {
 			Extensions:    []byte(`{"persistedQuery":{"version":1,"sha256Hash":"d41d8cd98f00b204e9800998ecf8427e"}}`),
 		},
 		UseSSE: true,
-	}, updater)
+	}, next)
 	assert.NoError(t, err)
 
-	updater.AwaitUpdates(t, time.Second, 1)
-	assert.Equal(t, 1, len(updater.updates))
-	assert.Equal(t, `{"data":{"countdown":5}}`, updater.updates[0])
+	first := <-next
+	assert.Equal(t, `{"data":{"countdown":5}}`, string(first))
 
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
@@ -500,22 +498,21 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Upstream_Dies(t *testing.T) {
 		WithLogger(logger()),
 	)
 
-	updater := &testSubscriptionUpdater{}
-
+	next := make(chan []byte)
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
 		UseSSE: true,
-	}, updater)
+	}, next)
 	assert.NoError(t, err)
 
-	updater.AwaitUpdates(t, time.Second, 2)
-	assert.Equal(t, 2, len(updater.updates))
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+	first := <-next
+	second := <-next
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, string(first))
 	// Upstream died
-	assert.Equal(t, `{"errors":[{"message":"internal error"}]}`, updater.updates[1])
+	assert.Equal(t, `{"errors":[{"message":"internal error"}]}`, string(second))
 
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
