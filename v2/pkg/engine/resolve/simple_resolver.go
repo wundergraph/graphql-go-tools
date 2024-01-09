@@ -29,6 +29,8 @@ func (r *SimpleResolver) resolveNode(node Node, data []byte, buf *fastbuffer.Fas
 		return
 	case *String:
 		return r.resolveString(n, data, buf)
+	case *StaticString:
+		return r.resolveStaticString(n, data, buf)
 	case *Boolean:
 		return r.resolveBoolean(n, data, buf)
 	case *Integer:
@@ -287,6 +289,13 @@ func (r *SimpleResolver) resolveString(str *String, data []byte, stringBuf *fast
 
 	stringBuf.WriteBytes(quote)
 	stringBuf.WriteBytes(value)
+	stringBuf.WriteBytes(quote)
+	return nil
+}
+
+func (r *SimpleResolver) resolveStaticString(str *StaticString, data []byte, stringBuf *fastbuffer.FastBuffer) error {
+	stringBuf.WriteBytes(quote)
+	stringBuf.WriteBytes([]byte(str.Value))
 	stringBuf.WriteBytes(quote)
 	return nil
 }

@@ -1,9 +1,16 @@
 package plan
 
 type FederationMetaData struct {
-	Keys     FederationFieldConfigurations
-	Requires FederationFieldConfigurations
-	Provides FederationFieldConfigurations
+	Keys             FederationFieldConfigurations
+	Requires         FederationFieldConfigurations
+	Provides         FederationFieldConfigurations
+	EntityInterfaces []EntityInterfaceConfiguration
+	InterfaceObjects []EntityInterfaceConfiguration
+}
+
+type EntityInterfaceConfiguration struct {
+	InterfaceTypeName string
+	ConcreteTypeNames []string
 }
 
 type FederationFieldConfiguration struct {

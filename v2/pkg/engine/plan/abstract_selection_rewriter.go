@@ -195,11 +195,7 @@ func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo s
 
 	for _, inlineFragmentOnInterface := range fieldInfo.inlineFragmentsOnInterfaces {
 		// we need to recursively flatten nested fragments on interfaces
-		r.flattenFragmentOnInterface(
-			inlineFragmentOnInterface.selectionSetInfo,
-			inlineFragmentOnInterface.typeNamesImplementingInterface,
-			unionTypeNames,
-			&newSelectionRefs)
+		r.flattenFragmentOnInterface(inlineFragmentOnInterface.selectionSetInfo, inlineFragmentOnInterface.typeNamesImplementingInterface, unionTypeNames, &newSelectionRefs, false)
 	}
 
 	// filter existing fragments by type names exists in the current datasource
@@ -249,13 +245,31 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 	if !hasNode {
 		return false, errors.New("unexpected error: interface type definition not found in the upstream schema")
 	}
+
+	var isInterfaceObject bool
+	var interfaceTypeNames []string
+
 	if node.Kind != ast.NodeKindInterfaceTypeDefinition {
-		return false, errors.New("unexpected error: node kind is not interface type definition in the upstream schema")
+		interfaceTypeNameStr := string(interfaceTypeName)
+		for _, k := range r.dsConfiguration.FederationMetaData.InterfaceObjects {
+			if k.InterfaceTypeName == interfaceTypeNameStr {
+				isInterfaceObject = true
+				interfaceTypeNames = k.ConcreteTypeNames
+				break
+			}
+		}
+
+		if !isInterfaceObject {
+			return false, errors.New("unexpected error: node kind is not interface type definition in the upstream schema")
+		}
 	}
 
-	interfaceTypeNames, ok := r.upstreamDefinition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
-	if !ok {
-		return false, nil
+	if !isInterfaceObject {
+		var ok bool
+		interfaceTypeNames, ok = r.upstreamDefinition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
+		if !ok {
+			return false, nil
+		}
 	}
 
 	sort.Strings(interfaceTypeNames)
@@ -348,22 +362,20 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldInfo selectionSetInfo, interfaceTypeNames []string) error {
 	newSelectionRefs := make([]int, 0, len(interfaceTypeNames)+1) // 1 for __typename
 
-	if fieldInfo.hasTypeNameSelection {
-		// we should preserve __typename if it was in the original query as it is explicitly requested
-		typeNameSelectionRef, _ := r.typeNameSelection()
-		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
-	}
+	shouldAddTypeName := fieldInfo.hasTypeNameSelection
 
 	r.flattenFragmentOnInterface(
 		fieldInfo,
 		interfaceTypeNames,
 		interfaceTypeNames,
-		&newSelectionRefs)
+		&newSelectionRefs,
+		shouldAddTypeName,
+	)
 
 	return r.replaceFieldSelections(fieldRef, newSelectionRefs)
 }
 
-func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo selectionSetInfo, typeNamesImplementingInterfaceInCurrentDS []string, allowedTypeNames []string, selectionRefs *[]int) {
+func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo selectionSetInfo, typeNamesImplementingInterfaceInCurrentDS []string, allowedTypeNames []string, selectionRefs *[]int, shouldAddTypeName bool) {
 	if len(typeNamesImplementingInterfaceInCurrentDS) == 0 {
 		return
 	}
@@ -377,7 +389,7 @@ func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo sel
 
 	if selectionSetInfo.hasFields {
 		for _, typeName := range filteredImplementingTypes {
-			*selectionRefs = append(*selectionRefs, r.createFragmentSelection(typeName, selectionSetInfo.fields))
+			*selectionRefs = append(*selectionRefs, r.createFragmentSelection(typeName, selectionSetInfo.fields, shouldAddTypeName))
 		}
 	}
 
@@ -388,6 +400,7 @@ func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo sel
 		}
 
 		fragmentSelectionRef := r.operation.CopySelection(inlineFragmentInfo.selectionRef)
+
 		*selectionRefs = append(*selectionRefs, fragmentSelectionRef)
 	}
 
@@ -397,11 +410,6 @@ func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo sel
 			continue
 		}
 
-		r.flattenFragmentOnInterface(
-			inlineFragmentInfo.selectionSetInfo,
-			inlineFragmentInfo.typeNamesImplementingInterface,
-			filteredImplementingTypes,
-			selectionRefs,
-		)
+		r.flattenFragmentOnInterface(inlineFragmentInfo.selectionSetInfo, inlineFragmentInfo.typeNamesImplementingInterface, filteredImplementingTypes, selectionRefs, false)
 	}
 }

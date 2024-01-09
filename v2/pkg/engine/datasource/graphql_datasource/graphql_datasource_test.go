@@ -2712,8 +2712,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 								},
 							),
-							DisallowSingleFlight: true,
-							PostProcessing:       DefaultPostProcessingConfiguration,
+							PostProcessing: DefaultPostProcessingConfiguration,
 						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
@@ -2814,8 +2813,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 								},
 							),
-							DisallowSingleFlight: false,
-							PostProcessing:       DefaultPostProcessingConfiguration,
+							PostProcessing: DefaultPostProcessingConfiguration,
 						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
@@ -2919,8 +2917,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 								},
 							),
-							DisallowSingleFlight: false,
-							PostProcessing:       DefaultPostProcessingConfiguration,
+							PostProcessing: DefaultPostProcessingConfiguration,
 						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
@@ -3042,8 +3039,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 								},
 							),
-							DisallowSingleFlight: false,
-							PostProcessing:       DefaultPostProcessingConfiguration,
+							PostProcessing: DefaultPostProcessingConfiguration,
 						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
@@ -3538,8 +3534,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 								},
 							),
-							DisallowSingleFlight: true,
-							PostProcessing:       DefaultPostProcessingConfiguration,
+							PostProcessing: DefaultPostProcessingConfiguration,
 						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
@@ -3681,8 +3676,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 								},
 							),
-							DisallowSingleFlight: true,
-							PostProcessing:       DefaultPostProcessingConfiguration,
+							PostProcessing: DefaultPostProcessingConfiguration,
 						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
@@ -3807,8 +3801,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
 								},
 							),
-							DisallowSingleFlight: true,
-							PostProcessing:       DefaultPostProcessingConfiguration,
+							PostProcessing: DefaultPostProcessingConfiguration,
 						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
@@ -3945,9 +3938,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
-							Input:                `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){namespaceCreate(input: {name: $name,personal: $personal}){__typename}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
-							DataSource:           &Source{},
-							DisallowSingleFlight: true,
+							Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){namespaceCreate(input: {name: $name,personal: $personal}){__typename}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
+							DataSource: &Source{},
 							Variables: resolve.NewVariables(
 								&resolve.ContextVariable{
 									Path:     []string{"name"},
@@ -8302,25 +8294,17 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 	})
 }
 
-type runTestOnTestDefinitionOptions func(planConfig *plan.Configuration, extraChecks *[]CheckFunc)
+type runTestOnTestDefinitionOptions func(planConfig *plan.Configuration)
 
 func testWithFactory(factory *Factory) runTestOnTestDefinitionOptions {
-	return func(planConfig *plan.Configuration, extraChecks *[]CheckFunc) {
+	return func(planConfig *plan.Configuration) {
 		for _, ds := range planConfig.DataSources {
 			ds.Factory = factory
 		}
 	}
 }
 
-// nolint:deadcode,unused
-func testWithExtraChecks(extraChecks ...CheckFunc) runTestOnTestDefinitionOptions {
-	return func(planConfig *plan.Configuration, availableChecks *[]CheckFunc) {
-		*availableChecks = append(*availableChecks, extraChecks...)
-	}
-}
-
 func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.Plan, options ...runTestOnTestDefinitionOptions) func(t *testing.T) {
-	extraChecks := make([]CheckFunc, 0)
 	config := plan.Configuration{
 		DataSources: []plan.DataSourceConfiguration{
 			{
@@ -8417,11 +8401,7 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 		DisableResolveFieldPositions: true,
 	}
 
-	for _, opt := range options {
-		opt(&config, &extraChecks)
-	}
-
-	return RunTest(testDefinition, operation, operationName, expectedPlan, config, extraChecks...)
+	return RunTest(testDefinition, operation, operationName, expectedPlan, config)
 }
 
 func TestSource_Load(t *testing.T) {

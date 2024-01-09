@@ -775,13 +775,14 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			expectedOperation: `
 				query {
 					iface {
-						__typename
 						... on Admin {
 							name
+							__typename
 							id
 						}
 						... on User {
 							name
+							__typename
 							isUser
 						}
 					}

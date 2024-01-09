@@ -29,8 +29,8 @@ func NewDataSourceFilter(operation, definition *ast.Document, report *operationr
 	}
 }
 
-func (f *DataSourceFilter) FilterDataSources(dataSources []DataSourceConfiguration, existingNodes NodeSuggestions) (used []DataSourceConfiguration, suggestions NodeSuggestions) {
-	suggestions = f.findBestDataSourceSet(dataSources, existingNodes)
+func (f *DataSourceFilter) FilterDataSources(dataSources []DataSourceConfiguration, existingNodes NodeSuggestions, hints ...NodeSuggestionHint) (used []DataSourceConfiguration, suggestions NodeSuggestions) {
+	suggestions = f.findBestDataSourceSet(dataSources, existingNodes, hints...)
 	if f.report.HasErrors() {
 		return
 	}
@@ -49,8 +49,8 @@ func (f *DataSourceFilter) FilterDataSources(dataSources []DataSourceConfigurati
 	return used, suggestions
 }
 
-func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSourceConfiguration, existingNodes NodeSuggestions) NodeSuggestions {
-	f.nodes = f.collectNodes(dataSources, existingNodes)
+func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSourceConfiguration, existingNodes NodeSuggestions, hints ...NodeSuggestionHint) NodeSuggestions {
+	f.nodes = f.collectNodes(dataSources, existingNodes, hints...)
 	if f.report.HasErrors() {
 		return nil
 	}
@@ -79,7 +79,7 @@ func (f *DataSourceFilter) printNodes(msg string) {
 	}
 }
 
-func (f *DataSourceFilter) collectNodes(dataSources []DataSourceConfiguration, existingNodes NodeSuggestions) (nodes NodeSuggestions) {
+func (f *DataSourceFilter) collectNodes(dataSources []DataSourceConfiguration, existingNodes NodeSuggestions, hints ...NodeSuggestionHint) (nodes NodeSuggestions) {
 	secondaryRun := existingNodes != nil
 
 	walker := astvisitor.NewWalker(32)
@@ -88,8 +88,9 @@ func (f *DataSourceFilter) collectNodes(dataSources []DataSourceConfiguration, e
 		definition:   f.definition,
 		walker:       &walker,
 		dataSources:  dataSources,
-		nodes:        existingNodes,
 		secondaryRun: secondaryRun,
+		nodes:        existingNodes,
+		hints:        hints,
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterEnterFieldVisitor(visitor)
@@ -139,6 +140,14 @@ func (n *NodeSuggestion) selectWithReason(reason string) {
 func (n *NodeSuggestion) String() string {
 	return fmt.Sprintf(`{"ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t, "isSelected": %v,"select reason": %v}`,
 		n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode, n.selected, n.selectionReasons)
+}
+
+type NodeSuggestionHint struct {
+	fieldRef int
+	dsHash   DSHash
+
+	fieldName  string
+	parentPath string
 }
 
 type NodeSuggestions []NodeSuggestion
@@ -334,13 +343,14 @@ func (f *nodesResolvableVisitor) EnterField(ref int) {
 }
 
 type collectNodesVisitor struct {
-	operation  *ast.Document
-	definition *ast.Document
-	walker     *astvisitor.Walker
-
-	dataSources  []DataSourceConfiguration
-	nodes        NodeSuggestions
+	operation    *ast.Document
+	definition   *ast.Document
+	walker       *astvisitor.Walker
 	secondaryRun bool
+
+	dataSources []DataSourceConfiguration
+	nodes       NodeSuggestions
+	hints       []NodeSuggestionHint
 }
 
 func (f *collectNodesVisitor) EnterDocument(_, _ *ast.Document) {
@@ -370,9 +380,34 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 
 	currentPath := parentPath + "." + fieldAliasOrName
 
+	var dsHashHint *DSHash
+	for _, hint := range f.hints {
+		if hint.fieldRef == ref {
+			dsHashHint = &hint.dsHash
+			break
+		}
+	}
+
 	for _, v := range f.dataSources {
+		if dsHashHint != nil && v.Hash() != *dsHashHint {
+			continue
+		}
+
 		hasRootNode := v.HasRootNode(typeName, fieldName) || (isTypeName && v.HasRootNodeWithTypename(typeName))
 		hasChildNode := v.HasChildNode(typeName, fieldName) || (isTypeName && v.HasChildNodeWithTypename(typeName))
+
+		allowTypeName := true
+		// we should not select a typename on the interface object
+		for _, k := range v.FederationMetaData.InterfaceObjects {
+			if k.InterfaceTypeName == typeName || slices.Contains(k.ConcreteTypeNames, typeName) {
+				allowTypeName = false
+				break
+			}
+		}
+
+		if !allowTypeName && isTypeName {
+			continue
+		}
 
 		if hasRootNode || hasChildNode {
 			node := NodeSuggestion{
@@ -384,6 +419,10 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 				IsRootNode:                hasRootNode,
 				onFragment:                onFragment,
 				parentPathWithoutFragment: parentPathWithoutFragment,
+			}
+
+			if dsHashHint != nil {
+				node.selectWithReason(ReasonKeyRequirementProvidedByPlanner)
 			}
 
 			if f.secondaryRun {
@@ -411,12 +450,13 @@ const (
 	ReasonStage1SameSourceLeafChild   = "stage1: same source leaf child of uniq node"
 	ReasonStage1SameSourceLeafSibling = "stage1: same source leaf sibling of uniq node"
 
-	ReasonStage2SameSourceNodeOfSelectedParent          = "stage2: node on the same source as selected parent"
-	ReasonStage2SameSourceDuplicateNodeOfSelectedParent = "stage2: duplicate node on the same source as selected parent"
-	ReasonStage2SameSourceNodeOfSelectedChild           = "stage2: node on the same source as selected child"
-	ReasonStage2SameSourceNodeOfSelectedSibling         = "stage2: node on the same source as selected sibling"
+	ReasonStage2SameSourceNodeOfSelectedParent  = "stage2: node on the same source as selected parent"
+	ReasonStage2SameSourceNodeOfSelectedChild   = "stage2: node on the same source as selected child"
+	ReasonStage2SameSourceNodeOfSelectedSibling = "stage2: node on the same source as selected sibling"
 
 	ReasonStage3SelectAvailableNode = "stage3: select first available node"
+
+	ReasonKeyRequirementProvidedByPlanner = "provided by planner as required by @key"
 )
 
 // selectUniqNodes - selects nodes (e.g. fields) which are unique to a single datasource

@@ -34,7 +34,6 @@ type Visitor struct {
 	currentFields                []objectFields
 	currentField                 *resolve.Field
 	planners                     []*plannerConfiguration
-	fetchConfigurations          []objectFetchConfiguration
 	skipFieldsRefs               []int
 	fieldConfigs                 map[int]*FieldConfiguration
 	exportedVariables            map[string]struct{}
@@ -280,7 +279,7 @@ func (v *Visitor) EnterField(ref int) {
 
 	skipIncludeInfo := v.resolveSkipIncludeForField(ref)
 
-	onTypeNames := v.resolveOnTypeNames()
+	onTypeNames := v.resolveOnTypeNames(ref)
 
 	if bytes.Equal(fieldName, literal.TYPENAME) {
 		v.currentField = &resolve.Field{
@@ -298,21 +297,19 @@ func (v *Visitor) EnterField(ref int) {
 			IncludeVariableName:     skipIncludeInfo.includeVariableName,
 			Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
 		}
-		*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
-		return
-	}
-
-	path := v.resolveFieldPath(ref)
-	v.currentField = &resolve.Field{
-		Name:                    fieldAliasOrName,
-		Value:                   v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path),
-		OnTypeNames:             onTypeNames,
-		Position:                v.resolveFieldPosition(ref),
-		SkipDirectiveDefined:    skipIncludeInfo.skip,
-		SkipVariableName:        skipIncludeInfo.skipVariableName,
-		IncludeDirectiveDefined: skipIncludeInfo.include,
-		IncludeVariableName:     skipIncludeInfo.includeVariableName,
-		Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
+	} else {
+		path := v.resolveFieldPath(ref)
+		v.currentField = &resolve.Field{
+			Name:                    fieldAliasOrName,
+			Value:                   v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path),
+			OnTypeNames:             onTypeNames,
+			Position:                v.resolveFieldPosition(ref),
+			SkipDirectiveDefined:    skipIncludeInfo.skip,
+			SkipVariableName:        skipIncludeInfo.skipVariableName,
+			IncludeDirectiveDefined: skipIncludeInfo.include,
+			IncludeVariableName:     skipIncludeInfo.includeVariableName,
+			Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
+		}
 	}
 
 	// append the field to the current object
@@ -331,7 +328,7 @@ func (v *Visitor) handleExistingField(currentFieldRef int, fieldDefinitionTypeRe
 	}
 
 	// merge on type names
-	onTypeNames := v.resolveOnTypeNames()
+	onTypeNames := v.resolveOnTypeNames(currentFieldRef)
 	hasOnTypeNames := len(resolveField.OnTypeNames) > 0 && len(onTypeNames) > 0
 	if hasOnTypeNames {
 		for _, t := range onTypeNames {
@@ -434,15 +431,15 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 }
 
 func (v *Visitor) linkFetchConfiguration(fieldRef int) {
-	for i := range v.fetchConfigurations {
-		if fieldRef == v.fetchConfigurations[i].fieldRef {
-			if v.fetchConfigurations[i].isSubscription {
+	for i := range v.planners {
+		if fieldRef == v.planners[i].objectFetchConfiguration.fieldRef {
+			if v.planners[i].objectFetchConfiguration.isSubscription {
 				plan, ok := v.plan.(*SubscriptionResponsePlan)
 				if ok {
-					v.fetchConfigurations[i].trigger = &plan.Response.Trigger
+					v.planners[i].objectFetchConfiguration.trigger = &plan.Response.Trigger
 				}
 			} else {
-				v.fetchConfigurations[i].object = v.objects[len(v.objects)-1]
+				v.planners[i].objectFetchConfiguration.object = v.objects[len(v.objects)-1]
 			}
 		}
 	}
@@ -497,7 +494,7 @@ func (v *Visitor) resolveSkipIncludeForField(fieldRef int) skipIncludeInfo {
 	return skipIncludeInfo{}
 }
 
-func (v *Visitor) resolveOnTypeNames() [][]byte {
+func (v *Visitor) resolveOnTypeNames(fieldRef int) [][]byte {
 	if len(v.Walker.Ancestors) < 2 {
 		return nil
 	}
@@ -512,7 +509,7 @@ func (v *Visitor) resolveOnTypeNames() [][]byte {
 	node, exists := v.Definition.NodeByName(typeName)
 	// If not an interface, return the concrete type
 	if !exists || !node.Kind.IsAbstractType() {
-		return [][]byte{v.Config.Types.RenameTypeNameOnMatchBytes(typeName)}
+		return v.addInterfaceObjectNameToTypeNames(fieldRef, typeName, [][]byte{v.Config.Types.RenameTypeNameOnMatchBytes(typeName)})
 	}
 	if node.Kind == ast.NodeKindUnionTypeDefinition {
 		// This should never be true. If it is, it's an error
@@ -528,6 +525,32 @@ func (v *Visitor) resolveOnTypeNames() [][]byte {
 	if len(onTypeNames) < 1 {
 		return nil
 	}
+
+	return onTypeNames
+}
+
+func (v *Visitor) addInterfaceObjectNameToTypeNames(fieldRef int, typeName []byte, onTypeNames [][]byte) [][]byte {
+	includeInterfaceObjectName := false
+	var interfaceObjectName string
+	for i := range v.planners {
+		if !slices.ContainsFunc(v.planners[i].paths, func(path pathConfiguration) bool {
+			return path.fieldRef == fieldRef
+		}) {
+			continue
+		}
+
+		for _, interfaceObjCfg := range v.planners[i].dataSourceConfiguration.FederationMetaData.InterfaceObjects {
+			if slices.Contains(interfaceObjCfg.ConcreteTypeNames, string(typeName)) {
+				includeInterfaceObjectName = true
+				interfaceObjectName = interfaceObjCfg.InterfaceTypeName
+				break
+			}
+		}
+	}
+	if includeInterfaceObjectName {
+		onTypeNames = append(onTypeNames, []byte(interfaceObjectName))
+	}
+
 	return onTypeNames
 }
 
@@ -841,11 +864,11 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 }
 
 func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
-	for _, config := range v.fetchConfigurations {
-		if config.isSubscription {
-			v.configureSubscription(config)
+	for i := range v.planners {
+		if v.planners[i].objectFetchConfiguration.isSubscription {
+			v.configureSubscription(v.planners[i].objectFetchConfiguration)
 		} else {
-			v.configureObjectFetch(config)
+			v.configureObjectFetch(v.planners[i].objectFetchConfiguration)
 		}
 	}
 }
@@ -1081,43 +1104,33 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 	}
 	fetchConfig := config.planner.ConfigureFetch()
 	fetch := v.configureFetch(config, fetchConfig)
+	v.resolveInputTemplates(config, &fetch.Input, &fetch.Variables)
 
-	switch f := fetch.(type) {
-	case *resolve.SingleFetch:
-		v.resolveInputTemplates(config, &f.Input, &f.Variables)
-	}
 	if config.object.Fetch == nil {
 		config.object.Fetch = fetch
 		return
 	}
+
 	switch existing := config.object.Fetch.(type) {
 	case *resolve.SingleFetch:
 		copyOfExisting := *existing
-		if copyOfExisting.RequiresSerialFetch {
-			serial := &resolve.SerialFetch{
-				Fetches: []resolve.Fetch{&copyOfExisting, fetch},
-			}
-			config.object.Fetch = serial
-		} else {
-			parallel := &resolve.ParallelFetch{
-				Fetches: []resolve.Fetch{&copyOfExisting, fetch},
-			}
-			config.object.Fetch = parallel
+		multi := &resolve.MultiFetch{
+			Fetches: []*resolve.SingleFetch{&copyOfExisting, fetch},
 		}
-	case *resolve.ParallelFetch:
-		existing.Fetches = append(existing.Fetches, fetch)
-	case *resolve.SerialFetch:
+		config.object.Fetch = multi
+	case *resolve.MultiFetch:
 		existing.Fetches = append(existing.Fetches, fetch)
 	}
 }
 
-func (v *Visitor) configureFetch(internal objectFetchConfiguration, external resolve.FetchConfiguration) resolve.Fetch {
+func (v *Visitor) configureFetch(internal objectFetchConfiguration, external resolve.FetchConfiguration) *resolve.SingleFetch {
 	dataSourceType := reflect.TypeOf(external.DataSource).String()
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 
 	singleFetch := &resolve.SingleFetch{
 		FetchConfiguration:   external,
-		SerialID:             internal.fetchID,
+		FetchID:              internal.fetchID,
+		DependsOnFetchIDs:    internal.dependsOnFetchIDs,
 		DataSourceIdentifier: []byte(dataSourceType),
 	}
 
