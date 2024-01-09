@@ -9,11 +9,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -8076,68 +8074,8 @@ var errSubscriptionClientFail = errors.New("subscription client fail error")
 
 type FailingSubscriptionClient struct{}
 
-func (f *FailingSubscriptionClient) Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+func (f FailingSubscriptionClient) Subscribe(_ *resolve.Context, _ GraphQLSubscriptionOptions, _ chan<- []byte) error {
 	return errSubscriptionClientFail
-}
-
-func (f *FailingSubscriptionClient) UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error) {
-	return errSubscriptionClientFail
-}
-
-type testSubscriptionUpdater struct {
-	updates []string
-	done    bool
-	mux     sync.Mutex
-}
-
-func (t *testSubscriptionUpdater) AwaitUpdates(tt *testing.T, timeout time.Duration, count int) {
-	ticker := time.NewTicker(timeout)
-	defer ticker.Stop()
-	for {
-		time.Sleep(10 * time.Millisecond)
-		select {
-		case <-ticker.C:
-			tt.Fatalf("timed out waiting for updates")
-		default:
-			t.mux.Lock()
-			if len(t.updates) == count {
-				t.mux.Unlock()
-				return
-			}
-			t.mux.Unlock()
-		}
-	}
-}
-
-func (t *testSubscriptionUpdater) AwaitDone(tt *testing.T, timeout time.Duration) {
-	ticker := time.NewTicker(timeout)
-	defer ticker.Stop()
-	for {
-		time.Sleep(10 * time.Millisecond)
-		select {
-		case <-ticker.C:
-			tt.Fatalf("timed out waiting for done")
-		default:
-			t.mux.Lock()
-			if t.done {
-				t.mux.Unlock()
-				return
-			}
-			t.mux.Unlock()
-		}
-	}
-}
-
-func (t *testSubscriptionUpdater) Update(data []byte) {
-	t.mux.Lock()
-	defer t.mux.Unlock()
-	t.updates = append(t.updates, string(data))
-}
-
-func (t *testSubscriptionUpdater) Done() {
-	t.mux.Lock()
-	defer t.mux.Unlock()
-	t.done = true
 }
 
 func TestSubscriptionSource_Start(t *testing.T) {
@@ -8182,86 +8120,84 @@ func TestSubscriptionSource_Start(t *testing.T) {
 	}
 
 	t.Run("should return error when input is invalid", func(t *testing.T) {
-		source := SubscriptionSource{client: &FailingSubscriptionClient{}}
+		source := SubscriptionSource{client: FailingSubscriptionClient{}}
 		err := source.Start(resolve.NewContext(context.Background()), []byte(`{"url": "", "body": "", "header": null}`), nil)
 		assert.Error(t, err)
 	})
 
 	t.Run("should return error when subscription client returns an error", func(t *testing.T) {
-		source := SubscriptionSource{client: &FailingSubscriptionClient{}}
+		source := SubscriptionSource{client: FailingSubscriptionClient{}}
 		err := source.Start(resolve.NewContext(context.Background()), []byte(`{"url": "", "body": {}, "header": null}`), nil)
 		assert.Error(t, err)
 		assert.Equal(t, resolve.ErrUnableToResolve, err)
 	})
 
 	t.Run("invalid json: should stop before sending to upstream", func(t *testing.T) {
+		next := make(chan []byte)
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
-		updater := &testSubscriptionUpdater{}
-
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: "#test") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
+		err := source.Start(ctx, chatSubscriptionOptions, next)
 		require.ErrorIs(t, err, resolve.ErrUnableToResolve)
 	})
 
 	t.Run("invalid syntax (roomNam)", func(t *testing.T) {
+		next := make(chan []byte)
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
-		updater := &testSubscriptionUpdater{}
-
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
+		err := source.Start(ctx, chatSubscriptionOptions, next)
 		require.NoError(t, err)
-		updater.AwaitUpdates(t, time.Second, 1)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, updater.updates[0])
-		assert.Equal(t, true, updater.done)
+
+		msg, ok := <-next
+		assert.True(t, ok)
+		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, string(msg))
+		_, ok = <-next
+		assert.False(t, ok)
 	})
 
 	t.Run("should close connection on stop message", func(t *testing.T) {
+		next := make(chan []byte)
 		subscriptionLifecycle, cancelSubscription := context.WithCancel(context.Background())
 		resolverLifecycle, cancelResolver := context.WithCancel(context.Background())
 		defer cancelResolver()
 
-		updater := &testSubscriptionUpdater{}
-
 		source := newSubscriptionSource(resolverLifecycle)
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
+		err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
 		username := "myuser"
 		message := "hello world!"
 		go sendChatMessage(t, username, message)
 
-		updater.AwaitUpdates(t, time.Second, 1)
+		nextBytes := <-next
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, string(nextBytes))
 		cancelSubscription()
-		updater.AwaitDone(t, time.Second*5)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
+		_, ok := <-next
+		assert.False(t, ok)
 	})
 
 	t.Run("should successfully subscribe with chat example", func(t *testing.T) {
+		next := make(chan []byte)
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
-		updater := &testSubscriptionUpdater{}
-
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
+		err := source.Start(ctx, chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
 		username := "myuser"
 		message := "hello world!"
 		go sendChatMessage(t, username, message)
-		updater.AwaitUpdates(t, time.Second, 1)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
+
+		nextBytes := <-next
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, string(nextBytes))
 	})
 }
 
@@ -8309,65 +8245,60 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 	}
 
 	t.Run("invalid syntax (roomNam)", func(t *testing.T) {
+		next := make(chan []byte)
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
-		updater := &testSubscriptionUpdater{}
-
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
+		err := source.Start(ctx, chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
-		updater.AwaitUpdates(t, time.Second, 1)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, updater.updates[0])
-		updater.AwaitDone(t, time.Second)
-		assert.Equal(t, true, updater.done)
+		msg, ok := <-next
+		assert.True(t, ok)
+		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, string(msg))
+		_, ok = <-next
+		assert.False(t, ok)
 	})
 
 	t.Run("should close connection on stop message", func(t *testing.T) {
+		next := make(chan []byte)
 		subscriptionLifecycle, cancelSubscription := context.WithCancel(context.Background())
 		resolverLifecycle, cancelResolver := context.WithCancel(context.Background())
 		defer cancelResolver()
 
-		updater := &testSubscriptionUpdater{}
-
 		source := newSubscriptionSource(resolverLifecycle)
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
+		err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
 		username := "myuser"
 		message := "hello world!"
 		go sendChatMessage(t, username, message)
 
-		updater.AwaitUpdates(t, time.Second, 1)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
+		nextBytes := <-next
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, string(nextBytes))
 		cancelSubscription()
-		updater.AwaitDone(t, time.Second*5)
-		assert.Equal(t, true, updater.done)
+		_, ok := <-next
+		assert.False(t, ok)
 	})
 
 	t.Run("should successfully subscribe with chat example", func(t *testing.T) {
+		next := make(chan []byte)
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
-		updater := &testSubscriptionUpdater{}
-
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
+		err := source.Start(ctx, chatSubscriptionOptions, next)
 		require.NoError(t, err)
 
 		username := "myuser"
 		message := "hello world!"
 		go sendChatMessage(t, username, message)
 
-		updater.AwaitUpdates(t, time.Second, 1)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
+		nextBytes := <-next
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, string(nextBytes))
 	})
 }
 

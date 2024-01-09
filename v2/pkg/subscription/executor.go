@@ -11,7 +11,7 @@ import (
 
 // Executor is an abstraction for executing a GraphQL engine
 type Executor interface {
-	Execute(writer resolve.SubscriptionResponseWriter) error
+	Execute(writer resolve.FlushWriter) error
 	OperationType() ast.OperationType
 	SetContext(context context.Context)
 	Reset()

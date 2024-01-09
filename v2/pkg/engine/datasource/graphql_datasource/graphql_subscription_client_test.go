@@ -94,13 +94,13 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	assertReceiveMessages := func(t *testing.T, updater *testSubscriptionUpdater) {
-		t.Helper()
-		updater.AwaitUpdates(t, time.Second, 3)
-		assert.Equal(t, 3, len(updater.updates))
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
+	assertReceiveMessages := func(next chan []byte) {
+		first := <-next
+		second := <-next
+		third := <-next
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, string(first))
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, string(second))
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, string(third))
 	}
 
 	assertStop := func(ctx context.Context, conn *websocket.Conn, subscriptionID ...int) {
@@ -159,22 +159,20 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 	)
 	clientsDone := &sync.WaitGroup{}
 
-	updater := &testSubscriptionUpdater{}
-
+	next := make(chan []byte)
 	ctx, clientCancel := context.WithCancel(context.Background())
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-	}, updater)
+	}, next)
 	assert.NoError(t, err)
-	assertReceiveMessages(t, updater)
+	assertReceiveMessages(next)
 
 	for i := 0; i < 3; i++ {
 		clientsDone.Add(1)
-
-		updater := &testSubscriptionUpdater{}
+		next := make(chan []byte)
 
 		ctx, cancel := context.WithCancel(context.Background())
 
@@ -183,13 +181,13 @@ func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
 			Body: GraphQLBody{
 				Query: `subscription {messageAdded(roomName: "room"){text}}`,
 			},
-		}, updater)
+		}, next)
 		assert.NoError(t, err)
-		go func(updater *testSubscriptionUpdater, cancel func()) {
-			assertReceiveMessages(t, updater)
+		go func(next chan []byte, cancel func()) {
+			assertReceiveMessages(next)
 			cancel()
 			clientsDone.Done()
-		}(updater, cancel)
+		}(next, cancel)
 	}
 
 	clientCancel()
@@ -216,13 +214,13 @@ func TestWebsocketSubscriptionClientImmediateClientCancel(t *testing.T) {
 		WithLogger(logger()),
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
-	updater := &testSubscriptionUpdater{}
+	next := make(chan []byte)
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-	}, updater)
+	}, next)
 	assert.Error(t, err)
 	assert.Eventuallyf(t, func() bool {
 		return serverInvocations.Load() == 0
@@ -271,19 +269,20 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 		WithLogger(logger()),
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
-	updater := &testSubscriptionUpdater{}
+	next := make(chan []byte)
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-	}, updater)
+	}, next)
 	assert.NoError(t, err)
-	updater.AwaitUpdates(t, time.Second, 3)
-	assert.Equal(t, 3, len(updater.updates))
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
+	first := <-next
+	second := <-next
+	third := <-next
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, string(first))
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, string(second))
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, string(third))
 	serverCancel()
 	assert.Eventuallyf(t, func() bool {
 		<-serverDone
