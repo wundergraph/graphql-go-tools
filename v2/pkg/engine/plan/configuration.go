@@ -56,16 +56,6 @@ func (t *TypeConfigurations) RenameTypeNameOnMatchBytes(typeName []byte) []byte 
 	return typeName
 }
 
-func (t *TypeConfigurations) RenameTypeNameOnMatchBytesWithResult(typeName []byte) (newTypeName []byte, renamed bool) {
-	str := string(typeName)
-	for i := range *t {
-		if (*t)[i].TypeName == str {
-			return []byte((*t)[i].RenameTo), true
-		}
-	}
-	return typeName, false
-}
-
 type TypeConfiguration struct {
 	TypeName string
 	// RenameTo modifies the TypeName

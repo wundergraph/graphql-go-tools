@@ -350,18 +350,3 @@ func (r *fieldSelectionRewriter) typeNameSelection() (selectionRef int, fieldRef
 		Kind: ast.SelectionKindField,
 	}), field.Ref
 }
-
-func (r *fieldSelectionRewriter) addTypeNameToExistingFragment(fragmentSelectionRef int) {
-	if r.operation.Selections[fragmentSelectionRef].Kind != ast.SelectionKindInlineFragment {
-		return
-	}
-
-	inlineFragmentRef := r.operation.Selections[fragmentSelectionRef].Ref
-	inlineFragmentSelectionSetRef, ok := r.operation.InlineFragmentSelectionSet(inlineFragmentRef)
-	if !ok {
-		return
-	}
-
-	typeNameSelectionRef, _ := r.typeNameSelection()
-	r.operation.AddSelectionRefToSelectionSet(inlineFragmentSelectionSetRef, typeNameSelectionRef)
-}
