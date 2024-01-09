@@ -532,7 +532,7 @@ func (v *Visitor) resolveOnTypeNames(fieldRef int) [][]byte {
 func (v *Visitor) addInterfaceObjectNameToTypeNames(fieldRef int, typeName []byte, onTypeNames [][]byte) [][]byte {
 	includeInterfaceObjectName := false
 	var interfaceObjectName string
-	for i, _ := range v.planners {
+	for i := range v.planners {
 		if !slices.ContainsFunc(v.planners[i].paths, func(path pathConfiguration) bool {
 			return path.fieldRef == fieldRef
 		}) {

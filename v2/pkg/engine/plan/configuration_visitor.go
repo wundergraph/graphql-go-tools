@@ -775,7 +775,7 @@ func (c *configurationVisitor) handleMissingPath(typeName string, fieldName stri
 		}
 
 		allPlannersHasPath := true
-		for i, _ := range c.planners {
+		for i := range c.planners {
 			if slices.Contains(suggestedDataSourceHashes, c.planners[i].dataSourceConfiguration.Hash()) {
 				if !c.planners[i].hasPath(currentPath) {
 					allPlannersHasPath = false
