@@ -30,6 +30,19 @@ func (s *String) NodePath() []string {
 	return s.Path
 }
 
+type StaticString struct {
+	Path  []string
+	Value string
+}
+
+func (_ *StaticString) NodeKind() NodeKind {
+	return NodeKindStaticString
+}
+
+func (s *StaticString) NodePath() []string {
+	return s.Path
+}
+
 type Boolean struct {
 	Path     []string
 	Nullable bool

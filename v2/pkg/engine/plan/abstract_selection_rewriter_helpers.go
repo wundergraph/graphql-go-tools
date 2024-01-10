@@ -309,11 +309,16 @@ func (r *fieldSelectionRewriter) hasFieldOnDataSource(typeName string, fieldName
 		r.dsConfiguration.HasChildNode(typeName, fieldName)
 }
 
-func (r *fieldSelectionRewriter) createFragmentSelection(typeName string, fields []fieldSelection) (selectionRef int) {
+func (r *fieldSelectionRewriter) createFragmentSelection(typeName string, fields []fieldSelection, addTypeName bool) (selectionRef int) {
 	selectionRefs := make([]int, 0, len(fields))
 	for _, sharedField := range fields {
 		newFieldSelectionRef := r.operation.CopySelection(sharedField.fieldSelectionRef)
 		selectionRefs = append(selectionRefs, newFieldSelectionRef)
+	}
+
+	if addTypeName {
+		typeNameSelectionRef, _ := r.typeNameSelection()
+		selectionRefs = append(selectionRefs, typeNameSelectionRef)
 	}
 
 	selectionSetRef := r.operation.AddSelectionSetToDocument(ast.SelectionSet{

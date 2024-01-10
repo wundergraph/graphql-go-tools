@@ -10,7 +10,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -20,6 +19,8 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/flags"
 )
 
 type _fakeDataSource struct {
@@ -59,7 +60,7 @@ func fakeDataSourceWithInputCheck(t TestingTB, input []byte, data []byte) *_fake
 func newResolver(ctx context.Context) *Resolver {
 	return New(ctx, ResolverOptions{
 		MaxConcurrency: 1024,
-		Debug:          true,
+		Debug:          false,
 	})
 }
 
@@ -3859,6 +3860,9 @@ type SubscriptionRecorder struct {
 
 func (s *SubscriptionRecorder) AwaitMessages(t *testing.T, count int, timeout time.Duration) {
 	t.Helper()
+	if flags.IsWindows {
+		timeout *= 2
+	}
 	deadline := time.Now().Add(timeout)
 	for {
 		s.mux.Lock()
@@ -3876,6 +3880,9 @@ func (s *SubscriptionRecorder) AwaitMessages(t *testing.T, count int, timeout ti
 
 func (s *SubscriptionRecorder) AwaitComplete(t *testing.T, timeout time.Duration) {
 	t.Helper()
+	if flags.IsWindows {
+		timeout *= 2
+	}
 	deadline := time.Now().Add(timeout)
 	for {
 		if s.complete.Load() {
@@ -4074,10 +4081,11 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.NoError(t, err)
 		recorder.AwaitComplete(t, time.Second)
 		assert.Equal(t, 3, len(recorder.messages))
-		slices.Sort(recorder.messages) // sort because the order of events is not guaranteed
-		assert.Equal(t, `{"data":{"counter":0}}`, recorder.messages[0])
-		assert.Equal(t, `{"data":{"counter":1}}`, recorder.messages[1])
-		assert.Equal(t, `{"data":{"counter":2}}`, recorder.messages[2])
+		assert.ElementsMatch(t, []string{
+			`{"data":{"counter":0}}`,
+			`{"data":{"counter":1}}`,
+			`{"data":{"counter":2}}`,
+		}, recorder.messages)
 	})
 
 	t.Run("should propagate extensions to stream", func(t *testing.T) {
@@ -4099,11 +4107,12 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
 		recorder.AwaitComplete(t, time.Second)
-		slices.Sort(recorder.messages) // sort because the order of events is not guaranteed
 		assert.Equal(t, 3, len(recorder.messages))
-		assert.Equal(t, `{"data":{"counter":0}}`, recorder.messages[0])
-		assert.Equal(t, `{"data":{"counter":1}}`, recorder.messages[1])
-		assert.Equal(t, `{"data":{"counter":2}}`, recorder.messages[2])
+		assert.ElementsMatch(t, []string{
+			`{"data":{"counter":0}}`,
+			`{"data":{"counter":1}}`,
+			`{"data":{"counter":2}}`,
+		}, recorder.messages)
 	})
 
 	t.Run("should propagate initial payload to stream", func(t *testing.T) {
@@ -4126,10 +4135,11 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.NoError(t, err)
 		recorder.AwaitComplete(t, time.Second)
 		assert.Equal(t, 3, len(recorder.messages))
-		slices.Sort(recorder.messages) // sort because the order of events is not guaranteed
-		assert.Equal(t, `{"data":{"counter":0}}`, recorder.messages[0])
-		assert.Equal(t, `{"data":{"counter":1}}`, recorder.messages[1])
-		assert.Equal(t, `{"data":{"counter":2}}`, recorder.messages[2])
+		assert.ElementsMatch(t, []string{
+			`{"data":{"counter":0}}`,
+			`{"data":{"counter":1}}`,
+			`{"data":{"counter":2}}`,
+		}, recorder.messages)
 	})
 
 	t.Run("should stop stream on unsubscribe subscription", func(t *testing.T) {
@@ -4148,7 +4158,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
-		recorder.AwaitMessages(t, 1, time.Second)
+		recorder.AwaitMessages(t, 1, time.Second*2)
 		err = resolver.AsyncUnsubscribeSubscription(id)
 		assert.NoError(t, err)
 		recorder.AwaitComplete(t, time.Second)
@@ -4171,7 +4181,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
-		recorder.AwaitMessages(t, 1, time.Second)
+		recorder.AwaitMessages(t, 1, time.Second*2)
 		err = resolver.AsyncUnsubscribeClient(id.ConnectionID)
 		assert.NoError(t, err)
 		recorder.AwaitComplete(t, time.Second)

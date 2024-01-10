@@ -98,7 +98,6 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 
 	p.planningVisitor.planners = p.configurationVisitor.planners
 	p.planningVisitor.Config = p.config
-	p.planningVisitor.fetchConfigurations = p.configurationVisitor.fetches
 	p.planningVisitor.skipFieldsRefs = p.configurationVisitor.skipFieldsRefs
 	p.planningVisitor.allowFieldMerge = !hasConditionalSkipInclude
 
@@ -198,7 +197,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 		if p.configurationVisitor.hasNewFields {
 			// update suggestions for the new required fields
 			p.configurationVisitor.dataSources, p.configurationVisitor.nodeSuggestions =
-				dsFilter.FilterDataSources(p.config.DataSources, p.configurationVisitor.nodeSuggestions)
+				dsFilter.FilterDataSources(p.config.DataSources, p.configurationVisitor.nodeSuggestions, p.configurationVisitor.nodeSuggestionHints...)
 			if report.HasErrors() {
 				return
 			}

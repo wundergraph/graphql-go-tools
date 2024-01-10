@@ -11,14 +11,14 @@ import (
 )
 
 func TestBuildRepresentationVariableNode(t *testing.T) {
-	runTest := func(t *testing.T, definitionStr, keyStr string, expectedNode resolve.Node) {
+	runTest := func(t *testing.T, definitionStr, keyStr string, dsConfig plan.DataSourceConfiguration, expectedNode resolve.Node) {
 		definition, _ := astparser.ParseGraphqlDocumentString(definitionStr)
 		cfg := plan.FederationFieldConfiguration{
 			TypeName:     "User",
 			SelectionSet: keyStr,
 		}
 
-		node, err := buildRepresentationVariableNode(cfg, &definition)
+		node, err := buildRepresentationVariableNode(&definition, cfg, dsConfig)
 		require.NoError(t, err)
 
 		require.Equal(t, expectedNode, node)
@@ -32,7 +32,9 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 				id: String!
 				name: String!
 			}
-		`, `id name`,
+		`,
+			`id name`,
+			plan.DataSourceConfiguration{},
 			&resolve.Object{
 				Nullable: true,
 				Fields: []*resolve.Field{
@@ -61,6 +63,55 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 			})
 	})
 
+	t.Run("with interface object", func(t *testing.T) {
+		runTest(t, `
+			scalar String
+	
+			type User {
+				id: String!
+				name: String!
+			}
+		`,
+			`id name`,
+			plan.DataSourceConfiguration{
+				FederationMetaData: plan.FederationMetaData{
+					InterfaceObjects: []plan.EntityInterfaceConfiguration{
+						{
+							InterfaceTypeName: "Account",
+							ConcreteTypeNames: []string{"User", "Admin"},
+						},
+					},
+				},
+			},
+			&resolve.Object{
+				Nullable: true,
+				Fields: []*resolve.Field{
+					{
+						Name: []byte("__typename"),
+						Value: &resolve.StaticString{
+							Path:  []string{"__typename"},
+							Value: "Account",
+						},
+						OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+					},
+					{
+						Name: []byte("id"),
+						Value: &resolve.String{
+							Path: []string{"id"},
+						},
+						OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+					},
+					{
+						Name: []byte("name"),
+						Value: &resolve.String{
+							Path: []string{"name"},
+						},
+						OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+					},
+				},
+			})
+	})
+
 	t.Run("deeply nested", func(t *testing.T) {
 		runTest(t, `
 			scalar String
@@ -82,7 +133,9 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 				zip: Float!
 			}
 				
-		`, `id name account { accoundID address(home: true) { zip } }`,
+		`,
+			`id name account { accoundID address(home: true) { zip } }`,
+			plan.DataSourceConfiguration{},
 			&resolve.Object{
 				Nullable: true,
 				Fields: []*resolve.Field{
