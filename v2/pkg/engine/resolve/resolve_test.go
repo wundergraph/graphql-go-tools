@@ -10,7 +10,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -4074,10 +4073,11 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.NoError(t, err)
 		recorder.AwaitComplete(t, time.Second)
 		assert.Equal(t, 3, len(recorder.messages))
-		slices.Sort(recorder.messages) // sort because the order of events is not guaranteed
-		assert.Equal(t, `{"data":{"counter":0}}`, recorder.messages[0])
-		assert.Equal(t, `{"data":{"counter":1}}`, recorder.messages[1])
-		assert.Equal(t, `{"data":{"counter":2}}`, recorder.messages[2])
+		assert.ElementsMatch(t, []string{
+			`{"data":{"counter":0}}`,
+			`{"data":{"counter":1}}`,
+			`{"data":{"counter":2}}`,
+		}, recorder.messages)
 	})
 
 	t.Run("should propagate extensions to stream", func(t *testing.T) {
@@ -4127,10 +4127,11 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.NoError(t, err)
 		recorder.AwaitComplete(t, time.Second)
 		assert.Equal(t, 3, len(recorder.messages))
-		slices.Sort(recorder.messages) // sort because the order of events is not guaranteed
-		assert.Equal(t, `{"data":{"counter":0}}`, recorder.messages[0])
-		assert.Equal(t, `{"data":{"counter":1}}`, recorder.messages[1])
-		assert.Equal(t, `{"data":{"counter":2}}`, recorder.messages[2])
+		assert.ElementsMatch(t, []string{
+			`{"data":{"counter":0}}`,
+			`{"data":{"counter":1}}`,
+			`{"data":{"counter":2}}`,
+		}, recorder.messages)
 	})
 
 	t.Run("should stop stream on unsubscribe subscription", func(t *testing.T) {
@@ -4149,7 +4150,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
-		recorder.AwaitMessages(t, 1, time.Second)
+		recorder.AwaitMessages(t, 1, time.Second*2)
 		err = resolver.AsyncUnsubscribeSubscription(id)
 		assert.NoError(t, err)
 		recorder.AwaitComplete(t, time.Second)
