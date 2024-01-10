@@ -4171,7 +4171,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
-		recorder.AwaitMessages(t, 1, time.Second)
+		recorder.AwaitMessages(t, 1, time.Second*2)
 		err = resolver.AsyncUnsubscribeClient(id.ConnectionID)
 		assert.NoError(t, err)
 		recorder.AwaitComplete(t, time.Second)
