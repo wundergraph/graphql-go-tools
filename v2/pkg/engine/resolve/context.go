@@ -47,6 +47,7 @@ func (s *Stats) Reset() {
 }
 
 type Request struct {
+	ID     string
 	Header http.Header
 }
 
@@ -72,13 +73,13 @@ func (c *Context) WithContext(ctx context.Context) *Context {
 	return &cpy
 }
 
-func (c *Context) clone() Context {
+func (c *Context) clone(ctx context.Context) *Context {
 	cpy := *c
-	cpy.ctx = context.Background()
+	cpy.ctx = ctx
 	cpy.Variables = append([]byte(nil), c.Variables...)
 	cpy.Request.Header = c.Request.Header.Clone()
 	cpy.RenameTypeNames = append([]RenameTypeName(nil), c.RenameTypeNames...)
-	return cpy
+	return &cpy
 }
 
 func (c *Context) Free() {

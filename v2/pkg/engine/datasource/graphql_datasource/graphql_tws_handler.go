@@ -103,7 +103,7 @@ func (h *gqlTWSConnectionHandler) unsubscribe(subscriptionID string) {
 	if !ok {
 		return
 	}
-	close(sub.next)
+	sub.updater.Done()
 	delete(h.subscriptions, subscriptionID)
 
 	req := fmt.Sprintf(completeMessage, subscriptionID)
@@ -138,15 +138,7 @@ func (h *gqlTWSConnectionHandler) subscribe(sub Subscription) {
 func (h *gqlTWSConnectionHandler) broadcastErrorMessage(err error) {
 	errMsg := fmt.Sprintf(errorMessageTemplate, err)
 	for _, sub := range h.subscriptions {
-		ctx, cancel := context.WithTimeout(h.ctx, time.Second*5)
-		select {
-		case sub.next <- []byte(errMsg):
-			cancel()
-			continue
-		case <-ctx.Done():
-			cancel()
-			continue
-		}
+		sub.updater.Update([]byte(errMsg))
 	}
 }
 
@@ -159,7 +151,7 @@ func (h *gqlTWSConnectionHandler) handleMessageTypeComplete(data []byte) {
 	if !ok {
 		return
 	}
-	close(sub.next)
+	sub.updater.Done()
 	delete(h.subscriptions, id)
 }
 
@@ -180,7 +172,7 @@ func (h *gqlTWSConnectionHandler) handleMessageTypeError(data []byte) {
 			log.Error(err),
 			log.ByteString("raw message", data),
 		)
-		sub.next <- []byte(internalError)
+		sub.updater.Update([]byte(internalError))
 		return
 	}
 
@@ -194,12 +186,12 @@ func (h *gqlTWSConnectionHandler) handleMessageTypeError(data []byte) {
 				log.Error(err),
 				log.ByteString("raw message", value),
 			)
-			sub.next <- []byte(internalError)
+			sub.updater.Update([]byte(internalError))
 			return
 		}
-		sub.next <- response
+		sub.updater.Update(response)
 	default:
-		sub.next <- []byte(internalError)
+		sub.updater.Update([]byte(internalError))
 	}
 }
 
@@ -226,18 +218,11 @@ func (h *gqlTWSConnectionHandler) handleMessageTypeNext(data []byte) {
 			"failed to get payload from next message",
 			log.Error(err),
 		)
-		sub.next <- []byte(internalError)
+		sub.updater.Update([]byte(internalError))
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(h.ctx, time.Second*5)
-	defer cancel()
-
-	select {
-	case <-ctx.Done():
-	case sub.next <- value:
-	case <-sub.ctx.Done():
-	}
+	sub.updater.Update(value)
 }
 
 // readBlocking is a dedicated loop running in a separate goroutine
