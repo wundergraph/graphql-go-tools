@@ -4099,11 +4099,12 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
 		recorder.AwaitComplete(t, time.Second)
-		slices.Sort(recorder.messages) // sort because the order of events is not guaranteed
 		assert.Equal(t, 3, len(recorder.messages))
-		assert.Equal(t, `{"data":{"counter":0}}`, recorder.messages[0])
-		assert.Equal(t, `{"data":{"counter":1}}`, recorder.messages[1])
-		assert.Equal(t, `{"data":{"counter":2}}`, recorder.messages[2])
+		assert.ElementsMatch(t, []string{
+			`{"data":{"counter":0}}`,
+			`{"data":{"counter":1}}`,
+			`{"data":{"counter":2}}`,
+		}, recorder.messages)
 	})
 
 	t.Run("should propagate initial payload to stream", func(t *testing.T) {
