@@ -19,6 +19,8 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/flags"
 )
 
 type _fakeDataSource struct {
@@ -3858,6 +3860,9 @@ type SubscriptionRecorder struct {
 
 func (s *SubscriptionRecorder) AwaitMessages(t *testing.T, count int, timeout time.Duration) {
 	t.Helper()
+	if flags.IsWindows {
+		timeout *= 2
+	}
 	deadline := time.Now().Add(timeout)
 	for {
 		s.mux.Lock()
@@ -3875,6 +3880,9 @@ func (s *SubscriptionRecorder) AwaitMessages(t *testing.T, count int, timeout ti
 
 func (s *SubscriptionRecorder) AwaitComplete(t *testing.T, timeout time.Duration) {
 	t.Helper()
+	if flags.IsWindows {
+		timeout *= 2
+	}
 	deadline := time.Now().Add(timeout)
 	for {
 		if s.complete.Load() {
