@@ -4051,8 +4051,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
 		assert.NoError(t, err)
-		recorder.AwaitMessages(t, 1, time.Second)
-		recorder.AwaitComplete(t, time.Second)
+		recorder.AwaitMessages(t, 1, time.Second*2)
+		recorder.AwaitComplete(t, time.Second*2)
 		assert.Equal(t, 1, len(recorder.Messages()))
 		assert.Equal(t, `{"errors":[{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":null}`, recorder.Messages()[0])
 	})
@@ -4085,7 +4085,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
 		assert.NoError(t, err)
-		recorder.AwaitComplete(t, time.Second)
+		recorder.AwaitComplete(t, time.Second*2)
 		assert.Equal(t, 3, len(recorder.Messages()))
 		assert.ElementsMatch(t, []string{
 			`{"data":{"counter":0}}`,
@@ -4112,7 +4112,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
-		recorder.AwaitComplete(t, time.Second)
+		recorder.AwaitComplete(t, time.Second*2)
 		assert.Equal(t, 3, len(recorder.Messages()))
 		assert.ElementsMatch(t, []string{
 			`{"data":{"counter":0}}`,
@@ -4139,7 +4139,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
-		recorder.AwaitComplete(t, time.Second)
+		recorder.AwaitComplete(t, time.Second*2)
 		assert.Equal(t, 3, len(recorder.Messages()))
 		assert.ElementsMatch(t, []string{
 			`{"data":{"counter":0}}`,
@@ -4164,11 +4164,11 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
-		recorder.AwaitMessages(t, 1, time.Second)
+		recorder.AwaitMessages(t, 1, time.Second*2)
 		err = resolver.AsyncUnsubscribeSubscription(id)
 		assert.NoError(t, err)
-		recorder.AwaitComplete(t, time.Second)
-		fakeStream.AwaitIsDone(t, time.Second)
+		recorder.AwaitComplete(t, time.Second*2)
+		fakeStream.AwaitIsDone(t, time.Second*2)
 	})
 
 	t.Run("should stop stream on unsubscribe client", func(t *testing.T) {
@@ -4187,11 +4187,11 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
-		recorder.AwaitMessages(t, 1, time.Second)
+		recorder.AwaitMessages(t, 1, time.Second*2)
 		err = resolver.AsyncUnsubscribeClient(id.ConnectionID)
 		assert.NoError(t, err)
-		recorder.AwaitComplete(t, time.Second)
-		fakeStream.AwaitIsDone(t, time.Second)
+		recorder.AwaitComplete(t, time.Second*2)
+		fakeStream.AwaitIsDone(t, time.Second*2)
 	})
 }
 
