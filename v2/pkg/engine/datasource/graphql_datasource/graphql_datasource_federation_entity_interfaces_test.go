@@ -457,6 +457,350 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 
 	})
 
+	t.Run("query 3 - Interface object to concrete type User", func(t *testing.T) {
+		t.Run("run", RunTest(
+			definition,
+			`
+				query  _3_InterfaceObjectToConcreteType {
+					accountLocations {
+						id
+						... on User {
+							title
+						}
+					}
+				}`,
+			"_3_InterfaceObjectToConcreteType",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:          `{"method":"POST","url":"http://localhost:4002/graphql","body":{"query":"{accountLocations {__typename id}}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+								DataSource:     &Source{},
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("accountLocations"),
+								Value: &resolve.Array{
+									Path: []string{"accountLocations"},
+									Item: &resolve.Object{
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("id"),
+												Value: &resolve.Scalar{
+													Path: []string{"id"},
+												},
+											},
+											{
+												Name: []byte("title"),
+												Value: &resolve.String{
+													Path: []string{"title"},
+												},
+												OnTypeNames: [][]byte{[]byte("User")},
+											},
+										},
+										Fetch: &resolve.SingleFetch{
+											FetchID:           1,
+											DependsOnFetchIDs: []int{0},
+											FetchConfiguration: resolve.FetchConfiguration{
+												Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {title __typename}}}","variables":{"representations":[$$0$$]}}}`,
+												Variables: []resolve.Variable{
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+																},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.String{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+																},
+															},
+														}),
+													},
+												},
+												RequiresEntityBatchFetch:              true,
+												PostProcessing:                        EntitiesPostProcessingConfiguration,
+												DataSource:                            &Source{},
+												SetTemplateOutputToNullOnVariableNull: true,
+											},
+											DataSourceIdentifier: []byte("graphql_datasource.Source"),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			planConfiguration,
+		))
+
+	})
+
+	t.Run("query 4 - Concrete type User to interface object", func(t *testing.T) {
+		t.Run("run", RunTest(
+			definition,
+			`
+				query  _4_ConcreteType_User_ToInterfaceObject {
+					user(id: "u1") {
+						id
+						age
+					}
+				}`,
+			"_4_ConcreteType_User_ToInterfaceObject",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($a: ID!){user(id: $a){id __typename}}","variables":{"a":$$0$$}}}`,
+								Variables: []resolve.Variable{
+									&resolve.ContextVariable{
+										Path:     []string{"a"},
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+									},
+								},
+								PostProcessing: DefaultPostProcessingConfiguration,
+								DataSource:     &Source{},
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("user"),
+								Value: &resolve.Object{
+									Path:     []string{"user"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("id"),
+											Value: &resolve.Scalar{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("age"),
+											Value: &resolve.Integer{
+												Path: []string{"age"},
+											},
+										},
+									},
+									Fetch: &resolve.SingleFetch{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+										FetchConfiguration: resolve.FetchConfiguration{
+											Input: `{"method":"POST","url":"http://localhost:4004/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {age}}}","variables":{"representations":[$$0$$]}}}`,
+											Variables: []resolve.Variable{
+												&resolve.ResolvableObjectVariable{
+													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("__typename"),
+																Value: &resolve.StaticString{
+																	Path:  []string{"__typename"},
+																	Value: "Account",
+																},
+																OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+															},
+															{
+																Name: []byte("id"),
+																Value: &resolve.String{
+																	Path: []string{"id"},
+																},
+																OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+															},
+														},
+													}),
+												},
+											},
+											RequiresEntityFetch:                   true,
+											PostProcessing:                        SingleEntityPostProcessingConfiguration,
+											DataSource:                            &Source{},
+											SetTemplateOutputToNullOnVariableNull: true,
+										},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			planConfiguration,
+			WithMultiFetchPostProcessor(),
+		))
+
+	})
+
+	t.Run("query 5 - Concrete type User to interface objects", func(t *testing.T) {
+		t.Run("run", RunTest(
+			definition,
+			`
+				query  _5_ConcreteType_User_ToInterfaceObjects {
+					user(id: "u1") {
+						id
+						age
+						locations {
+							country
+						}
+					}
+				}`,
+			"_5_ConcreteType_User_ToInterfaceObjects",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($a: ID!){user(id: $a){id __typename}}","variables":{"a":$$0$$}}}`,
+								Variables: []resolve.Variable{
+									&resolve.ContextVariable{
+										Path:     []string{"a"},
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+									},
+								},
+								PostProcessing: DefaultPostProcessingConfiguration,
+								DataSource:     &Source{},
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("user"),
+								Value: &resolve.Object{
+									Path:     []string{"user"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("id"),
+											Value: &resolve.Scalar{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("age"),
+											Value: &resolve.Integer{
+												Path: []string{"age"},
+											},
+										},
+										{
+											Name: []byte("locations"),
+											Value: &resolve.Array{
+												Path:     []string{"locations"},
+												Nullable: true,
+												Item: &resolve.Object{
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("country"),
+															Value: &resolve.String{
+																Path: []string{"country"},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+									Fetch: &resolve.ParallelFetch{
+										Fetches: []resolve.Fetch{
+											&resolve.SingleFetch{
+												FetchID:           1,
+												DependsOnFetchIDs: []int{0},
+												FetchConfiguration: resolve.FetchConfiguration{
+													Input: `{"method":"POST","url":"http://localhost:4004/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {age}}}","variables":{"representations":[$$0$$]}}}`,
+													Variables: []resolve.Variable{
+														&resolve.ResolvableObjectVariable{
+															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																Nullable: true,
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &resolve.StaticString{
+																			Path:  []string{"__typename"},
+																			Value: "Account",
+																		},
+																		OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+																	},
+																	{
+																		Name: []byte("id"),
+																		Value: &resolve.String{
+																			Path: []string{"id"},
+																		},
+																		OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+																	},
+																},
+															}),
+														},
+													},
+													RequiresEntityFetch:                   true,
+													PostProcessing:                        SingleEntityPostProcessingConfiguration,
+													DataSource:                            &Source{},
+													SetTemplateOutputToNullOnVariableNull: true,
+												},
+												DataSourceIdentifier: []byte("graphql_datasource.Source"),
+											},
+											&resolve.SingleFetch{
+												FetchID:           2,
+												DependsOnFetchIDs: []int{0},
+												FetchConfiguration: resolve.FetchConfiguration{
+													Input: `{"method":"POST","url":"http://localhost:4002/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {locations {country}}}}","variables":{"representations":[$$0$$]}}}`,
+													Variables: []resolve.Variable{
+														&resolve.ResolvableObjectVariable{
+															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																Nullable: true,
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &resolve.StaticString{
+																			Path:  []string{"__typename"},
+																			Value: "Account",
+																		},
+																		OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+																	},
+																	{
+																		Name: []byte("id"),
+																		Value: &resolve.String{
+																			Path: []string{"id"},
+																		},
+																		OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+																	},
+																},
+															}),
+														},
+													},
+													RequiresEntityFetch:                   true,
+													PostProcessing:                        SingleEntityPostProcessingConfiguration,
+													DataSource:                            &Source{},
+													SetTemplateOutputToNullOnVariableNull: true,
+												},
+												DataSourceIdentifier: []byte("graphql_datasource.Source"),
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			planConfiguration,
+			WithMultiFetchPostProcessor(),
+		))
+
+	})
+
 	t.Run("query 9.1 - Interface fragment on union to interface objects", func(t *testing.T) {
 		t.Run("run", RunTest(
 			definition,
