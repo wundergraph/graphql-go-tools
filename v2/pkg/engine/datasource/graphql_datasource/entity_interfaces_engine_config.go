@@ -353,12 +353,12 @@ func EntityInterfacesPlanConfiguration(factory plan.PlannerFactory) *plan.Config
 			},
 		},
 		Debug: plan.DebugConfiguration{
-			PrintOperationTransformations: true,
+			PrintOperationTransformations: false,
 			PrintQueryPlans:               true,
-			PrintPlanningPaths:            true,
-			PrintNodeSuggestions:          true,
+			PrintPlanningPaths:            false,
+			PrintNodeSuggestions:          false,
 
-			// DatasourceVisitor: true,
+			DatasourceVisitor: false,
 		},
 	}
 
