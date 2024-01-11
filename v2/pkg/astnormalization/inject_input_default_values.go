@@ -208,6 +208,7 @@ func (v *inputFieldDefaultInjectionVisitor) jsonWalker(fieldType int, defaultVal
 			}
 			if replaced {
 				*finalVal, err = jsonparser.Set(defaultValue, newVal, fmt.Sprintf("[%d]", i))
+				defaultValue = *finalVal
 				if err != nil {
 					return
 				}
@@ -220,6 +221,7 @@ func (v *inputFieldDefaultInjectionVisitor) jsonWalker(fieldType int, defaultVal
 			}
 			if replaced {
 				*finalVal, err = jsonparser.Set(defaultValue, newVal, fmt.Sprintf("[%d]", i))
+				defaultValue = *finalVal
 				if err != nil {
 					return
 				}
