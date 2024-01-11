@@ -2992,6 +2992,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 	})
 
 	t.Run("query 15 - Interface object to concrete type User", func(t *testing.T) {
+		// Note: we overfetch here, as we do not know the type of the object, so we fetch all possible fields from first subgraph,
+		// but later we render only fields on a User type
+		// Alternative is to fetch id, fetch type and after that fetch remaining fields only for user
+
 		t.Run("run", RunTest(
 			definition,
 			`
