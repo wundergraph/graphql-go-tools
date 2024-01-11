@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"gonum.org/v1/gonum/stat/combin"
 
 	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
@@ -98,4 +99,28 @@ func ShuffleDS(dataSources []plan.DataSourceConfiguration) []plan.DataSourceConf
 	})
 
 	return dataSources
+}
+
+func OrderDS(dataSources []plan.DataSourceConfiguration, order []int) (out []plan.DataSourceConfiguration) {
+	out = make([]plan.DataSourceConfiguration, 0, len(dataSources))
+
+	for _, i := range order {
+		out = append(out, dataSources[i])
+	}
+
+	return out
+}
+
+func DataSourcePermutations(dataSources []plan.DataSourceConfiguration) [][]plan.DataSourceConfiguration {
+	size := len(dataSources)
+	elementsCount := len(dataSources)
+	list := combin.Permutations(size, elementsCount)
+
+	permutations := make([][]plan.DataSourceConfiguration, 0, len(list))
+
+	for _, v := range list {
+		permutations = append(permutations, OrderDS(dataSources, v))
+	}
+
+	return permutations
 }
