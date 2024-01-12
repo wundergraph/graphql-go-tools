@@ -40,7 +40,6 @@ type Request struct {
 	document     ast.Document
 	isParsed     bool
 	isNormalized bool
-	isValidated  bool
 	request      resolve.Request
 
 	validForSchema map[uint64]ValidationResult
@@ -110,8 +109,14 @@ func (r *Request) IsNormalized() bool {
 	return r.isNormalized
 }
 
-func (r *Request) IsValidated() bool {
-	return r.isValidated
+func (r *Request) IsValidated(schema *Schema) bool {
+	schemaHash, _ := schema.Hash()
+	return r.isValid(schemaHash)
+}
+
+func (r *Request) isValid(schemaHash uint64) bool {
+	result := r.validForSchema[schemaHash]
+	return result.Valid
 }
 
 func (r *Request) parseQueryOnce() (report operationreport.Report) {

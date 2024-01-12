@@ -41,7 +41,6 @@ func (r *Request) ValidateForSchema(schema *Schema) (result ValidationResult, er
 	if err != nil {
 		return result, err
 	}
-	r.isValidated = true
 	r.validForSchema[schemaHash] = result
 	return result, err
 }

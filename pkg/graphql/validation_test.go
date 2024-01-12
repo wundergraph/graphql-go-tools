@@ -24,7 +24,6 @@ func TestRequest_ValidateForSchema(t *testing.T) {
 		assert.Error(t, err)
 		assert.Equal(t, ErrNilSchema, err)
 		assert.Equal(t, ValidationResult{Valid: false, Errors: nil}, result)
-		assert.False(t, request.isValidated)
 	})
 
 	t.Run("should return gql errors no valid operation is in the the request", func(t *testing.T) {
@@ -69,7 +68,6 @@ func TestRequest_ValidateForSchema(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, result.Valid)
 		assert.Nil(t, result.Errors)
-		assert.True(t, request.isValidated)
 	})
 
 	t.Run("should return valid result for introspection query after normalization", func(t *testing.T) {
@@ -95,7 +93,6 @@ func TestRequest_ValidateForSchema(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, result.Valid)
 		assert.Nil(t, result.Errors)
-		assert.True(t, request.isValidated)
 	})
 }
 
