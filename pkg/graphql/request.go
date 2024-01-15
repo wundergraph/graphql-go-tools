@@ -110,12 +110,18 @@ func (r *Request) IsNormalized() bool {
 }
 
 func (r *Request) IsValidated(schema *Schema) bool {
-	schemaHash, _ := schema.Hash()
+	schemaHash, err := schema.Hash()
+	if err != nil {
+		return false
+	}
 	return r.isValid(schemaHash)
 }
 
 func (r *Request) isValid(schemaHash uint64) bool {
-	result := r.validForSchema[schemaHash]
+	result, ok := r.validForSchema[schemaHash]
+	if !ok {
+		return false
+	}
 	return result.Valid
 }
 
