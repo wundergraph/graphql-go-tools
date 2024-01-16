@@ -19,7 +19,7 @@ func TestNewEngineV2Configuration(t *testing.T) {
 	var engineConfig EngineV2Configuration
 
 	t.Run("should create a new engine v2 config", func(t *testing.T) {
-		schema, err := graphql.NewSchemaFromString(graphql.countriesSchema)
+		schema, err := graphql.NewSchemaFromString(graphql.CountriesSchema)
 		require.NoError(t, err)
 
 		engineConfig = NewEngineV2Configuration(schema)
