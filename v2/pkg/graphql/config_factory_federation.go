@@ -9,8 +9,7 @@ import (
 	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation/federationdata"
+	// "github.com/wundergraph/graphql-go-tools/v2/pkg/federation/federationdata"
 )
 
 type federationEngineConfigFactoryOptions struct {
@@ -112,10 +111,8 @@ func (f *FederationEngineConfigFactory) MergedSchema() (*Schema, error) {
 		SDLs[i] = f.dataSourceConfigs[i].Federation.ServiceSDL
 	}
 
-	rawBaseSchema, err := federation.BuildBaseSchemaDocument(SDLs...)
-	if err != nil {
-		return nil, fmt.Errorf("build base schema: %w", err)
-	}
+	rawBaseSchema := ""
+	var err error
 
 	if f.schema, err = NewSchemaFromString(rawBaseSchema); err != nil {
 		return nil, fmt.Errorf("parse schema from string: %v", err)
@@ -155,14 +152,14 @@ func (f *FederationEngineConfigFactory) EngineV2Configuration() (conf EngineV2Co
 func (f *FederationEngineConfigFactory) engineConfigFieldConfigs(schema *Schema) (plan.FieldConfigurations, error) {
 	var planFieldConfigs plan.FieldConfigurations
 
-	for _, dataSourceConfig := range f.dataSourceConfigs {
-		doc, report := astparser.ParseGraphqlDocumentString(dataSourceConfig.Federation.ServiceSDL)
-		if report.HasErrors() {
-			return nil, fmt.Errorf("parse graphql document string: %s", report.Error())
-		}
-		extractor := federationdata.NewRequiredFieldExtractor(&doc)
-		planFieldConfigs = append(planFieldConfigs, extractor.GetAllRequiredFields()...)
-	}
+	// for _, dataSourceConfig := range f.dataSourceConfigs {
+	// 	doc, report := astparser.ParseGraphqlDocumentString(dataSourceConfig.Federation.ServiceSDL)
+	// 	if report.HasErrors() {
+	// 		return nil, fmt.Errorf("parse graphql document string: %s", report.Error())
+	// 	}
+	// 	extractor := federationdata.NewRequiredFieldExtractor(&doc)
+	// 	planFieldConfigs = append(planFieldConfigs, extractor.GetAllRequiredFields()...)
+	// }
 
 	planFieldConfigs = newGraphQLFieldConfigsV2Generator(schema).Generate(planFieldConfigs...)
 	return planFieldConfigs, nil
