@@ -35,6 +35,10 @@ type Schema struct {
 	hash         uint64
 }
 
+func (s *Schema) Document() *ast.Document {
+	return &s.document
+}
+
 // Hash returns the hash of the schema.
 func (s *Schema) Hash() uint64 {
 	return s.hash
@@ -97,7 +101,7 @@ func (s *Schema) Normalize() (result NormalizationResult, err error) {
 	report := operationreport.Report{}
 	astnormalization.NormalizeDefinition(&s.document, &report)
 	if report.HasErrors() {
-		return normalizationResultFromReport(report)
+		return NormalizationResultFromReport(report)
 	}
 
 	normalizedSchemaBuffer := &bytes.Buffer{}
@@ -127,7 +131,7 @@ func (s *Schema) Input() []byte {
 	return s.rawInput
 }
 
-func (s *Schema) Document() []byte {
+func (s *Schema) RawSchema() []byte {
 	return s.rawSchema
 }
 

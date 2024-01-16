@@ -9,8 +9,8 @@ import (
 )
 
 func TestFieldsValidator_Validate(t *testing.T) {
-	schema := starwarsSchema(t)
-	request := requestForQuery(t, starwars.FileSimpleHeroQuery)
+	schema := StarwarsSchema(t)
+	request := StarwarsRequestForQuery(t, starwars.FileSimpleHeroQuery)
 
 	t.Run("should invalidate if blocked fields are used", func(t *testing.T) {
 
@@ -46,8 +46,8 @@ func TestFieldsValidator_Validate(t *testing.T) {
 }
 
 func TestFieldsValidator_ValidateByFieldList(t *testing.T) {
-	schema := starwarsSchema(t)
-	request := requestForQuery(t, starwars.FileSimpleHeroQuery)
+	schema := StarwarsSchema(t)
+	request := StarwarsRequestForQuery(t, starwars.FileSimpleHeroQuery)
 
 	t.Run("block list", func(t *testing.T) {
 		t.Run("should invalidate if blocked fields are used", func(t *testing.T) {

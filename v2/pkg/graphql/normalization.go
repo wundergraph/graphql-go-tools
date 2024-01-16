@@ -18,7 +18,7 @@ func (r *Request) Normalize(schema *Schema) (result NormalizationResult, err err
 
 	report := r.parseQueryOnce()
 	if report.HasErrors() {
-		return normalizationResultFromReport(report)
+		return NormalizationResultFromReport(report)
 	}
 
 	r.document.Input.Variables = r.Variables
@@ -37,7 +37,7 @@ func (r *Request) Normalize(schema *Schema) (result NormalizationResult, err err
 	}
 
 	if report.HasErrors() {
-		return normalizationResultFromReport(report)
+		return NormalizationResultFromReport(report)
 	}
 
 	r.isNormalized = true
@@ -47,7 +47,7 @@ func (r *Request) Normalize(schema *Schema) (result NormalizationResult, err err
 	return NormalizationResult{Successful: true, Errors: nil}, nil
 }
 
-func normalizationResultFromReport(report operationreport.Report) (NormalizationResult, error) {
+func NormalizationResultFromReport(report operationreport.Report) (NormalizationResult, error) {
 	result := NormalizationResult{
 		Successful: false,
 		Errors:     nil,
