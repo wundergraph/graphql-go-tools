@@ -6,7 +6,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafeprinter"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/starwars"
 )
@@ -258,7 +260,7 @@ func Test_normalizationResultFromReport(t *testing.T) {
 		assert.Equal(t, internalErr, err)
 		assert.False(t, result.Successful)
 		assert.Equal(t, result.Errors.Count(), 1)
-		assert.Equal(t, "graphql error", result.Errors.(RequestErrors)[0].Message)
+		assert.Equal(t, "graphql error", result.Errors.(graphqlerrors.RequestErrors)[0].Message)
 	})
 }
 

@@ -1,4 +1,4 @@
-package graphql
+package graphqlerrors
 
 import (
 	"encoding/json"
@@ -6,7 +6,6 @@ import (
 	"io"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -56,9 +55,9 @@ func RequestErrorsFromOperationReport(report operationreport.Report) (errors Req
 	}
 
 	for _, externalError := range report.ExternalErrors {
-		locations := make([]graphqlerrors.Location, 0)
+		locations := make([]operationreport.Location, 0)
 		for _, reportLocation := range externalError.Locations {
-			loc := graphqlerrors.Location{
+			loc := operationreport.Location{
 				Line:   reportLocation.Line,
 				Column: reportLocation.Column,
 			}
@@ -111,16 +110,16 @@ func (o RequestErrors) ErrorByIndex(i int) error {
 }
 
 type RequestError struct {
-	Message   string                   `json:"message"`
-	Locations []graphqlerrors.Location `json:"locations,omitempty"`
-	Path      ErrorPath                `json:"path"`
+	Message   string                     `json:"message"`
+	Locations []operationreport.Location `json:"locations,omitempty"`
+	Path      ErrorPath                  `json:"path"`
 }
 
 func (o RequestError) MarshalJSON() ([]byte, error) {
 	if o.Path.Len() == 0 {
 		return json.Marshal(struct {
-			Message   string                   `json:"message"`
-			Locations []graphqlerrors.Location `json:"locations,omitempty"`
+			Message   string                     `json:"message"`
+			Locations []operationreport.Location `json:"locations,omitempty"`
 		}{
 			Message:   o.Message,
 			Locations: o.Locations,
@@ -131,9 +130,9 @@ func (o RequestError) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 	return json.Marshal(struct {
-		Message   string                   `json:"message"`
-		Locations []graphqlerrors.Location `json:"locations,omitempty"`
-		Path      json.RawMessage          `json:"path"`
+		Message   string                     `json:"message"`
+		Locations []operationreport.Location `json:"locations,omitempty"`
+		Path      json.RawMessage            `json:"path"`
 	}{
 		Message:   o.Message,
 		Locations: o.Locations,
@@ -143,51 +142,6 @@ func (o RequestError) MarshalJSON() ([]byte, error) {
 
 func (o RequestError) Error() string {
 	return fmt.Sprintf("%s, locations: %+v, path: %s", o.Message, o.Locations, o.Path.String())
-}
-
-type SchemaValidationErrors []SchemaValidationError
-
-func schemaValidationErrorsFromOperationReport(report operationreport.Report) (errors SchemaValidationErrors) {
-	if len(report.ExternalErrors) == 0 {
-		return nil
-	}
-
-	for _, externalError := range report.ExternalErrors {
-		validationError := SchemaValidationError{
-			Message: externalError.Message,
-		}
-
-		errors = append(errors, validationError)
-	}
-
-	return errors
-}
-
-func (s SchemaValidationErrors) Error() string {
-	return fmt.Sprintf("schema contains %d error(s)", s.Count())
-}
-
-func (s SchemaValidationErrors) WriteResponse(writer io.Writer) (n int, err error) {
-	return writer.Write(nil)
-}
-
-func (s SchemaValidationErrors) Count() int {
-	return len(s)
-}
-
-func (s SchemaValidationErrors) ErrorByIndex(i int) error {
-	if i >= s.Count() {
-		return nil
-	}
-	return s[i]
-}
-
-type SchemaValidationError struct {
-	Message string `json:"message"`
-}
-
-func (s SchemaValidationError) Error() string {
-	return s.Message
 }
 
 type ErrorPath struct {

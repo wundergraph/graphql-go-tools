@@ -2,12 +2,13 @@ package graphql
 
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 type NormalizationResult struct {
 	Successful bool
-	Errors     Errors
+	Errors     graphqlerrors.Errors
 }
 
 func (r *Request) Normalize(schema *Schema) (result NormalizationResult, err error) {
@@ -57,7 +58,7 @@ func normalizationResultFromReport(report operationreport.Report) (Normalization
 		return result, nil
 	}
 
-	result.Errors = RequestErrorsFromOperationReport(report)
+	result.Errors = graphqlerrors.RequestErrorsFromOperationReport(report)
 
 	var err error
 	if len(report.InternalErrors) > 0 {

@@ -11,6 +11,7 @@ import (
 	"github.com/jensneuse/abstractlogger"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/subscription"
 )
 
@@ -126,7 +127,7 @@ func (g *GraphQLTransportWSMessageWriter) WriteNext(id string, executionResult [
 }
 
 // WriteError writes a message of type 'error' to the transport client including the graphql errors as payload.
-func (g *GraphQLTransportWSMessageWriter) WriteError(id string, graphqlErrors graphql.RequestErrors) error {
+func (g *GraphQLTransportWSMessageWriter) WriteError(id string, graphqlErrors graphqlerrors.RequestErrors) error {
 	payloadBytes, err := json.Marshal(graphqlErrors)
 	if err != nil {
 		return err
@@ -219,7 +220,7 @@ func (g *GraphQLTransportWSEventHandler) HandleWriteEvent(messageType GraphQLTra
 	case GraphQLTransportWSMessageTypeNext:
 		err = g.Writer.WriteNext(id, data)
 	case GraphQLTransportWSMessageTypeError:
-		err = g.Writer.WriteError(id, graphql.RequestErrorsFromError(providedErr))
+		err = g.Writer.WriteError(id, graphqlerrors.RequestErrorsFromError(providedErr))
 	case GraphQLTransportWSMessageTypeConnectionAck:
 		err = g.Writer.WriteConnectionAck()
 	case GraphQLTransportWSMessageTypePing:

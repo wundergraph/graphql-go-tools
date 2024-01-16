@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/starwars"
 )
@@ -317,7 +318,7 @@ func Test_operationValidationResultFromReport(t *testing.T) {
 		assert.Error(t, err)
 		assert.Equal(t, internalErr, err)
 		assert.False(t, result.Valid)
-		assert.Len(t, result.Errors.(RequestErrors), 1)
-		assert.Equal(t, "graphql error", result.Errors.(RequestErrors)[0].Message)
+		assert.Len(t, result.Errors.(graphqlerrors.RequestErrors), 1)
+		assert.Equal(t, "graphql error", result.Errors.(graphqlerrors.RequestErrors)[0].Message)
 	})
 }

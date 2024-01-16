@@ -2,12 +2,13 @@ package graphql
 
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 type ValidationResult struct {
 	Valid  bool
-	Errors Errors
+	Errors graphqlerrors.Errors
 }
 
 func (r *Request) ValidateForSchema(schema *Schema) (result ValidationResult, err error) {
@@ -83,7 +84,7 @@ func operationValidationResultFromReport(report operationreport.Report) (Validat
 		return result, nil
 	}
 
-	result.Errors = RequestErrorsFromOperationReport(report)
+	result.Errors = graphqlerrors.RequestErrorsFromOperationReport(report)
 
 	var err error
 	if len(report.InternalErrors) > 0 {

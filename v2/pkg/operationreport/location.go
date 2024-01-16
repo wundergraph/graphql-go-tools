@@ -1,4 +1,4 @@
-package graphqlerrors
+package operationreport
 
 type Location struct {
 	Line   uint32 `json:"line"`

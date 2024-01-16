@@ -10,7 +10,7 @@ import (
 
 	"github.com/jensneuse/abstractlogger"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/subscription"
 )
 
@@ -122,7 +122,7 @@ func (g *GraphQLWSMessageWriter) WriteConnectionError(reason string) error {
 }
 
 // WriteError writes a message of type 'error' to the transport client.
-func (g *GraphQLWSMessageWriter) WriteError(id string, errors graphql.RequestErrors) error {
+func (g *GraphQLWSMessageWriter) WriteError(id string, errors graphqlerrors.RequestErrors) error {
 	payloadBytes, err := json.Marshal(errors)
 	if err != nil {
 		return err
@@ -199,7 +199,7 @@ func (g *GraphQLWSWriteEventHandler) HandleWriteEvent(messageType GraphQLWSMessa
 	case GraphQLWSMessageTypeData:
 		err = g.Writer.WriteData(id, data)
 	case GraphQLWSMessageTypeError:
-		err = g.Writer.WriteError(id, graphql.RequestErrorsFromError(providedErr))
+		err = g.Writer.WriteError(id, graphqlerrors.RequestErrorsFromError(providedErr))
 	case GraphQLWSMessageTypeConnectionError:
 		err = g.Writer.WriteConnectionError(providedErr.Error())
 	case GraphQLWSMessageTypeConnectionKeepAlive:
