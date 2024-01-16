@@ -10,8 +10,8 @@ import (
 
 	"github.com/jensneuse/abstractlogger"
 
+	"github.com/wundergraph/graphql-go-tools/execution/subscription"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/subscription"
 )
 
 // GraphQLWSMessageType is a type that defines graphql-ws message type names.
