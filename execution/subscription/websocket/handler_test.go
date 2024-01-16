@@ -15,11 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/graphql-go-tool/execution/engine"
+	"github.com/wundergraph/graphql-go-tools/execution/subscription"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/subscription"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/subscriptiontesting"
 )
 
@@ -252,7 +253,7 @@ func TestWithProtocolFromRequestHeaders(t *testing.T) {
 	})
 }
 
-func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string, onBeforeStartHook graphql.WebsocketBeforeStartHook) *subscription.ExecutorV2Pool {
+func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string, onBeforeStartHook engine.WebsocketBeforeStartHook) *subscription.ExecutorV2Pool {
 	chatSchemaBytes, err := subscriptiontesting.LoadSchemaFromExamplesDirectoryWithinPkg()
 	require.NoError(t, err)
 
@@ -350,10 +351,10 @@ func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string
 
 	initCtx := subscription.NewInitialHttpRequestContext(req)
 
-	engine, err := graphql.NewExecutionEngineV2(initCtx, abstractlogger.NoopLogger, engineConf)
+	eng, err := engine.NewExecutionEngineV2(initCtx, abstractlogger.NoopLogger, engineConf)
 	require.NoError(t, err)
 
-	executorPool := subscription.NewExecutorV2Pool(engine, ctx)
+	executorPool := subscription.NewExecutorV2Pool(eng, ctx)
 	return executorPool
 }
 
