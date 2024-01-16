@@ -9,13 +9,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation/sdlmerge"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
-
-func BuildBaseSchemaDocument(serviceSDLs ...string) (string, error) {
-	return sdlmerge.MergeSDLs(serviceSDLs...)
-}
 
 func BuildFederationSchema(baseSchema, serviceSDL string) (string, error) {
 	builder := schemaBuilder{}

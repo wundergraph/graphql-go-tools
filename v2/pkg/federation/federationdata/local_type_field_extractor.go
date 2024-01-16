@@ -3,7 +3,6 @@ package federationdata
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation/sdlmerge"
 )
 
 // LocalTypeFieldExtractor takes an ast.Document as input and generates the
@@ -42,13 +41,10 @@ func NewLocalTypeFieldExtractor(document *ast.Document) *LocalTypeFieldExtractor
 
 type nodeInformation struct {
 	typeName          string
-	hasKeyDirective   bool
 	isInterface       bool
 	isRoot            bool
 	concreteTypeNames []string
 	localFieldRefs    []int
-	externalFieldRefs []int
-	requiredFields    map[string]struct{}
 }
 
 type rootNodeNamesMap struct {
@@ -200,15 +196,11 @@ func (e *LocalTypeFieldExtractor) getNodeInfo(node ast.Node) *nodeInformation {
 	typeName := e.document.NodeNameString(node)
 	nodeInfo, ok := e.nodeInfoMap[typeName]
 	if ok {
-		// if this node has the key directive, we need to add it to the node information
-		nodeInfo.hasKeyDirective = nodeInfo.hasKeyDirective || e.document.NodeHasDirectiveByNameString(node, sdlmerge.KeyDirectiveName)
 		return nodeInfo
 	}
 
 	nodeInfo = &nodeInformation{
-		typeName:        typeName,
-		hasKeyDirective: e.document.NodeHasDirectiveByNameString(node, sdlmerge.KeyDirectiveName),
-		requiredFields:  make(map[string]struct{}),
+		typeName: typeName,
 	}
 
 	e.nodeInfoMap[typeName] = nodeInfo
@@ -216,28 +208,14 @@ func (e *LocalTypeFieldExtractor) getNodeInfo(node ast.Node) *nodeInformation {
 }
 
 func (e *LocalTypeFieldExtractor) isRootNode(nodeInfo *nodeInformation) bool {
-	isFederationEntity := nodeInfo.hasKeyDirective && !nodeInfo.isInterface
 	return nodeInfo.typeName == e.queryTypeName ||
 		nodeInfo.typeName == e.mutationTypeName ||
-		nodeInfo.typeName == e.subscriptionTypeName ||
-		isFederationEntity
+		nodeInfo.typeName == e.subscriptionTypeName
 }
 
 func (e *LocalTypeFieldExtractor) collectFieldDefinitions(node ast.Node, nodeInfo *nodeInformation) {
 	for _, ref := range e.document.NodeFieldDefinitions(node) {
-		isExternal := e.document.FieldDefinitionHasNamedDirective(ref,
-			sdlmerge.ExternalDirectiveName)
-
-		if isExternal {
-			nodeInfo.externalFieldRefs = append(nodeInfo.externalFieldRefs, ref)
-		} else {
-			nodeInfo.localFieldRefs = append(nodeInfo.localFieldRefs, ref)
-		}
-
-		requiredFields := requiredFieldsByRequiresDirective(e.document, ref)
-		for _, field := range requiredFields {
-			nodeInfo.requiredFields[field] = struct{}{}
-		}
+		nodeInfo.localFieldRefs = append(nodeInfo.localFieldRefs, ref)
 	}
 }
 
@@ -320,35 +298,13 @@ func (e *LocalTypeFieldExtractor) createChildNodes() {
 		if !ok {
 			continue
 		}
-		numFields := len(nodeInfo.localFieldRefs) + len(nodeInfo.externalFieldRefs)
+		numFields := len(nodeInfo.localFieldRefs)
 		if numFields == 0 {
 			continue
 		}
 		fieldNames := make([]string, 0, numFields)
 		for _, ref := range nodeInfo.localFieldRefs {
 			fieldNames = append(fieldNames, e.processFieldRef(ref))
-		}
-		for _, ref := range nodeInfo.externalFieldRefs {
-			// We assume that a field is marked @external for only three
-			// reasons:
-			// 1) the enclosing type is using it as a @key field
-			// 2) another field in this datasource @provide's it
-			// 3) another field in the enclosing type @require's it
-			// In the first two cases, that means that this datasource
-			// knows the value of the field, and thus we want to include
-			// the field in our ChildNodes.  In the last case, this
-			// datasource does *not* know the value of the field, so
-			// we don't include it.
-			// (Note it's legal for someone to add an `@external`
-			// field to their extended type just for the heck of it,
-			// and never use that field for anything.  The code below
-			// will wrongly say that this datasource can provide its
-			// value.  Hopefully people don't actually do that.)
-			fieldName := e.processFieldRef(ref)
-			_, isRequired := nodeInfo.requiredFields[fieldName]
-			if !isRequired {
-				fieldNames = append(fieldNames, fieldName)
-			}
 		}
 		e.childNodes = append(e.childNodes, plan.TypeField{
 			TypeName:   typeName,

@@ -253,9 +253,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			}
 		`,
 			[]plan.TypeField{
-				{TypeName: "Comment", FieldNames: []string{"comment", "id", "user"}},
 				{TypeName: "Query", FieldNames: []string{"communication", "me", "user"}},
-				{TypeName: "Review", FieldNames: []string{"comment", "id", "rating", "user"}},
 			},
 			[]plan.TypeField{
 				{TypeName: "Comment", FieldNames: []string{"comment", "id", "user"}},
@@ -299,9 +297,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			}
 		`,
 			[]plan.TypeField{
-				{TypeName: "Comment", FieldNames: []string{"comment", "user"}},
 				{TypeName: "Query", FieldNames: []string{"communication", "me", "user"}},
-				{TypeName: "Review", FieldNames: []string{"comment", "rating", "user"}},
 			},
 			[]plan.TypeField{
 				{TypeName: "Comment", FieldNames: []string{"comment", "id", "user"}},
@@ -410,9 +406,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 			extend union Communication = Review | Comment
 		`,
 			[]plan.TypeField{
-				{TypeName: "Comment", FieldNames: []string{"comment", "user"}},
 				{TypeName: "Query", FieldNames: []string{"communication", "me", "user"}},
-				{TypeName: "Review", FieldNames: []string{"comment", "rating", "user"}},
 			},
 			[]plan.TypeField{
 				{TypeName: "Comment", FieldNames: []string{"comment", "id", "user"}},
@@ -465,26 +459,6 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 				{TypeName: "User", FieldNames: []string{"communications", "id"}},
 			})
 	})
-	t.Run("Entity definition", func(t *testing.T) {
-		run(t, `
-			type User @key(fields: "id") {
-				id: ID!
-				reviews: [Review!]!
-			}
-
-			type Review {
-				id: ID!
-				comment: String!
-				rating: Int!
-			}
-		`,
-			[]plan.TypeField{
-				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
-			},
-			[]plan.TypeField{
-				{TypeName: "Review", FieldNames: []string{"comment", "id", "rating"}},
-			})
-	})
 	t.Run("nested Entity definition", func(t *testing.T) {
 		run(t, `
 			extend type Query {
@@ -504,107 +478,10 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 		`,
 			[]plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"me"}},
-				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
 			},
 			[]plan.TypeField{
 				{TypeName: "Review", FieldNames: []string{"comment", "id", "rating"}},
 				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
-			})
-	})
-	t.Run("extended Entity", func(t *testing.T) {
-		run(t, `
-			extend type User @key(fields: "id") {
-				id: ID! @external
-				username: String! @external
-				reviews: [Review!]
-			}
-
-			type Review {
-				comment: String!
-				author: User! @provide(fields: "username")
-			}
-		`,
-			[]plan.TypeField{
-				{TypeName: "User", FieldNames: []string{"reviews"}},
-			},
-			[]plan.TypeField{
-				{TypeName: "Review", FieldNames: []string{"author", "comment"}},
-				{TypeName: "User", FieldNames: []string{"id", "reviews", "username"}},
-			})
-	})
-	t.Run("extended Entity without local fields", func(t *testing.T) {
-		run(t, `
-			extend type Query {
-				review(id: ID!): Review
-			}
-
-			# This entity doesn't define any local fields, so it shouldn't be
-			# included as a root node.
-			extend type User @key(fields: "id") {
-				id: ID! @external
-			}
-
-			type Review {
-				comment: String!
-				author: User!
-			}
-		`,
-			[]plan.TypeField{
-				{TypeName: "Query", FieldNames: []string{"review"}},
-			},
-			[]plan.TypeField{
-				{TypeName: "Review", FieldNames: []string{"author", "comment"}},
-				{TypeName: "User", FieldNames: []string{"id"}},
-			})
-	})
-	t.Run("extended Entity with root definitions", func(t *testing.T) {
-		run(t, `
-			extend type Query {
-				reviews(IDs: [ID!]!): [Review!]
-			}
-
-			extend type User @key(fields: "id") {
-				id: ID! @external
-				reviews: [Review!]
-			}
-
-			type Review {
-				id: String!
-				comment: String!
-				author: User!
-			}
-		`,
-			[]plan.TypeField{
-				{TypeName: "Query", FieldNames: []string{"reviews"}},
-				{TypeName: "User", FieldNames: []string{"reviews"}},
-			},
-			[]plan.TypeField{
-				{TypeName: "Review", FieldNames: []string{"author", "comment", "id"}},
-				{TypeName: "User", FieldNames: []string{"id", "reviews"}},
-			})
-	})
-	t.Run("extended Entity with required fields", func(t *testing.T) {
-		run(t, `
-			extend type User @key(fields: "id") {
-				id: ID! @external
-				username: String! @external
-				lastname: String! @external
-
-				reviews: [Review!]
-				fullname: String @requires(fields: "{ lastname }")
-			}
-
-			type Review {
-				comment: String!
-				author: User! @provide(fields: "username")
-			}
-		`,
-			[]plan.TypeField{
-				{TypeName: "User", FieldNames: []string{"fullname", "reviews"}},
-			},
-			[]plan.TypeField{
-				{TypeName: "Review", FieldNames: []string{"author", "comment"}},
-				{TypeName: "User", FieldNames: []string{"fullname", "id", "reviews", "username"}},
 			})
 	})
 	t.Run("local type extension", func(t *testing.T) {
@@ -641,9 +518,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
            }
        `,
 			[]plan.TypeField{
-				{TypeName: "Product", FieldNames: []string{"addedBy", "description", "id"}},
 				{TypeName: "Query", FieldNames: []string{"products", "reviews"}},
-				{TypeName: "User", FieldNames: []string{"reviews"}},
 			},
 			[]plan.TypeField{
 				{TypeName: "Product", FieldNames: []string{"addedBy", "description", "id"}},
@@ -685,9 +560,7 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
            }
        `,
 			[]plan.TypeField{
-				{TypeName: "Product", FieldNames: []string{"addedBy", "description", "id"}},
 				{TypeName: "Query", FieldNames: []string{"products", "reviews"}},
-				{TypeName: "User", FieldNames: []string{"reviews"}},
 			},
 			[]plan.TypeField{
 				{TypeName: "Product", FieldNames: []string{"addedBy", "description", "id"}},
