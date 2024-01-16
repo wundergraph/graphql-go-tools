@@ -5,9 +5,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 )
 
 func sortNodesAndFields(nodes []plan.TypeField) {
@@ -23,7 +24,9 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 	run := func(t *testing.T, SDL string, expectedRoot, expectedChild []plan.TypeField) {
 		t.Helper()
 
-		document := unsafeparser.ParseGraphqlDocumentString(SDL)
+		document, report := astparser.ParseGraphqlDocumentString(SDL)
+		require.False(t, report.HasErrors())
+
 		extractor := NewLocalTypeFieldExtractor(&document)
 		gotRoot, gotChild := extractor.GetAllNodes()
 
@@ -643,7 +646,8 @@ func TestLocalTypeFieldExtractor_GetAllNodes(t *testing.T) {
 }
 
 func BenchmarkGetAllNodes(b *testing.B) {
-	document := unsafeparser.ParseGraphqlDocumentString(benchmarkSDL)
+	document, report := astparser.ParseGraphqlDocumentString(benchmarkSDL)
+	require.False(b, report.HasErrors())
 
 	b.ResetTimer()
 	b.ReportAllocs()

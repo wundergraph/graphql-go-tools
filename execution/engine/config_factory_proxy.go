@@ -119,7 +119,7 @@ func (p *ProxyEngineConfigFactory) EngineV2Configuration() (EngineV2Configuratio
 
 	conf := NewEngineV2Configuration(p.schema)
 
-	rawDoc, report := astparser.ParseGraphqlDocumentBytes(p.schema.rawInput)
+	rawDoc, report := astparser.ParseGraphqlDocumentBytes(p.schema.Input())
 	if report.HasErrors() {
 		return EngineV2Configuration{}, report
 	}

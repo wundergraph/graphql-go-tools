@@ -15,12 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/starwars"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/subscriptiontesting"
 )
 
@@ -41,8 +41,6 @@ func (w *websocketHook) OnBeforeStart(reqCtx context.Context, operation *graphql
 }
 
 func TestHandler_Handle(t *testing.T) {
-	starwars.SetRelativePathToStarWarsPackage("../starwars")
-
 	t.Run("engine v2", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -633,10 +631,10 @@ func setupEngineV2(t *testing.T, ctx context.Context, chatServerURL string) (*Ex
 
 	initCtx := NewInitialHttpRequestContext(req)
 
-	engine, err := graphql.NewExecutionEngineV2(initCtx, abstractlogger.NoopLogger, engineConf)
+	eng, err := engine.NewExecutionEngineV2(initCtx, abstractlogger.NoopLogger, engineConf)
 	require.NoError(t, err)
 
-	executorPool := NewExecutorV2Pool(engine, hookHolder.reqCtx)
+	executorPool := NewExecutorV2Pool(eng, hookHolder.reqCtx)
 
 	return executorPool, hookHolder
 }
