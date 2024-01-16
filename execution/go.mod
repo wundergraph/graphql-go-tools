@@ -1,10 +1,11 @@
-module github.com/wundergraph/graphql-go-tool/execution
+module github.com/wundergraph/graphql-go-tools/execution
 
 go 1.21
 
 require (
 	github.com/99designs/gqlgen v0.17.22
 	github.com/gobwas/ws v1.0.4
+	github.com/golang/mock v1.6.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/jensneuse/abstractlogger v0.0.4
@@ -51,3 +52,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	nhooyr.io/websocket v1.8.7 // indirect
 )
+

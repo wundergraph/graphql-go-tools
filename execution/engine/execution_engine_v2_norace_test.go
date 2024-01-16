@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wundergraph/graphql-go-tool/execution/engine/federationtesting"
+	"github.com/wundergraph/graphql-go-tools/execution/engine/federationtesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/flags"
 )

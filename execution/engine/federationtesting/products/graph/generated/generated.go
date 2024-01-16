@@ -18,7 +18,7 @@ import (
 	"github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 
-	"github.com/wundergraph/graphql-go-tool/execution/engine/federationtesting/products/graph/model"
+	"github.com/wundergraph/graphql-go-tools/execution/engine/federationtesting/products/graph/model"
 )
 
 // region    ************************** generated!.gotpl **************************

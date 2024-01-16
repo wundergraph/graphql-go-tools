@@ -1,7 +1,7 @@
 package graph
 
 import (
-	"github.com/wundergraph/graphql-go-tool/execution/engine/federationtesting/reviews/graph/model"
+	"github.com/wundergraph/graphql-go-tools/execution/engine/federationtesting/reviews/graph/model"
 )
 
 var reviews = []*model.Review{

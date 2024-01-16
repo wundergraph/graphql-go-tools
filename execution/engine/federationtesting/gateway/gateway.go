@@ -7,7 +7,7 @@ import (
 
 	log "github.com/jensneuse/abstractlogger"
 
-	graphql2 "github.com/wundergraph/graphql-go-tool/execution/engine"
+	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
 )
@@ -21,12 +21,12 @@ type DataSourceSubject interface {
 }
 
 type HandlerFactory interface {
-	Make(schema *graphql.Schema, engine *graphql2.ExecutionEngineV2) http.Handler
+	Make(schema *graphql.Schema, engine *engine.ExecutionEngineV2) http.Handler
 }
 
-type HandlerFactoryFn func(schema *graphql.Schema, engine *graphql2.ExecutionEngineV2) http.Handler
+type HandlerFactoryFn func(schema *graphql.Schema, engine *engine.ExecutionEngineV2) http.Handler
 
-func (h HandlerFactoryFn) Make(schema *graphql.Schema, engine *graphql2.ExecutionEngineV2) http.Handler {
+func (h HandlerFactoryFn) Make(schema *graphql.Schema, engine *engine.ExecutionEngineV2) http.Handler {
 	return h(schema, engine)
 }
 
@@ -76,7 +76,7 @@ func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphql.DataSourceCon
 	engineConfigFactory := graphql.NewFederationEngineConfigFactory(
 		ctx,
 		newDataSourcesConfig,
-		graphql2.WithFederationHttpClient(g.httpClient),
+		engine.WithFederationHttpClient(g.httpClient),
 	)
 
 	schema, err := engineConfigFactory.MergedSchema()
@@ -91,7 +91,7 @@ func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphql.DataSourceCon
 		return
 	}
 
-	engine, err := graphql2.NewExecutionEngineV2(ctx, g.logger, datasourceConfig)
+	engine, err := engine.NewExecutionEngineV2(ctx, g.logger, datasourceConfig)
 	if err != nil {
 		g.logger.Error("create engine: %v", log.Error(err))
 		return
