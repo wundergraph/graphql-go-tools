@@ -11,6 +11,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 )
 
 const (
@@ -201,19 +202,19 @@ func (h *Handler) handleStart(ctx context.Context, id string, payload []byte) {
 			abstractlogger.Error(err),
 		)
 
-		h.handleError(id, graphql.RequestErrorsFromError(err))
+		h.handleError(id, graphqlerrors.RequestErrorsFromError(err))
 		return
 	}
 
 	if err = h.handleOnBeforeStart(executor); err != nil {
-		h.handleError(id, graphql.RequestErrorsFromError(err))
+		h.handleError(id, graphqlerrors.RequestErrorsFromError(err))
 		return
 	}
 
 	if executor.OperationType() == ast.OperationTypeSubscription {
 		ctx, subsErr := h.subCancellations.AddWithParent(id, ctx)
 		if subsErr != nil {
-			h.handleError(id, graphql.RequestErrorsFromError(subsErr))
+			h.handleError(id, graphqlerrors.RequestErrorsFromError(subsErr))
 			return
 		}
 		go h.startSubscription(ctx, id, executor)
@@ -258,7 +259,7 @@ func (h *Handler) handleNonSubscriptionOperation(ctx context.Context, id string,
 			abstractlogger.Error(err),
 		)
 
-		h.handleError(id, graphql.RequestErrorsFromError(err))
+		h.handleError(id, graphqlerrors.RequestErrorsFromError(err))
 		return
 	}
 
@@ -317,7 +318,7 @@ func (h *Handler) executeSubscription(buf *graphql.EngineResultWriter, id string
 			abstractlogger.Error(err),
 		)
 
-		h.handleError(id, graphql.RequestErrorsFromError(err))
+		h.handleError(id, graphqlerrors.RequestErrorsFromError(err))
 		return
 	}
 
@@ -465,7 +466,7 @@ func (h *Handler) handleConnectionError(errorPayload interface{}) {
 }
 
 // handleError will handle an error message.
-func (h *Handler) handleError(id string, errors graphql.RequestErrors) {
+func (h *Handler) handleError(id string, errors graphqlerrors.RequestErrors) {
 	payloadBytes, err := json.Marshal(errors)
 	if err != nil {
 		h.logger.Error("subscription.Handler.handleError()",

@@ -3,6 +3,7 @@ package graphql
 import (
 	"fmt"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -99,7 +100,7 @@ func (d DefaultFieldsValidator) checkForAllowedFields(restrictionList FieldRestr
 
 type RequestFieldsValidationResult struct {
 	Valid  bool
-	Errors Errors
+	Errors graphqlerrors.Errors
 }
 
 func fieldsValidationResult(report operationreport.Report, valid bool, typeName, fieldName string) (RequestFieldsValidationResult, error) {
@@ -108,9 +109,9 @@ func fieldsValidationResult(report operationreport.Report, valid bool, typeName,
 		Errors: nil,
 	}
 
-	var errors RequestErrors
+	var errors graphqlerrors.RequestErrors
 	if !result.Valid {
-		errors = append(errors, RequestError{
+		errors = append(errors, graphqlerrors.RequestError{
 			Message: fmt.Sprintf("field: %s is restricted on type: %s", fieldName, typeName),
 		})
 	}
@@ -120,7 +121,7 @@ func fieldsValidationResult(report operationreport.Report, valid bool, typeName,
 		return result, nil
 	}
 
-	errors = append(errors, RequestErrorsFromOperationReport(report)...)
+	errors = append(errors, graphqlerrors.RequestErrorsFromOperationReport(report)...)
 	result.Errors = errors
 
 	var err error

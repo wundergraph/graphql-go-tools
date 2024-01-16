@@ -1,4 +1,4 @@
-package graphql
+package graphqlerrors
 
 import (
 	"encoding/json"

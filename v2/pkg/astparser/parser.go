@@ -188,7 +188,7 @@ func (p *Parser) errUnexpectedToken(unexpected token.Token, expectedKeywords ...
 
 	p.report.AddExternalError(operationreport.ExternalError{
 		Message: fmt.Sprintf("unexpected token - got: %s want one of: %v", unexpected.Keyword, expectedKeywords),
-		Locations: []graphqlerrors.Location{
+		Locations: []operationreport.Location{
 			{
 				Line:   unexpected.TextPosition.LineStart,
 				Column: unexpected.TextPosition.CharStart,
@@ -1235,7 +1235,7 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 				if err != nil {
 					p.report.AddExternalError(operationreport.ExternalError{
 						Message: fmt.Sprintf("invalid directive location: %s", unsafebytes.BytesToString(raw)),
-						Locations: []graphqlerrors.Location{
+						Locations: []operationreport.Location{
 							{
 								Line:   ident.TextPosition.LineStart,
 								Column: ident.TextPosition.CharStart,

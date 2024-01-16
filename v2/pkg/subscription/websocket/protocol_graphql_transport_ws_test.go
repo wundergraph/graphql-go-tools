@@ -12,7 +12,7 @@ import (
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/subscription"
 )
 
@@ -231,7 +231,7 @@ func TestGraphQLTransportWSMessageWriter_WriteError(t *testing.T) {
 			mu:     &sync.Mutex{},
 		}
 		expectedMessage := []byte(`{"id":"1","type":"error","payload":[{"message":"request error"}]}`)
-		requestErrors := graphql.RequestErrorsFromError(errors.New("request error"))
+		requestErrors := graphqlerrors.RequestErrorsFromError(errors.New("request error"))
 		err := writer.WriteError("1", requestErrors)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedMessage, testClient.readMessageToClient())

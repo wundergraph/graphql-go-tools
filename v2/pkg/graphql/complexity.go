@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/middleware/operation_complexity"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -27,7 +28,7 @@ type ComplexityResult struct {
 	Complexity   int
 	Depth        int
 	PerRootField []FieldComplexityResult
-	Errors       Errors
+	Errors       graphqlerrors.Errors
 }
 
 type FieldComplexityResult struct {
@@ -64,7 +65,7 @@ func complexityResult(globalComplexityResult operation_complexity.OperationStats
 		return result, nil
 	}
 
-	result.Errors = RequestErrorsFromOperationReport(report)
+	result.Errors = graphqlerrors.RequestErrorsFromOperationReport(report)
 
 	var err error
 	if len(report.InternalErrors) > 0 {

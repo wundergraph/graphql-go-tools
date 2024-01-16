@@ -19,6 +19,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/starwars"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/subscriptiontesting"
 )
@@ -305,7 +306,7 @@ func TestHandler_Handle(t *testing.T) {
 				}
 				require.Eventually(t, waitForClientHavingTwoMessages, 5*time.Second, 5*time.Millisecond)
 
-				jsonErrMessage, err := json.Marshal(graphql.RequestErrors{
+				jsonErrMessage, err := json.Marshal(graphqlerrors.RequestErrors{
 					{Message: errMsg},
 				})
 				require.NoError(t, err)
@@ -486,7 +487,7 @@ func TestHandler_Handle(t *testing.T) {
 					return client.hasMoreMessagesThan(0)
 				}, 1*time.Second, 10*time.Millisecond)
 
-				jsonErrMessage, err := json.Marshal(graphql.RequestErrors{
+				jsonErrMessage, err := json.Marshal(graphqlerrors.RequestErrors{
 					{Message: errMsg},
 				})
 				require.NoError(t, err)
