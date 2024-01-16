@@ -1,9 +1,8 @@
 package starwars
 
 import (
+	"embed"
 	"encoding/json"
-	"os"
-	"path"
 
 	"github.com/stretchr/testify/require"
 )
@@ -31,9 +30,8 @@ const (
 	FileInterfaceFragmentsOnUnion  = "testdata/queries/interface_fragments_on_union.graphql"
 )
 
-var (
-	testdataPath = "./"
-)
+//go:embed testdata
+var starwarsTestData embed.FS
 
 type TestingTB interface {
 	Errorf(format string, args ...interface{})
@@ -52,18 +50,14 @@ type GraphqlRequest struct {
 	Query         string          `json:"query"`
 }
 
-func SetRelativePathToStarWarsPackage(path string) {
-	testdataPath = path
-}
-
 func Schema(t TestingTB) []byte {
-	schema, err := os.ReadFile(path.Join(testdataPath, "testdata/star_wars.graphql"))
+	schema, err := starwarsTestData.ReadFile("testdata/star_wars.graphql")
 	require.NoError(t, err)
 	return schema
 }
 
 func LoadQuery(t TestingTB, fileName string, variables QueryVariables) []byte {
-	query, err := os.ReadFile(path.Join(testdataPath, fileName))
+	query, err := starwarsTestData.ReadFile(fileName)
 	require.NoError(t, err)
 
 	return RequestBody(t, string(query), variables)

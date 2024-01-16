@@ -1,11 +1,11 @@
 package graphql
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -28,8 +28,8 @@ func TestRequest_Normalize(t *testing.T) {
 	})
 
 	t.Run("should successfully normalize request with fragments", func(t *testing.T) {
-		schema := starwarsSchema(t)
-		request := requestForQuery(t, starwars.FileFragmentsQuery)
+		schema := StarwarsSchema(t)
+		request := StarwarsRequestForQuery(t, starwars.FileFragmentsQuery)
 		documentBeforeNormalization := request.document
 
 		result, err := request.Normalize(schema)
@@ -69,13 +69,13 @@ func TestRequest_Normalize(t *testing.T) {
 	runNormalization := func(t *testing.T, request *Request, expectedVars string, expectedNormalizedOperation string) {
 		t.Helper()
 
-		schema := starwarsSchema(t)
+		schema := StarwarsSchema(t)
 
 		runNormalizationWithSchema(t, schema, request, expectedVars, expectedNormalizedOperation)
 	}
 
 	t.Run("should successfully normalize single query with arguments", func(t *testing.T) {
-		request := requestForQuery(t, starwars.FileDroidWithArgQuery)
+		request := StarwarsRequestForQuery(t, starwars.FileDroidWithArgQuery)
 
 		runNormalization(t, &request, `{"a":"R2D2"}`, `query($a: ID!){
     droid(id: $a){
@@ -160,7 +160,7 @@ func TestRequest_Normalize(t *testing.T) {
 	})
 
 	t.Run("should successfully normalize multiple queries with arguments", func(t *testing.T) {
-		request := requestForQuery(t, starwars.FileMultiQueriesWithArguments)
+		request := StarwarsRequestForQuery(t, starwars.FileMultiQueriesWithArguments)
 		request.OperationName = "GetDroid"
 
 		runNormalization(t, &request, `{"a":"1"}`, `query GetDroid($a: ID!){
@@ -188,7 +188,7 @@ query Search {
 	})
 
 	t.Run("input coercion for lists without variables", func(t *testing.T) {
-		schema := inputCoercionForListSchema(t)
+		schema := InputCoercionForListSchema(t)
 		request := Request{
 			OperationName: "charactersByIds",
 			Variables:     stringify(map[string]interface{}{"a": 1}),
@@ -202,7 +202,7 @@ query Search {
 	})
 
 	t.Run("input coercion for lists with variable extraction", func(t *testing.T) {
-		schema := inputCoercionForListSchema(t)
+		schema := InputCoercionForListSchema(t)
 		request := Request{
 			OperationName: "GetCharactersByIds",
 			Variables:     stringify(map[string]interface{}{}),
@@ -216,7 +216,7 @@ query Search {
 	})
 
 	t.Run("input coercion for lists with variables", func(t *testing.T) {
-		schema := inputCoercionForListSchema(t)
+		schema := InputCoercionForListSchema(t)
 		request := Request{
 			OperationName: "charactersByIds",
 			Variables: stringify(map[string]interface{}{
@@ -235,7 +235,7 @@ query Search {
 func Test_normalizationResultFromReport(t *testing.T) {
 	t.Run("should return successful result when report does not have errors", func(t *testing.T) {
 		report := operationreport.Report{}
-		result, err := normalizationResultFromReport(report)
+		result, err := NormalizationResultFromReport(report)
 
 		assert.NoError(t, err)
 		assert.Equal(t, NormalizationResult{Successful: true, Errors: nil}, result)
@@ -253,7 +253,7 @@ func Test_normalizationResultFromReport(t *testing.T) {
 		report.AddInternalError(internalErr)
 		report.AddExternalError(externalErr)
 
-		result, err := normalizationResultFromReport(report)
+		result, err := NormalizationResultFromReport(report)
 
 		assert.Error(t, err)
 		assert.Equal(t, internalErr, err)
@@ -263,21 +263,7 @@ func Test_normalizationResultFromReport(t *testing.T) {
 	})
 }
 
-func inputCoercionForListSchema(t *testing.T) *Schema {
-	schemaString := `schema {
-	query: Query
-}
-
-type Character {
-	id: Int
-	name: String
-}
-
-type Query {
-	charactersByIds(ids: [Int]): [Character]
-}`
-
-	schema, err := NewSchemaFromString(schemaString)
-	require.NoError(t, err)
-	return schema
+func stringify(any interface{}) []byte {
+	out, _ := json.Marshal(any)
+	return out
 }

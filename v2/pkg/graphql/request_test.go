@@ -100,9 +100,9 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 	})
 
 	t.Run("should successfully calculate the complexity of request", func(t *testing.T) {
-		schema := starwarsSchema(t)
+		schema := StarwarsSchema(t)
 
-		request := requestForQuery(t, starwars.FileSimpleHeroQuery)
+		request := StarwarsRequestForQuery(t, starwars.FileSimpleHeroQuery)
 		result, err := request.CalculateComplexity(DefaultComplexityCalculator, schema)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, result.NodeCount, "unexpected node count")
@@ -121,9 +121,9 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 	})
 
 	t.Run("should successfully calculate the complexity of request with multiple query fields", func(t *testing.T) {
-		schema := starwarsSchema(t)
+		schema := StarwarsSchema(t)
 
-		request := requestForQuery(t, starwars.FileHeroWithAliasesQuery)
+		request := StarwarsRequestForQuery(t, starwars.FileHeroWithAliasesQuery)
 		result, err := request.CalculateComplexity(DefaultComplexityCalculator, schema)
 		assert.NoError(t, err)
 		assert.Equal(t, 2, result.NodeCount, "unexpected node count")
@@ -282,32 +282,3 @@ const nonSchemaIntrospectionQueryWithMultipleQueries = `{"operationName":"Hello"
 const nonTypeIntrospectionQueryWithMultipleQueries = `{"operationName":"Hello","query":"query Hello { world } query IntrospectionQuery { __type(name: \"Droid\") { name } }"}`
 
 const mutationQuery = `{"operationName":null,"query":"mutation Foo {bar}"}`
-
-const testSubscriptionDefinition = `
-type Subscription {
-	lastRegisteredUser: User
-	liveUserCount: Int!
-}
-
-type User {
-	id: ID!
-	username: String!
-	email: String!
-}
-`
-
-const testSubscriptionLastRegisteredUserOperation = `
-subscription LastRegisteredUser {
-	lastRegisteredUser {
-		id
-		username
-		email
-	}
-}
-`
-
-const testSubscriptionLiveUserCountOperation = `
-subscription LiveUserCount {
-	liveUserCount
-}
-`

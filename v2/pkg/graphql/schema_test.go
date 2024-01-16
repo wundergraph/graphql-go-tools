@@ -295,7 +295,7 @@ func TestSchema_Document(t *testing.T) {
 	err = astprinter.PrintIndent(&document, nil, []byte("  "), expectedSchemaBytesBuffer)
 	require.NoError(t, err)
 
-	assert.Equal(t, expectedSchemaBytesBuffer.Bytes(), schema.Document())
+	assert.Equal(t, expectedSchemaBytesBuffer.Bytes(), schema.RawSchema())
 }
 
 func TestValidateSchemaString(t *testing.T) {
@@ -333,7 +333,7 @@ func TestValidateSchemaString(t *testing.T) {
 	))
 
 	t.Run("should successfully validate countries schema as valid", run(
-		countriesSchema,
+		CountriesSchema,
 		true,
 		0,
 	))
@@ -377,7 +377,7 @@ func TestSchema_Validate(t *testing.T) {
 	))
 
 	t.Run("should successfully validate countries schema as valid", run(
-		countriesSchema,
+		CountriesSchema,
 		true,
 		0,
 	))
@@ -546,8 +546,7 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 	})
 
 	t.Run("should get field children from schema with recursive references", func(t *testing.T) {
-		schema, err = NewSchemaFromString(countriesSchema)
-		require.NoError(t, err)
+		schema := CreateCountriesSchema(t)
 
 		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Query", "countries")
 		expectedTypeFields := []TypeFields{
@@ -573,8 +572,7 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 	})
 
 	t.Run("should get field children from schema with recursive references on field with interface type", func(t *testing.T) {
-		schema, err = NewSchemaFromString(countriesSchema)
-		require.NoError(t, err)
+		schema := CreateCountriesSchema(t)
 
 		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Query", "codeType")
 		expectedTypeFields := []TypeFields{
@@ -648,95 +646,6 @@ type SingleArgLevel1 {
 type MultiArgLevel1 {
 	multiArgLevel2(lvl: int, number: int): String
 }`
-
-var countriesSchema = `directive @cacheControl(maxAge: Int, scope: CacheControlScope) on FIELD_DEFINITION | OBJECT | INTERFACE
-
-schema {
-	query: Query
-}
-
-interface CodeType {
-	code: ID!
-}
-
-interface CodeNameType implements CodeType {
-	code: ID!
-	name: String!
-}
-
-enum CacheControlScope {
-  PUBLIC
-  PRIVATE
-}
-
-type Continent implements CodeNameType & CodeType {
-  code: ID!
-  name: String!
-  countries: [Country!]!
-}
-
-input ContinentFilterInput {
-  code: StringQueryOperatorInput
-}
-
-type Country implements CodeNameType & CodeType {
-  code: ID!
-  name: String!
-  native: String!
-  phone: String!
-  continent: Continent!
-  capital: String
-  currency: String
-  languages: [Language!]!
-  emoji: String!
-  emojiU: String!
-  states: [State!]!
-}
-
-input CountryFilterInput {
-  code: StringQueryOperatorInput
-  currency: StringQueryOperatorInput
-  continent: StringQueryOperatorInput
-}
-
-type Language {
-  code: ID!
-  name: String
-  native: String
-  rtl: Boolean!
-}
-
-input LanguageFilterInput {
-  code: StringQueryOperatorInput
-}
-
-type Query {
-  continents(filter: ContinentFilterInput): [Continent!]!
-  continent(code: ID!): Continent
-  countries(filter: CountryFilterInput): [Country!]!
-  country(code: ID!): Country
-  languages(filter: LanguageFilterInput): [Language!]!
-  language(code: ID!): Language
-  codeType: CodeType!
-}
-
-type State {
-  code: String
-  name: String!
-  country: Country!
-}
-
-input StringQueryOperatorInput {
-  eq: String
-  ne: String
-  in: [String]
-  nin: [String]
-  regex: String
-  glob: String
-}
-
-"""The Upload scalar type represents a file upload."""
-scalar Upload`
 
 var swapiSchema = `schema {
   query: Root

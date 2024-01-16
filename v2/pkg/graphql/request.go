@@ -84,7 +84,15 @@ func (r *Request) CalculateComplexity(complexityCalculator ComplexityCalculator,
 	return complexityCalculator.Calculate(&r.document, &schema.document)
 }
 
-func (r Request) Print(writer io.Writer) (n int, err error) {
+func (r *Request) Document() *ast.Document {
+	return &r.document
+}
+
+func (r *Request) InternalRequest() resolve.Request {
+	return r.request
+}
+
+func (r *Request) Print(writer io.Writer) (n int, err error) {
 	report := r.parseQueryOnce()
 	if report.HasErrors() {
 		return 0, report
