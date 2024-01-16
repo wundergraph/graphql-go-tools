@@ -7,8 +7,8 @@ package graph
 import (
 	"context"
 
-	"github.com/wundergraph/graphql-go-tool/execution/engine/federationtesting/accounts/graph/generated"
-	"github.com/wundergraph/graphql-go-tool/execution/engine/federationtesting/accounts/graph/model"
+	"github.com/wundergraph/graphql-go-tools/execution/engine/federationtesting/accounts/graph/generated"
+	"github.com/wundergraph/graphql-go-tools/execution/engine/federationtesting/accounts/graph/model"
 )
 
 // FindUserByID is the resolver for the findUserByID field.

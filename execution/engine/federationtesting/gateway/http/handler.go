@@ -6,7 +6,7 @@ import (
 	"github.com/gobwas/ws"
 	log "github.com/jensneuse/abstractlogger"
 
-	graphql2 "github.com/wundergraph/graphql-go-tool/execution/engine"
+	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
 )
 
@@ -16,7 +16,7 @@ const (
 
 func NewGraphqlHTTPHandler(
 	schema *graphql.Schema,
-	engine *graphql2.ExecutionEngineV2,
+	engine *engine.ExecutionEngineV2,
 	upgrader *ws.HTTPUpgrader,
 	logger log.Logger,
 ) http.Handler {
@@ -31,7 +31,7 @@ func NewGraphqlHTTPHandler(
 type GraphQLHTTPRequestHandler struct {
 	log        log.Logger
 	wsUpgrader *ws.HTTPUpgrader
-	engine     *graphql2.ExecutionEngineV2
+	engine     *engine.ExecutionEngineV2
 	schema     *graphql.Schema
 }
 
