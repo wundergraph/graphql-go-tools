@@ -210,9 +210,8 @@ func TestGraphqlFieldConfigurationsV2Generator_Generate(t *testing.T) {
 	t.Run("should generate field configs with predefined field configs", func(t *testing.T) {
 		predefinedFieldConfigs := plan.FieldConfigurations{
 			{
-				TypeName:       "User",
-				FieldName:      "name",
-				RequiresFields: []string{"id"},
+				TypeName:  "User",
+				FieldName: "name",
 			},
 			{
 				TypeName:  "Query",
@@ -261,29 +260,14 @@ func TestGraphqlFieldConfigurationsV2Generator_Generate(t *testing.T) {
 				},
 			},
 			{
-				TypeName:       "User",
-				FieldName:      "name",
-				RequiresFields: []string{"id"},
+				TypeName:  "User",
+				FieldName: "name",
 			},
 		}
 
 		assert.Equal(t, expectedFieldConfigurations, fieldConfigurations)
 	})
 
-}
-
-func TestEngineV2Configuration_EnableSingleFlight(t *testing.T) {
-	schema, err := NewSchemaFromString(graphqlGeneratorSchema)
-	require.NoError(t, err)
-
-	conf := NewEngineV2Configuration(schema)
-	require.Falsef(t, conf.dataLoaderConfig.EnableSingleFlightLoader, "single flight is not disabled by default")
-
-	conf.EnableSingleFlight(true)
-	assert.True(t, conf.dataLoaderConfig.EnableSingleFlightLoader)
-
-	conf.EnableSingleFlight(false)
-	assert.False(t, conf.dataLoaderConfig.EnableSingleFlightLoader)
 }
 
 var mockSubscriptionClient = &graphqlDataSource.SubscriptionClient{}

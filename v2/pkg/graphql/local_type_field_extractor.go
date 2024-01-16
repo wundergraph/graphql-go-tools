@@ -1,4 +1,4 @@
-package federationdata
+package graphql
 
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"

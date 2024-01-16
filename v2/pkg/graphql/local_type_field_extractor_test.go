@@ -1,4 +1,4 @@
-package federationdata
+package graphql
 
 import (
 	"sort"

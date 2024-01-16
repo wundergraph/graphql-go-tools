@@ -8,7 +8,6 @@ import (
 	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation/federationdata"
 )
 
 const (
@@ -19,7 +18,6 @@ type EngineV2Configuration struct {
 	schema                   *Schema
 	plannerConfig            plan.Configuration
 	websocketBeforeStartHook WebsocketBeforeStartHook
-	dataLoaderConfig         dataLoaderConfig
 }
 
 func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
@@ -30,14 +28,7 @@ func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
 			DataSources:                []plan.DataSourceConfiguration{},
 			Fields:                     plan.FieldConfigurations{},
 		},
-		dataLoaderConfig: dataLoaderConfig{
-			EnableSingleFlightLoader: false,
-		},
 	}
-}
-
-type dataLoaderConfig struct {
-	EnableSingleFlightLoader bool
 }
 
 func (e *EngineV2Configuration) SetCustomResolveMap(customResolveMap map[string]resolve.CustomResolve) {
@@ -66,10 +57,6 @@ func (e *EngineV2Configuration) DataSources() []plan.DataSourceConfiguration {
 
 func (e *EngineV2Configuration) FieldConfigurations() plan.FieldConfigurations {
 	return e.plannerConfig.Fields
-}
-
-func (e *EngineV2Configuration) EnableSingleFlight(enable bool) {
-	e.dataLoaderConfig.EnableSingleFlightLoader = enable
 }
 
 // SetWebsocketBeforeStartHook - sets before start hook which will be called before processing any operation sent over websockets
@@ -110,7 +97,7 @@ func newGraphQLDataSourceV2Generator(document *ast.Document) *graphqlDataSourceV
 
 func (d *graphqlDataSourceV2Generator) Generate(config graphqlDataSource.Configuration, httpClient *http.Client, options ...DataSourceV2GeneratorOption) (plan.DataSourceConfiguration, error) {
 	var planDataSource plan.DataSourceConfiguration
-	extractor := federationdata.NewLocalTypeFieldExtractor(d.document)
+	extractor := NewLocalTypeFieldExtractor(d.document)
 	planDataSource.RootNodes, planDataSource.ChildNodes = extractor.GetAllNodes()
 
 	definedOptions := &dataSourceV2GeneratorOptions{
