@@ -125,10 +125,8 @@ func (f *FederationEngineConfigFactory) MergedSchema() (*Schema, error) {
 		SDLs[i] = federationConfiguration.ServiceSDL
 	}
 
-	rawBaseSchema, err := federation.BuildBaseSchemaDocument(SDLs...)
-	if err != nil {
-		return nil, fmt.Errorf("build base schema: %w", err)
-	}
+	rawBaseSchema := ""
+	var err error
 
 	if f.schema, err = NewSchemaFromString(rawBaseSchema); err != nil {
 		return nil, fmt.Errorf("parse schema from string: %v", err)
@@ -168,19 +166,14 @@ func (f *FederationEngineConfigFactory) EngineV2Configuration() (conf EngineV2Co
 func (f *FederationEngineConfigFactory) engineConfigFieldConfigs(schema *Schema) (plan.FieldConfigurations, error) {
 	var planFieldConfigs plan.FieldConfigurations
 
-	for _, dataSourceConfig := range f.dataSourceConfigs {
-		federationConfiguration := dataSourceConfig.Configuration.FederationConfiguration()
-		if federationConfiguration == nil {
-			return nil, fmt.Errorf("federation configuration is missing for data source %s", dataSourceConfig.ID)
-		}
-
-		doc, report := astparser.ParseGraphqlDocumentString(federationConfiguration.ServiceSDL)
-		if report.HasErrors() {
-			return nil, fmt.Errorf("parse graphql document string: %s", report.Error())
-		}
-		extractor := federationdata.NewRequiredFieldExtractor(&doc)
-		planFieldConfigs = append(planFieldConfigs, extractor.GetAllRequiredFields()...)
-	}
+	// for _, dataSourceConfig := range f.dataSourceConfigs {
+	// 	doc, report := astparser.ParseGraphqlDocumentString(dataSourceConfig.Federation.ServiceSDL)
+	// 	if report.HasErrors() {
+	// 		return nil, fmt.Errorf("parse graphql document string: %s", report.Error())
+	// 	}
+	// 	extractor := federationdata.NewRequiredFieldExtractor(&doc)
+	// 	planFieldConfigs = append(planFieldConfigs, extractor.GetAllRequiredFields()...)
+	// }
 
 	planFieldConfigs = newGraphQLFieldConfigsV2Generator(schema).Generate(planFieldConfigs...)
 	return planFieldConfigs, nil
