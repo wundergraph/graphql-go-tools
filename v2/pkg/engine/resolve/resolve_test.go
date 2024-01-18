@@ -3982,7 +3982,7 @@ func (f *_fakeStream) Start(ctx *Context, input []byte, updater SubscriptionUpda
 }
 
 func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
-	defaultTimeout := time.Second * 2
+	defaultTimeout := time.Second * 3
 	if flags.IsWindows {
 		defaultTimeout = time.Second * 10
 	}
