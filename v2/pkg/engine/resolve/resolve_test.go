@@ -4147,6 +4147,11 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should stop stream on unsubscribe subscription", func(t *testing.T) {
+		defaultTimeout := time.Second * 5
+		if flags.IsWindows {
+			defaultTimeout = time.Second * 15
+		}
+
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
