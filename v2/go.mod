@@ -8,7 +8,6 @@ require (
 	github.com/buger/jsonparser v1.1.1
 	github.com/cespare/xxhash/v2 v2.1.2
 	github.com/davecgh/go-spew v1.1.1
-	github.com/gobwas/ws v1.0.4
 	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.4.0
@@ -37,8 +36,7 @@ require (
 
 require (
 	github.com/agnivade/levenshtein v1.1.1 // indirect
-	github.com/gobwas/httphead v0.0.0-20180130184737-2c6c146eadee // indirect
-	github.com/gobwas/pool v0.2.0 // indirect
+	github.com/gobwas/ws v1.0.4 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/klauspost/compress v1.17.0 // indirect

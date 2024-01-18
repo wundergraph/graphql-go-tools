@@ -254,8 +254,7 @@ func TestWithProtocolFromRequestHeaders(t *testing.T) {
 }
 
 func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string, onBeforeStartHook engine.WebsocketBeforeStartHook) *subscription.ExecutorV2Pool {
-	chatSchemaBytes, err := subscriptiontesting.LoadSchemaFromExamplesDirectoryWithinPkg()
-	require.NoError(t, err)
+	chatSchemaBytes := subscriptiontesting.ChatSchema
 
 	chatSchema, err := graphql.NewSchemaFromReader(bytes.NewBuffer(chatSchemaBytes))
 	require.NoError(t, err)

@@ -542,8 +542,7 @@ func TestHandler_Handle(t *testing.T) {
 }
 
 func setupEngineV2(t *testing.T, ctx context.Context, chatServerURL string) (*ExecutorV2Pool, *websocketHook) {
-	chatSchemaBytes, err := subscriptiontesting.LoadSchemaFromExamplesDirectoryWithinPkg()
-	require.NoError(t, err)
+	chatSchemaBytes := subscriptiontesting.ChatSchema
 
 	chatSchema, err := graphql.NewSchemaFromReader(bytes.NewBuffer(chatSchemaBytes))
 	require.NoError(t, err)
