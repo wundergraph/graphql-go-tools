@@ -9,7 +9,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	http2 "github.com/wundergraph/graphql-go-tools/execution/engine/federationtesting/gateway/http"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
+	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 )
 
 func NewDatasource(serviceConfig []ServiceConfig, httpClient *http.Client) *DatasourcePollerPoller {
