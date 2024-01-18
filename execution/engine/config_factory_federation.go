@@ -7,17 +7,16 @@ import (
 	"time"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
-	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
-	// "github.com/wundergraph/graphql-go-tools/v2/pkg/federation/federationdata"
 )
 
 type federationEngineConfigFactoryOptions struct {
 	httpClient                *http.Client
 	streamingClient           *http.Client
-	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
+	subscriptionClientFactory graphql_datasource.GraphQLSubscriptionClientFactory
 	subscriptionType          SubscriptionType
 	customResolveMap          map[string]resolve.CustomResolve
 }
@@ -42,7 +41,7 @@ func WithFederationStreamingClient(client *http.Client) FederationEngineConfigFa
 	}
 }
 
-func WithFederationSubscriptionClientFactory(factory graphqlDataSource.GraphQLSubscriptionClientFactory) FederationEngineConfigFactoryOption {
+func WithFederationSubscriptionClientFactory(factory graphql_datasource.GraphQLSubscriptionClientFactory) FederationEngineConfigFactoryOption {
 	return func(options *federationEngineConfigFactoryOptions) {
 		options.subscriptionClientFactory = factory
 	}
@@ -71,7 +70,7 @@ func NewFederationEngineConfigFactory(engineCtx context.Context, dataSourceConfi
 		streamingClient: &http.Client{
 			Timeout: 0,
 		},
-		subscriptionClientFactory: &graphqlDataSource.DefaultSubscriptionClientFactory{},
+		subscriptionClientFactory: &graphql_datasource.DefaultSubscriptionClientFactory{},
 		subscriptionType:          SubscriptionTypeUnknown,
 	}
 
@@ -97,17 +96,9 @@ type FederationEngineConfigFactory struct {
 	streamingClient           *http.Client
 	dataSourceConfigs         []DataSourceConfiguration
 	schema                    *graphql.Schema
-	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
+	subscriptionClientFactory graphql_datasource.GraphQLSubscriptionClientFactory
 	subscriptionType          SubscriptionType
 	customResolveMap          map[string]resolve.CustomResolve
-}
-
-func (f *FederationEngineConfigFactory) SetMergedSchemaFromString(mergedSchema string) (err error) {
-	f.schema, err = graphql.NewSchemaFromString(mergedSchema)
-	if err != nil {
-		return fmt.Errorf("set merged schema in FederationEngineConfigFactory: %s", err.Error())
-	}
-	return nil
 }
 
 func (f *FederationEngineConfigFactory) MergedSchema() (*graphql.Schema, error) {
@@ -131,6 +122,15 @@ func (f *FederationEngineConfigFactory) MergedSchema() (*graphql.Schema, error) 
 	if f.schema, err = graphql.NewSchemaFromString(rawBaseSchema); err != nil {
 		return nil, fmt.Errorf("parse schema from string: %v", err)
 	}
+	// rawBaseSchema, err := federation.BuildBaseSchemaDocument(SDLs...)
+
+	// if err != nil {
+	// 	return nil, fmt.Errorf("build base schema: %w", err)
+	// }
+	//
+	// if f.schema, err = NewSchemaFromString(rawBaseSchema); err != nil {
+	// 	return nil, fmt.Errorf("parse schema from string: %v", err)
+	// }
 
 	return f.schema, nil
 }
@@ -143,17 +143,17 @@ func (f *FederationEngineConfigFactory) EngineV2Configuration() (conf EngineV2Co
 
 	conf = NewEngineV2Configuration(schema)
 
-	fieldConfigs, err := f.engineConfigFieldConfigs(schema)
-	if err != nil {
-		return conf, fmt.Errorf("create field configs: %v", err)
-	}
+	// fieldConfigs, err := f.engineConfigFieldConfigs(schema)
+	// if err != nil {
+	// 	return conf, fmt.Errorf("create field configs: %v", err)
+	// }
 
 	dataSources, err := f.engineConfigDataSources()
 	if err != nil {
 		return conf, fmt.Errorf("create datasource config: %v", err)
 	}
 
-	conf.SetFieldConfigurations(fieldConfigs)
+	// conf.SetFieldConfigurations(fieldConfigs)
 	conf.SetDataSources(dataSources)
 
 	if f.customResolveMap != nil {
