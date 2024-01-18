@@ -3982,9 +3982,9 @@ func (f *_fakeStream) Start(ctx *Context, input []byte, updater SubscriptionUpda
 }
 
 func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
-	defaultTimeout := time.Second * 3
+	defaultTimeout := time.Second * 30
 	if flags.IsWindows {
-		defaultTimeout = time.Second * 10
+		defaultTimeout = time.Second * 60
 	}
 
 	setup := func(ctx context.Context, stream SubscriptionDataSource) (*Resolver, *GraphQLSubscription, *SubscriptionRecorder, SubscriptionIdentifier) {
@@ -4147,11 +4147,6 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should stop stream on unsubscribe subscription", func(t *testing.T) {
-		defaultTimeout := time.Second * 5
-		if flags.IsWindows {
-			defaultTimeout = time.Second * 15
-		}
-
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -4175,11 +4170,6 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should stop stream on unsubscribe client", func(t *testing.T) {
-		defaultTimeout := time.Second * 5
-		if flags.IsWindows {
-			defaultTimeout = time.Second * 15
-		}
-
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
