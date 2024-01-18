@@ -6,9 +6,9 @@ import (
 	"sync"
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
+	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
 )
 
 // ExecutorV2Pool - provides reusable executors

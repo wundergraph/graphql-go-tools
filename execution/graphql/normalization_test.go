@@ -7,7 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/starwars"
 )
@@ -46,7 +47,7 @@ func TestRequest_Normalize(t *testing.T) {
         name
     }
 }`
-		op := unsafeprinter.PrettyPrint(&request.document, nil)
+		op, _ := astprinter.PrintStringIndent(&request.document, nil, "  ")
 		assert.Equal(t, normalizedOperation, op)
 	})
 
@@ -62,7 +63,7 @@ func TestRequest_Normalize(t *testing.T) {
 		assert.True(t, result.Successful)
 		assert.True(t, request.isNormalized)
 
-		op := unsafeprinter.PrettyPrint(&request.document, nil)
+		op, _ := astprinter.PrintStringIndent(&request.document, nil, "  ")
 		assert.Equal(t, expectedNormalizedOperation, op)
 	}
 

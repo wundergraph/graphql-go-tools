@@ -20,12 +20,12 @@ import (
 	accounts "github.com/wundergraph/graphql-go-tools/execution/engine/federationtesting/accounts/graph"
 	products "github.com/wundergraph/graphql-go-tools/execution/engine/federationtesting/products/graph"
 	reviews "github.com/wundergraph/graphql-go-tools/execution/engine/federationtesting/reviews/graph"
+	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/staticdatasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/starwars"
 )
