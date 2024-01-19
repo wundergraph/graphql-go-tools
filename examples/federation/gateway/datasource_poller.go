@@ -12,13 +12,13 @@ import (
 	"sync"
 	"time"
 
-	graphqlDataSource "github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
+	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 )
 
 type ServiceConfig struct {
-	Name string
-	URL  string
-	WS   string
+	Name     string
+	URL      string
+	WS       string
 	Fallback func(*ServiceConfig) (string, error)
 }
 
