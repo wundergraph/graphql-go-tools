@@ -3,7 +3,7 @@ module github.com/wundergraph/graphql-go-tools/v2
 go 1.21
 
 require (
-	github.com/99designs/gqlgen v0.17.22
+	github.com/99designs/gqlgen v0.17.39
 	github.com/alitto/pond v1.8.3
 	github.com/buger/jsonparser v1.1.1
 	github.com/cespare/xxhash/v2 v2.1.2

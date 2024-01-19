@@ -7,8 +7,9 @@ import (
 
 	log "github.com/jensneuse/abstractlogger"
 
-	graphqlDataSource "github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
-	"github.com/wundergraph/graphql-go-tools/pkg/graphql"
+	"github.com/wundergraph/graphql-go-tools/execution/engine"
+	"github.com/wundergraph/graphql-go-tools/execution/graphql"
+	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 )
 
 type DataSourceObserver interface {
@@ -20,12 +21,12 @@ type DataSourceSubject interface {
 }
 
 type HandlerFactory interface {
-	Make(schema *graphql.Schema, engine *graphql.ExecutionEngineV2) http.Handler
+	Make(schema *graphql.Schema, engine *engine.ExecutionEngineV2) http.Handler
 }
 
-type HandlerFactoryFn func(schema *graphql.Schema, engine *graphql.ExecutionEngineV2) http.Handler
+type HandlerFactoryFn func(schema *graphql.Schema, engine *engine.ExecutionEngineV2) http.Handler
 
-func (h HandlerFactoryFn) Make(schema *graphql.Schema, engine *graphql.ExecutionEngineV2) http.Handler {
+func (h HandlerFactoryFn) Make(schema *graphql.Schema, engine *engine.ExecutionEngineV2) http.Handler {
 	return h(schema, engine)
 }
 
@@ -71,8 +72,8 @@ func (g *Gateway) Ready() {
 
 func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphqlDataSource.Configuration) {
 	ctx := context.Background()
-	engineConfigFactory := graphql.NewFederationEngineConfigFactory(newDataSourcesConfig, graphqlDataSource.NewBatchFactory(), graphql.WithFederationHttpClient(g.httpClient),
-		graphql.WithEngineOptions(graphql.WithDisableIntrospection(true)))
+	engineConfigFactory := engine.NewFederationEngineConfigFactory(newDataSourcesConfig, engine.WithFederationHttpClient(g.httpClient),
+		engine.WithEngineOptions(graphql.WithDisableIntrospection(true)))
 
 	schema, err := engineConfigFactory.MergedSchema()
 	if err != nil {
@@ -86,16 +87,14 @@ func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphqlDataSource.Con
 		return
 	}
 
-	datasourceConfig.EnableDataLoader(true)
-
-	engine, err := graphql.NewExecutionEngineV2(ctx, g.logger, datasourceConfig)
+	executionEngine, err := engine.NewExecutionEngineV2(ctx, g.logger, datasourceConfig)
 	if err != nil {
 		g.logger.Error("create engine: %v", log.Error(err))
 		return
 	}
 
 	g.mu.Lock()
-	g.gqlHandler = g.gqlHandlerFactory.Make(schema, engine)
+	g.gqlHandler = g.gqlHandlerFactory.Make(schema, executionEngine)
 	g.mu.Unlock()
 
 	g.readyOnce.Do(func() { close(g.readyCh) })

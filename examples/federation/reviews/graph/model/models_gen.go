@@ -4,7 +4,7 @@ package model
 
 type Product struct {
 	Upc     string    `json:"upc"`
-	Reviews []*Review `json:"reviews"`
+	Reviews []*Review `json:"reviews,omitempty"`
 }
 
 func (Product) IsEntity() {}
@@ -18,7 +18,7 @@ type Review struct {
 type User struct {
 	ID       string    `json:"id"`
 	Username string    `json:"username"`
-	Reviews  []*Review `json:"reviews"`
+	Reviews  []*Review `json:"reviews,omitempty"`
 }
 
 func (User) IsEntity() {}
