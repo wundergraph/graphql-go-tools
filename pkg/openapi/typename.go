@@ -2,7 +2,6 @@ package openapi
 
 import (
 	"errors"
-
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
@@ -12,7 +11,7 @@ func (c *converter) tryExtractTypeName(schemaRef *openapi3.SchemaRef) (graphqlTy
 	if schemaRef.Value.Type == "object" {
 		// If the schema value doesn't have any properties, the object will be stored in an arbitrary JSON type.
 		if len(schemaRef.Value.Properties) == 0 {
-			graphqlTypeName = "JSON"
+			graphqlTypeName = JsonScalarType
 			c.addScalarType(graphqlTypeName, preDefinedScalarTypes[graphqlTypeName])
 		} else {
 			// Unnamed object
@@ -31,7 +30,7 @@ func (c *converter) tryExtractTypeName(schemaRef *openapi3.SchemaRef) (graphqlTy
 	return
 }
 
-func (c *converter) getReturnType(schemaRef *openapi3.SchemaRef) (graphqlTypeName string, err error) {
+func (c *converter) getTypeNameFromSchema(schemaRef *openapi3.SchemaRef) (graphqlTypeName string, err error) {
 	if schemaRef.Value.Type != "object" && schemaRef.Value.Type != "array" {
 		if schemaRef.Ref != "" {
 			return extractFullTypeNameFromRef(schemaRef.Ref)
@@ -48,6 +47,26 @@ func (c *converter) getReturnType(schemaRef *openapi3.SchemaRef) (graphqlTypeNam
 		return c.tryExtractTypeName(schemaRef)
 	}
 	return graphqlTypeName, err
+}
+
+func (c *converter) getReturnType(schemaRef *openapi3.SchemaRef) (string, error) {
+	typeName, err := c.getTypeNameFromSchema(schemaRef)
+	if err == nil {
+		return typeName, nil
+	}
+
+	if schemaRef.Value.OneOf != nil && len(schemaRef.Value.OneOf) > 0 {
+		return MakeTypeNameFromPathName(c.currentPathName), nil
+	}
+
+	if schemaRef.Value.AllOf != nil && len(schemaRef.Value.AllOf) > 0 {
+		return MakeTypeNameFromPathName(c.currentPathName), nil
+	}
+
+	if schemaRef.Value.AnyOf != nil && len(schemaRef.Value.AnyOf) > 0 {
+		return MakeTypeNameFromPathName(c.currentPathName), nil
+	}
+	return "", err
 }
 
 // getGraphQLTypeName returns the GraphQL type name corresponding to the given OpenAPI schema reference.

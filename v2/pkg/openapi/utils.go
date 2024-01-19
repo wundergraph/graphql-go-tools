@@ -2,16 +2,17 @@ package openapi
 
 import (
 	"fmt"
-	"strings"
-
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/introspection"
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/iancoleman/strcase"
+	"strings"
 )
 
+const JsonScalarType = "JSON"
+
 var preDefinedScalarTypes = map[string]string{
-	"JSON": "The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).",
+	JsonScalarType: "The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).",
 }
 
 // addScalarType adds a new scalar type to the converter's known full types list.
@@ -42,9 +43,30 @@ func makeListItemFromTypeName(typeName string) string {
 	return fmt.Sprintf("%sListItem", strcase.ToCamel(typeName))
 }
 
-func MakeTypeNameFromPathName(name string) string {
+// cleanupEndpoint takes a string `name` and splits it by the forward slash ('/').
+// It creates an empty slice `result` to store the cleaned-up words.
+// For each word in the `parsed` slice, it checks if the word has length zero or starts with '{'.
+// If either of these conditions is true, it skips to the next word.
+// Otherwise, it appends the word to the `result` slice.
+// Finally, it returns the `result` slice containing the cleaned-up words.
+func cleanupEndpoint(name string) []string {
 	parsed := strings.Split(name, "/")
-	return strcase.ToCamel(parsed[len(parsed)-1])
+	var result []string
+	for _, word := range parsed {
+		if len(word) == 0 {
+			continue
+		}
+		if strings.HasPrefix(word, "{") {
+			continue
+		}
+		result = append(result, word)
+	}
+	return result
+}
+
+func MakeTypeNameFromPathName(name string) string {
+	result := cleanupEndpoint(name)
+	return strcase.ToCamel(strings.Join(result, " "))
 }
 
 func MakeInputTypeName(name string) string {
@@ -56,12 +78,15 @@ func MakeFieldNameFromOperationID(operationID string) string {
 	return strcase.ToLowerCamel(operationID)
 }
 
-func MakeFieldNameFromEndpoint(method, endpoint string) string {
-	endpoint = strings.Replace(endpoint, "/", " ", -1)
-	endpoint = strings.Replace(endpoint, "{", " ", -1)
-	endpoint = strings.Replace(endpoint, "}", " ", -1)
-	endpoint = strings.TrimSpace(endpoint)
-	return strcase.ToLowerCamel(fmt.Sprintf("%s %s", strings.ToLower(method), endpoint))
+func MakeFieldNameFromEndpointForMutation(method, endpoint string) string {
+	result := []string{strings.ToLower(method)}
+	result = append(result, cleanupEndpoint(endpoint)...)
+	return strcase.ToLowerCamel(strings.Join(result, " "))
+}
+
+func MakeFieldNameFromEndpoint(endpoint string) string {
+	result := cleanupEndpoint(endpoint)
+	return strcase.ToLowerCamel(strings.Join(result, " "))
 }
 
 func MakeParameterName(name string) string {

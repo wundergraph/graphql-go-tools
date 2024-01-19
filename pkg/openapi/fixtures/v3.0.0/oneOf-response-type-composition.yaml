@@ -1,0 +1,78 @@
+openapi: "3.0.0"
+info:
+  title: Pets API
+  version: 1.0.0
+servers:
+  - url: http://localhost:3004/
+
+paths:
+  /pets:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/Cat'
+                - $ref: '#/components/schemas/Dog'
+                - $ref: '#/components/schemas/Hamster'
+                - type: object
+                  properties:
+                    name:
+                      type: string
+                    surname:
+                      type: string
+                    age:
+                      type: integer
+                    address:
+                      type: string
+      responses:
+        '200':
+          description: Pets response
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Cat'
+                  - $ref: '#/components/schemas/Dog'
+                  - $ref: '#/components/schemas/Hamster'
+                  - type: object
+                    properties:
+                      name:
+                        type: string
+                      surname:
+                        type: string
+                      age:
+                        type: integer
+                      address:
+                        type: string
+                  - type: object
+                    properties:
+                      username:
+                        type: string
+
+
+components:
+  schemas:
+    Dog:
+      type: object
+      properties:
+        bark:
+          type: boolean
+        breed:
+          type: string
+          enum: [Dingo, Husky, Retriever, Shepherd]
+    Cat:
+      type: object
+      properties:
+        hunts:
+          type: boolean
+        age:
+          type: integer
+    Hamster:
+      type: object
+      properties:
+        age:
+          type: integer
+        color:
+          type: string

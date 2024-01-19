@@ -17,13 +17,13 @@ func getEnumTypeRef() introspection.TypeRef {
 // Otherwise, a new enum type is created and stored in the knownEnums map and fullTypes slice.
 // It populates the enum values of the enum type based on the enum values in the schema.
 // Finally, it returns the created or retrieved enum type.
-func (c *converter) createOrGetEnumType(name string, schema *openapi3.SchemaRef) *introspection.FullType {
+func (c *converter) createOrGetEnumType(name string, schema *openapi3.SchemaRef) introspection.FullType {
 	name = strcase.ToCamel(name)
 	if enumType, ok := c.knownEnums[name]; ok {
 		return enumType
 	}
 
-	enumType := &introspection.FullType{
+	enumType := introspection.FullType{
 		Kind:        introspection.ENUM,
 		Name:        name,
 		Description: schema.Value.Description,
@@ -35,7 +35,7 @@ func (c *converter) createOrGetEnumType(name string, schema *openapi3.SchemaRef)
 		}
 		enumType.EnumValues = append(enumType.EnumValues, enumValue)
 	}
-	c.fullTypes = append(c.fullTypes, *enumType)
+	c.fullTypes = append(c.fullTypes, enumType)
 	c.knownEnums[name] = enumType
 	return enumType
 }

@@ -33,6 +33,7 @@ func testFixtureFile(t *testing.T, version, name string) {
 	}
 
 	graphqlDoc, err := os.ReadFile(fmt.Sprintf("./fixtures/%s/%s.graphql", version, name))
+	fmt.Println(w.String())
 	require.NoError(t, err)
 	require.Equal(t, string(graphqlDoc), w.String())
 }
@@ -112,5 +113,53 @@ func TestOpenAPI_v3_0_0(t *testing.T) {
 
 	t.Run("enum-properties.yaml", func(t *testing.T) {
 		testFixtureFile(t, "v3.0.0", "enum-properties.yaml")
+	})
+
+	t.Run("oneOf-input-type.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "oneOf-input-type.yaml")
+	})
+
+	t.Run("oneOf-response-type.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "oneOf-response-type.yaml")
+	})
+
+	t.Run("oneOf-response-type-composition.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "oneOf-response-type-composition.yaml")
+	})
+
+	t.Run("allOf-input-type.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "allOf-input-type.yaml")
+	})
+
+	t.Run("allOf-response-type.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "allOf-response-type.yaml")
+	})
+
+	t.Run("allOf-input-type-composition.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "allOf-input-type-composition.yaml")
+	})
+
+	t.Run("allOf-response-type-composition.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "allOf-response-type-composition.yaml")
+	})
+
+	t.Run("allOf-query-composition.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "allOf-query-composition.yaml")
+	})
+
+	t.Run("allOf-query-response-type.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "allOf-query-response-type.yaml")
+	})
+
+	t.Run("anyOf-input-type.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "anyOf-input-type.yaml")
+	})
+
+	t.Run("anyOf-response-type.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "anyOf-response-type.yaml")
+	})
+
+	t.Run("anyOf-query-response-type.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "anyOf-query-response-type.yaml")
 	})
 }

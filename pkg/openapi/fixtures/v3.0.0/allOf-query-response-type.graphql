@@ -1,0 +1,22 @@
+schema {
+    query: Query
+}
+
+type Query {
+    pets: Pets
+}
+
+enum Breed {
+    DINGO
+    HUSKY
+    RETRIEVER
+    SHEPHERD
+}
+
+type Pets {
+    age: Int
+    bark: Boolean
+    breed: Breed
+    color: String
+    hunts: Boolean
+}

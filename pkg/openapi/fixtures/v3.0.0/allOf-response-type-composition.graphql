@@ -1,0 +1,43 @@
+schema {
+    query: QueryPlaceholder
+    mutation: Mutation
+}
+
+"Placeholder object"
+type QueryPlaceholder {
+    "Placeholder field"
+    message: String
+}
+
+type Mutation {
+    postPets(pets: PetsInput): Pets
+}
+
+enum Breed {
+    DINGO
+    HUSKY
+    RETRIEVER
+    SHEPHERD
+}
+
+type Pets {
+    address: String
+    age: Int
+    bark: Boolean
+    breed: Breed
+    color: String
+    name: String
+    pet_type: String!
+    surname: String
+}
+
+input PetsInput {
+    address: String
+    age: Int
+    bark: Boolean
+    breed: Breed
+    color: String
+    name: String
+    pet_type: String!
+    surname: String
+}

@@ -3,14 +3,12 @@ package openapi
 import (
 	"errors"
 	"fmt"
-	"net/http"
-	"sort"
-	"strconv"
-	"strings"
-
 	"github.com/TykTechnologies/graphql-go-tools/pkg/introspection"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/iancoleman/strcase"
+	"net/http"
+	"sort"
+	"strconv"
 )
 
 func (c *converter) importQueryType() (*introspection.FullType, error) {
@@ -79,7 +77,7 @@ func (c *converter) importQueryType() (*introspection.FullType, error) {
 					return nil, err
 				}
 				if queryField.Name == "" {
-					queryField.Name = strings.Trim(pathName, "/")
+					queryField.Name = MakeFieldNameFromEndpoint(pathName)
 				}
 				queryType.Fields = append(queryType.Fields, *queryField)
 			}

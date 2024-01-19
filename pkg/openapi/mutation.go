@@ -61,12 +61,19 @@ func (c *converter) getInputValueFromRequestBody(field *introspection.Field, sta
 	if schema == nil {
 		typeName = c.tryMakeTypeNameFromOperation(status, operation)
 	} else {
-		typeName, err = c.getReturnType(schema)
-		if err != nil {
-			return err
-		}
-		if len(schema.Value.Enum) > 0 {
-			c.createOrGetEnumType(typeName, schema)
+		if schema.Value.OneOf != nil && len(schema.Value.OneOf) > 0 {
+			// Problem: Input object types cannot be composed of union types.
+			// Mitigation: The data will be stored in an arbitrary JSON type.
+			typeName = JsonScalarType
+			c.addScalarType(JsonScalarType, preDefinedScalarTypes[JsonScalarType])
+		} else {
+			typeName, err = c.getReturnType(schema)
+			if err != nil {
+				return err
+			}
+			if len(schema.Value.Enum) > 0 {
+				c.createOrGetEnumType(typeName, schema)
+			}
 		}
 	}
 	inputValue, err := c.getInputValue(typeName, schema)
@@ -76,6 +83,11 @@ func (c *converter) getInputValueFromRequestBody(field *introspection.Field, sta
 	if operation.RequestBody.Value.Required {
 		inputValue.Type = convertToNonNull(&inputValue.Type)
 	}
+
+	if typeName == JsonScalarType {
+		inputValue.Name = MakeParameterName(MakeInputTypeName(MakeTypeNameFromPathName(c.currentPathName)))
+	}
+
 	field.Args = append(field.Args, *inputValue)
 	return nil
 }
@@ -134,7 +146,7 @@ func (c *converter) importMutationType() (*introspection.FullType, error) {
 					Description: getOperationDescription(operation),
 				}
 				if field.Name == "" {
-					field.Name = MakeFieldNameFromEndpoint(method, pathName)
+					field.Name = MakeFieldNameFromEndpointForMutation(method, pathName)
 				}
 
 				if operation.RequestBody != nil {

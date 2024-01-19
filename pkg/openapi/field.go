@@ -71,12 +71,14 @@ func (c *converter) processSchemaProperties(fullType *introspection.FullType, sc
 		if err != nil {
 			return err
 		}
+		if len(schemaRef.Value.Enum) > 0 {
+			c.createOrGetEnumType(*typeRef.Name, schemaRef)
+		}
 		field := introspection.Field{
 			Name:        name,
 			Type:        *typeRef,
 			Description: schemaRef.Value.Description,
 		}
-
 		fullType.Fields = append(fullType.Fields, field)
 		sort.Slice(fullType.Fields, func(i, j int) bool {
 			return fullType.Fields[i].Name < fullType.Fields[j].Name
