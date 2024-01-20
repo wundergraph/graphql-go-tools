@@ -200,7 +200,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	directivesIncludeSkip := astvisitor.NewWalker(48)
-	inlineFragmentAddOnType(&directivesIncludeSkip)
 	directiveIncludeSkip(&directivesIncludeSkip)
 
 	if o.options.removeNotMatchingOperationDefinitions {

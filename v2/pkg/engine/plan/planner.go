@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -17,6 +18,8 @@ type Planner struct {
 	configurationVisitor *configurationVisitor
 	planningWalker       *astvisitor.Walker
 	planningVisitor      *Visitor
+
+	prepareOperationWalker *astvisitor.Walker
 }
 
 // NewPlanner creates a new Planner from the Configuration and a ctx object
@@ -28,8 +31,12 @@ type Planner struct {
 // At the time when the resolver and all operations should be garbage collected, ensure to first cancel or timeout the ctx object
 // If you don't cancel the context.Context, the goroutines will run indefinitely and there's no reference left to stop them
 func NewPlanner(ctx context.Context, config Configuration) *Planner {
-	// configuration
+	// prepate operation walker
+	// internal normalization for planner
+	prepareOperationWalker := astvisitor.NewWalker(48)
+	astnormalization.InlineFragmentAddOnType(&prepareOperationWalker)
 
+	// configuration
 	configurationWalker := astvisitor.NewWalker(48)
 	configVisitor := &configurationVisitor{
 		walker: &configurationWalker,
@@ -51,11 +58,12 @@ func NewPlanner(ctx context.Context, config Configuration) *Planner {
 	}
 
 	p := &Planner{
-		config:               config,
-		configurationWalker:  &configurationWalker,
-		configurationVisitor: configVisitor,
-		planningWalker:       &planningWalker,
-		planningVisitor:      planningVisitor,
+		config:                 config,
+		configurationWalker:    &configurationWalker,
+		configurationVisitor:   configVisitor,
+		planningWalker:         &planningWalker,
+		planningVisitor:        planningVisitor,
+		prepareOperationWalker: &prepareOperationWalker,
 	}
 
 	return p
@@ -71,6 +79,11 @@ func (p *Planner) SetDebugConfig(config DebugConfiguration) {
 
 func (p *Planner) Plan(operation, definition *ast.Document, operationName string, report *operationreport.Report) (plan Plan) {
 	p.selectOperation(operation, operationName, report)
+	if report.HasErrors() {
+		return
+	}
+
+	p.prepareOperation(operation, definition, report)
 	if report.HasErrors() {
 		return
 	}
@@ -279,6 +292,10 @@ func (p *Planner) selectOperation(operation *ast.Document, operationName string,
 
 	p.configurationVisitor.operationName = operationName
 	p.planningVisitor.OperationName = operationName
+}
+
+func (p *Planner) prepareOperation(operation, definition *ast.Document, report *operationreport.Report) {
+	p.prepareOperationWalker.Walk(operation, definition, report)
 }
 
 func (p *Planner) printOperation(operation *ast.Document) {
