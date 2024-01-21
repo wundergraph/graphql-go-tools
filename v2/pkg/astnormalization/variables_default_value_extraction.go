@@ -158,11 +158,20 @@ func (v *variablesDefaultValueExtractionVisitor) LeaveOperationDefinition(_ int)
 		}
 
 		for i := 0; i < len(v.variablesNamesUsedInPositionsExpectingNonNullType); i++ {
-			if bytes.Equal(v.operation.VariableDefinitionNameBytes(variableDefRef), v.variablesNamesUsedInPositionsExpectingNonNullType[i]) {
-				// if variable is nullable, make it not null as it satisfies both not null and nullable types
-				// it is required to keep operation valid after variable extraction
-				v.operation.VariableDefinitions[variableDefRef].Type = v.operation.AddNonNullType(v.operation.VariableDefinitions[variableDefRef].Type)
+			if !bytes.Equal(v.operation.VariableDefinitionNameBytes(variableDefRef), v.variablesNamesUsedInPositionsExpectingNonNullType[i]) {
+				continue
 			}
+
+			if v.operation.TypeIsNonNull(v.operation.VariableDefinitions[variableDefRef].Type) {
+				// when variable is already not null, skip
+				// second check is required because we could use variable in a few different places
+				// so on next places we should not do anything if variable is already not null
+				continue
+			}
+
+			// if variable is nullable, make it not null as it satisfies both not null and nullable types
+			// it is required to keep operation valid after variable extraction
+			v.operation.VariableDefinitions[variableDefRef].Type = v.operation.AddNonNullType(v.operation.VariableDefinitions[variableDefRef].Type)
 		}
 	}
 }

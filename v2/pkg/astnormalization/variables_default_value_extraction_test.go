@@ -367,6 +367,20 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 			 }`, `{"flag":true}`, `{"flag":true}`)
 		})
 
+		t.Run("nullable boolean used twice", func(t *testing.T) {
+			runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+			 query q(
+				 $flag: Boolean = false,
+			 ) {
+				 withoutArguments @skip(if: $flag) @include(if: $flag)
+			 }`, "", `
+			 query q(
+				 $flag: Boolean!,
+			 ) {
+				 withoutArguments @skip(if: $flag) @include(if: $flag)
+			 }`, `{"flag":true}`, `{"flag":true}`)
+		})
+
 		t.Run("not nullable boolean with default value and variable value exists", func(t *testing.T) {
 			runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
 			 query q(
