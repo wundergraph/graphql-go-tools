@@ -16,6 +16,7 @@ const (
 			nullableStringInNestedList(input: [[String]]): String
 			notNullableInt(input: Int! = 5): String
 			notNullableString(input: String!): String
+			withoutArguments: String
 		}
 		input Nested {
 			NotNullable: String!
@@ -348,6 +349,36 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 			 ) {
 				 notNullableString(input: $input)
 			 }`, `{"input":"ValueInVariable"}`, `{"input":"ValueInVariable"}`)
+		})
+	})
+
+	t.Run("variables used in directive argument expecting non null value", func(t *testing.T) {
+		t.Run("nullable boolean with default value and variable value exists", func(t *testing.T) {
+			runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+			 query q(
+				 $flag: Boolean = false,
+			 ) {
+				 withoutArguments @skip(if: $flag)
+			 }`, "", `
+			 query q(
+				 $flag: Boolean!,
+			 ) {
+				 withoutArguments @skip(if: $flag)
+			 }`, `{"flag":true}`, `{"flag":true}`)
+		})
+
+		t.Run("not nullable boolean with default value and variable value exists", func(t *testing.T) {
+			runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+			 query q(
+				 $flag: Boolean! = false,
+			 ) {
+				 withoutArguments @skip(if: $flag)
+			 }`, "", `
+			 query q(
+				 $flag: Boolean!,
+			 ) {
+				 withoutArguments @skip(if: $flag)
+			 }`, `{"flag":true}`, `{"flag":true}`)
 		})
 	})
 }

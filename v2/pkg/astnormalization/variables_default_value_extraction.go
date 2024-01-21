@@ -20,6 +20,7 @@ func extractVariablesDefaultValue(walker *astvisitor.Walker) *variablesDefaultVa
 	walker.RegisterOperationDefinitionVisitor(visitor)
 	walker.RegisterEnterVariableDefinitionVisitor(visitor)
 	walker.RegisterEnterFieldVisitor(visitor)
+	walker.RegisterEnterArgumentVisitor(visitor)
 
 	return visitor
 }
@@ -33,6 +34,32 @@ type variablesDefaultValueExtractionVisitor struct {
 	skip                                              bool
 	variablesNamesUsedInPositionsExpectingNonNullType [][]byte
 	variableRefsWithDefaultValuesDefined              []int
+}
+
+func (v *variablesDefaultValueExtractionVisitor) EnterArgument(ref int) {
+	// variable could be used in directive argument which requires non-null type
+	// in case such variable has default value and not of non-null type, we need to make it non-null
+
+	if v.skip {
+		return
+	}
+	if len(v.Ancestors) == 0 || v.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
+		return
+	}
+	if v.Ancestors[len(v.Ancestors)-1].Kind != ast.NodeKindDirective {
+		return // skip non directives
+	}
+
+	containsVariable := v.operation.ValueContainsVariable(v.operation.Arguments[ref].Value)
+	if !containsVariable {
+		return
+	}
+
+	inputValueDefinition, ok := v.Walker.ArgumentInputValueDefinition(ref)
+	if !ok {
+		return
+	}
+	v.traverseValue(v.operation.Arguments[ref].Value, v.definition.InputValueDefinitions[inputValueDefinition].Type)
 }
 
 func (v *variablesDefaultValueExtractionVisitor) EnterField(ref int) {
