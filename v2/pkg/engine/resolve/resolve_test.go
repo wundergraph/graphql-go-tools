@@ -4147,6 +4147,10 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should stop stream on unsubscribe subscription", func(t *testing.T) {
+		if flags.IsWindows {
+			t.Skip("skipping test on windows as message count in this test is not limited")
+		}
+
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -4170,6 +4174,10 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should stop stream on unsubscribe client", func(t *testing.T) {
+		if flags.IsWindows {
+			t.Skip("skipping test on windows as message count in this test is not limited")
+		}
+
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
