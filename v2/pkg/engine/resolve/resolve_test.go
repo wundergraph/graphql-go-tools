@@ -3875,6 +3875,23 @@ func (s *SubscriptionRecorder) AwaitMessages(t *testing.T, count int, timeout ti
 	}
 }
 
+func (s *SubscriptionRecorder) AwaitAnyMessageCount(t *testing.T, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		s.mux.Lock()
+		current := len(s.messages)
+		s.mux.Unlock()
+		if current > 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for messages: %v", s.messages)
+		}
+		time.Sleep(time.Millisecond * 10)
+	}
+}
+
 func (s *SubscriptionRecorder) AwaitComplete(t *testing.T, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
@@ -4147,10 +4164,6 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should stop stream on unsubscribe subscription", func(t *testing.T) {
-		if flags.IsWindows {
-			t.Skip("skipping test on windows as message count in this test is not limited")
-		}
-
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -4166,7 +4179,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
-		recorder.AwaitMessages(t, 1, defaultTimeout)
+		recorder.AwaitAnyMessageCount(t, defaultTimeout)
 		err = resolver.AsyncUnsubscribeSubscription(id)
 		assert.NoError(t, err)
 		recorder.AwaitComplete(t, defaultTimeout)
@@ -4174,10 +4187,6 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should stop stream on unsubscribe client", func(t *testing.T) {
-		if flags.IsWindows {
-			t.Skip("skipping test on windows as message count in this test is not limited")
-		}
-
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -4193,7 +4202,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
-		recorder.AwaitMessages(t, 1, defaultTimeout)
+		recorder.AwaitAnyMessageCount(t, defaultTimeout)
 		err = resolver.AsyncUnsubscribeClient(id.ConnectionID)
 		assert.NoError(t, err)
 		recorder.AwaitComplete(t, defaultTimeout)
