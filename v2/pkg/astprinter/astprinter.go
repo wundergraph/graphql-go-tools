@@ -181,9 +181,12 @@ func (p *printVisitor) LeaveDirective(ref int) {
 		if !p.document.VariableDefinitionsAfter(ancestor.Ref) {
 			p.write(literal.SPACE)
 		}
-	case ast.NodeKindInlineFragment,
-		ast.NodeKindFragmentSpread:
-		if len(p.SelectionsAfter) > 0 {
+	case ast.NodeKindInlineFragment:
+		if len(p.SelectionsAfter) > 0 || len(p.SelectionsAfter) == 0 && p.indent != nil {
+			p.write(literal.SPACE)
+		}
+	case ast.NodeKindFragmentSpread:
+		if len(p.SelectionsAfter) > 0 && p.indent == nil {
 			p.write(literal.SPACE)
 		}
 	case ast.NodeKindSelectionSet:
@@ -336,7 +339,12 @@ func (p *printVisitor) EnterField(ref int) {
 }
 
 func (p *printVisitor) LeaveField(ref int) {
-	if !p.document.FieldHasDirectives(ref) && len(p.SelectionsAfter) != 0 {
+	if len(p.SelectionsAfter) != 0 {
+		if !p.document.FieldHasSelections(ref) && p.document.FieldHasDirectives(ref) {
+			// space was added after directives
+			return
+		}
+
 		if p.indent != nil {
 			p.write(literal.LINETERMINATOR)
 		} else {
