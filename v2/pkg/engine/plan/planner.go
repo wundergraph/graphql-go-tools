@@ -31,8 +31,7 @@ type Planner struct {
 // At the time when the resolver and all operations should be garbage collected, ensure to first cancel or timeout the ctx object
 // If you don't cancel the context.Context, the goroutines will run indefinitely and there's no reference left to stop them
 func NewPlanner(ctx context.Context, config Configuration) *Planner {
-	// prepate operation walker
-	// internal normalization for planner
+	// prepare operation walker handles internal normalization for planner
 	prepareOperationWalker := astvisitor.NewWalker(48)
 	astnormalization.InlineFragmentAddOnType(&prepareOperationWalker)
 
