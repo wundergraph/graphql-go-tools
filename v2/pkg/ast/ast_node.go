@@ -424,16 +424,15 @@ func (d *Document) NodeIsLastRootNode(node Node) bool {
 	return false
 }
 
-func (d *Document) RemoveNodeFromNode(remove, from Node) {
-	switch from.Kind {
-	case NodeKindSelectionSet:
-		d.RemoveNodeFromSelectionSet(from.Ref, remove)
-	default:
-		log.Printf("RemoveNodeFromNode not implemented for from: %s", from.Kind)
+func (d *Document) RemoveNodeFromSelectionSetNode(remove, from Node) (removed bool) {
+	if from.Kind != NodeKindSelectionSet {
+		return false
 	}
+
+	return d.RemoveNodeFromSelectionSet(from.Ref, remove)
 }
 
-func (d *Document) RemoveNodeFromSelectionSet(set int, node Node) {
+func (d *Document) RemoveNodeFromSelectionSet(set int, node Node) (removed bool) {
 	var selectionKind SelectionKind
 
 	switch node.Kind {
@@ -444,16 +443,17 @@ func (d *Document) RemoveNodeFromSelectionSet(set int, node Node) {
 	case NodeKindField:
 		selectionKind = SelectionKindField
 	default:
-		log.Printf("RemoveNodeFromSelectionSet not implemented for node: %s", node.Kind)
-		return
+		return false
 	}
 
 	for i, j := range d.SelectionSets[set].SelectionRefs {
 		if d.Selections[j].Kind == selectionKind && d.Selections[j].Ref == node.Ref {
 			d.SelectionSets[set].SelectionRefs = append(d.SelectionSets[set].SelectionRefs[:i], d.SelectionSets[set].SelectionRefs[i+1:]...)
-			return
+			return true
 		}
 	}
+
+	return false
 }
 
 // NodeInterfaceRefs returns the interfaces implemented by the given node (this is

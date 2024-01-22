@@ -20,18 +20,46 @@ func extractVariablesDefaultValue(walker *astvisitor.Walker) *variablesDefaultVa
 	walker.RegisterOperationDefinitionVisitor(visitor)
 	walker.RegisterEnterVariableDefinitionVisitor(visitor)
 	walker.RegisterEnterFieldVisitor(visitor)
+	walker.RegisterEnterArgumentVisitor(visitor)
+
 	return visitor
 }
 
 type variablesDefaultValueExtractionVisitor struct {
 	*astvisitor.Walker
-	operation, definition     *ast.Document
-	importer                  astimport.Importer
-	operationName             []byte
-	operationRef              int
-	skip                      bool
-	nonNullableVariablesNames [][]byte
-	extractedVariablesRefs    []int
+	operation, definition                             *ast.Document
+	importer                                          astimport.Importer
+	operationName                                     []byte
+	operationRef                                      int
+	skip                                              bool
+	variablesNamesUsedInPositionsExpectingNonNullType [][]byte
+	variableRefsWithDefaultValuesDefined              []int
+}
+
+func (v *variablesDefaultValueExtractionVisitor) EnterArgument(ref int) {
+	// variable could be used in directive argument which requires non-null type
+	// in case such variable has default value and not of non-null type, we need to make it non-null
+
+	if v.skip {
+		return
+	}
+	if len(v.Ancestors) == 0 || v.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
+		return
+	}
+	if v.Ancestors[len(v.Ancestors)-1].Kind != ast.NodeKindDirective {
+		return // skip non directives
+	}
+
+	containsVariable := v.operation.ValueContainsVariable(v.operation.Arguments[ref].Value)
+	if !containsVariable {
+		return
+	}
+
+	inputValueDefinition, ok := v.Walker.ArgumentInputValueDefinition(ref)
+	if !ok {
+		return
+	}
+	v.traverseValue(v.operation.Arguments[ref].Value, v.definition.InputValueDefinitions[inputValueDefinition].Type)
 }
 
 func (v *variablesDefaultValueExtractionVisitor) EnterField(ref int) {
@@ -81,14 +109,14 @@ func (v *variablesDefaultValueExtractionVisitor) EnterVariableDefinition(ref int
 	// remove variable DefaultValue from operation
 	v.operation.VariableDefinitions[ref].DefaultValue.IsDefined = false
 
-	// skip when variable was provided
+	// store variable ref
+	v.variableRefsWithDefaultValuesDefined = append(v.variableRefsWithDefaultValuesDefined, ref)
+
+	// skip extracting variable default value when variable value is provided
 	_, _, _, err := jsonparser.Get(v.operation.Input.Variables, variableName)
 	if err == nil {
 		return
 	}
-
-	// store extracted variable ref
-	v.extractedVariablesRefs = append(v.extractedVariablesRefs, ref)
 
 	valueBytes, err := v.operation.ValueToJSON(v.operation.VariableDefinitionDefaultValue(ref))
 	if err != nil {
@@ -111,8 +139,8 @@ func (v *variablesDefaultValueExtractionVisitor) EnterOperationDefinition(ref in
 	v.operationRef = ref
 	v.skip = !bytes.Equal(operationName, v.operationName)
 
-	v.nonNullableVariablesNames = make([][]byte, 0, len(v.operation.VariableDefinitions))
-	v.extractedVariablesRefs = make([]int, 0, len(v.operation.VariableDefinitions))
+	v.variablesNamesUsedInPositionsExpectingNonNullType = make([][]byte, 0, len(v.operation.VariableDefinitions))
+	v.variableRefsWithDefaultValuesDefined = make([]int, 0, len(v.operation.VariableDefinitions))
 }
 
 func (v *variablesDefaultValueExtractionVisitor) LeaveOperationDefinition(_ int) {
@@ -121,20 +149,29 @@ func (v *variablesDefaultValueExtractionVisitor) LeaveOperationDefinition(_ int)
 	}
 
 	// find and make variable not null
-	for j := 0; j < len(v.extractedVariablesRefs); j++ {
-		variableDefRef := v.extractedVariablesRefs[j]
+	for j := 0; j < len(v.variableRefsWithDefaultValuesDefined); j++ {
+		variableDefRef := v.variableRefsWithDefaultValuesDefined[j]
 
-		if v.operation.Types[v.operation.VariableDefinitions[variableDefRef].Type].TypeKind == ast.TypeKindNonNull {
+		if v.operation.TypeIsNonNull(v.operation.VariableDefinitions[variableDefRef].Type) {
 			// when variable is already not null, skip
 			continue
 		}
 
-		for i := 0; i < len(v.nonNullableVariablesNames); i++ {
-			if bytes.Equal(v.operation.VariableDefinitionNameBytes(variableDefRef), v.nonNullableVariablesNames[i]) {
-				// if variable is nullable, make it not null as it satisfies both not null and nullable types
-				// it is required to keep operation valid after variable extraction
-				v.operation.VariableDefinitions[variableDefRef].Type = v.operation.AddNonNullType(v.operation.VariableDefinitions[variableDefRef].Type)
+		for i := 0; i < len(v.variablesNamesUsedInPositionsExpectingNonNullType); i++ {
+			if !bytes.Equal(v.operation.VariableDefinitionNameBytes(variableDefRef), v.variablesNamesUsedInPositionsExpectingNonNullType[i]) {
+				continue
 			}
+
+			if v.operation.TypeIsNonNull(v.operation.VariableDefinitions[variableDefRef].Type) {
+				// when variable is already not null, skip
+				// second check is required because we could use variable in a few different places
+				// so on next places we should not do anything if variable is already not null
+				continue
+			}
+
+			// if variable is nullable, make it not null as it satisfies both not null and nullable types
+			// it is required to keep operation valid after variable extraction
+			v.operation.VariableDefinitions[variableDefRef].Type = v.operation.AddNonNullType(v.operation.VariableDefinitions[variableDefRef].Type)
 		}
 	}
 }
@@ -186,7 +223,7 @@ func (v *variablesDefaultValueExtractionVisitor) saveArgumentsWithTypeNotNull(op
 		return
 	}
 
-	v.nonNullableVariablesNames = append(v.nonNullableVariablesNames, v.operation.VariableValueNameBytes(operationVariableValueRef))
+	v.variablesNamesUsedInPositionsExpectingNonNullType = append(v.variablesNamesUsedInPositionsExpectingNonNullType, v.operation.VariableValueNameBytes(operationVariableValueRef))
 }
 
 func (v *variablesDefaultValueExtractionVisitor) processDefaultFieldArguments(operationFieldRef, definitionInputValueDefRef int) {

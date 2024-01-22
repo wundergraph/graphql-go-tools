@@ -147,6 +147,10 @@ func (d *Document) EmptySelectionSet(ref int) {
 	d.SelectionSets[ref].SelectionRefs = d.SelectionSets[ref].SelectionRefs[:0]
 }
 
+func (d *Document) SelectionSetIsEmpty(ref int) bool {
+	return len(d.SelectionSets[ref].SelectionRefs) == 0
+}
+
 func (d *Document) AppendSelectionSet(ref int, appendRef int) {
 	d.SelectionSets[ref].SelectionRefs = append(d.SelectionSets[ref].SelectionRefs, d.SelectionSets[appendRef].SelectionRefs...)
 }
