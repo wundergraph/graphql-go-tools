@@ -28,7 +28,11 @@ type roundTripperTestCase struct {
 }
 
 func createTestRoundTripper(t *testing.T, testCase roundTripperTestCase) testRoundTripper {
+	t.Helper()
+
 	return func(req *http.Request) *http.Response {
+		t.Helper()
+
 		assert.Equal(t, testCase.expectedHost, req.URL.Host)
 		assert.Equal(t, testCase.expectedPath, req.URL.Path)
 
