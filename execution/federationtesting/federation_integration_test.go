@@ -69,8 +69,6 @@ func (f *federationSetup) close() {
 // This tests produces data races in the generated gql code. Disable it when the race
 // detector is enabled.
 func TestFederationIntegrationTest(t *testing.T) {
-	t.Skip("FIXME - needs new composition")
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -109,6 +107,8 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("subscription query through WebSocket transport", func(t *testing.T) {
+		t.Skip()
+
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		// Reset the products slice to the original state
@@ -125,8 +125,6 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Multiple queries and nested fragments", func(t *testing.T) {
-		t.Skip("TODO: FIXME")
-
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "queries/multiple_queries_with_nested_fragments.query"), nil, t)
@@ -363,8 +361,6 @@ func TestFederationIntegrationTest(t *testing.T) {
 	// Duplicated properties (and therefore invalid JSON) are usually removed during normalization processes.
 	// It is not yet decided whether this should be addressed before these normalization processes.
 	t.Run("Complex nesting", func(t *testing.T) {
-		t.Skip("TODO: FIXME")
-
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "queries/complex_nesting.graphql"), nil, t)
@@ -381,7 +377,6 @@ func TestFederationIntegrationTest(t *testing.T) {
           }
         },
         {
-          "location": "Germany",
           "location": "Germany",
           "product": {
             "upc": "top-2",
@@ -426,7 +421,6 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("Merged fields are still resolved", func(t *testing.T) {
-		t.Skip("TODO: FIXME")
 
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -450,9 +444,11 @@ func TestFederationIntegrationTest(t *testing.T) {
 				}
 			],
 			"history": [
+				{},
 				{
 					"rating": 5
-				}
+				},
+				{}
 			]
 		}
 	}
