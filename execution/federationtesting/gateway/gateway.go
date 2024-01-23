@@ -9,7 +9,6 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
-	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 )
 
 type DataSourceObserver interface {
@@ -85,20 +84,20 @@ func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphql.DataSourceCon
 		return
 	}
 
-	datasourceConfig, err := engineConfigFactory.EngineV2Configuration()
+	engineConfig, err := engineConfigFactory.BuildEngineConfiguration()
 	if err != nil {
 		g.logger.Error("get engine config: %v", log.Error(err))
 		return
 	}
 
-	engine, err := engine.NewExecutionEngineV2(ctx, g.logger, datasourceConfig)
+	executionEngine, err := engine.NewExecutionEngineV2(ctx, g.logger, engineConfig)
 	if err != nil {
 		g.logger.Error("create engine: %v", log.Error(err))
 		return
 	}
 
 	g.mu.Lock()
-	g.gqlHandler = g.gqlHandlerFactory.Make(schema, engine)
+	g.gqlHandler = g.gqlHandlerFactory.Make(engineConfig.Schema(), executionEngine)
 	g.mu.Unlock()
 
 	g.readyOnce.Do(func() { close(g.readyCh) })

@@ -33,6 +33,10 @@ func NewEngineV2Configuration(schema *graphql.Schema) EngineV2Configuration {
 	}
 }
 
+func (e *EngineV2Configuration) Schema() *graphql.Schema {
+	return e.schema
+}
+
 func (e *EngineV2Configuration) SetCustomResolveMap(customResolveMap map[string]resolve.CustomResolve) {
 	e.plannerConfig.CustomResolveMap = customResolveMap
 }

@@ -12,8 +12,7 @@ import (
 	"sync"
 	"time"
 
-	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
+	"github.com/wundergraph/graphql-go-tools/execution/engine"
 )
 
 type ServiceConfig struct {
@@ -136,6 +135,7 @@ func (d *DatasourcePollerPoller) updateSDLs(ctx context.Context) {
 	d.updateObservers()
 }
 
+/*
 func (d *DatasourcePollerPoller) updateObservers() {
 	dataSourceConfigs := d.createDatasourceConfig()
 
@@ -184,6 +184,37 @@ func (d *DatasourcePollerPoller) createDatasourceConfig() []graphql.DataSourceCo
 	}
 
 	return dataSourceConfigs
+}
+
+*/
+
+func (d *DatasourcePollerPoller) updateObservers() {
+	subgraphsConfig := d.createSubgraphsConfig()
+
+	for i := range d.updateDatasourceObservers {
+		d.updateDatasourceObservers[i].UpdateDataSources(subgraphsConfig)
+	}
+}
+
+func (d *DatasourcePollerPoller) createSubgraphsConfig() []engine.SubgraphConfig {
+	subgraphConfigs := make([]engine.SubgraphConfig, 0, len(d.config.Services))
+
+	for _, serviceConfig := range d.config.Services {
+		sdl, exists := d.sdlMap[serviceConfig.Name]
+		if !exists {
+			continue
+		}
+
+		subgraphConfig := engine.SubgraphConfig{
+			URL:             serviceConfig.URL,
+			SubscriptionUrl: serviceConfig.WS,
+			SDL:             sdl,
+		}
+
+		subgraphConfigs = append(subgraphConfigs, subgraphConfig)
+	}
+
+	return subgraphConfigs
 }
 
 func (d *DatasourcePollerPoller) fetchServiceSDL(ctx context.Context, serviceURL string) (string, error) {

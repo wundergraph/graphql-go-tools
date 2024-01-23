@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
+	"github.com/wundergraph/graphql-go-tools/execution/engine"
 )
 
 type ServiceConfig struct {
@@ -146,15 +146,15 @@ func (d *DatasourcePollerPoller) updateSDLs(ctx context.Context) {
 }
 
 func (d *DatasourcePollerPoller) updateObservers() {
-	dataSourceConfigs := d.createDatasourceConfig()
+	subgraphsConfig := d.createSubgraphsConfig()
 
 	for i := range d.updateDatasourceObservers {
-		d.updateDatasourceObservers[i].UpdateDataSources(dataSourceConfigs)
+		d.updateDatasourceObservers[i].UpdateDataSources(subgraphsConfig)
 	}
 }
 
-func (d *DatasourcePollerPoller) createDatasourceConfig() []graphqlDataSource.Configuration {
-	dataSourceConfigs := make([]graphqlDataSource.Configuration, 0, len(d.config.Services))
+func (d *DatasourcePollerPoller) createSubgraphsConfig() []engine.SubgraphConfig {
+	subgraphConfigs := make([]engine.SubgraphConfig, 0, len(d.config.Services))
 
 	for _, serviceConfig := range d.config.Services {
 		sdl, exists := d.sdlMap[serviceConfig.Name]
@@ -162,24 +162,16 @@ func (d *DatasourcePollerPoller) createDatasourceConfig() []graphqlDataSource.Co
 			continue
 		}
 
-		dataSourceConfig := graphqlDataSource.Configuration{
-			Fetch: graphqlDataSource.FetchConfiguration{
-				URL:    serviceConfig.URL,
-				Method: http.MethodPost,
-			},
-			Subscription: graphqlDataSource.SubscriptionConfiguration{
-				URL: serviceConfig.WS,
-			},
-			Federation: graphqlDataSource.FederationConfiguration{
-				Enabled:    true,
-				ServiceSDL: sdl,
-			},
+		subgraphConfig := engine.SubgraphConfig{
+			URL:             serviceConfig.URL,
+			SubscriptionUrl: serviceConfig.WS,
+			SDL:             sdl,
 		}
 
-		dataSourceConfigs = append(dataSourceConfigs, dataSourceConfig)
+		subgraphConfigs = append(subgraphConfigs, subgraphConfig)
 	}
 
-	return dataSourceConfigs
+	return subgraphConfigs
 }
 
 func (d *DatasourcePollerPoller) fetchServiceSDL(ctx context.Context, serviceURL string) (string, error) {
