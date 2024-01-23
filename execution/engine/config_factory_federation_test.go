@@ -281,6 +281,39 @@ const (
 			id: ID! 
 			username: String!
 		}`
+	accountUpstreamSchema = `schema {
+  query: Query
+}
+
+directive @eventsPublish(sourceID: String, topic: String!) on FIELD_DEFINITION
+
+directive @eventsRequest(sourceID: String, topic: String!) on FIELD_DEFINITION
+
+directive @eventsSubscribe(sourceID: String, topic: String!) on FIELD_DEFINITION
+
+directive @extends on INTERFACE | OBJECT
+
+directive @external on FIELD_DEFINITION | OBJECT
+
+directive @key(fields: openfed__FieldSet!, resolvable: Boolean = true) repeatable on INTERFACE | OBJECT
+
+directive @provides(fields: openfed__FieldSet!) on FIELD_DEFINITION
+
+directive @requires(fields: openfed__FieldSet!) on FIELD_DEFINITION
+
+directive @tag(name: String!) repeatable on ARGUMENT_DEFINITION | ENUM | ENUM_VALUE | FIELD_DEFINITION | INPUT_FIELD_DEFINITION | INPUT_OBJECT | INTERFACE | OBJECT | SCALAR | UNION
+
+type Query {
+  me: User
+}
+
+type User @key(fields: "id") {
+  id: ID!
+  username: String!
+}
+
+scalar openfed__FieldSet`
+
 	productSchema = `
 		extend type Query {
 			topProducts(first: Int = 5): [Product]
@@ -290,6 +323,40 @@ const (
 			name: String!
 			price: Int!
 		}`
+	productUpstreamSchema = `schema {
+  query: Query
+}
+
+directive @eventsPublish(sourceID: String, topic: String!) on FIELD_DEFINITION
+
+directive @eventsRequest(sourceID: String, topic: String!) on FIELD_DEFINITION
+
+directive @eventsSubscribe(sourceID: String, topic: String!) on FIELD_DEFINITION
+
+directive @extends on INTERFACE | OBJECT
+
+directive @external on FIELD_DEFINITION | OBJECT
+
+directive @key(fields: openfed__FieldSet!, resolvable: Boolean = true) repeatable on INTERFACE | OBJECT
+
+directive @provides(fields: openfed__FieldSet!) on FIELD_DEFINITION
+
+directive @requires(fields: openfed__FieldSet!) on FIELD_DEFINITION
+
+directive @tag(name: String!) repeatable on ARGUMENT_DEFINITION | ENUM | ENUM_VALUE | FIELD_DEFINITION | INPUT_FIELD_DEFINITION | INPUT_OBJECT | INTERFACE | OBJECT | SCALAR | UNION
+
+type Product @key(fields: "upc") {
+  name: String!
+  price: Int!
+  upc: String!
+}
+
+type Query {
+  topProducts(first: Int = 5): [Product]
+}
+
+scalar openfed__FieldSet`
+
 	reviewSchema = `
 		type Review { 
 			body: String! 
@@ -305,6 +372,44 @@ const (
 			upc: String!@external 
 			reviews: [Review] 
 		}`
+
+	reviewUpstreamSchema = `directive @eventsPublish(sourceID: String, topic: String!) on FIELD_DEFINITION
+
+directive @eventsRequest(sourceID: String, topic: String!) on FIELD_DEFINITION
+
+directive @eventsSubscribe(sourceID: String, topic: String!) on FIELD_DEFINITION
+
+directive @extends on INTERFACE | OBJECT
+
+directive @external on FIELD_DEFINITION | OBJECT
+
+directive @key(fields: openfed__FieldSet!, resolvable: Boolean = true) repeatable on INTERFACE | OBJECT
+
+directive @provides(fields: openfed__FieldSet!) on FIELD_DEFINITION
+
+directive @requires(fields: openfed__FieldSet!) on FIELD_DEFINITION
+
+directive @tag(name: String!) repeatable on ARGUMENT_DEFINITION | ENUM | ENUM_VALUE | FIELD_DEFINITION | INPUT_FIELD_DEFINITION | INPUT_OBJECT | INTERFACE | OBJECT | SCALAR | UNION
+
+type Product @key(fields: "upc") {
+  reviews: [Review]
+  upc: String! @external
+}
+
+type Review {
+  author: User! @provides(fields: "username")
+  body: String!
+  product: Product!
+}
+
+type User @key(fields: "id") {
+  id: ID! @external
+  reviews: [Review]
+  username: String! @external
+}
+
+scalar openfed__FieldSet`
+
 	baseFederationSchema = `
 	type Query {
 		me: User

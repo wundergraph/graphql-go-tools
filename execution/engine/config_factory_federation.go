@@ -125,6 +125,7 @@ func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (conf EngineV
 	if err != nil {
 		return EngineV2Configuration{}, err
 	}
+	plannerConfiguration.DefaultFlushIntervalMillis = DefaultFlushIntervalInMilliseconds
 
 	schemaSDL := intermediateConfig.EngineConfig.GraphqlSchema
 
