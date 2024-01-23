@@ -585,7 +585,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
-						expectedBody:     `{"query":"query($heroNames: [String!]!){heroes(names: $heroNames)}","variables":{"heroNames":["Luke Skywalker","R2-D2"]}}`,
+						expectedBody:     `{"variables":{"heroNames":["Luke Skywalker","R2-D2"]},"query":"query($heroNames: [String!]!){heroes(names: $heroNames)}"}`,
 						sendResponseBody: `{"data":{"heroes":["Human","Droid"]}}`,
 						sendStatusCode:   200,
 					}),
@@ -651,7 +651,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
-						expectedBody:     `{"query":"query($heroNames: [String!], $height: String){heroes(names: $heroNames, height: $height)}","variables":{"height":null}}`,
+						expectedBody:     `{"variables":{"height":null},"query":"query($heroNames: [String!], $height: String){heroes(names: $heroNames, height: $height)}"}`,
 						sendResponseBody: `{"data":{"heroes":[]}}`,
 						sendStatusCode:   200,
 					}),
@@ -771,7 +771,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
-						expectedBody:     `{"query":"query($a: [Int]){charactersByIds(ids: $a){name}}","variables":{"a":[1]}}`,
+						expectedBody:     `{"variables":{"a":[1]},"query":"query($a: [Int]){charactersByIds(ids: $a){name}}"}`,
 						sendResponseBody: `{"data":{"charactersByIds":[{"name": "Luke"}]}}`,
 						sendStatusCode:   200,
 					}),
@@ -838,7 +838,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
-						expectedBody:     `{"query":"query($ids: [Int]){charactersByIds(ids: $ids){name}}","variables":{"ids":[1]}}`,
+						expectedBody:     `{"variables":{"ids":[1]},"query":"query($ids: [Int]){charactersByIds(ids: $ids){name}}"}`,
 						sendResponseBody: `{"data":{"charactersByIds":[{"name": "Luke"}]}}`,
 						sendStatusCode:   200,
 					}),
@@ -968,7 +968,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost:     "example.com",
 								expectedPath:     "/",
-								expectedBody:     `{"query":"query($name: String!, $nameOptional: String){hero(name: $name) hero2: hero(name: $nameOptional)}","variables":{"nameOptional":"R2D2","name":"R2D2"}}`,
+								expectedBody:     `{"variables":{"name":"R2D2","nameOptional":"R2D2"},"query":"query($name: String!, $nameOptional: String){hero(name: $name) hero2: hero(name: $nameOptional)}"}`,
 								sendResponseBody: `{"data":{"hero":"R2D2","hero2":"R2D2"}}`,
 								sendStatusCode:   200,
 							}),
@@ -1031,7 +1031,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost:     "example.com",
 								expectedPath:     "/",
-								expectedBody:     `{"query":"query($name: String!, $nameOptional: String){hero(name: $name) hero2: hero(name: $nameOptional)}","variables":{"nameOptional":"Skywalker","name":"Luke"}}`,
+								expectedBody:     `{"variables":{"name":"Luke","nameOptional":"Skywalker"},"query":"query($name: String!, $nameOptional: String){hero(name: $name) hero2: hero(name: $nameOptional)}"}`,
 								sendResponseBody: `{"data":{"hero":"R2D2","hero2":"R2D2"}}`,
 								sendStatusCode:   200,
 							}),
@@ -1093,7 +1093,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost:     "example.com",
 								expectedPath:     "/",
-								expectedBody:     `{"query":"query($name: String!, $nameOptional: String!){hero: heroDefault(name: $name) hero2: heroDefault(name: $nameOptional) hero3: heroDefaultRequired(name: $name) hero4: heroDefaultRequired(name: $nameOptional)}","variables":{"nameOptional":"R2D2","name":"R2D2"}}`,
+								expectedBody:     `{"variables":{"name":"R2D2","nameOptional":"R2D2"},"query":"query($name: String!, $nameOptional: String!){hero: heroDefault(name: $name) hero2: heroDefault(name: $nameOptional) hero3: heroDefaultRequired(name: $name) hero4: heroDefaultRequired(name: $nameOptional)}"}`,
 								sendResponseBody: `{"data":{"hero":"R2D2","hero2":"R2D2","hero3":"R2D2","hero4":"R2D2"}}`,
 								sendStatusCode:   200,
 							}),
@@ -1164,7 +1164,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost:     "example.com",
 								expectedPath:     "/",
-								expectedBody:     `{"query":"query($a: String, $b: String!){heroDefault(name: $a) heroDefaultRequired(name: $b)}","variables":{"b":"AnyRequired","a":"Any"}}`,
+								expectedBody:     `{"variables":{"a":"Any","b":"AnyRequired"},"query":"query($a: String, $b: String!){heroDefault(name: $a) heroDefaultRequired(name: $b)}"}`,
 								sendResponseBody: `{"data":{"heroDefault":"R2D2","heroDefaultRequired":"R2D2"}}`,
 								sendStatusCode:   200,
 							}),
@@ -1408,6 +1408,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 }
 
 func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) *http.Client {
+	t.Helper()
+
 	defaultClient := httpclient.DefaultNetHttpClient
 	return &http.Client{
 		Transport:     createTestRoundTripper(t, testCase),
