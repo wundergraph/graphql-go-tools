@@ -23,6 +23,7 @@ func Handler(
 	logger log.Logger,
 	datasourcePoller *DatasourcePollerPoller,
 	httpClient *http.Client,
+	enableART bool,
 ) *Gateway {
 	upgrader := &ws.DefaultHTTPUpgrader
 	upgrader.Header = http.Header{}
@@ -31,7 +32,7 @@ func Handler(
 	datasourceWatcher := datasourcePoller
 
 	var gqlHandlerFactory HandlerFactoryFn = func(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler {
-		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger)
+		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger, enableART)
 	}
 
 	gateway := NewGateway(gqlHandlerFactory, httpClient, logger)
