@@ -82,7 +82,7 @@ func startServer() {
 		mux.Handle(handlers[i].Path, handlers[i].Handler)
 	}
 
-	var gqlHandlerFactory HandlerFactoryFn = func(schema *graphql.Schema, engine *engine.ExecutionEngineV2) http.Handler {
+	var gqlHandlerFactory HandlerFactoryFn = func(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler {
 		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger)
 	}
 

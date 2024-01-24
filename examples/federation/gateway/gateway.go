@@ -20,12 +20,12 @@ type DataSourceSubject interface {
 }
 
 type HandlerFactory interface {
-	Make(schema *graphql.Schema, engine *engine.ExecutionEngineV2) http.Handler
+	Make(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler
 }
 
-type HandlerFactoryFn func(schema *graphql.Schema, engine *engine.ExecutionEngineV2) http.Handler
+type HandlerFactoryFn func(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler
 
-func (h HandlerFactoryFn) Make(schema *graphql.Schema, engine *engine.ExecutionEngineV2) http.Handler {
+func (h HandlerFactoryFn) Make(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler {
 	return h(schema, engine)
 }
 
@@ -79,7 +79,7 @@ func (g *Gateway) UpdateDataSources(subgraphsConfigs []engine.SubgraphConfig) {
 		return
 	}
 
-	executionEngine, err := engine.NewExecutionEngineV2(ctx, g.logger, engineConfig)
+	executionEngine, err := engine.NewExecutionEngine(ctx, g.logger, engineConfig)
 	if err != nil {
 		g.logger.Error("create engine: %v", log.Error(err))
 		return
