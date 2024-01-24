@@ -54,9 +54,9 @@ func (e *internalExecutionContext) reset() {
 	e.resolveContext.Free()
 }
 
-type ExecutionEngineV2 struct {
+type ExecutionEngine struct {
 	logger                       abstractlogger.Logger
-	config                       EngineV2Configuration
+	config                       Configuration
 	planner                      *plan.Planner
 	plannerMu                    sync.Mutex
 	resolver                     *resolve.Resolver
@@ -68,9 +68,9 @@ type WebsocketBeforeStartHook interface {
 	OnBeforeStart(reqCtx context.Context, operation *graphql.Request) error
 }
 
-type ExecutionOptionsV2 func(ctx *internalExecutionContext)
+type ExecutionOptions func(ctx *internalExecutionContext)
 
-func WithAdditionalHttpHeaders(headers http.Header, excludeByKeys ...string) ExecutionOptionsV2 {
+func WithAdditionalHttpHeaders(headers http.Header, excludeByKeys ...string) ExecutionOptions {
 	return func(ctx *internalExecutionContext) {
 		if len(headers) == 0 {
 			return
@@ -97,7 +97,7 @@ func WithAdditionalHttpHeaders(headers http.Header, excludeByKeys ...string) Exe
 	}
 }
 
-func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, engineConfig EngineV2Configuration) (*ExecutionEngineV2, error) {
+func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engineConfig Configuration) (*ExecutionEngine, error) {
 	executionPlanCache, err := lru.New(1024)
 	if err != nil {
 		return nil, err
@@ -121,7 +121,7 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 		return nil, err
 	}
 
-	return &ExecutionEngineV2{
+	return &ExecutionEngine{
 		logger:  logger,
 		config:  engineConfig,
 		planner: planner,
@@ -137,7 +137,7 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 	}, nil
 }
 
-func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *graphql.Request, writer resolve.SubscriptionResponseWriter, options ...ExecutionOptionsV2) error {
+func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Request, writer resolve.SubscriptionResponseWriter, options ...ExecutionOptions) error {
 	if !operation.IsNormalized() {
 		result, err := operation.Normalize(e.config.schema)
 		if err != nil {
@@ -185,7 +185,7 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *graphql.Requ
 	return err
 }
 
-func (e *ExecutionEngineV2) getCachedPlan(ctx *internalExecutionContext, operation, definition *ast.Document, operationName string, report *operationreport.Report) plan.Plan {
+func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation, definition *ast.Document, operationName string, report *operationreport.Report) plan.Plan {
 
 	hash := pool.Hash64.Get()
 	hash.Reset()
@@ -216,15 +216,15 @@ func (e *ExecutionEngineV2) getCachedPlan(ctx *internalExecutionContext, operati
 	return p
 }
 
-func (e *ExecutionEngineV2) GetWebsocketBeforeStartHook() WebsocketBeforeStartHook {
+func (e *ExecutionEngine) GetWebsocketBeforeStartHook() WebsocketBeforeStartHook {
 	return e.config.websocketBeforeStartHook
 }
 
-func (e *ExecutionEngineV2) getExecutionCtx() *internalExecutionContext {
+func (e *ExecutionEngine) getExecutionCtx() *internalExecutionContext {
 	return e.internalExecutionContextPool.Get().(*internalExecutionContext)
 }
 
-func (e *ExecutionEngineV2) putExecutionCtx(ctx *internalExecutionContext) {
+func (e *ExecutionEngine) putExecutionCtx(ctx *internalExecutionContext) {
 	ctx.reset()
 	e.internalExecutionContextPool.Put(ctx)
 }

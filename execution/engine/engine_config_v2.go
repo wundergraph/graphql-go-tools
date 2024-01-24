@@ -16,14 +16,14 @@ const (
 	DefaultFlushIntervalInMilliseconds = 1000
 )
 
-type EngineV2Configuration struct {
+type Configuration struct {
 	schema                   *graphql.Schema
 	plannerConfig            plan.Configuration
 	websocketBeforeStartHook WebsocketBeforeStartHook
 }
 
-func NewEngineV2Configuration(schema *graphql.Schema) EngineV2Configuration {
-	return EngineV2Configuration{
+func NewConfiguration(schema *graphql.Schema) Configuration {
+	return Configuration{
 		schema: schema,
 		plannerConfig: plan.Configuration{
 			DefaultFlushIntervalMillis: DefaultFlushIntervalInMilliseconds,
@@ -33,81 +33,81 @@ func NewEngineV2Configuration(schema *graphql.Schema) EngineV2Configuration {
 	}
 }
 
-func (e *EngineV2Configuration) Schema() *graphql.Schema {
+func (e *Configuration) Schema() *graphql.Schema {
 	return e.schema
 }
 
-func (e *EngineV2Configuration) SetCustomResolveMap(customResolveMap map[string]resolve.CustomResolve) {
+func (e *Configuration) SetCustomResolveMap(customResolveMap map[string]resolve.CustomResolve) {
 	e.plannerConfig.CustomResolveMap = customResolveMap
 }
 
-func (e *EngineV2Configuration) AddDataSource(dataSource plan.DataSource) {
+func (e *Configuration) AddDataSource(dataSource plan.DataSource) {
 	e.plannerConfig.DataSources = append(e.plannerConfig.DataSources, dataSource)
 }
 
-func (e *EngineV2Configuration) SetDataSources(dataSources []plan.DataSource) {
+func (e *Configuration) SetDataSources(dataSources []plan.DataSource) {
 	e.plannerConfig.DataSources = dataSources
 }
 
-func (e *EngineV2Configuration) AddFieldConfiguration(fieldConfig plan.FieldConfiguration) {
+func (e *Configuration) AddFieldConfiguration(fieldConfig plan.FieldConfiguration) {
 	e.plannerConfig.Fields = append(e.plannerConfig.Fields, fieldConfig)
 }
 
-func (e *EngineV2Configuration) SetFieldConfigurations(fieldConfigs plan.FieldConfigurations) {
+func (e *Configuration) SetFieldConfigurations(fieldConfigs plan.FieldConfigurations) {
 	e.plannerConfig.Fields = fieldConfigs
 }
 
-func (e *EngineV2Configuration) DataSources() []plan.DataSource {
+func (e *Configuration) DataSources() []plan.DataSource {
 	return e.plannerConfig.DataSources
 }
 
-func (e *EngineV2Configuration) FieldConfigurations() plan.FieldConfigurations {
+func (e *Configuration) FieldConfigurations() plan.FieldConfigurations {
 	return e.plannerConfig.Fields
 }
 
 // SetWebsocketBeforeStartHook - sets before start hook which will be called before processing any operation sent over websockets
-func (e *EngineV2Configuration) SetWebsocketBeforeStartHook(hook WebsocketBeforeStartHook) {
+func (e *Configuration) SetWebsocketBeforeStartHook(hook WebsocketBeforeStartHook) {
 	e.websocketBeforeStartHook = hook
 }
 
-type dataSourceV2GeneratorOptions struct {
+type dataSourceGeneratorOptions struct {
 	streamingClient           *http.Client
 	subscriptionType          SubscriptionType
 	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
 }
 
-type DataSourceV2GeneratorOption func(options *dataSourceV2GeneratorOptions)
+type DataSourceGeneratorOption func(options *dataSourceGeneratorOptions)
 
-func WithDataSourceV2GeneratorSubscriptionConfiguration(streamingClient *http.Client, subscriptionType SubscriptionType) DataSourceV2GeneratorOption {
-	return func(options *dataSourceV2GeneratorOptions) {
+func WithDataSourceGeneratorSubscriptionConfiguration(streamingClient *http.Client, subscriptionType SubscriptionType) DataSourceGeneratorOption {
+	return func(options *dataSourceGeneratorOptions) {
 		options.streamingClient = streamingClient
 		options.subscriptionType = subscriptionType
 	}
 }
 
-func WithDataSourceV2GeneratorSubscriptionClientFactory(factory graphqlDataSource.GraphQLSubscriptionClientFactory) DataSourceV2GeneratorOption {
-	return func(options *dataSourceV2GeneratorOptions) {
+func WithDataSourceGeneratorSubscriptionClientFactory(factory graphqlDataSource.GraphQLSubscriptionClientFactory) DataSourceGeneratorOption {
+	return func(options *dataSourceGeneratorOptions) {
 		options.subscriptionClientFactory = factory
 	}
 }
 
-type graphqlDataSourceV2Generator struct {
+type graphqlDataSourceGenerator struct {
 	document  *ast.Document
 	engineCtx context.Context
 }
 
-func newGraphQLDataSourceV2Generator(engineCtx context.Context, document *ast.Document) *graphqlDataSourceV2Generator {
+func newGraphQLDataSourceGenerator(engineCtx context.Context, document *ast.Document) *graphqlDataSourceV2Generator {
 	return &graphqlDataSourceV2Generator{
 		document:  document,
 		engineCtx: engineCtx,
 	}
 }
 
-func (d *graphqlDataSourceV2Generator) Generate(dsID string, config graphqlDataSource.Configuration, httpClient *http.Client, options ...DataSourceV2GeneratorOption) (plan.DataSource, error) {
+func (d *graphqlDataSourceGenerator) Generate(dsID string, config graphqlDataSource.Configuration, httpClient *http.Client, options ...DataSourceV2GeneratorOption) (plan.DataSource, error) {
 	extractor := federationdata.NewLocalTypeFieldExtractor(d.document)
 	rootNodes, childNodes := extractor.GetAllNodes()
 
-	definedOptions := &dataSourceV2GeneratorOptions{
+	definedOptions := &dataSourceGeneratorOptions{
 		streamingClient:           &http.Client{Timeout: 0},
 		subscriptionType:          SubscriptionTypeUnknown,
 		subscriptionClientFactory: &graphqlDataSource.DefaultSubscriptionClientFactory{},
@@ -142,7 +142,7 @@ func (d *graphqlDataSourceV2Generator) Generate(dsID string, config graphqlDataS
 	)
 }
 
-func (d *graphqlDataSourceV2Generator) generateSubscriptionClient(httpClient *http.Client, definedOptions *dataSourceV2GeneratorOptions) (*graphqlDataSource.SubscriptionClient, error) {
+func (d *graphqlDataSourceGenerator) generateSubscriptionClient(httpClient *http.Client, definedOptions *dataSourceGeneratorOptions) (*graphqlDataSource.SubscriptionClient, error) {
 	var graphqlSubscriptionClient graphqlDataSource.GraphQLSubscriptionClient
 	switch definedOptions.subscriptionType {
 	case SubscriptionTypeGraphQLTransportWS:
@@ -169,17 +169,17 @@ func (d *graphqlDataSourceV2Generator) generateSubscriptionClient(httpClient *ht
 	return subscriptionClient, nil
 }
 
-type graphqlFieldConfigurationsV2Generator struct {
+type graphqlFieldConfigurationsGenerator struct {
 	schema *graphql.Schema
 }
 
-func newGraphQLFieldConfigsV2Generator(schema *graphql.Schema) *graphqlFieldConfigurationsV2Generator {
-	return &graphqlFieldConfigurationsV2Generator{
+func newGraphQLFieldConfigsGenerator(schema *graphql.Schema) *graphqlFieldConfigurationsGenerator {
+	return &graphqlFieldConfigurationsGenerator{
 		schema: schema,
 	}
 }
 
-func (g *graphqlFieldConfigurationsV2Generator) Generate(predefinedFieldConfigs ...plan.FieldConfiguration) plan.FieldConfigurations {
+func (g *graphqlFieldConfigurationsGenerator) Generate(predefinedFieldConfigs ...plan.FieldConfiguration) plan.FieldConfigurations {
 	var planFieldConfigs plan.FieldConfigurations
 	if len(predefinedFieldConfigs) > 0 {
 		planFieldConfigs = predefinedFieldConfigs
@@ -192,7 +192,7 @@ func (g *graphqlFieldConfigurationsV2Generator) Generate(predefinedFieldConfigs 
 	return planFieldConfigs
 }
 
-func (g *graphqlFieldConfigurationsV2Generator) engineConfigArguments(fieldConfs *plan.FieldConfigurations, generatedArgs map[TypeFieldLookupKey]graphql.TypeFieldArguments) {
+func (g *graphqlFieldConfigurationsGenerator) engineConfigArguments(fieldConfs *plan.FieldConfigurations, generatedArgs map[TypeFieldLookupKey]graphql.TypeFieldArguments) {
 	for i := range *fieldConfs {
 		if len(generatedArgs) == 0 {
 			return
@@ -217,7 +217,7 @@ func (g *graphqlFieldConfigurationsV2Generator) engineConfigArguments(fieldConfs
 	}
 }
 
-func (g *graphqlFieldConfigurationsV2Generator) createArgumentConfigurationsForArgumentNames(argumentNames []string) plan.ArgumentsConfigurations {
+func (g *graphqlFieldConfigurationsGenerator) createArgumentConfigurationsForArgumentNames(argumentNames []string) plan.ArgumentsConfigurations {
 	argConfs := plan.ArgumentsConfigurations{}
 	for _, argName := range argumentNames {
 		argConf := plan.ArgumentConfiguration{

@@ -15,14 +15,14 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 )
 
-func TestNewEngineV2Configuration(t *testing.T) {
-	var engineConfig EngineV2Configuration
+func TestNewEngineConfiguration(t *testing.T) {
+	var engineConfig Configuration
 
 	t.Run("should create a new engine v2 config", func(t *testing.T) {
 		schema, err := graphql.NewSchemaFromString(graphql.CountriesSchema)
 		require.NoError(t, err)
 
-		engineConfig = NewEngineV2Configuration(schema)
+		engineConfig = NewConfiguration(schema)
 		assert.Len(t, engineConfig.plannerConfig.DataSources, 0)
 		assert.Len(t, engineConfig.plannerConfig.Fields, 0)
 	})
@@ -71,7 +71,7 @@ func TestNewEngineV2Configuration(t *testing.T) {
 	})
 }
 
-func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
+func TestGraphQLDataSourceGenerator_Generate(t *testing.T) {
 	client := &http.Client{}
 	streamingClient := &http.Client{}
 	engineCtx, cancel := context.WithCancel(context.Background())
@@ -120,11 +120,11 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 			),
 		})
 
-		dataSource, err := newGraphQLDataSourceV2Generator(engineCtx, &doc).Generate(
+		dataSource, err := newGraphQLDataSourceGenerator(engineCtx, &doc).Generate(
 			"test",
 			dataSourceConfig,
 			client,
-			WithDataSourceV2GeneratorSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
+			WithDataSourceGeneratorSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
 		)
 		require.NoError(t, err)
 
@@ -153,12 +153,12 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 			),
 		})
 
-		dataSource, err := newGraphQLDataSourceV2Generator(engineCtx, &doc).Generate(
+		dataSource, err := newGraphQLDataSourceGenerator(engineCtx, &doc).Generate(
 			"test",
 			dataSourceConfig,
 			client,
-			WithDataSourceV2GeneratorSubscriptionConfiguration(streamingClient, SubscriptionTypeSSE),
-			WithDataSourceV2GeneratorSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
+			WithDataSourceGeneratorSubscriptionConfiguration(streamingClient, SubscriptionTypeSSE),
+			WithDataSourceGeneratorSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
 		)
 		require.NoError(t, err)
 
@@ -171,12 +171,12 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 
 }
 
-func TestGraphqlFieldConfigurationsV2Generator_Generate(t *testing.T) {
+func TestGraphqlFieldConfigurationsGenerator_Generate(t *testing.T) {
 	schema, err := graphql.NewSchemaFromString(graphqlGeneratorSchema)
 	require.NoError(t, err)
 
 	t.Run("should generate field configs without predefined field configs", func(t *testing.T) {
-		fieldConfigurations := newGraphQLFieldConfigsV2Generator(schema).Generate()
+		fieldConfigurations := newGraphQLFieldConfigsGenerator(schema).Generate()
 		sort.Slice(fieldConfigurations, func(i, j int) bool { // make the resulting slice deterministic again
 			return fieldConfigurations[i].TypeName < fieldConfigurations[j].TypeName
 		})
@@ -233,7 +233,7 @@ func TestGraphqlFieldConfigurationsV2Generator_Generate(t *testing.T) {
 			},
 		}
 
-		fieldConfigurations := newGraphQLFieldConfigsV2Generator(schema).Generate(predefinedFieldConfigs...)
+		fieldConfigurations := newGraphQLFieldConfigsGenerator(schema).Generate(predefinedFieldConfigs...)
 		sort.Slice(fieldConfigurations, func(i, j int) bool { // make the resulting slice deterministic again
 			return fieldConfigurations[i].TypeName < fieldConfigurations[j].TypeName
 		})

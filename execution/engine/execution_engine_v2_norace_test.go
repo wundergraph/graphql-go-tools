@@ -18,7 +18,7 @@ import (
 
 // This tests produces data races in the generated gql code. Disable it when the race
 // detector is enabled.
-func TestExecutionEngineV2_FederationAndSubscription_IntegrationTest(t *testing.T) {
+func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T) {
 	if flags.IsWindows {
 		t.Skip("skip on windows - test is timing dependendent")
 	}

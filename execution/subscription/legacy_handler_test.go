@@ -630,7 +630,7 @@ func setupEngineV2(t *testing.T, ctx context.Context, chatServerURL string) (*Ex
 
 	initCtx := NewInitialHttpRequestContext(req)
 
-	eng, err := engine.NewExecutionEngineV2(initCtx, abstractlogger.NoopLogger, engineConf)
+	eng, err := engine.NewExecutionEngine(initCtx, abstractlogger.NoopLogger, engineConf)
 	require.NoError(t, err)
 
 	executorPool := NewExecutorV2Pool(eng, hookHolder.reqCtx)

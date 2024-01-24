@@ -15,7 +15,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 )
 
-func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
+func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 	engineCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -25,7 +25,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 		streamingClient *http.Client,
 		dataSourceConfigs []DataSourceConfiguration,
 		baseSchema string,
-		expectedConfigFactory func(t *testing.T, baseSchema string) EngineV2Configuration,
+		expectedConfigFactory func(t *testing.T, baseSchema string) Configuration,
 	) {
 		doc, report := astparser.ParseGraphqlDocumentString(baseSchema)
 		if report.HasErrors() {
@@ -34,14 +34,14 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 		printedBaseSchema, err := astprinter.PrintString(&doc, nil)
 		require.NoError(t, err)
 
-		engineConfigV2Factory := NewFederationEngineConfigFactory(
+		engineConfigFactory := NewFederationEngineConfigFactory(
 			engineCtx,
 			dataSourceConfigs,
 			WithFederationHttpClient(httpClient),
 			WithFederationStreamingClient(streamingClient),
 			WithFederationSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
 		)
-		config, err := engineConfigV2Factory.EngineV2Configuration()
+		config, err := engineConfigFactory.EngineConfiguration()
 		assert.NoError(t, err)
 		assert.Equal(t, expectedConfigFactory(t, printedBaseSchema), config)
 	}
@@ -49,7 +49,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 	httpClient := &http.Client{}
 	streamingClient := &http.Client{}
 
-	t.Run("should create engine V2 configuration", func(t *testing.T) {
+	t.Run("should create engine configuration", func(t *testing.T) {
 		runWithoutError(t, httpClient, streamingClient, []DataSourceConfiguration{
 			{
 				"users",
@@ -102,11 +102,11 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 					},
 				}),
 			},
-		}, baseFederationSchema, func(t *testing.T, baseSchema string) EngineV2Configuration {
+		}, baseFederationSchema, func(t *testing.T, baseSchema string) Configuration {
 			schema, err := graphql.NewSchemaFromString(baseSchema)
 			require.NoError(t, err)
 
-			conf := NewEngineV2Configuration(schema)
+			conf := NewConfiguration(schema)
 			conf.SetFieldConfigurations(plan.FieldConfigurations{
 				{
 					TypeName:       "User",
