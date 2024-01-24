@@ -16,7 +16,7 @@ const (
 
 func NewGraphqlHTTPHandler(
 	schema *graphql.Schema,
-	engine *engine.ExecutionEngineV2,
+	engine *engine.ExecutionEngine,
 	upgrader *ws.HTTPUpgrader,
 	logger log.Logger,
 ) http.Handler {
@@ -31,7 +31,7 @@ func NewGraphqlHTTPHandler(
 type GraphQLHTTPRequestHandler struct {
 	log        log.Logger
 	wsUpgrader *ws.HTTPUpgrader
-	engine     *engine.ExecutionEngineV2
+	engine     *engine.ExecutionEngine
 	schema     *graphql.Schema
 }
 
