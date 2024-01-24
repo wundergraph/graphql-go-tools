@@ -23,7 +23,7 @@ import (
 	reviews "github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph"
 )
 
-func newFederationSetup() *federationSetup {
+func newFederationSetup(enableART bool) *federationSetup {
 	accountUpstreamServer := httptest.NewServer(accounts.GraphQLEndpointHandler(accounts.TestOptions))
 	productsUpstreamServer := httptest.NewServer(graph.GraphQLEndpointHandler(graph.TestOptions))
 	reviewsUpstreamServer := httptest.NewServer(reviews.GraphQLEndpointHandler(reviews.TestOptions))
@@ -36,7 +36,7 @@ func newFederationSetup() *federationSetup {
 		{Name: "reviews", URL: reviewsUpstreamServer.URL},
 	}, httpClient)
 
-	gtw := gateway2.Handler(abstractlogger.NoopLogger, poller, httpClient)
+	gtw := gateway2.Handler(abstractlogger.NoopLogger, poller, httpClient, enableART)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
@@ -66,13 +66,31 @@ func (f *federationSetup) close() {
 	f.gatewayServer.Close()
 }
 
+func TestFederationIntegrationTestWithArt(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	setup := newFederationSetup(true)
+	defer setup.close()
+
+	gqlClient := NewGraphqlClient(http.DefaultClient)
+
+	t.Run("single upstream query operation with ART", func(t *testing.T) {
+		resp := gqlClient.Query(ctx, setup.gatewayServer.URL, path.Join("testdata", "queries/single_upstream.query"), nil, t)
+		respString := string(resp)
+
+		assert.Contains(t, respString, `{"data":{"me":{"id":"1234","username":"Me"}}`)
+		assert.Contains(t, respString, `"extensions":{"trace":{"info":{"trace_start_time"`)
+	})
+}
+
 // This tests produces data races in the generated gql code. Disable it when the race
 // detector is enabled.
 func TestFederationIntegrationTest(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	setup := newFederationSetup()
+	setup := newFederationSetup(false)
 	defer setup.close()
 
 	gqlClient := NewGraphqlClient(http.DefaultClient)

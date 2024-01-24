@@ -19,12 +19,14 @@ func NewGraphqlHTTPHandler(
 	engine *engine.ExecutionEngine,
 	upgrader *ws.HTTPUpgrader,
 	logger log.Logger,
+	enableART bool,
 ) http.Handler {
 	return &GraphQLHTTPRequestHandler{
 		schema:     schema,
 		engine:     engine,
 		wsUpgrader: upgrader,
 		log:        logger,
+		enableART:  enableART,
 	}
 }
 
@@ -33,6 +35,7 @@ type GraphQLHTTPRequestHandler struct {
 	wsUpgrader *ws.HTTPUpgrader
 	engine     *engine.ExecutionEngine
 	schema     *graphql.Schema
+	enableART  bool
 }
 
 func (g *GraphQLHTTPRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
