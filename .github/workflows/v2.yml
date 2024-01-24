@@ -34,11 +34,11 @@ jobs:
         id: go
       - name: CI
         working-directory: v2
-        run: make -f ../Makefile ci
+        run: make ci
       - name: Run tests under race detector
         working-directory: v2
         if: runner.os != 'Windows' # These are very slow on Windows, skip them
-        run: make -f ../Makefile test-race
+        run: make test-race
 
   lint:
     name: Linters
