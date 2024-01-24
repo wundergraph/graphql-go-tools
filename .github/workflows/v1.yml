@@ -58,6 +58,7 @@ jobs:
         with:
           version: v1.51.1
           args: --timeout=3m
+          working-directory: pkg
   ci:
     name: CI Success
     if: ${{ always() }}
