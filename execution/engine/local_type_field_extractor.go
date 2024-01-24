@@ -214,9 +214,7 @@ func (e *LocalTypeFieldExtractor) isRootNode(nodeInfo *nodeInformation) bool {
 }
 
 func (e *LocalTypeFieldExtractor) collectFieldDefinitions(node ast.Node, nodeInfo *nodeInformation) {
-	for _, ref := range e.document.NodeFieldDefinitions(node) {
-		nodeInfo.localFieldRefs = append(nodeInfo.localFieldRefs, ref)
-	}
+	nodeInfo.localFieldRefs = append(nodeInfo.localFieldRefs, e.document.NodeFieldDefinitions(node)...)
 }
 
 func (e *LocalTypeFieldExtractor) assignConcreteTypesToInterfaces() {
