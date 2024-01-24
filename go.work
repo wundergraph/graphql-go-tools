@@ -1,8 +1,0 @@
-go 1.21
-
-use (
-	.
-	examples/federation
-	execution
-	v2
-)

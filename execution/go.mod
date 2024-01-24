@@ -3,19 +3,19 @@ module github.com/wundergraph/graphql-go-tools/execution
 go 1.21
 
 require (
-	github.com/99designs/gqlgen v0.17.39
-	github.com/gobwas/ws v1.3.1
+	github.com/99designs/gqlgen v0.17.43
+	github.com/gobwas/ws v1.3.2
 	github.com/golang/mock v1.6.0
 	github.com/gorilla/websocket v1.5.1
-	github.com/hashicorp/golang-lru v0.5.4
+	github.com/hashicorp/golang-lru v1.0.2
 	github.com/jensneuse/abstractlogger v0.0.4
 	github.com/stretchr/testify v1.8.4
-	github.com/vektah/gqlparser/v2 v2.5.10
-	github.com/wundergraph/cosmo/composition-go v0.0.0-20240117135338-c96e5ee8b6a9
-	github.com/wundergraph/cosmo/router v0.0.0-20240117135338-c96e5ee8b6a9
-	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.2.0.20240110181439-71bf34cedd29
+	github.com/vektah/gqlparser/v2 v2.5.11
+	github.com/wundergraph/cosmo/composition-go v0.0.0-20240124120900-5effe48a4a1d
+	github.com/wundergraph/cosmo/router v0.0.0-20240124120900-5effe48a4a1d
+	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.2.0.20240122172138-bbfa351e99f1
 	go.uber.org/atomic v1.11.0
-	google.golang.org/protobuf v1.31.0
+	google.golang.org/protobuf v1.32.0
 )
 
 require (
