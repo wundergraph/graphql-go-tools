@@ -1,32 +1,26 @@
-name: v1-ci
+name: execution
 on:
   pull_request:
     branches:
       - master
-    paths-ignore:
+    paths:
       - 'v2/**'
       - 'execution/**'
-      - '.github/workflows/v2.yml'
       - '.github/workflows/execution.yml'
-      - 'go.work'
-      - 'go.work.sum'
   push:
     branches:
       - master
-    paths-ignore:
+    paths:
       - 'v2/**'
       - 'execution/**'
-      - '.github/workflows/v2.yml'
       - '.github/workflows/execution.yml'
-      - 'go.work'
-      - 'go.sum'
 jobs:
   test:
     name: Build and test (go ${{ matrix.go }} / ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        go: [ '1.19', '1.20' ]
+        go: [ '1.21' ]
         os: [ubuntu-latest, windows-latest]
     steps:
       - name: Set git to use LF
@@ -41,10 +35,12 @@ jobs:
           go-version: ^${{ matrix.go }}
         id: go
       - name: CI
-        run: make ci
+        working-directory: v2
+        run: make -f ../Makefile ci
       - name: Run tests under race detector
+        working-directory: v2
         if: runner.os != 'Windows' # These are very slow on Windows, skip them
-        run: make test-race
+        run: make -f ../Makefile test-race
 
   lint:
     name: Linters
@@ -52,13 +48,14 @@ jobs:
     steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v3
-      - name: Set up Go 1.20
+      - name: Set up Go 1.21
         uses: actions/setup-go@v4
         with:
-          go-version: ^1.20
+          go-version: 1.21
       - name: Run linters
         uses: golangci/golangci-lint-action@v3
         with:
+          working-directory: v2
           version: v1.55.2
           args: --timeout=3m
   ci:
