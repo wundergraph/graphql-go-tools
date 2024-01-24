@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"sync"
+	"time"
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jensneuse/abstractlogger"
@@ -32,7 +33,7 @@ func newInternalExecutionContext() *internalExecutionContext {
 	}
 }
 
-func (e *internalExecutionContext) prepare(ctx context.Context, variables []byte, request resolve.Request) {
+func (e *internalExecutionContext) prepare(ctx context.Context, variables []byte, request resolve.Request, options ...ExecutionOptions) {
 	e.setContext(ctx)
 	e.setVariables(variables)
 	e.setRequest(request)
@@ -94,6 +95,12 @@ func WithAdditionalHttpHeaders(headers http.Header, excludeByKeys ...string) Exe
 				ctx.resolveContext.Request.Header.Add(headerKey, headerValue)
 			}
 		}
+	}
+}
+
+func WithRequestTraceOptions(options resolve.RequestTraceOptions) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.RequestTracingOptions = options
 	}
 }
 
@@ -160,10 +167,21 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	execContext := e.getExecutionCtx()
 	defer e.putExecutionCtx(execContext)
 
-	execContext.prepare(ctx, operation.Variables, operation.InternalRequest())
+	execContext.prepare(ctx, operation.Variables, operation.InternalRequest(), options...)
 
 	for i := range options {
 		options[i](execContext)
+	}
+
+	if execContext.resolveContext.RequestTracingOptions.Enable {
+		traceCtx := resolve.SetTraceStart(execContext.resolveContext.Context(), execContext.resolveContext.RequestTracingOptions.EnablePredictableDebugTimings)
+		execContext.setContext(traceCtx)
+	}
+
+	var tracePlanStart int64
+
+	if execContext.resolveContext.RequestTracingOptions.Enable && !execContext.resolveContext.RequestTracingOptions.ExcludePlannerStats {
+		tracePlanStart = resolve.GetDurationNanoSinceTraceStart(execContext.resolveContext.Context())
 	}
 
 	var report operationreport.Report
@@ -171,6 +189,16 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	cachedPlan := e.getCachedPlan(execContext, operation.Document(), e.config.schema.Document(), operation.OperationName, &report)
 	if report.HasErrors() {
 		return report
+	}
+
+	if execContext.resolveContext.RequestTracingOptions.Enable && !execContext.resolveContext.RequestTracingOptions.ExcludePlannerStats {
+		planningTime := resolve.GetDurationNanoSinceTraceStart(execContext.resolveContext.Context()) - tracePlanStart
+		resolve.SetPlannerStats(execContext.resolveContext.Context(), resolve.PlannerStats{
+			DurationSinceStartNano:   tracePlanStart,
+			DurationSinceStartPretty: time.Duration(tracePlanStart).String(),
+			PlanningTimeNano:         planningTime,
+			PlanningTimePretty:       time.Duration(planningTime).String(),
+		})
 	}
 
 	switch p := cachedPlan.(type) {
