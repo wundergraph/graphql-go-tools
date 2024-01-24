@@ -1795,9 +1795,9 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 	engineConfig.SetFieldConfigurations(fieldConfigs)
 
 	engineConfig.plannerConfig.Debug = plan.DebugConfiguration{
-		PrintOperationTransformations: true,
-		PrintPlanningPaths:            true,
-		PrintQueryPlans:               true,
+		PrintOperationTransformations: false,
+		PrintPlanningPaths:            false,
+		PrintQueryPlans:               false,
 		ConfigurationVisitor:          false,
 		PlanningVisitor:               false,
 		DatasourceVisitor:             false,

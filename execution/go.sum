@@ -189,10 +189,12 @@ github.com/ugorji/go/codec v1.1.7 h1:2SvQaVZ1ouYrrKKwoSk2pzd4A9evlKJb9oTL+OaLUSs
 github.com/ugorji/go/codec v1.1.7/go.mod h1:Ax+UKWsSmolVDwsd+7N3ZtXu+yMGCf907BLYF3GoBXY=
 github.com/vektah/gqlparser/v2 v2.5.10 h1:6zSM4azXC9u4Nxy5YmdmGu4uKamfwsdKTwp5zsEealU=
 github.com/vektah/gqlparser/v2 v2.5.10/go.mod h1:1rCcfwB2ekJofmluGWXMSEnPMZgbxzwj6FaZ/4OT8Cc=
+github.com/wundergraph/cosmo/composition-go v0.0.0-20240117135338-c96e5ee8b6a9 h1:xLN2pW6zFSJpJWLR9IBz6q2NOL/nzIJumIeZLFtASbY=
+github.com/wundergraph/cosmo/composition-go v0.0.0-20240117135338-c96e5ee8b6a9/go.mod h1:9I3gPMAlAY+m1/cFL20iN7XHTyuZd3VT5ijccdU/FsI=
 github.com/wundergraph/cosmo/router v0.0.0-20240117135338-c96e5ee8b6a9 h1:0Ybgji+FVgE7byZ6su7pAK11WWIWCFs15tKicln2bro=
 github.com/wundergraph/cosmo/router v0.0.0-20240117135338-c96e5ee8b6a9/go.mod h1:1ryt3Ht/U4ZTxx8fcaXtMFOJlEytatAnudh8aWoCByA=
-github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.2.0.20240111210208-56c6692f603e h1:8DvzLWHN2cCaz+CsEXCFvhS3V9ZZanhph5rN76IvQfE=
-github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.2.0.20240111210208-56c6692f603e/go.mod h1:FCP8F829EwSDDeZY4F7pj3hvw0Brpvqu4vSlAre9/u0=
+github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.2.0.20240110181439-71bf34cedd29 h1:ECO1hqa3nRZgf9eMKzG2vqmqGlnTw2dqtUClTbISUBo=
+github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.2.0.20240110181439-71bf34cedd29/go.mod h1:5yPXLXNnTMg0IvdH2zHLxD9g/6V+aITfRZQUYZyjVK8=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 go.uber.org/atomic v1.5.0/go.mod h1:sABNBOSYdrvTF6hTgEIbc7YasKWGhgEQZyfxyTvoXHQ=
@@ -272,8 +274,6 @@ golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7/go.mod h1:I/5z698sn9Ka8T
 golang.org/x/xerrors v0.0.0-20191011141410-1b5146add898/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
-gonum.org/v1/gonum v0.14.0 h1:2NiG67LD1tEH0D7kM+ps2V+fXmsAnpUeec7n8tcr4S0=
-gonum.org/v1/gonum v0.14.0/go.mod h1:AoWeoz0becf9QMWtE8iWXNXc27fK4fNeHNf/oMejGfU=
 google.golang.org/protobuf v1.26.0-rc.1/go.mod h1:jlhhOSvTdKEhbULTjvd4ARK9grFBp09yW+WbY/TyQbw=
 google.golang.org/protobuf v1.31.0 h1:g0LDEJHgrBl9N9r17Ru3sqWhkIx2NB67okBHPwC7hs8=
 google.golang.org/protobuf v1.31.0/go.mod h1:HV8QOd/L58Z+nl8r43ehVNZIU/HEI6OcFqwMG9pJV4I=
