@@ -13,7 +13,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 )
 
-func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
+func TestProxyEngineConfigFactory_EngineConfiguration(t *testing.T) {
 	schema, err := graphql.NewSchemaFromString(graphqlGeneratorSchema)
 	require.NoError(t, err)
 
@@ -67,7 +67,7 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 			WithProxyStreamingClient(streamingClient),
 			WithProxySubscriptionClientFactory(&MockSubscriptionClientFactory{}),
 		)
-		config, err := configFactory.EngineV2Configuration()
+		config, err := configFactory.EngineConfiguration()
 		if !assert.NoError(t, err) {
 			return
 		}
@@ -117,7 +117,7 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 			}),
 		}
 
-		expectedConfig := NewEngineV2Configuration(schema)
+		expectedConfig := NewConfiguration(schema)
 		expectedConfig.AddDataSource(expectedDataSource)
 		expectedConfig.SetFieldConfigurations(expectedFieldConfigs)
 		sortFieldConfigurations(config.FieldConfigurations())
@@ -142,7 +142,7 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 			WithProxyStreamingClient(streamingClient),
 			WithProxySubscriptionClientFactory(&MockSubscriptionClientFactory{}),
 		)
-		config, err := configFactory.EngineV2Configuration()
+		config, err := configFactory.EngineConfiguration()
 		if !assert.NoError(t, err) {
 			return
 		}
@@ -192,7 +192,7 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 			}),
 		}
 
-		expectedConfig := NewEngineV2Configuration(schema)
+		expectedConfig := NewConfiguration(schema)
 		expectedConfig.AddDataSource(expectedDataSource)
 		expectedConfig.SetFieldConfigurations(expectedFieldConfigs)
 		sortFieldConfigurations(config.FieldConfigurations())
@@ -217,7 +217,7 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 			WithProxyStreamingClient(streamingClient),
 			WithProxySubscriptionClientFactory(&MockSubscriptionClientFactory{}),
 		)
-		config, err := configFactory.EngineV2Configuration()
+		config, err := configFactory.EngineConfiguration()
 		if !assert.NoError(t, err) {
 			return
 		}
@@ -267,7 +267,7 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 			}),
 		}
 
-		expectedConfig := NewEngineV2Configuration(schema)
+		expectedConfig := NewConfiguration(schema)
 		expectedConfig.AddDataSource(expectedDataSource)
 		expectedConfig.SetFieldConfigurations(expectedFieldConfigs)
 		sortFieldConfigurations(config.FieldConfigurations())

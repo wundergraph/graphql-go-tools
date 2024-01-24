@@ -43,7 +43,7 @@ type ProxyUpstreamConfig struct {
 	SubscriptionType SubscriptionType
 }
 
-// ProxyEngineConfigFactory is used to create a v2 engine config with a single upstream and a single data source for this upstream.
+// ProxyEngineConfigFactory is used to create an engine config with a single upstream and a single data source for this upstream.
 type ProxyEngineConfigFactory struct {
 	httpClient                *http.Client
 	streamingClient           *http.Client
@@ -80,7 +80,7 @@ func NewProxyEngineConfigFactory(schema *graphql.Schema, proxyUpstreamConfig Pro
 	}
 }
 
-func (p *ProxyEngineConfigFactory) EngineV2Configuration() (EngineV2Configuration, error) {
+func (p *ProxyEngineConfigFactory) EngineConfiguration() (Configuration, error) {
 	dataSourceConfig := graphqlDataSource.Configuration{
 		Fetch: graphqlDataSource.FetchConfiguration{
 			URL:    p.proxyUpstreamConfig.URL,
@@ -93,25 +93,25 @@ func (p *ProxyEngineConfigFactory) EngineV2Configuration() (EngineV2Configuratio
 		},
 	}
 
-	conf := NewEngineV2Configuration(p.schema)
+	conf := NewConfiguration(p.schema)
 
 	rawDoc, report := astparser.ParseGraphqlDocumentBytes(p.schema.Input())
 	if report.HasErrors() {
-		return EngineV2Configuration{}, report
+		return Configuration{}, report
 	}
 
-	dataSource, err := newGraphQLDataSourceV2Generator(&rawDoc).Generate(
+	dataSource, err := newGraphQLDataSourceGenerator(&rawDoc).Generate(
 		dataSourceConfig,
 		p.httpClient,
-		WithDataSourceV2GeneratorSubscriptionConfiguration(p.streamingClient, p.proxyUpstreamConfig.SubscriptionType),
-		WithDataSourceV2GeneratorSubscriptionClientFactory(p.subscriptionClientFactory),
+		WithDataSourceGeneratorSubscriptionConfiguration(p.streamingClient, p.proxyUpstreamConfig.SubscriptionType),
+		WithDataSourceGeneratorSubscriptionClientFactory(p.subscriptionClientFactory),
 	)
 	if err != nil {
-		return EngineV2Configuration{}, err
+		return Configuration{}, err
 	}
 
 	conf.AddDataSource(dataSource)
-	fieldConfigs := newGraphQLFieldConfigsV2Generator(p.schema).Generate()
+	fieldConfigs := newGraphQLFieldConfigsGenerator(p.schema).Generate()
 	conf.SetFieldConfigurations(fieldConfigs)
 
 	return conf, nil

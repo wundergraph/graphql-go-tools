@@ -13,12 +13,12 @@ import (
 
 // ExecutorV2Pool - provides reusable executors
 type ExecutorV2Pool struct {
-	engine               *engine.ExecutionEngineV2
+	engine               *engine.ExecutionEngine
 	executorPool         *sync.Pool
 	connectionInitReqCtx context.Context // connectionInitReqCtx - holds original request context used to establish websocket connection
 }
 
-func NewExecutorV2Pool(engine *engine.ExecutionEngineV2, connectionInitReqCtx context.Context) *ExecutorV2Pool {
+func NewExecutorV2Pool(engine *engine.ExecutionEngine, connectionInitReqCtx context.Context) *ExecutorV2Pool {
 	return &ExecutorV2Pool{
 		engine: engine,
 		executorPool: &sync.Pool{
@@ -52,14 +52,14 @@ func (e *ExecutorV2Pool) Put(executor Executor) error {
 }
 
 type ExecutorV2 struct {
-	engine    *engine.ExecutionEngineV2
+	engine    *engine.ExecutionEngine
 	operation *graphql.Request
 	context   context.Context
 	reqCtx    context.Context
 }
 
 func (e *ExecutorV2) Execute(writer resolve.SubscriptionResponseWriter) error {
-	options := make([]engine.ExecutionOptionsV2, 0)
+	options := make([]engine.ExecutionOptions, 0)
 	switch ctx := e.reqCtx.(type) {
 	case *InitialHttpRequestContext:
 		options = append(options, engine.WithAdditionalHttpHeaders(ctx.Request.Header))

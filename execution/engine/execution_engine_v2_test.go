@@ -147,20 +147,20 @@ func TestWithAdditionalHttpHeaders(t *testing.T) {
 	})
 }
 
-type ExecutionEngineV2TestCase struct {
+type ExecutionEngineTestCase struct {
 	schema                            *graphql.Schema
 	operation                         func(t *testing.T) graphql.Request
 	dataSources                       []plan.DataSourceConfiguration
 	generateChildrenForFirstRootField bool
 	fields                            plan.FieldConfigurations
-	engineOptions                     []ExecutionOptionsV2
+	engineOptions                     []ExecutionOptions
 	expectedResponse                  string
 	customResolveMap                  map[string]resolve.CustomResolve
 	skipReason                        string
 }
 
-func TestExecutionEngineV2_Execute(t *testing.T) {
-	run := func(testCase ExecutionEngineV2TestCase, withError bool, expectedErrorMessage string) func(t *testing.T) {
+func TestExecutionEngine_Execute(t *testing.T) {
+	run := func(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string) func(t *testing.T) {
 		t.Helper()
 
 		return func(t *testing.T) {
@@ -170,7 +170,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				t.Skip(testCase.skipReason)
 			}
 
-			engineConf := NewEngineV2Configuration(testCase.schema)
+			engineConf := NewConfiguration(testCase.schema)
 			if testCase.generateChildrenForFirstRootField {
 				for i := 0; i < len(testCase.dataSources); i++ {
 					children := testCase.schema.GetAllNestedFieldChildrenFromTypeField(testCase.dataSources[i].RootNodes[0].TypeName, testCase.dataSources[i].RootNodes[0].FieldNames[0])
@@ -198,7 +198,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			engine, err := NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConf)
+			engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf)
 			require.NoError(t, err)
 
 			operation := testCase.operation(t)
@@ -220,11 +220,11 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		}
 	}
 
-	runWithAndCompareError := func(testCase ExecutionEngineV2TestCase, expectedErrorMessage string) func(t *testing.T) {
+	runWithAndCompareError := func(testCase ExecutionEngineTestCase, expectedErrorMessage string) func(t *testing.T) {
 		return run(testCase, true, expectedErrorMessage)
 	}
 
-	runWithoutError := func(testCase ExecutionEngineV2TestCase) func(t *testing.T) {
+	runWithoutError := func(testCase ExecutionEngineTestCase) func(t *testing.T) {
 		return run(testCase, false, "")
 	}
 
@@ -232,7 +232,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		schema := graphql.StarwarsSchema(t)
 
 		t.Run("execute type introspection query", runWithoutError(
-			ExecutionEngineV2TestCase{
+			ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -261,7 +261,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		))
 
 		t.Run("execute type introspection query for not existing type", runWithoutError(
-			ExecutionEngineV2TestCase{
+			ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -284,7 +284,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		))
 
 		t.Run("execute type introspection query with deprecated fields", runWithoutError(
-			ExecutionEngineV2TestCase{
+			ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -305,7 +305,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		))
 
 		t.Run("execute full introspection query", runWithoutError(
-			ExecutionEngineV2TestCase{
+			ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.StarwarsRequestForQuery(t, starwars.FileIntrospectionQuery)
@@ -316,7 +316,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 	})
 
 	t.Run("execute simple hero operation with graphql data source", runWithoutError(
-		ExecutionEngineV2TestCase{
+		ExecutionEngineTestCase{
 			schema:    graphql.StarwarsSchema(t),
 			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
 			dataSources: []plan.DataSourceConfiguration{
@@ -357,7 +357,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 	))
 
 	t.Run("execute the correct operation when sending multiple queries", runWithoutError(
-		ExecutionEngineV2TestCase{
+		ExecutionEngineTestCase{
 			schema: graphql.StarwarsSchema(t),
 			operation: func(t *testing.T) graphql.Request {
 				request := graphql.LoadStarWarsQuery(starwars.FileMultiQueries, nil)(t)
@@ -411,7 +411,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
     }
   `)
 	t.Run("query with custom scalar", runWithoutError(
-		ExecutionEngineV2TestCase{
+		ExecutionEngineTestCase{
 			schema: schemaWithCustomScalar,
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -457,7 +457,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 	))
 
 	t.Run("execute operation with variables for arguments", runWithoutError(
-		ExecutionEngineV2TestCase{
+		ExecutionEngineTestCase{
 			schema:    graphql.StarwarsSchema(t),
 			operation: graphql.LoadStarWarsQuery(starwars.FileDroidWithArgAndVarQuery, map[string]interface{}{"droidID": "R2D2"}),
 			dataSources: []plan.DataSourceConfiguration{
@@ -509,7 +509,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		},
 	))
 
-	t.Run("execute operation with array input type", runWithoutError(ExecutionEngineV2TestCase{
+	t.Run("execute operation with array input type", runWithoutError(ExecutionEngineTestCase{
 		schema: heroWithArgumentSchema(t),
 		operation: func(t *testing.T) graphql.Request {
 			return graphql.Request{
@@ -560,7 +560,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		expectedResponse: `{"data":{"heroes":["Human","Droid"]}}`,
 	}))
 
-	t.Run("execute operation with null and omitted input variables", runWithoutError(ExecutionEngineV2TestCase{
+	t.Run("execute operation with null and omitted input variables", runWithoutError(ExecutionEngineTestCase{
 		schema: func(t *testing.T) *graphql.Schema {
 			t.Helper()
 			schema := `
@@ -622,7 +622,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		expectedResponse: `{"data":{"heroes":[]}}`,
 	}))
 
-	t.Run("execute operation with null variable on required type", runWithoutError(ExecutionEngineV2TestCase{
+	t.Run("execute operation with null variable on required type", runWithoutError(ExecutionEngineTestCase{
 		schema: func(t *testing.T) *graphql.Schema {
 			t.Helper()
 			schema := `
@@ -672,7 +672,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		expectedResponse: `{"errors":[{"message":"invalid input","path":[]}],"data":null}`,
 	}))
 
-	t.Run("execute operation and apply input coercion for lists without variables", runWithoutError(ExecutionEngineV2TestCase{
+	t.Run("execute operation and apply input coercion for lists without variables", runWithoutError(ExecutionEngineTestCase{
 		schema: graphql.InputCoercionForListSchema(t),
 		operation: func(t *testing.T) graphql.Request {
 			return graphql.Request{
@@ -733,7 +733,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		expectedResponse: `{"data":{"charactersByIds":[{"name":"Luke"}]}}`,
 	}))
 
-	t.Run("execute operation and apply input coercion for lists with variable extraction", runWithoutError(ExecutionEngineV2TestCase{
+	t.Run("execute operation and apply input coercion for lists with variable extraction", runWithoutError(ExecutionEngineTestCase{
 		schema: graphql.InputCoercionForListSchema(t),
 		operation: func(t *testing.T) graphql.Request {
 			return graphql.Request{
@@ -793,7 +793,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 	}))
 
 	t.Run("execute operation with arguments", runWithoutError(
-		ExecutionEngineV2TestCase{
+		ExecutionEngineTestCase{
 			schema:    graphql.StarwarsSchema(t),
 			operation: graphql.LoadStarWarsQuery(starwars.FileDroidWithArgQuery, nil),
 			dataSources: []plan.DataSourceConfiguration{
@@ -846,7 +846,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 
 	t.Run("execute operation with default arguments", func(t *testing.T) {
 		t.Run("query variables with default value", runWithoutError(
-			ExecutionEngineV2TestCase{
+			ExecutionEngineTestCase{
 				schema: heroWithArgumentSchema(t),
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -898,7 +898,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		))
 
 		t.Run("query variables with default value when args provided", runWithoutError(
-			ExecutionEngineV2TestCase{
+			ExecutionEngineTestCase{
 				schema: heroWithArgumentSchema(t),
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -953,7 +953,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		))
 
 		t.Run("query variables with default values for fields with required and optional args", runWithoutError(
-			ExecutionEngineV2TestCase{
+			ExecutionEngineTestCase{
 				schema: heroWithArgumentSchema(t),
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -1018,7 +1018,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		))
 
 		t.Run("query fields with default value", runWithoutError(
-			ExecutionEngineV2TestCase{
+			ExecutionEngineTestCase{
 				schema: heroWithArgumentSchema(t),
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -1083,7 +1083,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 	})
 
 	t.Run("execute query with data source on field with interface return type", runWithoutError(
-		ExecutionEngineV2TestCase{
+		ExecutionEngineTestCase{
 			schema: graphql.CreateCountriesSchema(t),
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{
@@ -1122,7 +1122,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 	))
 
 	t.Run("Spreading a fragment on an invalid type returns ErrInvalidFragmentSpread", runWithAndCompareError(
-		ExecutionEngineV2TestCase{
+		ExecutionEngineTestCase{
 			schema:    graphql.StarwarsSchema(t),
 			operation: graphql.LoadStarWarsQuery(starwars.FileInvalidFragmentsQuery, nil),
 			dataSources: []plan.DataSourceConfiguration{
@@ -1175,7 +1175,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 	))
 
 	t.Run("execute the correct operation when sending multiple queries", runWithoutError(
-		ExecutionEngineV2TestCase{
+		ExecutionEngineTestCase{
 			skipReason: "FIXME:",
 			schema:     graphql.StarwarsSchema(t),
 			operation: func(t *testing.T) graphql.Request {
@@ -1236,7 +1236,7 @@ func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) *http.Client
 	}
 }
 
-func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
+func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 	schema, err := graphql.NewSchemaFromString(testSubscriptionDefinition)
 	require.NoError(t, err)
 
@@ -1268,7 +1268,7 @@ func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, normalizationResult.Successful)
 
-	engineConfig := NewEngineV2Configuration(schema)
+	engineConfig := NewConfiguration(schema)
 	engineConfig.SetDataSources([]plan.DataSourceConfiguration{
 		{
 			RootNodes: []plan.TypeField{
@@ -1292,7 +1292,7 @@ func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 		},
 	})
 
-	engine, err := NewExecutionEngineV2(context.Background(), abstractlogger.NoopLogger, engineConfig)
+	engine, err := NewExecutionEngine(context.Background(), abstractlogger.NoopLogger, engineConfig)
 	require.NoError(t, err)
 
 	t.Run("should reuse cached plan", func(t *testing.T) {
@@ -1354,7 +1354,7 @@ func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 
 func BenchmarkIntrospection(b *testing.B) {
 	schema := graphql.StarwarsSchema(b)
-	engineConf := NewEngineV2Configuration(schema)
+	engineConf := NewConfiguration(schema)
 
 	expectedResponse := []byte(`{"data":{"__schema":{"queryType":{"name":"Query"},"mutationType":{"name":"Mutation"},"subscriptionType":{"name":"Subscription"},"types":[{"kind":"UNION","name":"SearchResult","description":"","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[{"kind":"OBJECT","name":"Human","ofType":null},{"kind":"OBJECT","name":"Droid","ofType":null},{"kind":"OBJECT","name":"Starship","ofType":null}]},{"kind":"OBJECT","name":"Query","description":"","fields":[{"name":"hero","description":"","args":[],"type":{"kind":"INTERFACE","name":"Character","ofType":null},"isDeprecated":true,"deprecationReason":"No longer supported"},{"name":"droid","description":"","args":[{"name":"id","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"ID","ofType":null}},"defaultValue":null}],"type":{"kind":"OBJECT","name":"Droid","ofType":null},"isDeprecated":false,"deprecationReason":null},{"name":"search","description":"","args":[{"name":"name","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"defaultValue":null}],"type":{"kind":"UNION","name":"SearchResult","ofType":null},"isDeprecated":false,"deprecationReason":null},{"name":"searchResults","description":"","args":[],"type":{"kind":"LIST","name":null,"ofType":{"kind":"UNION","name":"SearchResult","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"OBJECT","name":"Mutation","description":"","fields":[{"name":"createReview","description":"","args":[{"name":"episode","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"ENUM","name":"Episode","ofType":null}},"defaultValue":null},{"name":"review","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"INPUT_OBJECT","name":"ReviewInput","ofType":null}},"defaultValue":null}],"type":{"kind":"OBJECT","name":"Review","ofType":null},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"OBJECT","name":"Subscription","description":"","fields":[{"name":"remainingJedis","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Int","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"INPUT_OBJECT","name":"ReviewInput","description":"","fields":null,"inputFields":[{"name":"stars","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Int","ofType":null}},"defaultValue":null},{"name":"commentary","description":"","type":{"kind":"SCALAR","name":"String","ofType":null},"defaultValue":null}],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"OBJECT","name":"Review","description":"","fields":[{"name":"id","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"ID","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"stars","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Int","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"commentary","description":"","args":[],"type":{"kind":"SCALAR","name":"String","ofType":null},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"ENUM","name":"Episode","description":"","fields":null,"inputFields":[],"interfaces":[],"enumValues":[{"name":"NEWHOPE","description":"","isDeprecated":false,"deprecationReason":null},{"name":"EMPIRE","description":"","isDeprecated":false,"deprecationReason":null},{"name":"JEDI","description":"","isDeprecated":true,"deprecationReason":"No longer supported"}],"possibleTypes":[]},{"kind":"INTERFACE","name":"Character","description":"","fields":[{"name":"name","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"friends","description":"","args":[],"type":{"kind":"LIST","name":null,"ofType":{"kind":"INTERFACE","name":"Character","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[{"kind":"OBJECT","name":"Human","ofType":null},{"kind":"OBJECT","name":"Droid","ofType":null}]},{"kind":"OBJECT","name":"Human","description":"","fields":[{"name":"name","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"height","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":true,"deprecationReason":"No longer supported"},{"name":"friends","description":"","args":[],"type":{"kind":"LIST","name":null,"ofType":{"kind":"INTERFACE","name":"Character","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[{"kind":"INTERFACE","name":"Character","ofType":null}],"enumValues":null,"possibleTypes":[]},{"kind":"OBJECT","name":"Droid","description":"","fields":[{"name":"name","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"primaryFunction","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"friends","description":"","args":[],"type":{"kind":"LIST","name":null,"ofType":{"kind":"INTERFACE","name":"Character","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[{"kind":"INTERFACE","name":"Character","ofType":null}],"enumValues":null,"possibleTypes":[]},{"kind":"INTERFACE","name":"Vehicle","description":"","fields":[{"name":"length","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Float","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[{"kind":"OBJECT","name":"Starship","ofType":null}]},{"kind":"OBJECT","name":"Starship","description":"","fields":[{"name":"name","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"length","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Float","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[{"kind":"INTERFACE","name":"Vehicle","ofType":null}],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"Int","description":"The 'Int' scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"Float","description":"The 'Float' scalar type represents signed double-precision fractional values as specified by [IEEE 754](http://en.wikipedia.org/wiki/IEEE_floating_point).","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"String","description":"The 'String' scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"Boolean","description":"The 'Boolean' scalar type represents 'true' or 'false' .","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"ID","description":"The 'ID' scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as '4') or integer (such as 4) input value will be accepted as an ID.","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]}],"directives":[{"name":"include","description":"Directs the executor to include this field or fragment only when the argument is true.","locations":["FIELD","FRAGMENT_SPREAD","INLINE_FRAGMENT"],"args":[{"name":"if","description":"Included when true.","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Boolean","ofType":null}},"defaultValue":null}]},{"name":"skip","description":"Directs the executor to skip this field or fragment when the argument is true.","locations":["FIELD","FRAGMENT_SPREAD","INLINE_FRAGMENT"],"args":[{"name":"if","description":"Skipped when true.","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Boolean","ofType":null}},"defaultValue":null}]},{"name":"deprecated","description":"Marks an element of a GraphQL schema as no longer supported.","locations":["FIELD_DEFINITION","ENUM_VALUE"],"args":[{"name":"reason","description":"Explains why this element was deprecated, usually also including a suggestion\n    for how to access supported similar data. Formatted in\n    [Markdown](https://daringfireball.net/projects/markdown/).","type":{"kind":"SCALAR","name":"String","ofType":null},"defaultValue":"\"No longer supported\""}]}]}}}`)
 
@@ -1362,12 +1362,12 @@ func BenchmarkIntrospection(b *testing.B) {
 	defer cancel()
 
 	type benchCase struct {
-		engine *ExecutionEngineV2
+		engine *ExecutionEngine
 		writer *graphql.EngineResultWriter
 	}
 
-	newEngine := func() *ExecutionEngineV2 {
-		engine, err := NewExecutionEngineV2(ctx, abstractlogger.NoopLogger, engineConf)
+	newEngine := func() *ExecutionEngine {
+		engine, err := NewExecutionEngine(ctx, abstractlogger.NoopLogger, engineConf)
 		require.NoError(b, err)
 
 		return engine
@@ -1414,20 +1414,20 @@ func BenchmarkIntrospection(b *testing.B) {
 
 }
 
-func BenchmarkExecutionEngineV2(b *testing.B) {
+func BenchmarkExecutionEngine(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	type benchCase struct {
-		engine *ExecutionEngineV2
+		engine *ExecutionEngine
 		writer *graphql.EngineResultWriter
 	}
 
-	newEngine := func() *ExecutionEngineV2 {
+	newEngine := func() *ExecutionEngine {
 		schema, err := graphql.NewSchemaFromString(`type Query { hello: String}`)
 		require.NoError(b, err)
 
-		engineConf := NewEngineV2Configuration(schema)
+		engineConf := NewConfiguration(schema)
 		engineConf.SetDataSources([]plan.DataSourceConfiguration{
 			{
 				RootNodes: []plan.TypeField{
@@ -1447,7 +1447,7 @@ func BenchmarkExecutionEngineV2(b *testing.B) {
 			},
 		})
 
-		engine, err := NewExecutionEngineV2(ctx, abstractlogger.NoopLogger, engineConf)
+		engine, err := NewExecutionEngine(ctx, abstractlogger.NoopLogger, engineConf)
 		require.NoError(b, err)
 
 		return engine
@@ -1508,7 +1508,7 @@ func newFederationSetup() *federationSetup {
 	}
 }
 
-func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *ExecutionEngineV2, schema *graphql.Schema, err error) {
+func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *ExecutionEngine, schema *graphql.Schema, err error) {
 	accountsSDL, err := federationtesting.LoadTestingSubgraphSDL(federationtesting.UpstreamAccounts)
 	if err != nil {
 		return
@@ -1788,7 +1788,7 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 		return
 	}
 
-	engineConfig := NewEngineV2Configuration(schema)
+	engineConfig := NewConfiguration(schema)
 	engineConfig.AddDataSource(accountsDataSource)
 	engineConfig.AddDataSource(productsDataSource)
 	engineConfig.AddDataSource(reviewsDataSource)
@@ -1803,7 +1803,7 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 		DatasourceVisitor:             false,
 	}
 
-	engine, err = NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConfig)
+	engine, err = NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConfig)
 	if err != nil {
 		return
 	}

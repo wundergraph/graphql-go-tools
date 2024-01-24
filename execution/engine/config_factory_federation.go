@@ -105,7 +105,7 @@ func NewFederationEngineConfigFactory(subgraphsConfigs []SubgraphConfig, opts ..
 	}
 }
 
-// FederationEngineConfigFactory is used to create a v2 engine config for a supergraph with multiple data sources for subgraphs.
+// FederationEngineConfigFactory is used to create an engine config for a supergraph with multiple data sources for subgraphs.
 type FederationEngineConfigFactory struct {
 	httpClient                *http.Client
 	streamingClient           *http.Client
@@ -116,16 +116,16 @@ type FederationEngineConfigFactory struct {
 	subgraphsConfigs          []SubgraphConfig
 }
 
-func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (conf EngineV2Configuration, err error) {
+func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (conf Configuration, err error) {
 
 	intermediateConfig, err := f.compose()
 	if err != nil {
-		return EngineV2Configuration{}, err
+		return Configuration{}, err
 	}
 
 	plannerConfiguration, err := f.createPlannerConfiguration(intermediateConfig)
 	if err != nil {
-		return EngineV2Configuration{}, err
+		return Configuration{}, err
 	}
 	plannerConfiguration.DefaultFlushIntervalMillis = DefaultFlushIntervalInMilliseconds
 
@@ -133,10 +133,10 @@ func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (conf EngineV
 
 	schema, err := graphql.NewSchemaFromString(schemaSDL)
 	if err != nil {
-		return EngineV2Configuration{}, err
+		return Configuration{}, err
 	}
 
-	conf = EngineV2Configuration{
+	conf = Configuration{
 		plannerConfig: *plannerConfiguration,
 		schema:        schema,
 	}
