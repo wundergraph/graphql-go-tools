@@ -13,7 +13,7 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.10
 	github.com/wundergraph/cosmo/composition-go v0.0.0-20240117135338-c96e5ee8b6a9
 	github.com/wundergraph/cosmo/router v0.0.0-20240117135338-c96e5ee8b6a9
-	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.2.0.20240111210208-56c6692f603e
+	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.2.0.20240110181439-71bf34cedd29
 	go.uber.org/atomic v1.11.0
 	google.golang.org/protobuf v1.31.0
 )
@@ -64,5 +64,3 @@ require (
 	nhooyr.io/websocket v1.8.7 // indirect
 	rogchap.com/v8go v0.9.0 // indirect
 )
-
-replace github.com/wundergraph/cosmo/composition-go => ../../cosmo/composition-go

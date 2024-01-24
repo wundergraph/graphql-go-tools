@@ -107,7 +107,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("subscription query through WebSocket transport", func(t *testing.T) {
-		t.Skip()
+		t.Skip("FIXME")
 
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()

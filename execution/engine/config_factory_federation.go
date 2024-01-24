@@ -7,10 +7,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/wundergraph/cosmo/composition-go"
 	"github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/common"
 	nodev1 "github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/node/v1"
 	"google.golang.org/protobuf/encoding/protojson"
+
+	"github.com/wundergraph/cosmo/composition-go"
 
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
@@ -19,11 +20,21 @@ import (
 )
 
 type SubgraphConfig struct {
-	Name            string
-	URL             string
-	SubscriptionUrl string
-	SDL             string
+	Name string
+	URL  string
+	SDL  string
+
+	SubscriptionUrl      string
+	SubscriptionProtocol SubscriptionProtocol
 }
+
+type SubscriptionProtocol string
+
+const (
+	SubscriptionProtocolWS      SubscriptionProtocol = "ws"
+	SubscriptionProtocolSSE     SubscriptionProtocol = "sse"
+	SubscriptionProtocolSSEPost SubscriptionProtocol = "sse_post"
+)
 
 type federationEngineConfigFactoryOptions struct {
 	httpClient                *http.Client
@@ -151,11 +162,20 @@ func (f *FederationEngineConfigFactory) compose() (*nodev1.RouterConfig, error) 
 
 	for i, subgraphConfig := range f.subgraphsConfigs {
 		subgraphs[i] = &composition.Subgraph{
-			Name: subgraphConfig.Name,
-			URL:  subgraphConfig.URL,
-			// SubscriptionURL: subgraphConfig.SubscriptionUrl,
+			Name:   subgraphConfig.Name,
+			URL:    subgraphConfig.URL,
 			Schema: subgraphConfig.SDL,
 		}
+
+		// TODO: PROPER SUBSCRIPTION SUPPORT IS NOT YET IMPLEMENTED
+		// if subgraphConfig.SubscriptionUrl != "" {
+		// 	subgraphs[i].SubscriptionURL = &subgraphConfig.SubscriptionUrl
+		// }
+		//
+		// if subgraphConfig.SubscriptionProtocol != "" {
+		// 	protocol := composition.SubscriptionProtocol(subgraphConfig.SubscriptionProtocol)
+		// 	subgraphs[i].SubscriptionProtocol = &protocol
+		// }
 	}
 
 	resultJSON, err := composition.BuildRouterConfiguration(subgraphs...)

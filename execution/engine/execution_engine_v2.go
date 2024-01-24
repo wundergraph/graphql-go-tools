@@ -177,7 +177,7 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *graphql.Requ
 	case *plan.SynchronousResponsePlan:
 		err = e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
 	case *plan.SubscriptionResponsePlan:
-		err = e.resolver.AsyncResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer, resolve.SubscriptionIdentifier{})
+		err = e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
 	default:
 		return errors.New("execution of operation is not possible")
 	}
