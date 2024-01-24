@@ -14,6 +14,9 @@ const (
 			objectInNestedList(input: [[Nested]]): String
 			stringInNestedList(input: [[String!]]): String
 			nullableStringInNestedList(input: [[String]]): String
+			notNullableInt(input: Int! = 5): String
+			notNullableString(input: String!): String
+			withoutArguments: String
 		}
 		input Nested {
 			NotNullable: String!
@@ -182,14 +185,14 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 				runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
 					query q(
 						$nullable: String = "a",
-						$notNullable: String = "b",	
+						$notNullable: String = "b",
 					) {
 						objectInList(input: [{NotNullable: $notNullable, Nullable: $nullable}])
 					}`, "", `
-					query q(	
+					query q(
 						$nullable: String,
 						$notNullable: String!,
-					) {	
+					) {
 						objectInList(input: [{NotNullable: $notNullable, Nullable: $nullable}])
 					}`, ``, `{"notNullable":"b","nullable":"a"}`)
 			})
@@ -198,14 +201,14 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 				runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
 					query q(
 						$nullable: String = "a",
-						$notNullable: String = "b",	
+						$notNullable: String = "b",
 					) {
 						objectInNestedList(input: [[{NotNullable: $notNullable, Nullable: $nullable}]])
 					}`, "", `
-					query q(	
+					query q(
 						$nullable: String,
 						$notNullable: String!,
-					) {	
+					) {
 						objectInNestedList(input: [[{NotNullable: $notNullable, Nullable: $nullable}]])
 					}`, ``, `{"notNullable":"b","nullable":"a"}`)
 			})
@@ -219,7 +222,7 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 					}`, "", `
 					query q(
 						$notNullable: String!,
-					) {	
+					) {
 						stringInNestedList(input: [["a", $notNullable]])
 					}`, ``, `{"notNullable":"foo"}`)
 			})
@@ -233,7 +236,7 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 					}`, "", `
 					query q(
 						$nullable: String,
-					) {	
+					) {
 						nullableStringInNestedList(input: [["a", null, $nullable]])
 					}`, ``, `{"nullable":"foo"}`)
 			})
@@ -275,5 +278,121 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 			query q($data: ComplexInput) {
 				complex(input: $data)
 			}`, ``, `{"data":null}`)
+	})
+
+	t.Run("variables used in position expecting non null value", func(t *testing.T) {
+		t.Run("Not nullable int with default value", func(t *testing.T) {
+			runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+			 query q(
+				 $input: Int = 4,
+			 ) {
+				 notNullableInt(input: $input)
+			 }`, "", `
+			 query q(
+				 $input: Int!,
+			 ) {
+				 notNullableInt(input: $input)
+			 }`, ``, `{"input":4}`)
+		})
+
+		t.Run("not nullable int with default value and variable value exists", func(t *testing.T) {
+			runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+			 query q(
+				 $input: Int = 4,
+			 ) {
+				 notNullableInt(input: $input)
+			 }`, "", `
+			 query q(
+				 $input: Int!,
+			 ) {
+				 notNullableInt(input: $input)
+			 }`, `{"input":6}`, `{"input":6}`)
+		})
+
+		t.Run("nullable string with default value", func(t *testing.T) {
+			runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+			 query q(
+				 $input: String = "DefaultInOperation",
+			 ) {
+				 notNullableString(input: $input)
+			 }`, "", `
+			 query q(
+				 $input: String!,
+			 ) {
+				 notNullableString(input: $input)
+			 }`, ``, `{"input":"DefaultInOperation"}`)
+		})
+
+		t.Run("not nullable string with default value", func(t *testing.T) {
+			runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+			 query q(
+				 $input: String! = "DefaultInOperation",
+			 ) {
+				 notNullableString(input: $input)
+			 }`, "", `
+			 query q(
+				 $input: String!,
+			 ) {
+				 notNullableString(input: $input)
+			 }`, ``, `{"input":"DefaultInOperation"}`)
+		})
+
+		t.Run("not nullable string with default value and variable value exists", func(t *testing.T) {
+			runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+			 query q(
+				 $input: String = "DefaultInOperation",
+			 ) {
+				 notNullableString(input: $input)
+			 }`, "", `
+			 query q(
+				 $input: String!,
+			 ) {
+				 notNullableString(input: $input)
+			 }`, `{"input":"ValueInVariable"}`, `{"input":"ValueInVariable"}`)
+		})
+	})
+
+	t.Run("variables used in directive argument expecting non null value", func(t *testing.T) {
+		t.Run("nullable boolean with default value and variable value exists", func(t *testing.T) {
+			runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+			 query q(
+				 $flag: Boolean = false,
+			 ) {
+				 withoutArguments @skip(if: $flag)
+			 }`, "", `
+			 query q(
+				 $flag: Boolean!,
+			 ) {
+				 withoutArguments @skip(if: $flag)
+			 }`, `{"flag":true}`, `{"flag":true}`)
+		})
+
+		t.Run("nullable boolean used twice", func(t *testing.T) {
+			runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+			 query q(
+				 $flag: Boolean = false,
+			 ) {
+				 withoutArguments @skip(if: $flag) @include(if: $flag)
+			 }`, "", `
+			 query q(
+				 $flag: Boolean!,
+			 ) {
+				 withoutArguments @skip(if: $flag) @include(if: $flag)
+			 }`, `{"flag":true}`, `{"flag":true}`)
+		})
+
+		t.Run("not nullable boolean with default value and variable value exists", func(t *testing.T) {
+			runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `
+			 query q(
+				 $flag: Boolean! = false,
+			 ) {
+				 withoutArguments @skip(if: $flag)
+			 }`, "", `
+			 query q(
+				 $flag: Boolean!,
+			 ) {
+				 withoutArguments @skip(if: $flag)
+			 }`, `{"flag":true}`, `{"flag":true}`)
+		})
 	})
 }

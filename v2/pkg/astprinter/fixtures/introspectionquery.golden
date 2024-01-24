@@ -139,7 +139,7 @@ query directivesQuery @foo(bar: BAZ) {
 {
     dog {
         name: nickname
-        ... @include(if: true){
+        ... @include(if: true) {
             name
         }
     }
