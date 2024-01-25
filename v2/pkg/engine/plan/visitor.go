@@ -816,10 +816,6 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		return
 	}
 
-	/*if isStreaming {
-
-	}*/
-
 	v.plan = &SynchronousResponsePlan{
 		Response: graphQLResponse,
 	}
