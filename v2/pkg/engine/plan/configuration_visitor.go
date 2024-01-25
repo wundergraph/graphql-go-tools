@@ -513,6 +513,7 @@ func (c *configurationVisitor) handleProvidesSuggestions(ref int, typeName, fiel
 	for i := range c.planners {
 		if c.planners[i].dataSourceConfiguration.Hash() == dsHash {
 			c.planners[i].providedFields.items = append(c.planners[i].providedFields.items, suggestions...)
+			c.planners[i].providedFields.populateHasSuggestions()
 			break
 		}
 	}

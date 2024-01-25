@@ -67,6 +67,11 @@ func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSourceConfigu
 	f.selectDuplicateNodes(true)
 	// f.nodes.printNodes("duplicate nodes after second run")
 
+	f.nodes.filterNotSelectedNodes()
+	// f.nodes.printNodes("nodes after filtering not selected")
+
+	f.nodes.populateHasSuggestions()
+
 	f.isResolvable(f.nodes)
 	if f.report.HasErrors() {
 		return nil
@@ -132,7 +137,7 @@ func (n *NodeSuggestion) selectWithReason(reason string) {
 	if n.selected {
 		return
 	}
-	n.appendSelectionReason(reason) // NOTE: debug do not remove
+	// n.appendSelectionReason(reason) // NOTE: debug do not remove
 	n.selected = true
 }
 
@@ -150,7 +155,9 @@ type NodeSuggestionHint struct {
 }
 
 type NodeSuggestions struct {
-	items      []*NodeSuggestion
+	items           []*NodeSuggestion
+	hasher          *xxhash.Digest
+	pathSuggestions map[string][]*NodeSuggestion
 	seenFields map[int]struct{}
 }
 
@@ -162,6 +169,7 @@ func NewNodeSuggestionsWithSize(size int) *NodeSuggestions {
 	return &NodeSuggestions{
 		items:      make([]*NodeSuggestion, 0, size),
 		seenFields: make(map[int]struct{}, size),
+		pathSuggestions: make(map[string][]*NodeSuggestion),
 	}
 }
 
@@ -179,9 +187,14 @@ func (f *NodeSuggestions) addSuggestion(node *NodeSuggestion) {
 }
 
 func (f *NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string) (dsHashes []DSHash) {
-	for i := range f.items {
-		if typeName == f.items[i].TypeName && fieldName == f.items[i].FieldName && path == f.items[i].Path && f.items[i].selected {
-			dsHashes = append(dsHashes, f.items[i].DataSourceHash)
+	items, ok := f.pathSuggestions[path]
+	if !ok {
+		return nil
+	}
+
+	for i := range items {
+		if typeName == items[i].TypeName && fieldName == items[i].FieldName && items[i].selected {
+			dsHashes = append(dsHashes, items[i].DataSourceHash)
 		}
 	}
 
@@ -189,9 +202,14 @@ func (f *NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string) (
 }
 
 func (f *NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string) (dsHash DSHash, ok bool) {
-	for i := range f.items {
-		if typeName == f.items[i].TypeName && fieldName == f.items[i].FieldName && path == f.items[i].Path && f.items[i].selected {
-			return f.items[i].DataSourceHash, true
+	items, ok := f.pathSuggestions[path]
+	if !ok {
+		return 0, false
+	}
+
+	for i := range items {
+		if typeName == items[i].TypeName && fieldName == items[i].FieldName && items[i].selected {
+			return items[i].DataSourceHash, true
 		}
 	}
 
@@ -332,6 +350,14 @@ func (f *NodeSuggestions) printNodes(msg string) {
 	}
 	for i := range f.items {
 		fmt.Println(f.items[i].String())
+	}
+}
+
+func (f *NodeSuggestions) populateHasSuggestions() {
+	for i := range f.items {
+		suggestions, _ := f.pathSuggestions[f.items[i].Path]
+		suggestions = append(f.pathSuggestions[f.items[i].Path], f.items[i])
+		f.pathSuggestions[f.items[i].Path] = suggestions
 	}
 }
 
