@@ -1,0 +1,14 @@
+go 1.21
+
+use (
+	.
+	./examples/chat
+	./examples/federation
+	./examples/kafka_pubsub
+	./examples/kafka_pubsub/transactional_producer
+	./v2
+	./v2/examples/chat
+	./v2/examples/federation
+	./v2/examples/kafka_pubsub
+	./v2/examples/kafka_pubsub/transactional_producer
+)
