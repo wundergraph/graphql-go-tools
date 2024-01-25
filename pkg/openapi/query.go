@@ -62,7 +62,7 @@ func (c *converter) importQueryType() (*introspection.FullType, error) {
 					kind = "object"
 				}
 
-				typeName = strcase.ToCamel(typeName)
+				typeName = toCamelIfNotPredefinedScalar(typeName)
 				typeRef, err := getTypeRef(kind)
 				if err != nil {
 					return nil, err

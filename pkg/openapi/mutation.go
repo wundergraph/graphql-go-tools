@@ -7,7 +7,6 @@ import (
 
 	"github.com/TykTechnologies/graphql-go-tools/pkg/introspection"
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/iancoleman/strcase"
 )
 
 // getInputValueFromParameter retrieves the input value from the given parameter and adds it to the field arguments.
@@ -133,7 +132,7 @@ func (c *converter) importMutationType() (*introspection.FullType, error) {
 					}
 				}
 
-				typeName = strcase.ToCamel(typeName)
+				typeName = toCamelIfNotPredefinedScalar(typeName)
 				typeRef, err := getTypeRef("object")
 				if err != nil {
 					return nil, err

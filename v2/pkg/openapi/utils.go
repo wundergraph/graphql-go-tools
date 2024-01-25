@@ -215,3 +215,12 @@ func getJSONSchemaFromRequestBody(operation *openapi3.Operation) *openapi3.Schem
 	}
 	return nil
 }
+
+func toCamelIfNotPredefinedScalar(typeName string) string {
+	// Don't convert the type name to CamelCase if it is a predefined
+	// scalar such as JSON.
+	if _, ok := preDefinedScalarTypes[typeName]; !ok {
+		return strcase.ToCamel(typeName)
+	}
+	return typeName
+}

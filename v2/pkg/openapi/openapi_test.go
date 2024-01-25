@@ -12,10 +12,10 @@ import (
 )
 
 func testFixtureFile(t *testing.T, version, name string) {
-	asyncapiDoc, err := os.ReadFile(fmt.Sprintf("./fixtures/%s/%s", version, name))
+	openapiDocument, err := os.ReadFile(fmt.Sprintf("./fixtures/%s/%s", version, name))
 	require.NoError(t, err)
 
-	doc, report := ImportOpenAPIDocumentString(string(asyncapiDoc))
+	doc, report := ImportOpenAPIDocumentString(string(openapiDocument))
 	if report.HasErrors() {
 		t.Fatal(report.Error())
 	}
@@ -33,7 +33,6 @@ func testFixtureFile(t *testing.T, version, name string) {
 	}
 
 	graphqlDoc, err := os.ReadFile(fmt.Sprintf("./fixtures/%s/%s.graphql", version, name))
-	fmt.Println(w.String())
 	require.NoError(t, err)
 	require.Equal(t, string(graphqlDoc), w.String())
 }
