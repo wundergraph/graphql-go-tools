@@ -49,6 +49,10 @@ func (o *Object) NodePath() []string {
 	return o.Path
 }
 
+func (o *Object) NodeNullable() bool {
+	return o.Nullable
+}
+
 type EmptyObject struct{}
 
 func (_ *EmptyObject) NodeKind() NodeKind {
@@ -57,6 +61,10 @@ func (_ *EmptyObject) NodeKind() NodeKind {
 
 func (_ *EmptyObject) NodePath() []string {
 	return nil
+}
+
+func (_ *EmptyObject) NodeNullable() bool {
+	return false
 }
 
 type Field struct {
@@ -75,7 +83,8 @@ type Field struct {
 
 type FieldInfo struct {
 	// Name is the name of the field.
-	Name string
+	Name                string
+	ExactParentTypeName string
 	// ParentTypeNames is the list of possible parent types for this field.
 	// E.g. for a root field, this will be Query, Mutation, Subscription.
 	// For a field on an object type, this will be the name of that object type.
@@ -88,6 +97,9 @@ type FieldInfo struct {
 	// For scalar fields, this will return string, int, float, boolean, ID.
 	NamedType string
 	Source    TypeFieldSource
+	FetchID   int
+	// HasAuthorizationRule needs to be set to true if the Authorizer should be called for this field
+	HasAuthorizationRule bool
 }
 
 func (i *FieldInfo) Merge(other *FieldInfo) {

@@ -169,6 +169,13 @@ type FetchConfiguration struct {
 
 type FetchInfo struct {
 	DataSourceID string
+	RootFields   []GraphCoordinate
+}
+
+type GraphCoordinate struct {
+	TypeName             string
+	FieldName            string
+	HasAuthorizationRule bool
 }
 
 type DataSourceLoadTrace struct {

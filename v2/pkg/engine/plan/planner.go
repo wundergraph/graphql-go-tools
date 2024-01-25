@@ -38,8 +38,9 @@ func NewPlanner(ctx context.Context, config Configuration) *Planner {
 	// configuration
 	configurationWalker := astvisitor.NewWalker(48)
 	configVisitor := &configurationVisitor{
-		walker: &configurationWalker,
-		ctx:    ctx,
+		walker:              &configurationWalker,
+		ctx:                 ctx,
+		fieldConfigurations: config.Fields,
 	}
 
 	configurationWalker.RegisterEnterDocumentVisitor(configVisitor)

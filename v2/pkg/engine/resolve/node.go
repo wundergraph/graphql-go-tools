@@ -19,6 +19,7 @@ const (
 type Node interface {
 	NodeKind() NodeKind
 	NodePath() []string
+	NodeNullable() bool
 }
 
 type NodeKind int

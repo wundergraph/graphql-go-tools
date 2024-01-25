@@ -19,7 +19,22 @@ type Context struct {
 	Extensions            []byte
 	Stats                 Stats
 
+	authorizer Authorizer
+
 	subgraphErrors error
+}
+
+type AuthorizationDeny struct {
+	Reason string
+}
+
+type Authorizer interface {
+	Authorize(ctx *Context, dataSourceID string, coordinate GraphCoordinate) (result *AuthorizationDeny, err error)
+}
+
+func (c *Context) WithAuthorizer(authorizer Authorizer) *Context {
+	c.authorizer = authorizer
+	return c
 }
 
 func (c *Context) SubgraphErrors() error {
@@ -91,6 +106,7 @@ func (c *Context) Free() {
 	c.Extensions = nil
 	c.Stats.Reset()
 	c.subgraphErrors = nil
+	c.authorizer = nil
 }
 
 type traceStartKey struct{}
