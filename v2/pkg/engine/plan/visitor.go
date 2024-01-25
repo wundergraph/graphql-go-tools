@@ -393,6 +393,7 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 
 	enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 	fieldName := v.Operation.FieldNameString(ref)
+	fieldHasAuthorizationRule := v.fieldHasAuthorizationRule(enclosingTypeName, fieldName)
 	underlyingType := v.Definition.ResolveUnderlyingType(typeRef)
 	typeName := v.Definition.ResolveTypeNameString(typeRef)
 
@@ -427,7 +428,14 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 		Source: resolve.TypeFieldSource{
 			IDs: sourceIDs,
 		},
+		ExactParentTypeName:  enclosingTypeName,
+		HasAuthorizationRule: fieldHasAuthorizationRule,
 	}
+}
+
+func (v *Visitor) fieldHasAuthorizationRule(typeName, fieldName string) bool {
+	fieldConfig := v.Config.Fields.ForTypeField(typeName, fieldName)
+	return fieldConfig != nil && fieldConfig.HasAuthorizationRule
 }
 
 func (v *Visitor) linkFetchConfiguration(fieldRef int) {
@@ -808,10 +816,6 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		return
 	}
 
-	/*if isStreaming {
-
-	}*/
-
 	v.plan = &SynchronousResponsePlan{
 		Response: graphQLResponse,
 	}
@@ -1137,6 +1141,7 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external res
 	if v.Config.IncludeInfo {
 		singleFetch.Info = &resolve.FetchInfo{
 			DataSourceID: internal.sourceID,
+			RootFields:   internal.rootFields,
 		}
 	}
 

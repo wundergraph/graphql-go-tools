@@ -346,6 +346,9 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 	if res.err != nil {
 		return l.renderErrorsFailedToFetch(res)
 	}
+	if res.authorizationRejected {
+		return l.renderAuthorizationRejectedErrors(res)
+	}
 	if res.fetchSkipped {
 		return nil
 	}
@@ -461,6 +464,9 @@ type result struct {
 
 	err          error
 	subgraphName string
+
+	authorizationRejected        bool
+	authorizationRejectedReasons []string
 }
 
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
@@ -508,6 +514,75 @@ func (l *Loader) renderErrorsFailedToFetch(res *result) error {
 	return nil
 }
 
+func (l *Loader) renderAuthorizationRejectedErrors(res *result) error {
+	if len(l.path) != 0 {
+		return nil
+	}
+	path := l.renderPath()
+	for i := range res.authorizationRejectedReasons {
+		l.ctx.appendSubgraphError(errors.Wrap(res.err, fmt.Sprintf("Authorization rejected for subgraph '%s' at path '%s'. Reason: %s", res.subgraphName, path, res.authorizationRejectedReasons[i])))
+	}
+	if res.subgraphName == "" {
+		for _, reason := range res.authorizationRejectedReasons {
+			if reason == "" {
+				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized Subgraph request at path '%s'."}`, path)))
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+			} else {
+				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized Subgraph request at path '%s'. Reason: %s"}`, path, reason)))
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+			}
+		}
+	} else {
+		for _, reason := range res.authorizationRejectedReasons {
+			if reason == "" {
+				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s' at path '%s'."}`, res.subgraphName, path)))
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+			} else {
+				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s' at path '%s'. Reason: %s"}`, res.subgraphName, path, reason)))
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+			}
+		}
+	}
+	return nil
+}
+
+func (l *Loader) isFetchAuthorized(info *FetchInfo, res *result) (authorized bool, err error) {
+	if info == nil {
+		return true, nil
+	}
+	if l.ctx.authorizer == nil {
+		return true, nil
+	}
+	authorized = true
+	for i := range info.RootFields {
+		if !info.RootFields[i].HasAuthorizationRule {
+			continue
+		}
+		reject, err := l.ctx.authorizer.Authorize(l.ctx, info.DataSourceID, info.RootFields[i])
+		if err != nil {
+			return false, errors.WithStack(err)
+		}
+		if reject != nil {
+			authorized = false
+			res.authorizationRejected = true
+			res.authorizationRejectedReasons = append(res.authorizationRejectedReasons, reject.Reason)
+		}
+	}
+	return authorized, nil
+}
+
 func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items []int, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
 	input := pool.BytesBuffer.Get()
@@ -529,6 +604,13 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items 
 	err = fetch.InputTemplate.Render(l.ctx, input.Bytes(), preparedInput)
 	if err != nil {
 		return l.renderErrorsInvalidInput(res.out)
+	}
+	authorized, err := l.isFetchAuthorized(fetch.Info, res)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	if !authorized {
+		return nil
 	}
 	res.err = l.executeSourceLoad(ctx, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	return nil
@@ -601,6 +683,13 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
+	}
+	authorized, err := l.isFetchAuthorized(fetch.Info, res)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	if !authorized {
+		return nil
 	}
 	res.err = l.executeSourceLoad(ctx, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	return nil
@@ -714,6 +803,13 @@ WithNextItem:
 	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
+	}
+	authorized, err := l.isFetchAuthorized(fetch.Info, res)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	if !authorized {
+		return nil
 	}
 	res.err = l.executeSourceLoad(ctx, fetch.DataSource, preparedInput.Bytes(), res.out, fetch.Trace)
 	return nil

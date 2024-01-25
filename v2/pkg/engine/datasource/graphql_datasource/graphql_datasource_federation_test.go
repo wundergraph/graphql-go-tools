@@ -345,6 +345,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
+				{
+					TypeName:             "Account",
+					FieldName:            "shippingInfo",
+					HasAuthorizationRule: true,
+				},
 			},
 		}
 
@@ -515,6 +520,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							},
 							Info: &resolve.FetchInfo{
 								DataSourceID: "user.service",
+								RootFields: []resolve.GraphCoordinate{
+									{
+										TypeName:  "Query",
+										FieldName: "user",
+									},
+								},
 							},
 						},
 						Fields: []*resolve.Field{
@@ -527,6 +538,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Source: resolve.TypeFieldSource{
 										IDs: []string{"user.service"},
 									},
+									ExactParentTypeName: "Query",
 								},
 								Value: &resolve.Object{
 									Path:     []string{"user"},
@@ -541,6 +553,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												Source: resolve.TypeFieldSource{
 													IDs: []string{"user.service"},
 												},
+												ExactParentTypeName: "User",
 											},
 											Value: &resolve.Object{
 												Path:     []string{"account"},
@@ -555,6 +568,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															Source: resolve.TypeFieldSource{
 																IDs: []string{"account.service"},
 															},
+															ExactParentTypeName: "Account",
 														},
 														Value: &resolve.String{
 															Path: []string{"name"},
@@ -569,6 +583,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															Source: resolve.TypeFieldSource{
 																IDs: []string{"account.service"},
 															},
+															ExactParentTypeName:  "Account",
+															HasAuthorizationRule: true,
 														},
 														Value: &resolve.Object{
 															Path:     []string{"shippingInfo"},
@@ -583,6 +599,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		Source: resolve.TypeFieldSource{
 																			IDs: []string{"account.service"},
 																		},
+																		ExactParentTypeName: "ShippingInfo",
 																	},
 																	Value: &resolve.String{
 																		Path: []string{"zip"},
@@ -597,6 +614,17 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													DependsOnFetchIDs: []int{0},
 													Info: &resolve.FetchInfo{
 														DataSourceID: "account.service",
+														RootFields: []resolve.GraphCoordinate{
+															{
+																TypeName:  "Account",
+																FieldName: "name",
+															},
+															{
+																TypeName:             "Account",
+																FieldName:            "shippingInfo",
+																HasAuthorizationRule: true,
+															},
+														},
 													},
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 													FetchConfiguration: resolve.FetchConfiguration{

@@ -39,8 +39,9 @@ type configurationVisitor struct {
 	visitedFields                map[int]struct{}                  // visitedFields is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
 	fieldDependenciesForPlanners map[int][]int                     // fieldDependenciesForPlanners is a map[FieldRef][]plannerIdx holds dependencies between fields and planners
 
-	secondaryRun bool // secondaryRun is a flag to indicate that we're running the planner not the first time
-	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
+	secondaryRun        bool // secondaryRun is a flag to indicate that we're running the planner not the first time
+	hasNewFields        bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
+	fieldConfigurations FieldConfigurations
 }
 
 // fieldsRequiredByPlanner is a mapping between planner id which requested required fields
@@ -77,6 +78,7 @@ type objectFetchConfiguration struct {
 	sourceID           string
 	fetchID            int
 	dependsOnFetchIDs  []int
+	rootFields         []resolve.GraphCoordinate
 }
 
 func (c *configurationVisitor) currentSelectionSet() int {
@@ -369,11 +371,46 @@ func (c *configurationVisitor) EnterField(ref int) {
 		c.handleRequirements(plannerIdx, parentPath, typeName, fieldName, ref)
 		c.rewriteSelectionSetOfFieldWithInterfaceType(ref, plannerIdx)
 		c.addPlannerDependencies(ref, plannerIdx)
-
+		c.addRootField(ref, plannerIdx)
 		return
 	}
 
 	c.handleMissingPath(typeName, fieldName, currentPath)
+}
+
+func (c *configurationVisitor) addRootField(fieldRef, plannerIdx int) {
+
+	if c.fieldIsChildNode(plannerIdx) {
+		return
+	}
+
+	enclosingTypeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
+	fieldName := c.operation.FieldNameString(fieldRef)
+	fieldHasAuthorizationRule := c.fieldHasAuthorizationRule(enclosingTypeName, fieldName)
+
+	coordinate := resolve.GraphCoordinate{
+		TypeName:             enclosingTypeName,
+		FieldName:            fieldName,
+		HasAuthorizationRule: fieldHasAuthorizationRule,
+	}
+
+	if slices.Contains(c.planners[plannerIdx].objectFetchConfiguration.rootFields, coordinate) {
+		return
+	}
+
+	c.planners[plannerIdx].objectFetchConfiguration.rootFields = append(c.planners[plannerIdx].objectFetchConfiguration.rootFields, coordinate)
+}
+
+func (c *configurationVisitor) fieldHasAuthorizationRule(typeName, fieldName string) bool {
+	fieldConfig := c.fieldConfigurations.ForTypeField(typeName, fieldName)
+	return fieldConfig != nil && fieldConfig.HasAuthorizationRule
+}
+
+func (c *configurationVisitor) fieldIsChildNode(plannerIdx int) bool {
+	path := c.walker.Path.DotDelimitedString()
+	plannerPath := c.planners[plannerIdx].parentPath
+	fieldPath := strings.TrimPrefix(path, plannerPath)
+	return strings.ContainsAny(fieldPath, ".")
 }
 
 func (c *configurationVisitor) addPlannerDependencies(fieldRef int, currentPlannerIdx int) {
