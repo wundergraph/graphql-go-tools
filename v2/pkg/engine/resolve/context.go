@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -29,7 +30,20 @@ type AuthorizationDeny struct {
 }
 
 type Authorizer interface {
-	Authorize(ctx *Context, dataSourceID string, coordinate GraphCoordinate) (result *AuthorizationDeny, err error)
+	// AuthorizePreFetch is called prior to making a fetch in the loader
+	// This allows to implement policies to prevent fetches to an origin
+	// E.g. for Mutations, it might be undesired to just filter out the response
+	// You'd want to prevent sending the Operation to the Origin completely
+	//
+	// The input argument is the final render of the datasource input
+	AuthorizePreFetch(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error)
+	// AuthorizeObjectField operates on the response and can solely be used to implement policies to filter out response fields
+	// In contrast to AuthorizePreFetch, this cannot be used to prevent origin requests
+	// This function only allows you to filter the response before rendering it to the client
+	//
+	// The object argument is the flat render of the field-enclosing response object
+	// Flat render means, we're only rendering scalars, not arrays or objects
+	AuthorizeObjectField(ctx *Context, dataSourceID string, object json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error)
 }
 
 func (c *Context) WithAuthorizer(authorizer Authorizer) *Context {

@@ -1475,7 +1475,7 @@ func testFn(enableSingleFlight bool, fn func(t *testing.T, ctrl *gomock.Controll
 	}
 }
 
-func testFnWithPostEvaluation(enableSingleFlight bool, fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T))) func(t *testing.T) {
+func testFnWithPostEvaluation(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T))) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 
@@ -1498,7 +1498,7 @@ func testFnWithPostEvaluation(enableSingleFlight bool, fn func(t *testing.T, ctr
 	}
 }
 
-func testFnWithError(enableSingleFlight bool, fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedErrorMessage string)) func(t *testing.T) {
+func testFnWithError(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedErrorMessage string)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 

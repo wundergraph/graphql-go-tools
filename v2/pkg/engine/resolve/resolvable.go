@@ -34,6 +34,9 @@ type Resolvable struct {
 	xxh                 *xxhash.Digest
 	authorizationAllow  map[uint64]struct{}
 	authorizationDeny   map[uint64]string
+
+	authorizationBuf          *bytes.Buffer
+	authorizationBufObjectRef int
 }
 
 func NewResolvable() *Resolvable {
@@ -59,6 +62,7 @@ func (r *Resolvable) Reset() {
 	r.renameTypeNames = r.renameTypeNames[:0]
 	r.authorizationError = nil
 	r.xxh.Reset()
+	r.authorizationBufObjectRef = -1
 	for k := range r.authorizationAllow {
 		delete(r.authorizationAllow, k)
 	}
@@ -312,7 +316,7 @@ func (r *Resolvable) walkObject(obj *Object, ref int) bool {
 		if obj.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(obj.Path)
+		r.addNonNullableFieldError(ref, obj.Path)
 		return r.err()
 	}
 	r.pushNodePathElement(obj.Path)
@@ -414,7 +418,7 @@ func (r *Resolvable) authorizeField(ref int, field *Field) (skipField bool) {
 		TypeName:  typeName,
 		FieldName: fieldName,
 	}
-	result, authErr := r.authorize(dataSourceID, gc)
+	result, authErr := r.authorize(ref, dataSourceID, gc)
 	if authErr != nil {
 		r.authorizationError = authErr
 		return true
@@ -426,7 +430,7 @@ func (r *Resolvable) authorizeField(ref int, field *Field) (skipField bool) {
 	return false
 }
 
-func (r *Resolvable) authorize(dataSourceID string, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
+func (r *Resolvable) authorize(objectRef int, dataSourceID string, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 	r.xxh.Reset()
 	_, _ = r.xxh.WriteString(dataSourceID)
 	_, _ = r.xxh.WriteString(coordinate.TypeName)
@@ -438,7 +442,18 @@ func (r *Resolvable) authorize(dataSourceID string, coordinate GraphCoordinate) 
 	if reason, ok := r.authorizationDeny[decisionID]; ok {
 		return &AuthorizationDeny{Reason: reason}, nil
 	}
-	result, err = r.ctx.authorizer.Authorize(r.ctx, dataSourceID, coordinate)
+	if r.authorizationBufObjectRef != objectRef {
+		if r.authorizationBuf == nil {
+			r.authorizationBuf = bytes.NewBuffer(nil)
+		}
+		r.authorizationBuf.Reset()
+		err = r.storage.PrintObjectFlat(objectRef, r.authorizationBuf)
+		if err != nil {
+			return nil, err
+		}
+		r.authorizationBufObjectRef = objectRef
+	}
+	result, err = r.ctx.authorizer.AuthorizeObjectField(r.ctx, dataSourceID, r.authorizationBuf.Bytes(), coordinate)
 	if err != nil {
 		return nil, err
 	}
@@ -525,7 +540,7 @@ func (r *Resolvable) walkArray(arr *Array, ref int) bool {
 		if arr.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(arr.Path)
+		r.addNonNullableFieldError(ref, arr.Path)
 		return r.err()
 	}
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindArray {
@@ -573,7 +588,7 @@ func (r *Resolvable) walkString(s *String, ref int) bool {
 		if s.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(s.Path)
+		r.addNonNullableFieldError(ref, s.Path)
 		return r.err()
 	}
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindString {
@@ -621,7 +636,7 @@ func (r *Resolvable) walkBoolean(b *Boolean, ref int) bool {
 		if b.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(b.Path)
+		r.addNonNullableFieldError(ref, b.Path)
 		return r.err()
 	}
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindBoolean {
@@ -644,7 +659,7 @@ func (r *Resolvable) walkInteger(i *Integer, ref int) bool {
 		if i.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(i.Path)
+		r.addNonNullableFieldError(ref, i.Path)
 		return r.err()
 	}
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindNumber {
@@ -667,7 +682,7 @@ func (r *Resolvable) walkFloat(f *Float, ref int) bool {
 		if f.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(f.Path)
+		r.addNonNullableFieldError(ref, f.Path)
 		return r.err()
 	}
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindNumber {
@@ -690,7 +705,7 @@ func (r *Resolvable) walkBigInt(b *BigInt, ref int) bool {
 		if b.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(b.Path)
+		r.addNonNullableFieldError(ref, b.Path)
 		return r.err()
 	}
 	if r.print {
@@ -708,7 +723,7 @@ func (r *Resolvable) walkScalar(s *Scalar, ref int) bool {
 		if s.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(s.Path)
+		r.addNonNullableFieldError(ref, s.Path)
 		return r.err()
 	}
 	if r.print {
@@ -742,7 +757,7 @@ func (r *Resolvable) walkCustom(c *CustomNode, ref int) bool {
 		if c.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(c.Path)
+		r.addNonNullableFieldError(ref, c.Path)
 		return r.err()
 	}
 	value := r.storage.Nodes[ref].ValueBytes(r.storage)
@@ -757,7 +772,10 @@ func (r *Resolvable) walkCustom(c *CustomNode, ref int) bool {
 	return false
 }
 
-func (r *Resolvable) addNonNullableFieldError(fieldPath []string) {
+func (r *Resolvable) addNonNullableFieldError(fieldRef int, fieldPath []string) {
+	if fieldRef != -1 && r.storage.Nodes[fieldRef].Kind == astjson.NodeKindNullSkipError {
+		return
+	}
 	r.pushNodePathElement(fieldPath)
 	ref := r.storage.AppendNonNullableFieldIsNullErr(r.renderFieldPath(), r.path)
 	r.storage.Nodes[r.errorsRoot].ArrayValues = append(r.storage.Nodes[r.errorsRoot].ArrayValues, ref)
