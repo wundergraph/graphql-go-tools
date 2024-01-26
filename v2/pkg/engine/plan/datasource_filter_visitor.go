@@ -67,9 +67,6 @@ func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSourceConfigu
 	f.selectDuplicateNodes(true)
 	// f.nodes.printNodes("duplicate nodes after second run")
 
-	f.nodes.filterNotSelectedNodes()
-	// f.nodes.printNodes("nodes after filtering not selected")
-
 	f.nodes.populateHasSuggestions()
 
 	f.isResolvable(f.nodes)
@@ -355,6 +352,10 @@ func (f *NodeSuggestions) printNodes(msg string) {
 
 func (f *NodeSuggestions) populateHasSuggestions() {
 	for i := range f.items {
+		if !f.items[i].selected {
+			continue
+		}
+
 		suggestions, _ := f.pathSuggestions[f.items[i].Path]
 		suggestions = append(f.pathSuggestions[f.items[i].Path], f.items[i])
 		f.pathSuggestions[f.items[i].Path] = suggestions
