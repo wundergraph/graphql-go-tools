@@ -40,7 +40,7 @@ func createTestAuthorizer(authorizePreFetch preFetchAuthFunc, authorizeObjectFie
 }
 
 func TestAuthorization(t *testing.T) {
-	t.Run("allow all", testFnWithPostEvaluation(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("allow all", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			return nil, nil
@@ -57,7 +57,7 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 			}
 	}))
-	t.Run("validate authorizer args", testFnWithPostEvaluation(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("validate authorizer args", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 		assertions := atomic.Int64{}
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			if dataSourceID == "users" && coordinate.TypeName == "Query" && coordinate.FieldName == "me" {
@@ -99,7 +99,7 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(6), assertions.Load())
 			}
 	}))
-	t.Run("disallow field without policy", testFnWithPostEvaluation(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("disallow field without policy", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			if dataSourceID == "users" && coordinate.TypeName == "User" && coordinate.FieldName == "id" {
@@ -121,7 +121,7 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 			}
 	}))
-	t.Run("no authorization rules/checks", testFnWithPostEvaluation(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("no authorization rules/checks", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			return nil, nil
@@ -138,7 +138,7 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(0), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 			}
 	}))
-	t.Run("disallow root fetch", testFnWithPostEvaluation(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("disallow root fetch", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			if dataSourceID == "users" && coordinate.TypeName == "Query" && coordinate.FieldName == "me" {
@@ -160,7 +160,7 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(0), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 			}
 	}))
-	t.Run("disallow root fetch without reason", testFnWithPostEvaluation(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("disallow root fetch without reason", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			if dataSourceID == "users" && coordinate.TypeName == "Query" && coordinate.FieldName == "me" {
@@ -180,7 +180,7 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(0), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 			}
 	}))
-	t.Run("disallow child fetch", testFnWithPostEvaluation(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("disallow child fetch", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			if dataSourceID == "products" && coordinate.TypeName == "Product" && coordinate.FieldName == "name" {
@@ -202,7 +202,7 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 			}
 	}))
-	t.Run("disallow child field", testFnWithPostEvaluation(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("disallow child field", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			return nil, nil
@@ -224,7 +224,7 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 			}
 	}))
-	t.Run("disallow nested child fetch", testFnWithPostEvaluation(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("disallow nested child fetch", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 
@@ -248,7 +248,7 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 			}
 	}))
-	t.Run("error from authorizer should return", testFnWithError(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("error from authorizer should return", testFnWithError(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			return nil, errors.New("some error")
@@ -261,7 +261,7 @@ func TestAuthorization(t *testing.T) {
 		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
 			``
 	}))
-	t.Run("disallow nullable field", testFnWithPostEvaluation(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("disallow nullable field", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			return nil, nil
@@ -283,7 +283,7 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 			}
 	}))
-	t.Run("disallow nullable field without a reason", testFnWithPostEvaluation(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("disallow nullable field without a reason", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			return nil, nil
@@ -303,7 +303,7 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 			}
 	}))
-	t.Run("disallow non-nullable field (fetch)", testFnWithPostEvaluation(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("disallow non-nullable field (fetch)", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			if dataSourceID == "products" && coordinate.TypeName == "Product" && coordinate.FieldName == "name" {
@@ -325,7 +325,7 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 			}
 	}))
-	t.Run("disallow non-nullable field (field)", testFnWithPostEvaluation(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("disallow non-nullable field (field)", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			return nil, nil
@@ -347,7 +347,7 @@ func TestAuthorization(t *testing.T) {
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 			}
 	}))
-	t.Run("reject during the resolvable process", testFnWithError(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("reject during the resolvable process", testFnWithError(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			return nil, nil
