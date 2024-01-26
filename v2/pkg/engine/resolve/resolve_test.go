@@ -1498,6 +1498,8 @@ func testFnWithPostEvaluation(enableSingleFlight bool, fn func(t *testing.T, ctr
 	}
 }
 
+// TODO: remove enableSingleFlight
+
 func testFnWithError(enableSingleFlight bool, fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedErrorMessage string)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
