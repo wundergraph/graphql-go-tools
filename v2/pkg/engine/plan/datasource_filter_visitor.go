@@ -14,6 +14,8 @@ type DataSourceFilter struct {
 	report     *operationreport.Report
 
 	nodes *NodeSuggestions
+
+	enableSelectionReasons bool
 }
 
 func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report) *DataSourceFilter {
@@ -22,6 +24,10 @@ func NewDataSourceFilter(operation, definition *ast.Document, report *operationr
 		definition: definition,
 		report:     report,
 	}
+}
+
+func (f *DataSourceFilter) EnableSelectionReasons() {
+	f.enableSelectionReasons = true
 }
 
 func (f *DataSourceFilter) FilterDataSources(dataSources []DataSourceConfiguration, existingNodes *NodeSuggestions, hints ...NodeSuggestionHint) (used []DataSourceConfiguration, suggestions *NodeSuggestions) {
@@ -77,13 +83,14 @@ func (f *DataSourceFilter) collectNodes(dataSources []DataSourceConfiguration, e
 
 	walker := astvisitor.NewWalker(32)
 	visitor := &collectNodesVisitor{
-		operation:    f.operation,
-		definition:   f.definition,
-		walker:       &walker,
-		dataSources:  dataSources,
-		secondaryRun: secondaryRun,
-		nodes:        existingNodes,
-		hints:        hints,
+		operation:           f.operation,
+		definition:          f.definition,
+		walker:              &walker,
+		dataSources:         dataSources,
+		secondaryRun:        secondaryRun,
+		nodes:               existingNodes,
+		hints:               hints,
+		saveSelectionReason: f.enableSelectionReasons,
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterEnterFieldVisitor(visitor)
@@ -165,7 +172,7 @@ func (f *DataSourceFilter) selectUniqNodes() {
 		}
 
 		// unique nodes always have priority
-		f.nodes.items[i].selectWithReason(ReasonStage1Uniq)
+		f.nodes.items[i].selectWithReason(ReasonStage1Uniq, f.enableSelectionReasons)
 
 		if !f.nodes.items[i].onFragment { // on a first stage do not select parent of nodes on fragments
 			// if node parents of the unique node is on the same source, prioritize it too
@@ -176,7 +183,7 @@ func (f *DataSourceFilter) selectUniqNodes() {
 		children := f.nodes.childNodesOnSameSource(i)
 		for _, child := range children {
 			if f.nodes.isLeaf(child) && f.nodes.isNodeUniq(child) {
-				f.nodes.items[child].selectWithReason(ReasonStage1SameSourceLeafChild)
+				f.nodes.items[child].selectWithReason(ReasonStage1SameSourceLeafChild, f.enableSelectionReasons)
 			}
 		}
 
@@ -184,7 +191,7 @@ func (f *DataSourceFilter) selectUniqNodes() {
 		siblings := f.nodes.siblingNodesOnSameSource(i)
 		for _, sibling := range siblings {
 			if f.nodes.isLeaf(sibling) && f.nodes.isNodeUniq(sibling) {
-				f.nodes.items[sibling].selectWithReason(ReasonStage1SameSourceLeafSibling)
+				f.nodes.items[sibling].selectWithReason(ReasonStage1SameSourceLeafSibling, f.enableSelectionReasons)
 			}
 		}
 	}
@@ -206,7 +213,7 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 		if !ok {
 			break
 		}
-		f.nodes.items[parentIdx].selectWithReason(ReasonStage1SameSourceParent)
+		f.nodes.items[parentIdx].selectWithReason(ReasonStage1SameSourceParent, f.enableSelectionReasons)
 
 		current = parentIdx
 		if f.nodes.items[current].IsRootNode {
@@ -266,10 +273,10 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 		if secondRun {
 			// in case current node suggestion is an entity root node, and it contains key with disabled resolver
 			// it makes such node less preferable for selection
-			if f.nodes[i].LessPreferable {
+			if f.nodes.items[i].LessPreferable {
 				continue
 			}
-			f.nodes[i].selectWithReason(ReasonStage3SelectAvailableNode)
+			f.nodes.items[i].selectWithReason(ReasonStage3SelectAvailableNode, f.enableSelectionReasons)
 		}
 	}
 }
@@ -288,7 +295,7 @@ func (f *DataSourceFilter) checkNodeChilds(i int) (nodeIsSelected bool) {
 	childs := f.nodes.childNodesOnSameSource(i)
 	for _, child := range childs {
 		if f.nodes.items[child].selected {
-			f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedChild)
+			f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedChild, f.enableSelectionReasons)
 			nodeIsSelected = true
 			break
 		}
@@ -300,7 +307,7 @@ func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
 	siblings := f.nodes.siblingNodesOnSameSource(i)
 	for _, sibling := range siblings {
 		if f.nodes.items[sibling].selected {
-			f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedSibling)
+			f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedSibling, f.enableSelectionReasons)
 			nodeIsSelected = true
 			break
 		}
@@ -311,7 +318,7 @@ func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
 func (f *DataSourceFilter) checkNodeParent(i int) (nodeIsSelected bool) {
 	parentIdx, ok := f.nodes.parentNodeOnSameSource(i)
 	if ok && f.nodes.items[parentIdx].selected {
-		f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedParent)
+		f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedParent, f.enableSelectionReasons)
 		nodeIsSelected = true
 	}
 

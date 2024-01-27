@@ -16,6 +16,8 @@ type collectNodesVisitor struct {
 	dataSources []DataSourceConfiguration
 	nodes       *NodeSuggestions
 	hints       []NodeSuggestionHint
+
+	saveSelectionReason bool
 }
 
 func (f *collectNodesVisitor) EnterDocument(_, _ *ast.Document) {

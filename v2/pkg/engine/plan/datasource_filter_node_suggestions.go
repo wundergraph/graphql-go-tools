@@ -26,11 +26,13 @@ func (n *NodeSuggestion) appendSelectionReason(reason string) {
 	n.selectionReasons = append(n.selectionReasons, reason)
 }
 
-func (n *NodeSuggestion) selectWithReason(reason string) {
+func (n *NodeSuggestion) selectWithReason(reason string, saveReason bool) {
 	if n.selected {
 		return
 	}
-	// n.appendSelectionReason(reason) // NOTE: debug do not remove
+	if saveReason {
+		n.appendSelectionReason(reason)
+	}
 	n.selected = true
 }
 
