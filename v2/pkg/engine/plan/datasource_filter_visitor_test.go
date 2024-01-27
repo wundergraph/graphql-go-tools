@@ -1,12 +1,12 @@
 package plan
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"testing"
 	"time"
 
+	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
@@ -82,7 +82,7 @@ func TestNodeSuggestions(t *testing.T) {
 	t.Run("isSelectedOnOtherSource", func(t *testing.T) {
 		nodes := newNodeSuggestions([]NodeSuggestion{
 			{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query"},
-			{TypeName: "Query", FieldName: "user", DataSourceHash: 22, Path: "query.user", ParentPath: "query", selected: true, selectionReasons: []string{"stage1: uniq"}},
+			{TypeName: "Query", FieldName: "user", DataSourceHash: 22, Path: "query.user", ParentPath: "query", Selected: true, SelectionReasons: []string{"stage1: uniq"}},
 			{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user"},
 			{TypeName: "User", FieldName: "id", DataSourceHash: 22, Path: "query.user.id", ParentPath: "query.user"},
 		})
@@ -283,9 +283,69 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					RootNode("User", "id").DS(),
 			},
 			ExpectedSuggestions: newNodeSuggestions([]NodeSuggestion{
-				{TypeName: "Query", FieldName: "provider", DataSourceHash: 11, Path: "query.provider", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-				{TypeName: "AccountProvider", FieldName: "accounts", DataSourceHash: 11, Path: "query.provider.accounts", ParentPath: "query.provider", selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.provider.accounts.$User.name", ParentPath: "query.provider.accounts.$User", onFragment: true, parentPathWithoutFragment: strptr("query.provider.accounts"), IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
+				{TypeName: "Query", FieldName: "provider", DataSourceHash: 11, Path: "query.provider", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+				{TypeName: "AccountProvider", FieldName: "accounts", DataSourceHash: 11, Path: "query.provider.accounts", ParentPath: "query.provider", Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.provider.accounts.$User.name", ParentPath: "query.provider.accounts.$User", onFragment: true, parentPathWithoutFragment: strptr("query.provider.accounts"), IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+			}),
+		},
+		{
+			Description: "Choose users from first data source and name from the second with __typename",
+			Definition: `
+				type Query {
+					provider: AccountProvider
+				}
+				union Account = User
+				type AccountProvider {
+					accounts: [Account]
+		        }
+				type User {
+					id: Int
+					name: String
+				}	
+			`,
+			Query: `
+				query {
+					provider {
+						accounts {
+							__typename
+							... on User {
+								name
+							}
+						}
+					}
+				}
+			`,
+			DataSources: []DataSourceConfiguration{
+				dsb().Hash(22).Schema(`
+					union Account = User
+					type AccountProvider {
+						accounts: [Account]
+					}
+					type User @key(fields: "id") {
+						id: Int
+						name: String
+					}
+				`).RootNode("User", "id", "name").
+					ChildNode("AccountProvider", "accounts").DS(),
+				dsb().Hash(11).Schema(`
+					type Query {
+						provider: AccountProvider
+					}
+					union Account = User
+					type AccountProvider {
+						accounts: [Account]
+					}
+					type User @key(fields: "id") {
+						id: Int
+					}
+				`).RootNode("Query", "provider").
+					ChildNode("AccountProvider", "accounts").
+					RootNode("User", "id").DS(),
+			},
+			ExpectedSuggestions: newNodeSuggestions([]NodeSuggestion{
+				{TypeName: "Query", FieldName: "provider", DataSourceHash: 11, Path: "query.provider", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+				{TypeName: "AccountProvider", FieldName: "accounts", DataSourceHash: 11, Path: "query.provider.accounts", ParentPath: "query.provider", Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.provider.accounts.$User.name", ParentPath: "query.provider.accounts.$User", onFragment: true, parentPathWithoutFragment: strptr("query.provider.accounts"), IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
 			}),
 		},
 		{
@@ -334,10 +394,10 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				`).RootNode("User", "id", "age").DS(),
 			},
 			ExpectedSuggestions: newNodeSuggestions([]NodeSuggestion{
-				{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-				{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.user.name", ParentPath: "query.user", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-				{TypeName: "User", FieldName: "surname", DataSourceHash: 22, Path: "query.user.surname", ParentPath: "query.user", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source leaf sibling of uniq node"}},
+				{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+				{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.user.name", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+				{TypeName: "User", FieldName: "surname", DataSourceHash: 22, Path: "query.user.surname", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source leaf sibling of uniq node"}},
 			}),
 		},
 		{
@@ -400,10 +460,10 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				`).RootNode("User", "id", "name").DS(),
 			},
 			ExpectedSuggestions: newNodeSuggestions([]NodeSuggestion{
-				{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-				{TypeName: "User", FieldName: "age", DataSourceHash: 11, Path: "query.user.age", ParentPath: "query.user", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-				{TypeName: "User", FieldName: "name", DataSourceHash: 33, Path: "query.user.name", ParentPath: "query.user", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected sibling"}},
-				{TypeName: "User", FieldName: "surname", DataSourceHash: 33, Path: "query.user.surname", ParentPath: "query.user", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
+				{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+				{TypeName: "User", FieldName: "age", DataSourceHash: 11, Path: "query.user.age", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+				{TypeName: "User", FieldName: "name", DataSourceHash: 33, Path: "query.user.name", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected sibling"}},
+				{TypeName: "User", FieldName: "surname", DataSourceHash: 33, Path: "query.user.surname", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
 			}),
 		},
 		{
@@ -520,16 +580,16 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					DS(),
 			},
 			ExpectedSuggestions: newNodeSuggestions([]NodeSuggestion{
-				{TypeName: "Query", FieldName: "user", DataSourceHash: 22, Path: "query.user", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected child"}},
-				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.user.name", ParentPath: "query.user", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-				{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.user.details", ParentPath: "query.user", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-				{TypeName: "Details", FieldName: "age", DataSourceHash: 22, Path: "query.user.details.age", ParentPath: "query.user.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: same source leaf child of uniq node"}},
-				{TypeName: "Details", FieldName: "address", DataSourceHash: 22, Path: "query.user.details.address", ParentPath: "query.user.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-				{TypeName: "Address", FieldName: "name", DataSourceHash: 22, Path: "query.user.details.address.name", ParentPath: "query.user.details.address", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source leaf child of uniq node"}},
-				{TypeName: "Address", FieldName: "lines", DataSourceHash: 22, Path: "query.user.details.address.lines", ParentPath: "query.user.details.address", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-				{TypeName: "Lines", FieldName: "id", DataSourceHash: 22, Path: "query.user.details.address.lines.id", ParentPath: "query.user.details.address.lines", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-				{TypeName: "Lines", FieldName: "line1", DataSourceHash: 44, Path: "query.user.details.address.lines.line1", ParentPath: "query.user.details.address.lines", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected sibling"}},
-				{TypeName: "Lines", FieldName: "line2", DataSourceHash: 44, Path: "query.user.details.address.lines.line2", ParentPath: "query.user.details.address.lines", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
+				{TypeName: "Query", FieldName: "user", DataSourceHash: 22, Path: "query.user", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected child"}},
+				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.user.name", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+				{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.user.details", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+				{TypeName: "Details", FieldName: "age", DataSourceHash: 22, Path: "query.user.details.age", ParentPath: "query.user.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: same source leaf child of uniq node"}},
+				{TypeName: "Details", FieldName: "address", DataSourceHash: 22, Path: "query.user.details.address", ParentPath: "query.user.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+				{TypeName: "Address", FieldName: "name", DataSourceHash: 22, Path: "query.user.details.address.name", ParentPath: "query.user.details.address", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source leaf child of uniq node"}},
+				{TypeName: "Address", FieldName: "lines", DataSourceHash: 22, Path: "query.user.details.address.lines", ParentPath: "query.user.details.address", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+				{TypeName: "Lines", FieldName: "id", DataSourceHash: 22, Path: "query.user.details.address.lines.id", ParentPath: "query.user.details.address.lines", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+				{TypeName: "Lines", FieldName: "line1", DataSourceHash: 44, Path: "query.user.details.address.lines.line1", ParentPath: "query.user.details.address.lines", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected sibling"}},
+				{TypeName: "Lines", FieldName: "line2", DataSourceHash: 44, Path: "query.user.details.address.lines.line2", ParentPath: "query.user.details.address.lines", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
 			}),
 		},
 		{
@@ -591,21 +651,21 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				{
 					dsOrder: []int{0, 1},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "Details", FieldName: "name", DataSourceHash: 11, Path: "query.me.details.name", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Details", FieldName: "name", DataSourceHash: 11, Path: "query.me.details.name", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
 					}),
 				},
 				{
 					dsOrder: []int{1, 0},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "Details", FieldName: "name", DataSourceHash: 11, Path: "query.me.details.name", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Details", FieldName: "name", DataSourceHash: 11, Path: "query.me.details.name", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
 					}),
 				},
 			},
@@ -631,17 +691,17 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				{
 					dsOrder: []int{0, 1, 2},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage3: select first available node"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "Details", FieldName: "forename", DataSourceHash: 11, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage3: select first available node"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "Details", FieldName: "forename", DataSourceHash: 11, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
 					}),
 				},
 				{
 					dsOrder: []int{2, 1, 0},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage3: select first available node"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "Details", FieldName: "forename", DataSourceHash: 22, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage3: select first available node"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "Details", FieldName: "forename", DataSourceHash: 22, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
 					}),
 				},
 			},
@@ -665,10 +725,10 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				shareableDS3,
 			},
 			ExpectedSuggestions: newNodeSuggestions([]NodeSuggestion{
-				{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected child"}},
-				{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-				{TypeName: "Details", FieldName: "forename", DataSourceHash: 22, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-				{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
+				{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected child"}},
+				{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+				{TypeName: "Details", FieldName: "forename", DataSourceHash: 22, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+				{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
 			}),
 		},
 		{
@@ -694,34 +754,34 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				{
 					dsOrder: []int{1, 0, 2},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected child"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "Details", FieldName: "forename", DataSourceHash: 22, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected child"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "Details", FieldName: "forename", DataSourceHash: 22, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
 					}),
 				},
 				{
 					dsOrder: []int{2, 0, 1},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected child"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "Details", FieldName: "forename", DataSourceHash: 11, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected child"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "Details", FieldName: "forename", DataSourceHash: 11, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
 					}),
 				},
 				{
 					dsOrder: []int{2, 1, 0},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected child"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "Details", FieldName: "forename", DataSourceHash: 22, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected child"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "Details", FieldName: "forename", DataSourceHash: 22, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
 					}),
 				},
 			},
@@ -747,17 +807,17 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				{
 					dsOrder: []int{2, 1, 0},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage3: select first available node"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "Details", FieldName: "age", DataSourceHash: 33, Path: "query.me.details.age", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage3: select first available node"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "Details", FieldName: "age", DataSourceHash: 33, Path: "query.me.details.age", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
 					}),
 				},
 				{
 					dsOrder: []int{0, 1, 2},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage3: select first available node"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "Details", FieldName: "age", DataSourceHash: 33, Path: "query.me.details.age", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage3: select first available node"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "Details", FieldName: "age", DataSourceHash: 33, Path: "query.me.details.age", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
 					}),
 				},
 			},
@@ -784,19 +844,19 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				{
 					dsOrder: []int{0, 1},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "Details", FieldName: "pets", DataSourceHash: 33, Path: "query.me.details.pets", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "Pet", FieldName: "name", DataSourceHash: 33, Path: "query.me.details.pets.name", ParentPath: "query.me.details.pets", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: same source leaf child of uniq node"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "Details", FieldName: "pets", DataSourceHash: 33, Path: "query.me.details.pets", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Pet", FieldName: "name", DataSourceHash: 33, Path: "query.me.details.pets.name", ParentPath: "query.me.details.pets", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: same source leaf child of uniq node"}},
 					}),
 				},
 				{
 					dsOrder: []int{1, 0},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "Details", FieldName: "pets", DataSourceHash: 33, Path: "query.me.details.pets", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "Pet", FieldName: "name", DataSourceHash: 33, Path: "query.me.details.pets.name", ParentPath: "query.me.details.pets", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: same source leaf child of uniq node"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "Details", FieldName: "pets", DataSourceHash: 33, Path: "query.me.details.pets", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Pet", FieldName: "name", DataSourceHash: 33, Path: "query.me.details.pets.name", ParentPath: "query.me.details.pets", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: same source leaf child of uniq node"}},
 					}),
 				},
 			},
@@ -825,40 +885,40 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				{
 					dsOrder: []int{0, 1, 2},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected child"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "Details", FieldName: "forename", DataSourceHash: 11, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "Details", FieldName: "age", DataSourceHash: 33, Path: "query.me.details.age", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected child"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "Details", FieldName: "forename", DataSourceHash: 11, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Details", FieldName: "age", DataSourceHash: 33, Path: "query.me.details.age", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
 					}),
 				},
 				{
 					dsOrder: []int{1, 0, 2},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected child"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "Details", FieldName: "forename", DataSourceHash: 22, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "Details", FieldName: "age", DataSourceHash: 33, Path: "query.me.details.age", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected child"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "Details", FieldName: "forename", DataSourceHash: 22, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Details", FieldName: "age", DataSourceHash: 33, Path: "query.me.details.age", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
 					}),
 				},
 				{
 					dsOrder: []int{2, 1, 0},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected child"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "Details", FieldName: "forename", DataSourceHash: 22, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "Details", FieldName: "age", DataSourceHash: 33, Path: "query.me.details.age", ParentPath: "query.me.details", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected child"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "Details", FieldName: "forename", DataSourceHash: 22, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Details", FieldName: "age", DataSourceHash: 33, Path: "query.me.details.age", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
 					}),
 				},
 			},
@@ -893,37 +953,37 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				{
 					dsOrder: []int{0, 1},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "User", FieldName: "object", DataSourceHash: 11, Path: "query.user.object", ParentPath: "query.user", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "Object", FieldName: "name", DataSourceHash: 11, Path: "query.user.object.name", ParentPath: "query.user.object", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: same source leaf child of uniq node"}},
-						{TypeName: "User", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "User", FieldName: "nested", DataSourceHash: 22, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "NestedOne", FieldName: "uniqueOne", DataSourceHash: 11, Path: "query.user.nested.uniqueOne", ParentPath: "query.user.nested", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "NestedOne", FieldName: "uniqueTwo", DataSourceHash: 22, Path: "query.user.nested.uniqueTwo", ParentPath: "query.user.nested", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "NestedOne", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested.nested", ParentPath: "query.user.nested", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "NestedOne", FieldName: "nested", DataSourceHash: 22, Path: "query.user.nested.nested", ParentPath: "query.user.nested", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "NestedTwo", FieldName: "shared", DataSourceHash: 11, Path: "query.user.nested.nested.shared", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "NestedTwo", FieldName: "uniqueOne", DataSourceHash: 11, Path: "query.user.nested.nested.uniqueOne", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "NestedTwo", FieldName: "uniqueTwo", DataSourceHash: 22, Path: "query.user.nested.nested.uniqueTwo", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "User", FieldName: "object", DataSourceHash: 11, Path: "query.user.object", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Object", FieldName: "name", DataSourceHash: 11, Path: "query.user.object.name", ParentPath: "query.user.object", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: same source leaf child of uniq node"}},
+						{TypeName: "User", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "User", FieldName: "nested", DataSourceHash: 22, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "NestedOne", FieldName: "uniqueOne", DataSourceHash: 11, Path: "query.user.nested.uniqueOne", ParentPath: "query.user.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "NestedOne", FieldName: "uniqueTwo", DataSourceHash: 22, Path: "query.user.nested.uniqueTwo", ParentPath: "query.user.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "NestedOne", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested.nested", ParentPath: "query.user.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "NestedOne", FieldName: "nested", DataSourceHash: 22, Path: "query.user.nested.nested", ParentPath: "query.user.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "NestedTwo", FieldName: "shared", DataSourceHash: 11, Path: "query.user.nested.nested.shared", ParentPath: "query.user.nested.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "NestedTwo", FieldName: "uniqueOne", DataSourceHash: 11, Path: "query.user.nested.nested.uniqueOne", ParentPath: "query.user.nested.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "NestedTwo", FieldName: "uniqueTwo", DataSourceHash: 22, Path: "query.user.nested.nested.uniqueTwo", ParentPath: "query.user.nested.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
 					}),
 				},
 				{
 					dsOrder: []int{1, 0},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "User", FieldName: "object", DataSourceHash: 11, Path: "query.user.object", ParentPath: "query.user", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "Object", FieldName: "name", DataSourceHash: 11, Path: "query.user.object.name", ParentPath: "query.user.object", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: same source leaf child of uniq node"}},
-						{TypeName: "User", FieldName: "nested", DataSourceHash: 22, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "User", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "NestedOne", FieldName: "uniqueOne", DataSourceHash: 11, Path: "query.user.nested.uniqueOne", ParentPath: "query.user.nested", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "NestedOne", FieldName: "uniqueTwo", DataSourceHash: 22, Path: "query.user.nested.uniqueTwo", ParentPath: "query.user.nested", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "NestedOne", FieldName: "nested", DataSourceHash: 22, Path: "query.user.nested.nested", ParentPath: "query.user.nested", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "NestedOne", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested.nested", ParentPath: "query.user.nested", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: same source parent of uniq node"}},
-						{TypeName: "NestedTwo", FieldName: "shared", DataSourceHash: 22, Path: "query.user.nested.nested.shared", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "NestedTwo", FieldName: "uniqueOne", DataSourceHash: 11, Path: "query.user.nested.nested.uniqueOne", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "NestedTwo", FieldName: "uniqueTwo", DataSourceHash: 22, Path: "query.user.nested.nested.uniqueTwo", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true, selectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "User", FieldName: "object", DataSourceHash: 11, Path: "query.user.object", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Object", FieldName: "name", DataSourceHash: 11, Path: "query.user.object.name", ParentPath: "query.user.object", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: same source leaf child of uniq node"}},
+						{TypeName: "User", FieldName: "nested", DataSourceHash: 22, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "User", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "NestedOne", FieldName: "uniqueOne", DataSourceHash: 11, Path: "query.user.nested.uniqueOne", ParentPath: "query.user.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "NestedOne", FieldName: "uniqueTwo", DataSourceHash: 22, Path: "query.user.nested.uniqueTwo", ParentPath: "query.user.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "NestedOne", FieldName: "nested", DataSourceHash: 22, Path: "query.user.nested.nested", ParentPath: "query.user.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "NestedOne", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested.nested", ParentPath: "query.user.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: same source parent of uniq node"}},
+						{TypeName: "NestedTwo", FieldName: "shared", DataSourceHash: 22, Path: "query.user.nested.nested.shared", ParentPath: "query.user.nested.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "NestedTwo", FieldName: "uniqueOne", DataSourceHash: 11, Path: "query.user.nested.nested.uniqueOne", ParentPath: "query.user.nested.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "NestedTwo", FieldName: "uniqueTwo", DataSourceHash: 22, Path: "query.user.nested.nested.uniqueTwo", ParentPath: "query.user.nested.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
 					}),
 				},
 			},
@@ -955,27 +1015,27 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				{
 					dsOrder: []int{0, 1},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "users", DataSourceHash: 11, Path: "query.users", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "PaginatedUser", FieldName: "edges", DataSourceHash: 11, Path: "query.users.edges", ParentPath: "query.users", IsRootNode: false, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "UserToEdge", FieldName: "node", DataSourceHash: 11, Path: "query.users.edges.node", ParentPath: "query.users.edges", IsRootNode: false, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.users.edges.node.id", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "User", FieldName: "firstName", DataSourceHash: 11, Path: "query.users.edges.node.firstName", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "User", FieldName: "lastName", DataSourceHash: 11, Path: "query.users.edges.node.lastName", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source leaf sibling of uniq node"}},
-						{TypeName: "User", FieldName: "address", DataSourceHash: 22, Path: "query.users.edges.node.address", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "Address", FieldName: "street", DataSourceHash: 22, Path: "query.users.edges.node.address.street", ParentPath: "query.users.edges.node.address", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source leaf child of uniq node"}},
+						{TypeName: "Query", FieldName: "users", DataSourceHash: 11, Path: "query.users", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "PaginatedUser", FieldName: "edges", DataSourceHash: 11, Path: "query.users.edges", ParentPath: "query.users", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "UserToEdge", FieldName: "node", DataSourceHash: 11, Path: "query.users.edges.node", ParentPath: "query.users.edges", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.users.edges.node.id", ParentPath: "query.users.edges.node", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "User", FieldName: "firstName", DataSourceHash: 11, Path: "query.users.edges.node.firstName", ParentPath: "query.users.edges.node", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "User", FieldName: "lastName", DataSourceHash: 11, Path: "query.users.edges.node.lastName", ParentPath: "query.users.edges.node", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source leaf sibling of uniq node"}},
+						{TypeName: "User", FieldName: "address", DataSourceHash: 22, Path: "query.users.edges.node.address", ParentPath: "query.users.edges.node", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Address", FieldName: "street", DataSourceHash: 22, Path: "query.users.edges.node.address.street", ParentPath: "query.users.edges.node.address", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source leaf child of uniq node"}},
 					}),
 				},
 				{
 					dsOrder: []int{1, 0},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "users", DataSourceHash: 11, Path: "query.users", ParentPath: "query", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "PaginatedUser", FieldName: "edges", DataSourceHash: 11, Path: "query.users.edges", ParentPath: "query.users", IsRootNode: false, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "UserToEdge", FieldName: "node", DataSourceHash: 11, Path: "query.users.edges.node", ParentPath: "query.users.edges", IsRootNode: false, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.users.edges.node.id", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true, selectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "User", FieldName: "firstName", DataSourceHash: 11, Path: "query.users.edges.node.firstName", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "User", FieldName: "lastName", DataSourceHash: 11, Path: "query.users.edges.node.lastName", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source leaf sibling of uniq node"}},
-						{TypeName: "User", FieldName: "address", DataSourceHash: 22, Path: "query.users.edges.node.address", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: uniq"}},
-						{TypeName: "Address", FieldName: "street", DataSourceHash: 22, Path: "query.users.edges.node.address.street", ParentPath: "query.users.edges.node.address", IsRootNode: true, selected: true, selectionReasons: []string{"stage1: same source leaf child of uniq node"}},
+						{TypeName: "Query", FieldName: "users", DataSourceHash: 11, Path: "query.users", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "PaginatedUser", FieldName: "edges", DataSourceHash: 11, Path: "query.users.edges", ParentPath: "query.users", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "UserToEdge", FieldName: "node", DataSourceHash: 11, Path: "query.users.edges.node", ParentPath: "query.users.edges", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.users.edges.node.id", ParentPath: "query.users.edges.node", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+						{TypeName: "User", FieldName: "firstName", DataSourceHash: 11, Path: "query.users.edges.node.firstName", ParentPath: "query.users.edges.node", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "User", FieldName: "lastName", DataSourceHash: 11, Path: "query.users.edges.node.lastName", ParentPath: "query.users.edges.node", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source leaf sibling of uniq node"}},
+						{TypeName: "User", FieldName: "address", DataSourceHash: 22, Path: "query.users.edges.node.address", ParentPath: "query.users.edges.node", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: uniq"}},
+						{TypeName: "Address", FieldName: "street", DataSourceHash: 22, Path: "query.users.edges.node.address.street", ParentPath: "query.users.edges.node.address", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source leaf child of uniq node"}},
 					}),
 				},
 			},
@@ -1000,7 +1060,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 		}
 		dsFilter.EnableSelectionReasons()
 
-		planned := dsFilter.findBestDataSourceSet(DataSources, nil)
+		planned := dsFilter.findBestDataSourceSetTree(DataSources, nil)
 		if report.HasErrors() {
 			t.Fatal(report.Error())
 		}
@@ -1008,10 +1068,9 @@ func TestFindBestDataSourceSet(t *testing.T) {
 		planned.filterNotSelectedNodes()
 
 		if !assert.Equal(t, expected.items, planned.items) {
-			expected, _ := json.MarshalIndent(expected.items, "", "  ")
-			planned, _ := json.MarshalIndent(planned.items, "", "  ")
-
-			assert.Equal(t, string(expected), string(planned))
+			if diff := pretty.Compare(expected.items, planned.items); diff != "" {
+				t.Errorf("Result don't match(-want +got)\n%s", diff)
+			}
 		}
 	}
 

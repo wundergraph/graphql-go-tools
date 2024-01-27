@@ -13,14 +13,17 @@ type collectNodesVisitor struct {
 	walker       *astvisitor.Walker
 	secondaryRun bool
 
-	dataSources []DataSourceConfiguration
-	nodes       *NodeSuggestions
-	hints       []NodeSuggestionHint
+	dataSources   []DataSourceConfiguration
+	nodes         *NodeSuggestions
+	hints         []NodeSuggestionHint
+	parentNodeIds []uint
 
 	saveSelectionReason bool
 }
 
 func (f *collectNodesVisitor) EnterDocument(_, _ *ast.Document) {
+	f.parentNodeIds = []uint{treeRootID}
+
 	if !f.secondaryRun {
 		f.nodes = NewNodeSuggestions()
 		return
@@ -51,6 +54,8 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 	}
 
 	currentPath := parentPath + "." + fieldAliasOrName
+
+	itemIds := make([]int, 0, 1)
 
 	for _, v := range f.dataSources {
 		hasRootNode := v.HasRootNode(typeName, fieldName) || (isTypeName && v.HasRootNodeWithTypename(typeName))
@@ -94,6 +99,37 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 			}
 
 			f.nodes.addSuggestion(&node)
+
+			itemIds = append(itemIds, len(f.nodes.items)-1)
 		}
+	}
+
+	if len(itemIds) == 0 {
+		// TMP: union
+		return
+	}
+
+	parentNodeId := f.currentParentID()
+	currentNodeId := f.currentFieldNodeID(ref)
+
+	added, exists := f.nodes.responseTree.Add(currentNodeId, parentNodeId, itemIds)
+	f.parentNodeIds = append(f.parentNodeIds, currentNodeId)
+	_, _ = added, exists
+}
+
+func (f *collectNodesVisitor) currentParentID() uint {
+	return f.parentNodeIds[len(f.parentNodeIds)-1]
+}
+
+func (f *collectNodesVisitor) currentFieldNodeID(ref int) uint {
+	return uint(10000 + ref)
+}
+
+func (f *collectNodesVisitor) LeaveField(ref int) {
+	parentNodeId := f.currentParentID()
+	currentNodeId := f.currentFieldNodeID(ref)
+
+	if parentNodeId == currentNodeId {
+		f.parentNodeIds = f.parentNodeIds[:len(f.parentNodeIds)-1]
 	}
 }

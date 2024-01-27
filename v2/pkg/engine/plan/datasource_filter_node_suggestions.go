@@ -2,7 +2,11 @@ package plan
 
 import (
 	"fmt"
+
+	"github.com/kingledion/go-tools/tree"
 )
+
+const treeRootID = ^uint(0)
 
 type NodeSuggestion struct {
 	TypeName       string
@@ -15,30 +19,29 @@ type NodeSuggestion struct {
 
 	parentPathWithoutFragment *string
 	onFragment                bool
-	selected                  bool
-	selectionReasons          []string
+	Selected                  bool
+	SelectionReasons          []string
 
 	fieldRef int
 }
 
 func (n *NodeSuggestion) appendSelectionReason(reason string) {
-	// fmt.Println("ds:", n.DataSourceHash, fmt.Sprintf("%s.%s", n.TypeName, n.FieldName), "reason:", reason) // NOTE: debug do not remove
-	n.selectionReasons = append(n.selectionReasons, reason)
+	n.SelectionReasons = append(n.SelectionReasons, reason)
 }
 
 func (n *NodeSuggestion) selectWithReason(reason string, saveReason bool) {
-	if n.selected {
+	if n.Selected {
 		return
 	}
 	if saveReason {
 		n.appendSelectionReason(reason)
 	}
-	n.selected = true
+	n.Selected = true
 }
 
 func (n *NodeSuggestion) String() string {
 	return fmt.Sprintf(`{"ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t, "isSelected": %v,"select reason": %v}`,
-		n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode, n.selected, n.selectionReasons)
+		n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode, n.Selected, n.SelectionReasons)
 }
 
 type NodeSuggestionHint struct {
@@ -53,6 +56,7 @@ type NodeSuggestions struct {
 	items           []*NodeSuggestion
 	pathSuggestions map[string][]*NodeSuggestion
 	seenFields      map[int]struct{}
+	responseTree    tree.Tree[[]int]
 }
 
 func NewNodeSuggestions() *NodeSuggestions {
@@ -60,10 +64,14 @@ func NewNodeSuggestions() *NodeSuggestions {
 }
 
 func NewNodeSuggestionsWithSize(size int) *NodeSuggestions {
+	responseTree := tree.Empty[[]int]()
+	responseTree.Add(treeRootID, 0, nil)
+
 	return &NodeSuggestions{
 		items:           make([]*NodeSuggestion, 0, size),
 		seenFields:      make(map[int]struct{}, size),
 		pathSuggestions: make(map[string][]*NodeSuggestion),
+		responseTree:    *responseTree,
 	}
 }
 
@@ -102,7 +110,7 @@ func (f *NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string)
 	}
 
 	for i := range items {
-		if typeName == items[i].TypeName && fieldName == items[i].FieldName && items[i].selected {
+		if typeName == items[i].TypeName && fieldName == items[i].FieldName && items[i].Selected {
 			return items[i].DataSourceHash, true
 		}
 	}
@@ -131,7 +139,7 @@ func (f *NodeSuggestions) isSelectedOnOtherSource(idx int) bool {
 			f.items[idx].FieldName == f.items[i].FieldName &&
 			f.items[idx].Path == f.items[i].Path &&
 			f.items[idx].DataSourceHash != f.items[i].DataSourceHash &&
-			f.items[i].selected {
+			f.items[i].Selected {
 
 			return true
 		}
@@ -249,12 +257,62 @@ func (f *NodeSuggestions) printNodes(msg string) {
 
 func (f *NodeSuggestions) populateHasSuggestions() {
 	for i := range f.items {
-		if !f.items[i].selected {
+		if !f.items[i].Selected {
 			continue
 		}
 
 		suggestions, _ := f.pathSuggestions[f.items[i].Path]
 		suggestions = append(f.pathSuggestions[f.items[i].Path], f.items[i])
 		f.pathSuggestions[f.items[i].Path] = suggestions
+	}
+}
+
+type treeNode tree.Node[[]int]
+
+type nodeCheckCallback func(node treeNode)
+
+func (f *NodeSuggestions) AnyNodeItemIsSelected(node treeNode) bool {
+	for _, itemId := range node.GetData() {
+		if f.items[itemId].Selected {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (f *NodeSuggestions) isTreeNodeUniq(node treeNode) bool {
+	return len(node.GetData()) == 1
+}
+
+func (f *NodeSuggestions) isTreeNodeLeaf(node treeNode) bool {
+	return len(node.GetChildren()) == 0
+}
+
+func (f *NodeSuggestions) ForEachSibling(node treeNode, callback nodeCheckCallback) {
+	childrenOfParent := node.GetParent().GetChildren()
+
+	if len(childrenOfParent) < 2 {
+		return
+	}
+
+	for _, child := range childrenOfParent {
+		if child.GetID() == node.GetID() {
+			continue
+		}
+
+		callback(child)
+	}
+}
+
+func (f *NodeSuggestions) ForEachChild(node treeNode, callback nodeCheckCallback) {
+	children := node.GetChildren()
+
+	if len(children) == 0 {
+		return
+	}
+
+	for _, child := range children {
+		callback(child)
 	}
 }

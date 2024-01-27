@@ -93,7 +93,7 @@ func (f *DataSourceFilter) collectNodes(dataSources []DataSourceConfiguration, e
 		saveSelectionReason: f.enableSelectionReasons,
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
-	walker.RegisterEnterFieldVisitor(visitor)
+	walker.RegisterFieldVisitor(visitor)
 	walker.Walk(f.operation, f.definition, f.report)
 	return visitor.nodes
 }
@@ -144,14 +144,14 @@ func (f *DataSourceFilter) applySuggestionHints(hints []NodeSuggestionHint) {
 		}
 
 		if f.nodes.items[i].DataSourceHash != *dsHashHint {
-			if f.nodes.items[i].selected {
+			if f.nodes.items[i].Selected {
 				// if the node was already selected by another datasource
 				// we unselect it
-				f.nodes.items[i].selected = false
-				f.nodes.items[i].selectionReasons = nil
+				f.nodes.items[i].Selected = false
+				f.nodes.items[i].SelectionReasons = nil
 			}
 		} else {
-			f.nodes.items[i].selectWithReason(ReasonKeyRequirementProvidedByPlanner)
+			f.nodes.items[i].selectWithReason(ReasonKeyRequirementProvidedByPlanner, f.enableSelectionReasons)
 		}
 	}
 }
@@ -161,8 +161,9 @@ func (f *DataSourceFilter) applySuggestionHints(hints []NodeSuggestionHint) {
 //   - parent of such node if the node is a leaf and not nested under the fragment
 //   - siblings nodes
 func (f *DataSourceFilter) selectUniqNodes() {
+
 	for i := range f.nodes.items {
-		if f.nodes.items[i].selected {
+		if f.nodes.items[i].Selected {
 			continue
 		}
 
@@ -234,7 +235,7 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 // we select nodes which was not choosen by previous stages, so we just pick first available datasource
 func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 	for i := range f.nodes.items {
-		if f.nodes.items[i].selected {
+		if f.nodes.items[i].Selected {
 			continue
 		}
 
@@ -294,7 +295,7 @@ func (f *DataSourceFilter) checkNodeDuplicates(duplicates []int, callback func(n
 func (f *DataSourceFilter) checkNodeChilds(i int) (nodeIsSelected bool) {
 	childs := f.nodes.childNodesOnSameSource(i)
 	for _, child := range childs {
-		if f.nodes.items[child].selected {
+		if f.nodes.items[child].Selected {
 			f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedChild, f.enableSelectionReasons)
 			nodeIsSelected = true
 			break
@@ -306,7 +307,7 @@ func (f *DataSourceFilter) checkNodeChilds(i int) (nodeIsSelected bool) {
 func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
 	siblings := f.nodes.siblingNodesOnSameSource(i)
 	for _, sibling := range siblings {
-		if f.nodes.items[sibling].selected {
+		if f.nodes.items[sibling].Selected {
 			f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedSibling, f.enableSelectionReasons)
 			nodeIsSelected = true
 			break
@@ -317,7 +318,7 @@ func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
 
 func (f *DataSourceFilter) checkNodeParent(i int) (nodeIsSelected bool) {
 	parentIdx, ok := f.nodes.parentNodeOnSameSource(i)
-	if ok && f.nodes.items[parentIdx].selected {
+	if ok && f.nodes.items[parentIdx].Selected {
 		f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedParent, f.enableSelectionReasons)
 		nodeIsSelected = true
 	}
