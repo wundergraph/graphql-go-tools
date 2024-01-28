@@ -235,7 +235,12 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 		i++
 
 		if i > 100 {
-			report.AddInternalError(fmt.Errorf("bad datasource configuration - could not plan the operation"))
+			missingPaths := make([]string, 0, len(p.configurationVisitor.missingPathTracker))
+			for path := range p.configurationVisitor.missingPathTracker {
+				missingPaths = append(missingPaths, path)
+			}
+
+			report.AddInternalError(fmt.Errorf("bad datasource configuration - could not plan the operation. missing path: %v", missingPaths))
 			return
 		}
 	}
