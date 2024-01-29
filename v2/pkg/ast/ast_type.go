@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafebytes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
 )

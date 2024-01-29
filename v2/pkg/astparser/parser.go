@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/identkeyword"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/keyword"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
