@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/tidwall/sjson"
 
-	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/quotes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/quotes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 

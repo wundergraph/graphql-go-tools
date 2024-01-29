@@ -15,11 +15,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/pkg/execution/datasource"
+	"github.com/wundergraph/graphql-go-tools/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )

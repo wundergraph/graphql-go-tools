@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 )
 
 func prettyPrint(s string) string {

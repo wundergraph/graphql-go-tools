@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafebytes"
+	"github.com/wundergraph/graphql-go-tools/pkg/internal/unsafebytes"
 )
 
 type Node struct {

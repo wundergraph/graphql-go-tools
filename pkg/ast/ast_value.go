@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/wundergraph/graphql-go-tools/internal/pkg/quotes"
-	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafebytes"
+	"github.com/wundergraph/graphql-go-tools/pkg/internal/quotes"
+	"github.com/wundergraph/graphql-go-tools/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/position"
 )

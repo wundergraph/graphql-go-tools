@@ -6,10 +6,10 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
 
-	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astimport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
 
 func extractVariables(walker *astvisitor.Walker) *variablesExtractionVisitor {

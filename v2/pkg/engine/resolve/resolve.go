@@ -13,10 +13,11 @@ import (
 	"github.com/alitto/pond"
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
-	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/xcontext"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 	"go.uber.org/atomic"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/xcontext"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 var (
@@ -66,7 +67,7 @@ type ResolverOptions struct {
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
 func New(ctx context.Context, options ResolverOptions) *Resolver {
-	//options.Debug = true
+	// options.Debug = true
 	resolver := &Resolver{
 		ctx:     ctx,
 		options: options,

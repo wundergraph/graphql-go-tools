@@ -7,8 +7,8 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/astnormalization"
+	"github.com/wundergraph/graphql-go-tools/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
