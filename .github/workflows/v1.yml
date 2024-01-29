@@ -7,7 +7,7 @@ on:
       - 'v2/**'
       - '.github/workflows/v2.yml'
       - 'go.work'
-      - 'go.sum'
+      - 'go.work.sum'
   push:
     branches:
       - master
