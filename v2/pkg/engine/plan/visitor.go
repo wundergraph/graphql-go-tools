@@ -1140,8 +1140,9 @@ func (v *Visitor) configureFetch(internal objectFetchConfiguration, external res
 
 	if v.Config.IncludeInfo {
 		singleFetch.Info = &resolve.FetchInfo{
-			DataSourceID: internal.sourceID,
-			RootFields:   internal.rootFields,
+			DataSourceID:  internal.sourceID,
+			RootFields:    internal.rootFields,
+			OperationType: internal.operationType,
 		}
 	}
 

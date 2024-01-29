@@ -519,7 +519,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								PostProcessing: DefaultPostProcessingConfiguration,
 							},
 							Info: &resolve.FetchInfo{
-								DataSourceID: "user.service",
+								OperationType: ast.OperationTypeQuery,
+								DataSourceID:  "user.service",
 								RootFields: []resolve.GraphCoordinate{
 									{
 										TypeName:  "Query",
@@ -625,6 +626,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																HasAuthorizationRule: true,
 															},
 														},
+														OperationType: ast.OperationTypeQuery,
 													},
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 													FetchConfiguration: resolve.FetchConfiguration{
