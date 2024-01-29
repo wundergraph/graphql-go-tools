@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 )

@@ -3,7 +3,7 @@ package astvisitor
 import (
 	"testing"
 
-	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/pkg/internal/unsafeparser"
 )
 
 func BenchmarkSimpleVisitor(b *testing.B) {

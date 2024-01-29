@@ -7,8 +7,8 @@ import (
 
 	"github.com/jensneuse/diffview"
 
-	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/astprinter"
+	"github.com/wundergraph/graphql-go-tools/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 )
 
