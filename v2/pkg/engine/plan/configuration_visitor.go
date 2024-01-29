@@ -79,6 +79,7 @@ type objectFetchConfiguration struct {
 	fetchID            int
 	dependsOnFetchIDs  []int
 	rootFields         []resolve.GraphCoordinate
+	operationType      ast.OperationType
 }
 
 func (c *configurationVisitor) currentSelectionSet() int {
@@ -781,6 +782,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		fieldDefinitionRef: fieldDefinition,
 		fetchID:            fetchID,
 		sourceID:           config.ID,
+		operationType:      c.resolveRootFieldOperationType(typeName),
 	}
 
 	plannerConfig := &plannerConfiguration{
@@ -799,6 +801,19 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 	}
 
 	return len(c.planners) - 1, true
+}
+
+func (c *configurationVisitor) resolveRootFieldOperationType(typeName string) ast.OperationType {
+	if typeName == c.definition.Index.QueryTypeName.String() {
+		return ast.OperationTypeQuery
+	}
+	if typeName == c.definition.Index.MutationTypeName.String() {
+		return ast.OperationTypeMutation
+	}
+	if typeName == c.definition.Index.SubscriptionTypeName.String() {
+		return ast.OperationTypeSubscription
+	}
+	return ast.OperationTypeQuery
 }
 
 // handleMissingPath - records missing path for the case when we don't yet have a planner for the field

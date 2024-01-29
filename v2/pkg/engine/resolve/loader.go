@@ -109,7 +109,7 @@ func (l *Loader) walkObject(object *Object, parentItems []int) (err error) {
 	if object.Fetch != nil {
 		err = l.resolveAndMergeFetch(object.Fetch, objectItems)
 		if err != nil {
-			return errors.WithStack(err)
+			return err
 		}
 	}
 	for i := range object.Fields {
@@ -184,7 +184,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		err := l.loadSingleFetch(l.ctx.ctx, f, items, res)
 		if err != nil {
-			return errors.WithStack(err)
+			return err
 		}
 		return l.mergeResult(res, items)
 	case *SerialFetch:
@@ -349,7 +349,7 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 	if res.authorizationRejected {
 		err := l.renderAuthorizationRejectedErrors(res)
 		if err != nil {
-			return errors.WithStack(err)
+			return err
 		}
 		before := l.data.DebugPrintNode(l.dataRoot)
 		for _, item := range items {
@@ -573,6 +573,16 @@ func (l *Loader) isFetchAuthorized(input []byte, info *FetchInfo, res *result) (
 	if info == nil {
 		return true, nil
 	}
+	if info.OperationType == ast.OperationTypeQuery {
+		// we only want to authorize Mutations and Subscriptions at the load level
+		// Mutations can have side effects, so we don't want to send them to a subgraph if the user is not authorized
+		// Subscriptions only have one single root field, so it's safe to deny the whole request if unauthorized
+		// Queries can have multiple root fields, but have no side effects
+		// So we don't need to deny the request if one of the root fields is unauthorized
+		// Instead, we send the request to the subgraph and filter out the unauthorized fields later
+		// This is done in the resolvable during the response resolution phase
+		return true, nil
+	}
 	if l.ctx.authorizer == nil {
 		return true, nil
 	}
@@ -583,7 +593,7 @@ func (l *Loader) isFetchAuthorized(input []byte, info *FetchInfo, res *result) (
 		}
 		reject, err := l.ctx.authorizer.AuthorizePreFetch(l.ctx, info.DataSourceID, input, info.RootFields[i])
 		if err != nil {
-			return false, errors.WithStack(err)
+			return false, err
 		}
 		if reject != nil {
 			authorized = false
@@ -619,7 +629,7 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items 
 	fetchInput := preparedInput.Bytes()
 	authorized, err := l.isFetchAuthorized(fetchInput, fetch.Info, res)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 	if !authorized {
 		return nil

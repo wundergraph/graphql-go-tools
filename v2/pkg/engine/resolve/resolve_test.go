@@ -1453,7 +1453,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	}))
 }
 
-func testFn(enableSingleFlight bool, fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
+func testFn(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 
@@ -1521,14 +1521,14 @@ func testFnWithError(fn func(t *testing.T, ctrl *gomock.Controller) (node *Graph
 
 func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
-	t.Run("empty graphql response", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("empty graphql response", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: true,
 			},
 		}, Context{ctx: context.Background()}, `{"data":{}}`
 	}))
-	t.Run("__typename without renaming", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("__typename without renaming", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Fields: []*Field{
@@ -1584,7 +1584,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"User","aliased":"User","rewritten":"User"}}}`
 	}))
-	t.Run("__typename with renaming", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("__typename with renaming", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 				Data: &Object{
 					Fields: []*Field{
@@ -1648,7 +1648,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 			}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"namespaced_User","aliased":"namespaced_User","rewritten":"namespaced_User"}}}`
 	}))
-	t.Run("empty graphql response for not nullable query field", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("empty graphql response for not nullable query field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: false,
@@ -1681,7 +1681,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.country'.","path":["country"]}],"data":null}`
 	}))
-	t.Run("fetch with simple error", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("fetch with simple error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -1713,7 +1713,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage"}],"data":{"name":null}}`
 	}))
-	t.Run("fetch with returned err", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("fetch with returned err", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -1746,7 +1746,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at path 'query'."}],"data":null}`
 	}))
-	t.Run("fetch with returned err", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("fetch with returned err", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -1776,7 +1776,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph at path 'query'."}],"data":null}`
 	}))
-	t.Run("fetch with two Errors", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("fetch with two Errors", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -1809,7 +1809,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage1"},{"message":"errorMessage2"}],"data":{"name":null}}`
 	}))
-	t.Run("not nullable object in nullable field", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("not nullable object in nullable field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: false,
@@ -1905,13 +1905,13 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				}
 			}
 
-			t.Run("interface response with matching type", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+			t.Run("interface response with matching type", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 				return obj(`{"thing":{"id":"1","abstractThing":{"__typename":"ConcreteOne","name":"foo"}}}`),
 					Context{ctx: context.Background()},
 					`{"data":{"thing":{"id":"1","abstractThing":{"name":"foo","__typename":"ConcreteOne"}}}}`
 			}))
 
-			t.Run("interface response with not matching type", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+			t.Run("interface response with not matching type", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 				return obj(`{"thing":{"id":"1","abstractThing":{"__typename":"ConcreteTwo"}}}`),
 					Context{ctx: context.Background()},
 					`{"data":{"thing":{"id":"1","abstractThing":{}}}}`
@@ -1969,13 +1969,13 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				}
 			}
 
-			t.Run("interface response with matching type", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+			t.Run("interface response with matching type", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 				return obj(`{"data":{"things":[{"id":"1","abstractThing":{"__typename":"ConcreteOne","name":"foo"}}]}}`),
 					Context{ctx: context.Background()},
 					`{"data":{"things":[{"id":"1","abstractThing":{"name":"foo"}}]}}`
 			}))
 
-			t.Run("interface response with not matching type", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+			t.Run("interface response with not matching type", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 				return obj(`{"data":{"things":[{"id":"1","abstractThing":{"__typename":"ConcreteTwo"}}]}}`),
 					Context{ctx: context.Background()},
 					`{"data":{"things":[{"id":"1","abstractThing":{}}]}}`
@@ -1983,7 +1983,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		})
 	})
 
-	t.Run("empty nullable array should resolve correctly", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("empty nullable array should resolve correctly", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: true,
@@ -2013,7 +2013,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"data":{"nullableArray":[]}}`
 	}))
-	t.Run("empty not nullable array should resolve correctly", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("empty not nullable array should resolve correctly", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: false,
@@ -2043,7 +2043,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"data":{"notNullableArray":[]}}`
 	}))
-	t.Run("when data null not nullable array should resolve to data null and errors", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("when data null not nullable array should resolve to data null and errors", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Fetch: &SingleFetch{
@@ -2093,7 +2093,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Array cannot represent non-array value.","path":[]}],"data":null}`
 	}))
-	t.Run("when data null and errors present not nullable array should result to null data upsteam error and resolve error", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("when data null and errors present not nullable array should result to null data upsteam error and resolve error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: false,
@@ -2132,7 +2132,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos",0,"name"]}],"data":null}`
 	}))
-	t.Run("complex GraphQL Server plan", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("complex GraphQL Server plan", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		serviceOne := NewMockDataSource(ctrl)
 		serviceOne.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -2374,7 +2374,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		}, Context{ctx: context.Background(), Variables: []byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`)}, `{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"serviceTwo":{"fieldTwo":"fieldTwoValue","serviceOneResponse":{"fieldOne":"fieldOneValue"}},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}}`
 	}))
 	t.Run("federation", func(t *testing.T) {
-		t.Run("simple", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		t.Run("simple", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
@@ -2589,7 +2589,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Furby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Trilby"}}]}}}`
 		}))
-		t.Run("federation with batch", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		t.Run("federation with batch", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
 				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -2790,7 +2790,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`
 		}))
-		t.Run("federation with merge paths", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		t.Run("federation with merge paths", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
 				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -2992,7 +2992,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`
 		}))
-		t.Run("federation with null response", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		t.Run("federation with null response", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
 				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -3222,7 +3222,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"foo","product":{"upc":"top-1","name":"Trilby"}},{"body":"bar","product":{"upc":"top-2","name":"Fedora"}},{"body":"baz","product":null},{"body":"bat","product":{"upc":"top-4","name":"Boater"}},{"body":"bal","product":{"upc":"top-5","name":"Top Hat"}},{"body":"ban","product":{"upc":"top-6","name":"Bowler"}}]}}}`
 		}))
-		t.Run("federation with fetch error", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		t.Run("federation with fetch error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
@@ -3413,7 +3413,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 			}, Context{ctx: context.Background(), Variables: nil}, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.me.reviews.product.name'.","path":["me","reviews",0,"product","name"]},{"message":"Cannot return null for non-nullable field 'Query.me.reviews.product.name'.","path":["me","reviews",1,"product","name"]}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`
 		}))
-		t.Run("federation with fetch error and non null fields inside an array", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		t.Run("federation with fetch error and non null fields inside an array", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
@@ -3602,7 +3602,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 			}, Context{ctx: context.Background(), Variables: nil}, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.me.reviews.product.name'.","path":["me","reviews",0,"product","name"]}],"data":{"me":{"id":"1234","username":"Me","reviews":null}}}`
 		}))
-		t.Run("federation with optional variable", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		t.Run("federation with optional variable", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
 				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
