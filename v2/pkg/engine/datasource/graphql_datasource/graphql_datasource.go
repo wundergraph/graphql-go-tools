@@ -79,7 +79,6 @@ type Planner struct {
 
 	addedInlineFragments map[onTypeInlineFragment]struct{}
 	hasFederationRoot    bool
-	extractEntities      bool
 
 	// tmp
 	upstreamSchema *ast.Document
@@ -392,12 +391,14 @@ func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 	input = httpclient.SetInputMethod(input, []byte(p.config.Fetch.Method))
 
 	postProcessing := DefaultPostProcessingConfiguration
-	if p.extractEntities {
-		if p.shouldSelectSingleEntity() {
-			postProcessing = SingleEntityPostProcessingConfiguration
-		} else {
-			postProcessing = EntitiesPostProcessingConfiguration
-		}
+	requiresEntityFetch := p.requiresEntityFetch()
+	requiresEntityBatchFetch := p.requiresEntityBatchFetch()
+
+	switch {
+	case requiresEntityFetch:
+		postProcessing = SingleEntityPostProcessingConfiguration
+	case requiresEntityBatchFetch:
+		postProcessing = EntitiesPostProcessingConfiguration
 	}
 
 	return resolve.FetchConfiguration{
@@ -406,16 +407,11 @@ func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 			httpClient: p.fetchClient,
 		},
 		Variables:                             p.variables,
-		RequiresEntityFetch:                   p.requiresEntityFetch(),
-		RequiresEntityBatchFetch:              p.requiresEntityBatchFetch(),
+		RequiresEntityFetch:                   requiresEntityFetch,
+		RequiresEntityBatchFetch:              requiresEntityBatchFetch,
 		PostProcessing:                        postProcessing,
-		SetTemplateOutputToNullOnVariableNull: p.extractEntities,
+		SetTemplateOutputToNullOnVariableNull: requiresEntityFetch || requiresEntityBatchFetch,
 	}
-}
-
-func (p *Planner) shouldSelectSingleEntity() bool {
-	return p.dataSourcePlannerConfig.HasRequiredFields() &&
-		p.dataSourcePlannerConfig.PathType == plan.PlannerPathObject
 }
 
 func (p *Planner) requiresEntityFetch() bool {
@@ -771,7 +767,6 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 	p.upstreamVariables = nil
 	p.variables = p.variables[:0]
 	p.hasFederationRoot = false
-	p.extractEntities = false
 
 	// reset information about root type
 	p.rootTypeName = ""
@@ -815,7 +810,6 @@ func (p *Planner) addRepresentationsVariable() {
 	variable, _ := p.variables.AddVariable(p.buildRepresentationsVariable())
 
 	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", []byte(fmt.Sprintf("[%s]", variable)))
-	p.extractEntities = true
 }
 
 func (p *Planner) buildRepresentationsVariable() resolve.Variable {

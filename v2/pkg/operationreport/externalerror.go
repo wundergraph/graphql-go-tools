@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
 )
 
@@ -30,13 +29,13 @@ const (
 )
 
 type ExternalError struct {
-	Message   string                   `json:"message"`
-	Path      ast.Path                 `json:"path"`
-	Locations []graphqlerrors.Location `json:"locations"`
+	Message   string     `json:"message"`
+	Path      ast.Path   `json:"path"`
+	Locations []Location `json:"locations"`
 }
 
-func LocationsFromPosition(position ...position.Position) []graphqlerrors.Location {
-	out := make([]graphqlerrors.Location, len(position))
+func LocationsFromPosition(position ...position.Position) []Location {
+	out := make([]Location, len(position))
 	for i, p := range position {
 		out[i].Line = p.LineStart
 		out[i].Column = p.CharStart
@@ -196,7 +195,7 @@ func ErrUnknownFieldOfInputObject(objName, fieldName ast.ByteSlice, position pos
 func ErrDuplicatedFieldInputObject(fieldName ast.ByteSlice, first, duplicated position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(DuplicatedFieldInputObjectErrMsg, fieldName)
 
-	err.Locations = []graphqlerrors.Location{
+	err.Locations = []Location{
 		{
 			Line:   first.LineStart,
 			Column: first.CharStart,
