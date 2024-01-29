@@ -3,6 +3,7 @@ package datasourcetesting
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"testing"
 	"time"
@@ -23,6 +24,7 @@ import (
 
 type testOptions struct {
 	postProcessors []postprocess.PostProcessor
+	skipReason     string
 }
 
 func WithPostProcessors(postProcessors ...postprocess.PostProcessor) func(*testOptions) {
@@ -31,8 +33,62 @@ func WithPostProcessors(postProcessors ...postprocess.PostProcessor) func(*testO
 	}
 }
 
+func WithSkipReason(reason string) func(*testOptions) {
+	return func(o *testOptions) {
+		o.skipReason = reason
+	}
+}
+
 func WithMultiFetchPostProcessor() func(*testOptions) {
 	return WithPostProcessors(&postprocess.CreateMultiFetchTypes{})
+}
+
+func RunWithPermutations(t *testing.T, definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration, options ...func(*testOptions)) {
+	t.Helper()
+
+	dataSourcePermutations := DataSourcePermutations(config.DataSources)
+
+	for i := range dataSourcePermutations {
+		permutation := dataSourcePermutations[i]
+		t.Run(fmt.Sprintf("permutation %v", permutation.Order), func(t *testing.T) {
+			permutationPlanConfiguration := config
+			permutationPlanConfiguration.DataSources = permutation.DataSources
+
+			t.Run("run", RunTest(
+				definition,
+				operation,
+				operationName,
+				expectedPlan,
+				permutationPlanConfiguration,
+				options...,
+			))
+		})
+	}
+}
+
+func RunWithPermutationsVariants(t *testing.T, definition, operation, operationName string, expectedPlans []plan.Plan, config plan.Configuration, options ...func(*testOptions)) {
+	dataSourcePermutations := DataSourcePermutations(config.DataSources)
+
+	if len(dataSourcePermutations) != len(expectedPlans) {
+		t.Fatalf("expected %d plan variants, got %d", len(dataSourcePermutations), len(expectedPlans))
+	}
+
+	for i := range dataSourcePermutations {
+		permutation := dataSourcePermutations[i]
+		t.Run(fmt.Sprintf("permutation %v", permutation.Order), func(t *testing.T) {
+			permutationPlanConfiguration := config
+			permutationPlanConfiguration.DataSources = permutation.DataSources
+
+			t.Run("run", RunTest(
+				definition,
+				operation,
+				operationName,
+				expectedPlans[i],
+				permutationPlanConfiguration,
+				options...,
+			))
+		})
+	}
 }
 
 func RunTest(definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration, options ...func(*testOptions)) func(t *testing.T) {
@@ -42,6 +98,10 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		opts := &testOptions{}
 		for _, o := range options {
 			o(opts)
+		}
+
+		if opts.skipReason != "" {
+			t.Skip(opts.skipReason)
 		}
 
 		def := unsafeparser.ParseGraphqlDocumentString(definition)
@@ -111,16 +171,24 @@ func OrderDS(dataSources []plan.DataSourceConfiguration, order []int) (out []pla
 	return out
 }
 
-func DataSourcePermutations(dataSources []plan.DataSourceConfiguration) [][]plan.DataSourceConfiguration {
+func DataSourcePermutations(dataSources []plan.DataSourceConfiguration) []*Permutation {
 	size := len(dataSources)
 	elementsCount := len(dataSources)
 	list := combin.Permutations(size, elementsCount)
 
-	permutations := make([][]plan.DataSourceConfiguration, 0, len(list))
+	permutations := make([]*Permutation, 0, len(list))
 
 	for _, v := range list {
-		permutations = append(permutations, OrderDS(dataSources, v))
+		permutations = append(permutations, &Permutation{
+			Order:       v,
+			DataSources: OrderDS(dataSources, v),
+		})
 	}
 
 	return permutations
+}
+
+type Permutation struct {
+	Order       []int
+	DataSources []plan.DataSourceConfiguration
 }
