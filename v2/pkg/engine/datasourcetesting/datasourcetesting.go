@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"reflect"
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 	"gonum.org/v1/gonum/stat/combin"
 
@@ -140,12 +141,20 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		actualBytes, _ := json.MarshalIndent(actualPlan, "", "  ")
 		expectedBytes, _ := json.MarshalIndent(expectedPlan, "", "  ")
 
-		if string(expectedBytes) != string(actualBytes) {
-			// os.WriteFile("actual_plan.json", actualBytes, 0644)
-			// os.WriteFile("expected_plan.json", expectedBytes, 0644)
+		if !assert.Equal(t, string(expectedBytes), string(actualBytes)) {
+			formatterConfig := map[reflect.Type]interface{}{
+				reflect.TypeOf([]byte{}): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
+			}
 
-			assert.Equal(t, expectedPlan, actualPlan)
-			t.Error(cmp.Diff(string(expectedBytes), string(actualBytes)))
+			prettyCfg := &pretty.Config{
+				Diffable:          true,
+				IncludeUnexported: true,
+				Formatter:         formatterConfig,
+			}
+
+			if diff := prettyCfg.Compare(expectedPlan, actualPlan); diff != "" {
+				t.Errorf("Plan does not match(-want +got)\n%s", diff)
+			}
 		}
 	}
 }
