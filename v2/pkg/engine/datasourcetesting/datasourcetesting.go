@@ -148,7 +148,7 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 
 			prettyCfg := &pretty.Config{
 				Diffable:          true,
-				IncludeUnexported: true,
+				IncludeUnexported: false,
 				Formatter:         formatterConfig,
 			}
 

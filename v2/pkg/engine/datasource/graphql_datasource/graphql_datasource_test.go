@@ -104,8 +104,6 @@ func TestGraphQLDataSourceTypenames(t *testing.T) {
 }
 
 func TestGraphQLDataSource(t *testing.T) {
-	t.Skip("FIXME")
-
 	// XXX: Directive needs to be explicitly declared
 	t.Run("@removeNullVariables directive", RunTest(`
 		directive @removeNullVariables on QUERY | MUTATION
@@ -331,6 +329,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
 						},
 					},
+					UpstreamSchema: starWarsSchema,
 				}),
 			},
 		},
@@ -397,13 +396,36 @@ func TestGraphQLDataSource(t *testing.T) {
 						),
 						PostProcessing: DefaultPostProcessingConfiguration,
 					},
+					Info: &resolve.FetchInfo{
+						DataSourceID: "https://swapi.com",
+						RootFields: []resolve.GraphCoordinate{
+							{
+								TypeName:  "Query",
+								FieldName: "droid",
+							},
+							{
+								TypeName:  "Query",
+								FieldName: "hero",
+							},
+							{
+								TypeName:  "Query",
+								FieldName: "stringList",
+							},
+							{
+								TypeName:  "Query",
+								FieldName: "nestedStringList",
+							},
+						},
+					},
 				},
 				Fields: []*resolve.Field{
 					{
 						Name: []byte("droid"),
 						Info: &resolve.FieldInfo{
-							Name:            "droid",
-							ParentTypeNames: []string{"Query"},
+							Name:                "droid",
+							ParentTypeNames:     []string{"Query"},
+							ExactParentTypeName: "Query",
+							NamedType:           "Droid",
 							Source: resolve.TypeFieldSource{
 								IDs: []string{"https://swapi.com"},
 							},
@@ -418,8 +440,10 @@ func TestGraphQLDataSource(t *testing.T) {
 										Path: []string{"name"},
 									},
 									Info: &resolve.FieldInfo{
-										Name:            "name",
-										ParentTypeNames: []string{"Droid"},
+										Name:                "name",
+										ParentTypeNames:     []string{"Droid"},
+										ExactParentTypeName: "Droid",
+										NamedType:           "String",
 										Source: resolve.TypeFieldSource{
 											IDs: []string{"https://swapi.com"},
 										},
@@ -431,8 +455,10 @@ func TestGraphQLDataSource(t *testing.T) {
 										Path: []string{"aliased"},
 									},
 									Info: &resolve.FieldInfo{
-										Name:            "name",
-										ParentTypeNames: []string{"Droid"},
+										Name:                "name",
+										ParentTypeNames:     []string{"Droid"},
+										ExactParentTypeName: "Droid",
+										NamedType:           "String",
 										Source: resolve.TypeFieldSource{
 											IDs: []string{"https://swapi.com"},
 										},
@@ -441,8 +467,10 @@ func TestGraphQLDataSource(t *testing.T) {
 								{
 									Name: []byte("friends"),
 									Info: &resolve.FieldInfo{
-										Name:            "friends",
-										ParentTypeNames: []string{"Droid"},
+										Name:                "friends",
+										ParentTypeNames:     []string{"Droid"},
+										ExactParentTypeName: "Droid",
+										NamedType:           "Character",
 										Source: resolve.TypeFieldSource{
 											IDs: []string{"https://swapi.com"},
 										},
@@ -459,8 +487,10 @@ func TestGraphQLDataSource(t *testing.T) {
 														Path: []string{"name"},
 													},
 													Info: &resolve.FieldInfo{
-														Name:            "name",
-														ParentTypeNames: []string{"Character"},
+														Name:                "name",
+														ParentTypeNames:     []string{"Character"},
+														ExactParentTypeName: "Character",
+														NamedType:           "String",
 														Source: resolve.TypeFieldSource{
 															IDs: []string{"https://swapi.com"},
 														},
@@ -476,8 +506,10 @@ func TestGraphQLDataSource(t *testing.T) {
 										Path: []string{"primaryFunction"},
 									},
 									Info: &resolve.FieldInfo{
-										Name:            "primaryFunction",
-										ParentTypeNames: []string{"Droid"},
+										Name:                "primaryFunction",
+										ParentTypeNames:     []string{"Droid"},
+										ExactParentTypeName: "Droid",
+										NamedType:           "String",
 										Source: resolve.TypeFieldSource{
 											IDs: []string{"https://swapi.com"},
 										},
@@ -498,8 +530,10 @@ func TestGraphQLDataSource(t *testing.T) {
 										Path: []string{"name"},
 									},
 									Info: &resolve.FieldInfo{
-										Name:            "name",
-										ParentTypeNames: []string{"Character"},
+										Name:                "name",
+										ParentTypeNames:     []string{"Character"},
+										ExactParentTypeName: "Character",
+										NamedType:           "String",
 										Source: resolve.TypeFieldSource{
 											IDs: []string{"https://swapi.com"},
 										},
@@ -508,8 +542,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 						Info: &resolve.FieldInfo{
-							Name:            "hero",
-							ParentTypeNames: []string{"Query"},
+							Name:                "hero",
+							ParentTypeNames:     []string{"Query"},
+							ExactParentTypeName: "Query",
+							NamedType:           "Character",
 							Source: resolve.TypeFieldSource{
 								IDs: []string{"https://swapi.com"},
 							},
@@ -524,8 +560,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 						Info: &resolve.FieldInfo{
-							Name:            "stringList",
-							ParentTypeNames: []string{"Query"},
+							Name:                "stringList",
+							ParentTypeNames:     []string{"Query"},
+							ExactParentTypeName: "Query",
+							NamedType:           "String",
 							Source: resolve.TypeFieldSource{
 								IDs: []string{"https://swapi.com"},
 							},
@@ -541,8 +579,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 						Info: &resolve.FieldInfo{
-							Name:            "nestedStringList",
-							ParentTypeNames: []string{"Query"},
+							Name:                "nestedStringList",
+							ParentTypeNames:     []string{"Query"},
+							ExactParentTypeName: "Query",
+							NamedType:           "String",
 							Source: resolve.TypeFieldSource{
 								IDs: []string{"https://swapi.com"},
 							},
@@ -585,6 +625,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
 						},
 					},
+					UpstreamSchema: starWarsSchema,
 				}),
 			},
 		},
