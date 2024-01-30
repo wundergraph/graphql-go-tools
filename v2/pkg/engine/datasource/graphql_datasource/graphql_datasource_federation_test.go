@@ -1365,6 +1365,15 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 			}
 
+			planConfiguration := plan.Configuration{
+				DataSources: []plan.DataSourceConfiguration{
+					firstDatasourceConfiguration,
+					secondDatasourceConfiguration,
+					thirdDatasourceConfiguration,
+				},
+				DisableResolveFieldPositions: true,
+			}
+
 			t.Run("only shared field", func(t *testing.T) {
 				query := `
 					query basic {
@@ -1434,31 +1443,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						variant1,
 						variant2,
 					},
-					plan.Configuration{
-						DataSources: []plan.DataSourceConfiguration{
-							firstDatasourceConfiguration,
-							secondDatasourceConfiguration,
-							thirdDatasourceConfiguration,
-						},
-						DisableResolveFieldPositions: true,
-					},
+					planConfiguration,
 				)
 			})
 
 			t.Run("shared and not shared field", func(t *testing.T) {
 				t.Run("resolve from single subgraph", func(t *testing.T) {
-					dataSources := []plan.DataSourceConfiguration{
-						firstDatasourceConfiguration,
-						secondDatasourceConfiguration,
-						thirdDatasourceConfiguration,
-					}
-
-					planConfiguration := plan.Configuration{
-						DataSources:                  ShuffleDS(dataSources),
-						DisableResolveFieldPositions: true,
-					}
-
-					t.Run("run", RunTest(
+					RunWithPermutations(
+						t,
 						definition,
 						`
 						query basic {
@@ -1518,7 +1510,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							},
 						},
 						planConfiguration,
-					))
+					)
 				})
 
 				t.Run("resolve from two subgraphs", func(t *testing.T) {
@@ -1612,34 +1604,16 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						}
 					}
 
-					t.Run("variant 1", RunTest(
-						definition,
-						`
-						query basic {
-							me {
-								details {
-									forename
-									surname
-									middlename
-								}
-							}
-						}
-					`,
-						"basic",
-						expectedPlan(
-							`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename middlename} __typename id}}"}}`,
-							`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":[$$0$$]}}}`),
-						plan.Configuration{
-							DataSources: []plan.DataSourceConfiguration{
-								firstDatasourceConfiguration,
-								secondDatasourceConfiguration,
-								thirdDatasourceConfiguration,
-							},
-							DisableResolveFieldPositions: true,
-						},
-					))
+					variant1 := expectedPlan(
+						`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename middlename} __typename id}}"}}`,
+						`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":[$$0$$]}}}`)
 
-					t.Run("variant 2", RunTest(
+					variant2 := expectedPlan(
+						`{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname} __typename id}}"}}`,
+						`{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {middlename}}}}","variables":{"representations":[$$0$$]}}}`)
+
+					RunWithPermutationsVariants(
+						t,
 						definition,
 						`
 						query basic {
@@ -1653,18 +1627,16 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						}
 					`,
 						"basic",
-						expectedPlan(
-							`{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname} __typename id}}"}}`,
-							`{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {middlename}}}}","variables":{"representations":[$$0$$]}}}`),
-						plan.Configuration{
-							DataSources: []plan.DataSourceConfiguration{
-								secondDatasourceConfiguration,
-								firstDatasourceConfiguration,
-								thirdDatasourceConfiguration,
-							},
-							DisableResolveFieldPositions: true,
+						[]plan.Plan{
+							variant1,
+							variant1,
+							variant2,
+							variant2,
+							variant1,
+							variant2,
 						},
-					))
+						planConfiguration,
+					)
 				})
 
 				t.Run("resolve from two subgraphs - not shared field", func(t *testing.T) {
@@ -1746,33 +1718,17 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						}
 					}
 
-					t.Run("variant 1", RunTest(
-						definition,
-						`
-						query basic {
-							me {
-								details {
-									age
-								}
-							}
-						}
-					`,
-						"basic",
-						expectedPlan(
-							`{"method":"POST","url":"http://first.service","body":{"query":"{me {__typename id}}"}}`,
-							`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
-						),
-						plan.Configuration{
-							DataSources: []plan.DataSourceConfiguration{
-								firstDatasourceConfiguration,
-								secondDatasourceConfiguration,
-								thirdDatasourceConfiguration,
-							},
-							DisableResolveFieldPositions: true,
-						},
-					))
+					variant1 := expectedPlan(
+						`{"method":"POST","url":"http://first.service","body":{"query":"{me {__typename id}}"}}`,
+						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
+					)
+					variant2 := expectedPlan(
+						`{"method":"POST","url":"http://second.service","body":{"query":"{me {__typename id}}"}}`,
+						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
+					)
 
-					t.Run("variant 2", RunTest(
+					RunWithPermutationsVariants(
+						t,
 						definition,
 						`
 						query basic {
@@ -1784,22 +1740,28 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						}
 					`,
 						"basic",
-						expectedPlan(
-							`{"method":"POST","url":"http://second.service","body":{"query":"{me {__typename id}}"}}`,
-							`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
-						),
-						plan.Configuration{
-							DataSources: []plan.DataSourceConfiguration{
-								secondDatasourceConfiguration,
-								firstDatasourceConfiguration,
-								thirdDatasourceConfiguration,
-							},
-							DisableResolveFieldPositions: true,
+						[]plan.Plan{
+							variant1,
+							variant1,
+							variant2,
+							variant2,
+							variant1,
+							variant2,
 						},
-					))
+						planConfiguration,
+					)
 				})
 
 				t.Run("resolve from two subgraphs - shared and not shared field - should not depend on the order of ds", func(t *testing.T) {
+					// Note: we use only 2 datasources
+					planConfiguration := plan.Configuration{
+						DataSources: []plan.DataSourceConfiguration{
+							firstDatasourceConfiguration,
+							thirdDatasourceConfiguration,
+						},
+						DisableResolveFieldPositions: true,
+					}
+
 					expectedPlan := func(input1, input2 string) *plan.SynchronousResponsePlan {
 						return &plan.SynchronousResponsePlan{
 							Response: &resolve.GraphQLResponse{
@@ -1884,7 +1846,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						}
 					}
 
-					t.Run("variant 1", RunTest(
+					RunWithPermutations(
+						t,
 						definition,
 						`
 						query basic {
@@ -1901,53 +1864,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename} __typename id}}"}}`,
 							`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
 						),
-						plan.Configuration{
-							DataSources: []plan.DataSourceConfiguration{
-								firstDatasourceConfiguration,
-								thirdDatasourceConfiguration,
-							},
-							DisableResolveFieldPositions: true,
-						},
-					))
-
-					t.Run("variant 2", RunTest(
-						definition,
-						`
-						query basic {
-							me {
-								details {
-									forename
-									age
-								}
-							}
-						}
-					`,
-						"basic",
-						expectedPlan(
-							`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename} __typename id}}"}}`,
-							`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
-						),
-						plan.Configuration{
-							DataSources: []plan.DataSourceConfiguration{
-								thirdDatasourceConfiguration,
-								firstDatasourceConfiguration,
-							},
-							DisableResolveFieldPositions: true,
-						},
-					))
+						planConfiguration,
+					)
 				})
 
 				t.Run("resolve from three subgraphs", func(t *testing.T) {
-					planConfiguration := plan.Configuration{
-						DataSources: []plan.DataSourceConfiguration{
-							firstDatasourceConfiguration,
-							secondDatasourceConfiguration,
-							thirdDatasourceConfiguration,
-						},
-						DisableResolveFieldPositions: true,
-					}
-
-					expectedPlan := func(input1 string) *plan.SynchronousResponsePlan {
+					expectedPlan := func(input1, input2, input3 string) *plan.SynchronousResponsePlan {
 						return &plan.SynchronousResponsePlan{
 							Response: &resolve.GraphQLResponse{
 								Data: &resolve.Object{
@@ -2007,7 +1929,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															DependsOnFetchIDs:    []int{0},
 															DataSourceIdentifier: []byte("graphql_datasource.Source"),
 															FetchConfiguration: resolve.FetchConfiguration{
-																Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":[$$0$$]}}}`,
+																Input:                                 input2,
 																SetTemplateOutputToNullOnVariableNull: true,
 																PostProcessing:                        SingleEntityPostProcessingConfiguration,
 																RequiresEntityFetch:                   true,
@@ -2042,7 +1964,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															DependsOnFetchIDs:    []int{0},
 															DataSourceIdentifier: []byte("graphql_datasource.Source"),
 															FetchConfiguration: resolve.FetchConfiguration{
-																Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
+																Input:                                 input3,
 																SetTemplateOutputToNullOnVariableNull: true,
 																PostProcessing:                        SingleEntityPostProcessingConfiguration,
 																RequiresEntityFetch:                   true,
@@ -2082,7 +2004,32 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						}
 					}
 
-					t.Run("run", RunTest(
+					variant1 := expectedPlan(
+						`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename middlename} __typename id}}"}}`,
+						`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":[$$0$$]}}}`,
+						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
+					)
+
+					variant2 := expectedPlan(
+						`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename middlename} __typename id}}"}}`,
+						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
+						`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":[$$0$$]}}}`,
+					)
+
+					variant3 := expectedPlan(
+						`{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname} __typename id}}"}}`,
+						`{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {middlename}}}}","variables":{"representations":[$$0$$]}}}`,
+						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
+					)
+
+					variant4 := expectedPlan(
+						`{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname} __typename id}}"}}`,
+						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
+						`{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {middlename}}}}","variables":{"representations":[$$0$$]}}}`,
+					)
+
+					RunWithPermutationsVariants(
+						t,
 						definition,
 						`
 						query basic {
@@ -2097,10 +2044,17 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						}
 					`,
 						"basic",
-						expectedPlan(`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename middlename} __typename id}}"}}`),
+						[]plan.Plan{
+							variant1,
+							variant2,
+							variant3,
+							variant4,
+							variant2,
+							variant4,
+						},
 						planConfiguration,
 						WithMultiFetchPostProcessor(),
-					))
+					)
 				})
 			})
 		})
