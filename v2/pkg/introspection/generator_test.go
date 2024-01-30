@@ -12,8 +12,6 @@ import (
 )
 
 func TestGenerator_Generate(t *testing.T) {
-	t.Skip("FIXME")
-
 	starwarsSchemaBytes, err := os.ReadFile("./testdata/starwars.schema.graphql")
 	if err != nil {
 		panic(err)
@@ -48,8 +46,6 @@ func TestGenerator_Generate(t *testing.T) {
 }
 
 func TestGenerator_Generate_Interfaces_Implementing_Interfaces(t *testing.T) {
-	t.Skip("FIXME")
-
 	interfacesSchemaBytes, err := os.ReadFile("./testdata/interfaces_implementing_interfaces.graphql")
 	if err != nil {
 		panic(err)
