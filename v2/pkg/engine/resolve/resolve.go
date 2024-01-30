@@ -83,14 +83,14 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		triggers: make(map[uint64]*trigger),
 		reporter: options.Reporter,
 	}
-	/*if options.MaxConcurrency > 0 {
+	if options.MaxConcurrency > 0 {
 		semaphore := make(chan struct{}, options.MaxConcurrency)
 		for i := 0; i < options.MaxConcurrency; i++ {
 			semaphore <- struct{}{}
 		}
 		resolver.limitMaxConcurrency = true
 		resolver.maxConcurrency = semaphore
-	}*/
+	}
 	if options.MaxSubscriptionWorkers == 0 {
 		options.MaxSubscriptionWorkers = 1024
 	}
@@ -107,6 +107,9 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 }
 
 func (r *Resolver) getTools() *tools {
+	if r.limitMaxConcurrency {
+		<-r.maxConcurrency
+	}
 	t := r.toolPool.Get().(*tools)
 	return t
 }
@@ -115,6 +118,9 @@ func (r *Resolver) putTools(t *tools) {
 	t.loader.Free()
 	t.resolvable.Reset()
 	r.toolPool.Put(t)
+	if r.limitMaxConcurrency {
+		r.maxConcurrency <- struct{}{}
+	}
 }
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
