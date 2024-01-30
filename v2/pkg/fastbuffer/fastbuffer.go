@@ -1,10 +1,5 @@
 package fastbuffer
 
-import (
-	"reflect"
-	"unsafe"
-)
-
 func New() *FastBuffer {
 	return &FastBuffer{
 		b: make([]byte, 0, 1024),
@@ -52,12 +47,6 @@ func (f *FastBuffer) Grow(n int) {
 		copy(b, f.b)
 		f.b = b
 	}
-}
-
-func (f *FastBuffer) UnsafeString() string {
-	sliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&f.b))
-	stringHeader := reflect.StringHeader{Data: sliceHeader.Data, Len: sliceHeader.Len}
-	return *(*string)(unsafe.Pointer(&stringHeader)) // nolint: govet
 }
 
 func (f *FastBuffer) String() string {

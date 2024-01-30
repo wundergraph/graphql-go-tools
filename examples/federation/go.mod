@@ -1,6 +1,8 @@
 module github.com/TykTechnologies/graphql-go-tools/examples/federation
 
-go 1.19
+go 1.21.0
+
+toolchain go1.21.6
 
 require (
 	github.com/99designs/gqlgen v0.17.22

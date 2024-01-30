@@ -1,7 +1,6 @@
 package unsafebytes
 
 import (
-	"reflect"
 	"strconv"
 	"unsafe"
 )
@@ -21,10 +20,8 @@ func BytesToFloat32(byteSlice []byte) float32 {
 	return float32(out)
 }
 
-func BytesToString(bytes []byte) string {
-	sliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&bytes))
-	stringHeader := reflect.StringHeader{Data: sliceHeader.Data, Len: sliceHeader.Len}
-	return *(*string)(unsafe.Pointer(&stringHeader)) //nolint:govet
+func BytesToString(b []byte) string {
+	return unsafe.String(unsafe.SliceData(b), len(b))
 }
 
 func BytesToBool(byteSlice []byte) bool {
@@ -33,12 +30,7 @@ func BytesToBool(byteSlice []byte) bool {
 }
 
 func StringToBytes(str string) []byte {
-	hdr := *(*reflect.StringHeader)(unsafe.Pointer(&str))  // nolint: govet
-	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{ // nolint: govet
-		Data: hdr.Data,
-		Len:  hdr.Len,
-		Cap:  hdr.Len,
-	}))
+	return unsafe.Slice(unsafe.StringData(str), len(str))
 }
 
 func BytesIsValidFloat32(byteSlice []byte) bool {

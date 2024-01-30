@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	nhooyrwebsocket "github.com/pvormste/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	nhooyrwebsocket "nhooyr.io/websocket"
 )
 
 func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {

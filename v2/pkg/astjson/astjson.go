@@ -6,11 +6,10 @@ import (
 	"io"
 	"strconv"
 	"sync"
+	"unsafe"
 
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
-
-	"github.com/TykTechnologies/graphql-go-tools/v2/internal/pkg/gocompat"
 )
 
 var (
@@ -101,7 +100,7 @@ func (j *JSON) arrayElemIndex(elem string) int {
 		return -1
 	}
 	subStr := elem[1 : len(elem)-1]
-	out, err := jsonparser.GetInt(gocompat.GetUnsafeByteSliceByString(&subStr))
+	out, err := jsonparser.GetInt(unsafe.Slice(unsafe.StringData(subStr), len(subStr)))
 	if err != nil {
 		return -1
 	}

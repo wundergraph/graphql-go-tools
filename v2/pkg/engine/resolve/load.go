@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"reflect"
 	"strconv"
 	"sync"
 	"unsafe"
@@ -999,8 +998,6 @@ func (l *Loader) byteSliceContainsKey(slice [][]byte, key []byte) (int, bool) {
 }
 
 // unsafeBytesToString is a helper function to convert a byte slice to a string without copying the underlying data
-func (l *Loader) unsafeBytesToString(bytes []byte) string {
-	sliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&bytes))
-	stringHeader := reflect.StringHeader{Data: sliceHeader.Data, Len: sliceHeader.Len}
-	return *(*string)(unsafe.Pointer(&stringHeader)) // nolint: govet
+func (l *Loader) unsafeBytesToString(b []byte) string {
+	return unsafe.String(unsafe.SliceData(b), len(b))
 }

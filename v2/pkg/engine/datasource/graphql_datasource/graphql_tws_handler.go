@@ -9,7 +9,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	log "github.com/jensneuse/abstractlogger"
-	"github.com/pvormste/websocket"
+	"nhooyr.io/websocket"
 )
 
 // gqlTWSConnectionHandler is responsible for handling a connection to an origin

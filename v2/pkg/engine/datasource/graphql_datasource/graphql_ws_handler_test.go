@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pvormste/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"nhooyr.io/websocket"
 
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/engine/resolve"
 )
