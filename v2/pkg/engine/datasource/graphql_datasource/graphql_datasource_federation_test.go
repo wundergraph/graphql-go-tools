@@ -3093,19 +3093,18 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 			}
 
-			dataSources := []plan.DataSourceConfiguration{
-				firstDatasourceConfiguration,
-				secondDatasourceConfiguration,
-				thirdDatasourceConfiguration,
-				fourthDatasourceConfiguration,
-			}
-
 			planConfiguration := plan.Configuration{
-				DataSources:                  ShuffleDS(dataSources),
+				DataSources: []plan.DataSourceConfiguration{
+					firstDatasourceConfiguration,
+					secondDatasourceConfiguration,
+					thirdDatasourceConfiguration,
+					fourthDatasourceConfiguration,
+				},
 				DisableResolveFieldPositions: true,
 			}
 
-			t.Run("run", RunTest(
+			RunWithPermutations(
+				t,
 				definition,
 				`
 				query User {
@@ -3294,7 +3293,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 				planConfiguration,
 				WithMultiFetchPostProcessor(),
-			))
+			)
 		})
 
 		t.Run("single key - double key - double key - single key", func(t *testing.T) {
@@ -3478,15 +3477,13 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			}
 
 			planConfiguration := plan.Configuration{
-				DataSources:                  ShuffleDS(dataSources),
+				DataSources:                  dataSources,
 				DisableResolveFieldPositions: true,
-				Debug: plan.DebugConfiguration{
-					PrintQueryPlans: true,
-				},
 			}
 
 			t.Run("only fields", func(t *testing.T) {
-				t.Run("run", RunTest(
+				RunWithPermutations(
+					t,
 					definition,
 					`
 				query User {
@@ -3661,11 +3658,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					},
 					planConfiguration,
 					WithMultiFetchPostProcessor(),
-				))
+				)
 			})
 
 			t.Run("fields and keys", func(t *testing.T) {
-				t.Run("run", RunTest(
+				RunWithPermutations(
+					t,
 					definition,
 					`
 				query User {
@@ -3861,7 +3859,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					},
 					planConfiguration,
 					WithMultiFetchPostProcessor(),
-				))
+				)
 			})
 		})
 	})
