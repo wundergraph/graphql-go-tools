@@ -10,6 +10,7 @@ import (
 	"net/http/httputil"
 	"testing"
 
+	"github.com/andybalholm/brotli"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/TykTechnologies/graphql-go-tools/v2/internal/pkg/quotes"
@@ -174,25 +175,48 @@ func TestHttpClientDo(t *testing.T) {
 		t.Run("net", runTest(background, input, `ok`))
 	})
 
-	t.Run("gzip", func(t *testing.T) {
-		body := []byte(`{"foo":"bar"}`)
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			acceptEncoding := r.Header.Get("Accept-Encoding")
-			assert.Equal(t, "gzip", acceptEncoding)
-			actualBody, err := io.ReadAll(r.Body)
-			assert.NoError(t, err)
-			assert.Equal(t, string(body), string(actualBody))
-			gzipWriter := gzip.NewWriter(w)
-			defer gzipWriter.Close()
-			w.Header().Set("Content-Encoding", "gzip")
-			_, err = gzipWriter.Write([]byte("ok"))
-			assert.NoError(t, err)
-		}))
-		defer server.Close()
-		var input []byte
-		input = SetInputMethod(input, []byte("POST"))
-		input = SetInputBody(input, body)
-		input = SetInputURL(input, []byte(server.URL))
-		t.Run("net", runTest(background, input, `ok`))
+	t.Run("compression", func(t *testing.T) {
+		t.Run("gzip", func(t *testing.T) {
+			body := []byte(`{"foo":"bar"}`)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Contains(t, r.Header.Values(AcceptEncodingHeader), EncodingGzip)
+				actualBody, err := io.ReadAll(r.Body)
+				assert.NoError(t, err)
+				assert.Equal(t, string(body), string(actualBody))
+				gzipWriter := gzip.NewWriter(w)
+				defer gzipWriter.Close()
+				w.Header().Set("Content-Encoding", EncodingGzip)
+				_, err = gzipWriter.Write([]byte("ok"))
+				assert.NoError(t, err)
+			}))
+			defer server.Close()
+			var input []byte
+			input = SetInputMethod(input, []byte("POST"))
+			input = SetInputBody(input, body)
+			input = SetInputURL(input, []byte(server.URL))
+			t.Run("net", runTest(background, input, `ok`))
+		})
+
+		t.Run("brotli", func(t *testing.T) {
+			body := []byte(`{"foo":"bar"}`)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Contains(t, r.Header.Values(AcceptEncodingHeader), EncodingBrotli)
+				actualBody, err := io.ReadAll(r.Body)
+				assert.NoError(t, err)
+				assert.Equal(t, string(body), string(actualBody))
+				brWriter := brotli.NewWriter(w)
+				defer brWriter.Close()
+				w.Header().Set(ContentEncodingHeader, EncodingBrotli)
+				_, err = brWriter.Write([]byte("ok"))
+				assert.NoError(t, err)
+			}))
+			defer server.Close()
+			var input []byte
+			input = SetInputMethod(input, []byte("POST"))
+			input = SetInputBody(input, body)
+			input = SetInputURL(input, []byte(server.URL))
+			t.Run("net", runTest(background, input, `ok`))
+		})
 	})
+
 }

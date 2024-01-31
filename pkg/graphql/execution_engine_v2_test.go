@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/andybalholm/brotli"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -91,6 +92,21 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 			assert.Equal(t, "deflate", response.Header.Get(httpclient.ContentEncodingHeader))
 
 			reader := flate.NewReader(response.Body)
+			body, err := io.ReadAll(reader)
+			require.NoError(t, err)
+
+			assert.Equal(t, `{"key": "value"}`, string(body))
+		})
+
+		t.Run("brotli", func(t *testing.T) {
+			headers.Set(httpclient.ContentEncodingHeader, "br")
+
+			response := rw.AsHTTPResponse(http.StatusOK, headers)
+			assert.Equal(t, http.StatusOK, response.StatusCode)
+			assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
+			assert.Equal(t, "br", response.Header.Get(httpclient.ContentEncodingHeader))
+
+			reader := io.NopCloser(brotli.NewReader(response.Body))
 			body, err := io.ReadAll(reader)
 			require.NoError(t, err)
 

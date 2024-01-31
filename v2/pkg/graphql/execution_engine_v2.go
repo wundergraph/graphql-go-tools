@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/andybalholm/brotli"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jensneuse/abstractlogger"
 
@@ -90,6 +91,10 @@ func (e *EngineResultWriter) AsHTTPResponse(status int, headers http.Header) *ht
 		fw, _ := flate.NewWriter(b, 1)
 		_, _ = fw.Write(e.Bytes())
 		_ = fw.Close()
+	case "br":
+		bw := brotli.NewWriter(b)
+		_, _ = bw.Write(e.Bytes())
+		_ = bw.Close()
 	default:
 		headers.Del(httpclient.ContentEncodingHeader) // delete unsupported compression header
 		b = e.buf

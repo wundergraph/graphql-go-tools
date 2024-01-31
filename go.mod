@@ -5,6 +5,7 @@ go 1.21.0
 require (
 	github.com/99designs/gqlgen v0.17.22
 	github.com/IBM/sarama v1.42.1
+	github.com/andybalholm/brotli v1.1.0
 	github.com/asyncapi/parser-go v0.4.2
 	github.com/buger/jsonparser v1.1.1
 	github.com/cespare/xxhash/v2 v2.1.2

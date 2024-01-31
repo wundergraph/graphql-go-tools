@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/andybalholm/brotli"
 	"github.com/buger/jsonparser"
 
 	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/literal"
@@ -17,6 +18,10 @@ import (
 const (
 	ContentEncodingHeader = "Content-Encoding"
 	AcceptEncodingHeader  = "Accept-Encoding"
+
+	EncodingGzip    = "gzip"
+	EncodingDeflate = "deflate"
+	EncodingBrotli  = "br"
 )
 
 var (
@@ -92,6 +97,9 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 
 	request.Header.Add("accept", "application/json")
 	request.Header.Add("content-type", "application/json")
+	request.Header.Set(AcceptEncodingHeader, EncodingGzip)
+	request.Header.Add(AcceptEncodingHeader, EncodingDeflate)
+	request.Header.Add(AcceptEncodingHeader, EncodingBrotli)
 
 	response, err := client.Do(request)
 	if err != nil {
@@ -118,6 +126,8 @@ func respBodyReader(req *http.Request, resp *http.Response) (io.ReadCloser, erro
 		return gzip.NewReader(resp.Body)
 	case "deflate":
 		return flate.NewReader(resp.Body), nil
+	case "br":
+		return io.NopCloser(brotli.NewReader(resp.Body)), nil
 	}
 
 	return resp.Body, nil
