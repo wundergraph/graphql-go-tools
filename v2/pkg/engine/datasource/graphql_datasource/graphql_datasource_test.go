@@ -7654,7 +7654,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			DisableResolveFieldPositions: true,
 		}))
 
-	t.Run("FIXME: broken representations. Federation with field query (defined in user subgraph) featuring consecutive inline union fragments", RunTest(
+	t.Run("Federation with field query (defined in user subgraph) featuring consecutive inline union fragments", RunTest(
 		`
         type Query {
             user: User
@@ -7698,7 +7698,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
-							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username pets {__typename ... on Cat {id} ... on Dog {id}}}}"}}`,
+							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username pets {__typename ... on Cat {__typename id} ... on Dog {__typename id}}}}"}}`,
 							DataSource:     &Source{},
 							PostProcessing: DefaultPostProcessingConfiguration,
 						},
@@ -7724,19 +7724,49 @@ func TestGraphQLDataSource(t *testing.T) {
 											Nullable: false,
 											Item: &resolve.Object{
 												Fetch: &resolve.SingleFetch{
+													FetchID:           1,
+													DependsOnFetchIDs: []int{0},
 													FetchConfiguration: resolve.FetchConfiguration{
-														Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Cat {name catField} ... on Dog {name dogField}}}","variables":{"representations":[{"id":$$1$$,"__typename":$$0$$}]}}}`,
-														Variables: resolve.NewVariables(
-															&resolve.ObjectVariable{
-																Path:     []string{"__typename"},
-																Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+														Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Cat {name catField} ... on Dog {name dogField}}}","variables":{"representations":[$$0$$]}}}`,
+														Variables: []resolve.Variable{
+															&resolve.ResolvableObjectVariable{
+																Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																	Nullable: true,
+																	Fields: []*resolve.Field{
+																		{
+																			Name: []byte("__typename"),
+																			Value: &resolve.String{
+																				Path: []string{"__typename"},
+																			},
+																			OnTypeNames: [][]byte{[]byte("Cat")},
+																		},
+																		{
+																			Name: []byte("id"),
+																			Value: &resolve.String{
+																				Path: []string{"id"},
+																			},
+																			OnTypeNames: [][]byte{[]byte("Cat")},
+																		},
+																		{
+																			Name: []byte("__typename"),
+																			Value: &resolve.String{
+																				Path: []string{"__typename"},
+																			},
+																			OnTypeNames: [][]byte{[]byte("Dog")},
+																		},
+																		{
+																			Name: []byte("id"),
+																			Value: &resolve.String{
+																				Path: []string{"id"},
+																			},
+																			OnTypeNames: [][]byte{[]byte("Dog")},
+																		},
+																	},
+																}),
 															},
-															&resolve.ObjectVariable{
-																Path:     []string{"id"},
-																Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-															},
-														),
+														},
 														DataSource:                            &Source{},
+														RequiresEntityBatchFetch:              true,
 														PostProcessing:                        EntitiesPostProcessingConfiguration,
 														SetTemplateOutputToNullOnVariableNull: true,
 													},
@@ -7749,7 +7779,7 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.String{
 															Path: []string{"name"},
 														},
-														OnTypeNames: [][]byte{[]byte("Cat")},
+														OnTypeNames: [][]byte{[]byte("Cat"), []byte("Dog")},
 													},
 													{
 														Name: []byte("catField"),
@@ -7757,13 +7787,6 @@ func TestGraphQLDataSource(t *testing.T) {
 															Path: []string{"catField"},
 														},
 														OnTypeNames: [][]byte{[]byte("Cat")},
-													},
-													{
-														Name: []byte("name"),
-														Value: &resolve.String{
-															Path: []string{"name"},
-														},
-														OnTypeNames: [][]byte{[]byte("Dog")},
 													},
 													{
 														Name: []byte("dogField"),
@@ -7791,12 +7814,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							TypeName:   "Query",
 							FieldNames: []string{"user"},
 						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"username", "pets"},
-						},
 						{
 							TypeName:   "Cat",
 							FieldNames: []string{"id"},
@@ -7804,6 +7821,12 @@ func TestGraphQLDataSource(t *testing.T) {
 						{
 							TypeName:   "Dog",
 							FieldNames: []string{"id"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"username", "pets"},
 						},
 					},
 					Custom: ConfigJson(Configuration{
@@ -7829,8 +7852,35 @@ func TestGraphQLDataSource(t *testing.T) {
                                 }
                             `,
 						},
+						UpstreamSchema: `
+                                type Query {
+                                    user: User
+                                }
+                                type User {
+                                    username: String!
+									pets: [CatOrDog!]!
+                                }
+                                union CatOrDog = Cat | Dog
+                                type Cat @key(fields: "id") {
+                                    id: ID!
+                                }
+                                type Dog @key(fields: "id") {
+                                    id: ID!
+                                }`,
 					}),
 					Factory: federationFactory,
+					FederationMetaData: plan.FederationMetaData{
+						Keys: []plan.FederationFieldConfiguration{
+							{
+								TypeName:     "Cat",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "Dog",
+								SelectionSet: "id",
+							},
+						},
+					},
 				},
 				{
 					RootNodes: []plan.TypeField{
@@ -7863,30 +7913,33 @@ func TestGraphQLDataSource(t *testing.T) {
                                 }
                             `,
 						},
+						UpstreamSchema: `
+                                union CatOrDog = Cat | Dog
+                                type Cat @key(fields: "id") {
+                                    id: ID!
+                                    name: String!
+                                    catField: String!
+                                }
+                                type Dog @key(fields: "id") {
+                                    id: ID!
+                                    name: String!
+                                    dogField: String!
+                                }
+                            `,
 					}),
 					Factory: federationFactory,
-				},
-			},
-			Fields: []plan.FieldConfiguration{
-				{
-					TypeName:       "Cat",
-					FieldName:      "name",
-					RequiresFields: []string{"id"},
-				},
-				{
-					TypeName:       "Cat",
-					FieldName:      "catField",
-					RequiresFields: []string{"id"},
-				},
-				{
-					TypeName:       "Dog",
-					FieldName:      "name",
-					RequiresFields: []string{"id"},
-				},
-				{
-					TypeName:       "Dog",
-					FieldName:      "dogField",
-					RequiresFields: []string{"id"},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: []plan.FederationFieldConfiguration{
+							{
+								TypeName:     "Cat",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "Dog",
+								SelectionSet: "id",
+							},
+						},
+					},
 				},
 			},
 			DisableResolveFieldPositions: true,
