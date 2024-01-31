@@ -533,8 +533,6 @@ func (r *Resolvable) excludeField(includeVariableName string) bool {
 }
 
 func (r *Resolvable) walkArray(arr *Array, ref int) bool {
-	r.pushNodePathElement(arr.Path)
-	defer r.popNodePathElement(arr.Path)
 	ref = r.storage.Get(ref, arr.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if arr.Nullable {
@@ -543,6 +541,8 @@ func (r *Resolvable) walkArray(arr *Array, ref int) bool {
 		r.addNonNullableFieldError(ref, arr.Path)
 		return r.err()
 	}
+	r.pushNodePathElement(arr.Path)
+	defer r.popNodePathElement(arr.Path)
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindArray {
 		r.addError("Array cannot represent non-array value.", arr.Path)
 		return r.err()
