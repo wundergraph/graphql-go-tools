@@ -1648,7 +1648,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 			}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"namespaced_User","aliased":"namespaced_User","rewritten":"namespaced_User"}}}`
 	}))
-	t.Run("empty graphql response for not nullable query field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("empty graphql response for non-nullable object query field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: false,
@@ -1680,6 +1680,32 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 			},
 		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.country'.","path":["country"]}],"data":null}`
+	}))
+	t.Run("empty graphql response for non-nullable array query field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: false,
+				Fields: []*Field{
+					{
+						Name: []byte("countries"),
+						Value: &Array{
+							Path: []string{"countries"},
+							Item: &Object{
+								Fields: []*Field{
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Nullable: true,
+											Path:     []string{"name"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.countries'.","path":["countries"]}],"data":null}`
 	}))
 	t.Run("fetch with simple error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
