@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/jensneuse/pipeline/pkg/pipe"
+	"github.com/jensneuse/pipeline/pkg/step"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/fastbuffer"
@@ -1565,6 +1567,54 @@ func TestResolver_ResolveNode(t *testing.T) {
 				},
 			},
 		}, Context{ctx: context.Background()}, `{"id":1,"name":"Jens","pet":{"name":"Woofie"}}`
+	}))
+	t.Run("simple transformation", testFn(true, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
+		step, err := step.NewJSON("{\"fullName\":\"{{ .firstName }} {{ .lastName }}\"}")
+		assert.NoError(t, err)
+		return &Object{
+			Fetch: &SingleFetch{
+				BufferId:   0,
+				DataSource: FakeDataSource(`{"firstName":"John","lastName":"Doe"}`),
+			},
+			Fields: []*Field{
+				{
+					HasBuffer: true,
+					BufferID:  0,
+					Name:      []byte("firstName"),
+					Value: &String{
+						Path: []string{"firstName"},
+					},
+				},
+				{
+					HasBuffer: true,
+					BufferID:  0,
+					Name:      []byte("lastName"),
+					Value: &String{
+						Path: []string{"lastName"},
+					},
+				},
+				{
+					HasBuffer: true,
+					BufferID:  0,
+					Name:      []byte("name"),
+					Value: &Transformation{
+						InnerValue: &Object{
+							Fields: []*Field{
+								{
+									BufferID:  0,
+									HasBuffer: true,
+									Name:      []byte("fullName"),
+									Value: &String{
+										Path: []string{"fullName"},
+									},
+								},
+							},
+						},
+						Pipeline: &pipe.Pipeline{Steps: []pipe.Step{step}},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"firstName":"John","lastName":"Doe","name":{"fullName":"John Doe"}}`
 	}))
 	t.Run("with unescape json enabled", func(t *testing.T) {
 		t.Run("json object within a string", testFn(false, false, func(t *testing.T, ctrl *gomock.Controller) (node Node, ctx Context, expectedOutput string) {
