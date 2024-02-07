@@ -17,23 +17,22 @@ import (
 )
 
 type Resolvable struct {
-	storage             *astjson.JSON
-	dataRoot            int
-	errorsRoot          int
-	variablesRoot       int
-	print               bool
-	out                 io.Writer
-	printErr            error
-	path                []astjson.PathElement
-	depth               int
-	operationType       ast.OperationType
-	renameTypeNames     []RenameTypeName
-	requestTraceOptions RequestTraceOptions
-	ctx                 *Context
-	authorizationError  error
-	xxh                 *xxhash.Digest
-	authorizationAllow  map[uint64]struct{}
-	authorizationDeny   map[uint64]string
+	storage            *astjson.JSON
+	dataRoot           int
+	errorsRoot         int
+	variablesRoot      int
+	print              bool
+	out                io.Writer
+	printErr           error
+	path               []astjson.PathElement
+	depth              int
+	operationType      ast.OperationType
+	renameTypeNames    []RenameTypeName
+	ctx                *Context
+	authorizationError error
+	xxh                *xxhash.Digest
+	authorizationAllow map[uint64]struct{}
+	authorizationDeny  map[uint64]string
 
 	authorizationBuf          *bytes.Buffer
 	authorizationBufObjectRef int
@@ -75,7 +74,6 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 	r.ctx = ctx
 	r.operationType = operationType
 	r.renameTypeNames = ctx.RenameTypeNames
-	r.requestTraceOptions = ctx.RequestTracingOptions
 	r.dataRoot, r.errorsRoot, err = r.storage.InitResolvable(initialData)
 	if err != nil {
 		return
@@ -131,6 +129,10 @@ func (r *Resolvable) Resolve(ctx context.Context, root *Object, out io.Writer) e
 		r.printBytes(quote)
 		r.printBytes(colon)
 		r.printBytes(null)
+		if r.hasExtensions() {
+			r.printBytes(comma)
+			r.printErr = r.printExtensions(ctx, root)
+		}
 		r.printBytes(rBrace)
 		return nil
 	}
@@ -152,10 +154,10 @@ func (r *Resolvable) Resolve(ctx context.Context, root *Object, out io.Writer) e
 		r.printBytes(null)
 	} else {
 		r.printData(root)
-		if r.hasExtensions() {
-			r.printBytes(comma)
-			r.printExtensions(ctx, root)
-		}
+	}
+	if r.hasExtensions() {
+		r.printBytes(comma)
+		r.printErr = r.printExtensions(ctx, root)
 	}
 	r.printBytes(rBrace)
 
@@ -187,37 +189,97 @@ func (r *Resolvable) printData(root *Object) {
 	r.printBytes(rBrace)
 }
 
-func (r *Resolvable) printExtensions(ctx context.Context, root *Object) {
+func (r *Resolvable) printExtensions(ctx context.Context, root *Object) error {
 	r.printBytes(quote)
 	r.printBytes(literalExtensions)
 	r.printBytes(quote)
 	r.printBytes(colon)
 	r.printBytes(lBrace)
 
-	if r.requestTraceOptions.IncludeTraceOutputInResponseExtensions {
-		r.printTrace(ctx, root)
+	var (
+		writeComma bool
+	)
+
+	if r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
+		writeComma = true
+		err := r.printAuthorizerExtension()
+		if err != nil {
+			return err
+		}
+	}
+
+	if r.ctx.RateLimitOptions.Enable && r.ctx.RateLimitOptions.IncludeStatsInResponseExtension && r.ctx.rateLimiter != nil {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		writeComma = true
+		err := r.printRateLimitingExtension()
+		if err != nil {
+			return err
+		}
+	}
+
+	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		writeComma = true
+		err := r.printTraceExtension(ctx, root)
+		if err != nil {
+			return err
+		}
 	}
 
 	r.printBytes(rBrace)
+	return nil
 }
 
-func (r *Resolvable) printTrace(ctx context.Context, root *Object) {
-	trace := GetTrace(ctx, root)
+func (r *Resolvable) printAuthorizerExtension() error {
+	r.printBytes(quote)
+	r.printBytes(literalAuthorization)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	return r.ctx.authorizer.RenderResponseExtension(r.ctx, r.out)
+}
 
+func (r *Resolvable) printRateLimitingExtension() error {
+	r.printBytes(quote)
+	r.printBytes(literalRateLimit)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	return r.ctx.rateLimiter.RenderResponseExtension(r.ctx, r.out)
+}
+
+func (r *Resolvable) printTraceExtension(ctx context.Context, root *Object) error {
+	var trace *TraceNode
+	if r.ctx.TracingOptions.Debug {
+		trace = GetTrace(ctx, root, GetTraceDebug())
+	} else {
+		trace = GetTrace(ctx, root)
+	}
 	traceData, err := json.Marshal(trace)
 	if err != nil {
-		return
+		return err
 	}
-
 	r.printBytes(quote)
 	r.printBytes(literalTrace)
 	r.printBytes(quote)
 	r.printBytes(colon)
 	r.printBytes(traceData)
+	return nil
 }
 
 func (r *Resolvable) hasExtensions() bool {
-	return r.requestTraceOptions.IncludeTraceOutputInResponseExtensions
+	if r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
+		return true
+	}
+	if r.ctx.RateLimitOptions.Enable && r.ctx.RateLimitOptions.IncludeStatsInResponseExtension && r.ctx.rateLimiter != nil {
+		return true
+	}
+	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
+		return true
+	}
+	return false
 }
 
 func (r *Resolvable) hasErrors() bool {
