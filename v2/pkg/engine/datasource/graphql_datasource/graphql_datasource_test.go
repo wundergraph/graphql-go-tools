@@ -5451,7 +5451,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
-							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{me {id}}"}}`,
+							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{me {__typename id}}"}}`,
 							DataSource:     &Source{},
 							PostProcessing: DefaultPostProcessingConfiguration,
 						},
@@ -5462,13 +5462,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							Name: []byte("me"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
+									FetchID:           1,
+									DependsOnFetchIDs: []int{0},
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: Boolean!){_entities(representations: $representations){__typename ... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"publicOnly":$$2$$,"someSkipCondition":$$1$$,"representations":[{"id":$$0$$,"__typename":"User"}]}}}`,
+										Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: Boolean!){_entities(representations: $representations){__typename ... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"representations":[$$2$$],"publicOnly":$$1$$,"someSkipCondition":$$0$$}}}`,
 										Variables: resolve.NewVariables(
-											&resolve.ObjectVariable{
-												Path:     []string{"id"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-											},
 											&resolve.ContextVariable{
 												Path:     []string{"someSkipCondition"},
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
@@ -5477,9 +5475,31 @@ func TestGraphQLDataSource(t *testing.T) {
 												Path:     []string{"publicOnly"},
 												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
 											},
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.String{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												}),
+											},
 										),
 										DataSource:                            &Source{},
-										PostProcessing:                        EntitiesPostProcessingConfiguration,
+										RequiresEntityFetch:                   true,
+										PostProcessing:                        SingleEntityPostProcessingConfiguration,
 										SetTemplateOutputToNullOnVariableNull: true,
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -5535,8 +5555,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							TypeName:   "Query",
 							FieldNames: []string{"me"},
 						},
-					},
-					ChildNodes: []plan.TypeField{
 						{
 							TypeName:   "User",
 							FieldNames: []string{"id"},
@@ -5550,24 +5568,29 @@ func TestGraphQLDataSource(t *testing.T) {
 							Enabled:    true,
 							ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
 						},
+						UpstreamSchema: "type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
 					}),
 					Factory: federationFactory,
+					FederationMetaData: plan.FederationMetaData{
+						Keys: []plan.FederationFieldConfiguration{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+						},
+					},
 				},
 				{
 					RootNodes: []plan.TypeField{
 						{
 							TypeName:   "User",
-							FieldNames: []string{"reviews"},
+							FieldNames: []string{"reviews", "id"},
 						},
 					},
 					ChildNodes: []plan.TypeField{
 						{
 							TypeName:   "Review",
 							FieldNames: []string{"body", "notes", "likes"},
-						},
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id"},
 						},
 					},
 					Factory: federationFactory,
@@ -5579,15 +5602,19 @@ func TestGraphQLDataSource(t *testing.T) {
 							Enabled:    true,
 							ServiceSDL: "type Review { body: String! notes: String likes(filterToPublicOnly: Boolean): Int! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
 						},
+						UpstreamSchema: "type Review { body: String! notes: String likes(filterToPublicOnly: Boolean): Int! } type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
 					}),
+					FederationMetaData: plan.FederationMetaData{
+						Keys: []plan.FederationFieldConfiguration{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+						},
+					},
 				},
 			},
 			Fields: []plan.FieldConfiguration{
-				{
-					TypeName:       "User",
-					FieldName:      "reviews",
-					RequiresFields: []string{"id"},
-				},
 				{
 					TypeName:  "Review",
 					FieldName: "likes",
