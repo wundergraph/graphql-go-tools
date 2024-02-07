@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"sync/atomic"
 	"testing"
 
@@ -16,10 +17,21 @@ type preFetchAuthFunc func(ctx *Context, dataSourceID string, input json.RawMess
 type objectFieldAuthFunc func(ctx *Context, dataSourceID string, object json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error)
 
 type testAuthorizer struct {
-	preFetchCalls        atomic.Int64
-	objectFieldCalls     atomic.Int64
-	authorizePreFetch    preFetchAuthFunc
-	authorizeObjectField objectFieldAuthFunc
+	preFetchCalls            atomic.Int64
+	objectFieldCalls         atomic.Int64
+	authorizePreFetch        preFetchAuthFunc
+	authorizeObjectField     objectFieldAuthFunc
+	hasResponseExtensionData bool
+	responseExtension        []byte
+}
+
+func (t *testAuthorizer) HasResponseExtensionData(ctx *Context) bool {
+	return t.hasResponseExtensionData
+}
+
+func (t *testAuthorizer) RenderResponseExtension(ctx *Context, out io.Writer) error {
+	_, err := out.Write(t.responseExtension)
+	return err
 }
 
 func (t *testAuthorizer) AuthorizePreFetch(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
@@ -116,6 +128,31 @@ func TestAuthorization(t *testing.T) {
 
 		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
 			`{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}}}`,
+			func(t *testing.T) {
+				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
+				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
+			}
+	}))
+	t.Run("disallow field with extension", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+
+		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
+			if dataSourceID == "users" && coordinate.TypeName == "User" && coordinate.FieldName == "id" {
+				return &AuthorizationDeny{
+					Reason: "Not allowed to fetch id on User",
+				}, nil
+			}
+			return nil, nil
+		}, func(ctx *Context, dataSourceID string, object json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
+			return nil, nil
+		})
+
+		authorizer.(*testAuthorizer).hasResponseExtensionData = true
+		authorizer.(*testAuthorizer).responseExtension = []byte(`{"missingScopes":["id"]}`)
+
+		res := generateTestFederationGraphQLResponse(t, ctrl)
+
+		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
+			`{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","name":"Trilby"}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","name":"Fedora"}}]}},"extensions":{"authorization":{"missingScopes":["id"]}}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())

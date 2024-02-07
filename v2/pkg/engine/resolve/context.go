@@ -3,6 +3,7 @@ package resolve
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"time"
 
@@ -11,16 +12,18 @@ import (
 )
 
 type Context struct {
-	ctx                   context.Context
-	Variables             []byte
-	Request               Request
-	RenameTypeNames       []RenameTypeName
-	RequestTracingOptions RequestTraceOptions
-	InitialPayload        []byte
-	Extensions            []byte
-	Stats                 Stats
+	ctx              context.Context
+	Variables        []byte
+	Request          Request
+	RenameTypeNames  []RenameTypeName
+	TracingOptions   TraceOptions
+	RateLimitOptions RateLimitOptions
+	InitialPayload   []byte
+	Extensions       []byte
+	Stats            Stats
 
-	authorizer Authorizer
+	authorizer  Authorizer
+	rateLimiter RateLimiter
 
 	subgraphErrors error
 }
@@ -44,11 +47,38 @@ type Authorizer interface {
 	// The object argument is the flat render of the field-enclosing response object
 	// Flat render means, we're only rendering scalars, not arrays or objects
 	AuthorizeObjectField(ctx *Context, dataSourceID string, object json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error)
+	HasResponseExtensionData(ctx *Context) bool
+	RenderResponseExtension(ctx *Context, out io.Writer) error
 }
 
-func (c *Context) WithAuthorizer(authorizer Authorizer) *Context {
+func (c *Context) SetAuthorizer(authorizer Authorizer) {
 	c.authorizer = authorizer
-	return c
+}
+
+type RateLimitOptions struct {
+	// Enable switches rate limiting on or off
+	Enable bool
+	// IncludeStatsInResponseExtension includes the rate limit stats in the response extensions
+	IncludeStatsInResponseExtension bool
+
+	Rate                    int
+	Burst                   int
+	Period                  time.Duration
+	RateLimitKey            string
+	RejectExceedingRequests bool
+}
+
+type RateLimitDeny struct {
+	Reason string
+}
+
+type RateLimiter interface {
+	RateLimitPreFetch(ctx *Context, info *FetchInfo, input json.RawMessage) (result *RateLimitDeny, err error)
+	RenderResponseExtension(ctx *Context, out io.Writer) error
+}
+
+func (c *Context) SetRateLimiter(limiter RateLimiter) {
+	c.rateLimiter = limiter
 }
 
 func (c *Context) SubgraphErrors() error {
@@ -116,7 +146,7 @@ func (c *Context) Free() {
 	c.Variables = nil
 	c.Request.Header = nil
 	c.RenameTypeNames = nil
-	c.RequestTracingOptions.DisableAll()
+	c.TracingOptions.DisableAll()
 	c.Extensions = nil
 	c.Stats.Reset()
 	c.subgraphErrors = nil

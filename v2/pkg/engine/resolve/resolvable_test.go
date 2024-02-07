@@ -473,7 +473,8 @@ func TestResolvable_WithTracingNotStarted(t *testing.T) {
 	res := NewResolvable()
 	// Do not start a trace with SetTraceStart(), but request it to be output
 	ctx := NewContext(context.Background())
-	ctx.RequestTracingOptions.IncludeTraceOutputInResponseExtensions = true
+	ctx.TracingOptions.Enable = true
+	ctx.TracingOptions.IncludeTraceOutputInResponseExtensions = true
 	err := res.Init(ctx, []byte(`{"hello": "world"}`), ast.OperationTypeQuery)
 	assert.NoError(t, err)
 	object := &Object{
@@ -501,9 +502,9 @@ func TestResolvable_WithTracing(t *testing.T) {
 	res := NewResolvable()
 	background := SetTraceStart(context.Background(), true)
 	ctx := NewContext(background)
-	ctx.RequestTracingOptions.Enable = true
-	ctx.RequestTracingOptions.EnablePredictableDebugTimings = true
-	ctx.RequestTracingOptions.IncludeTraceOutputInResponseExtensions = true
+	ctx.TracingOptions.Enable = true
+	ctx.TracingOptions.EnablePredictableDebugTimings = true
+	ctx.TracingOptions.IncludeTraceOutputInResponseExtensions = true
 	err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
 	assert.NoError(t, err)
 	assert.NotNil(t, res)

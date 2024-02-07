@@ -956,7 +956,7 @@ func TestLoader_RedactHeaders(t *testing.T) {
 		Request: Request{
 			Header: http.Header{"Authorization": []string{"value"}},
 		},
-		RequestTracingOptions: RequestTraceOptions{
+		TracingOptions: TraceOptions{
 			Enable: true,
 		},
 	}
