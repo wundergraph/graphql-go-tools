@@ -223,7 +223,6 @@ func (r *Resolvable) printExtensions(ctx context.Context, root *Object) error {
 		if writeComma {
 			r.printBytes(comma)
 		}
-		writeComma = true
 		err := r.printTraceExtension(ctx, root)
 		if err != nil {
 			return err
