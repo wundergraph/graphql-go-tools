@@ -3,12 +3,12 @@ package openapi
 import (
 	"errors"
 	"fmt"
+	"net/http"
+	"sort"
+
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/introspection"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/iancoleman/strcase"
-	"net/http"
-	"sort"
-	"strconv"
 )
 
 func (c *converter) importQueryType() (*introspection.FullType, error) {
@@ -29,7 +29,7 @@ func (c *converter) importQueryType() (*introspection.FullType, error) {
 				if statusCodeStr == "default" {
 					continue
 				}
-				status, err := strconv.Atoi(statusCodeStr)
+				status, err := convertStatusCode(statusCodeStr)
 				if err != nil {
 					return nil, err
 				}

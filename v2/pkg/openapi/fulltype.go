@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"strconv"
 
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/introspection"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -213,7 +212,7 @@ func (c *converter) importFullTypes() ([]introspection.FullType, error) {
 				if statusCodeStr == "default" {
 					continue
 				}
-				status, err := strconv.Atoi(statusCodeStr)
+				status, err := convertStatusCode(statusCodeStr)
 				if err != nil {
 					return nil, err
 				}

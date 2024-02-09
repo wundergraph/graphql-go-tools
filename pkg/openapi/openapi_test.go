@@ -161,4 +161,8 @@ func TestOpenAPI_v3_0_0(t *testing.T) {
 	t.Run("anyOf-query-response-type.yaml", func(t *testing.T) {
 		testFixtureFile(t, "v3.0.0", "anyOf-query-response-type.yaml")
 	})
+
+	t.Run("status-code-ranges.yaml", func(t *testing.T) {
+		testFixtureFile(t, "v3.0.0", "status-code-ranges.yaml")
+	})
 }

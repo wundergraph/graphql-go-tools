@@ -8,7 +8,6 @@ import (
 	"github.com/iancoleman/strcase"
 	"net/http"
 	"sort"
-	"strconv"
 )
 
 func (c *converter) importQueryType() (*introspection.FullType, error) {
@@ -29,7 +28,7 @@ func (c *converter) importQueryType() (*introspection.FullType, error) {
 				if statusCodeStr == "default" {
 					continue
 				}
-				status, err := strconv.Atoi(statusCodeStr)
+				status, err := convertStatusCode(statusCodeStr)
 				if err != nil {
 					return nil, err
 				}

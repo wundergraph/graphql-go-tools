@@ -6,6 +6,7 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/literal"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/iancoleman/strcase"
+	"strconv"
 	"strings"
 )
 
@@ -13,6 +14,18 @@ const JsonScalarType = "JSON"
 
 var preDefinedScalarTypes = map[string]string{
 	JsonScalarType: "The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).",
+}
+
+// From the OpenAPI spec: To define a range of response codes, you may use the
+// following range definitions: 1XX, 2XX, 3XX, 4XX, and 5XX.
+//
+// See https://swagger.io/docs/specification/describing-responses/
+var statusCodeRanges = map[string]int{
+	"1XX": 100,
+	"2XX": 200,
+	"3XX": 300,
+	"4XX": 400,
+	"5XX": 500,
 }
 
 // addScalarType adds a new scalar type to the converter's known full types list.
@@ -199,7 +212,7 @@ func getJSONSchemaFromResponseRef(response *openapi3.ResponseRef) *openapi3.Sche
 }
 
 func getJSONSchema(status int, operation *openapi3.Operation) *openapi3.SchemaRef {
-	response := operation.Responses.Get(status)
+	response := getResponseFromOperation(status, operation)
 	if response == nil {
 		return nil
 	}
@@ -223,4 +236,51 @@ func toCamelIfNotPredefinedScalar(typeName string) string {
 		return strcase.ToCamel(typeName)
 	}
 	return typeName
+}
+
+// statusCodeToRange returns a string representing the range of the given status code.
+// The function categorizes the status code into different ranges: 1XX, 2XX, 3XX, 4XX, 5XX.
+// If the status code is not within any of these ranges, an error is returned.
+func statusCodeToRange(status int) (string, error) {
+	if status >= 100 && status < 200 {
+		return "1XX", nil
+	} else if status >= 200 && status < 300 {
+		return "2XX", nil
+	} else if status >= 300 && status < 400 {
+		return "3XX", nil
+	} else if status >= 400 && status < 500 {
+		return "4XX", nil
+	} else if status >= 500 && status < 600 {
+		return "5XX", nil
+	} else {
+		return "", fmt.Errorf("unknown status code: %d", status)
+	}
+}
+
+func convertStatusCode(statusCode string) (int, error) {
+	// The spec advises to use ranges as '2XX' but the OpenAPI parser accepts
+	// '2xx' as a valid status code range.
+	statusCode = strings.ToUpper(statusCode)
+	if code, ok := statusCodeRanges[statusCode]; ok {
+		return code, nil
+	}
+	return strconv.Atoi(statusCode)
+}
+
+// getResponseFromOperation returns the response for the given status code from the operation's responses.
+// If a response with the given status code is not found, it tries to find the range for the status
+// code and returns the response for that range.
+func getResponseFromOperation(status int, operation *openapi3.Operation) *openapi3.ResponseRef {
+	response := operation.Responses.Get(status)
+	if response != nil {
+		return response
+	}
+	// Try to find the range this time.
+	statusCodeRange, err := statusCodeToRange(status)
+	if err != nil {
+		// Invalid status code. It's okay to return nil here. We couldn't find
+		// a response for the given status code.
+		return nil
+	}
+	return operation.Responses[statusCodeRange]
 }

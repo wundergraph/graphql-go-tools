@@ -3,7 +3,6 @@ package openapi
 import (
 	"net/http"
 	"sort"
-	"strconv"
 
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/introspection"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -36,7 +35,7 @@ func (c *converter) getInputValuesFromParameters(field *introspection.Field, par
 // If the response schema is an object, it returns a type name generated from the current path name. Otherwise, it returns "String".
 func (c *converter) tryMakeTypeNameFromOperation(status int, operation *openapi3.Operation) string {
 	// Try to make a new type name for unnamed objects.
-	responseRef := operation.Responses.Get(status)
+	responseRef := getResponseFromOperation(status, operation)
 	if responseRef != nil && responseRef.Value != nil {
 		mediaType := responseRef.Value.Content.Get("application/json")
 		if mediaType != nil && mediaType.Schema != nil && mediaType.Schema.Value != nil {
@@ -109,7 +108,7 @@ func (c *converter) importMutationType() (*introspection.FullType, error) {
 				if statusCodeStr == "default" {
 					continue
 				}
-				status, err := strconv.Atoi(statusCodeStr)
+				status, err := convertStatusCode(statusCodeStr)
 				if err != nil {
 					return nil, err
 				}

@@ -3,12 +3,10 @@ package openapi
 import (
 	"errors"
 	"fmt"
-	"net/http"
-	"sort"
-	"strconv"
-
 	"github.com/TykTechnologies/graphql-go-tools/pkg/introspection"
 	"github.com/getkin/kin-openapi/openapi3"
+	"net/http"
+	"sort"
 )
 
 func (c *converter) checkAndProcessOneOfKeyword(schema *openapi3.SchemaRef) error {
@@ -213,7 +211,7 @@ func (c *converter) importFullTypes() ([]introspection.FullType, error) {
 				if statusCodeStr == "default" {
 					continue
 				}
-				status, err := strconv.Atoi(statusCodeStr)
+				status, err := convertStatusCode(statusCodeStr)
 				if err != nil {
 					return nil, err
 				}
