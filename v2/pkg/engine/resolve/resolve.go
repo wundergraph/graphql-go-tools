@@ -201,7 +201,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		buf := pool.BytesBuffer.Get()
 		defer pool.BytesBuffer.Put(buf)
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)
-		r.AsyncUnsubscribeSubscription(sub.id)
+		_ = r.AsyncUnsubscribeSubscription(sub.id)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:init:failed:%d\n", sub.id.SubscriptionID)
 		}
@@ -211,7 +211,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		buf := pool.BytesBuffer.Get()
 		defer pool.BytesBuffer.Put(buf)
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)
-		r.AsyncUnsubscribeSubscription(sub.id)
+		_ = r.AsyncUnsubscribeSubscription(sub.id)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:load:failed:%d\n", sub.id.SubscriptionID)
 		}
@@ -230,7 +230,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		buf := pool.BytesBuffer.Get()
 		defer pool.BytesBuffer.Put(buf)
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)
-		r.AsyncUnsubscribeSubscription(sub.id)
+		_ = r.AsyncUnsubscribeSubscription(sub.id)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:resolve:failed:%d\n", sub.id.SubscriptionID)
 		}
@@ -244,7 +244,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		r.reporter.SubscriptionUpdateSent()
 	}
 	if t.resolvable.WroteErrorsWithoutData() {
-		r.AsyncUnsubscribeSubscription(sub.id)
+		_ = r.AsyncUnsubscribeSubscription(sub.id)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:completing:errors_withou_data:%d\n", sub.id.SubscriptionID)
 		}
