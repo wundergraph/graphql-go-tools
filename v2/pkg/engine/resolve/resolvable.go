@@ -36,6 +36,9 @@ type Resolvable struct {
 
 	authorizationBuf          *bytes.Buffer
 	authorizationBufObjectRef int
+
+	wroteErrors bool
+	wroteData   bool
 }
 
 func NewResolvable() *Resolvable {
@@ -49,6 +52,8 @@ func NewResolvable() *Resolvable {
 
 func (r *Resolvable) Reset() {
 	r.storage.Reset()
+	r.wroteErrors = false
+	r.wroteData = false
 	r.dataRoot = -1
 	r.errorsRoot = -1
 	r.variablesRoot = -1
@@ -175,6 +180,7 @@ func (r *Resolvable) printErrors() {
 	r.printBytes(colon)
 	r.printNode(r.errorsRoot)
 	r.printBytes(comma)
+	r.wroteErrors = true
 }
 
 func (r *Resolvable) printData(root *Object) {
@@ -187,6 +193,7 @@ func (r *Resolvable) printData(root *Object) {
 	_ = r.walkObject(root, r.dataRoot)
 	r.print = false
 	r.printBytes(rBrace)
+	r.wroteData = true
 }
 
 func (r *Resolvable) printExtensions(ctx context.Context, root *Object) error {
@@ -279,6 +286,10 @@ func (r *Resolvable) hasExtensions() bool {
 		return true
 	}
 	return false
+}
+
+func (r *Resolvable) WroteErrorsWithoutData() bool {
+	return r.wroteErrors && !r.wroteData
 }
 
 func (r *Resolvable) hasErrors() bool {
