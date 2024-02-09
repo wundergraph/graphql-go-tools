@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type RequestTraceOptions struct {
+type TraceOptions struct {
 	// Enable switches tracing on or off
 	Enable bool
 	// ExcludePlannerStats excludes planner timing information from the trace output
@@ -21,11 +21,14 @@ type RequestTraceOptions struct {
 	// ExcludeLoadStats excludes the load timing information from the trace output
 	ExcludeLoadStats bool
 	// EnablePredictableDebugTimings makes the timings in the trace output predictable for debugging purposes
-	EnablePredictableDebugTimings          bool
+	EnablePredictableDebugTimings bool
+	// IncludeTraceOutputInResponseExtensions includes the trace output in the response extensions
 	IncludeTraceOutputInResponseExtensions bool
+	// Debug makes trace IDs of fetches predictable for debugging purposes
+	Debug bool
 }
 
-func (r *RequestTraceOptions) EnableAll() {
+func (r *TraceOptions) EnableAll() {
 	r.Enable = true
 	r.ExcludePlannerStats = false
 	r.ExcludeRawInputData = false
@@ -36,7 +39,7 @@ func (r *RequestTraceOptions) EnableAll() {
 	r.IncludeTraceOutputInResponseExtensions = true
 }
 
-func (r *RequestTraceOptions) DisableAll() {
+func (r *TraceOptions) DisableAll() {
 	r.Enable = false
 	r.ExcludePlannerStats = true
 	r.ExcludeRawInputData = true
@@ -141,14 +144,14 @@ func getNodeType(kind NodeKind) TraceNodeType {
 	}
 }
 
-func parseField(f *Field) *TraceField {
+func parseField(f *Field, options *getTraceOptions) *TraceField {
 	if f == nil {
 		return nil
 	}
 
 	field := &TraceField{
 		Name:  string(f.Name),
-		Value: parseNode(f.Value),
+		Value: parseNode(f.Value, options),
 	}
 
 	if f.Info == nil {
@@ -162,9 +165,12 @@ func parseField(f *Field) *TraceField {
 	return field
 }
 
-func parseFetch(fetch Fetch) *TraceFetch {
-	traceFetch := &TraceFetch{
-		Id: uuid.NewString(),
+func parseFetch(fetch Fetch, options *getTraceOptions) *TraceFetch {
+	traceFetch := &TraceFetch{}
+	if options.debug {
+		traceFetch.Id = "00000000-0000-0000-0000-000000000000"
+	} else {
+		traceFetch.Id = uuid.New().String()
 	}
 
 	switch f := fetch.(type) {
@@ -184,7 +190,7 @@ func parseFetch(fetch Fetch) *TraceFetch {
 			traceFetch.Path = f.Trace.Path
 		}
 		for _, subFetch := range f.Fetches {
-			traceFetch.Fetches = append(traceFetch.Fetches, parseFetch(subFetch))
+			traceFetch.Fetches = append(traceFetch.Fetches, parseFetch(subFetch, options))
 		}
 
 	case *SerialFetch:
@@ -193,7 +199,7 @@ func parseFetch(fetch Fetch) *TraceFetch {
 			traceFetch.Path = f.Trace.Path
 		}
 		for _, subFetch := range f.Fetches {
-			traceFetch.Fetches = append(traceFetch.Fetches, parseFetch(subFetch))
+			traceFetch.Fetches = append(traceFetch.Fetches, parseFetch(subFetch, options))
 		}
 
 	case *ParallelListItemFetch:
@@ -201,7 +207,7 @@ func parseFetch(fetch Fetch) *TraceFetch {
 		if f.Trace != nil {
 			traceFetch.Path = f.Trace.Path
 		}
-		traceFetch.Fetches = append(traceFetch.Fetches, parseFetch(f.Fetch))
+		traceFetch.Fetches = append(traceFetch.Fetches, parseFetch(f.Fetch, options))
 		if f.Traces != nil {
 			for _, trace := range f.Traces {
 				if trace.Trace != nil {
@@ -239,7 +245,7 @@ func parseFetch(fetch Fetch) *TraceFetch {
 	return traceFetch
 }
 
-func parseNode(n Node) *TraceNode {
+func parseNode(n Node, options *getTraceOptions) *TraceNode {
 	node := &TraceNode{
 		NodeType: getNodeType(n.NodeKind()),
 		Nullable: n.NodeKind() == NodeKindNull || n.NodePath() == nil,
@@ -249,16 +255,16 @@ func parseNode(n Node) *TraceNode {
 	switch v := n.(type) {
 	case *Object:
 		for _, field := range v.Fields {
-			node.Fields = append(node.Fields, parseField(field))
+			node.Fields = append(node.Fields, parseField(field, options))
 		}
-		node.Fetch = parseFetch(v.Fetch)
+		node.Fetch = parseFetch(v.Fetch, options)
 
 	case *Array:
 		if v.Item != nil {
-			node.Items = append(node.Items, parseNode(v.Item))
+			node.Items = append(node.Items, parseNode(v.Item, options))
 		} else if len(v.Items) > 0 {
 			for _, item := range v.Items {
-				node.Items = append(node.Items, parseNode(item))
+				node.Items = append(node.Items, parseNode(item, options))
 			}
 		}
 
@@ -270,8 +276,24 @@ func parseNode(n Node) *TraceNode {
 	return node
 }
 
-func GetTrace(ctx context.Context, root *Object) *TraceNode {
-	node := parseNode(root)
+type getTraceOptions struct {
+	debug bool
+}
+
+type GetTraceOption func(*getTraceOptions)
+
+func GetTraceDebug() GetTraceOption {
+	return func(o *getTraceOptions) {
+		o.debug = true
+	}
+}
+
+func GetTrace(ctx context.Context, root *Object, opts ...GetTraceOption) *TraceNode {
+	options := &getTraceOptions{}
+	for i := range opts {
+		opts[i](options)
+	}
+	node := parseNode(root, options)
 	node.Info = GetTraceInfo(ctx)
 	return node
 }

@@ -24,13 +24,12 @@ import (
 )
 
 type Loader struct {
-	data         *astjson.JSON
-	dataRoot     int
-	errorsRoot   int
-	ctx          *Context
-	path         []string
-	traceOptions RequestTraceOptions
-	info         *GraphQLResponseInfo
+	data       *astjson.JSON
+	dataRoot   int
+	errorsRoot int
+	ctx        *Context
+	path       []string
+	info       *GraphQLResponseInfo
 }
 
 func (l *Loader) Free() {
@@ -46,7 +45,6 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 	l.data = resolvable.storage
 	l.dataRoot = resolvable.dataRoot
 	l.errorsRoot = resolvable.errorsRoot
-	l.traceOptions = resolvable.requestTraceOptions
 	l.ctx = ctx
 	l.info = response.Info
 	return l.walkNode(response.Data, []int{resolvable.dataRoot})
@@ -188,7 +186,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		return l.mergeResult(res, items)
 	case *SerialFetch:
-		if l.traceOptions.Enable {
+		if l.ctx.TracingOptions.Enable {
 			f.Trace = &DataSourceLoadTrace{
 				Path: l.renderPath(),
 			}
@@ -200,7 +198,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			}
 		}
 	case *ParallelFetch:
-		if l.traceOptions.Enable {
+		if l.ctx.TracingOptions.Enable {
 			f.Trace = &DataSourceLoadTrace{
 				Path: l.renderPath(),
 			}
@@ -234,7 +232,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			}
 		}
 	case *ParallelListItemFetch:
-		if l.traceOptions.Enable {
+		if l.ctx.TracingOptions.Enable {
 			f.Trace = &DataSourceLoadTrace{
 				Path: l.renderPath(),
 			}
@@ -293,7 +291,7 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res *r
 		return fmt.Errorf("parallel fetch must not be nested")
 	case *ParallelListItemFetch:
 		results := make([]*result, len(items))
-		if l.traceOptions.Enable {
+		if l.ctx.TracingOptions.Enable {
 			f.Traces = make([]*SingleFetch, len(items))
 		}
 		g, ctx := errgroup.WithContext(l.ctx.ctx)
@@ -302,7 +300,7 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res *r
 			results[i] = &result{
 				out: pool.BytesBuffer.Get(),
 			}
-			if l.traceOptions.Enable {
+			if l.ctx.TracingOptions.Enable {
 				f.Traces[i] = new(SingleFetch)
 				*f.Traces[i] = *f.Fetch
 				g.Go(func() error {
@@ -351,7 +349,6 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 		if err != nil {
 			return err
 		}
-		before := l.data.DebugPrintNode(l.dataRoot)
 		for _, item := range items {
 			l.data.Nodes = append(l.data.Nodes, astjson.Node{
 				Kind: astjson.NodeKindNullSkipError,
@@ -359,8 +356,20 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 			ref := len(l.data.Nodes) - 1
 			l.data.MergeNodesWithPath(item, ref, res.postProcessing.MergePath)
 		}
-		after := l.data.DebugPrintNode(l.dataRoot)
-		_, _ = before, after
+		return nil
+	}
+	if res.rateLimitRejected {
+		err := l.renderRateLimitRejectedErrors(res)
+		if err != nil {
+			return err
+		}
+		for _, item := range items {
+			l.data.Nodes = append(l.data.Nodes, astjson.Node{
+				Kind: astjson.NodeKindNullSkipError,
+			})
+			ref := len(l.data.Nodes) - 1
+			l.data.MergeNodesWithPath(item, ref, res.postProcessing.MergePath)
+		}
 		return nil
 	}
 	if res.fetchSkipped {
@@ -481,6 +490,9 @@ type result struct {
 
 	authorizationRejected        bool
 	authorizationRejectedReasons []string
+
+	rateLimitRejected       bool
+	rateLimitRejectedReason string
 }
 
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
@@ -569,10 +581,42 @@ func (l *Loader) renderAuthorizationRejectedErrors(res *result) error {
 	return nil
 }
 
-func (l *Loader) isFetchAuthorized(input []byte, info *FetchInfo, res *result) (authorized bool, err error) {
-	if info == nil {
-		return true, nil
+func (l *Loader) renderRateLimitRejectedErrors(res *result) error {
+	path := l.renderPath()
+	l.ctx.appendSubgraphError(errors.Wrap(res.err, fmt.Sprintf("Rate limit rejected for subgraph '%s' at path '%s'. Reason: %s", res.subgraphName, path, res.rateLimitRejectedReason)))
+	if res.subgraphName == "" {
+		if res.rateLimitRejectedReason == "" {
+			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request at path '%s'."}`, path)))
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+		} else {
+			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request at path '%s'. Reason: %s"}`, path, res.rateLimitRejectedReason)))
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+		}
+	} else {
+		if res.rateLimitRejectedReason == "" {
+			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s' at path '%s'."}`, res.subgraphName, path)))
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+		} else {
+			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s' at path '%s'. Reason: %s"}`, res.subgraphName, path, res.rateLimitRejectedReason)))
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+		}
 	}
+	return nil
+}
+
+func (l *Loader) isFetchAuthorized(input []byte, info *FetchInfo, res *result) (authorized bool, err error) {
 	if info.OperationType == ast.OperationTypeQuery {
 		// we only want to authorize Mutations and Subscriptions at the load level
 		// Mutations can have side effects, so we don't want to send them to a subgraph if the user is not authorized
@@ -604,6 +648,36 @@ func (l *Loader) isFetchAuthorized(input []byte, info *FetchInfo, res *result) (
 	return authorized, nil
 }
 
+func (l *Loader) rateLimitFetch(input []byte, info *FetchInfo, res *result) (allowed bool, err error) {
+	if !l.ctx.RateLimitOptions.Enable {
+		return true, nil
+	}
+	if l.ctx.rateLimiter == nil {
+		return true, nil
+	}
+	result, err := l.ctx.rateLimiter.RateLimitPreFetch(l.ctx, info, input)
+	if err != nil {
+		return false, err
+	}
+	if result != nil {
+		res.rateLimitRejected = true
+		res.rateLimitRejectedReason = result.Reason
+		return false, nil
+	}
+	return true, nil
+}
+
+func (l *Loader) validatePreFetch(input []byte, info *FetchInfo, res *result) (allowed bool, err error) {
+	if info == nil {
+		return true, nil
+	}
+	allowed, err = l.isFetchAuthorized(input, info, res)
+	if err != nil || !allowed {
+		return
+	}
+	return l.rateLimitFetch(input, info, res)
+}
+
 func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items []int, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
 	input := pool.BytesBuffer.Get()
@@ -614,9 +688,9 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items 
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	if l.traceOptions.Enable {
+	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
-		if !l.traceOptions.ExcludeRawInputData {
+		if !l.ctx.TracingOptions.ExcludeRawInputData {
 			inputCopy := make([]byte, input.Len())
 			copy(inputCopy, input.Bytes())
 			fetch.Trace.RawInputData = inputCopy
@@ -627,11 +701,11 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items 
 		return l.renderErrorsInvalidInput(res.out)
 	}
 	fetchInput := preparedInput.Bytes()
-	authorized, err := l.isFetchAuthorized(fetchInput, fetch.Info, res)
+	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
 	if err != nil {
 		return err
 	}
-	if !authorized {
+	if !allowed {
 		return nil
 	}
 	res.err = l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res.out, fetch.Trace)
@@ -651,9 +725,9 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 		return errors.WithStack(err)
 	}
 
-	if l.traceOptions.Enable {
+	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
-		if !l.traceOptions.ExcludeRawInputData {
+		if !l.ctx.TracingOptions.ExcludeRawInputData {
 			itemDataCopy := make([]byte, itemData.Len())
 			copy(itemDataCopy, itemData.Bytes())
 			fetch.Trace.RawInputData = itemDataCopy
@@ -672,7 +746,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 		if fetch.Input.SkipErrItem {
 			err = nil // nolint:ineffassign
 			// skip fetch on render item error
-			if l.traceOptions.Enable {
+			if l.ctx.TracingOptions.Enable {
 				fetch.Trace.LoadSkipped = true
 			}
 			return nil
@@ -683,7 +757,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 	if bytes.Equal(renderedItem, null) {
 		// skip fetch if item is null
 		res.fetchSkipped = true
-		if l.traceOptions.Enable {
+		if l.ctx.TracingOptions.Enable {
 			fetch.Trace.LoadSkipped = true
 		}
 		return nil
@@ -691,7 +765,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 	if bytes.Equal(renderedItem, emptyObject) {
 		// skip fetch if item is empty
 		res.fetchSkipped = true
-		if l.traceOptions.Enable {
+		if l.ctx.TracingOptions.Enable {
 			fetch.Trace.LoadSkipped = true
 		}
 		return nil
@@ -707,11 +781,11 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 		return errors.WithStack(err)
 	}
 	fetchInput := preparedInput.Bytes()
-	authorized, err := l.isFetchAuthorized(fetchInput, fetch.Info, res)
+	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
-	if !authorized {
+	if !allowed {
 		return nil
 	}
 	res.err = l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res.out, fetch.Trace)
@@ -721,9 +795,9 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityFetch, items []int, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
 
-	if l.traceOptions.Enable {
+	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
-		if !l.traceOptions.ExcludeRawInputData {
+		if !l.ctx.TracingOptions.ExcludeRawInputData {
 			buf := &bytes.Buffer{}
 			err := l.itemsData(items, buf)
 			if err != nil {
@@ -772,7 +846,7 @@ WithNextItem:
 					res.batchStats[i] = append(res.batchStats[i], -1)
 					continue
 				}
-				if l.traceOptions.Enable {
+				if l.ctx.TracingOptions.Enable {
 					fetch.Trace.LoadSkipped = true
 				}
 				return errors.WithStack(err)
@@ -812,7 +886,7 @@ WithNextItem:
 	if len(itemHashes) == 0 {
 		// all items were skipped - discard fetch
 		res.fetchSkipped = true
-		if l.traceOptions.Enable {
+		if l.ctx.TracingOptions.Enable {
 			fetch.Trace.LoadSkipped = true
 		}
 		return nil
@@ -828,11 +902,11 @@ WithNextItem:
 		return errors.WithStack(err)
 	}
 	fetchInput := preparedInput.Bytes()
-	authorized, err := l.isFetchAuthorized(fetchInput, fetch.Info, res)
+	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
-	if !authorized {
+	if !allowed {
 		return nil
 	}
 	res.err = l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res.out, fetch.Trace)
@@ -908,10 +982,10 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 			return errors.WithStack(err)
 		}
 	}
-	if l.traceOptions.Enable {
+	if l.ctx.TracingOptions.Enable {
 		ctx = setSingleFlightStats(ctx, &SingleFlightStats{})
 		trace.Path = l.renderPath()
-		if !l.traceOptions.ExcludeInput {
+		if !l.ctx.TracingOptions.ExcludeInput {
 			trace.Input = make([]byte, len(input))
 			copy(trace.Input, input) // copy input explicitly, omit __trace__ field
 			redactedInput, err := redactHeaders(trace.Input)
@@ -925,7 +999,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 			copy(inputCopy, input)
 			input, _ = jsonparser.Set(inputCopy, []byte("true"), "__trace__")
 		}
-		if !l.traceOptions.ExcludeLoadStats {
+		if !l.ctx.TracingOptions.ExcludeLoadStats {
 			trace.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
 			trace.DurationSinceStartPretty = time.Duration(trace.DurationSinceStartNano).String()
 			trace.LoadStats = &LoadStats{}
@@ -933,14 +1007,14 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 				GetConn: func(hostPort string) {
 					trace.LoadStats.GetConn.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
 					trace.LoadStats.GetConn.DurationSinceStartPretty = time.Duration(trace.LoadStats.GetConn.DurationSinceStartNano).String()
-					if !l.traceOptions.EnablePredictableDebugTimings {
+					if !l.ctx.TracingOptions.EnablePredictableDebugTimings {
 						trace.LoadStats.GetConn.HostPort = hostPort
 					}
 				},
 				GotConn: func(info httptrace.GotConnInfo) {
 					trace.LoadStats.GotConn.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
 					trace.LoadStats.GotConn.DurationSinceStartPretty = time.Duration(trace.LoadStats.GotConn.DurationSinceStartNano).String()
-					if !l.traceOptions.EnablePredictableDebugTimings {
+					if !l.ctx.TracingOptions.EnablePredictableDebugTimings {
 						trace.LoadStats.GotConn.Reused = info.Reused
 						trace.LoadStats.GotConn.WasIdle = info.WasIdle
 						trace.LoadStats.GotConn.IdleTimeNano = info.IdleTime.Nanoseconds()
@@ -957,7 +1031,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 				DNSStart: func(info httptrace.DNSStartInfo) {
 					trace.LoadStats.DNSStart.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
 					trace.LoadStats.DNSStart.DurationSinceStartPretty = time.Duration(trace.LoadStats.DNSStart.DurationSinceStartNano).String()
-					if !l.traceOptions.EnablePredictableDebugTimings {
+					if !l.ctx.TracingOptions.EnablePredictableDebugTimings {
 						trace.LoadStats.DNSStart.Host = info.Host
 					}
 				},
@@ -968,7 +1042,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 				ConnectStart: func(network, addr string) {
 					trace.LoadStats.ConnectStart.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
 					trace.LoadStats.ConnectStart.DurationSinceStartPretty = time.Duration(trace.LoadStats.ConnectStart.DurationSinceStartNano).String()
-					if !l.traceOptions.EnablePredictableDebugTimings {
+					if !l.ctx.TracingOptions.EnablePredictableDebugTimings {
 						trace.LoadStats.ConnectStart.Network = network
 						trace.LoadStats.ConnectStart.Addr = addr
 					}
@@ -976,7 +1050,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 				ConnectDone: func(network, addr string, err error) {
 					trace.LoadStats.ConnectDone.DurationSinceStartNano = GetDurationNanoSinceTraceStart(ctx)
 					trace.LoadStats.ConnectDone.DurationSinceStartPretty = time.Duration(trace.LoadStats.ConnectDone.DurationSinceStartNano).String()
-					if !l.traceOptions.EnablePredictableDebugTimings {
+					if !l.ctx.TracingOptions.EnablePredictableDebugTimings {
 						trace.LoadStats.ConnectDone.Network = network
 						trace.LoadStats.ConnectDone.Addr = addr
 					}
@@ -1016,14 +1090,14 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 		ctx = context.WithValue(ctx, disallowSingleFlightContextKey{}, true)
 	}
 	err = source.Load(ctx, input, out)
-	if l.traceOptions.Enable {
+	if l.ctx.TracingOptions.Enable {
 		stats := GetSingleFlightStats(ctx)
 		if stats != nil {
 			trace.SingleFlightUsed = stats.SingleFlightUsed
 			trace.SingleFlightSharedResponse = stats.SingleFlightSharedResponse
 		}
-		if !l.traceOptions.ExcludeOutput && out.Len() > 0 {
-			if l.traceOptions.EnablePredictableDebugTimings {
+		if !l.ctx.TracingOptions.ExcludeOutput && out.Len() > 0 {
+			if l.ctx.TracingOptions.EnablePredictableDebugTimings {
 				dataCopy := make([]byte, out.Len())
 				copy(dataCopy, out.Bytes())
 				trace.Output = jsonparser.Delete(dataCopy, "extensions", "trace", "response", "headers", "Date")
@@ -1032,8 +1106,8 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 				copy(trace.Output, out.Bytes())
 			}
 		}
-		if !l.traceOptions.ExcludeLoadStats {
-			if l.traceOptions.EnablePredictableDebugTimings {
+		if !l.ctx.TracingOptions.ExcludeLoadStats {
+			if l.ctx.TracingOptions.EnablePredictableDebugTimings {
 				trace.DurationLoadNano = 1
 			} else {
 				trace.DurationLoadNano = GetDurationNanoSinceTraceStart(ctx) - trace.DurationSinceStartNano
@@ -1042,7 +1116,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 		}
 	}
 	if err != nil {
-		if l.traceOptions.Enable {
+		if l.ctx.TracingOptions.Enable {
 			trace.LoadError = err.Error()
 		}
 		return errors.WithStack(err)

@@ -176,9 +176,9 @@ type FetchInfo struct {
 }
 
 type GraphCoordinate struct {
-	TypeName             string
-	FieldName            string
-	HasAuthorizationRule bool
+	TypeName             string `json:"typeName"`
+	FieldName            string `json:"fieldName"`
+	HasAuthorizationRule bool   `json:"-"`
 }
 
 type DataSourceLoadTrace struct {
