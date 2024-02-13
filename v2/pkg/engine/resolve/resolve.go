@@ -26,6 +26,12 @@ var (
 
 type Reporter interface {
 	SubscriptionUpdateSent()
+	SubscriptionCountInc(count int)
+	SubscriptionCountDec(count int)
+}
+
+type AsyncErrorWriter interface {
+	WriteError(ctx *Context, err error, res *GraphQLResponse, w io.Writer, buf *bytes.Buffer)
 }
 
 type Resolver struct {
@@ -41,7 +47,12 @@ type Resolver struct {
 
 	connectionIDs atomic.Int64
 
-	reporter Reporter
+	reporter         Reporter
+	asyncErrorWriter AsyncErrorWriter
+}
+
+func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
+	r.asyncErrorWriter = w
 }
 
 type tools struct {
@@ -62,12 +73,13 @@ type ResolverOptions struct {
 
 	Debug bool
 
-	Reporter Reporter
+	Reporter         Reporter
+	AsyncErrorWriter AsyncErrorWriter
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
 func New(ctx context.Context, options ResolverOptions) *Resolver {
-	// options.Debug = true
+	//options.Debug = true
 	resolver := &Resolver{
 		ctx:     ctx,
 		options: options,
@@ -79,18 +91,19 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 				}
 			},
 		},
-		events:   make(chan subscriptionEvent),
-		triggers: make(map[uint64]*trigger),
-		reporter: options.Reporter,
+		events:           make(chan subscriptionEvent),
+		triggers:         make(map[uint64]*trigger),
+		reporter:         options.Reporter,
+		asyncErrorWriter: options.AsyncErrorWriter,
 	}
-	/*if options.MaxConcurrency > 0 {
+	if options.MaxConcurrency > 0 {
 		semaphore := make(chan struct{}, options.MaxConcurrency)
 		for i := 0; i < options.MaxConcurrency; i++ {
 			semaphore <- struct{}{}
 		}
 		resolver.limitMaxConcurrency = true
 		resolver.maxConcurrency = semaphore
-	}*/
+	}
 	if options.MaxSubscriptionWorkers == 0 {
 		options.MaxSubscriptionWorkers = 1024
 	}
@@ -107,6 +120,9 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 }
 
 func (r *Resolver) getTools() *tools {
+	if r.limitMaxConcurrency {
+		<-r.maxConcurrency
+	}
 	t := r.toolPool.Get().(*tools)
 	return t
 }
@@ -115,6 +131,9 @@ func (r *Resolver) putTools(t *tools) {
 	t.loader.Free()
 	t.resolvable.Reset()
 	r.toolPool.Put(t)
+	if r.limitMaxConcurrency {
+		r.maxConcurrency <- struct{}{}
+	}
 }
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
@@ -173,30 +192,62 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 	sub.mux.Unlock()
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
-		defer fmt.Printf("resolver:trigger:subscription:update:done:%d\n", sub.id.SubscriptionID)
 	}
 	t := r.getTools()
 	defer r.putTools(t)
 	input := make([]byte, len(sharedInput))
 	copy(input, sharedInput)
 	if err := t.resolvable.InitSubscription(ctx, input, sub.resolve.Trigger.PostProcessing); err != nil {
+		buf := pool.BytesBuffer.Get()
+		defer pool.BytesBuffer.Put(buf)
+		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)
+		_ = r.AsyncUnsubscribeSubscription(sub.id)
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:subscription:init:failed:%d\n", sub.id.SubscriptionID)
+		}
 		return
 	}
 	if err := t.loader.LoadGraphQLResponseData(ctx, sub.resolve.Response, t.resolvable); err != nil {
+		buf := pool.BytesBuffer.Get()
+		defer pool.BytesBuffer.Put(buf)
+		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)
+		_ = r.AsyncUnsubscribeSubscription(sub.id)
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:subscription:load:failed:%d\n", sub.id.SubscriptionID)
+		}
 		return
 	}
 	sub.mux.Lock()
 	sub.pendingUpdates--
 	defer sub.mux.Unlock()
 	if sub.writer == nil {
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:subscription:writer:nil:%d\n", sub.id.SubscriptionID)
+		}
 		return // subscription was already closed by the client
 	}
 	if err := t.resolvable.Resolve(ctx.ctx, sub.resolve.Response.Data, sub.writer); err != nil {
+		buf := pool.BytesBuffer.Get()
+		defer pool.BytesBuffer.Put(buf)
+		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)
+		_ = r.AsyncUnsubscribeSubscription(sub.id)
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:subscription:resolve:failed:%d\n", sub.id.SubscriptionID)
+		}
 		return
 	}
 	sub.writer.Flush()
+	if r.options.Debug {
+		fmt.Printf("resolver:trigger:subscription:flushed:%d\n", sub.id.SubscriptionID)
+	}
 	if r.reporter != nil {
 		r.reporter.SubscriptionUpdateSent()
+	}
+	if t.resolvable.WroteErrorsWithoutData() {
+		_ = r.AsyncUnsubscribeSubscription(sub.id)
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:subscription:completing:errors_withou_data:%d\n", sub.id.SubscriptionID)
+		}
 	}
 }
 
@@ -262,6 +313,12 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	trig, ok := r.triggers[triggerID]
 	if ok {
 		trig.subscriptions[add.ctx] = s
+		if r.reporter != nil {
+			r.reporter.SubscriptionCountInc(1)
+		}
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:subscription:added:%d:%d\n", triggerID, add.id.SubscriptionID)
+		}
 		return
 	}
 	if r.options.Debug {
@@ -269,6 +326,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	}
 	ctx, cancel := context.WithCancel(xcontext.Detach(add.ctx.Context()))
 	updater := &subscriptionUpdater{
+		debug:     r.options.Debug,
 		triggerID: triggerID,
 		ch:        r.events,
 		ctx:       ctx,
@@ -284,10 +342,28 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	err = add.resolve.Trigger.Source.Start(clone, add.input, updater)
 	if err != nil {
 		cancel()
+		delete(r.triggers, triggerID)
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:failed:%d\n", triggerID)
+		}
+		buf := pool.BytesBuffer.Get()
+		defer pool.BytesBuffer.Put(buf)
+		r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer, buf)
+		return
+	}
+	if r.options.Debug {
+		fmt.Printf("resolver:trigger:started:%d\n", triggerID)
+	}
+	if r.reporter != nil {
+		r.reporter.SubscriptionCountInc(1)
 	}
 }
 
 func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
+	if r.options.Debug {
+		fmt.Printf("resolver:trigger:subscription:remove:%d:%d\n", id.ConnectionID, id.SubscriptionID)
+	}
+	removed := 0
 	for u := range r.triggers {
 		trig := r.triggers[u]
 		for ctx, s := range trig.subscriptions {
@@ -298,17 +374,25 @@ func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
 				s.mux.Unlock()
 				delete(trig.subscriptions, ctx)
 				if r.options.Debug {
-					fmt.Printf("resolver:trigger:subscription:done:%d:%d\n", trig.id, id.SubscriptionID)
+					fmt.Printf("resolver:trigger:subscription:removed:%d:%d\n", trig.id, id.SubscriptionID)
 				}
+				removed++
 			}
 		}
 		if len(trig.subscriptions) == 0 {
 			r.shutdownTrigger(trig.id)
 		}
 	}
+	if r.reporter != nil {
+		r.reporter.SubscriptionCountDec(removed)
+	}
 }
 
 func (r *Resolver) handleRemoveClient(id int64) {
+	if r.options.Debug {
+		fmt.Printf("resolver:trigger:subscription:remove:client:%d\n", id)
+	}
+	removed := 0
 	for u := range r.triggers {
 		for c, s := range r.triggers[u].subscriptions {
 			if s.id.ConnectionID == id && !s.id.internal {
@@ -320,11 +404,15 @@ func (r *Resolver) handleRemoveClient(id int64) {
 				if r.options.Debug {
 					fmt.Printf("resolver:trigger:subscription:done:%d:%d\n", u, s.id.SubscriptionID)
 				}
+				removed++
 			}
 		}
 		if len(r.triggers[u].subscriptions) == 0 {
 			r.shutdownTrigger(r.triggers[u].id)
 		}
+	}
+	if r.reporter != nil {
+		r.reporter.SubscriptionCountDec(removed)
 	}
 }
 
@@ -353,6 +441,7 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 	if !ok {
 		return
 	}
+	count := len(trig.subscriptions)
 	for c, s := range trig.subscriptions {
 		s.mux.Lock()
 		s.writer.Complete()
@@ -367,6 +456,9 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 	delete(r.triggers, id)
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:done:%d\n", trig.id)
+	}
+	if r.reporter != nil {
+		r.reporter.SubscriptionCountDec(count)
 	}
 }
 
@@ -533,13 +625,17 @@ func (r *Resolver) subscriptionInput(ctx *Context, subscription *GraphQLSubscrip
 }
 
 type subscriptionUpdater struct {
+	done      bool
+	debug     bool
 	triggerID uint64
 	ch        chan subscriptionEvent
-	done      bool
 	ctx       context.Context
 }
 
 func (s *subscriptionUpdater) Update(data []byte) {
+	if s.debug {
+		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
+	}
 	if s.done {
 		return
 	}
@@ -555,6 +651,9 @@ func (s *subscriptionUpdater) Update(data []byte) {
 }
 
 func (s *subscriptionUpdater) Done() {
+	if s.debug {
+		fmt.Printf("resolver:subscription_updater:done:%d\n", s.triggerID)
+	}
 	if s.done {
 		return
 	}

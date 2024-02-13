@@ -2,6 +2,8 @@ package resolve
 
 import (
 	"encoding/json"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
 type FetchKind int
@@ -168,14 +170,15 @@ type FetchConfiguration struct {
 }
 
 type FetchInfo struct {
-	DataSourceID string
-	RootFields   []GraphCoordinate
+	DataSourceID  string
+	RootFields    []GraphCoordinate
+	OperationType ast.OperationType
 }
 
 type GraphCoordinate struct {
-	TypeName             string
-	FieldName            string
-	HasAuthorizationRule bool
+	TypeName             string `json:"typeName"`
+	FieldName            string `json:"fieldName"`
+	HasAuthorizationRule bool   `json:"-"`
 }
 
 type DataSourceLoadTrace struct {
