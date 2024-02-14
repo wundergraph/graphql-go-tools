@@ -24,7 +24,6 @@ type deleteUnusedVariablesVisitor struct {
 	*astvisitor.Walker
 	operation, definition *ast.Document
 	definedVariables      []int
-	operationName         []byte
 	skip                  bool
 }
 
