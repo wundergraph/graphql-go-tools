@@ -3990,7 +3990,13 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 			DisableResolveFieldPositions: true,
 			DefaultFlushIntervalMillis:   500,
-		}, WithSkipReason("FIXME")))
+			Debug: plan.DebugConfiguration{
+				PrintPlanningPaths:   true,
+				PrintQueryPlans:      true,
+				PrintNodeSuggestions: true,
+			},
+		},
+	))
 
 	t.Run("mutation with single __typename field on union", RunTest(wgSchema, `
 		mutation CreateNamespace($name: String! $personal: Boolean!) {
@@ -6873,7 +6879,7 @@ func TestGraphQLDataSource(t *testing.T) {
 	// When user is an entity, the "pets" field can be both declared and resolved only in the pet subgraph
 	// This separation of concerns is recommended: https://www.apollographql.com/docs/federation/v1/#separation-of-concerns
 	t.Run("Federation with interface field query (defined on pet subgraph)", func(t *testing.T) {
-		t.Skip("FIXME")
+		t.Skip("problem with merging of resolve.Node")
 
 		planConfiguration := plan.Configuration{
 			DataSources: []plan.DataSourceConfiguration{
@@ -6990,7 +6996,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 			DisableResolveFieldPositions: true,
 			Debug: plan.DebugConfiguration{
-				PrintOperationTransformations: true,
+				PrintOperationTransformations: false,
 			},
 		}
 
@@ -7180,7 +7186,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
+								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username __typename id}}"}}`,
 								DataSource:     &Source{},
 								PostProcessing: DefaultPostProcessingConfiguration,
 							},
@@ -7191,6 +7197,8 @@ func TestGraphQLDataSource(t *testing.T) {
 								Name: []byte("user"),
 								Value: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
 										FetchConfiguration: resolve.FetchConfiguration{
 											Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {catField details {age}} name ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[$$0$$]}}}`,
 											Variables: resolve.NewVariables(
@@ -7217,7 +7225,8 @@ func TestGraphQLDataSource(t *testing.T) {
 												},
 											),
 											DataSource:                            &Source{},
-											PostProcessing:                        EntitiesPostProcessingConfiguration,
+											RequiresEntityFetch:                   true,
+											PostProcessing:                        SingleEntityPostProcessingConfiguration,
 											SetTemplateOutputToNullOnVariableNull: true,
 										},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
