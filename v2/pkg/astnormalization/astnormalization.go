@@ -102,11 +102,14 @@ type walkerStage struct {
 
 // OperationNormalizer walks a given AST and applies all registered rules
 type OperationNormalizer struct {
-	operationWalkers                  []walkerStage
+	operationWalkers []walkerStage
+
 	variablesExtraction               *variablesExtractionVisitor
+	variablesDefaultValuesExtraction  *variablesDefaultValueExtractionVisitor
 	removeOperationDefinitionsVisitor *removeOperationDefinitionsVisitor
-	options                           options
-	definitionNormalizer              *DefinitionNormalizer
+
+	options              options
+	definitionNormalizer *DefinitionNormalizer
 }
 
 // NewNormalizer creates a new OperationNormalizer and sets up all default rules
@@ -252,7 +255,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	if o.options.extractVariables {
 		variablesProcessing := astvisitor.NewWalker(48)
 		inputCoercionForList(&variablesProcessing)
-		extractVariablesDefaultValue(&variablesProcessing)
+		o.variablesDefaultValuesExtraction = extractVariablesDefaultValue(&variablesProcessing)
 		injectInputFieldDefaults(&variablesProcessing)
 
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
@@ -282,10 +285,6 @@ func (o *OperationNormalizer) NormalizeOperation(operation, definition *ast.Docu
 		if report.HasErrors() {
 			return
 		}
-
-		// TODO: remove me - DEBUG
-		// printed, _ := astprinter.PrintStringIndent(operation, definition, "  ")
-		// fmt.Println("NormalizeOperation stage:", o.operationWalkers[i].name, "\n", printed)
 	}
 }
 
@@ -301,7 +300,9 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 	if o.variablesExtraction != nil {
 		o.variablesExtraction.operationName = operationName
 	}
-
+	if o.variablesDefaultValuesExtraction != nil {
+		o.variablesDefaultValuesExtraction.operationName = operationName
+	}
 	if o.removeOperationDefinitionsVisitor != nil {
 		o.removeOperationDefinitionsVisitor.operationName = operationName
 	}
@@ -311,5 +312,10 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 		if report.HasErrors() {
 			return
 		}
+
+		// printed, _ := astprinter.PrintStringIndent(operation, definition, "  ")
+		// fmt.Println("\n\nNormalizeOperation stage:", o.operationWalkers[i].name)
+		// fmt.Println(printed)
+		// fmt.Println("variables:", string(operation.Input.Variables))
 	}
 }

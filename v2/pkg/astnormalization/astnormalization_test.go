@@ -371,8 +371,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
   }
 }`
 
-		definition := unsafeparser.ParseGraphqlDocumentString(schema)
-		require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&definition))
+		definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
 		operation := unsafeparser.ParseGraphqlDocumentString(query)
 
 		report := operationreport.Report{}
@@ -381,6 +380,39 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 
 		actual, _ := astprinter.PrintStringIndent(&operation, &definition, " ")
 		assert.Equal(t, expectedQuery, actual)
+	})
+
+	t.Run("should properly extract default values and remove unmatched query", func(t *testing.T) {
+		schema := `
+			type Query {
+				operationA(input: String = "foo"): String
+				operationB(input: String = "bar"): String
+			}`
+
+		query := `
+			query A {
+				operationA(input: "bazz")
+			}
+			query B {
+				operationB
+			}`
+
+		expectedQuery := `query B($a: String){
+  operationB(input: $a)
+}`
+
+		definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
+		operation := unsafeparser.ParseGraphqlDocumentString(query)
+
+		report := operationreport.Report{}
+		NormalizeNamedOperation(&operation, &definition, []byte("B"), &report)
+		assert.False(t, report.HasErrors())
+
+		actual, _ := astprinter.PrintStringIndent(&operation, &definition, " ")
+		assert.Equal(t, expectedQuery, actual)
+
+		expectedVariables := `{"a":"bar"}`
+		assert.Equal(t, expectedVariables, string(operation.Input.Variables))
 	})
 }
 
@@ -547,8 +579,7 @@ var runWithDeleteUnusedVariables = func(t *testing.T, normalizeFunc registerNorm
 	t.Helper()
 
 	runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
-		visitor := normalizeFunc(walker)
-		visitor.operationName = []byte(operationName)
+		normalizeFunc(walker)
 	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables)
 }
 
