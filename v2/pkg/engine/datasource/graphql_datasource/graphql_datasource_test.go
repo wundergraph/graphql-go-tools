@@ -3990,11 +3990,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 			DisableResolveFieldPositions: true,
 			DefaultFlushIntervalMillis:   500,
-			Debug: plan.DebugConfiguration{
-				PrintPlanningPaths:   true,
-				PrintQueryPlans:      true,
-				PrintNodeSuggestions: true,
-			},
 		},
 	))
 
