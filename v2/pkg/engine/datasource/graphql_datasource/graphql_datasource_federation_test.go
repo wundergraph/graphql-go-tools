@@ -506,11 +506,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					}
 				}
 			`,
-			"ComposedKeys",
-			&plan.SynchronousResponsePlan{
-				Response: &resolve.GraphQLResponse{
-					Info: &resolve.GraphQLResponseInfo{
-						OperationType: ast.OperationTypeQuery,
+				"ComposedKeys",
+				&plan.SynchronousResponsePlan{
+					Response: &resolve.GraphQLResponse{
+						Info: &resolve.GraphQLResponseInfo{
+							OperationType: ast.OperationTypeQuery,
 						},
 						Data: &resolve.Object{
 							Fetch: &resolve.SingleFetch{
@@ -522,7 +522,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									PostProcessing: DefaultPostProcessingConfiguration,
 								},
 								Info: &resolve.FetchInfo{
-									DataSourceID: "user.service",
+									DataSourceID:  "user.service",
 									OperationType: ast.OperationTypeQuery,
 									RootFields: []resolve.GraphCoordinate{
 										{
@@ -629,7 +629,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																	HasAuthorizationRule: true,
 																},
 															},
-														OperationType: ast.OperationTypeQuery,
+															OperationType: ast.OperationTypeQuery,
 														},
 														DataSourceIdentifier: []byte("graphql_datasource.Source"),
 														FetchConfiguration: resolve.FetchConfiguration{
