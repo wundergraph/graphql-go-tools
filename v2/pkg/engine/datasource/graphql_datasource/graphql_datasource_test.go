@@ -397,7 +397,8 @@ func TestGraphQLDataSource(t *testing.T) {
 						PostProcessing: DefaultPostProcessingConfiguration,
 					},
 					Info: &resolve.FetchInfo{
-						DataSourceID: "https://swapi.com",
+						OperationType: ast.OperationTypeQuery,
+						DataSourceID:  "https://swapi.com",
 						RootFields: []resolve.GraphCoordinate{
 							{
 								TypeName:  "Query",
@@ -5813,7 +5814,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
 							// Should fetch the federation key as well as all the required fields.
-							Input:          `{"method":"POST","url":"http://one.service","body":{"query":"{serviceOne {id serviceOneFieldOne serviceOneFieldTwo}}"}}`,
+							Input:          `{"method":"POST","url":"http://one.service","body":{"query":"{serviceOne {__typename id serviceOneFieldOne serviceOneFieldTwo}}"}}`,
 							DataSource:     &Source{},
 							PostProcessing: DefaultPostProcessingConfiguration,
 						},
@@ -5824,25 +5825,49 @@ func TestGraphQLDataSource(t *testing.T) {
 							Name: []byte("serviceOne"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
+									FetchID:           1,
+									DependsOnFetchIDs: []int{0},
 									FetchConfiguration: resolve.FetchConfiguration{
 										// The required fields are present in the representations.
-										Input: `{"method":"POST","url":"http://two.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on ServiceOneType {serviceTwoFieldOne serviceTwoFieldTwo}}}","variables":{"representations":[{"serviceOneFieldTwo":$$2$$,"serviceOneFieldOne":$$1$$,"id":$$0$$,"__typename":"ServiceOneType"}]}}}`,
+										Input: `{"method":"POST","url":"http://two.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on ServiceOneType {serviceTwoFieldOne serviceTwoFieldTwo}}}","variables":{"representations":[$$0$$]}}}`,
 										Variables: resolve.NewVariables(
-											&resolve.ObjectVariable{
-												Path:     []string{"id"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-											},
-											&resolve.ObjectVariable{
-												Path:     []string{"serviceOneFieldOne"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-											},
-											&resolve.ObjectVariable{
-												Path:     []string{"serviceOneFieldTwo"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
-											},
+											resolve.NewResolvableObjectVariable(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
+														},
+														OnTypeNames: [][]byte{[]byte("ServiceOneType")},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("ServiceOneType")},
+													},
+													{
+														Name: []byte("serviceOneFieldOne"),
+														Value: &resolve.String{
+															Path: []string{"serviceOneFieldOne"},
+														},
+														OnTypeNames: [][]byte{[]byte("ServiceOneType")},
+													},
+													{
+														Name: []byte("serviceOneFieldTwo"),
+														Value: &resolve.String{
+															Path: []string{"serviceOneFieldTwo"},
+														},
+														OnTypeNames: [][]byte{[]byte("ServiceOneType")},
+													},
+												},
+											}),
 										),
 										DataSource:                            &Source{},
-										PostProcessing:                        EntitiesPostProcessingConfiguration,
+										RequiresEntityFetch:                   true,
+										PostProcessing:                        SingleEntityPostProcessingConfiguration,
 										SetTemplateOutputToNullOnVariableNull: true,
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -5877,8 +5902,6 @@ func TestGraphQLDataSource(t *testing.T) {
 							TypeName:   "Query",
 							FieldNames: []string{"serviceOne"},
 						},
-					},
-					ChildNodes: []plan.TypeField{
 						{
 							TypeName:   "ServiceOneType",
 							FieldNames: []string{"id", "serviceOneFieldOne", "serviceOneFieldTwo"},
@@ -5892,20 +5915,23 @@ func TestGraphQLDataSource(t *testing.T) {
 							Enabled:    true,
 							ServiceSDL: "extend type Query {serviceOne: ServiceOneType} type ServiceOneType @key(fields: \"id\"){ id: ID! serviceOneFieldOne: String! serviceOneFieldTwo: String!}",
 						},
+						UpstreamSchema: "type Query {serviceOne: ServiceOneType} type ServiceOneType @key(fields: \"id\"){ id: ID! serviceOneFieldOne: String! serviceOneFieldTwo: String!}",
 					}),
 					Factory: federationFactory,
+					FederationMetaData: plan.FederationMetaData{
+						Keys: []plan.FederationFieldConfiguration{
+							{
+								TypeName:     "ServiceOneType",
+								SelectionSet: "id",
+							},
+						},
+					},
 				},
 				{
 					RootNodes: []plan.TypeField{
 						{
 							TypeName:   "ServiceOneType",
-							FieldNames: []string{"serviceTwoFieldOne", "serviceTwoFieldTwo"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "ServiceOneType",
-							FieldNames: []string{"id", "serviceOneFieldOne", "serviceOneFieldTwo"},
+							FieldNames: []string{"id", "serviceTwoFieldOne", "serviceTwoFieldTwo"},
 						},
 					},
 					Custom: ConfigJson(Configuration{
@@ -5916,20 +5942,29 @@ func TestGraphQLDataSource(t *testing.T) {
 							Enabled:    true,
 							ServiceSDL: "extend type ServiceOneType @key(fields: \"id\") { id: ID! @external serviceOneFieldOne: String! @external serviceOneFieldTwo: String! @external serviceTwoFieldOne: String! @requires(fields: \"serviceOneFieldOne\") serviceTwoFieldTwo: String! @requires(fields: \"serviceOneFieldTwo\")}",
 						},
+						UpstreamSchema: "type ServiceOneType @key(fields: \"id\") { id: ID! @external serviceOneFieldOne: String! @external serviceOneFieldTwo: String! @external serviceTwoFieldOne: String! @requires(fields: \"serviceOneFieldOne\") serviceTwoFieldTwo: String! @requires(fields: \"serviceOneFieldTwo\")}",
 					}),
 					Factory: federationFactory,
-				},
-			},
-			Fields: []plan.FieldConfiguration{
-				{
-					TypeName:       "ServiceOneType",
-					FieldName:      "serviceTwoFieldOne",
-					RequiresFields: []string{"id", "serviceOneFieldOne"},
-				},
-				{
-					TypeName:       "ServiceOneType",
-					FieldName:      "serviceTwoFieldTwo",
-					RequiresFields: []string{"id", "serviceOneFieldTwo"},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: []plan.FederationFieldConfiguration{
+							{
+								TypeName:     "ServiceOneType",
+								SelectionSet: "id",
+							},
+						},
+						Requires: []plan.FederationFieldConfiguration{
+							{
+								TypeName:     "ServiceOneType",
+								FieldName:    "serviceTwoFieldOne",
+								SelectionSet: "serviceOneFieldOne",
+							},
+							{
+								TypeName:     "ServiceOneType",
+								FieldName:    "serviceTwoFieldTwo",
+								SelectionSet: "serviceOneFieldTwo",
+							},
+						},
+					},
 				},
 			},
 			DisableResolveFieldPositions: true,
