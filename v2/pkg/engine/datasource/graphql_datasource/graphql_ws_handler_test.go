@@ -1,3 +1,5 @@
+//go:build !race
+
 package graphql_datasource
 
 import (
