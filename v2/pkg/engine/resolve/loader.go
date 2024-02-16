@@ -503,7 +503,7 @@ func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInf
 }
 
 var (
-	errorsInvalidInputHeader = []byte(`{"errors":[{"message":"invalid input","path":[`)
+	errorsInvalidInputHeader = []byte(`{"errors":[{"message":"could not render fetch input","path":[`)
 	errorsInvalidInputFooter = []byte(`]}]}`)
 )
 
