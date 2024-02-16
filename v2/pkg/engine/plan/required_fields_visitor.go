@@ -46,7 +46,7 @@ func addRequiredFields(input *addRequiredFieldsInput) (skipFieldRefs []int, requ
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterFieldVisitor(visitor)
-	walker.RegisterEnterSelectionSetVisitor(visitor)
+	walker.RegisterSelectionSetVisitor(visitor)
 
 	walker.Walk(input.key, input.definition, input.report)
 
@@ -68,17 +68,21 @@ func (v *requiredFieldsVisitor) EnterDocument(_, _ *ast.Document) {
 		ast.Node{Kind: ast.NodeKindSelectionSet, Ref: v.input.operationSelectionSet})
 }
 
-func (v *requiredFieldsVisitor) EnterSelectionSet(ref int) {
+func (v *requiredFieldsVisitor) EnterSelectionSet(_ int) {
 	if v.Walker.Depth == 2 {
+		return
+	}
+	fieldNode := v.OperationNodes[len(v.OperationNodes)-1]
+
+	if fieldSelectionSetRef, ok := v.input.operation.FieldSelectionSet(fieldNode.Ref); ok {
+		selectionSetNode := ast.Node{Kind: ast.NodeKindSelectionSet, Ref: fieldSelectionSetRef}
+		v.OperationNodes = append(v.OperationNodes, selectionSetNode)
 		return
 	}
 
 	selectionSetNode := v.input.operation.AddSelectionSet()
-
-	fieldNode := v.OperationNodes[len(v.OperationNodes)-1]
 	v.input.operation.Fields[fieldNode.Ref].HasSelections = true
 	v.input.operation.Fields[fieldNode.Ref].SelectionSet = selectionSetNode.Ref
-
 	v.OperationNodes = append(v.OperationNodes, selectionSetNode)
 }
 
