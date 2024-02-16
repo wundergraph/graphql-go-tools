@@ -18,6 +18,7 @@ require (
 	github.com/jensneuse/abstractlogger v0.0.4
 	github.com/jensneuse/byte-template v0.0.0-20200214152254-4f3cf06e5c68
 	github.com/jensneuse/diffview v1.0.0
+	github.com/kylelemons/godebug v1.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/r3labs/sse/v2 v2.8.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.0

@@ -660,6 +660,33 @@ func (c *configurationVisitor) findAlternativeDataSourceConfiguration(typeName, 
 	return nil
 }
 
+func (c *configurationVisitor) isParentPathIsRootOperationPath(parentPath string) bool {
+	return parentPath == "query" || parentPath == "mutation" || parentPath == "subscription"
+}
+
+func (c *configurationVisitor) allowNewPlannerForTypenameField(fieldName string, typeName string, parentPath string, dsCfg *DataSourceConfiguration) bool {
+	isEntityInterface := false
+	for _, interfaceObjCfg := range dsCfg.FederationMetaData.EntityInterfaces {
+		hasMatch :=
+			interfaceObjCfg.InterfaceTypeName == typeName ||
+				slices.Contains(interfaceObjCfg.ConcreteTypeNames, typeName)
+
+		if hasMatch {
+			isEntityInterface = true
+			break
+		}
+	}
+
+	if isEntityInterface {
+		return true
+	}
+
+	// we should handle a new planner for a __typename
+	// only when it is the first field on a query,
+	// or we are on the entity interface object
+	return fieldName == typeNameField && c.isParentPathIsRootOperationPath(parentPath)
+}
+
 func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, currentPath, parentPath string, isSubscription bool) (plannerIdx int, planned bool) {
 	config := c.findSuggestedDataSourceConfiguration(typeName, fieldName, currentPath)
 	if config == nil {
@@ -673,26 +700,9 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		}
 	}
 
-	isEntityInterface := false
-	for _, interfaceObjCfg := range config.FederationMetaData.EntityInterfaces {
-		hasMatch :=
-			interfaceObjCfg.InterfaceTypeName == typeName ||
-				slices.Contains(interfaceObjCfg.ConcreteTypeNames, typeName)
+	shouldPlanTypenameField := c.allowNewPlannerForTypenameField(fieldName, typeName, parentPath, config)
 
-		if hasMatch {
-			isEntityInterface = true
-			break
-		}
-	}
-
-	// we should handle a new planner for a __typename
-	// only when it is the first field on a query
-	// or we are on the entity interface object
-	shouldHandleTypeName :=
-		fieldName == typeNameField && parentPath == "query" ||
-			isEntityInterface
-
-	if !shouldHandleTypeName && !config.HasRootNode(typeName, fieldName) {
+	if !shouldPlanTypenameField && !config.HasRootNode(typeName, fieldName) {
 		return -1, false
 	}
 

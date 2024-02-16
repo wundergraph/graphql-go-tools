@@ -1,3 +1,5 @@
+//go:build !race
+
 package graphql_datasource
 
 import (
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 
 	"github.com/stretchr/testify/assert"
@@ -17,8 +20,6 @@ import (
 )
 
 func TestWebSocketSubscriptionClientInitIncludeKA_GQLWS(t *testing.T) {
-	t.Skip("FIXME")
-
 	serverDone := make(chan struct{})
 	assertion := require.New(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -97,8 +98,6 @@ func TestWebSocketSubscriptionClientInitIncludeKA_GQLWS(t *testing.T) {
 }
 
 func TestWebsocketSubscriptionClient_GQLWS(t *testing.T) {
-	t.Skip("FIXME")
-
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, nil)
@@ -165,8 +164,6 @@ func TestWebsocketSubscriptionClient_GQLWS(t *testing.T) {
 }
 
 func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
-	t.Skip("FIXME")
-
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, nil)
@@ -219,8 +216,6 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 }
 
 func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
-	t.Skip("FIXME")
-
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, nil)
@@ -274,8 +269,6 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 }
 
 func TestWebsocketSubscriptionClient_GQLWS_Upstream_Dies(t *testing.T) {
-	t.Skip("FIXME")
-
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
 
