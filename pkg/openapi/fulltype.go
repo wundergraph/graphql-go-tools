@@ -207,27 +207,16 @@ func (c *converter) importFullTypes() ([]introspection.FullType, error) {
 				continue
 			}
 
-			for statusCodeStr := range operation.Responses {
-				if statusCodeStr == "default" {
-					continue
-				}
-				status, err := convertStatusCode(statusCodeStr)
-				if err != nil {
-					return nil, err
-				}
-				if !isValidResponse(status) {
-					continue
-				}
-
-				schema := getJSONSchema(status, operation)
-				if schema == nil {
-					continue
-				}
-
-				err = c.processSchema(schema)
-				if err != nil {
-					return nil, err
-				}
+			_, schema, err := findSchemaRef(operation.Responses)
+			if err != nil {
+				return nil, err
+			}
+			if schema == nil {
+				continue
+			}
+			err = c.processSchema(schema)
+			if err != nil {
+				return nil, err
 			}
 		}
 	}
