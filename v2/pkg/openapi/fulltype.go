@@ -3,11 +3,10 @@ package openapi
 import (
 	"errors"
 	"fmt"
-	"net/http"
-	"sort"
-
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/introspection"
 	"github.com/getkin/kin-openapi/openapi3"
+	"net/http"
+	"sort"
 )
 
 func (c *converter) checkAndProcessOneOfKeyword(schema *openapi3.SchemaRef) error {
@@ -208,27 +207,16 @@ func (c *converter) importFullTypes() ([]introspection.FullType, error) {
 				continue
 			}
 
-			for statusCodeStr := range operation.Responses {
-				if statusCodeStr == "default" {
-					continue
-				}
-				status, err := convertStatusCode(statusCodeStr)
-				if err != nil {
-					return nil, err
-				}
-				if !isValidResponse(status) {
-					continue
-				}
-
-				schema := getJSONSchema(status, operation)
-				if schema == nil {
-					continue
-				}
-
-				err = c.processSchema(schema)
-				if err != nil {
-					return nil, err
-				}
+			_, schema, err := findSchemaRef(operation.Responses)
+			if err != nil {
+				return nil, err
+			}
+			if schema == nil {
+				continue
+			}
+			err = c.processSchema(schema)
+			if err != nil {
+				return nil, err
 			}
 		}
 	}

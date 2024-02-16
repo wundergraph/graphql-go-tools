@@ -1,7 +1,9 @@
 package openapi
 
 import (
+	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -12,6 +14,8 @@ import (
 )
 
 const JsonScalarType = "JSON"
+
+var errNoValidResponse = errors.New("no valid response found")
 
 var preDefinedScalarTypes = map[string]string{
 	JsonScalarType: "The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).",
@@ -212,12 +216,12 @@ func getJSONSchemaFromResponseRef(response *openapi3.ResponseRef) *openapi3.Sche
 	return schema
 }
 
-func getJSONSchema(status int, operation *openapi3.Operation) *openapi3.SchemaRef {
-	response := getResponseFromOperation(status, operation)
-	if response == nil {
-		return nil
+func findSchemaRef(responses openapi3.Responses) (int, *openapi3.SchemaRef, error) {
+	statusCode, responseRef, err := getValidResponse(responses)
+	if err != nil {
+		return 0, nil, err
 	}
-	return getJSONSchemaFromResponseRef(response)
+	return statusCode, getJSONSchemaFromResponseRef(responseRef), nil
 }
 
 func getJSONSchemaFromRequestBody(operation *openapi3.Operation) *openapi3.SchemaRef {
@@ -284,4 +288,108 @@ func getResponseFromOperation(status int, operation *openapi3.Operation) *openap
 		return nil
 	}
 	return operation.Responses[statusCodeRange]
+}
+
+// isStatusCodeRange checks if the given statusCode is a valid status code range.
+func isStatusCodeRange(statusCode string) bool {
+	// The spec advises to use ranges as '2XX' but the OpenAPI parser accepts
+	// '2xx' as a valid status code range.
+	statusCode = strings.ToUpper(statusCode)
+	_, has := statusCodeRanges[statusCode]
+	return has
+}
+
+// sanitizeResponses cleans up responses. If a response range is defined using an
+// explicit code, the explicit code definition takes precedence over the range definition for that code.
+func sanitizeResponses(responses openapi3.Responses) (openapi3.Responses, error) {
+	// OpenAPI specification:
+	//
+	// To define a range of response codes, you may use the following range definitions:
+	// 1XX, 2XX, 3XX, 4XX, and 5XX.
+	// If a response range is defined using an explicit code, the explicit code definition
+	//takes precedence over the range definition for that code.
+
+	result := make(openapi3.Responses)
+	occupiedStatusCodeRange := make(map[string]struct{})
+
+	// First pass, select the explicit code definitions.
+	for stringStatusCode, response := range responses {
+		// 'default' is not a valid response, ignore it.
+		if stringStatusCode == "default" {
+			continue
+		}
+
+		if isStatusCodeRange(stringStatusCode) {
+			// 2XX, 3XX, etc.
+			continue
+		}
+
+		result[stringStatusCode] = response
+
+		// Calculate the occupied status code range.
+		statusCode, err := strconv.Atoi(stringStatusCode)
+		if err != nil {
+			return nil, err
+		}
+		statusCodeRange, err := statusCodeToRange(statusCode)
+		if err != nil {
+			return nil, err
+		}
+		occupiedStatusCodeRange[statusCodeRange] = struct{}{}
+	}
+
+	// Use the status code ranges if not occupied.
+	for stringStatusCode, response := range responses {
+		// 'default' is not a valid response, ignore it.
+		if stringStatusCode == "default" {
+			continue
+		}
+
+		if !isStatusCodeRange(stringStatusCode) {
+			continue
+		}
+		if _, ok := occupiedStatusCodeRange[stringStatusCode]; !ok {
+			result[stringStatusCode] = response
+		}
+	}
+
+	return result, nil
+}
+
+// getValidResponse returns the first valid response from the given responses map.
+// It iterates over the responses map and checks if the status code of each response is a valid status.
+//
+// OpenAPI-to-GraphQL translator mimics IBM/openapi-to-graphql tool. This tool accepts HTTP code 200-299 or 2XX
+// as valid responses. Other status codes are simply ignored. Currently, we follow the same convention.
+func getValidResponse(responses openapi3.Responses) (int, *openapi3.ResponseRef, error) {
+	responses, err := sanitizeResponses(responses)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	var validStatusCodes []int
+	validResponseRefs := make(map[int]*openapi3.ResponseRef)
+	for stringStatusCode, responseRef := range responses {
+		statusCode, err := convertStatusCode(stringStatusCode)
+		if err != nil {
+			return 0, nil, err
+		}
+
+		if isValidResponse(statusCode) {
+			validStatusCodes = append(validStatusCodes, statusCode)
+			validResponseRefs[statusCode] = responseRef
+		}
+	}
+
+	if len(validStatusCodes) == 0 {
+		return 0, nil, errNoValidResponse
+	}
+
+	// If the OpenAPI document contains multiple possible successful response object
+	// (HTTP code 200-299 or 2XX). Only one can be chosen.
+	// Select first response object with successful status code (200-299).
+	// The response object with the HTTP code 200 will be selected
+	sort.Ints(validStatusCodes)
+	validStatusCode := validStatusCodes[0]
+	return validStatusCode, validResponseRefs[validStatusCode], nil
 }

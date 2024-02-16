@@ -25,62 +25,53 @@ func (c *converter) importQueryType() (*introspection.FullType, error) {
 			if operation == nil {
 				continue
 			}
-			for statusCodeStr := range operation.Responses {
-				if statusCodeStr == "default" {
-					continue
-				}
-				status, err := convertStatusCode(statusCodeStr)
-				if err != nil {
-					return nil, err
-				}
 
-				if !isValidResponse(status) {
-					continue
-				}
-
-				schema := getJSONSchema(status, operation)
-
-				var (
-					kind     string
-					typeName string
-				)
-				if schema == nil {
-					typeName = c.tryMakeTypeNameFromOperation(status, operation)
-				} else {
-					kind = schema.Value.Type
-					typeName, err = c.getReturnType(schema)
-					if err != nil {
-						return nil, err
-					}
-					if len(schema.Value.Enum) > 0 {
-						c.createOrGetEnumType(typeName, schema)
-					}
-				}
-
-				if kind == "" {
-					// We assume that it is an object type.
-					kind = "object"
-				}
-
-				typeName = toCamelIfNotPredefinedScalar(typeName)
-				typeRef, err := getTypeRef(kind)
-				if err != nil {
-					return nil, err
-				}
-				if kind == "array" {
-					// Array of some type
-					typeRef.OfType = &introspection.TypeRef{Kind: 3, Name: &typeName}
-				}
-				typeRef.Name = &typeName
-				queryField, err := c.importQueryTypeFields(&typeRef, operation)
-				if err != nil {
-					return nil, err
-				}
-				if queryField.Name == "" {
-					queryField.Name = MakeFieldNameFromEndpoint(pathName)
-				}
-				queryType.Fields = append(queryType.Fields, *queryField)
+			statusCode, schema, err := findSchemaRef(operation.Responses)
+			if err != nil {
+				return nil, err
 			}
+
+			var (
+				kind     string
+				typeName string
+			)
+			if schema == nil {
+				typeName = c.tryMakeTypeNameFromOperation(statusCode, operation)
+			} else {
+				kind = schema.Value.Type
+				typeName, err = c.getReturnType(schema)
+				if err != nil {
+					return nil, err
+				}
+				if len(schema.Value.Enum) > 0 {
+					c.createOrGetEnumType(typeName, schema)
+				}
+			}
+
+			if kind == "" {
+				// We assume that it is an object type.
+				kind = "object"
+			}
+
+			typeName = toCamelIfNotPredefinedScalar(typeName)
+			typeRef, err := getTypeRef(kind)
+			if err != nil {
+				return nil, err
+			}
+			if kind == "array" {
+				// Array of some type
+				typeRef.OfType = &introspection.TypeRef{Kind: 3, Name: &typeName}
+			}
+			typeRef.Name = &typeName
+			queryField, err := c.importQueryTypeFields(&typeRef, operation)
+			if err != nil {
+				return nil, err
+			}
+			if queryField.Name == "" {
+				queryField.Name = MakeFieldNameFromEndpoint(pathName)
+			}
+			queryType.Fields = append(queryType.Fields, *queryField)
+			//}
 		}
 	}
 	sort.Slice(queryType.Fields, func(i, j int) bool {

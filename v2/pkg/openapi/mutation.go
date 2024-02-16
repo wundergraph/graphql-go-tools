@@ -104,66 +104,57 @@ func (c *converter) importMutationType() (*introspection.FullType, error) {
 			if operation == nil {
 				continue
 			}
-			for statusCodeStr := range operation.Responses {
-				if statusCodeStr == "default" {
-					continue
-				}
-				status, err := convertStatusCode(statusCodeStr)
-				if err != nil {
-					return nil, err
-				}
 
-				if !isValidResponse(status) {
-					continue
-				}
-
-				var typeName string
-				schema := getJSONSchema(status, operation)
-				if schema == nil {
-					typeName = c.tryMakeTypeNameFromOperation(status, operation)
-				} else {
-					typeName, err = c.getReturnType(schema)
-					if err != nil {
-						return nil, err
-					}
-					if len(schema.Value.Enum) > 0 {
-						c.createOrGetEnumType(typeName, schema)
-					}
-				}
-
-				typeName = toCamelIfNotPredefinedScalar(typeName)
-				typeRef, err := getTypeRef("object")
-				if err != nil {
-					return nil, err
-				}
-				typeRef.Name = &typeName
-
-				field := &introspection.Field{
-					Name:        MakeFieldNameFromOperationID(operation.OperationID),
-					Type:        typeRef,
-					Description: getOperationDescription(operation),
-				}
-				if field.Name == "" {
-					field.Name = MakeFieldNameFromEndpointForMutation(method, pathName)
-				}
-
-				if operation.RequestBody != nil {
-					if err = c.getInputValueFromRequestBody(field, status, operation); err != nil {
-						return nil, err
-					}
-				}
-				if err = c.getInputValuesFromParameters(field, operation.Parameters); err != nil {
-					return nil, err
-				}
-				if err = c.getInputValuesFromParameters(field, c.currentPathItem.Parameters); err != nil {
-					return nil, err
-				}
-
-				sort.Slice(field.Args, func(i, j int) bool {
-					return field.Args[i].Name < field.Args[j].Name
-				})
-				mutationType.Fields = append(mutationType.Fields, *field)
+			statusCode, schema, err := findSchemaRef(operation.Responses)
+			if err != nil {
+				return nil, err
 			}
+
+			var typeName string
+			if schema == nil {
+				typeName = c.tryMakeTypeNameFromOperation(statusCode, operation)
+			} else {
+				typeName, err = c.getReturnType(schema)
+				if err != nil {
+					return nil, err
+				}
+				if len(schema.Value.Enum) > 0 {
+					c.createOrGetEnumType(typeName, schema)
+				}
+			}
+
+			typeName = toCamelIfNotPredefinedScalar(typeName)
+			typeRef, err := getTypeRef("object")
+			if err != nil {
+				return nil, err
+			}
+			typeRef.Name = &typeName
+
+			field := &introspection.Field{
+				Name:        MakeFieldNameFromOperationID(operation.OperationID),
+				Type:        typeRef,
+				Description: getOperationDescription(operation),
+			}
+			if field.Name == "" {
+				field.Name = MakeFieldNameFromEndpointForMutation(method, pathName)
+			}
+
+			if operation.RequestBody != nil {
+				if err = c.getInputValueFromRequestBody(field, statusCode, operation); err != nil {
+					return nil, err
+				}
+			}
+			if err = c.getInputValuesFromParameters(field, operation.Parameters); err != nil {
+				return nil, err
+			}
+			if err = c.getInputValuesFromParameters(field, c.currentPathItem.Parameters); err != nil {
+				return nil, err
+			}
+
+			sort.Slice(field.Args, func(i, j int) bool {
+				return field.Args[i].Name < field.Args[j].Name
+			})
+			mutationType.Fields = append(mutationType.Fields, *field)
 		}
 	}
 	sort.Slice(mutationType.Fields, func(i, j int) bool {
