@@ -41,7 +41,7 @@ type ResponseWriter interface {
 
 type SubscriptionResponseWriter interface {
 	ResponseWriter
-	Flush()
+	Flush() error
 	Complete()
 }
 
@@ -90,7 +90,10 @@ func writeFlushComplete(writer SubscriptionResponseWriter, msg []byte) error {
 	if err != nil {
 		return err
 	}
-	writer.Flush()
+	err = writer.Flush()
+	if err != nil {
+		return err
+	}
 	writer.Complete()
 	return nil
 }

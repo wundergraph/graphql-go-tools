@@ -236,7 +236,12 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		}
 		return
 	}
-	sub.writer.Flush()
+	err := sub.writer.Flush()
+	if err != nil {
+		// client disconnected
+		_ = r.AsyncUnsubscribeSubscription(sub.id)
+		return
+	}
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:flushed:%d\n", sub.id.SubscriptionID)
 	}
