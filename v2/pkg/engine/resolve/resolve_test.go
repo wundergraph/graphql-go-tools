@@ -3962,11 +3962,12 @@ func (s *SubscriptionRecorder) Write(p []byte) (n int, err error) {
 	return s.buf.Write(p)
 }
 
-func (s *SubscriptionRecorder) Flush() {
+func (s *SubscriptionRecorder) Flush() error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	s.messages = append(s.messages, s.buf.String())
 	s.buf.Reset()
+	return nil
 }
 
 func (s *SubscriptionRecorder) Complete() {
