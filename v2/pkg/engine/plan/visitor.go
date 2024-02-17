@@ -564,6 +564,14 @@ func (v *Visitor) addInterfaceObjectNameToTypeNames(fieldRef int, typeName []byt
 
 func (v *Visitor) LeaveField(ref int) {
 	v.debugOnLeaveNode(ast.NodeKindField, ref)
+
+	if v.skipField(ref) {
+		// we should also check skips on field leave
+		// cause on nested keys we could mistakenly remove wrong object
+		// from the stack of the current objects
+		return
+	}
+
 	if v.currentFields[len(v.currentFields)-1].popOnField == ref {
 		v.currentFields = v.currentFields[:len(v.currentFields)-1]
 	}
