@@ -151,7 +151,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 
 				if !allowedByParent {
 					if pp, ok := config.planner.(DataSourceDebugger); ok {
-						pp.DebugPrint("allow:", false, " AllowVisitor: SelectionSet", " ref:", ref)
+						pp.DebugPrint("allow:", false, " AllowVisitor: SelectionSet", " ref:", ref, " parent allowance check")
 					}
 
 					// do not override a parent's decision
@@ -161,7 +161,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 				allow := !config.isExitPath(path)
 
 				if pp, ok := config.planner.(DataSourceDebugger); ok {
-					pp.DebugPrint("allow:", allow, " AllowVisitor: SelectionSet", " ref:", ref)
+					pp.DebugPrint("allow:", allow, " AllowVisitor: SelectionSet", " ref:", ref, " exit path check")
 				}
 
 				return allow
