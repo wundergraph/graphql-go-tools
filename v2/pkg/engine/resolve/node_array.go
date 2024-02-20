@@ -3,9 +3,9 @@ package resolve
 type Array struct {
 	Path                []string
 	Nullable            bool
-	ResolveAsynchronous bool
+	ResolveAsynchronous bool // deprecated: remove
 	Item                Node
-	Items               []Node
+	Items               []Node // deprecated: remove
 }
 
 func (a *Array) HasChildFetches() bool {
