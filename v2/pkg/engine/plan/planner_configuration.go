@@ -17,7 +17,7 @@ type plannerConfiguration struct {
 	objectFetchConfiguration objectFetchConfiguration
 
 	requiredFields FederationFieldConfigurations
-	providedFields NodeSuggestions
+	providedFields *NodeSuggestions
 }
 
 func (p *plannerConfiguration) addPath(configuration pathConfiguration) {

@@ -24,7 +24,7 @@ type configurationVisitor struct {
 	dataSources []DataSourceConfiguration
 	planners    []*plannerConfiguration
 
-	nodeSuggestions     NodeSuggestions      // nodeSuggestions holds information about suggested data sources for each field
+	nodeSuggestions     *NodeSuggestions     // nodeSuggestions holds information about suggested data sources for each field
 	nodeSuggestionHints []NodeSuggestionHint // NodeSuggestionHints holds information about suggested data sources for key fields
 
 	parentTypeNodes    []ast.Node             // parentTypeNodes is a stack of parent type nodes - used to determine if the parent is abstract
@@ -512,7 +512,7 @@ func (c *configurationVisitor) handleProvidesSuggestions(ref int, typeName, fiel
 
 	for i := range c.planners {
 		if c.planners[i].dataSourceConfiguration.Hash() == dsHash {
-			c.planners[i].providedFields = append(c.planners[i].providedFields, suggestions...)
+			c.planners[i].providedFields.items = append(c.planners[i].providedFields.items, suggestions...)
 			break
 		}
 	}
@@ -803,6 +803,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		planner:                  planner,
 		paths:                    paths,
 		parentPathType:           c.plannerPathType(plannerPath),
+		providedFields:           NewNodeSuggestionsWithSize(4),
 	}
 
 	c.planners = append(c.planners, plannerConfig)

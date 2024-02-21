@@ -1904,6 +1904,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					thirdDatasourceConfiguration,
 				},
 				DisableResolveFieldPositions: true,
+				Debug: plan.DebugConfiguration{
+					PrintQueryPlans:      true,
+					PrintNodeSuggestions: true,
+					PrintPlanningPaths:   true,
+				},
 			}
 
 			t.Run("only shared field", func(t *testing.T) {

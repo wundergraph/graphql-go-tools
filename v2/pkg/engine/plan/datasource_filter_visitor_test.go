@@ -59,51 +59,59 @@ func (b *dsBuilder) DSPtr() *DataSourceConfiguration {
 
 func strptr(s string) *string { return &s }
 
+func newNodeSuggestions(nodes []NodeSuggestion) *NodeSuggestions {
+	items := make([]*NodeSuggestion, 0, len(nodes))
+	for i := range nodes {
+		items = append(items, &nodes[i])
+	}
+	return &NodeSuggestions{items: items}
+}
+
 func TestNodeSuggestions(t *testing.T) {
 	t.Run("isNodeUniq", func(t *testing.T) {
-		nodes := NodeSuggestions{
+		nodes := newNodeSuggestions([]NodeSuggestion{
 			{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query"},
 			{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user"},
 			{TypeName: "User", FieldName: "id", DataSourceHash: 22, Path: "query.user.id", ParentPath: "query.user"},
-		}
+		})
 
 		assert.False(t, nodes.isNodeUniq(1))
 		assert.True(t, nodes.isNodeUniq(0))
 	})
 
 	t.Run("isSelectedOnOtherSource", func(t *testing.T) {
-		nodes := NodeSuggestions{
+		nodes := newNodeSuggestions([]NodeSuggestion{
 			{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query"},
 			{TypeName: "Query", FieldName: "user", DataSourceHash: 22, Path: "query.user", ParentPath: "query", selected: true},
 			{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user"},
 			{TypeName: "User", FieldName: "id", DataSourceHash: 22, Path: "query.user.id", ParentPath: "query.user"},
-		}
+		})
 
 		assert.True(t, nodes.isSelectedOnOtherSource(0))
 		assert.False(t, nodes.isSelectedOnOtherSource(2))
 	})
 
 	t.Run("duplicatesOf", func(t *testing.T) {
-		nodes := NodeSuggestions{
+		nodes := newNodeSuggestions([]NodeSuggestion{
 			{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query"},
 			{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user"},
 			{TypeName: "User", FieldName: "id", DataSourceHash: 22, Path: "query.user.id", ParentPath: "query.user"},
 			{TypeName: "User", FieldName: "id", DataSourceHash: 33, Path: "query.user.id", ParentPath: "query.user"},
-		}
+		})
 
 		assert.Equal(t, []int{2, 3}, nodes.duplicatesOf(1))
 		assert.Nil(t, nodes.duplicatesOf(0))
 	})
 
 	t.Run("childNodesOnSameSource", func(t *testing.T) {
-		nodes := NodeSuggestions{
+		nodes := newNodeSuggestions([]NodeSuggestion{
 			{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query"},
 			{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.$User.id", ParentPath: "query.user", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
 			{TypeName: "User", FieldName: "info", DataSourceHash: 11, Path: "query.user.$User.info", ParentPath: "query.user.$User", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
 			{TypeName: "Info", FieldName: "email", DataSourceHash: 11, Path: "query.user.$User.info.email", ParentPath: "query.user.$User.info", parentPathWithoutFragment: strptr("query.user.$User.info")},
 			{TypeName: "Info", FieldName: "isUser", DataSourceHash: 33, Path: "query.user.$User.info.isUser", ParentPath: "query.user.$User.info", parentPathWithoutFragment: strptr("query.user.$User.info")},
 			{TypeName: "User", FieldName: "isAdmin", DataSourceHash: 44, Path: "query.user.isAdmin", ParentPath: "query.user", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
-		}
+		})
 
 		assert.Equal(t, []int{1, 2}, nodes.childNodesOnSameSource(0))
 		assert.Nil(t, nodes.childNodesOnSameSource(1))
@@ -111,7 +119,7 @@ func TestNodeSuggestions(t *testing.T) {
 	})
 
 	t.Run("siblingNodesOnSameSource", func(t *testing.T) {
-		nodes := NodeSuggestions{
+		nodes := newNodeSuggestions([]NodeSuggestion{
 			{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query"},
 			{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.$User.id", ParentPath: "query.user", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
 			{TypeName: "User", FieldName: "info", DataSourceHash: 11, Path: "query.user.$User.info", ParentPath: "query.user.$User", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
@@ -119,7 +127,7 @@ func TestNodeSuggestions(t *testing.T) {
 			{TypeName: "Info", FieldName: "isUser", DataSourceHash: 33, Path: "query.user.$User.info.isUser", ParentPath: "query.user.$User.info"},
 			{TypeName: "User", FieldName: "isAdmin", DataSourceHash: 44, Path: "query.user.isAdmin", ParentPath: "query.user"},
 			{TypeName: "Moderator", FieldName: "isModerator", DataSourceHash: 11, Path: "query.user.$Moderator.isModerator", ParentPath: "query.user.$Moderator", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
-		}
+		})
 
 		assert.Nil(t, nodes.siblingNodesOnSameSource(0))
 		assert.Nil(t, nodes.siblingNodesOnSameSource(4))
@@ -128,14 +136,14 @@ func TestNodeSuggestions(t *testing.T) {
 	})
 
 	t.Run("isLeaf", func(t *testing.T) {
-		nodes := NodeSuggestions{
+		nodes := newNodeSuggestions([]NodeSuggestion{
 			{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query"},
 			{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user"},
 			{TypeName: "User", FieldName: "id", DataSourceHash: 22, Path: "query.user.id", ParentPath: "query.user"},
 			{TypeName: "User", FieldName: "id", DataSourceHash: 33, Path: "query.user.id", ParentPath: "query.user"},
 			{TypeName: "User", FieldName: "info", DataSourceHash: 11, Path: "query.user.info", ParentPath: "query.user"},
 			{TypeName: "Info", FieldName: "email", DataSourceHash: 11, Path: "query.user.info.email", ParentPath: "query.user.info"},
-		}
+		})
 
 		assert.False(t, nodes.isLeaf(0))
 		assert.True(t, nodes.isLeaf(1))
@@ -147,12 +155,12 @@ func TestNodeSuggestions(t *testing.T) {
 
 	t.Run("parentNodeOnSameSource", func(t *testing.T) {
 		t.Run("no fragments", func(t *testing.T) {
-			nodes := NodeSuggestions{
+			nodes := newNodeSuggestions([]NodeSuggestion{
 				{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query"},
 				{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user"},
 				{TypeName: "User", FieldName: "info", DataSourceHash: 22, Path: "query.user.info", ParentPath: "query.user"},
 				{TypeName: "Info", FieldName: "email", DataSourceHash: 22, Path: "query.user.info.email", ParentPath: "query.user.info"},
-			}
+			})
 
 			cases := []struct {
 				parentIdx int
@@ -172,7 +180,7 @@ func TestNodeSuggestions(t *testing.T) {
 		})
 
 		t.Run("with fragments", func(t *testing.T) {
-			nodes := NodeSuggestions{
+			nodes := newNodeSuggestions([]NodeSuggestion{
 				{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query"},
 				{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.$User.id", ParentPath: "query.user", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
 				{TypeName: "User", FieldName: "info", DataSourceHash: 11, Path: "query.user.$User.info", ParentPath: "query.user.$User", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
@@ -180,7 +188,7 @@ func TestNodeSuggestions(t *testing.T) {
 				{TypeName: "Info", FieldName: "isUser", DataSourceHash: 33, Path: "query.user.$User.info.isUser", ParentPath: "query.user.$User.info"},
 				{TypeName: "Admin", FieldName: "id", DataSourceHash: 22, Path: "query.user.$Admin.id", ParentPath: "query.user.$Admin", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
 				{TypeName: "Admin", FieldName: "isAdmin", DataSourceHash: 44, Path: "query.user.$Admin.id", ParentPath: "query.user.$Admin", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
-			}
+			})
 
 			cases := []struct {
 				parentIdx int
@@ -208,7 +216,7 @@ func TestNodeSuggestions(t *testing.T) {
 func TestFindBestDataSourceSet(t *testing.T) {
 	type Variant struct {
 		dsOrder     []int
-		suggestions NodeSuggestions
+		suggestions *NodeSuggestions
 	}
 
 	type TestCase struct {
@@ -217,7 +225,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 		Query               string
 		DataSources         []DataSourceConfiguration
 		ExpectedVariants    []Variant
-		ExpectedSuggestions NodeSuggestions
+		ExpectedSuggestions *NodeSuggestions
 	}
 
 	testCases := []TestCase{
@@ -274,11 +282,11 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					ChildNode("AccountProvider", "accounts").
 					RootNode("User", "id").DS(),
 			},
-			ExpectedSuggestions: NodeSuggestions{
+			ExpectedSuggestions: newNodeSuggestions([]NodeSuggestion{
 				{TypeName: "Query", FieldName: "provider", DataSourceHash: 11, Path: "query.provider", ParentPath: "query", IsRootNode: true, selected: true},
 				{TypeName: "AccountProvider", FieldName: "accounts", DataSourceHash: 11, Path: "query.provider.accounts", ParentPath: "query.provider", selected: true},
 				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.provider.accounts.$User.name", ParentPath: "query.provider.accounts.$User", onFragment: true, parentPathWithoutFragment: strptr("query.provider.accounts"), IsRootNode: true, selected: true},
-			},
+			}),
 		},
 		{
 			Description: "Remove the 3rd data source, we don't use it",
@@ -325,12 +333,12 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					}
 				`).RootNode("User", "id", "age").DS(),
 			},
-			ExpectedSuggestions: NodeSuggestions{
+			ExpectedSuggestions: newNodeSuggestions([]NodeSuggestion{
 				{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, selected: true},
 				{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user", IsRootNode: true, selected: true},
 				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.user.name", ParentPath: "query.user", IsRootNode: true, selected: true},
 				{TypeName: "User", FieldName: "surname", DataSourceHash: 22, Path: "query.user.surname", ParentPath: "query.user", IsRootNode: true, selected: true},
-			},
+			}),
 		},
 		{
 			Description: "Pick the first and the third data sources, ignore the ones that result in more queries",
@@ -391,12 +399,12 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					}
 				`).RootNode("User", "id", "name").DS(),
 			},
-			ExpectedSuggestions: NodeSuggestions{
+			ExpectedSuggestions: newNodeSuggestions([]NodeSuggestion{
 				{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, selected: true},
 				{TypeName: "User", FieldName: "age", DataSourceHash: 11, Path: "query.user.age", ParentPath: "query.user", IsRootNode: true, selected: true},
 				{TypeName: "User", FieldName: "name", DataSourceHash: 33, Path: "query.user.name", ParentPath: "query.user", IsRootNode: true, selected: true},
 				{TypeName: "User", FieldName: "surname", DataSourceHash: 33, Path: "query.user.surname", ParentPath: "query.user", IsRootNode: true, selected: true},
-			},
+			}),
 		},
 		{
 			Description: "Complex example. Entities: User, Address, Lines",
@@ -511,7 +519,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					RootNode("Lines", "id", "line1", "line2").
 					DS(),
 			},
-			ExpectedSuggestions: NodeSuggestions{
+			ExpectedSuggestions: newNodeSuggestions([]NodeSuggestion{
 				{TypeName: "Query", FieldName: "user", DataSourceHash: 22, Path: "query.user", ParentPath: "query", IsRootNode: true, selected: true},
 				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.user.name", ParentPath: "query.user", IsRootNode: true, selected: true},
 				{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.user.details", ParentPath: "query.user", IsRootNode: true, selected: true},
@@ -522,7 +530,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				{TypeName: "Lines", FieldName: "id", DataSourceHash: 22, Path: "query.user.details.address.lines.id", ParentPath: "query.user.details.address.lines", IsRootNode: true, selected: true},
 				{TypeName: "Lines", FieldName: "line1", DataSourceHash: 44, Path: "query.user.details.address.lines.line1", ParentPath: "query.user.details.address.lines", IsRootNode: true, selected: true},
 				{TypeName: "Lines", FieldName: "line2", DataSourceHash: 44, Path: "query.user.details.address.lines.line2", ParentPath: "query.user.details.address.lines", IsRootNode: true, selected: true},
-			},
+			}),
 		},
 		{
 			Description: "Shareable variant",
@@ -582,23 +590,23 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			ExpectedVariants: []Variant{
 				{
 					dsOrder: []int{0, 1},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true},
 						{TypeName: "Details", FieldName: "name", DataSourceHash: 11, Path: "query.me.details.name", ParentPath: "query.me.details", IsRootNode: false, selected: true},
-					},
+					}),
 				},
 				{
 					dsOrder: []int{1, 0},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true},
 						{TypeName: "Details", FieldName: "name", DataSourceHash: 11, Path: "query.me.details.name", ParentPath: "query.me.details", IsRootNode: false, selected: true},
-					},
+					}),
 				},
 			},
 		},
@@ -622,19 +630,19 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			ExpectedVariants: []Variant{
 				{
 					dsOrder: []int{0, 1, 2},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "Details", FieldName: "forename", DataSourceHash: 11, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, selected: true},
-					},
+					}),
 				},
 				{
 					dsOrder: []int{2, 1, 0},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "Details", FieldName: "forename", DataSourceHash: 22, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, selected: true},
-					},
+					}),
 				},
 			},
 		},
@@ -656,12 +664,12 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				shareableDS2,
 				shareableDS3,
 			},
-			ExpectedSuggestions: NodeSuggestions{
+			ExpectedSuggestions: newNodeSuggestions([]NodeSuggestion{
 				{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
 				{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 				{TypeName: "Details", FieldName: "forename", DataSourceHash: 22, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, selected: true},
 				{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true},
-			},
+			}),
 		},
 		{
 			Description: "Shareable: should use 2 ds",
@@ -685,36 +693,36 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			ExpectedVariants: []Variant{
 				{
 					dsOrder: []int{1, 0, 2},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "Details", FieldName: "forename", DataSourceHash: 22, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, selected: true},
 						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true},
 						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, selected: true},
-					},
+					}),
 				},
 				{
 					dsOrder: []int{2, 0, 1},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "Details", FieldName: "forename", DataSourceHash: 11, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, selected: true},
 						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true},
 						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, selected: true},
-					},
+					}),
 				},
 				{
 					dsOrder: []int{2, 1, 0},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "Details", FieldName: "forename", DataSourceHash: 22, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, selected: true},
 						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true},
 						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, selected: true},
-					},
+					}),
 				},
 			},
 		},
@@ -738,19 +746,19 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			ExpectedVariants: []Variant{
 				{
 					dsOrder: []int{2, 1, 0},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "Details", FieldName: "age", DataSourceHash: 33, Path: "query.me.details.age", ParentPath: "query.me.details", IsRootNode: false, selected: true},
-					},
+					}),
 				},
 				{
 					dsOrder: []int{0, 1, 2},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "Details", FieldName: "age", DataSourceHash: 33, Path: "query.me.details.age", ParentPath: "query.me.details", IsRootNode: false, selected: true},
-					},
+					}),
 				},
 			},
 		},
@@ -775,21 +783,21 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			ExpectedVariants: []Variant{
 				{
 					dsOrder: []int{0, 1},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "Details", FieldName: "pets", DataSourceHash: 33, Path: "query.me.details.pets", ParentPath: "query.me.details", IsRootNode: false, selected: true},
 						{TypeName: "Pet", FieldName: "name", DataSourceHash: 33, Path: "query.me.details.pets.name", ParentPath: "query.me.details.pets", IsRootNode: false, selected: true},
-					},
+					}),
 				},
 				{
 					dsOrder: []int{1, 0},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "Details", FieldName: "pets", DataSourceHash: 33, Path: "query.me.details.pets", ParentPath: "query.me.details", IsRootNode: false, selected: true},
 						{TypeName: "Pet", FieldName: "name", DataSourceHash: 33, Path: "query.me.details.pets.name", ParentPath: "query.me.details.pets", IsRootNode: false, selected: true},
-					},
+					}),
 				},
 			},
 		},
@@ -816,7 +824,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			ExpectedVariants: []Variant{
 				{
 					dsOrder: []int{0, 1, 2},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
@@ -825,11 +833,11 @@ func TestFindBestDataSourceSet(t *testing.T) {
 						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true},
 						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, selected: true},
 						{TypeName: "Details", FieldName: "age", DataSourceHash: 33, Path: "query.me.details.age", ParentPath: "query.me.details", IsRootNode: false, selected: true},
-					},
+					}),
 				},
 				{
 					dsOrder: []int{1, 0, 2},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
@@ -838,11 +846,11 @@ func TestFindBestDataSourceSet(t *testing.T) {
 						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true},
 						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, selected: true},
 						{TypeName: "Details", FieldName: "age", DataSourceHash: 33, Path: "query.me.details.age", ParentPath: "query.me.details", IsRootNode: false, selected: true},
-					},
+					}),
 				},
 				{
 					dsOrder: []int{2, 1, 0},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, selected: true},
@@ -851,7 +859,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 						{TypeName: "Details", FieldName: "surname", DataSourceHash: 22, Path: "query.me.details.surname", ParentPath: "query.me.details", IsRootNode: false, selected: true},
 						{TypeName: "Details", FieldName: "middlename", DataSourceHash: 11, Path: "query.me.details.middlename", ParentPath: "query.me.details", IsRootNode: false, selected: true},
 						{TypeName: "Details", FieldName: "age", DataSourceHash: 33, Path: "query.me.details.age", ParentPath: "query.me.details", IsRootNode: false, selected: true},
-					},
+					}),
 				},
 			},
 		},
@@ -884,7 +892,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			ExpectedVariants: []Variant{
 				{
 					dsOrder: []int{0, 1},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "object", DataSourceHash: 11, Path: "query.user.object", ParentPath: "query.user", IsRootNode: true, selected: true},
@@ -898,11 +906,11 @@ func TestFindBestDataSourceSet(t *testing.T) {
 						{TypeName: "NestedTwo", FieldName: "shared", DataSourceHash: 11, Path: "query.user.nested.nested.shared", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true},
 						{TypeName: "NestedTwo", FieldName: "uniqueOne", DataSourceHash: 11, Path: "query.user.nested.nested.uniqueOne", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true},
 						{TypeName: "NestedTwo", FieldName: "uniqueTwo", DataSourceHash: 22, Path: "query.user.nested.nested.uniqueTwo", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true},
-					},
+					}),
 				},
 				{
 					dsOrder: []int{1, 0},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "object", DataSourceHash: 11, Path: "query.user.object", ParentPath: "query.user", IsRootNode: true, selected: true},
@@ -916,7 +924,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 						{TypeName: "NestedTwo", FieldName: "shared", DataSourceHash: 22, Path: "query.user.nested.nested.shared", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true},
 						{TypeName: "NestedTwo", FieldName: "uniqueOne", DataSourceHash: 11, Path: "query.user.nested.nested.uniqueOne", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true},
 						{TypeName: "NestedTwo", FieldName: "uniqueTwo", DataSourceHash: 22, Path: "query.user.nested.nested.uniqueTwo", ParentPath: "query.user.nested.nested", IsRootNode: false, selected: true},
-					},
+					}),
 				},
 			},
 		},
@@ -946,7 +954,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			ExpectedVariants: []Variant{
 				{
 					dsOrder: []int{0, 1},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "users", DataSourceHash: 11, Path: "query.users", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "PaginatedUser", FieldName: "edges", DataSourceHash: 11, Path: "query.users.edges", ParentPath: "query.users", IsRootNode: false, selected: true},
 						{TypeName: "UserToEdge", FieldName: "node", DataSourceHash: 11, Path: "query.users.edges.node", ParentPath: "query.users.edges", IsRootNode: false, selected: true},
@@ -955,11 +963,11 @@ func TestFindBestDataSourceSet(t *testing.T) {
 						{TypeName: "User", FieldName: "lastName", DataSourceHash: 11, Path: "query.users.edges.node.lastName", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "address", DataSourceHash: 22, Path: "query.users.edges.node.address", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true},
 						{TypeName: "Address", FieldName: "street", DataSourceHash: 22, Path: "query.users.edges.node.address.street", ParentPath: "query.users.edges.node.address", IsRootNode: true, selected: true},
-					},
+					}),
 				},
 				{
 					dsOrder: []int{1, 0},
-					suggestions: NodeSuggestions{
+					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "users", DataSourceHash: 11, Path: "query.users", ParentPath: "query", IsRootNode: true, selected: true},
 						{TypeName: "PaginatedUser", FieldName: "edges", DataSourceHash: 11, Path: "query.users.edges", ParentPath: "query.users", IsRootNode: false, selected: true},
 						{TypeName: "UserToEdge", FieldName: "node", DataSourceHash: 11, Path: "query.users.edges.node", ParentPath: "query.users.edges", IsRootNode: false, selected: true},
@@ -968,13 +976,13 @@ func TestFindBestDataSourceSet(t *testing.T) {
 						{TypeName: "User", FieldName: "lastName", DataSourceHash: 11, Path: "query.users.edges.node.lastName", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true},
 						{TypeName: "User", FieldName: "address", DataSourceHash: 22, Path: "query.users.edges.node.address", ParentPath: "query.users.edges.node", IsRootNode: true, selected: true},
 						{TypeName: "Address", FieldName: "street", DataSourceHash: 22, Path: "query.users.edges.node.address.street", ParentPath: "query.users.edges.node.address", IsRootNode: true, selected: true},
-					},
+					}),
 				},
 			},
 		},
 	}
 
-	run := func(t *testing.T, Definition, Query string, DataSources []DataSourceConfiguration, expected NodeSuggestions) {
+	run := func(t *testing.T, Definition, Query string, DataSources []DataSourceConfiguration, expected *NodeSuggestions) {
 		t.Helper()
 
 		definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(Definition)
@@ -996,9 +1004,9 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			t.Fatal(report.Error())
 		}
 
-		if !assert.Equal(t, expected, planned) {
-			expected, _ := json.MarshalIndent(expected, "", "  ")
-			planned, _ := json.MarshalIndent(planned, "", "  ")
+		if !assert.Equal(t, expected.items, planned.items) {
+			expected, _ := json.MarshalIndent(expected.items, "", "  ")
+			planned, _ := json.MarshalIndent(planned.items, "", "  ")
 
 			assert.Equal(t, string(expected), string(planned))
 		}
