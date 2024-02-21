@@ -59,6 +59,6 @@ func (v *providesVisitor) EnterField(ref int) {
 		DataSourceHash: v.input.DSHash,
 		Path:           currentPath,
 		ParentPath:     parentPath,
-		selected:       true,
+		Selected:       true,
 	})
 }

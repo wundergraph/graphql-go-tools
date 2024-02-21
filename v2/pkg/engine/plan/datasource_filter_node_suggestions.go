@@ -75,6 +75,11 @@ func NewNodeSuggestionsWithSize(size int) *NodeSuggestions {
 	}
 }
 
+func (f *NodeSuggestions) AddItems(items ...*NodeSuggestion) {
+	f.items = append(f.items, items...)
+	f.populateHasSuggestions()
+}
+
 func (f *NodeSuggestions) IsFieldSeen(fieldRef int) bool {
 	_, ok := f.seenFields[fieldRef]
 	return ok
