@@ -31,15 +31,14 @@ func (f *DataSourceFilter) EnableSelectionReasons() {
 }
 
 func (f *DataSourceFilter) FilterDataSources(dataSources []DataSourceConfiguration, existingNodes *NodeSuggestions, hints ...NodeSuggestionHint) (used []DataSourceConfiguration, suggestions *NodeSuggestions) {
-	suggestions = f.findBestDataSourceSet(dataSources, existingNodes, hints...)
+	var dsInUse map[DSHash]struct{}
+
+	suggestions, dsInUse = f.findBestDataSourceSet(dataSources, existingNodes, hints...)
 	if f.report.HasErrors() {
 		return
 	}
 
-	dsInUse := suggestions.uniqueDataSourceHashes()
-
 	used = make([]DataSourceConfiguration, 0, len(dsInUse))
-
 	for i := range dataSources {
 		_, inUse := dsInUse[dataSources[i].Hash()]
 		if inUse {
@@ -50,10 +49,10 @@ func (f *DataSourceFilter) FilterDataSources(dataSources []DataSourceConfigurati
 	return used, suggestions
 }
 
-func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSourceConfiguration, existingNodes *NodeSuggestions, hints ...NodeSuggestionHint) *NodeSuggestions {
+func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSourceConfiguration, existingNodes *NodeSuggestions, hints ...NodeSuggestionHint) (*NodeSuggestions, map[DSHash]struct{}) {
 	f.nodes = f.collectNodes(dataSources, existingNodes)
 	if f.report.HasErrors() {
-		return nil
+		return nil, nil
 	}
 
 	// f.nodes.printNodes("initial nodes")
@@ -68,14 +67,14 @@ func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSourceConfigu
 	f.selectDuplicateNodes(true)
 	// f.nodes.printNodes("duplicate nodes after second run")
 
-	f.nodes.populateHasSuggestions()
+	uniqueDataSourceHashes := f.nodes.populateHasSuggestions()
 
 	f.isResolvable(f.nodes)
 	if f.report.HasErrors() {
-		return nil
+		return nil, nil
 	}
 
-	return f.nodes
+	return f.nodes, uniqueDataSourceHashes
 }
 
 func (f *DataSourceFilter) collectNodes(dataSources []DataSourceConfiguration, existingNodes *NodeSuggestions, hints ...NodeSuggestionHint) (nodes *NodeSuggestions) {

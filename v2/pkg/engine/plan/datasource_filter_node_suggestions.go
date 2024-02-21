@@ -25,6 +25,10 @@ type NodeSuggestion struct {
 	fieldRef int
 }
 
+func (n *NodeSuggestion) treeNodeID() uint {
+	return TreeNodeID(n.fieldRef)
+}
+
 func (n *NodeSuggestion) appendSelectionReason(reason string) {
 	n.SelectionReasons = append(n.SelectionReasons, reason)
 }
@@ -124,131 +128,115 @@ func (f *NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string)
 }
 
 func (f *NodeSuggestions) isNodeUniq(idx int) bool {
-	for i := range f.items {
-		if i == idx {
-			continue
-		}
-		if f.items[idx].TypeName == f.items[i].TypeName && f.items[idx].FieldName == f.items[i].FieldName && f.items[idx].Path == f.items[i].Path {
-			return false
-		}
-	}
-	return true
+	treeNode := f.treeNode(idx)
+
+	return isTreeNodeUniq(treeNode)
+}
+
+func (f *NodeSuggestions) treeNode(idx int) treeNode {
+	nodeID := f.items[idx].treeNodeID()
+	treeNode, _ := f.responseTree.Find(nodeID)
+	return treeNode
 }
 
 func (f *NodeSuggestions) isSelectedOnOtherSource(idx int) bool {
-	for i := range f.items {
-		if i == idx {
+	treeNode := f.treeNode(idx)
+
+	if isTreeNodeUniq(treeNode) {
+		return false
+	}
+
+	duplicatesIndexes := treeNode.GetData()
+
+	for _, duplicateIdx := range duplicatesIndexes {
+		if idx == duplicateIdx {
 			continue
 		}
-		if f.items[idx].TypeName == f.items[i].TypeName &&
-			f.items[idx].FieldName == f.items[i].FieldName &&
-			f.items[idx].Path == f.items[i].Path &&
-			f.items[idx].DataSourceHash != f.items[i].DataSourceHash &&
-			f.items[i].Selected {
+		if f.items[idx].DataSourceHash != f.items[duplicateIdx].DataSourceHash &&
+			f.items[duplicateIdx].Selected {
 
 			return true
 		}
 	}
+
 	return false
 }
 
 func (f *NodeSuggestions) duplicatesOf(idx int) (out []int) {
-	for i := range f.items {
-		if i == idx {
+	treeNode := f.treeNode(idx)
+
+	if isTreeNodeUniq(treeNode) {
+		return nil
+	}
+
+	duplicatesIndexes := treeNode.GetData()
+
+	out = make([]int, 0, len(duplicatesIndexes))
+	for _, duplicateIdx := range duplicatesIndexes {
+		if idx == duplicateIdx {
 			continue
 		}
-		if f.items[idx].TypeName == f.items[i].TypeName &&
-			f.items[idx].FieldName == f.items[i].FieldName &&
-			f.items[idx].Path == f.items[i].Path {
-			out = append(out, i)
-		}
+		out = append(out, duplicateIdx)
 	}
+
 	return
 }
 
 func (f *NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
-	for i := range f.items {
-		if i == idx {
-			continue
-		}
-		if f.items[i].DataSourceHash != f.items[idx].DataSourceHash {
+	treeNode := f.treeNode(idx)
+	childIndexes := treeNodeChildren(treeNode)
+
+	out = make([]int, 0, len(childIndexes))
+
+	for _, childIdx := range childIndexes {
+		if f.items[childIdx].DataSourceHash != f.items[idx].DataSourceHash {
 			continue
 		}
 
-		if f.items[i].ParentPath == f.items[idx].Path || (f.items[i].parentPathWithoutFragment != nil && *f.items[i].parentPathWithoutFragment == f.items[idx].Path) {
-			out = append(out, i)
-		}
+		out = append(out, childIdx)
 	}
 	return
 }
 
 func (f *NodeSuggestions) siblingNodesOnSameSource(idx int) (out []int) {
-	for i := range f.items {
-		if i == idx {
-			continue
-		}
-		if f.items[i].DataSourceHash != f.items[idx].DataSourceHash {
+	treeNode := f.treeNode(idx)
+	siblingIndexes := treeNodeSiblings(treeNode)
+
+	out = make([]int, 0, len(siblingIndexes))
+
+	for _, siblingIndex := range siblingIndexes {
+		if f.items[siblingIndex].DataSourceHash != f.items[idx].DataSourceHash {
 			continue
 		}
 
-		hasMatch := false
-		switch {
-		case f.items[i].parentPathWithoutFragment != nil && f.items[idx].parentPathWithoutFragment != nil:
-			hasMatch = *f.items[i].parentPathWithoutFragment == *f.items[idx].parentPathWithoutFragment
-		case f.items[i].parentPathWithoutFragment != nil && f.items[idx].parentPathWithoutFragment == nil:
-			hasMatch = *f.items[i].parentPathWithoutFragment == f.items[idx].ParentPath
-		case f.items[i].parentPathWithoutFragment == nil && f.items[idx].parentPathWithoutFragment != nil:
-			hasMatch = f.items[i].ParentPath == *f.items[idx].parentPathWithoutFragment
-		default:
-			hasMatch = f.items[i].ParentPath == f.items[idx].ParentPath
-		}
-
-		if hasMatch {
-			out = append(out, i)
-		}
+		out = append(out, siblingIndex)
 	}
 	return
 }
 
 func (f *NodeSuggestions) isLeaf(idx int) bool {
-	for i := range f.items {
-		if i == idx {
-			continue
-		}
-		if f.items[i].ParentPath == f.items[idx].Path {
-			return false
-		}
-	}
-	return true
+	treeNode := f.treeNode(idx)
+
+	return isTreeNodeLeaf(treeNode)
 }
 
 func (f *NodeSuggestions) parentNodeOnSameSource(idx int) (parentIdx int, ok bool) {
-	for i := range f.items {
-		if i == idx {
-			continue
-		}
-		if f.items[i].DataSourceHash != f.items[idx].DataSourceHash {
-			continue
-		}
+	treeNode := f.treeNode(idx)
+	parentNodeIndexes := treeNode.GetParent().GetData()
 
-		if f.items[i].Path == f.items[idx].ParentPath || (f.items[idx].parentPathWithoutFragment != nil && f.items[i].Path == *f.items[idx].parentPathWithoutFragment) {
-			return i, true
+	for _, parentIdx := range parentNodeIndexes {
+		if f.items[parentIdx].DataSourceHash == f.items[idx].DataSourceHash {
+			return parentIdx, true
 		}
 	}
+
 	return -1, false
 }
 
-func (f *NodeSuggestions) uniqueDataSourceHashes() map[DSHash]struct{} {
-	if len(f.items) == 0 {
-		return nil
-	}
-
-	unique := make(map[DSHash]struct{})
+func (f *NodeSuggestions) zeroFieldRefs() {
 	for i := range f.items {
-		unique[f.items[i].DataSourceHash] = struct{}{}
+		f.items[i].fieldRef = 0
 	}
-
-	return unique
 }
 
 func (f *NodeSuggestions) printNodes(msg string) {
@@ -260,64 +248,65 @@ func (f *NodeSuggestions) printNodes(msg string) {
 	}
 }
 
-func (f *NodeSuggestions) populateHasSuggestions() {
+func (f *NodeSuggestions) populateHasSuggestions() map[DSHash]struct{} {
+	unique := make(map[DSHash]struct{})
+
 	for i := range f.items {
 		if !f.items[i].Selected {
 			continue
 		}
 
+		unique[f.items[i].DataSourceHash] = struct{}{}
 		suggestions, _ := f.pathSuggestions[f.items[i].Path]
 		suggestions = append(f.pathSuggestions[f.items[i].Path], f.items[i])
 		f.pathSuggestions[f.items[i].Path] = suggestions
 	}
+
+	return unique
 }
 
 type treeNode tree.Node[[]int]
 
-type nodeCheckCallback func(node treeNode)
-
-func (f *NodeSuggestions) AnyNodeItemIsSelected(node treeNode) bool {
-	for _, itemId := range node.GetData() {
-		if f.items[itemId].Selected {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (f *NodeSuggestions) isTreeNodeUniq(node treeNode) bool {
+func isTreeNodeUniq(node treeNode) bool {
 	return len(node.GetData()) == 1
 }
 
-func (f *NodeSuggestions) isTreeNodeLeaf(node treeNode) bool {
+func isTreeNodeLeaf(node treeNode) bool {
 	return len(node.GetChildren()) == 0
 }
 
-func (f *NodeSuggestions) ForEachSibling(node treeNode, callback nodeCheckCallback) {
+func treeNodeSiblings(node treeNode) []int {
 	childrenOfParent := node.GetParent().GetChildren()
 
 	if len(childrenOfParent) < 2 {
-		return
+		return nil
 	}
+
+	out := make([]int, 0, len(childrenOfParent))
 
 	for _, child := range childrenOfParent {
 		if child.GetID() == node.GetID() {
 			continue
 		}
 
-		callback(child)
+		out = append(out, child.GetData()...)
 	}
+
+	return out
 }
 
-func (f *NodeSuggestions) ForEachChild(node treeNode, callback nodeCheckCallback) {
+func treeNodeChildren(node treeNode) []int {
 	children := node.GetChildren()
 
 	if len(children) == 0 {
-		return
+		return nil
 	}
 
+	out := make([]int, 0, len(children))
+
 	for _, child := range children {
-		callback(child)
+		out = append(out, child.GetData()...)
 	}
+
+	return out
 }
