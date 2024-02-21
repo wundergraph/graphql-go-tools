@@ -36,6 +36,8 @@ func (f *collectNodesVisitor) EnterDocument(_, _ *ast.Document) {
 
 func (f *collectNodesVisitor) EnterField(ref int) {
 	if f.nodes.IsFieldSeen(ref) {
+		currentNodeId := TreeNodeID(ref)
+		f.parentNodeIds = append(f.parentNodeIds, currentNodeId)
 		return
 	}
 	f.nodes.AddSeenField(ref)
@@ -102,11 +104,6 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 
 			itemIds = append(itemIds, len(f.nodes.items)-1)
 		}
-	}
-
-	if len(itemIds) == 0 {
-		// TMP: union
-		return
 	}
 
 	parentNodeId := f.currentParentID()
