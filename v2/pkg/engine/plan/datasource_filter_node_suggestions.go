@@ -233,12 +233,6 @@ func (f *NodeSuggestions) parentNodeOnSameSource(idx int) (parentIdx int, ok boo
 	return -1, false
 }
 
-func (f *NodeSuggestions) zeroFieldRefs() {
-	for i := range f.items {
-		f.items[i].fieldRef = 0
-	}
-}
-
 func (f *NodeSuggestions) printNodes(msg string) {
 	if msg != "" {
 		fmt.Println(msg)

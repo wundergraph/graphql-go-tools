@@ -3,6 +3,7 @@ package plan
 import (
 	"fmt"
 	"math/rand"
+	"slices"
 	"testing"
 	"time"
 
@@ -65,154 +66,6 @@ func newNodeSuggestions(nodes []NodeSuggestion) *NodeSuggestions {
 		items = append(items, &nodes[i])
 	}
 	return &NodeSuggestions{items: items}
-}
-
-func TestNodeSuggestions(t *testing.T) {
-	t.SkipNow()
-
-	t.Run("isNodeUniq", func(t *testing.T) {
-		nodes := newNodeSuggestions([]NodeSuggestion{
-			{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query"},
-			{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user"},
-			{TypeName: "User", FieldName: "id", DataSourceHash: 22, Path: "query.user.id", ParentPath: "query.user"},
-		})
-
-		assert.False(t, nodes.isNodeUniq(1))
-		assert.True(t, nodes.isNodeUniq(0))
-	})
-
-	t.Run("isSelectedOnOtherSource", func(t *testing.T) {
-		nodes := newNodeSuggestions([]NodeSuggestion{
-			{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query"},
-			{TypeName: "Query", FieldName: "user", DataSourceHash: 22, Path: "query.user", ParentPath: "query", Selected: true, SelectionReasons: []string{"stage1: uniq"}},
-			{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user"},
-			{TypeName: "User", FieldName: "id", DataSourceHash: 22, Path: "query.user.id", ParentPath: "query.user"},
-		})
-
-		assert.True(t, nodes.isSelectedOnOtherSource(0))
-		assert.False(t, nodes.isSelectedOnOtherSource(2))
-	})
-
-	t.Run("duplicatesOf", func(t *testing.T) {
-		nodes := newNodeSuggestions([]NodeSuggestion{
-			{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query"},
-			{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user"},
-			{TypeName: "User", FieldName: "id", DataSourceHash: 22, Path: "query.user.id", ParentPath: "query.user"},
-			{TypeName: "User", FieldName: "id", DataSourceHash: 33, Path: "query.user.id", ParentPath: "query.user"},
-		})
-
-		assert.Equal(t, []int{2, 3}, nodes.duplicatesOf(1))
-		assert.Nil(t, nodes.duplicatesOf(0))
-	})
-
-	t.Run("childNodesOnSameSource", func(t *testing.T) {
-		nodes := newNodeSuggestions([]NodeSuggestion{
-			{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query"},
-			{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.$User.id", ParentPath: "query.user", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
-			{TypeName: "User", FieldName: "info", DataSourceHash: 11, Path: "query.user.$User.info", ParentPath: "query.user.$User", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
-			{TypeName: "Info", FieldName: "email", DataSourceHash: 11, Path: "query.user.$User.info.email", ParentPath: "query.user.$User.info", parentPathWithoutFragment: strptr("query.user.$User.info")},
-			{TypeName: "Info", FieldName: "isUser", DataSourceHash: 33, Path: "query.user.$User.info.isUser", ParentPath: "query.user.$User.info", parentPathWithoutFragment: strptr("query.user.$User.info")},
-			{TypeName: "User", FieldName: "isAdmin", DataSourceHash: 44, Path: "query.user.isAdmin", ParentPath: "query.user", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
-		})
-
-		assert.Equal(t, []int{1, 2}, nodes.childNodesOnSameSource(0))
-		assert.Nil(t, nodes.childNodesOnSameSource(1))
-		assert.Equal(t, []int{3}, nodes.childNodesOnSameSource(2))
-	})
-
-	t.Run("siblingNodesOnSameSource", func(t *testing.T) {
-		nodes := newNodeSuggestions([]NodeSuggestion{
-			{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query"},
-			{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.$User.id", ParentPath: "query.user", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
-			{TypeName: "User", FieldName: "info", DataSourceHash: 11, Path: "query.user.$User.info", ParentPath: "query.user.$User", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
-			{TypeName: "Info", FieldName: "email", DataSourceHash: 11, Path: "query.user.$User.info.email", ParentPath: "query.user.$User.info"},
-			{TypeName: "Info", FieldName: "isUser", DataSourceHash: 33, Path: "query.user.$User.info.isUser", ParentPath: "query.user.$User.info"},
-			{TypeName: "User", FieldName: "isAdmin", DataSourceHash: 44, Path: "query.user.isAdmin", ParentPath: "query.user"},
-			{TypeName: "Moderator", FieldName: "isModerator", DataSourceHash: 11, Path: "query.user.$Moderator.isModerator", ParentPath: "query.user.$Moderator", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
-		})
-
-		assert.Nil(t, nodes.siblingNodesOnSameSource(0))
-		assert.Nil(t, nodes.siblingNodesOnSameSource(4))
-		assert.Nil(t, nodes.siblingNodesOnSameSource(5))
-		assert.Equal(t, []int{2, 6}, nodes.siblingNodesOnSameSource(1))
-	})
-
-	t.Run("isLeaf", func(t *testing.T) {
-		nodes := newNodeSuggestions([]NodeSuggestion{
-			{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query"},
-			{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user"},
-			{TypeName: "User", FieldName: "id", DataSourceHash: 22, Path: "query.user.id", ParentPath: "query.user"},
-			{TypeName: "User", FieldName: "id", DataSourceHash: 33, Path: "query.user.id", ParentPath: "query.user"},
-			{TypeName: "User", FieldName: "info", DataSourceHash: 11, Path: "query.user.info", ParentPath: "query.user"},
-			{TypeName: "Info", FieldName: "email", DataSourceHash: 11, Path: "query.user.info.email", ParentPath: "query.user.info"},
-		})
-
-		assert.False(t, nodes.isLeaf(0))
-		assert.True(t, nodes.isLeaf(1))
-		assert.True(t, nodes.isLeaf(2))
-		assert.True(t, nodes.isLeaf(3))
-		assert.False(t, nodes.isLeaf(4))
-		assert.True(t, nodes.isLeaf(5))
-	})
-
-	t.Run("parentNodeOnSameSource", func(t *testing.T) {
-		t.Run("no fragments", func(t *testing.T) {
-			nodes := newNodeSuggestions([]NodeSuggestion{
-				{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query"},
-				{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user"},
-				{TypeName: "User", FieldName: "info", DataSourceHash: 22, Path: "query.user.info", ParentPath: "query.user"},
-				{TypeName: "Info", FieldName: "email", DataSourceHash: 22, Path: "query.user.info.email", ParentPath: "query.user.info"},
-			})
-
-			cases := []struct {
-				parentIdx int
-				ok        bool
-			}{
-				{-1, false},
-				{0, true},
-				{-1, false},
-				{2, true},
-			}
-
-			for i, c := range cases {
-				parentIdx, ok := nodes.parentNodeOnSameSource(i)
-				assert.Equal(t, c.parentIdx, parentIdx, "case %d", i)
-				assert.Equal(t, c.ok, ok, "case %d", i)
-			}
-		})
-
-		t.Run("with fragments", func(t *testing.T) {
-			nodes := newNodeSuggestions([]NodeSuggestion{
-				{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query"},
-				{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.$User.id", ParentPath: "query.user", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
-				{TypeName: "User", FieldName: "info", DataSourceHash: 11, Path: "query.user.$User.info", ParentPath: "query.user.$User", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
-				{TypeName: "Info", FieldName: "email", DataSourceHash: 11, Path: "query.user.$User.info.email", ParentPath: "query.user.$User.info"},
-				{TypeName: "Info", FieldName: "isUser", DataSourceHash: 33, Path: "query.user.$User.info.isUser", ParentPath: "query.user.$User.info"},
-				{TypeName: "Admin", FieldName: "id", DataSourceHash: 22, Path: "query.user.$Admin.id", ParentPath: "query.user.$Admin", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
-				{TypeName: "Admin", FieldName: "isAdmin", DataSourceHash: 44, Path: "query.user.$Admin.id", ParentPath: "query.user.$Admin", parentPathWithoutFragment: strptr("query.user"), onFragment: true},
-			})
-
-			cases := []struct {
-				parentIdx int
-				ok        bool
-			}{
-				{-1, false},
-				{0, true},
-				{0, true},
-				{2, true},
-				{-1, false},
-				{-1, false},
-				{-1, false},
-			}
-
-			for i, c := range cases {
-				parentIdx, ok := nodes.parentNodeOnSameSource(i)
-				assert.Equal(t, c.parentIdx, parentIdx, "case %d", i)
-				assert.Equal(t, c.ok, ok, "case %d", i)
-			}
-		})
-	})
-
 }
 
 func TestFindBestDataSourceSet(t *testing.T) {
@@ -1067,11 +920,18 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			t.Fatal(report.Error())
 		}
 
-		planned.filterNotSelectedNodes()
-		planned.zeroFieldRefs()
+		// zero field refs
+		for i := range planned.items {
+			planned.items[i].fieldRef = 0
+		}
 
-		if !assert.Equal(t, expected.items, planned.items) {
-			if diff := pretty.Compare(expected.items, planned.items); diff != "" {
+		// remove not selected items
+		actualItems := slices.DeleteFunc(planned.items, func(n *NodeSuggestion) bool {
+			return n.Selected == false
+		})
+
+		if !assert.Equal(t, expected.items, actualItems) {
+			if diff := pretty.Compare(expected.items, actualItems); diff != "" {
 				t.Errorf("Result don't match(-want +got)\n%s", diff)
 			}
 		}
