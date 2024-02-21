@@ -636,25 +636,21 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 }
 
 func (c *configurationVisitor) findSuggestedDataSourceConfiguration(typeName, fieldName, currentPath string) *DataSourceConfiguration {
-	dsHash, ok := c.nodeSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
-	if !ok {
+	dsHashes := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
+	if len(dsHashes) == 0 {
 		return nil
 	}
 
 	for _, dsCfg := range c.dataSources {
-		if dsCfg.Hash() == dsHash {
-			return &dsCfg
+		if !slices.Contains(dsHashes, dsCfg.Hash()) {
+			continue
 		}
-	}
 
-	return nil
-}
-
-func (c *configurationVisitor) findAlternativeDataSourceConfiguration(typeName, fieldName, currentPath string) *DataSourceConfiguration {
-	for _, dsCfg := range c.dataSources {
-		if dsCfg.HasRootNode(typeName, fieldName) && !c.isPathAddedFor(currentPath, dsCfg.Hash()) {
-			return &dsCfg
+		if c.isPathAddedFor(currentPath, dsCfg.Hash()) {
+			continue
 		}
+
+		return &dsCfg
 	}
 
 	return nil
@@ -691,13 +687,6 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 	config := c.findSuggestedDataSourceConfiguration(typeName, fieldName, currentPath)
 	if config == nil {
 		return -1, false
-	}
-
-	if c.isPathAddedFor(currentPath, config.Hash()) {
-		config = c.findAlternativeDataSourceConfiguration(typeName, fieldName, currentPath)
-		if config == nil {
-			return -1, false
-		}
 	}
 
 	shouldPlanTypenameField := c.allowNewPlannerForTypenameField(fieldName, typeName, parentPath, config)
