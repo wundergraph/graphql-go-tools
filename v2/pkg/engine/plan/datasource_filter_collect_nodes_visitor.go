@@ -110,7 +110,7 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 	}
 
 	parentNodeId := f.currentParentID()
-	currentNodeId := f.currentFieldNodeID(ref)
+	currentNodeId := TreeNodeID(ref)
 
 	added, exists := f.nodes.responseTree.Add(currentNodeId, parentNodeId, itemIds)
 	f.parentNodeIds = append(f.parentNodeIds, currentNodeId)
@@ -121,13 +121,13 @@ func (f *collectNodesVisitor) currentParentID() uint {
 	return f.parentNodeIds[len(f.parentNodeIds)-1]
 }
 
-func (f *collectNodesVisitor) currentFieldNodeID(ref int) uint {
-	return uint(10000 + ref)
+func TreeNodeID(fieldRef int) uint {
+	return uint(100 + fieldRef)
 }
 
 func (f *collectNodesVisitor) LeaveField(ref int) {
 	parentNodeId := f.currentParentID()
-	currentNodeId := f.currentFieldNodeID(ref)
+	currentNodeId := TreeNodeID(ref)
 
 	if parentNodeId == currentNodeId {
 		f.parentNodeIds = f.parentNodeIds[:len(f.parentNodeIds)-1]
