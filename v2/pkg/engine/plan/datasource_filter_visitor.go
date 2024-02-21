@@ -129,28 +129,25 @@ func (f *DataSourceFilter) applySuggestionHints(hints []NodeSuggestionHint) {
 		return
 	}
 
-	for i := range f.nodes.items {
-		var dsHashHint *DSHash
-		for _, hint := range hints {
-			if hint.fieldRef == f.nodes.items[i].fieldRef {
-				dsHashHint = &hint.dsHash
-				break
-			}
-		}
-
-		if dsHashHint == nil {
+	for _, hint := range hints {
+		treeNodeID := TreeNodeID(hint.fieldRef)
+		treeNode, ok := f.nodes.responseTree.Find(treeNodeID)
+		if !ok {
 			continue
 		}
 
-		if f.nodes.items[i].DataSourceHash != *dsHashHint {
-			if f.nodes.items[i].Selected {
-				// if the node was already selected by another datasource
-				// we unselect it
-				f.nodes.items[i].Selected = false
-				f.nodes.items[i].SelectionReasons = nil
+		itemIndexes := treeNode.GetData()
+		for _, itemIdx := range itemIndexes {
+			if f.nodes.items[itemIdx].DataSourceHash != hint.dsHash {
+				if f.nodes.items[itemIdx].Selected {
+					// if the node was already selected by another datasource
+					// we unselect it
+					f.nodes.items[itemIdx].Selected = false
+					f.nodes.items[itemIdx].SelectionReasons = nil
+				}
+			} else {
+				f.nodes.items[itemIdx].selectWithReason(ReasonKeyRequirementProvidedByPlanner, f.enableSelectionReasons)
 			}
-		} else {
-			f.nodes.items[i].selectWithReason(ReasonKeyRequirementProvidedByPlanner, f.enableSelectionReasons)
 		}
 	}
 }
