@@ -12,19 +12,20 @@ import (
 
 type DSHash uint64
 
-type PlannerFactory interface {
+type PlannerFactory[T any] interface {
 	// Planner should return the DataSourcePlanner
 	// closer is the closing channel for all stateful DataSources
 	// At runtime, the Execution Engine will be instantiated with one global resolve.Closer.
 	// Once the Closer gets closed, all stateful DataSources must close their connections and cleanup themselves.
 	// They can do so by starting a goroutine on instantiation time that blocking reads on the resolve.Closer.
 	// Once the Closer emits the close event, they have to terminate (e.g. close database connections).
-	Planner(ctx context.Context) DataSourcePlanner
+	Planner(ctx context.Context) DataSourcePlanner[T]
 }
 
-type DataSourceConfiguration struct {
-	// ID is a unique identifier for the DataSource
-	ID string
+type DataSourceMetadata struct {
+	// FederationMetaData - describes the behavior of the DataSource in the context of the Federation
+	*FederationMetaData
+
 	// RootNodes - defines the nodes where the responsibility of the DataSource begins
 	// When you enter a node, and it is not a child node
 	// when you have entered into a field which representing data source - it means that we are starting a new planning stage
@@ -33,20 +34,105 @@ type DataSourceConfiguration struct {
 	// They are always required for the Graphql datasources cause each field could have its own datasource
 	// For any single point datasource like HTTP/REST or GRPC we could not request fewer fields, as we always get a full response
 	ChildNodes TypeFields
-	Directives DirectiveConfigurations
-	Factory    PlannerFactory
-	Custom     json.RawMessage
-
-	FederationMetaData FederationMetaData
-
-	hash DSHash
+	Directives *DirectiveConfigurations
 }
 
-func (d *DataSourceConfiguration) Hash() DSHash {
-	if d.hash != 0 {
-		return d.hash
+type DirectivesConfigurations interface {
+	DirectiveConfigurations() *DirectiveConfigurations
+}
+
+type NodesInfo interface {
+	HasRootNode(typeName, fieldName string) bool
+	HasRootNodeWithTypename(typeName string) bool
+	HasChildNode(typeName, fieldName string) bool
+	HasChildNodeWithTypename(typeName string) bool
+}
+
+func (d *DataSourceMetadata) DirectiveConfigurations() *DirectiveConfigurations {
+	return d.Directives
+}
+
+func (d *DataSourceMetadata) HasRootNode(typeName, fieldName string) bool {
+	return d.RootNodes.HasNode(typeName, fieldName)
+}
+
+func (d *DataSourceMetadata) HasRootNodeWithTypename(typeName string) bool {
+	return d.RootNodes.HasNodeWithTypename(typeName)
+}
+
+func (d *DataSourceMetadata) HasChildNode(typeName, fieldName string) bool {
+	return d.ChildNodes.HasNode(typeName, fieldName)
+}
+
+func (d *DataSourceMetadata) HasChildNodeWithTypename(typeName string) bool {
+	return d.ChildNodes.HasNodeWithTypename(typeName)
+}
+
+// dataSourceConfiguration is the configuration for a DataSource
+type dataSourceConfiguration[T any] struct {
+	*DataSourceMetadata                   // DataSourceMetadata is the information about root and child nodes and federation metadata if applicable
+	ID                  string            // ID is a unique identifier for the DataSource
+	Factory             PlannerFactory[T] // Factory is the factory for the creation of the concrete DataSourcePlanner
+	Custom              json.RawMessage
+	NewCustom           T // NewCustom is the datasource specific configuration
+
+	hash DSHash // hash is a unique hash for the dataSourceConfiguration used to match datasources
+}
+
+func NewDataSourceConfiguration[T any](id string, factory PlannerFactory[T], metadata DataSourceMetadata, customConfig T) DataSourceConfiguration[T] {
+	return &dataSourceConfiguration[T]{
+		ID:                 id,
+		Factory:            factory,
+		DataSourceMetadata: &metadata,
+		NewCustom:          customConfig,
+		hash:               DSHash(xxhash.Sum64([]byte(id))),
 	}
-	d.hash = DSHash(xxhash.Sum64(d.Custom))
+}
+
+type DataSourceConfiguration[T any] interface {
+	DataSource
+	CustomConfiguration() T
+}
+
+type DataSource interface {
+	FederationRequires
+	NodesInfo
+	DirectivesConfigurations
+	Id() string
+	Hash() DSHash
+	FederationConfiguration() *FederationMetaData
+	CreatePlannerConfiguration(ctx context.Context, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration) PlannerConfiguration
+}
+
+func (d *dataSourceConfiguration[T]) CustomConfiguration() T {
+	return d.NewCustom
+}
+
+func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(ctx context.Context, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration) PlannerConfiguration {
+	planner := d.Factory.Planner(ctx)
+
+	fetchConfig.planner = planner
+
+	plannerConfig := &plannerConfiguration[T]{
+		dataSourceConfiguration:   d,
+		objectFetchConfiguration:  fetchConfig,
+		plannerPathsConfiguration: pathConfig,
+		planner:                   planner,
+		providedFields:            NewNodeSuggestionsWithSize(4),
+	}
+
+	return plannerConfig
+}
+
+func (d *dataSourceConfiguration[T]) Id() string {
+	return d.ID
+}
+
+func (d *dataSourceConfiguration[T]) FederationConfiguration() *FederationMetaData {
+	return d.FederationMetaData
+}
+
+func (d *dataSourceConfiguration[T]) Hash() DSHash {
 	return d.hash
 }
 
@@ -68,38 +154,6 @@ const (
 
 func (c *DataSourcePlannerConfiguration) HasRequiredFields() bool {
 	return len(c.RequiredFields) > 0
-}
-
-func (d *DataSourceConfiguration) HasRootNode(typeName, fieldName string) bool {
-	return d.RootNodes.HasNode(typeName, fieldName)
-}
-
-func (d *DataSourceConfiguration) HasRootNodeWithTypename(typeName string) bool {
-	return d.RootNodes.HasNodeWithTypename(typeName)
-}
-
-func (d *DataSourceConfiguration) HasChildNode(typeName, fieldName string) bool {
-	return d.ChildNodes.HasNode(typeName, fieldName)
-}
-
-func (d *DataSourceConfiguration) HasChildNodeWithTypename(typeName string) bool {
-	return d.ChildNodes.HasNodeWithTypename(typeName)
-}
-
-func (d *DataSourceConfiguration) HasKeyRequirement(typeName, requiresFields string) bool {
-	return d.FederationMetaData.Keys.HasSelectionSet(typeName, "", requiresFields)
-}
-
-func (d *DataSourceConfiguration) RequiredFieldsByKey(typeName string) []FederationFieldConfiguration {
-	return d.FederationMetaData.Keys.FilterByTypeAndResolvability(typeName, true)
-}
-
-func (d *DataSourceConfiguration) HasEntity(typeName string) bool {
-	return len(d.FederationMetaData.Keys.FilterByTypeAndResolvability(typeName, false)) > 0
-}
-
-func (d *DataSourceConfiguration) RequiredFieldsByRequires(typeName, fieldName string) []FederationFieldConfiguration {
-	return d.FederationMetaData.Requires.FilterByTypeAndField(typeName, fieldName)
 }
 
 type DirectiveConfigurations []DirectiveConfiguration
@@ -153,10 +207,12 @@ type DataSourcePlanningBehavior struct {
 	IncludeTypeNameFields bool
 }
 
-type DataSourcePlanner interface {
-	Register(visitor *Visitor, configuration DataSourceConfiguration, dataSourcePlannerConfiguration DataSourcePlannerConfiguration) error
+type DataSourceFetchPlanner interface {
 	ConfigureFetch() resolve.FetchConfiguration
 	ConfigureSubscription() SubscriptionConfiguration
+}
+
+type DataSourceBehavior interface {
 	DataSourcePlanningBehavior() DataSourcePlanningBehavior
 	// DownstreamResponseFieldAlias allows the DataSourcePlanner to overwrite the response path with an alias
 	// It's required to set OverrideFieldPathFromAlias to true
@@ -180,7 +236,13 @@ type DataSourcePlanner interface {
 	// The DataSourcePlanner could keep track that it rewrites the upstream query and use DownstreamResponseFieldAlias
 	// to indicate to the Planner to expect the response for countryAlias on the path "countryAlias" instead of "country".
 	DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool)
-	UpstreamSchema(dataSourceConfig DataSourceConfiguration) *ast.Document
+}
+
+type DataSourcePlanner[T any] interface {
+	DataSourceFetchPlanner
+	DataSourceBehavior
+	Register(visitor *Visitor, configuration DataSourceConfiguration[T], dataSourcePlannerConfiguration DataSourcePlannerConfiguration) error
+	UpstreamSchema(dataSourceConfig DataSourceConfiguration[T]) (doc *ast.Document, ok bool)
 }
 
 type SubscriptionConfiguration struct {

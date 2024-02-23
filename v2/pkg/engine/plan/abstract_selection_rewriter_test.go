@@ -16,7 +16,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 		name               string
 		definition         string
 		upstreamDefinition string
-		dsConfiguration    *DataSourceConfiguration
+		dsConfiguration    *dataSourceConfiguration
 		operation          string
 		expectedOperation  string
 		enclosingTypeName  string // default is "Query"

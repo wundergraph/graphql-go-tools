@@ -143,7 +143,7 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 	p := NewPlanner(ctx, Configuration{
 		DisableResolveFieldPositions: true,
 		IncludeInfo:                  true,
-		DataSources: []DataSourceConfiguration{
+		DataSources: []dataSourceConfiguration{
 			{
 				RootNodes: []TypeField{
 					{
@@ -427,7 +427,7 @@ type FakePlanner struct {
 	upstreamSchema *ast.Document
 }
 
-func (f *FakePlanner) UpstreamSchema(dataSourceConfig DataSourceConfiguration) *ast.Document {
+func (f *FakePlanner) UpstreamSchema(dataSourceConfig dataSourceConfiguration) *ast.Document {
 	return f.upstreamSchema
 }
 
@@ -435,7 +435,7 @@ func (f *FakePlanner) EnterDocument(operation, definition *ast.Document) {
 
 }
 
-func (f *FakePlanner) Register(visitor *Visitor, _ DataSourceConfiguration, _ DataSourcePlannerConfiguration) error {
+func (f *FakePlanner) Register(visitor *Visitor, _ dataSourceConfiguration, _ DataSourcePlannerConfiguration) error {
 	visitor.Walker.RegisterEnterDocumentVisitor(f)
 	return nil
 }

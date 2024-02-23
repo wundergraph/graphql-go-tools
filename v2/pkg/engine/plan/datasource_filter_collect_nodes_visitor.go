@@ -13,7 +13,7 @@ type collectNodesVisitor struct {
 	walker       *astvisitor.Walker
 	secondaryRun bool
 
-	dataSources   []DataSourceConfiguration
+	dataSources   []DataSource
 	nodes         *NodeSuggestions
 	hints         []NodeSuggestionHint
 	parentNodeIds []uint
@@ -65,7 +65,7 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 
 		allowTypeName := true
 		// we should not select a typename on the interface object
-		for _, k := range v.FederationMetaData.InterfaceObjects {
+		for _, k := range v.FederationConfiguration().InterfaceObjects {
 			if k.InterfaceTypeName == typeName || slices.Contains(k.ConcreteTypeNames, typeName) {
 				allowTypeName = false
 				break

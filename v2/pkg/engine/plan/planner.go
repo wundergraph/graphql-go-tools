@@ -124,19 +124,10 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningWalker.RegisterInlineFragmentVisitor(p.planningVisitor)
 
 	for key := range p.planningVisitor.planners {
-		dataSourceConfig := p.planningVisitor.planners[key].dataSourceConfiguration
-		dataSourcePlannerConfig := DataSourcePlannerConfiguration{
-			RequiredFields: p.planningVisitor.planners[key].requiredFields,
-			ProvidedFields: p.planningVisitor.planners[key].providedFields,
-			ParentPath:     p.planningVisitor.planners[key].parentPath,
-			PathType:       p.planningVisitor.planners[key].parentPathType,
-			IsNested:       p.planningVisitor.planners[key].isNestedPlanner(),
-		}
-
-		if plannerWithId, ok := p.planningVisitor.planners[key].planner.(astvisitor.VisitorIdentifier); ok {
+		if plannerWithId, ok := p.planningVisitor.planners[key].Planner().(astvisitor.VisitorIdentifier); ok {
 			plannerWithId.SetID(key + 1)
 		}
-		if plannerWithDebug, ok := p.planningVisitor.planners[key].planner.(DataSourceDebugger); ok {
+		if plannerWithDebug, ok := p.planningVisitor.planners[key].Debugger(); ok {
 			if p.config.Debug.DatasourceVisitor {
 				plannerWithDebug.EnableDebug()
 			}
@@ -146,7 +137,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 			}
 		}
 
-		err := p.planningVisitor.planners[key].planner.Register(p.planningVisitor, dataSourceConfig, dataSourcePlannerConfig)
+		err := p.planningVisitor.planners[key].Register(p.planningVisitor)
 		if err != nil {
 			report.AddInternalError(err)
 			return
@@ -260,10 +251,10 @@ func (p *Planner) removeUnnecessaryFragmentPaths() (hasRemovedPaths bool) {
 	// So we need to remove all fragment paths that are not prefixes of any other path
 
 	for _, planner := range p.configurationVisitor.planners {
-		fragmentPaths := planner.fragmentPaths()
+		fragmentPaths := planner.FragmentPaths()
 		for _, path := range fragmentPaths {
-			if !planner.hasPathPrefix(path) {
-				planner.removePath(path)
+			if !planner.HasPathPrefix(path) {
+				planner.RemovePath(path)
 				hasRemovedPaths = true
 			}
 		}
@@ -313,8 +304,8 @@ func (p *Planner) printPlanningPaths() {
 	p.debugMessage("Planning paths:")
 	for i, planner := range p.configurationVisitor.planners {
 		fmt.Println("Paths for planner", i+1)
-		fmt.Println("Planner parent path", planner.parentPath)
-		for _, path := range planner.paths {
+		fmt.Println("Planner parent path", planner.ParentPath())
+		for _, path := range planner.Paths() {
 			fmt.Println(path.String())
 		}
 	}

@@ -33,7 +33,7 @@ type Visitor struct {
 	objects                      []*resolve.Object
 	currentFields                []objectFields
 	currentField                 *resolve.Field
-	planners                     []*plannerConfiguration
+	planners                     []PlannerConfiguration
 	skipFieldsRefs               []int
 	fieldConfigs                 map[int]*FieldConfiguration
 	exportedVariables            map[string]struct{}
@@ -102,7 +102,7 @@ type objectFields struct {
 	fields     *[]*resolve.Field
 }
 
-func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor interface{}, skipFor astvisitor.SkipVisitors) bool {
+func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any, skipFor astvisitor.SkipVisitors) bool {
 	if visitor == v {
 		return true
 	}
@@ -117,7 +117,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 		return true
 	}
 	for _, config := range v.planners {
-		if config.planner == visitor && config.hasPath(path) {
+		if config.Planner() == visitor && config.HasPath(path) {
 			switch kind {
 			case astvisitor.EnterField, astvisitor.LeaveField:
 				fieldName := v.Operation.FieldNameString(ref)
@@ -125,32 +125,32 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 
 				shouldWalkFieldsOnPath :=
 					// check if the field path has type condition and matches the enclosing type
-					config.shouldWalkFieldsOnPath(path, enclosingTypeName) ||
+					config.ShouldWalkFieldsOnPath(path, enclosingTypeName) ||
 						// check if the planner has path without type condition
 						// this could happen in case of union type
 						// or if there was added missing parent path
-						config.shouldWalkFieldsOnPath(path, "")
+						config.ShouldWalkFieldsOnPath(path, "")
 
-				if pp, ok := config.planner.(DataSourceDebugger); ok {
+				if pp, ok := config.Debugger(); ok {
 					pp.DebugPrint("allow:", shouldWalkFieldsOnPath, " AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path)
 				}
 
 				return shouldWalkFieldsOnPath
 			case astvisitor.EnterInlineFragment, astvisitor.LeaveInlineFragment:
 				typeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
-				hasRootOrHasChildNode := config.dataSourceConfiguration.HasRootNodeWithTypename(typeCondition) ||
-					config.dataSourceConfiguration.HasChildNodeWithTypename(typeCondition)
+				hasRootOrHasChildNode := config.DataSourceConfiguration().HasRootNodeWithTypename(typeCondition) ||
+					config.DataSourceConfiguration().HasChildNodeWithTypename(typeCondition)
 
-				if pp, ok := config.planner.(DataSourceDebugger); ok {
+				if pp, ok := config.Debugger(); ok {
 					pp.DebugPrint("allow:", hasRootOrHasChildNode, " AllowVisitor: InlineFragment", " ref:", ref, " typeCondition:", typeCondition)
 				}
 
 				return hasRootOrHasChildNode
 			case astvisitor.EnterSelectionSet, astvisitor.LeaveSelectionSet:
-				allowedByParent := skipFor.Allow(config.planner)
+				allowedByParent := skipFor.Allow(config.Planner())
 
 				if !allowedByParent {
-					if pp, ok := config.planner.(DataSourceDebugger); ok {
+					if pp, ok := config.Debugger(); ok {
 						pp.DebugPrint("allow:", false, " AllowVisitor: SelectionSet", " ref:", ref, " parent allowance check")
 					}
 
@@ -158,15 +158,15 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 					return false
 				}
 
-				allow := !config.isExitPath(path)
+				allow := !config.IsExitPath(path)
 
-				if pp, ok := config.planner.(DataSourceDebugger); ok {
+				if pp, ok := config.Debugger(); ok {
 					pp.DebugPrint("allow:", allow, " AllowVisitor: SelectionSet", " ref:", ref, " exit path check")
 				}
 
 				return allow
 			default:
-				return skipFor.Allow(config.planner)
+				return skipFor.Allow(config.Planner())
 			}
 		}
 	}
@@ -415,9 +415,10 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 	sourceIDs := make([]string, 0, 1)
 
 	for i := range v.planners {
-		for j := range v.planners[i].paths {
-			if v.planners[i].paths[j].fieldRef == ref {
-				sourceIDs = append(sourceIDs, v.planners[i].dataSourceConfiguration.ID)
+		paths := v.planners[i].Paths()
+		for j := range paths {
+			if paths[j].fieldRef == ref {
+				sourceIDs = append(sourceIDs, v.planners[i].DataSourceConfiguration().Id())
 			}
 		}
 	}
@@ -440,14 +441,14 @@ func (v *Visitor) fieldHasAuthorizationRule(typeName, fieldName string) bool {
 
 func (v *Visitor) linkFetchConfiguration(fieldRef int) {
 	for i := range v.planners {
-		if fieldRef == v.planners[i].objectFetchConfiguration.fieldRef {
-			if v.planners[i].objectFetchConfiguration.isSubscription {
+		if fieldRef == v.planners[i].ObjectFetchConfiguration().fieldRef {
+			if v.planners[i].ObjectFetchConfiguration().isSubscription {
 				plan, ok := v.plan.(*SubscriptionResponsePlan)
 				if ok {
-					v.planners[i].objectFetchConfiguration.trigger = &plan.Response.Trigger
+					v.planners[i].ObjectFetchConfiguration().trigger = &plan.Response.Trigger
 				}
 			} else {
-				v.planners[i].objectFetchConfiguration.object = v.objects[len(v.objects)-1]
+				v.planners[i].ObjectFetchConfiguration().object = v.objects[len(v.objects)-1]
 			}
 		}
 	}
@@ -541,13 +542,13 @@ func (v *Visitor) addInterfaceObjectNameToTypeNames(fieldRef int, typeName []byt
 	includeInterfaceObjectName := false
 	var interfaceObjectName string
 	for i := range v.planners {
-		if !slices.ContainsFunc(v.planners[i].paths, func(path pathConfiguration) bool {
+		if !slices.ContainsFunc(v.planners[i].Paths(), func(path pathConfiguration) bool {
 			return path.fieldRef == fieldRef
 		}) {
 			continue
 		}
 
-		for _, interfaceObjCfg := range v.planners[i].dataSourceConfiguration.FederationMetaData.InterfaceObjects {
+		for _, interfaceObjCfg := range v.planners[i].DataSourceConfiguration().FederationConfiguration().InterfaceObjects {
 			if slices.Contains(interfaceObjCfg.ConcreteTypeNames, string(typeName)) {
 				includeInterfaceObjectName = true
 				interfaceObjectName = interfaceObjCfg.InterfaceTypeName
@@ -835,14 +836,14 @@ func (v *Visitor) resolveFieldPath(ref int) []string {
 	plannerConfig := v.currentOrParentPlannerConfiguration()
 
 	aliasOverride := false
-	if plannerConfig != nil && plannerConfig.planner != nil {
-		aliasOverride = plannerConfig.planner.DataSourcePlanningBehavior().OverrideFieldPathFromAlias
+	if plannerConfig != nil && plannerConfig.Planner() != nil {
+		aliasOverride = plannerConfig.DataSourcePlanningBehavior().OverrideFieldPathFromAlias
 	}
 
 	for i := range v.Config.Fields {
 		if v.Config.Fields[i].TypeName == typeName && v.Config.Fields[i].FieldName == fieldName {
 			if aliasOverride {
-				override, exists := plannerConfig.planner.DownstreamResponseFieldAlias(ref)
+				override, exists := plannerConfig.DownstreamResponseFieldAlias(ref)
 				if exists {
 					return []string{override}
 				}
@@ -877,10 +878,10 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 
 func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
 	for i := range v.planners {
-		if v.planners[i].objectFetchConfiguration.isSubscription {
-			v.configureSubscription(v.planners[i].objectFetchConfiguration)
+		if v.planners[i].ObjectFetchConfiguration().isSubscription {
+			v.configureSubscription(v.planners[i].ObjectFetchConfiguration())
 		} else {
-			v.configureObjectFetch(v.planners[i].objectFetchConfiguration)
+			v.configureObjectFetch(v.planners[i].ObjectFetchConfiguration())
 		}
 	}
 }
@@ -890,14 +891,14 @@ var (
 	selectorRegex = regexp.MustCompile(`{{\s*\.(.*?)\s*}}`)
 )
 
-func (v *Visitor) currentOrParentPlannerConfiguration() *plannerConfiguration {
+func (v *Visitor) currentOrParentPlannerConfiguration() PlannerConfiguration {
 	const none = -1
 	currentPath := v.currentFullPath(false)
 	plannerIndex := none
 	plannerPathDeepness := none
 
 	for i := range v.planners {
-		for _, plannerPath := range v.planners[i].paths {
+		for _, plannerPath := range v.planners[i].Paths() {
 			if v.isCurrentOrParentPath(currentPath, plannerPath.path) {
 				currentPlannerPathDeepness := v.pathDeepness(plannerPath.path)
 				if currentPlannerPathDeepness > plannerPathDeepness {
@@ -924,7 +925,7 @@ func (v *Visitor) pathDeepness(path string) int {
 	return strings.Count(path, ".")
 }
 
-func (v *Visitor) resolveInputTemplates(config objectFetchConfiguration, input *string, variables *resolve.Variables) {
+func (v *Visitor) resolveInputTemplates(config *objectFetchConfiguration, input *string, variables *resolve.Variables) {
 	*input = templateRegex.ReplaceAllStringFunc(*input, func(s string) string {
 		selectors := selectorRegex.FindStringSubmatch(s)
 		if len(selectors) != 2 {
@@ -1100,7 +1101,7 @@ func (v *Visitor) renderJSONValueTemplate(value ast.Value, variables *resolve.Va
 	return
 }
 
-func (v *Visitor) configureSubscription(config objectFetchConfiguration) {
+func (v *Visitor) configureSubscription(config *objectFetchConfiguration) {
 	subscription := config.planner.ConfigureSubscription()
 	config.trigger.Variables = subscription.Variables
 	config.trigger.Source = subscription.DataSource
@@ -1109,7 +1110,7 @@ func (v *Visitor) configureSubscription(config objectFetchConfiguration) {
 	config.trigger.Input = []byte(subscription.Input)
 }
 
-func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
+func (v *Visitor) configureObjectFetch(config *objectFetchConfiguration) {
 	if config.object == nil {
 		v.Walker.StopWithInternalErr(fmt.Errorf("object fetch configuration has empty object"))
 		return
@@ -1135,7 +1136,7 @@ func (v *Visitor) configureObjectFetch(config objectFetchConfiguration) {
 	}
 }
 
-func (v *Visitor) configureFetch(internal objectFetchConfiguration, external resolve.FetchConfiguration) *resolve.SingleFetch {
+func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external resolve.FetchConfiguration) *resolve.SingleFetch {
 	dataSourceType := reflect.TypeOf(external.DataSource).String()
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 
