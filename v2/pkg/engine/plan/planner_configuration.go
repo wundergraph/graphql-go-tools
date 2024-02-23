@@ -32,6 +32,7 @@ type PlannerConfiguration interface {
 	Debugger() (d DataSourceDebugger, ok bool)
 	Planner() any
 	Register(visitor *Visitor) error
+	UpstreamSchema() (doc *ast.Document, ok bool)
 }
 
 func (p *plannerConfiguration[T]) Register(visitor *Visitor) error {
@@ -44,6 +45,10 @@ func (p *plannerConfiguration[T]) Register(visitor *Visitor) error {
 	}
 
 	return p.planner.Register(visitor, p.dataSourceConfiguration, dataSourcePlannerConfig)
+}
+
+func (p *plannerConfiguration[T]) UpstreamSchema() (doc *ast.Document, ok bool) {
+	return p.planner.UpstreamSchema(p.dataSourceConfiguration)
 }
 
 func (p *plannerConfiguration[T]) Planner() any {
@@ -98,10 +103,26 @@ type PlannerPathConfiguration interface {
 	HasParent(parent string) bool
 }
 
+func newPlannerPathsConfiguration(parentPath string, parentPathType PlannerPathType, paths []pathConfiguration) *plannerPathsConfiguration {
+	p := &plannerPathsConfiguration{
+		parentPath:     parentPath,
+		parentPathType: parentPathType,
+		paths:          paths,
+		index:          make(map[string]int),
+	}
+
+	for i, path := range paths {
+		p.index[path.path] = i
+	}
+
+	return p
+}
+
 type plannerPathsConfiguration struct {
 	parentPath     string
 	parentPathType PlannerPathType
 	paths          []pathConfiguration
+	index          map[string]int
 }
 
 func (p *plannerPathsConfiguration) Paths() []pathConfiguration {
@@ -115,6 +136,7 @@ func (p *plannerPathsConfiguration) ParentPath() string {
 func (p *plannerPathsConfiguration) AddPath(configuration pathConfiguration) {
 	// fmt.Println("[plannerConfiguration.AddPath] parentPath:", p.parentPath, "path:", configuration.String())
 	p.paths = append(p.paths, configuration)
+	p.index[configuration.path] = len(p.paths) - 1
 }
 
 // IsNestedPlanner returns true in case the planner is not directly attached to the Operation root
@@ -124,39 +146,39 @@ func (p *plannerPathsConfiguration) IsNestedPlanner() bool {
 }
 
 func (p *plannerPathsConfiguration) HasPath(path string) bool {
-	for i := range p.paths {
-		if p.paths[i].path == path {
-			return true
-		}
-	}
-	return false
+	_, ok := p.index[path]
+	return ok
 }
 
 func (p *plannerPathsConfiguration) IsExitPath(path string) bool {
-	for i := range p.paths {
-		if p.paths[i].path == path {
-			return p.paths[i].exitPlannerOnNode
-		}
+	idx, ok := p.index[path]
+	if !ok {
+		return false
 	}
-	return false
+
+	return p.paths[idx].exitPlannerOnNode
 }
 
 func (p *plannerPathsConfiguration) ShouldWalkFieldsOnPath(path string, typeName string) bool {
-	for i := range p.paths {
-		if p.paths[i].path == path && p.paths[i].typeName == typeName {
-			return p.paths[i].shouldWalkFields
-		}
+	idx, ok := p.index[path]
+	if !ok {
+		return false
 	}
+
+	if p.paths[idx].typeName == typeName {
+		return p.paths[idx].shouldWalkFields
+	}
+
 	return false
 }
 
 func (p *plannerPathsConfiguration) SetPathExit(path string) {
-	for i := range p.paths {
-		if p.paths[i].path == path {
-			p.paths[i].exitPlannerOnNode = true
-			return
-		}
+	idx, ok := p.index[path]
+	if !ok {
+		return
 	}
+
+	p.paths[idx].exitPlannerOnNode = true
 }
 
 func (p *plannerPathsConfiguration) HasPathPrefix(prefix string) bool {
@@ -181,12 +203,20 @@ func (p *plannerPathsConfiguration) FragmentPaths() (out []string) {
 }
 
 func (p *plannerPathsConfiguration) RemovePath(path string) {
-	for i := range p.paths {
-		if p.paths[i].path == path {
-			p.paths = append(p.paths[:i], p.paths[i+1:]...)
-			return
-		}
+	idx, ok := p.index[path]
+	if !ok {
+		return
 	}
+
+	p.paths[idx] = pathConfiguration{}
+	delete(p.index, path)
+
+	// for i := range p.paths {
+	// 	if p.paths[i].path == path {
+	// 		p.paths = append(p.paths[:i], p.paths[i+1:]...)
+	// 		return
+	// 	}
+	// }
 }
 
 func (p *plannerPathsConfiguration) HasParent(parent string) bool {

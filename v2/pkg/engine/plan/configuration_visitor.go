@@ -787,11 +787,11 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		operationType:      c.resolveRootFieldOperationType(typeName),
 	}
 
-	plannerPathConfig := &plannerPathsConfiguration{
-		parentPath:     plannerPath,
-		paths:          paths,
-		parentPathType: c.plannerPathType(plannerPath),
-	}
+	plannerPathConfig := newPlannerPathsConfiguration(
+		plannerPath,
+		c.plannerPathType(plannerPath),
+		paths,
+	)
 
 	plannerConfig := config.CreatePlannerConfiguration(c.ctx, fetchConfiguration, plannerPathConfig)
 
@@ -1215,27 +1215,31 @@ func (c *configurationVisitor) addNodeSuggestionHint(fieldRef int, plannerIdx in
 }
 
 func (c *configurationVisitor) rewriteSelectionSetOfFieldWithInterfaceType(fieldRef int, plannerIdx int) {
-	// if _, ok := c.visitedFields[fieldRef]; ok {
-	// 	return
-	// }
-	// c.visitedFields[fieldRef] = struct{}{}
-	//
-	// upstreamSchema := c.planners[plannerIdx].planner.UpstreamSchema(c.planners[plannerIdx].dataSourceConfiguration)
-	//
-	// rewriter := newFieldSelectionRewriter(c.operation, c.definition)
-	// rewriter.SetUpstreamDefinition(upstreamSchema)
-	// rewriter.SetDatasourceConfiguration(&c.planners[plannerIdx].DataSourceConfiguration())
-	//
-	// rewritten, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
-	//
-	// if err != nil {
-	// 	c.walker.StopWithInternalErr(err)
-	// }
-	//
-	// if !rewritten {
-	// 	return
-	// }
-	//
-	// c.hasNewFields = true
-	// c.walker.Stop()
+	if _, ok := c.visitedFields[fieldRef]; ok {
+		return
+	}
+	c.visitedFields[fieldRef] = struct{}{}
+
+	upstreamSchema, ok := c.planners[plannerIdx].UpstreamSchema()
+	if !ok {
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to get upstream schema for planner %d", plannerIdx))
+		return
+	}
+
+	rewriter := newFieldSelectionRewriter(c.operation, c.definition)
+	rewriter.SetUpstreamDefinition(upstreamSchema)
+	rewriter.SetDatasourceConfiguration(c.planners[plannerIdx].DataSourceConfiguration())
+
+	rewritten, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
+
+	if err != nil {
+		c.walker.StopWithInternalErr(err)
+	}
+
+	if !rewritten {
+		return
+	}
+
+	c.hasNewFields = true
+	c.walker.Stop()
 }
