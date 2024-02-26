@@ -14,9 +14,10 @@ type EntityInterfaceConfiguration struct {
 }
 
 type FederationFieldConfiguration struct {
-	TypeName     string
-	FieldName    string
-	SelectionSet string
+	TypeName              string
+	FieldName             string
+	SelectionSet          string
+	DisableEntityResolver bool
 }
 
 type FederationFieldConfigurations []FederationFieldConfiguration
@@ -53,7 +54,7 @@ func (f FederationFieldConfigurations) FilterByTypeAndField(typeName, fieldName 
 	return out
 }
 
-func (f FederationFieldConfigurations) HasSelectionSet(typeName, fieldName, selectionSet string) bool {
+func (f FederationFieldConfigurations) HasSelectionSet(typeName, fieldName, selectionSet string) (ok bool) {
 	for i := range f {
 		if typeName == f[i].TypeName &&
 			fieldName == f[i].FieldName &&
