@@ -91,7 +91,7 @@ func (d *DataSourceConfiguration) HasKeyRequirement(typeName, requiresFields str
 }
 
 func (d *DataSourceConfiguration) RequiredFieldsByKey(typeName string) []FederationFieldConfiguration {
-	return d.FederationMetaData.Keys.FilterByType(typeName)
+	return d.FederationMetaData.Keys.FilterByTypeAndResolvability(typeName)
 }
 
 func (d *DataSourceConfiguration) RequiredFieldsByRequires(typeName, fieldName string) []FederationFieldConfiguration {

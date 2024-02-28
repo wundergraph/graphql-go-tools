@@ -17,14 +17,17 @@ type FederationFieldConfiguration struct {
 	TypeName              string
 	FieldName             string
 	SelectionSet          string
-	DisableEntityResolver bool
+	DisableEntityResolver bool // applicable only for the keys. If true it means that the given entity could not be resolved by this key.
 }
 
 type FederationFieldConfigurations []FederationFieldConfiguration
 
-func (f FederationFieldConfigurations) FilterByType(typeName string) (out []FederationFieldConfiguration) {
+func (f FederationFieldConfigurations) FilterByTypeAndResolvability(typeName string) (out []FederationFieldConfiguration) {
 	for i := range f {
 		if f[i].TypeName != typeName || f[i].FieldName != "" {
+			continue
+		}
+		if f[i].DisableEntityResolver {
 			continue
 		}
 		out = append(out, f[i])

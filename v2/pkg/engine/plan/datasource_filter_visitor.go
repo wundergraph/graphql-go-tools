@@ -117,7 +117,7 @@ type NodeSuggestion struct {
 	Path           string
 	ParentPath     string
 	IsRootNode     bool
-	LessPreferable bool
+	LessPreferable bool // is true in case the node is an entity root node and has a key with disabled resolver
 
 	parentPathWithoutFragment *string
 	onFragment                bool
@@ -586,6 +586,8 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 		// if after all checks node was not selected, select it
 		// this could happen in case choises are fully equal
 		if secondRun {
+			// in case current node suggestion is an entity root node, and it contains key with disabled resolver
+			// it makes such node less preferable for selection
 			if f.nodes[i].LessPreferable {
 				continue
 			}
