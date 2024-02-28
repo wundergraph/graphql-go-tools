@@ -22,12 +22,12 @@ type FederationFieldConfiguration struct {
 
 type FederationFieldConfigurations []FederationFieldConfiguration
 
-func (f FederationFieldConfigurations) FilterByTypeAndResolvability(typeName string) (out []FederationFieldConfiguration) {
+func (f FederationFieldConfigurations) FilterByTypeAndResolvability(typeName string, skipUnresovable bool) (out []FederationFieldConfiguration) {
 	for i := range f {
 		if f[i].TypeName != typeName || f[i].FieldName != "" {
 			continue
 		}
-		if f[i].DisableEntityResolver {
+		if skipUnresovable && f[i].DisableEntityResolver {
 			continue
 		}
 		out = append(out, f[i])
