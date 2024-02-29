@@ -151,7 +151,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 
 				if !allowedByParent {
 					if pp, ok := config.planner.(DataSourceDebugger); ok {
-						pp.DebugPrint("allow:", false, " AllowVisitor: SelectionSet", " ref:", ref)
+						pp.DebugPrint("allow:", false, " AllowVisitor: SelectionSet", " ref:", ref, " parent allowance check")
 					}
 
 					// do not override a parent's decision
@@ -161,7 +161,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor int
 				allow := !config.isExitPath(path)
 
 				if pp, ok := config.planner.(DataSourceDebugger); ok {
-					pp.DebugPrint("allow:", allow, " AllowVisitor: SelectionSet", " ref:", ref)
+					pp.DebugPrint("allow:", allow, " AllowVisitor: SelectionSet", " ref:", ref, " exit path check")
 				}
 
 				return allow
@@ -564,6 +564,14 @@ func (v *Visitor) addInterfaceObjectNameToTypeNames(fieldRef int, typeName []byt
 
 func (v *Visitor) LeaveField(ref int) {
 	v.debugOnLeaveNode(ast.NodeKindField, ref)
+
+	if v.skipField(ref) {
+		// we should also check skips on field leave
+		// cause on nested keys we could mistakenly remove wrong object
+		// from the stack of the current objects
+		return
+	}
+
 	if v.currentFields[len(v.currentFields)-1].popOnField == ref {
 		v.currentFields = v.currentFields[:len(v.currentFields)-1]
 	}

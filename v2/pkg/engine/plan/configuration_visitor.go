@@ -711,7 +711,6 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 	}
 
 	planner := config.Factory.Planner(c.ctx)
-	isParentAbstract := c.isParentTypeNodeAbstractType()
 
 	currentPathConfiguration := pathConfiguration{
 		path:             currentPath,
@@ -727,8 +726,11 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		currentPathConfiguration,
 	}
 
-	if isParentAbstract {
-		// if the parent is abstract, we add the parent path as well
+	isParentAbstract := c.isParentTypeNodeAbstractType()
+	isParentFragment := c.walker.Path[len(c.walker.Path)-1].Kind == ast.InlineFragmentName
+
+	if isParentAbstract && isParentFragment {
+		// if the parent is abstract and path is on a fragment parent, we add the parent path of type fragment
 		// this will ensure that we're walking into and out of the root inline fragments
 		// otherwise, we'd only walk into the fields inside the inline fragments in the root,
 		// so we'd miss the selection sets and inline fragments in the root
@@ -757,7 +759,6 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 
 	plannerPath := parentPath
 
-	isParentFragment := c.walker.Path[len(c.walker.Path)-1].Kind == ast.InlineFragmentName
 	if isParentFragment {
 		precedingFragmentPath := c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString()
 		// if the parent is a fragment, we add the preceding parent path as well
