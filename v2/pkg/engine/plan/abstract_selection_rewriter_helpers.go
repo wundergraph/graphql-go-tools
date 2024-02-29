@@ -10,7 +10,7 @@ import (
 func (r *fieldSelectionRewriter) datasourceHasEntitiesWithName(typeNames []string) (entityNames []string, ok bool) {
 	hasEntities := false
 	for _, typeName := range typeNames {
-		if len(r.dsConfiguration.RequiredFieldsByKey(typeName)) > 0 {
+		if r.dsConfiguration.HasEntity(typeName) {
 			hasEntities = true
 			break
 		}

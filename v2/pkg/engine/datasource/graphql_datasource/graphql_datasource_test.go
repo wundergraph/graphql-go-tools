@@ -8453,7 +8453,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		updater.AwaitUpdates(t, time.Second, 1)
 		assert.Len(t, updater.updates, 1)
 		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, updater.updates[0])
-		assert.Equal(t, true, updater.done)
+		updater.AwaitDone(t, time.Second)
 	})
 
 	t.Run("should close connection on stop message", func(t *testing.T) {
