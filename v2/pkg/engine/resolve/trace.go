@@ -10,6 +10,12 @@ import (
 type TraceOptions struct {
 	// Enable switches tracing on or off
 	Enable bool
+	// ExcludeParseStats excludes parse timing information from the trace output
+	ExcludeParseStats bool
+	// ExcludeNormalizeStats excludes normalize timing information from the trace output
+	ExcludeNormalizeStats bool
+	// ExcludeValidateStats excludes validation timing information from the trace output
+	ExcludeValidateStats bool
 	// ExcludePlannerStats excludes planner timing information from the trace output
 	ExcludePlannerStats bool
 	// ExcludeRawInputData excludes the raw input for a load operation from the trace output
