@@ -199,13 +199,15 @@ func GetDurationNanoSinceTraceStart(ctx context.Context) int64 {
 	return time.Since(info.TraceStart).Nanoseconds()
 }
 
-func SetDebugStats(info *TraceInfo, stats PhaseStats, val int64) {
+func SetDebugStats(info *TraceInfo, stats PhaseStats, val int64) PhaseStats {
 	if info.debug {
 		stats.DurationSinceStartNano = val
 		stats.DurationSinceStartPretty = time.Duration(val).String()
 		stats.DurationNano = val
 		stats.DurationPretty = time.Duration(val).String()
 	}
+
+	return stats
 }
 
 func GetTraceInfo(ctx context.Context) *TraceInfo {
@@ -219,8 +221,7 @@ func SetParseStats(ctx context.Context, stats PhaseStats) {
 	if info == nil {
 		return
 	}
-	SetDebugStats(info, stats, 5)
-	info.ParseStats = stats
+	info.ParseStats = SetDebugStats(info, stats, 5)
 }
 
 func SetNormalizeStats(ctx context.Context, stats PhaseStats) {
@@ -228,8 +229,7 @@ func SetNormalizeStats(ctx context.Context, stats PhaseStats) {
 	if info == nil {
 		return
 	}
-	SetDebugStats(info, stats, 10)
-	info.NormalizeStats = stats
+	info.NormalizeStats = SetDebugStats(info, stats, 10)
 }
 
 func SetValidateStats(ctx context.Context, stats PhaseStats) {
@@ -237,8 +237,7 @@ func SetValidateStats(ctx context.Context, stats PhaseStats) {
 	if info == nil {
 		return
 	}
-	SetDebugStats(info, stats, 15)
-	info.ValidateStats = stats
+	info.ValidateStats = SetDebugStats(info, stats, 15)
 }
 
 func SetPlannerStats(ctx context.Context, stats PhaseStats) {
@@ -246,6 +245,5 @@ func SetPlannerStats(ctx context.Context, stats PhaseStats) {
 	if info == nil {
 		return
 	}
-	SetDebugStats(info, stats, 20)
-	info.PlannerStats = stats
+	info.PlannerStats = SetDebugStats(info, stats, 20)
 }
