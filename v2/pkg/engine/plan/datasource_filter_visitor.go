@@ -117,6 +117,7 @@ type NodeSuggestion struct {
 	Path           string
 	ParentPath     string
 	IsRootNode     bool
+	LessPreferable bool // is true in case the node is an entity root node and has a key with disabled resolver
 
 	parentPathWithoutFragment *string
 	onFragment                bool
@@ -130,10 +131,10 @@ func (n *NodeSuggestion) appendSelectionReason(reason string) {
 }
 
 func (n *NodeSuggestion) selectWithReason(reason string) {
-	// n.appendSelectionReason(reason) // NOTE: debug do not remove
 	if n.selected {
 		return
 	}
+	// n.appendSelectionReason(reason) // NOTE: debug do not remove
 	n.selected = true
 }
 
@@ -405,6 +406,16 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 			}
 		}
 
+		lessPreferable := false
+		if hasRootNode {
+			for _, k := range v.FederationMetaData.Keys {
+				if k.TypeName == typeName && k.DisableEntityResolver {
+					lessPreferable = true
+					break
+				}
+			}
+		}
+
 		if !allowTypeName && isTypeName {
 			continue
 		}
@@ -419,6 +430,7 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 				IsRootNode:                hasRootNode,
 				onFragment:                onFragment,
 				parentPathWithoutFragment: parentPathWithoutFragment,
+				LessPreferable:            lessPreferable,
 			}
 
 			if dsHashHint != nil {
@@ -574,6 +586,11 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 		// if after all checks node was not selected, select it
 		// this could happen in case choises are fully equal
 		if secondRun {
+			// in case current node suggestion is an entity root node, and it contains key with disabled resolver
+			// it makes such node less preferable for selection
+			if f.nodes[i].LessPreferable {
+				continue
+			}
 			f.nodes[i].selectWithReason(ReasonStage3SelectAvailableNode)
 		}
 	}
