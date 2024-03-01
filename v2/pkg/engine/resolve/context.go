@@ -156,16 +156,19 @@ func (c *Context) Free() {
 type traceStartKey struct{}
 
 type TraceInfo struct {
-	TraceStart     time.Time    `json:"-"`
-	TraceStartTime string       `json:"trace_start_time"`
-	TraceStartUnix int64        `json:"trace_start_unix"`
-	PlannerStats   PlannerStats `json:"planner_stats"`
+	TraceStart     time.Time  `json:"-"`
+	TraceStartTime string     `json:"trace_start_time"`
+	TraceStartUnix int64      `json:"trace_start_unix"`
+	ParseStats     PhaseStats `json:"parse_stats"`
+	NormalizeStats PhaseStats `json:"normalize_stats"`
+	ValidateStats  PhaseStats `json:"validate_stats"`
+	PlannerStats   PhaseStats `json:"planner_stats"`
 	debug          bool
 }
 
-type PlannerStats struct {
-	PlanningTimeNano         int64  `json:"planning_time_nanoseconds"`
-	PlanningTimePretty       string `json:"planning_time_pretty"`
+type PhaseStats struct {
+	DurationNano             int64  `json:"duration_nanoseconds"`
+	DurationPretty           string `json:"duration_pretty"`
 	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
 	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
 }
@@ -196,22 +199,51 @@ func GetDurationNanoSinceTraceStart(ctx context.Context) int64 {
 	return time.Since(info.TraceStart).Nanoseconds()
 }
 
-func SetPlannerStats(ctx context.Context, stats PlannerStats) {
-	info, ok := ctx.Value(traceStartKey{}).(*TraceInfo)
-	if !ok {
-		return
-	}
+func SetDebugStats(info *TraceInfo, stats PhaseStats, phaseNo int64) PhaseStats {
 	if info.debug {
-		stats.DurationSinceStartNano = 5
-		stats.DurationSinceStartPretty = time.Duration(5).String()
-		stats.PlanningTimeNano = 5
-		stats.PlanningTimePretty = time.Duration(5).String()
+		stats.DurationSinceStartNano = phaseNo * 5
+		stats.DurationSinceStartPretty = time.Duration(phaseNo * 5).String()
+		stats.DurationNano = 5
+		stats.DurationPretty = time.Duration(5).String()
 	}
-	info.PlannerStats = stats
+
+	return stats
 }
 
 func GetTraceInfo(ctx context.Context) *TraceInfo {
 	// The context might not have trace info, in that case we return nil
 	info, _ := ctx.Value(traceStartKey{}).(*TraceInfo)
 	return info
+}
+
+func SetParseStats(ctx context.Context, stats PhaseStats) {
+	info := GetTraceInfo(ctx)
+	if info == nil {
+		return
+	}
+	info.ParseStats = SetDebugStats(info, stats, 1)
+}
+
+func SetNormalizeStats(ctx context.Context, stats PhaseStats) {
+	info := GetTraceInfo(ctx)
+	if info == nil {
+		return
+	}
+	info.NormalizeStats = SetDebugStats(info, stats, 2)
+}
+
+func SetValidateStats(ctx context.Context, stats PhaseStats) {
+	info := GetTraceInfo(ctx)
+	if info == nil {
+		return
+	}
+	info.ValidateStats = SetDebugStats(info, stats, 3)
+}
+
+func SetPlannerStats(ctx context.Context, stats PhaseStats) {
+	info := GetTraceInfo(ctx)
+	if info == nil {
+		return
+	}
+	info.PlannerStats = SetDebugStats(info, stats, 4)
 }
