@@ -36,6 +36,9 @@ type TraceOptions struct {
 
 func (r *TraceOptions) EnableAll() {
 	r.Enable = true
+	r.ExcludeParseStats = false
+	r.ExcludeNormalizeStats = false
+	r.ExcludeValidateStats = false
 	r.ExcludePlannerStats = false
 	r.ExcludeRawInputData = false
 	r.ExcludeInput = false
@@ -47,6 +50,9 @@ func (r *TraceOptions) EnableAll() {
 
 func (r *TraceOptions) DisableAll() {
 	r.Enable = false
+	r.ExcludeParseStats = true
+	r.ExcludeNormalizeStats = true
+	r.ExcludeValidateStats = true
 	r.ExcludePlannerStats = true
 	r.ExcludeRawInputData = true
 	r.ExcludeInput = true
