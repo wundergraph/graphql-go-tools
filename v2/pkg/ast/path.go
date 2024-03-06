@@ -99,15 +99,18 @@ func (p Path) String() string {
 func (p Path) DotDelimitedString() string {
 	builder := strings.Builder{}
 
-	builder.Grow(len(p) * 10)
-
 	toGrow := 0
 	for i := range p {
-		if p[i].Kind == FieldName {
+		switch p[i].Kind {
+		case ArrayIndex:
+			toGrow += 1
+		case InlineFragmentName:
+			toGrow += len(p[i].FieldName) + 1 // 1 for the prefix $
+		case FieldName:
 			toGrow += len(p[i].FieldName)
 		}
 	}
-	builder.Grow(toGrow + 5 + len(p) - 1) // 5 is for the query prefix, 1 for each dot
+	builder.Grow(toGrow + 5 + len(p) - 1) // 5 is for the query prefix, len(p) - 1 for each dot
 
 	builder.WriteString("")
 	for i := range p {
