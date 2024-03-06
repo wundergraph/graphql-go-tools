@@ -127,7 +127,7 @@ func (f *NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string)
 	return 0, false
 }
 
-func (f *NodeSuggestions) isNodeUniq(idx int) bool {
+func (f *NodeSuggestions) isNodeUnique(idx int) bool {
 	treeNode := f.treeNode(idx)
 
 	return isTreeNodeUniq(treeNode)

@@ -60,8 +60,8 @@ func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSourceConfigu
 	f.applySuggestionHints(hints)
 	// f.nodes.printNodes("nodes after applying hints")
 
-	f.selectUniqNodes()
-	// f.nodes.printNodes("uniq nodes")
+	f.selectUniqueNodes()
+	// f.nodes.printNodes("unique nodes")
 	f.selectDuplicateNodes(false)
 	// f.nodes.printNodes("duplicate nodes")
 	f.selectDuplicateNodes(true)
@@ -110,10 +110,10 @@ func (f *DataSourceFilter) isResolvable(nodes *NodeSuggestions) {
 }
 
 const (
-	ReasonStage1Uniq                  = "stage1: uniq"
-	ReasonStage1SameSourceParent      = "stage1: same source parent of uniq node"
-	ReasonStage1SameSourceLeafChild   = "stage1: same source leaf child of uniq node"
-	ReasonStage1SameSourceLeafSibling = "stage1: same source leaf sibling of uniq node"
+	ReasonStage1Unique                = "stage1: unique"
+	ReasonStage1SameSourceParent      = "stage1: same source parent of unique node"
+	ReasonStage1SameSourceLeafChild   = "stage1: same source leaf child of unique node"
+	ReasonStage1SameSourceLeafSibling = "stage1: same source leaf sibling of unique node"
 
 	ReasonStage2SameSourceNodeOfSelectedParent  = "stage2: node on the same source as selected parent"
 	ReasonStage2SameSourceNodeOfSelectedChild   = "stage2: node on the same source as selected child"
@@ -152,24 +152,24 @@ func (f *DataSourceFilter) applySuggestionHints(hints []NodeSuggestionHint) {
 	}
 }
 
-// selectUniqNodes - selects nodes (e.g. fields) which are unique to a single datasource
+// selectUniqueNodes - selects nodes (e.g. fields) which are unique to a single datasource
 // In addition we select:
 //   - parent of such node if the node is a leaf and not nested under the fragment
 //   - siblings nodes
-func (f *DataSourceFilter) selectUniqNodes() {
+func (f *DataSourceFilter) selectUniqueNodes() {
 
 	for i := range f.nodes.items {
 		if f.nodes.items[i].Selected {
 			continue
 		}
 
-		isNodeUnique := f.nodes.isNodeUniq(i)
+		isNodeUnique := f.nodes.isNodeUnique(i)
 		if !isNodeUnique {
 			continue
 		}
 
 		// unique nodes always have priority
-		f.nodes.items[i].selectWithReason(ReasonStage1Uniq, f.enableSelectionReasons)
+		f.nodes.items[i].selectWithReason(ReasonStage1Unique, f.enableSelectionReasons)
 
 		if !f.nodes.items[i].onFragment { // on a first stage do not select parent of nodes on fragments
 			// if node parents of the unique node is on the same source, prioritize it too
@@ -179,7 +179,7 @@ func (f *DataSourceFilter) selectUniqNodes() {
 		// if node has leaf children on the same source, prioritize them too
 		children := f.nodes.childNodesOnSameSource(i)
 		for _, child := range children {
-			if f.nodes.isLeaf(child) && f.nodes.isNodeUniq(child) {
+			if f.nodes.isLeaf(child) && f.nodes.isNodeUnique(child) {
 				f.nodes.items[child].selectWithReason(ReasonStage1SameSourceLeafChild, f.enableSelectionReasons)
 			}
 		}
@@ -187,7 +187,7 @@ func (f *DataSourceFilter) selectUniqNodes() {
 		// prioritize leaf siblings of the node on the same source
 		siblings := f.nodes.siblingNodesOnSameSource(i)
 		for _, sibling := range siblings {
-			if f.nodes.isLeaf(sibling) && f.nodes.isNodeUniq(sibling) {
+			if f.nodes.isLeaf(sibling) && f.nodes.isNodeUnique(sibling) {
 				f.nodes.items[sibling].selectWithReason(ReasonStage1SameSourceLeafSibling, f.enableSelectionReasons)
 			}
 		}
