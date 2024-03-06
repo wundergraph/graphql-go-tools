@@ -251,9 +251,7 @@ func (f *NodeSuggestions) populateHasSuggestions() map[DSHash]struct{} {
 		}
 
 		unique[f.items[i].DataSourceHash] = struct{}{}
-		suggestions, _ := f.pathSuggestions[f.items[i].Path]
-		suggestions = append(f.pathSuggestions[f.items[i].Path], f.items[i])
-		f.pathSuggestions[f.items[i].Path] = suggestions
+		f.pathSuggestions[f.items[i].Path] = append(f.pathSuggestions[f.items[i].Path], f.items[i])
 	}
 
 	return unique
