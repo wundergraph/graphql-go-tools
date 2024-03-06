@@ -109,9 +109,10 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 	parentNodeId := f.currentParentID()
 	currentNodeId := TreeNodeID(ref)
 
-	added, exists := f.nodes.responseTree.Add(currentNodeId, parentNodeId, itemIds)
+	// we intentionally ignore the return values added, exists
+	// because we do not revisit the same field refs, so all added nodes should be new and unique
+	_, _ = f.nodes.responseTree.Add(currentNodeId, parentNodeId, itemIds)
 	f.parentNodeIds = append(f.parentNodeIds, currentNodeId)
-	_, _ = added, exists
 }
 
 func (f *collectNodesVisitor) currentParentID() uint {
@@ -119,6 +120,9 @@ func (f *collectNodesVisitor) currentParentID() uint {
 }
 
 func TreeNodeID(fieldRef int) uint {
+	// we add 100 to the fieldRef to make sure that the tree node id is never 0
+	// cause 0 is a valid field ref
+	// but for tree 0 is reserved for the root node
 	return uint(100 + fieldRef)
 }
 
