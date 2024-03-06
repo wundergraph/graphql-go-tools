@@ -259,6 +259,24 @@ func (c *SubscriptionClient) requestHash(ctx *resolve.Context, options GraphQLSu
 			return err
 		}
 	}
+	if options.Body.Query != "" {
+		_, err = xxh.WriteString(options.Body.Query)
+		if err != nil {
+			return err
+		}
+	}
+	if options.Body.Variables != nil {
+		_, err = xxh.Write(options.Body.Variables)
+		if err != nil {
+			return err
+		}
+	}
+	if options.Body.OperationName != "" {
+		_, err = xxh.WriteString(options.Body.OperationName)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
