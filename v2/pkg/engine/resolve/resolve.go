@@ -28,6 +28,8 @@ type Reporter interface {
 	SubscriptionUpdateSent()
 	SubscriptionCountInc(count int)
 	SubscriptionCountDec(count int)
+	TriggerCountInc(count int)
+	TriggerCountDec(count int)
 }
 
 type AsyncErrorWriter interface {
@@ -293,12 +295,17 @@ func (r *Resolver) handleTriggerDone(triggerID uint64) {
 	}
 	delete(r.triggers, triggerID)
 	wg := trig.inFlight
+	subscriptionCount := len(trig.subscriptions)
 	go func() {
 		if wg != nil {
 			wg.Wait()
 		}
 		for _, s := range trig.subscriptions {
 			s.writer.Complete()
+		}
+		if r.reporter != nil {
+			r.reporter.SubscriptionCountDec(subscriptionCount)
+			r.reporter.TriggerCountDec(1)
 		}
 	}()
 }
@@ -361,6 +368,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	}
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountInc(1)
+		r.reporter.TriggerCountInc(1)
 	}
 }
 
@@ -464,6 +472,7 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 	}
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountDec(count)
+		r.reporter.TriggerCountDec(1)
 	}
 }
 
