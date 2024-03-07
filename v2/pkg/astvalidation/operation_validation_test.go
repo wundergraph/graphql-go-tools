@@ -3874,6 +3874,15 @@ func TestExecutionValidation(t *testing.T) {
 						`Variable "$a" of type "Boolean" used in position expecting type "[String]"`,
 					))
 			})
+
+			t.Run("5.8.6 Variable not Defined by Operation", func(t *testing.T) {
+				run(t, `query intCannotGoIntoBoolean {
+									arguments {
+										booleanArgField(booleanArg: $intArg)
+									}
+								}`,
+					ValidArguments(), Invalid, withValidationErrors(`external: Variable "$intArg" is not defined by operation "intCannotGoIntoBoolean", locations: [{Line:3 Column:39}], path: [query,arguments,booleanArgField]`))
+			})
 		})
 	})
 }

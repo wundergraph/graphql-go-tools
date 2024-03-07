@@ -71,6 +71,16 @@ func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(val
 		return
 	}
 
+	if operationTypeRef == ast.InvalidRef {
+		variableName, err := v.operation.PrintValueBytes(value, nil)
+		if v.HandleInternalErr(err) {
+			return
+		}
+		operationName := v.operation.Input.ByteSlice(v.operation.OperationDefinitions[v.Ancestors[0].Ref].Name)
+		v.StopWithExternalErr(operationreport.ErrVariableNotDefinedByOperation(string(variableName), value.Position, operationName))
+		return
+	}
+
 	printedValue, err := v.operation.PrintValueBytes(value, nil)
 	if v.HandleInternalErr(err) {
 		return

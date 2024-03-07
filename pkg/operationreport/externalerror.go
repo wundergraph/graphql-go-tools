@@ -497,3 +497,9 @@ func ErrDuplicateFieldsMustBeIdentical(fieldName, parentName, typeOne, typeTwo s
 		"first subgraph: type '%s'\n second subgraph: type '%s'", fieldName, parentName, typeOne, typeTwo)
 	return err
 }
+
+func ErrVariableNotDefinedByOperation(variableName string, position position.Position, operationName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf(`Variable "%s" is not defined by operation "%s"`, variableName, operationName)
+	err.Locations = LocationsFromPosition(position)
+	return err
+}
