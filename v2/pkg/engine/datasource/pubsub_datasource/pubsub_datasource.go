@@ -12,6 +12,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -54,7 +55,7 @@ func ConfigJson(config Configuration) json.RawMessage {
 	return out
 }
 
-type Planner struct {
+type Planner[T Configuration] struct {
 	visitor      *plan.Visitor
 	variables    resolve.Variables
 	rootFieldRef int
@@ -67,7 +68,7 @@ type Planner struct {
 	}
 }
 
-func (p *Planner) EnterField(ref int) {
+func (p *Planner[T]) EnterField(ref int) {
 	if p.rootFieldRef == -1 {
 		p.rootFieldRef = ref
 	} else {
@@ -158,23 +159,21 @@ func (p *Planner) EnterField(ref int) {
 	p.current.data = dataBuffer.Bytes()
 }
 
-func (p *Planner) EnterDocument(operation, definition *ast.Document) {
+func (p *Planner[T]) EnterDocument(operation, definition *ast.Document) {
 	p.rootFieldRef = -1
 	p.current.topic = ""
 	p.current.config = nil
 }
 
-func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration, dataSourcePlannerConfiguration plan.DataSourcePlannerConfiguration) error {
+func (p *Planner[T]) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration[T], dataSourcePlannerConfiguration plan.DataSourcePlannerConfiguration) error {
 	p.visitor = visitor
 	visitor.Walker.RegisterEnterFieldVisitor(p)
 	visitor.Walker.RegisterEnterDocumentVisitor(p)
-	if err := json.Unmarshal(configuration.Custom, &p.config); err != nil {
-		return err
-	}
+	p.config = Configuration(configuration.CustomConfiguration())
 	return nil
 }
 
-func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
+func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 	if p.current.config == nil {
 		panic(errors.New("config is nil, maybe query was not planned?"))
 	}
@@ -201,7 +200,7 @@ func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 	}
 }
 
-func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
+func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	if p.current.config == nil || p.current.config.Type != EventTypeSubscribe {
 		panic(errors.New("invalid event type for subscription"))
 	}
@@ -217,7 +216,7 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 	}
 }
 
-func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
+func (p *Planner[T]) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 	return plan.DataSourcePlanningBehavior{
 		MergeAliasedRootNodes:      false,
 		OverrideFieldPathFromAlias: false,
@@ -225,24 +224,24 @@ func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 	}
 }
 
-func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
+func (p *Planner[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
 	return "", false
 }
 
-func (p *Planner) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration) *ast.Document {
-	return nil
+func (p *Planner[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
+	return nil, false
 }
 
 type Connector interface {
 	New(ctx context.Context) PubSub
 }
 
-type Factory struct {
+type Factory[T Configuration] struct {
 	Connector Connector
 }
 
-func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
-	return &Planner{
+func (f *Factory[T]) Planner(ctx context.Context) plan.DataSourcePlanner[T] {
+	return &Planner[T]{
 		pubSub: f.Connector.New(ctx),
 	}
 }

@@ -8,10 +8,11 @@ type FederationMetaData struct {
 	InterfaceObjects []EntityInterfaceConfiguration
 }
 
-type FederationRequires interface {
+type FederationInfo interface {
 	HasKeyRequirement(typeName, requiresFields string) bool
 	RequiredFieldsByKey(typeName string) []FederationFieldConfiguration
 	RequiredFieldsByRequires(typeName, fieldName string) []FederationFieldConfiguration
+	HasEntity(typeName string) bool
 }
 
 func (d *FederationMetaData) HasKeyRequirement(typeName, requiresFields string) bool {
@@ -19,7 +20,11 @@ func (d *FederationMetaData) HasKeyRequirement(typeName, requiresFields string) 
 }
 
 func (d *FederationMetaData) RequiredFieldsByKey(typeName string) []FederationFieldConfiguration {
-	return d.Keys.FilterByType(typeName)
+	return d.Keys.FilterByTypeAndResolvability(typeName, true)
+}
+
+func (d *FederationMetaData) HasEntity(typeName string) bool {
+	return len(d.Keys.FilterByTypeAndResolvability(typeName, false)) > 0
 }
 
 func (d *FederationMetaData) RequiredFieldsByRequires(typeName, fieldName string) []FederationFieldConfiguration {

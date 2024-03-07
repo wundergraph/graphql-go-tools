@@ -74,7 +74,7 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 
 		lessPreferable := false
 		if hasRootNode {
-			for _, k := range v.FederationMetaData.Keys {
+			for _, k := range v.FederationConfiguration().Keys {
 				if k.TypeName == typeName && k.DisableEntityResolver {
 					lessPreferable = true
 					break

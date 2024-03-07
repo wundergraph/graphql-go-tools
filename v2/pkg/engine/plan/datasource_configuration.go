@@ -95,7 +95,7 @@ type DataSourceConfiguration[T any] interface {
 }
 
 type DataSource interface {
-	FederationRequires
+	FederationInfo
 	NodesInfo
 	DirectivesConfigurations
 	Id() string
@@ -129,6 +129,10 @@ func (d *dataSourceConfiguration[T]) Id() string {
 }
 
 func (d *dataSourceConfiguration[T]) FederationConfiguration() *FederationMetaData {
+	if d.FederationMetaData == nil {
+		return &FederationMetaData{}
+	}
+
 	return d.FederationMetaData
 }
 

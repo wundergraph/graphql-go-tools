@@ -2,7 +2,6 @@ package staticdatasource
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -14,49 +13,45 @@ type Configuration struct {
 	Data string `json:"data"`
 }
 
-func ConfigJSON(config Configuration) json.RawMessage {
-	out, _ := json.Marshal(config)
-	return out
+type Factory[T Configuration] struct{}
+
+func (f *Factory[T]) Planner(ctx context.Context) plan.DataSourcePlanner[T] {
+	return &Planner[T]{}
 }
 
-type Factory struct{}
-
-func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
-	return &Planner{}
-}
-
-type Planner struct {
+type Planner[T Configuration] struct {
 	config Configuration
 }
 
-func (p *Planner) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration) *ast.Document {
-	return nil
+func (p *Planner[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
+	return nil, false
 }
 
-func (p *Planner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
+func (p *Planner[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
 	// skip, not required
 	return
 }
 
-func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
+func (p *Planner[T]) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 	return plan.DataSourcePlanningBehavior{
 		MergeAliasedRootNodes:      false,
 		OverrideFieldPathFromAlias: false,
 	}
 }
 
-func (p *Planner) Register(_ *plan.Visitor, configuration plan.DataSourceConfiguration, _ plan.DataSourcePlannerConfiguration) error {
-	return json.Unmarshal(configuration.Custom, &p.config)
+func (p *Planner[T]) Register(_ *plan.Visitor, configuration plan.DataSourceConfiguration[T], _ plan.DataSourcePlannerConfiguration) error {
+	p.config = Configuration(configuration.CustomConfiguration())
+	return nil
 }
 
-func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
+func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 	return resolve.FetchConfiguration{
 		Input:      p.config.Data,
 		DataSource: Source{},
 	}
 }
 
-func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
+func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	return plan.SubscriptionConfiguration{
 		Input: p.config.Data,
 	}
