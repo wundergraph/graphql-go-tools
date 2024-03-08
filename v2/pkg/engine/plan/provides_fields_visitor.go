@@ -15,7 +15,7 @@ type providesInput struct {
 	DSHash          DSHash
 }
 
-func providesSuggestions(input *providesInput) []NodeSuggestion {
+func providesSuggestions(input *providesInput) []*NodeSuggestion {
 	walker := astvisitor.NewWalker(48)
 
 	visitor := &providesVisitor{
@@ -34,7 +34,7 @@ func providesSuggestions(input *providesInput) []NodeSuggestion {
 type providesVisitor struct {
 	walker      *astvisitor.Walker
 	input       *providesInput
-	suggestions []NodeSuggestion
+	suggestions []*NodeSuggestion
 	pathPrefix  string
 }
 
@@ -43,7 +43,7 @@ func (v *providesVisitor) EnterFragmentDefinition(ref int) {
 }
 
 func (v *providesVisitor) EnterDocument(_, _ *ast.Document) {
-	v.suggestions = make([]NodeSuggestion, 0, 8)
+	v.suggestions = make([]*NodeSuggestion, 0, 8)
 }
 
 func (v *providesVisitor) EnterField(ref int) {
@@ -53,11 +53,12 @@ func (v *providesVisitor) EnterField(ref int) {
 	parentPath := v.input.parentPath + strings.TrimPrefix(v.walker.Path.DotDelimitedString(), v.pathPrefix)
 	currentPath := parentPath + "." + fieldName
 
-	v.suggestions = append(v.suggestions, NodeSuggestion{
+	v.suggestions = append(v.suggestions, &NodeSuggestion{
 		TypeName:       typeName,
 		FieldName:      fieldName,
 		DataSourceHash: v.input.DSHash,
 		Path:           currentPath,
 		ParentPath:     parentPath,
+		Selected:       true,
 	})
 }

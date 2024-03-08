@@ -24,7 +24,7 @@ type configurationVisitor struct {
 	dataSources []DataSourceConfiguration
 	planners    []*plannerConfiguration
 
-	nodeSuggestions     NodeSuggestions      // nodeSuggestions holds information about suggested data sources for each field
+	nodeSuggestions     *NodeSuggestions     // nodeSuggestions holds information about suggested data sources for each field
 	nodeSuggestionHints []NodeSuggestionHint // NodeSuggestionHints holds information about suggested data sources for key fields
 
 	parentTypeNodes    []ast.Node             // parentTypeNodes is a stack of parent type nodes - used to determine if the parent is abstract
@@ -512,7 +512,7 @@ func (c *configurationVisitor) handleProvidesSuggestions(ref int, typeName, fiel
 
 	for i := range c.planners {
 		if c.planners[i].dataSourceConfiguration.Hash() == dsHash {
-			c.planners[i].providedFields = append(c.planners[i].providedFields, suggestions...)
+			c.planners[i].providedFields.AddItems(suggestions...)
 			break
 		}
 	}
@@ -636,25 +636,21 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 }
 
 func (c *configurationVisitor) findSuggestedDataSourceConfiguration(typeName, fieldName, currentPath string) *DataSourceConfiguration {
-	dsHash, ok := c.nodeSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
-	if !ok {
+	dsHashes := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
+	if len(dsHashes) == 0 {
 		return nil
 	}
 
 	for _, dsCfg := range c.dataSources {
-		if dsCfg.Hash() == dsHash {
-			return &dsCfg
+		if !slices.Contains(dsHashes, dsCfg.Hash()) {
+			continue
 		}
-	}
 
-	return nil
-}
-
-func (c *configurationVisitor) findAlternativeDataSourceConfiguration(typeName, fieldName, currentPath string) *DataSourceConfiguration {
-	for _, dsCfg := range c.dataSources {
-		if dsCfg.HasRootNode(typeName, fieldName) && !c.isPathAddedFor(currentPath, dsCfg.Hash()) {
-			return &dsCfg
+		if c.isPathAddedFor(currentPath, dsCfg.Hash()) {
+			continue
 		}
+
+		return &dsCfg
 	}
 
 	return nil
@@ -691,13 +687,6 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 	config := c.findSuggestedDataSourceConfiguration(typeName, fieldName, currentPath)
 	if config == nil {
 		return -1, false
-	}
-
-	if c.isPathAddedFor(currentPath, config.Hash()) {
-		config = c.findAlternativeDataSourceConfiguration(typeName, fieldName, currentPath)
-		if config == nil {
-			return -1, false
-		}
 	}
 
 	shouldPlanTypenameField := c.allowNewPlannerForTypenameField(fieldName, typeName, parentPath, config)
@@ -803,6 +792,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		planner:                  planner,
 		paths:                    paths,
 		parentPathType:           c.plannerPathType(plannerPath),
+		providedFields:           NewNodeSuggestionsWithSize(4),
 	}
 
 	c.planners = append(c.planners, plannerConfig)

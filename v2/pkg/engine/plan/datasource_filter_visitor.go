@@ -1,11 +1,6 @@
 package plan
 
 import (
-	"fmt"
-	"slices"
-
-	"github.com/pkg/errors"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -18,7 +13,9 @@ type DataSourceFilter struct {
 	definition *ast.Document
 	report     *operationreport.Report
 
-	nodes NodeSuggestions
+	nodes *NodeSuggestions
+
+	enableSelectionReasons bool
 }
 
 func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report) *DataSourceFilter {
@@ -29,16 +26,19 @@ func NewDataSourceFilter(operation, definition *ast.Document, report *operationr
 	}
 }
 
-func (f *DataSourceFilter) FilterDataSources(dataSources []DataSourceConfiguration, existingNodes NodeSuggestions, hints ...NodeSuggestionHint) (used []DataSourceConfiguration, suggestions NodeSuggestions) {
-	suggestions = f.findBestDataSourceSet(dataSources, existingNodes, hints...)
+func (f *DataSourceFilter) EnableSelectionReasons() {
+	f.enableSelectionReasons = true
+}
+
+func (f *DataSourceFilter) FilterDataSources(dataSources []DataSourceConfiguration, existingNodes *NodeSuggestions, hints ...NodeSuggestionHint) (used []DataSourceConfiguration, suggestions *NodeSuggestions) {
+	var dsInUse map[DSHash]struct{}
+
+	suggestions, dsInUse = f.findBestDataSourceSet(dataSources, existingNodes, hints...)
 	if f.report.HasErrors() {
 		return
 	}
 
-	dsInUse := suggestions.uniqueDataSourceHashes()
-
 	used = make([]DataSourceConfiguration, 0, len(dsInUse))
-
 	for i := range dataSources {
 		_, inUse := dsInUse[dataSources[i].Hash()]
 		if inUse {
@@ -49,56 +49,55 @@ func (f *DataSourceFilter) FilterDataSources(dataSources []DataSourceConfigurati
 	return used, suggestions
 }
 
-func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSourceConfiguration, existingNodes NodeSuggestions, hints ...NodeSuggestionHint) NodeSuggestions {
-	f.nodes = f.collectNodes(dataSources, existingNodes, hints...)
+func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSourceConfiguration, existingNodes *NodeSuggestions, hints ...NodeSuggestionHint) (*NodeSuggestions, map[DSHash]struct{}) {
+	f.nodes = f.collectNodes(dataSources, existingNodes)
 	if f.report.HasErrors() {
-		return nil
+		return nil, nil
 	}
 
-	f.selectUniqNodes()
-	// f.printNodes("uniq nodes")
-	f.selectDuplicateNodes(false)
-	// f.printNodes("duplicate nodes")
-	f.selectDuplicateNodes(true)
-	// f.printNodes("duplicate nodes after second run")
+	// f.nodes.printNodes("initial nodes")
 
-	f.nodes = f.selectedNodes()
+	f.applySuggestionHints(hints)
+	// f.nodes.printNodes("nodes after applying hints")
+
+	f.selectUniqueNodes()
+	// f.nodes.printNodes("unique nodes")
+	f.selectDuplicateNodes(false)
+	// f.nodes.printNodes("duplicate nodes")
+	f.selectDuplicateNodes(true)
+	// f.nodes.printNodes("duplicate nodes after second run")
+
+	uniqueDataSourceHashes := f.nodes.populateHasSuggestions()
 
 	f.isResolvable(f.nodes)
 	if f.report.HasErrors() {
-		return nil
+		return nil, nil
 	}
 
-	return f.nodes
+	return f.nodes, uniqueDataSourceHashes
 }
 
-func (f *DataSourceFilter) printNodes(msg string) {
-	fmt.Println(msg)
-	for i := range f.nodes {
-		fmt.Println(f.nodes[i].String())
-	}
-}
-
-func (f *DataSourceFilter) collectNodes(dataSources []DataSourceConfiguration, existingNodes NodeSuggestions, hints ...NodeSuggestionHint) (nodes NodeSuggestions) {
+func (f *DataSourceFilter) collectNodes(dataSources []DataSourceConfiguration, existingNodes *NodeSuggestions, hints ...NodeSuggestionHint) (nodes *NodeSuggestions) {
 	secondaryRun := existingNodes != nil
 
 	walker := astvisitor.NewWalker(32)
 	visitor := &collectNodesVisitor{
-		operation:    f.operation,
-		definition:   f.definition,
-		walker:       &walker,
-		dataSources:  dataSources,
-		secondaryRun: secondaryRun,
-		nodes:        existingNodes,
-		hints:        hints,
+		operation:           f.operation,
+		definition:          f.definition,
+		walker:              &walker,
+		dataSources:         dataSources,
+		secondaryRun:        secondaryRun,
+		nodes:               existingNodes,
+		hints:               hints,
+		saveSelectionReason: f.enableSelectionReasons,
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
-	walker.RegisterEnterFieldVisitor(visitor)
+	walker.RegisterFieldVisitor(visitor)
 	walker.Walk(f.operation, f.definition, f.report)
 	return visitor.nodes
 }
 
-func (f *DataSourceFilter) isResolvable(nodes []NodeSuggestion) {
+func (f *DataSourceFilter) isResolvable(nodes *NodeSuggestions) {
 	walker := astvisitor.NewWalker(32)
 	visitor := &nodesResolvableVisitor{
 		operation:  f.operation,
@@ -110,357 +109,11 @@ func (f *DataSourceFilter) isResolvable(nodes []NodeSuggestion) {
 	walker.Walk(f.operation, f.definition, f.report)
 }
 
-type NodeSuggestion struct {
-	TypeName       string
-	FieldName      string
-	DataSourceHash DSHash
-	Path           string
-	ParentPath     string
-	IsRootNode     bool
-	LessPreferable bool // is true in case the node is an entity root node and has a key with disabled resolver
-
-	parentPathWithoutFragment *string
-	onFragment                bool
-	selected                  bool
-	selectionReasons          []string
-}
-
-func (n *NodeSuggestion) appendSelectionReason(reason string) {
-	// fmt.Println("ds:", n.DataSourceHash, fmt.Sprintf("%s.%s", n.TypeName, n.FieldName), "reason:", reason) // NOTE: debug do not remove
-	n.selectionReasons = append(n.selectionReasons, reason)
-}
-
-func (n *NodeSuggestion) selectWithReason(reason string) {
-	if n.selected {
-		return
-	}
-	// n.appendSelectionReason(reason) // NOTE: debug do not remove
-	n.selected = true
-}
-
-func (n *NodeSuggestion) String() string {
-	return fmt.Sprintf(`{"ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t, "isSelected": %v,"select reason": %v}`,
-		n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode, n.selected, n.selectionReasons)
-}
-
-type NodeSuggestionHint struct {
-	fieldRef int
-	dsHash   DSHash
-
-	fieldName  string
-	parentPath string
-}
-
-type NodeSuggestions []NodeSuggestion
-
-func appendSuggestionWithPresenceCheck(nodes NodeSuggestions, node NodeSuggestion) NodeSuggestions {
-	for i := range nodes {
-		if nodes[i].TypeName == node.TypeName &&
-			nodes[i].FieldName == node.FieldName &&
-			nodes[i].Path == node.Path &&
-			nodes[i].DataSourceHash == node.DataSourceHash {
-			return nodes
-		}
-	}
-	return append(nodes, node)
-}
-
-func (f NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string) (dsHashes []DSHash) {
-	for i := range f {
-		if typeName == f[i].TypeName && fieldName == f[i].FieldName && path == f[i].Path {
-			dsHashes = append(dsHashes, f[i].DataSourceHash)
-		}
-	}
-
-	return dsHashes
-}
-
-func (f NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string) (dsHash DSHash, ok bool) {
-	for i := range f {
-		if typeName == f[i].TypeName && fieldName == f[i].FieldName && path == f[i].Path {
-			return f[i].DataSourceHash, true
-		}
-	}
-
-	return 0, false
-}
-
-func (f NodeSuggestions) isNodeUniq(idx int) bool {
-	for i := range f {
-		if i == idx {
-			continue
-		}
-		if f[idx].TypeName == f[i].TypeName && f[idx].FieldName == f[i].FieldName && f[idx].Path == f[i].Path {
-			return false
-		}
-	}
-	return true
-}
-
-func (f NodeSuggestions) isSelectedOnOtherSource(idx int) bool {
-	for i := range f {
-		if i == idx {
-			continue
-		}
-		if f[idx].TypeName == f[i].TypeName &&
-			f[idx].FieldName == f[i].FieldName &&
-			f[idx].Path == f[i].Path &&
-			f[idx].DataSourceHash != f[i].DataSourceHash &&
-			f[i].selected {
-
-			return true
-		}
-	}
-	return false
-}
-
-func (f NodeSuggestions) duplicatesOf(idx int) (out []int) {
-	for i := range f {
-		if i == idx {
-			continue
-		}
-		if f[idx].TypeName == f[i].TypeName &&
-			f[idx].FieldName == f[i].FieldName &&
-			f[idx].Path == f[i].Path {
-			out = append(out, i)
-		}
-	}
-	return
-}
-
-func (f NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
-	for i := range f {
-		if i == idx {
-			continue
-		}
-		if f[i].DataSourceHash != f[idx].DataSourceHash {
-			continue
-		}
-
-		if f[i].ParentPath == f[idx].Path || (f[i].parentPathWithoutFragment != nil && *f[i].parentPathWithoutFragment == f[idx].Path) {
-			out = append(out, i)
-		}
-	}
-	return
-}
-
-func (f NodeSuggestions) siblingNodesOnSameSource(idx int) (out []int) {
-	for i := range f {
-		if i == idx {
-			continue
-		}
-		if f[i].DataSourceHash != f[idx].DataSourceHash {
-			continue
-		}
-
-		hasMatch := false
-		switch {
-		case f[i].parentPathWithoutFragment != nil && f[idx].parentPathWithoutFragment != nil:
-			hasMatch = *f[i].parentPathWithoutFragment == *f[idx].parentPathWithoutFragment
-		case f[i].parentPathWithoutFragment != nil && f[idx].parentPathWithoutFragment == nil:
-			hasMatch = *f[i].parentPathWithoutFragment == f[idx].ParentPath
-		case f[i].parentPathWithoutFragment == nil && f[idx].parentPathWithoutFragment != nil:
-			hasMatch = f[i].ParentPath == *f[idx].parentPathWithoutFragment
-		default:
-			hasMatch = f[i].ParentPath == f[idx].ParentPath
-		}
-
-		if hasMatch {
-			out = append(out, i)
-		}
-	}
-	return
-}
-
-func (f NodeSuggestions) isLeaf(idx int) bool {
-	for i := range f {
-		if i == idx {
-			continue
-		}
-		if f[i].ParentPath == f[idx].Path {
-			return false
-		}
-	}
-	return true
-}
-
-func (f NodeSuggestions) parentNodeOnSameSource(idx int) (parentIdx int, ok bool) {
-	for i := range f {
-		if i == idx {
-			continue
-		}
-		if f[i].DataSourceHash != f[idx].DataSourceHash {
-			continue
-		}
-
-		if f[i].Path == f[idx].ParentPath || (f[idx].parentPathWithoutFragment != nil && f[i].Path == *f[idx].parentPathWithoutFragment) {
-			return i, true
-		}
-	}
-	return -1, false
-}
-
-func (f NodeSuggestions) uniqueDataSourceHashes() map[DSHash]struct{} {
-	if len(f) == 0 {
-		return nil
-	}
-
-	unique := make(map[DSHash]struct{})
-	for i := range f {
-		unique[f[i].DataSourceHash] = struct{}{}
-	}
-
-	return unique
-}
-
-type nodesResolvableVisitor struct {
-	operation  *ast.Document
-	definition *ast.Document
-	walker     *astvisitor.Walker
-
-	nodes NodeSuggestions
-}
-
-func (f *nodesResolvableVisitor) EnterField(ref int) {
-	typeName := f.walker.EnclosingTypeDefinition.NameString(f.definition)
-	fieldName := f.operation.FieldNameUnsafeString(ref)
-	fieldAliasOrName := f.operation.FieldAliasOrNameString(ref)
-
-	isTypeName := fieldName == typeNameField
-	isUnionParent := f.walker.EnclosingTypeDefinition.Kind == ast.NodeKindUnionTypeDefinition
-
-	if isUnionParent && isTypeName {
-		// typename field on union parent is always resolvable
-		return
-	}
-
-	parentPath := f.walker.Path.DotDelimitedString()
-	currentPath := parentPath + "." + fieldAliasOrName
-
-	_, found := f.nodes.HasSuggestionForPath(typeName, fieldName, currentPath)
-	if !found {
-		f.walker.StopWithInternalErr(errors.Wrap(&errOperationFieldNotResolved{TypeName: typeName, FieldName: fieldName, Path: currentPath}, "nodesResolvableVisitor"))
-	}
-}
-
-type collectNodesVisitor struct {
-	operation    *ast.Document
-	definition   *ast.Document
-	walker       *astvisitor.Walker
-	secondaryRun bool
-
-	dataSources []DataSourceConfiguration
-	nodes       NodeSuggestions
-	hints       []NodeSuggestionHint
-}
-
-func (f *collectNodesVisitor) EnterDocument(_, _ *ast.Document) {
-	if !f.secondaryRun {
-		f.nodes = make([]NodeSuggestion, 0, 32)
-		return
-	}
-
-	if f.nodes == nil {
-		panic("nodes should not be nil")
-	}
-}
-
-func (f *collectNodesVisitor) EnterField(ref int) {
-	typeName := f.walker.EnclosingTypeDefinition.NameString(f.definition)
-	fieldName := f.operation.FieldNameUnsafeString(ref)
-	fieldAliasOrName := f.operation.FieldAliasOrNameString(ref)
-
-	isTypeName := fieldName == typeNameField
-	parentPath := f.walker.Path.DotDelimitedString()
-	onFragment := f.walker.Path.EndsWithFragment()
-	var parentPathWithoutFragment *string
-	if onFragment {
-		p := f.walker.Path[:len(f.walker.Path)-1].DotDelimitedString()
-		parentPathWithoutFragment = &p
-	}
-
-	currentPath := parentPath + "." + fieldAliasOrName
-
-	var dsHashHint *DSHash
-	for _, hint := range f.hints {
-		if hint.fieldRef == ref {
-			dsHashHint = &hint.dsHash
-			break
-		}
-	}
-
-	for _, v := range f.dataSources {
-		if dsHashHint != nil && v.Hash() != *dsHashHint {
-			continue
-		}
-
-		hasRootNode := v.HasRootNode(typeName, fieldName) || (isTypeName && v.HasRootNodeWithTypename(typeName))
-		hasChildNode := v.HasChildNode(typeName, fieldName) || (isTypeName && v.HasChildNodeWithTypename(typeName))
-
-		allowTypeName := true
-		// we should not select a typename on the interface object
-		for _, k := range v.FederationMetaData.InterfaceObjects {
-			if k.InterfaceTypeName == typeName || slices.Contains(k.ConcreteTypeNames, typeName) {
-				allowTypeName = false
-				break
-			}
-		}
-
-		lessPreferable := false
-		if hasRootNode {
-			for _, k := range v.FederationMetaData.Keys {
-				if k.TypeName == typeName && k.DisableEntityResolver {
-					lessPreferable = true
-					break
-				}
-			}
-		}
-
-		if !allowTypeName && isTypeName {
-			continue
-		}
-
-		if hasRootNode || hasChildNode {
-			node := NodeSuggestion{
-				TypeName:                  typeName,
-				FieldName:                 fieldName,
-				DataSourceHash:            v.Hash(),
-				Path:                      currentPath,
-				ParentPath:                parentPath,
-				IsRootNode:                hasRootNode,
-				onFragment:                onFragment,
-				parentPathWithoutFragment: parentPathWithoutFragment,
-				LessPreferable:            lessPreferable,
-			}
-
-			if dsHashHint != nil {
-				node.selectWithReason(ReasonKeyRequirementProvidedByPlanner)
-			}
-
-			if f.secondaryRun {
-				f.nodes = appendSuggestionWithPresenceCheck(f.nodes, node)
-			} else {
-				f.nodes = append(f.nodes, node)
-			}
-		}
-	}
-}
-
-type errOperationFieldNotResolved struct {
-	TypeName  string
-	FieldName string
-	Path      string
-}
-
-func (e *errOperationFieldNotResolved) Error() string {
-	return fmt.Sprintf("could not select the datasource to resolve %s.%s on a path %s", e.TypeName, e.FieldName, e.Path)
-}
-
 const (
-	ReasonStage1Uniq                  = "stage1: uniq"
-	ReasonStage1SameSourceParent      = "stage1: same source parent of uniq node"
-	ReasonStage1SameSourceLeafChild   = "stage1: same source leaf child of uniq node"
-	ReasonStage1SameSourceLeafSibling = "stage1: same source leaf sibling of uniq node"
+	ReasonStage1Unique                = "stage1: unique"
+	ReasonStage1SameSourceParent      = "stage1: same source parent of unique node"
+	ReasonStage1SameSourceLeafChild   = "stage1: same source leaf child of unique node"
+	ReasonStage1SameSourceLeafSibling = "stage1: same source leaf sibling of unique node"
 
 	ReasonStage2SameSourceNodeOfSelectedParent  = "stage2: node on the same source as selected parent"
 	ReasonStage2SameSourceNodeOfSelectedChild   = "stage2: node on the same source as selected child"
@@ -471,25 +124,54 @@ const (
 	ReasonKeyRequirementProvidedByPlanner = "provided by planner as required by @key"
 )
 
-// selectUniqNodes - selects nodes (e.g. fields) which are unique to a single datasource
-// In addition we select:
-//   - parent of such node if the node is a leaf and not nested under the fragment
-//   - siblings nodes
-func (f *DataSourceFilter) selectUniqNodes() {
-	for i := range f.nodes {
-		if f.nodes[i].selected {
+func (f *DataSourceFilter) applySuggestionHints(hints []NodeSuggestionHint) {
+	if len(hints) == 0 {
+		return
+	}
+
+	for _, hint := range hints {
+		treeNodeID := TreeNodeID(hint.fieldRef)
+		treeNode, ok := f.nodes.responseTree.Find(treeNodeID)
+		if !ok {
 			continue
 		}
 
-		isNodeUnique := f.nodes.isNodeUniq(i)
+		itemIndexes := treeNode.GetData()
+		for _, itemIdx := range itemIndexes {
+			if f.nodes.items[itemIdx].DataSourceHash != hint.dsHash {
+				if f.nodes.items[itemIdx].Selected {
+					// if the node was already selected by another datasource
+					// we unselect it
+					f.nodes.items[itemIdx].Selected = false
+					f.nodes.items[itemIdx].SelectionReasons = nil
+				}
+			} else {
+				f.nodes.items[itemIdx].selectWithReason(ReasonKeyRequirementProvidedByPlanner, f.enableSelectionReasons)
+			}
+		}
+	}
+}
+
+// selectUniqueNodes - selects nodes (e.g. fields) which are unique to a single datasource
+// In addition we select:
+//   - parent of such node if the node is a leaf and not nested under the fragment
+//   - siblings nodes
+func (f *DataSourceFilter) selectUniqueNodes() {
+
+	for i := range f.nodes.items {
+		if f.nodes.items[i].Selected {
+			continue
+		}
+
+		isNodeUnique := f.nodes.isNodeUnique(i)
 		if !isNodeUnique {
 			continue
 		}
 
 		// unique nodes always have priority
-		f.nodes[i].selectWithReason(ReasonStage1Uniq)
+		f.nodes.items[i].selectWithReason(ReasonStage1Unique, f.enableSelectionReasons)
 
-		if !f.nodes[i].onFragment { // on a first stage do not select parent of nodes on fragments
+		if !f.nodes.items[i].onFragment { // on a first stage do not select parent of nodes on fragments
 			// if node parents of the unique node is on the same source, prioritize it too
 			f.selectUniqNodeParentsUpToRootNode(i)
 		}
@@ -497,16 +179,16 @@ func (f *DataSourceFilter) selectUniqNodes() {
 		// if node has leaf children on the same source, prioritize them too
 		children := f.nodes.childNodesOnSameSource(i)
 		for _, child := range children {
-			if f.nodes.isLeaf(child) && f.nodes.isNodeUniq(child) {
-				f.nodes[child].selectWithReason(ReasonStage1SameSourceLeafChild)
+			if f.nodes.isLeaf(child) && f.nodes.isNodeUnique(child) {
+				f.nodes.items[child].selectWithReason(ReasonStage1SameSourceLeafChild, f.enableSelectionReasons)
 			}
 		}
 
 		// prioritize leaf siblings of the node on the same source
 		siblings := f.nodes.siblingNodesOnSameSource(i)
 		for _, sibling := range siblings {
-			if f.nodes.isLeaf(sibling) && f.nodes.isNodeUniq(sibling) {
-				f.nodes[sibling].selectWithReason(ReasonStage1SameSourceLeafSibling)
+			if f.nodes.isLeaf(sibling) && f.nodes.isNodeUnique(sibling) {
+				f.nodes.items[sibling].selectWithReason(ReasonStage1SameSourceLeafSibling, f.enableSelectionReasons)
 			}
 		}
 	}
@@ -516,7 +198,7 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 	// When we have a chain of datasource child nodes, we should select every parent until we reach the root node
 	// as root node is a starting point from where we could get all theese child nodes
 
-	if f.nodes[i].IsRootNode {
+	if f.nodes.items[i].IsRootNode {
 		// no need to select parent of a root node here
 		// as it could be resolved by itself
 		return
@@ -528,10 +210,10 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 		if !ok {
 			break
 		}
-		f.nodes[parentIdx].selectWithReason(ReasonStage1SameSourceParent)
+		f.nodes.items[parentIdx].selectWithReason(ReasonStage1SameSourceParent, f.enableSelectionReasons)
 
 		current = parentIdx
-		if f.nodes[current].IsRootNode {
+		if f.nodes.items[current].IsRootNode {
 			break
 		}
 	}
@@ -548,8 +230,8 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 // On a second run in additional to all the checks from the first run
 // we select nodes which was not choosen by previous stages, so we just pick first available datasource
 func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
-	for i := range f.nodes {
-		if f.nodes[i].selected {
+	for i := range f.nodes.items {
+		if f.nodes.items[i].Selected {
 			continue
 		}
 
@@ -588,18 +270,12 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 		if secondRun {
 			// in case current node suggestion is an entity root node, and it contains key with disabled resolver
 			// it makes such node less preferable for selection
-			if f.nodes[i].LessPreferable {
+			if f.nodes.items[i].LessPreferable {
 				continue
 			}
-			f.nodes[i].selectWithReason(ReasonStage3SelectAvailableNode)
+			f.nodes.items[i].selectWithReason(ReasonStage3SelectAvailableNode, f.enableSelectionReasons)
 		}
 	}
-}
-
-func (f *DataSourceFilter) selectedNodes() (out NodeSuggestions) {
-	return slices.DeleteFunc(f.nodes, func(e NodeSuggestion) bool {
-		return !e.selected
-	})
 }
 
 func (f *DataSourceFilter) checkNodeDuplicates(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool)) (nodeIsSelected bool) {
@@ -615,8 +291,8 @@ func (f *DataSourceFilter) checkNodeDuplicates(duplicates []int, callback func(n
 func (f *DataSourceFilter) checkNodeChilds(i int) (nodeIsSelected bool) {
 	childs := f.nodes.childNodesOnSameSource(i)
 	for _, child := range childs {
-		if f.nodes[child].selected {
-			f.nodes[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedChild)
+		if f.nodes.items[child].Selected {
+			f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedChild, f.enableSelectionReasons)
 			nodeIsSelected = true
 			break
 		}
@@ -627,8 +303,8 @@ func (f *DataSourceFilter) checkNodeChilds(i int) (nodeIsSelected bool) {
 func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
 	siblings := f.nodes.siblingNodesOnSameSource(i)
 	for _, sibling := range siblings {
-		if f.nodes[sibling].selected {
-			f.nodes[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedSibling)
+		if f.nodes.items[sibling].Selected {
+			f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedSibling, f.enableSelectionReasons)
 			nodeIsSelected = true
 			break
 		}
@@ -638,8 +314,8 @@ func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
 
 func (f *DataSourceFilter) checkNodeParent(i int) (nodeIsSelected bool) {
 	parentIdx, ok := f.nodes.parentNodeOnSameSource(i)
-	if ok && f.nodes[parentIdx].selected {
-		f.nodes[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedParent)
+	if ok && f.nodes.items[parentIdx].Selected {
+		f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedParent, f.enableSelectionReasons)
 		nodeIsSelected = true
 	}
 

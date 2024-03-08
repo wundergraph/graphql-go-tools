@@ -181,10 +181,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 	}
 
 	if p.config.Debug.PrintNodeSuggestions {
-		p.debugMessage("Initial node suggestions:")
-		for i := range p.configurationVisitor.nodeSuggestions {
-			fmt.Println(p.configurationVisitor.nodeSuggestions[i].String())
-		}
+		p.configurationVisitor.nodeSuggestions.printNodes("\n\nInitial node suggestions:\n\n")
 	}
 
 	p.configurationVisitor.secondaryRun = false
@@ -216,10 +213,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 			}
 
 			if p.config.Debug.PrintNodeSuggestions {
-				p.debugMessage("Recalculated node suggestions:")
-				for i := range p.configurationVisitor.nodeSuggestions {
-					fmt.Println(p.configurationVisitor.nodeSuggestions[i].String())
-				}
+				p.configurationVisitor.nodeSuggestions.printNodes("\n\nRecalculated node suggestions:\n\n")
 			}
 		}
 
@@ -241,7 +235,12 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 		i++
 
 		if i > 100 {
-			report.AddInternalError(fmt.Errorf("bad datasource configuration - could not plan the operation"))
+			missingPaths := make([]string, 0, len(p.configurationVisitor.missingPathTracker))
+			for path := range p.configurationVisitor.missingPathTracker {
+				missingPaths = append(missingPaths, path)
+			}
+
+			report.AddInternalError(fmt.Errorf("bad datasource configuration - could not plan the operation. missing path: %v", missingPaths))
 			return
 		}
 	}
