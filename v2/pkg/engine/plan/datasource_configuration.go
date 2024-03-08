@@ -24,7 +24,7 @@ type PlannerFactory[T any] interface {
 
 type DataSourceMetadata struct {
 	// FederationMetaData - describes the behavior of the DataSource in the context of the Federation
-	*FederationMetaData
+	FederationMetaData
 
 	// RootNodes - defines the nodes where the responsibility of the DataSource begins
 	// When you enter a node, and it is not a child node
@@ -79,11 +79,11 @@ type dataSourceConfiguration[T any] struct {
 	hash DSHash // hash is a unique hash for the dataSourceConfiguration used to match datasources
 }
 
-func NewDataSourceConfiguration[T any](id string, factory PlannerFactory[T], metadata DataSourceMetadata, customConfig T) DataSourceConfiguration[T] {
+func NewDataSourceConfiguration[T any](id string, factory PlannerFactory[T], metadata *DataSourceMetadata, customConfig T) DataSourceConfiguration[T] {
 	return &dataSourceConfiguration[T]{
 		ID:                 id,
 		Factory:            factory,
-		DataSourceMetadata: &metadata,
+		DataSourceMetadata: metadata,
 		NewCustom:          customConfig,
 		hash:               DSHash(xxhash.Sum64([]byte(id))),
 	}
@@ -100,7 +100,7 @@ type DataSource interface {
 	DirectivesConfigurations
 	Id() string
 	Hash() DSHash
-	FederationConfiguration() *FederationMetaData
+	FederationConfiguration() FederationMetaData
 	CreatePlannerConfiguration(ctx context.Context, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration) PlannerConfiguration
 }
 
@@ -128,11 +128,7 @@ func (d *dataSourceConfiguration[T]) Id() string {
 	return d.ID
 }
 
-func (d *dataSourceConfiguration[T]) FederationConfiguration() *FederationMetaData {
-	if d.FederationMetaData == nil {
-		return &FederationMetaData{}
-	}
-
+func (d *dataSourceConfiguration[T]) FederationConfiguration() FederationMetaData {
 	return d.FederationMetaData
 }
 

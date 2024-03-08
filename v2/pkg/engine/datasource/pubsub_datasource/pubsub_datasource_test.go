@@ -37,7 +37,7 @@ func (c *testConnector) New(ctx context.Context) PubSub {
 }
 
 func TestPubSub(t *testing.T) {
-	factory := &Factory{
+	factory := &Factory[Configuration]{
 		Connector: &testConnector{},
 	}
 
@@ -78,25 +78,28 @@ func TestPubSub(t *testing.T) {
 	}
 
 	planConfig := plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"helloQuery"},
-					},
-					{
-						TypeName:   "Mutation",
-						FieldNames: []string{"helloMutation"},
-					},
-					{
-						TypeName:   "Subscription",
-						FieldNames: []string{"helloSubscription"},
+		DataSources: []plan.DataSource{
+			plan.NewDataSourceConfiguration[Configuration](
+				"test",
+				factory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"helloQuery"},
+						},
+						{
+							TypeName:   "Mutation",
+							FieldNames: []string{"helloMutation"},
+						},
+						{
+							TypeName:   "Subscription",
+							FieldNames: []string{"helloSubscription"},
+						},
 					},
 				},
-				Custom:  ConfigJson(dataSourceConfig),
-				Factory: factory,
-			},
+				dataSourceConfig,
+			),
 		},
 		Fields: []plan.FieldConfiguration{
 			{

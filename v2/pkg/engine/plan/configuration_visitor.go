@@ -1222,7 +1222,6 @@ func (c *configurationVisitor) rewriteSelectionSetOfFieldWithInterfaceType(field
 
 	upstreamSchema, ok := c.planners[plannerIdx].UpstreamSchema()
 	if !ok {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to get upstream schema for planner %d", plannerIdx))
 		return
 	}
 
