@@ -16,10 +16,12 @@ import (
 )
 
 type dsBuilder struct {
-	ds *dataSourceConfiguration
+	ds *dataSourceConfiguration[any]
 }
 
-func dsb() *dsBuilder { return &dsBuilder{ds: &dataSourceConfiguration{}} }
+func dsb() *dsBuilder {
+	return &dsBuilder{ds: &dataSourceConfiguration[any]{DataSourceMetadata: &DataSourceMetadata{}}}
+}
 
 func (b *dsBuilder) RootNode(typeName string, fieldNames ...string) *dsBuilder {
 	b.ds.RootNodes = append(b.ds.RootNodes, TypeField{TypeName: typeName, FieldNames: fieldNames})
@@ -33,6 +35,9 @@ func (b *dsBuilder) ChildNode(typeName string, fieldNames ...string) *dsBuilder 
 
 func (b *dsBuilder) Schema(schema string) *dsBuilder {
 	b.ds.Custom = []byte(schema)
+	def := unsafeparser.ParseGraphqlDocumentString(schema)
+	b.ds.Factory = &FakeFactory[any]{upstreamSchema: &def}
+
 	return b
 }
 
@@ -46,15 +51,7 @@ func (b *dsBuilder) Hash(hash DSHash) *dsBuilder {
 	return b
 }
 
-func (b *dsBuilder) DS() dataSourceConfiguration {
-	if len(b.ds.Custom) == 0 {
-		panic("schema not set")
-	}
-	b.ds.Hash()
-	return *b.ds
-}
-
-func (b *dsBuilder) DSPtr() *dataSourceConfiguration {
+func (b *dsBuilder) DS() DataSource {
 	return b.ds
 }
 
@@ -78,7 +75,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 		Description         string
 		Definition          string
 		Query               string
-		DataSources         []dataSourceConfiguration
+		DataSources         []DataSource
 		ExpectedVariants    []Variant
 		ExpectedSuggestions *NodeSuggestions
 	}
@@ -110,7 +107,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					}
 				}
 			`,
-			DataSources: []dataSourceConfiguration{
+			DataSources: []DataSource{
 				dsb().Hash(22).Schema(`
 					union Account = User
 					type AccountProvider {
@@ -170,7 +167,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					}
 				}
 			`,
-			DataSources: []dataSourceConfiguration{
+			DataSources: []DataSource{
 				dsb().Hash(22).Schema(`
 					union Account = User
 					type AccountProvider {
@@ -225,7 +222,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					}
 				}
 			`,
-			DataSources: []dataSourceConfiguration{
+			DataSources: []DataSource{
 				dsb().Hash(11).Schema(`
 					type Query {
 						user: User
@@ -277,7 +274,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					}
 				}
 			`,
-			DataSources: []dataSourceConfiguration{
+			DataSources: []DataSource{
 				dsb().Hash(11).Schema(`
 					type Query {
 						user: User
@@ -367,7 +364,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 							}
 						}
 					`,
-			DataSources: []dataSourceConfiguration{
+			DataSources: []DataSource{
 				dsb().Hash(11).Schema(`
 					# sub1
 					type Query {
@@ -472,7 +469,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					}
 				}
 			`,
-			DataSources: []dataSourceConfiguration{
+			DataSources: []DataSource{
 				dsb().Hash(11).Schema(`
 					type Query {
 						me: User
@@ -537,7 +534,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					}
 				}
 			`,
-			DataSources: []dataSourceConfiguration{
+			DataSources: []DataSource{
 				shareableDS1,
 				shareableDS2,
 				shareableDS3,
@@ -574,7 +571,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					}
 				}
 			`,
-			DataSources: []dataSourceConfiguration{
+			DataSources: []DataSource{
 				shareableDS1,
 				shareableDS2,
 				shareableDS3,
@@ -600,7 +597,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					}
 				}
 			`,
-			DataSources: []dataSourceConfiguration{
+			DataSources: []DataSource{
 				shareableDS1,
 				shareableDS2,
 				shareableDS3,
@@ -653,7 +650,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					}
 				}
 			`,
-			DataSources: []dataSourceConfiguration{
+			DataSources: []DataSource{
 				shareableDS1,
 				shareableDS2,
 				shareableDS3,
@@ -691,7 +688,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					}
 				}
 			`,
-			DataSources: []dataSourceConfiguration{
+			DataSources: []DataSource{
 				shareableDS3,
 				shareableDS1,
 			},
@@ -731,7 +728,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					}
 				}
 			`,
-			DataSources: []dataSourceConfiguration{
+			DataSources: []DataSource{
 				shareableDS1,
 				shareableDS2,
 				shareableDS3,
@@ -800,7 +797,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					}
 				}
 			`,
-			DataSources: []dataSourceConfiguration{
+			DataSources: []DataSource{
 				conflictingPaths1,
 				conflictingPaths2,
 			},
@@ -862,7 +859,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					}
 				}
 			`,
-			DataSources: []dataSourceConfiguration{
+			DataSources: []DataSource{
 				conflictingShareablePathsRelayStyle1,
 				conflictingShareablePathsRelayStyle2,
 			},
@@ -897,7 +894,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 		},
 	}
 
-	run := func(t *testing.T, Definition, Query string, DataSources []dataSourceConfiguration, expected *NodeSuggestions) {
+	run := func(t *testing.T, Definition, Query string, DataSources []DataSource, expected *NodeSuggestions) {
 		t.Helper()
 
 		definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(Definition)
@@ -958,7 +955,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 
 // shuffleDS randomizes the order of the data sources
 // to ensure that the order doesn't matter
-func shuffleDS(dataSources []dataSourceConfiguration) []dataSourceConfiguration {
+func shuffleDS(dataSources []DataSource) []DataSource {
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 	rnd.Shuffle(len(dataSources), func(i, j int) {
 		dataSources[i], dataSources[j] = dataSources[j], dataSources[i]
@@ -967,8 +964,8 @@ func shuffleDS(dataSources []dataSourceConfiguration) []dataSourceConfiguration 
 	return dataSources
 }
 
-func orderDS(dataSources []dataSourceConfiguration, order []int) (out []dataSourceConfiguration) {
-	out = make([]dataSourceConfiguration, 0, len(dataSources))
+func orderDS(dataSources []DataSource, order []int) (out []DataSource) {
+	out = make([]DataSource, 0, len(dataSources))
 
 	for _, i := range order {
 		out = append(out, dataSources[i])

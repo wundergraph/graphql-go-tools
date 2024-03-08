@@ -16,7 +16,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 		name               string
 		definition         string
 		upstreamDefinition string
-		dsConfiguration    *dataSourceConfiguration
+		dsConfiguration    DataSource
 		operation          string
 		expectedOperation  string
 		enclosingTypeName  string // default is "Query"
@@ -138,7 +138,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -221,7 +221,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -305,7 +305,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -393,7 +393,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -482,7 +482,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -551,7 +551,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -594,7 +594,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -632,7 +632,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -691,7 +691,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -757,7 +757,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -826,7 +826,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -873,7 +873,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -922,7 +922,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -956,7 +956,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -986,7 +986,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				RootNode("Query", "iface").
 				ChildNode("User", "id", "name", "isUser").
 				ChildNode("Admin", "id", "name").
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -1058,7 +1058,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -1104,7 +1104,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -1195,7 +1195,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					container {
@@ -1290,7 +1290,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					container {
@@ -1338,7 +1338,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			fieldName: "accounts",
 			operation: `
 				query {
@@ -1414,7 +1414,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			fieldName: "accounts",
 			operation: `
 				query {
@@ -1486,7 +1486,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			fieldName: "accounts",
 			operation: `
 				query {
@@ -1555,7 +1555,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			fieldName: "accounts",
 			operation: `
 				query {
@@ -1628,7 +1628,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			fieldName: "accounts",
 			operation: `
 				query {
@@ -1708,7 +1708,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			fieldName: "accounts",
 			operation: `
 				query {
@@ -1780,7 +1780,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			fieldName: "accounts",
 			operation: `
 				query {
@@ -1853,7 +1853,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					iface {
@@ -1946,7 +1946,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					returnsUnion {
@@ -2032,7 +2032,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						SelectionSet: "id",
 					},
 				}).
-				DSPtr(),
+				DS(),
 			operation: `
 				query {
 					returnsUnion {

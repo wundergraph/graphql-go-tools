@@ -31,8 +31,6 @@ func TestPlanner_Plan(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		config.DataSources[0].Factory = &FakeFactory{upstreamSchema: &def}
-
 		p := NewPlanner(ctx, config)
 
 		pp := p.Plan(&op, &def, operationName, report)
@@ -130,7 +128,7 @@ func TestPlanner_Plan(t *testing.T) {
 		},
 	}, Configuration{
 		DisableResolveFieldPositions: true,
-		DataSources:                  []dataSourceConfiguration{testDefinitionDSConfiguration},
+		DataSources:                  []DataSource{testDefinitionDSConfiguration},
 	}))
 
 	t.Run("Merging duplicate fields in response", func(t *testing.T) {
@@ -178,7 +176,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		}, Configuration{
 			DisableResolveFieldPositions: true,
-			DataSources:                  []dataSourceConfiguration{testDefinitionDSConfiguration},
+			DataSources:                  []DataSource{testDefinitionDSConfiguration},
 		}))
 
 		t.Run("Interface response type with type fragments", test(testDefinition, `
@@ -225,7 +223,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		}, Configuration{
 			DisableResolveFieldPositions: true,
-			DataSources:                  []dataSourceConfiguration{testDefinitionDSConfiguration},
+			DataSources:                  []DataSource{testDefinitionDSConfiguration},
 		}))
 
 		t.Run("skip on fields", func(t *testing.T) {
@@ -283,7 +281,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				}, Configuration{
 					DisableResolveFieldPositions: true,
-					DataSources:                  []dataSourceConfiguration{testDefinitionDSConfiguration},
+					DataSources:                  []DataSource{testDefinitionDSConfiguration},
 				}))
 		})
 
@@ -348,7 +346,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				}, Configuration{
 					DisableResolveFieldPositions: true,
-					DataSources:                  []dataSourceConfiguration{testDefinitionDSConfiguration},
+					DataSources:                  []DataSource{testDefinitionDSConfiguration},
 				}))
 
 			t.Run("only one of fields has skip", test(testDefinition, `
@@ -407,7 +405,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				}, Configuration{
 					DisableResolveFieldPositions: true,
-					DataSources:                  []dataSourceConfiguration{testDefinitionDSConfiguration},
+					DataSources:                  []DataSource{testDefinitionDSConfiguration},
 				}))
 
 			t.Run("2 fragments has skip", test(testDefinition, `
@@ -466,14 +464,14 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				}, Configuration{
 					DisableResolveFieldPositions: true,
-					DataSources:                  []dataSourceConfiguration{testDefinitionDSConfiguration},
+					DataSources:                  []DataSource{testDefinitionDSConfiguration},
 				}))
 		})
 	})
 
 	t.Run("operation selection", func(t *testing.T) {
 		cfg := Configuration{
-			DataSources: []dataSourceConfiguration{testDefinitionDSConfiguration},
+			DataSources: []DataSource{testDefinitionDSConfiguration},
 		}
 
 		t.Run("should successfully plan a single named query by providing an operation name", test(testDefinition, `
@@ -626,7 +624,7 @@ func TestPlanner_Plan(t *testing.T) {
 							UnescapeResponseJson: true,
 						},
 					},
-					DataSources: []dataSourceConfiguration{dsConfig},
+					DataSources: []DataSource{dsConfig},
 				},
 			))
 			t.Run("list with json type", test(
@@ -678,7 +676,7 @@ func TestPlanner_Plan(t *testing.T) {
 							UnescapeResponseJson: true,
 						},
 					},
-					DataSources: []dataSourceConfiguration{dsConfig},
+					DataSources: []DataSource{dsConfig},
 				},
 			))
 		})
@@ -723,7 +721,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 				Configuration{
 					DisableResolveFieldPositions: true,
-					DataSources:                  []dataSourceConfiguration{dsConfig},
+					DataSources:                  []DataSource{dsConfig},
 				},
 			))
 		})
