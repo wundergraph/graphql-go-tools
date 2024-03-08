@@ -64,8 +64,8 @@ func (f *IntrospectionConfigFactory) BuildFieldConfigurations() (planFields plan
 	}
 }
 
-func (f *IntrospectionConfigFactory) BuildDataSourceConfigurations() []plan.DataSourceConfiguration[Configuration] {
-	return []plan.DataSourceConfiguration[Configuration]{
+func (f *IntrospectionConfigFactory) BuildDataSourceConfigurations() []plan.DataSource {
+	return []plan.DataSource{
 		f.buildRootDataSourceConfiguration(),
 		f.buildFieldsConfiguration(),
 		f.buildEnumsConfiguration(),
@@ -76,7 +76,7 @@ func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() plan.Dat
 	return plan.NewDataSourceConfiguration[Configuration](
 		"introspection__schema&__type",
 		NewFactory[Configuration](f.introspectionData),
-		plan.DataSourceMetadata{
+		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{
 				{
 					TypeName:   f.dataSourceConfigQueryTypeName(),
@@ -114,7 +114,7 @@ func (f *IntrospectionConfigFactory) buildFieldsConfiguration() plan.DataSourceC
 	return plan.NewDataSourceConfiguration[Configuration](
 		"introspection__type__fields",
 		NewFactory[Configuration](f.introspectionData),
-		plan.DataSourceMetadata{
+		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{
 				{
 					TypeName:   "__Type",
@@ -144,7 +144,7 @@ func (f *IntrospectionConfigFactory) buildEnumsConfiguration() plan.DataSourceCo
 	return plan.NewDataSourceConfiguration[Configuration](
 		"introspection__type__enumValues",
 		NewFactory[Configuration](f.introspectionData),
-		plan.DataSourceMetadata{
+		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{
 				{
 					TypeName:   "__Type",

@@ -37,19 +37,22 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"hello"},
+			DataSources: []plan.DataSource{
+				plan.NewDataSourceConfiguration[Configuration](
+					"staticdatasource.Source",
+					&Factory[Configuration]{},
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hello"},
+							},
 						},
 					},
-					Custom: ConfigJSON(Configuration{
+					Configuration{
 						Data: "world",
-					}),
-					Factory: &Factory{},
-				},
+					},
+				),
 			},
 			Fields: []plan.FieldConfiguration{
 				{
