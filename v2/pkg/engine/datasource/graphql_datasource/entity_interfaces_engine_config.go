@@ -1,6 +1,10 @@
 package graphql_datasource
 
 import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 )
 
@@ -47,7 +51,7 @@ const EntityInterfacesDefinition = `
 		  accountLocations: [Account!]!
 		}`
 
-func EntityInterfacesPlanConfiguration(factory plan.PlannerFactory) *plan.Configuration {
+func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory[Configuration]) *plan.Configuration {
 	firstSubgraphSDL := `	
 		interface Account @key(fields: "id") {
 			id: ID!
@@ -78,67 +82,75 @@ func EntityInterfacesPlanConfiguration(factory plan.PlannerFactory) *plan.Config
 			admin(id: ID!): Admin
 		}`
 
-	firstDatasourceConfiguration := plan.DataSourceConfiguration{
-		RootNodes: []plan.TypeField{
-			{
-				TypeName:   "Admin",
-				FieldNames: []string{"id"},
+	firstDatasourceSchemaConfiguration, err := NewSchemaConfiguration(
+		firstSubgraphSDL,
+		&FederationConfiguration{
+			Enabled:    true,
+			ServiceSDL: firstSubgraphSDL,
+		},
+	)
+	require.NoError(t, err)
+
+	firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+		"first",
+		factory,
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Admin",
+					FieldNames: []string{"id"},
+				},
+				{
+					TypeName:   "Moderator",
+					FieldNames: []string{"id", "title"},
+				},
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id", "title"},
+				},
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"allAccountsInterface", "allAccountsUnion", "user", "admin"},
+				},
+				{
+					TypeName:   "Account",
+					FieldNames: []string{"id", "title"},
+				},
 			},
-			{
-				TypeName:   "Moderator",
-				FieldNames: []string{"id", "title"},
-			},
-			{
-				TypeName:   "User",
-				FieldNames: []string{"id", "title"},
-			},
-			{
-				TypeName:   "Query",
-				FieldNames: []string{"allAccountsInterface", "allAccountsUnion", "user", "admin"},
-			},
-			{
-				TypeName:   "Account",
-				FieldNames: []string{"id", "title"},
+			FederationMetaData: plan.FederationMetaData{
+				EntityInterfaces: []plan.EntityInterfaceConfiguration{
+					{
+						InterfaceTypeName: "Account",
+						ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
+					},
+				},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Account",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Moderator",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+				},
 			},
 		},
-		Custom: ConfigJson(Configuration{
+		Configuration{
 			Fetch: FetchConfiguration{
 				URL: "http://localhost:4001/graphql",
 			},
-			Federation: FederationConfiguration{
-				Enabled:    true,
-				ServiceSDL: firstSubgraphSDL,
-			},
-			UpstreamSchema: firstSubgraphSDL,
-		}),
-		Factory: factory,
-		FederationMetaData: plan.FederationMetaData{
-			EntityInterfaces: []plan.EntityInterfaceConfiguration{
-				{
-					InterfaceTypeName: "Account",
-					ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
-				},
-			},
-			Keys: plan.FederationFieldConfigurations{
-				{
-					TypeName:     "Account",
-					SelectionSet: "id",
-				},
-				{
-					TypeName:     "Admin",
-					SelectionSet: "id",
-				},
-				{
-					TypeName:     "Moderator",
-					SelectionSet: "id",
-				},
-				{
-					TypeName:     "User",
-					SelectionSet: "id",
-				},
-			},
+			SchemaConfiguration: firstDatasourceSchemaConfiguration,
 		},
-	}
+	)
 
 	secondSubgraphSDL := `
 		type Account @key(fields: "id") @interfaceObject {
@@ -154,73 +166,81 @@ func EntityInterfacesPlanConfiguration(factory plan.PlannerFactory) *plan.Config
 			accountLocations: [Account!]!
 		}`
 
-	secondDatasourceConfiguration := plan.DataSourceConfiguration{
-		RootNodes: []plan.TypeField{
-			{
-				TypeName:   "Account",
-				FieldNames: []string{"id", "locations"},
+	secondDatasourceSchemaConfiguration, err := NewSchemaConfiguration(
+		secondSubgraphSDL,
+		&FederationConfiguration{
+			Enabled:    true,
+			ServiceSDL: secondSubgraphSDL,
+		},
+	)
+	require.NoError(t, err)
+
+	secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+		"second",
+		factory,
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Account",
+					FieldNames: []string{"id", "locations"},
+				},
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id", "locations"},
+				},
+				{
+					TypeName:   "Moderator",
+					FieldNames: []string{"id", "locations"},
+				},
+				{
+					TypeName:   "Admin",
+					FieldNames: []string{"id", "locations"},
+				},
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"accountLocations"},
+				},
 			},
-			{
-				TypeName:   "User",
-				FieldNames: []string{"id", "locations"},
+			ChildNodes: []plan.TypeField{
+				{
+					TypeName:   "Location",
+					FieldNames: []string{"country"},
+				},
 			},
-			{
-				TypeName:   "Moderator",
-				FieldNames: []string{"id", "locations"},
-			},
-			{
-				TypeName:   "Admin",
-				FieldNames: []string{"id", "locations"},
-			},
-			{
-				TypeName:   "Query",
-				FieldNames: []string{"accountLocations"},
+			FederationMetaData: plan.FederationMetaData{
+				InterfaceObjects: []plan.EntityInterfaceConfiguration{
+					{
+						InterfaceTypeName: "Account",
+						ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
+					},
+				},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Account",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Moderator",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+				},
 			},
 		},
-		ChildNodes: []plan.TypeField{
-			{
-				TypeName:   "Location",
-				FieldNames: []string{"country"},
-			},
-		},
-		Custom: ConfigJson(Configuration{
+		Configuration{
 			Fetch: FetchConfiguration{
 				URL: "http://localhost:4002/graphql",
 			},
-			Federation: FederationConfiguration{
-				Enabled:    true,
-				ServiceSDL: secondSubgraphSDL,
-			},
-			UpstreamSchema: secondSubgraphSDL,
-		}),
-		Factory: factory,
-		FederationMetaData: plan.FederationMetaData{
-			InterfaceObjects: []plan.EntityInterfaceConfiguration{
-				{
-					InterfaceTypeName: "Account",
-					ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
-				},
-			},
-			Keys: plan.FederationFieldConfigurations{
-				{
-					TypeName:     "Account",
-					SelectionSet: "id",
-				},
-				{
-					TypeName:     "Admin",
-					SelectionSet: "id",
-				},
-				{
-					TypeName:     "Moderator",
-					SelectionSet: "id",
-				},
-				{
-					TypeName:     "User",
-					SelectionSet: "id",
-				},
-			},
+			SchemaConfiguration: secondDatasourceSchemaConfiguration,
 		},
-	}
+	)
 
 	thirdSubgraphSDL := `
 		type Admin @key(fields: "id"){
@@ -228,33 +248,41 @@ func EntityInterfacesPlanConfiguration(factory plan.PlannerFactory) *plan.Config
 			title: String!
 		}`
 
-	thirdDatasourceConfiguration := plan.DataSourceConfiguration{
-		RootNodes: []plan.TypeField{
-			{
-				TypeName:   "Admin",
-				FieldNames: []string{"id", "title"},
-			},
+	thirdDatasourceSchemaConfiguration, err := NewSchemaConfiguration(
+		thirdSubgraphSDL,
+		&FederationConfiguration{
+			Enabled:    true,
+			ServiceSDL: thirdSubgraphSDL,
 		},
-		Custom: ConfigJson(Configuration{
-			Fetch: FetchConfiguration{
-				URL: "http://localhost:4003/graphql",
-			},
-			Federation: FederationConfiguration{
-				Enabled:    true,
-				ServiceSDL: thirdSubgraphSDL,
-			},
-			UpstreamSchema: thirdSubgraphSDL,
-		}),
-		Factory: factory,
-		FederationMetaData: plan.FederationMetaData{
-			Keys: plan.FederationFieldConfigurations{
+	)
+	require.NoError(t, err)
+
+	thirdDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+		"third",
+		factory,
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
 				{
-					TypeName:     "Admin",
-					SelectionSet: "id",
+					TypeName:   "Admin",
+					FieldNames: []string{"id", "title"},
+				},
+			},
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
 				},
 			},
 		},
-	}
+		Configuration{
+			Fetch: FetchConfiguration{
+				URL: "http://localhost:4003/graphql",
+			},
+			SchemaConfiguration: thirdDatasourceSchemaConfiguration,
+		},
+	)
 
 	fourthSubgraphSDL := `
 		type Account @key(fields: "id") @interfaceObject {
@@ -262,65 +290,73 @@ func EntityInterfacesPlanConfiguration(factory plan.PlannerFactory) *plan.Config
 			age: Int!
 		}`
 
-	fourthDatasourceConfiguration := plan.DataSourceConfiguration{
-		RootNodes: []plan.TypeField{
-			{
-				TypeName:   "Account",
-				FieldNames: []string{"id", "age"},
+	fourthDatasourceSchemaConfiguration, err := NewSchemaConfiguration(
+		fourthSubgraphSDL,
+		&FederationConfiguration{
+			Enabled:    true,
+			ServiceSDL: fourthSubgraphSDL,
+		},
+	)
+	require.NoError(t, err)
+
+	fourthDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+		"fourth",
+		factory,
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Account",
+					FieldNames: []string{"id", "age"},
+				},
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id", "age"},
+				},
+				{
+					TypeName:   "Moderator",
+					FieldNames: []string{"id", "age"},
+				},
+				{
+					TypeName:   "Admin",
+					FieldNames: []string{"id", "age"},
+				},
 			},
-			{
-				TypeName:   "User",
-				FieldNames: []string{"id", "age"},
-			},
-			{
-				TypeName:   "Moderator",
-				FieldNames: []string{"id", "age"},
-			},
-			{
-				TypeName:   "Admin",
-				FieldNames: []string{"id", "age"},
+			FederationMetaData: plan.FederationMetaData{
+				InterfaceObjects: []plan.EntityInterfaceConfiguration{
+					{
+						InterfaceTypeName: "Account",
+						ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
+					},
+				},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Account",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Moderator",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+				},
 			},
 		},
-		Custom: ConfigJson(Configuration{
+		Configuration{
 			Fetch: FetchConfiguration{
 				URL: "http://localhost:4004/graphql",
 			},
-			Federation: FederationConfiguration{
-				Enabled:    true,
-				ServiceSDL: fourthSubgraphSDL,
-			},
-			UpstreamSchema: fourthSubgraphSDL,
-		}),
-		Factory: factory,
-		FederationMetaData: plan.FederationMetaData{
-			InterfaceObjects: []plan.EntityInterfaceConfiguration{
-				{
-					InterfaceTypeName: "Account",
-					ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
-				},
-			},
-			Keys: plan.FederationFieldConfigurations{
-				{
-					TypeName:     "Account",
-					SelectionSet: "id",
-				},
-				{
-					TypeName:     "Admin",
-					SelectionSet: "id",
-				},
-				{
-					TypeName:     "Moderator",
-					SelectionSet: "id",
-				},
-				{
-					TypeName:     "User",
-					SelectionSet: "id",
-				},
-			},
+			SchemaConfiguration: fourthDatasourceSchemaConfiguration,
 		},
-	}
+	)
 
-	dataSources := []plan.DataSourceConfiguration{
+	dataSources := []plan.DataSource{
 		firstDatasourceConfiguration,
 		secondDatasourceConfiguration,
 		thirdDatasourceConfiguration,
