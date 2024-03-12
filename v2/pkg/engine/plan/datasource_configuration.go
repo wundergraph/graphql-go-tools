@@ -158,12 +158,21 @@ func (c *DataSourcePlannerConfiguration) HasRequiredFields() bool {
 
 type DirectiveConfigurations []DirectiveConfiguration
 
+func NewDirectiveConfigurations(configs []DirectiveConfiguration) *DirectiveConfigurations {
+	directiveConfigs := DirectiveConfigurations(configs)
+	return &directiveConfigs
+}
+
 type DirectiveConfiguration struct {
 	DirectiveName string
 	RenameTo      string
 }
 
 func (d *DirectiveConfigurations) RenameTypeNameOnMatchStr(directiveName string) string {
+	if d == nil {
+		return directiveName
+	}
+
 	for i := range *d {
 		if (*d)[i].DirectiveName == directiveName {
 			return (*d)[i].RenameTo
@@ -173,6 +182,10 @@ func (d *DirectiveConfigurations) RenameTypeNameOnMatchStr(directiveName string)
 }
 
 func (d *DirectiveConfigurations) RenameTypeNameOnMatchBytes(directiveName []byte) []byte {
+	if d == nil {
+		return directiveName
+	}
+
 	str := string(directiveName)
 	for i := range *d {
 		if (*d)[i].DirectiveName == str {

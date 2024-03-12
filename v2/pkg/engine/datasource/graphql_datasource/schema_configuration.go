@@ -41,15 +41,15 @@ func NewSchemaConfiguration(upstreamSchema string, federationCfg *FederationConf
 		return nil, fmt.Errorf("upstream schema is required")
 	}
 
-	if cfg.Federation != nil && cfg.Federation.Enabled && cfg.Federation.ServiceSDL == "" {
-		return nil, fmt.Errorf("federation service SDL is required")
-	}
-
 	definition := ast.NewSmallDocument()
 	definitionParser := astparser.NewParser()
 	report := &operationreport.Report{}
 
-	if cfg.Federation.Enabled {
+	if cfg.Federation != nil && cfg.Federation.Enabled {
+		if cfg.Federation.ServiceSDL == "" {
+			return nil, fmt.Errorf("federation service SDL is required")
+		}
+
 		federationSchema, err := federation.BuildFederationSchema(cfg.upstreamSchema, cfg.Federation.ServiceSDL)
 		if err != nil {
 			return nil, fmt.Errorf("unable to build federation schema: %v", err)
