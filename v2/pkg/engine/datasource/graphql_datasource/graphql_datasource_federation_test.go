@@ -10,7 +10,7 @@ import (
 )
 
 func TestGraphQLDataSourceFederation(t *testing.T) {
-	federationFactory := &Factory{}
+	federationFactory := &Factory[Configuration]{}
 
 	t.Run("composite keys, provides, requires", func(t *testing.T) {
 		definition := `
@@ -50,7 +50,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 		`
 
 		usersSubgraphSDL := `
-			extend type Query {
+			type Query {
 				user: User
 			}
 
@@ -60,7 +60,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				oldAccount: Account @provides(fields: "name shippingInfo {zip}")
 			}
 
-			extend type Account @key(fields: "id info {a b}") {
+			type Account @key(fields: "id info {a b}") {
 				id: ID!
 				info: Info
 				name: String! @external
@@ -89,73 +89,80 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 		// TODO: add test for requires when query already has the required field with the different argument - potentially requires alias?
 		// TODO: add test for requires+provides
 
-		usersDatasourceConfiguration := plan.DataSourceConfiguration{
-			ID: "user.service",
-			RootNodes: []plan.TypeField{
-				{
-					TypeName:   "Query",
-					FieldNames: []string{"user"},
+		usersDatasourceSchemaConfiguration, _ := NewSchemaConfiguration(
+			usersSubgraphSDL,
+			&FederationConfiguration{
+				Enabled:    true,
+				ServiceSDL: usersSubgraphSDL,
+			},
+		)
+
+		usersDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			"user.service",
+			federationFactory,
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"user"},
+					},
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "account", "oldAccount"},
+					},
+					{
+						TypeName:   "Account",
+						FieldNames: []string{"id", "info", "address"},
+					},
+					{
+						TypeName:   "Address",
+						FieldNames: []string{"id", "line1", "line2"},
+					},
 				},
-				{
-					TypeName:   "User",
-					FieldNames: []string{"id", "account", "oldAccount"},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "ShippingInfo",
+						FieldNames: []string{"zip"},
+					},
+					{
+						TypeName:   "Info",
+						FieldNames: []string{"a", "b"},
+					},
 				},
-				{
-					TypeName:   "Account",
-					FieldNames: []string{"id", "info", "address"},
-				},
-				{
-					TypeName:   "Address",
-					FieldNames: []string{"id", "line1", "line2"},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "Account",
+							SelectionSet: "id info {a b}",
+						},
+						{
+							TypeName:     "Address",
+							SelectionSet: "id",
+						},
+					},
+					Provides: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							FieldName:    "oldAccount",
+							SelectionSet: `name shippingInfo {zip}`,
+						},
+					},
 				},
 			},
-			ChildNodes: []plan.TypeField{
-				{
-					TypeName:   "ShippingInfo",
-					FieldNames: []string{"zip"},
-				},
-				{
-					TypeName:   "Info",
-					FieldNames: []string{"a", "b"},
-				},
-			},
-			Custom: ConfigJson(Configuration{
+			Configuration{
 				Fetch: FetchConfiguration{
 					URL: "http://user.service",
 				},
-				Federation: FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: usersSubgraphSDL,
-				},
-			}),
-			Factory: federationFactory,
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "User",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "Account",
-						SelectionSet: "id info {a b}",
-					},
-					{
-						TypeName:     "Address",
-						SelectionSet: "id",
-					},
-				},
-				Provides: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "User",
-						FieldName:    "oldAccount",
-						SelectionSet: `name shippingInfo {zip}`,
-					},
-				},
+				SchemaConfiguration: usersDatasourceSchemaConfiguration,
 			},
-		}
+		)
 
 		accountsSubgraphSDL := `
-			extend type Query {
+			type Query {
 				account: Account
 			}
 
@@ -175,7 +182,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				zip: String!
 			}
 
-			extend type Address @key(fields: "id") {
+			type Address @key(fields: "id") {
 				id: ID!
 				line1: String! @external
 				line2: String! @external
@@ -184,67 +191,74 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				fullAddress: String! @requires(fields: "line1 line2 line3(test:\"BOOM\") zip")
 			}
 		`
-		accountsDatasourceConfiguration := plan.DataSourceConfiguration{
-			ID: "account.service",
-			RootNodes: []plan.TypeField{
-				{
-					TypeName:   "Query",
-					FieldNames: []string{"account"},
+		accountsDatasourceSchemaConfiguration, _ := NewSchemaConfiguration(
+			accountsSubgraphSDL,
+			&FederationConfiguration{
+				Enabled:    true,
+				ServiceSDL: accountsSubgraphSDL,
+			},
+		)
+
+		accountsDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			"account.service",
+			federationFactory,
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"account"},
+					},
+					{
+						TypeName:   "Account",
+						FieldNames: []string{"id", "name", "info", "shippingInfo"},
+					},
+					{
+						TypeName:   "Address",
+						FieldNames: []string{"id", "fullAddress"},
+					},
 				},
-				{
-					TypeName:   "Account",
-					FieldNames: []string{"id", "name", "info", "shippingInfo"},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Info",
+						FieldNames: []string{"a", "b"},
+					},
+					{
+						TypeName:   "ShippingInfo",
+						FieldNames: []string{"zip"},
+					},
 				},
-				{
-					TypeName:   "Address",
-					FieldNames: []string{"id", "fullAddress"},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Account",
+							FieldName:    "",
+							SelectionSet: "id info {a b}",
+						},
+						{
+							TypeName:     "Address",
+							FieldName:    "",
+							SelectionSet: "id",
+						},
+					},
+					Requires: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Address",
+							FieldName:    "fullAddress",
+							SelectionSet: "line1 line2 line3(test:\"BOOM\") zip",
+						},
+					},
 				},
 			},
-			ChildNodes: []plan.TypeField{
-				{
-					TypeName:   "Info",
-					FieldNames: []string{"a", "b"},
-				},
-				{
-					TypeName:   "ShippingInfo",
-					FieldNames: []string{"zip"},
-				},
-			},
-			Custom: ConfigJson(Configuration{
+			Configuration{
 				Fetch: FetchConfiguration{
 					URL: "http://account.service",
 				},
-				Federation: FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: accountsSubgraphSDL,
-				},
-			}),
-			Factory: federationFactory,
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Account",
-						FieldName:    "",
-						SelectionSet: "id info {a b}",
-					},
-					{
-						TypeName:     "Address",
-						FieldName:    "",
-						SelectionSet: "id",
-					},
-				},
-				Requires: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Address",
-						FieldName:    "fullAddress",
-						SelectionSet: "line1 line2 line3(test:\"BOOM\") zip",
-					},
-				},
+				SchemaConfiguration: accountsDatasourceSchemaConfiguration,
 			},
-		}
+		)
 
 		addressesSubgraphSDL := `
-			extend type Address @key(fields: "id") {
+			type Address @key(fields: "id") {
 				id: ID!
 				line3(test: String!): String!
 				country: String! @external
@@ -252,79 +266,94 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				zip: String! @requires(fields: "country city")
 			}
 		`
-		addressesDatasourceConfiguration := plan.DataSourceConfiguration{
-			ID: "address.service",
-			RootNodes: []plan.TypeField{
-				{
-					TypeName:   "Address",
-					FieldNames: []string{"id", "line3", "zip"},
+
+		addressesDatasourceSchemaConfiguration, _ := NewSchemaConfiguration(
+			addressesSubgraphSDL,
+			&FederationConfiguration{
+				Enabled:    true,
+				ServiceSDL: addressesSubgraphSDL,
+			},
+		)
+		addressesDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			"address.service",
+			federationFactory,
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Address",
+						FieldNames: []string{"id", "line3", "zip"},
+					},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Address",
+							FieldName:    "",
+							SelectionSet: "id",
+						},
+					},
+					Requires: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Address",
+							FieldName:    "zip",
+							SelectionSet: "country city",
+						},
+					},
 				},
 			},
-			Custom: ConfigJson(Configuration{
+			Configuration{
 				Fetch: FetchConfiguration{
 					URL: "http://address.service",
 				},
-				Federation: FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: addressesSubgraphSDL,
-				},
-			}),
-			Factory: federationFactory,
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Address",
-						FieldName:    "",
-						SelectionSet: "id",
-					},
-				},
-				Requires: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Address",
-						FieldName:    "zip",
-						SelectionSet: "country city",
-					},
-				},
+				SchemaConfiguration: addressesDatasourceSchemaConfiguration,
 			},
-		}
+		)
 
 		addressesEnricherSubgraphSDL := `
-			extend type Address @key(fields: "id") {
+			type Address @key(fields: "id") {
 				id: ID!
 				country: String!
 				city: String!
 			}
 		`
-		addressesEnricherDatasourceConfiguration := plan.DataSourceConfiguration{
-			ID: "address-enricher.service",
-			RootNodes: []plan.TypeField{
-				{
-					TypeName:   "Address",
-					FieldNames: []string{"id", "country", "city"},
-				},
+
+		addressesEnricherDatasourceSchemaConfiguration, _ := NewSchemaConfiguration(
+			addressesEnricherSubgraphSDL,
+			&FederationConfiguration{
+				Enabled:    true,
+				ServiceSDL: addressesEnricherSubgraphSDL,
 			},
-			Custom: ConfigJson(Configuration{
-				Fetch: FetchConfiguration{
-					URL: "http://address-enricher.service",
-				},
-				Federation: FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: addressesEnricherSubgraphSDL,
-				},
-			}),
-			Factory: federationFactory,
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
+		)
+
+		addressesEnricherDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			"address-enricher.service",
+			federationFactory,
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
 					{
-						TypeName:     "Address",
-						FieldName:    "",
-						SelectionSet: "id",
+						TypeName:   "Address",
+						FieldNames: []string{"id", "country", "city"},
+					},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Address",
+							FieldName:    "",
+							SelectionSet: "id",
+						},
 					},
 				},
 			},
-		}
+			Configuration{
+				Fetch: FetchConfiguration{
+					URL: "http://address-enricher.service",
+				},
+				SchemaConfiguration: addressesEnricherDatasourceSchemaConfiguration,
+			},
+		)
 
-		dataSources := []plan.DataSourceConfiguration{
+		dataSources := []plan.DataSource{
 			usersDatasourceConfiguration,
 			accountsDatasourceConfiguration,
 			addressesDatasourceConfiguration,
@@ -733,45 +762,52 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					otherUser: User!
 				}`
 
-			subgraphADatasourceConfiguration := plan.DataSourceConfiguration{
-				ID: "service-a",
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"user", "otherUser"},
+			subgraphASchemaConfiguration, _ := NewSchemaConfiguration(
+				subgraphA,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: subgraphA,
+				},
+			)
+
+			subgraphADatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"service-a",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"user", "otherUser"},
+						},
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "account", "name"},
+						},
+						{
+							TypeName:   "Account",
+							FieldNames: []string{"id", "type"},
+						},
 					},
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "account", "name"},
-					},
-					{
-						TypeName:   "Account",
-						FieldNames: []string{"id", "type"},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "Account",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "User",
+								SelectionSet: "account { id } id",
+							},
+						},
 					},
 				},
-				Custom: ConfigJson(Configuration{
+				Configuration{
 					Fetch: FetchConfiguration{
 						URL: "http://service-a",
 					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: subgraphA,
-					},
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "Account",
-							SelectionSet: "id",
-						},
-						{
-							TypeName:     "User",
-							SelectionSet: "account { id } id",
-						},
-					},
+					SchemaConfiguration: subgraphASchemaConfiguration,
 				},
-			}
+			)
 
 			subgraphB := `
 				type Account @key(fields: "id") {
@@ -784,46 +820,53 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					foo: Boolean!
 				}`
 
-			subgraphBDatasourceConfiguration := plan.DataSourceConfiguration{
-				ID: "service-b",
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "account", "foo"},
+			subgraphBSchemaConfiguration, _ := NewSchemaConfiguration(
+				subgraphB,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: subgraphB,
+				},
+			)
+
+			subgraphBDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"service-b",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "account", "foo"},
+						},
+						{
+							TypeName:   "Account",
+							FieldNames: []string{"id"},
+						},
 					},
-					{
-						TypeName:   "Account",
-						FieldNames: []string{"id"},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "Account",
+								FieldName:    "",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "User",
+								FieldName:    "",
+								SelectionSet: "account { id } id",
+							},
+						},
 					},
 				},
-				Custom: ConfigJson(Configuration{
+				Configuration{
 					Fetch: FetchConfiguration{
 						URL: "http://service-b",
 					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: subgraphB,
-					},
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "Account",
-							FieldName:    "",
-							SelectionSet: "id",
-						},
-						{
-							TypeName:     "User",
-							FieldName:    "",
-							SelectionSet: "account { id } id",
-						},
-					},
+					SchemaConfiguration: subgraphBSchemaConfiguration,
 				},
-			}
+			)
 
 			planConfiguration := plan.Configuration{
-				DataSources: []plan.DataSourceConfiguration{
+				DataSources: []plan.DataSource{
 					subgraphADatasourceConfiguration,
 					subgraphBDatasourceConfiguration,
 				},
@@ -1454,7 +1497,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					operationName,
 					expectedPlan(`{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {__typename id line1 line2}}}}"}}`),
 					plan.Configuration{
-						DataSources: []plan.DataSourceConfiguration{
+						DataSources: []plan.DataSource{
 							usersDatasourceConfiguration,
 							accountsDatasourceConfiguration,
 							addressesDatasourceConfiguration,
@@ -1765,42 +1808,50 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"me"},
-					},
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "details"},
-					},
+			firstSchemaConfiguration, _ := NewSchemaConfiguration(
+				firstSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: firstSubgraphSDL,
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Details",
-						FieldNames: []string{"forename", "middlename"},
-					},
-				},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://first.service",
-					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: firstSubgraphSDL,
-					},
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
+			)
+
+			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"first.service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
 						{
-							TypeName:     "User",
-							SelectionSet: "id",
+							TypeName:   "Query",
+							FieldNames: []string{"me"},
+						},
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "details"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Details",
+							FieldNames: []string{"forename", "middlename"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
 						},
 					},
 				},
-			}
+				Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://first.service",
+					},
+					SchemaConfiguration: firstSchemaConfiguration,
+				},
+			)
 
 			secondSubgraphSDL := `
 				type User @key(fields: "id") {
@@ -1817,42 +1868,51 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					me: User
 				}
 			`
-			secondDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"me"},
-					},
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "details"},
-					},
+
+			secondSchemaConfiguration, _ := NewSchemaConfiguration(
+				secondSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: secondSubgraphSDL,
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Details",
-						FieldNames: []string{"forename", "surname"},
-					},
-				},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://second.service",
-					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: secondSubgraphSDL,
-					},
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
+			)
+
+			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"second-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
 						{
-							TypeName:     "User",
-							SelectionSet: "id",
+							TypeName:   "Query",
+							FieldNames: []string{"me"},
+						},
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "details"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Details",
+							FieldNames: []string{"forename", "surname"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
 						},
 					},
 				},
-			}
+				Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://second.service",
+					},
+					SchemaConfiguration: secondSchemaConfiguration,
+				},
+			)
 
 			thirdSubgraphSDL := `
 				type User @key(fields: "id") {
@@ -1864,41 +1924,50 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					age: Int!
 				}
 			`
-			thirdDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "details"},
-					},
+
+			thirdSchemaConfiguration, _ := NewSchemaConfiguration(
+				thirdSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: thirdSubgraphSDL,
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Details",
-						FieldNames: []string{"age"},
-					},
-				},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://third.service",
-					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: thirdSubgraphSDL,
-					},
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
+			)
+
+			thirdDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"third-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
 						{
-							TypeName:     "User",
-							SelectionSet: "id",
+							TypeName:   "User",
+							FieldNames: []string{"id", "details"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Details",
+							FieldNames: []string{"age"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
 						},
 					},
 				},
-			}
+				Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://third.service",
+					},
+					SchemaConfiguration: thirdSchemaConfiguration,
+				},
+			)
 
 			planConfiguration := plan.Configuration{
-				DataSources: []plan.DataSourceConfiguration{
+				DataSources: []plan.DataSource{
 					firstDatasourceConfiguration,
 					secondDatasourceConfiguration,
 					thirdDatasourceConfiguration,
@@ -2292,7 +2361,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				t.Run("resolve from two subgraphs - shared and not shared field - should not depend on the order of ds", func(t *testing.T) {
 					// Note: we use only 2 datasources
 					planConfiguration := plan.Configuration{
-						DataSources: []plan.DataSourceConfiguration{
+						DataSources: []plan.DataSource{
 							firstDatasourceConfiguration,
 							thirdDatasourceConfiguration,
 						},
@@ -2649,51 +2718,58 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"account"},
+			firstSchemaConfiguration, _ := NewSchemaConfiguration(
+				firstSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: firstSubgraphSDL,
+				},
+			)
+
+			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"first-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"account"},
+						},
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "some"},
+						},
+						{
+							TypeName:   "Admin",
+							FieldNames: []string{"id", "some"},
+						},
 					},
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "some"},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Node",
+							FieldNames: []string{"id", "title", "some"},
+						},
 					},
-					{
-						TypeName:   "Admin",
-						FieldNames: []string{"id", "some"},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "Admin",
+								SelectionSet: "id",
+							},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Node",
-						FieldNames: []string{"id", "title", "some"},
-					},
-				},
-				Custom: ConfigJson(Configuration{
+				Configuration{
 					Fetch: FetchConfiguration{
 						URL: "http://first.service",
 					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: firstSubgraphSDL,
-					},
-					UpstreamSchema: firstSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							SelectionSet: "id",
-						},
-						{
-							TypeName:     "Admin",
-							SelectionSet: "id",
-						},
-					},
+					SchemaConfiguration: firstSchemaConfiguration,
 				},
-			}
+			)
 
 			secondSubgraphSDL := `
 				type User @key(fields: "id") {
@@ -2708,44 +2784,52 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					title: String!
 				}
 			`
-			secondDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "name", "title"},
+
+			secondSchemaConfiguration, _ := NewSchemaConfiguration(
+				secondSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: secondSubgraphSDL,
+				},
+			)
+
+			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"second-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "name", "title"},
+						},
+						{
+							TypeName:   "Admin",
+							FieldNames: []string{"id", "adminName", "title"},
+						},
 					},
-					{
-						TypeName:   "Admin",
-						FieldNames: []string{"id", "adminName", "title"},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "Admin",
+								SelectionSet: "id",
+							},
+						},
 					},
 				},
-				Custom: ConfigJson(Configuration{
+				Configuration{
 					Fetch: FetchConfiguration{
 						URL: "http://second.service",
 					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: secondSubgraphSDL,
-					},
-					UpstreamSchema: secondSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							SelectionSet: "id",
-						},
-						{
-							TypeName:     "Admin",
-							SelectionSet: "id",
-						},
-					},
+					SchemaConfiguration: secondSchemaConfiguration,
 				},
-			}
+			)
 
 			planConfiguration := plan.Configuration{
-				DataSources: []plan.DataSourceConfiguration{
+				DataSources: []plan.DataSource{
 					firstDatasourceConfiguration,
 					secondDatasourceConfiguration,
 				},
@@ -3117,59 +3201,66 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"accounts", "nodes"},
+			firstSchemaConfiguration, _ := NewSchemaConfiguration(
+				firstSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: firstSubgraphSDL,
+				},
+			)
+
+			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"first-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"accounts", "nodes"},
+						},
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id"},
+						},
+						{
+							TypeName:   "Admin",
+							FieldNames: []string{"adminID", "title"},
+						},
+						{
+							TypeName:   "Moderator",
+							FieldNames: []string{"moderatorID"},
+						},
 					},
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id"},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Node",
+							FieldNames: []string{"title"},
+						},
 					},
-					{
-						TypeName:   "Admin",
-						FieldNames: []string{"adminID", "title"},
-					},
-					{
-						TypeName:   "Moderator",
-						FieldNames: []string{"moderatorID"},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "Admin",
+								SelectionSet: "adminID",
+							},
+							{
+								TypeName:     "Moderator",
+								SelectionSet: "moderatorID",
+							},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Node",
-						FieldNames: []string{"title"},
-					},
-				},
-				Custom: ConfigJson(Configuration{
+				Configuration{
 					Fetch: FetchConfiguration{
 						URL: "http://first.service",
 					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: firstSubgraphSDL,
-					},
-					UpstreamSchema: firstSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							SelectionSet: "id",
-						},
-						{
-							TypeName:     "Admin",
-							SelectionSet: "adminID",
-						},
-						{
-							TypeName:     "Moderator",
-							SelectionSet: "moderatorID",
-						},
-					},
+					SchemaConfiguration: firstSchemaConfiguration,
 				},
-			}
+			)
 
 			secondSubgraphSDL := `
 				type User @key(fields: "id") {
@@ -3183,41 +3274,49 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					adminName: String!
 				}
 			`
-			secondDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "name", "title"},
+
+			secondSchemaConfiguration, _ := NewSchemaConfiguration(
+				secondSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: secondSubgraphSDL,
+				},
+			)
+
+			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"second-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "name", "title"},
+						},
+						{
+							TypeName:   "Admin",
+							FieldNames: []string{"adminID", "adminName"},
+						},
 					},
-					{
-						TypeName:   "Admin",
-						FieldNames: []string{"adminID", "adminName"},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "Admin",
+								SelectionSet: "adminID",
+							},
+						},
 					},
 				},
-				Custom: ConfigJson(Configuration{
+				Configuration{
 					Fetch: FetchConfiguration{
 						URL: "http://second.service",
 					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: secondSubgraphSDL,
-					},
-					UpstreamSchema: secondSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							SelectionSet: "id",
-						},
-						{
-							TypeName:     "Admin",
-							SelectionSet: "adminID",
-						},
-					},
+					SchemaConfiguration: secondSchemaConfiguration,
 				},
-			}
+			)
 
 			thirdSubgraphSDL := `
 				type Moderator @key(fields: "moderatorID") {
@@ -3226,36 +3325,44 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					title: String!
 				}
 			`
-			thirdDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Moderator",
-						FieldNames: []string{"moderatorID", "subject", "title"},
-					},
+
+			thirdSchemaConfiguration, _ := NewSchemaConfiguration(
+				thirdSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: thirdSubgraphSDL,
 				},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://third.service",
-					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: thirdSubgraphSDL,
-					},
-					UpstreamSchema: thirdSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
+			)
+
+			thirdDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"third-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
 						{
-							TypeName:     "Moderator",
-							SelectionSet: "moderatorID",
+							TypeName:   "Moderator",
+							FieldNames: []string{"moderatorID", "subject", "title"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "Moderator",
+								SelectionSet: "moderatorID",
+							},
 						},
 					},
 				},
-			}
+				Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://third.service",
+					},
+					SchemaConfiguration: thirdSchemaConfiguration,
+				},
+			)
 
 			planConfiguration := plan.Configuration{
-				DataSources: []plan.DataSourceConfiguration{
+				DataSources: []plan.DataSource{
 					firstDatasourceConfiguration,
 					secondDatasourceConfiguration,
 					thirdDatasourceConfiguration,
@@ -3583,37 +3690,44 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"user"},
-					},
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id"},
-					},
+			firstSchemaConfiguration, _ := NewSchemaConfiguration(
+				firstSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: firstSubgraphSDL,
 				},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://first.service",
-					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: firstSubgraphSDL,
-					},
-					UpstreamSchema: firstSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
+			)
+
+			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"first-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
 						{
-							TypeName:     "User",
-							SelectionSet: "id",
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
 						},
 					},
 				},
-			}
+				Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://first.service",
+					},
+					SchemaConfiguration: firstSchemaConfiguration,
+				},
+			)
 
 			secondSubgraphSDL := `
 				type User @key(fields: "id") @key(fields: "uuid") {
@@ -3622,37 +3736,44 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					name: String!
 				}
 			`
-			secondDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "uuid", "name"},
+			secondSchemaConfiguration, _ := NewSchemaConfiguration(
+				secondSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: secondSubgraphSDL,
+				},
+			)
+
+			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"second-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "uuid", "name"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "User",
+								SelectionSet: "uuid",
+							},
+						},
 					},
 				},
-				Custom: ConfigJson(Configuration{
+				Configuration{
 					Fetch: FetchConfiguration{
 						URL: "http://second.service",
 					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: secondSubgraphSDL,
-					},
-					UpstreamSchema: secondSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							SelectionSet: "id",
-						},
-						{
-							TypeName:     "User",
-							SelectionSet: "uuid",
-						},
-					},
+					SchemaConfiguration: secondSchemaConfiguration,
 				},
-			}
+			)
 
 			thirdSubgraphSDL := `
 				type User @key(fields: "uuid") {
@@ -3660,33 +3781,41 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					title: String!
 				}
 			`
-			thirdDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"uuid", "title"},
-					},
+
+			thirdSchemaConfiguration, _ := NewSchemaConfiguration(
+				thirdSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: thirdSubgraphSDL,
 				},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://third.service",
-					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: thirdSubgraphSDL,
-					},
-					UpstreamSchema: thirdSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
+			)
+
+			thirdDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"third-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
 						{
-							TypeName:     "User",
-							SelectionSet: "uuid",
+							TypeName:   "User",
+							FieldNames: []string{"uuid", "title"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "uuid",
+							},
 						},
 					},
 				},
-			}
+				Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://third.service",
+					},
+					SchemaConfiguration: thirdSchemaConfiguration,
+				},
+			)
 
 			fourthSubgraphSDL := `
 				type User @key(fields: "id") {
@@ -3698,42 +3827,51 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					country: String!
 				}
 			`
-			fourthDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "address"},
-					},
+
+			fourthSchemaConfiguration, _ := NewSchemaConfiguration(
+				fourthSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: fourthSubgraphSDL,
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Address",
-						FieldNames: []string{"country"},
-					},
-				},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://fourth.service",
-					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: fourthSubgraphSDL,
-					},
-					UpstreamSchema: fourthSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
+			)
+
+			fourthDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"fourth-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+
+					RootNodes: []plan.TypeField{
 						{
-							TypeName:     "User",
-							SelectionSet: "id",
+							TypeName:   "User",
+							FieldNames: []string{"id", "address"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Address",
+							FieldNames: []string{"country"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
 						},
 					},
 				},
-			}
+				Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://fourth.service",
+					},
+					SchemaConfiguration: fourthSchemaConfiguration,
+				},
+			)
 
 			planConfiguration := plan.Configuration{
-				DataSources: []plan.DataSourceConfiguration{
+				DataSources: []plan.DataSource{
 					firstDatasourceConfiguration,
 					secondDatasourceConfiguration,
 					thirdDatasourceConfiguration,
@@ -3964,37 +4102,44 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"user"},
-					},
-					{
-						TypeName:   "User",
-						FieldNames: []string{"key1", "field1"},
-					},
+			firstSchemaConfiguration, _ := NewSchemaConfiguration(
+				firstSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: firstSubgraphSDL,
 				},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://first.service",
-					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: firstSubgraphSDL,
-					},
-					UpstreamSchema: firstSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
+			)
+
+			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"first-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
 						{
-							TypeName:     "User",
-							SelectionSet: "key1",
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+						{
+							TypeName:   "User",
+							FieldNames: []string{"key1", "field1"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "key1",
+							},
 						},
 					},
 				},
-			}
+				Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://first.service",
+					},
+					SchemaConfiguration: firstSchemaConfiguration,
+				},
+			)
 
 			secondSubgraphSDL := `
 				type User @key(fields: "key1") @key(fields: "key2") {
@@ -4003,37 +4148,45 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					field2: String!
 				}
 			`
-			secondDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"key1", "key2", "field2"},
+
+			secondSchemaConfiguration, _ := NewSchemaConfiguration(
+				secondSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: secondSubgraphSDL,
+				},
+			)
+
+			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"second-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"key1", "key2", "field2"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "key1",
+							},
+							{
+								TypeName:     "User",
+								SelectionSet: "key2",
+							},
+						},
 					},
 				},
-				Custom: ConfigJson(Configuration{
+				Configuration{
 					Fetch: FetchConfiguration{
 						URL: "http://second.service",
 					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: secondSubgraphSDL,
-					},
-					UpstreamSchema: secondSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							SelectionSet: "key1",
-						},
-						{
-							TypeName:     "User",
-							SelectionSet: "key2",
-						},
-					},
+					SchemaConfiguration: secondSchemaConfiguration,
 				},
-			}
+			)
 
 			thirdSubgraphSDL := `
 				type User @key(fields: "key2") @key(fields: "key3") {
@@ -4042,37 +4195,45 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					field3: String!
 				}
 			`
-			thirdDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"key2", "key3", "field3"},
+
+			thirdSchemaConfiguration, _ := NewSchemaConfiguration(
+				thirdSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: thirdSubgraphSDL,
+				},
+			)
+
+			thirdDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"third-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"key2", "key3", "field3"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "key2",
+							},
+							{
+								TypeName:     "User",
+								SelectionSet: "key3",
+							},
+						},
 					},
 				},
-				Custom: ConfigJson(Configuration{
+				Configuration{
 					Fetch: FetchConfiguration{
 						URL: "http://third.service",
 					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: thirdSubgraphSDL,
-					},
-					UpstreamSchema: thirdSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							SelectionSet: "key2",
-						},
-						{
-							TypeName:     "User",
-							SelectionSet: "key3",
-						},
-					},
+					SchemaConfiguration: thirdSchemaConfiguration,
 				},
-			}
+			)
 
 			fourthSubgraphSDL := `
 				type User @key(fields: "key3") {
@@ -4080,35 +4241,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					field4: String!
 				}
 			`
-			fourthDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"key3", "field4"},
-					},
+
+			fourthSchemaConfiguration, _ := NewSchemaConfiguration(
+				fourthSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: fourthSubgraphSDL,
 				},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://fourth.service",
-					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: fourthSubgraphSDL,
-					},
-					UpstreamSchema: fourthSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
+			)
+
+			fourthDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"fourth-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
 						{
-							TypeName:     "User",
-							SelectionSet: "key3",
+							TypeName:   "User",
+							FieldNames: []string{"key3", "field4"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "key3",
+							},
 						},
 					},
 				},
-			}
+				Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://fourth.service",
+					},
+					SchemaConfiguration: fourthSchemaConfiguration,
+				},
+			)
 
-			dataSources := []plan.DataSourceConfiguration{
+			dataSources := []plan.DataSource{
 				firstDatasourceConfiguration,
 				secondDatasourceConfiguration,
 				thirdDatasourceConfiguration,
@@ -4529,37 +4698,44 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"user"},
-					},
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "title"},
-					},
+			firstSchemaConfiguration, _ := NewSchemaConfiguration(
+				firstSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: firstSubgraphSDL,
 				},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://first.service",
-					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: firstSubgraphSDL,
-					},
-					UpstreamSchema: firstSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
+			)
+
+			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"first-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
 						{
-							TypeName:     "User",
-							SelectionSet: "id",
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "title"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
 						},
 					},
 				},
-			}
+				Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://first.service",
+					},
+					SchemaConfiguration: firstSchemaConfiguration,
+				},
+			)
 
 			secondSubgraphSDL := `
 				type User @key(fields: "id" resolvable: false) {
@@ -4571,38 +4747,46 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					userWithName: User
 				}
 			`
-			secondDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "name"},
-					},
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"userWithName"},
-					},
+
+			secondSchemaConfiguration, _ := NewSchemaConfiguration(
+				secondSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: secondSubgraphSDL,
 				},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://second.service",
-					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: secondSubgraphSDL,
-					},
-					UpstreamSchema: secondSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
+			)
+
+			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"second-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
 						{
-							TypeName:              "User",
-							SelectionSet:          "id",
-							DisableEntityResolver: true,
+							TypeName:   "User",
+							FieldNames: []string{"id", "name"},
+						},
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"userWithName"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:              "User",
+								SelectionSet:          "id",
+								DisableEntityResolver: true,
+							},
 						},
 					},
 				},
-			}
+				Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://second.service",
+					},
+					SchemaConfiguration: secondSchemaConfiguration,
+				},
+			)
 
 			thirdSubgraphSDL := `
 				type User @key(fields: "id") {
@@ -4610,36 +4794,44 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					name: String!
 				}
 			`
-			thirdDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "name"},
-					},
+
+			thirdSchemaConfiguration, _ := NewSchemaConfiguration(
+				thirdSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: thirdSubgraphSDL,
 				},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://third.service",
-					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: thirdSubgraphSDL,
-					},
-					UpstreamSchema: thirdSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
+			)
+
+			thirdDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"third-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
 						{
-							TypeName:     "User",
-							SelectionSet: "id",
+							TypeName:   "User",
+							FieldNames: []string{"id", "name"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
 						},
 					},
 				},
-			}
+				Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://third.service",
+					},
+					SchemaConfiguration: thirdSchemaConfiguration,
+				},
+			)
 
 			planConfiguration := plan.Configuration{
-				DataSources: []plan.DataSourceConfiguration{
+				DataSources: []plan.DataSource{
 					firstDatasourceConfiguration,
 					secondDatasourceConfiguration,
 					thirdDatasourceConfiguration,
@@ -4851,38 +5043,45 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"entity"},
-					},
-					{
-						TypeName:   "Entity",
-						FieldNames: []string{"id", "name"},
-					},
+			firstSchemaConfiguration, _ := NewSchemaConfiguration(
+				firstSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: firstSubgraphSDL,
 				},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://first.service",
-					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: firstSubgraphSDL,
-					},
-					UpstreamSchema: firstSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
+			)
+
+			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"first-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
 						{
-							TypeName:              "Entity",
-							SelectionSet:          "id",
-							DisableEntityResolver: true,
+							TypeName:   "Query",
+							FieldNames: []string{"entity"},
+						},
+						{
+							TypeName:   "Entity",
+							FieldNames: []string{"id", "name"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:              "Entity",
+								SelectionSet:          "id",
+								DisableEntityResolver: true,
+							},
 						},
 					},
 				},
-			}
+				Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://first.service",
+					},
+					SchemaConfiguration: firstSchemaConfiguration,
+				},
+			)
 
 			secondSubgraphSDL := `
 				type Entity @key(fields: "id") {
@@ -4890,36 +5089,44 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					age: Int!
 				}
 			`
-			secondDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Entity",
-						FieldNames: []string{"id", "age"},
-					},
+
+			secondSchemaConfiguration, _ := NewSchemaConfiguration(
+				secondSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: secondSubgraphSDL,
 				},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://second.service",
-					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: secondSubgraphSDL,
-					},
-					UpstreamSchema: secondSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
+			)
+
+			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"second-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
 						{
-							TypeName:     "Entity",
-							SelectionSet: "id",
+							TypeName:   "Entity",
+							FieldNames: []string{"id", "age"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "Entity",
+								SelectionSet: "id",
+							},
 						},
 					},
 				},
-			}
+				Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://second.service",
+					},
+					SchemaConfiguration: secondSchemaConfiguration,
+				},
+			)
 
 			planConfiguration := plan.Configuration{
-				DataSources: []plan.DataSourceConfiguration{
+				DataSources: []plan.DataSource{
 					firstDatasourceConfiguration,
 					secondDatasourceConfiguration,
 				},
@@ -5051,43 +5258,50 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"entity"},
+			firstSchemaConfiguration, _ := NewSchemaConfiguration(
+				firstSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: firstSubgraphSDL,
+				},
+			)
+
+			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"first-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"entity"},
+						},
+						{
+							TypeName:   "Entity",
+							FieldNames: []string{"id", "name", "isEntity"},
+						},
 					},
-					{
-						TypeName:   "Entity",
-						FieldNames: []string{"id", "name", "isEntity"},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:              "Entity",
+								SelectionSet:          "id",
+								DisableEntityResolver: true,
+							},
+							{
+								TypeName:              "Entity",
+								SelectionSet:          "name",
+								DisableEntityResolver: true,
+							},
+						},
 					},
 				},
-				Custom: ConfigJson(Configuration{
+				Configuration{
 					Fetch: FetchConfiguration{
 						URL: "http://first.service",
 					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: firstSubgraphSDL,
-					},
-					UpstreamSchema: firstSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:              "Entity",
-							SelectionSet:          "id",
-							DisableEntityResolver: true,
-						},
-						{
-							TypeName:              "Entity",
-							SelectionSet:          "name",
-							DisableEntityResolver: true,
-						},
-					},
+					SchemaConfiguration: firstSchemaConfiguration,
 				},
-			}
+			)
 
 			secondSubgraphSDL := `
 				type Entity @key(fields: "id") @key(fields: "name") {
@@ -5096,40 +5310,48 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					age: Int!
 				}
 			`
-			secondDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Entity",
-						FieldNames: []string{"id", "name", "age"},
+
+			secondSchemaConfiguration, _ := NewSchemaConfiguration(
+				secondSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: secondSubgraphSDL,
+				},
+			)
+
+			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"second-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Entity",
+							FieldNames: []string{"id", "name", "age"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "Entity",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "Entity",
+								SelectionSet: "name",
+							},
+						},
 					},
 				},
-				Custom: ConfigJson(Configuration{
+				Configuration{
 					Fetch: FetchConfiguration{
 						URL: "http://second.service",
 					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: secondSubgraphSDL,
-					},
-					UpstreamSchema: secondSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "Entity",
-							SelectionSet: "id",
-						},
-						{
-							TypeName:     "Entity",
-							SelectionSet: "name",
-						},
-					},
+					SchemaConfiguration: secondSchemaConfiguration,
 				},
-			}
+			)
 
 			planConfiguration := plan.Configuration{
-				DataSources: []plan.DataSourceConfiguration{
+				DataSources: []plan.DataSource{
 					firstDatasourceConfiguration,
 					secondDatasourceConfiguration,
 				},
@@ -5274,47 +5496,54 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"entityOne"},
+			firstSchemaConfiguration, _ := NewSchemaConfiguration(
+				firstSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: firstSubgraphSDL,
+				},
+			)
+
+			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"first-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"entityOne"},
+						},
+						{
+							TypeName:   "Entity",
+							FieldNames: []string{"id", "uuid", "name", "isEntity"},
+						},
 					},
-					{
-						TypeName:   "Entity",
-						FieldNames: []string{"id", "uuid", "name", "isEntity"},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "Entity",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:              "Entity",
+								SelectionSet:          "name",
+								DisableEntityResolver: true,
+							},
+							{
+								TypeName:              "Entity",
+								SelectionSet:          "uuid",
+								DisableEntityResolver: true,
+							},
+						},
 					},
 				},
-				Custom: ConfigJson(Configuration{
+				Configuration{
 					Fetch: FetchConfiguration{
 						URL: "http://first.service",
 					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: firstSubgraphSDL,
-					},
-					UpstreamSchema: firstSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "Entity",
-							SelectionSet: "id",
-						},
-						{
-							TypeName:              "Entity",
-							SelectionSet:          "name",
-							DisableEntityResolver: true,
-						},
-						{
-							TypeName:              "Entity",
-							SelectionSet:          "uuid",
-							DisableEntityResolver: true,
-						},
-					},
+					SchemaConfiguration: firstSchemaConfiguration,
 				},
-			}
+			)
 
 			secondSubgraphSDL := `
 				type Query {
@@ -5329,47 +5558,54 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					rating: Float!
 				}
 			`
-			secondDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"entityTwo"},
+			secondSchemaConfiguration, _ := NewSchemaConfiguration(
+				secondSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: secondSubgraphSDL,
+				},
+			)
+
+			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"second-service",
+				federationFactory,
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"entityTwo"},
+						},
+						{
+							TypeName:   "Entity",
+							FieldNames: []string{"id", "uuid", "name", "age", "rating"},
+						},
 					},
-					{
-						TypeName:   "Entity",
-						FieldNames: []string{"id", "uuid", "name", "age", "rating"},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:              "Entity",
+								SelectionSet:          "id",
+								DisableEntityResolver: true,
+							},
+							{
+								TypeName:              "Entity",
+								SelectionSet:          "name",
+								DisableEntityResolver: true,
+							},
+							{
+								TypeName:     "Entity",
+								SelectionSet: "uuid",
+							},
+						},
 					},
 				},
-				Custom: ConfigJson(Configuration{
+				Configuration{
 					Fetch: FetchConfiguration{
 						URL: "http://second.service",
 					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: secondSubgraphSDL,
-					},
-					UpstreamSchema: secondSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:              "Entity",
-							SelectionSet:          "id",
-							DisableEntityResolver: true,
-						},
-						{
-							TypeName:              "Entity",
-							SelectionSet:          "name",
-							DisableEntityResolver: true,
-						},
-						{
-							TypeName:     "Entity",
-							SelectionSet: "uuid",
-						},
-					},
+					SchemaConfiguration: secondSchemaConfiguration,
 				},
-			}
+			)
 
 			thirdSubgraphSDL := `
 				type Query {
@@ -5384,8 +5620,19 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					isImportant: Boolean!
 				}
 			`
-			thirdDatasourceConfiguration := plan.DataSourceConfiguration{
-				RootNodes: []plan.TypeField{
+
+			thirdSchemaConfiguration, _ := NewSchemaConfiguration(
+				thirdSubgraphSDL,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: thirdSubgraphSDL,
+				},
+			)
+
+			thirdDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+				"third-service",
+				federationFactory,
+				&plan.DataSourceMetadata{RootNodes: []plan.TypeField{
 					{
 						TypeName:   "Query",
 						FieldNames: []string{"entityThree"},
@@ -5395,39 +5642,35 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						FieldNames: []string{"id", "uuid", "name", "age", "isImportant"},
 					},
 				},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://third.service",
-					},
-					Federation: FederationConfiguration{
-						Enabled:    true,
-						ServiceSDL: thirdSubgraphSDL,
-					},
-					UpstreamSchema: thirdSubgraphSDL,
-				}),
-				Factory: federationFactory,
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:              "Entity",
-							SelectionSet:          "id",
-							DisableEntityResolver: true,
-						},
-						{
-							TypeName:     "Entity",
-							SelectionSet: "name",
-						},
-						{
-							TypeName:              "Entity",
-							SelectionSet:          "uuid",
-							DisableEntityResolver: true,
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:              "Entity",
+								SelectionSet:          "id",
+								DisableEntityResolver: true,
+							},
+							{
+								TypeName:     "Entity",
+								SelectionSet: "name",
+							},
+							{
+								TypeName:              "Entity",
+								SelectionSet:          "uuid",
+								DisableEntityResolver: true,
+							},
 						},
 					},
 				},
-			}
+				Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://third.service",
+					},
+					SchemaConfiguration: thirdSchemaConfiguration,
+				},
+			)
 
 			planConfiguration := plan.Configuration{
-				DataSources: []plan.DataSourceConfiguration{
+				DataSources: []plan.DataSource{
 					firstDatasourceConfiguration,
 					secondDatasourceConfiguration,
 					thirdDatasourceConfiguration,

@@ -11,14 +11,14 @@ import (
 )
 
 func TestBuildRepresentationVariableNode(t *testing.T) {
-	runTest := func(t *testing.T, definitionStr, keyStr string, dsConfig plan.DataSourceConfiguration, expectedNode resolve.Node) {
+	runTest := func(t *testing.T, definitionStr, keyStr string, federationMeta plan.FederationMetaData, expectedNode resolve.Node) {
 		definition, _ := astparser.ParseGraphqlDocumentString(definitionStr)
 		cfg := plan.FederationFieldConfiguration{
 			TypeName:     "User",
 			SelectionSet: keyStr,
 		}
 
-		node, err := buildRepresentationVariableNode(&definition, cfg, dsConfig)
+		node, err := buildRepresentationVariableNode(&definition, cfg, federationMeta)
 		require.NoError(t, err)
 
 		require.Equal(t, expectedNode, node)
@@ -34,7 +34,7 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 			}
 		`,
 			`id name`,
-			plan.DataSourceConfiguration{},
+			plan.FederationMetaData{},
 			&resolve.Object{
 				Nullable: true,
 				Fields: []*resolve.Field{
@@ -73,13 +73,11 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 			}
 		`,
 			`id name`,
-			plan.DataSourceConfiguration{
-				FederationMetaData: plan.FederationMetaData{
-					InterfaceObjects: []plan.EntityInterfaceConfiguration{
-						{
-							InterfaceTypeName: "Account",
-							ConcreteTypeNames: []string{"User", "Admin"},
-						},
+			plan.FederationMetaData{
+				InterfaceObjects: []plan.EntityInterfaceConfiguration{
+					{
+						InterfaceTypeName: "Account",
+						ConcreteTypeNames: []string{"User", "Admin"},
 					},
 				},
 			},
@@ -135,7 +133,7 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 				
 		`,
 			`id name account { accoundID address(home: true) { zip } }`,
-			plan.DataSourceConfiguration{},
+			plan.FederationMetaData{},
 			&resolve.Object{
 				Nullable: true,
 				Fields: []*resolve.Field{

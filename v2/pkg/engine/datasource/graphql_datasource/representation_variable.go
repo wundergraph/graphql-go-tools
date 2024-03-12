@@ -16,7 +16,7 @@ type objectFields struct {
 	fields     *[]*resolve.Field
 }
 
-func buildRepresentationVariableNode(definition *ast.Document, cfg plan.FederationFieldConfiguration, federationCfg *plan.FederationMetaData) (*resolve.Object, error) {
+func buildRepresentationVariableNode(definition *ast.Document, cfg plan.FederationFieldConfiguration, federationCfg plan.FederationMetaData) (*resolve.Object, error) {
 	key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, false)
 	if report.HasErrors() {
 		return nil, report
