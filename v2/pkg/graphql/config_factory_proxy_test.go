@@ -65,43 +65,47 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 			WithProxyHttpClient(client),
 			WithProxyStreamingClient(streamingClient),
 			WithProxySubscriptionClientFactory(&MockSubscriptionClientFactory{}),
+			WithDataSourceID("some"),
 		)
 		config, err := configFactory.EngineV2Configuration()
 		if !assert.NoError(t, err) {
 			return
 		}
 
-		expectedDataSource := plan.DataSourceConfiguration{
-			RootNodes: []plan.TypeField{
-				{
-					TypeName:   "Query",
-					FieldNames: []string{"me", "_entities"},
-				},
-				{
-					TypeName:   "Mutation",
-					FieldNames: []string{"addUser"},
-				},
-				{
-					TypeName:   "Subscription",
-					FieldNames: []string{"userCount"},
-				},
-			},
-			ChildNodes: []plan.TypeField{
-				{
-					TypeName:   "User",
-					FieldNames: []string{"id", "name", "age", "language"},
-				},
-				{
-					TypeName:   "Language",
-					FieldNames: []string{"code", "name"},
-				},
-			},
-			Factory: &graphqlDataSource.Factory{
+		expectedDataSource := plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
+			"some",
+			&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
 				HTTPClient:         client,
 				StreamingClient:    streamingClient,
 				SubscriptionClient: mockSubscriptionClient,
 			},
-			Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"me", "_entities"},
+					},
+					{
+						TypeName:   "Mutation",
+						FieldNames: []string{"addUser"},
+					},
+					{
+						TypeName:   "Subscription",
+						FieldNames: []string{"userCount"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "name", "age", "language"},
+					},
+					{
+						TypeName:   "Language",
+						FieldNames: []string{"code", "name"},
+					},
+				},
+			},
+			graphqlDataSource.Configuration{
 				Fetch: graphqlDataSource.FetchConfiguration{
 					URL:    "http://localhost:8080",
 					Method: "GET",
@@ -113,8 +117,8 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 					URL:    "http://localhost:8080",
 					UseSSE: false,
 				},
-			}),
-		}
+			},
+		)
 
 		expectedConfig := NewEngineV2Configuration(schema)
 		expectedConfig.AddDataSource(expectedDataSource)
@@ -140,43 +144,47 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 			WithProxyHttpClient(client),
 			WithProxyStreamingClient(streamingClient),
 			WithProxySubscriptionClientFactory(&MockSubscriptionClientFactory{}),
+			WithDataSourceID("some"),
 		)
 		config, err := configFactory.EngineV2Configuration()
 		if !assert.NoError(t, err) {
 			return
 		}
 
-		expectedDataSource := plan.DataSourceConfiguration{
-			RootNodes: []plan.TypeField{
-				{
-					TypeName:   "Query",
-					FieldNames: []string{"me", "_entities"},
-				},
-				{
-					TypeName:   "Mutation",
-					FieldNames: []string{"addUser"},
-				},
-				{
-					TypeName:   "Subscription",
-					FieldNames: []string{"userCount"},
-				},
-			},
-			ChildNodes: []plan.TypeField{
-				{
-					TypeName:   "User",
-					FieldNames: []string{"id", "name", "age", "language"},
-				},
-				{
-					TypeName:   "Language",
-					FieldNames: []string{"code", "name"},
-				},
-			},
-			Factory: &graphqlDataSource.Factory{
+		expectedDataSource := plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
+			"some",
+			&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
 				HTTPClient:         client,
 				StreamingClient:    streamingClient,
 				SubscriptionClient: mockSubscriptionClient,
 			},
-			Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"me", "_entities"},
+					},
+					{
+						TypeName:   "Mutation",
+						FieldNames: []string{"addUser"},
+					},
+					{
+						TypeName:   "Subscription",
+						FieldNames: []string{"userCount"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "name", "age", "language"},
+					},
+					{
+						TypeName:   "Language",
+						FieldNames: []string{"code", "name"},
+					},
+				},
+			},
+			graphqlDataSource.Configuration{
 				Fetch: graphqlDataSource.FetchConfiguration{
 					URL:    "http://localhost:8080",
 					Method: "GET",
@@ -188,8 +196,8 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 					URL:    "http://localhost:8080",
 					UseSSE: false,
 				},
-			}),
-		}
+			},
+		)
 
 		expectedConfig := NewEngineV2Configuration(schema)
 		expectedConfig.AddDataSource(expectedDataSource)
@@ -215,43 +223,47 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 			WithProxyHttpClient(client),
 			WithProxyStreamingClient(streamingClient),
 			WithProxySubscriptionClientFactory(&MockSubscriptionClientFactory{}),
+			WithDataSourceID("some"),
 		)
 		config, err := configFactory.EngineV2Configuration()
 		if !assert.NoError(t, err) {
 			return
 		}
 
-		expectedDataSource := plan.DataSourceConfiguration{
-			RootNodes: []plan.TypeField{
-				{
-					TypeName:   "Query",
-					FieldNames: []string{"me", "_entities"},
-				},
-				{
-					TypeName:   "Mutation",
-					FieldNames: []string{"addUser"},
-				},
-				{
-					TypeName:   "Subscription",
-					FieldNames: []string{"userCount"},
-				},
-			},
-			ChildNodes: []plan.TypeField{
-				{
-					TypeName:   "User",
-					FieldNames: []string{"id", "name", "age", "language"},
-				},
-				{
-					TypeName:   "Language",
-					FieldNames: []string{"code", "name"},
-				},
-			},
-			Factory: &graphqlDataSource.Factory{
+		expectedDataSource := plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
+			"some",
+			&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
 				HTTPClient:         client,
 				StreamingClient:    streamingClient,
 				SubscriptionClient: mockSubscriptionClient,
 			},
-			Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"me", "_entities"},
+					},
+					{
+						TypeName:   "Mutation",
+						FieldNames: []string{"addUser"},
+					},
+					{
+						TypeName:   "Subscription",
+						FieldNames: []string{"userCount"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "name", "age", "language"},
+					},
+					{
+						TypeName:   "Language",
+						FieldNames: []string{"code", "name"},
+					},
+				},
+			},
+			graphqlDataSource.Configuration{
 				Fetch: graphqlDataSource.FetchConfiguration{
 					URL:    "http://localhost:8080",
 					Method: "GET",
@@ -263,8 +275,8 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 					URL:    "http://localhost:8080",
 					UseSSE: true,
 				},
-			}),
-		}
+			},
+		)
 
 		expectedConfig := NewEngineV2Configuration(schema)
 		expectedConfig.AddDataSource(expectedDataSource)

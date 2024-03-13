@@ -41,6 +41,11 @@ type DirectivesConfigurations interface {
 	DirectiveConfigurations() *DirectiveConfigurations
 }
 
+type NodesAccess interface {
+	ListRootNodes() TypeFields
+	ListChildNodes() TypeFields
+}
+
 type NodesInfo interface {
 	HasRootNode(typeName, fieldName string) bool
 	HasRootNodeWithTypename(typeName string) bool
@@ -66,6 +71,15 @@ func (d *DataSourceMetadata) HasChildNode(typeName, fieldName string) bool {
 
 func (d *DataSourceMetadata) HasChildNodeWithTypename(typeName string) bool {
 	return d.ChildNodes.HasNodeWithTypename(typeName)
+}
+
+func (d *DataSourceMetadata) ListRootNodes() TypeFields {
+	return d.RootNodes
+}
+
+func (d *DataSourceMetadata) ListChildNodes() TypeFields {
+	return d.ChildNodes
+
 }
 
 // dataSourceConfiguration is the configuration for a DataSource

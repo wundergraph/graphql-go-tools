@@ -27,7 +27,7 @@ func TestNewEngineV2Configuration(t *testing.T) {
 	})
 
 	t.Run("should successfully add a data source", func(t *testing.T) {
-		ds := plan.DataSourceConfiguration{Custom: []byte("1")}
+		ds := plan.NewDataSourceConfiguration[any]("1", nil, nil, []byte("1"))
 		engineConfig.AddDataSource(ds)
 
 		assert.Len(t, engineConfig.plannerConfig.DataSources, 1)
@@ -35,10 +35,10 @@ func TestNewEngineV2Configuration(t *testing.T) {
 	})
 
 	t.Run("should successfully set all data sources", func(t *testing.T) {
-		ds := []plan.DataSourceConfiguration{
-			{Custom: []byte("2")},
-			{Custom: []byte("3")},
-			{Custom: []byte("4")},
+		ds := []plan.DataSource{
+			plan.NewDataSourceConfiguration[any]("1", nil, nil, []byte("1")),
+			plan.NewDataSourceConfiguration[any]("2", nil, nil, []byte("2")),
+			plan.NewDataSourceConfiguration[any]("3", nil, nil, []byte("3")),
 		}
 		engineConfig.SetDataSources(ds)
 
@@ -110,22 +110,19 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 			},
 		}
 
-		expectedDataSourceFactory := &graphqlDataSource.Factory{
-			HTTPClient:         client,
-			StreamingClient:    streamingClient,
-			SubscriptionClient: mockSubscriptionClient,
-		}
-
 		dataSource, err := newGraphQLDataSourceV2Generator(&doc).Generate(
+			"test",
 			dataSourceConfig,
 			client,
 			WithDataSourceV2GeneratorSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
 		)
 		require.NoError(t, err)
 
-		assert.Equal(t, expectedRootNodes, dataSource.RootNodes)
-		assert.Equal(t, expectedChildNodes, dataSource.ChildNodes)
-		assert.Equal(t, expectedDataSourceFactory, dataSource.Factory)
+		ds, ok := dataSource.(plan.NodesAccess)
+		require.True(t, ok)
+
+		assert.Equal(t, expectedRootNodes, ds.ListRootNodes())
+		assert.Equal(t, expectedChildNodes, ds.ListChildNodes())
 	})
 
 	t.Run("with subscription configuration (SSE)", func(t *testing.T) {
@@ -142,13 +139,8 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 			},
 		}
 
-		expectedDataSourceFactory := &graphqlDataSource.Factory{
-			HTTPClient:         client,
-			StreamingClient:    streamingClient,
-			SubscriptionClient: mockSubscriptionClient,
-		}
-
 		dataSource, err := newGraphQLDataSourceV2Generator(&doc).Generate(
+			"test",
 			dataSourceConfig,
 			client,
 			WithDataSourceV2GeneratorSubscriptionConfiguration(streamingClient, SubscriptionTypeSSE),
@@ -156,9 +148,11 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		assert.Equal(t, expectedRootNodes, dataSource.RootNodes)
-		assert.Equal(t, expectedChildNodes, dataSource.ChildNodes)
-		assert.Equal(t, expectedDataSourceFactory, dataSource.Factory)
+		ds, ok := dataSource.(plan.NodesAccess)
+		require.True(t, ok)
+
+		assert.Equal(t, expectedRootNodes, ds.ListRootNodes())
+		assert.Equal(t, expectedChildNodes, ds.ListChildNodes())
 	})
 
 }

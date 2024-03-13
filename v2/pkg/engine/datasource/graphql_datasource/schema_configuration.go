@@ -12,6 +12,7 @@ import (
 
 type SchemaConfiguration interface {
 	UpstreamSchema() *ast.Document
+	FederationServiceSDL() string
 	IsFederationEnabled() bool
 }
 
@@ -28,6 +29,14 @@ type schemaConfiguration struct {
 
 func (c *schemaConfiguration) UpstreamSchema() *ast.Document {
 	return c.upstreamSchemaAst
+}
+
+func (c *schemaConfiguration) FederationServiceSDL() string {
+	if c.Federation == nil {
+		return ""
+	}
+
+	return c.Federation.ServiceSDL
 }
 
 func (c *schemaConfiguration) IsFederationEnabled() bool {

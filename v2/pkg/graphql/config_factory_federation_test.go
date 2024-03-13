@@ -18,7 +18,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 		t *testing.T,
 		httpClient *http.Client,
 		streamingClient *http.Client,
-		dataSourceConfigs []graphqlDataSource.Configuration,
+		dataSourceConfigs []DataSourceConfiguration,
 		baseSchema string,
 		expectedConfigFactory func(t *testing.T, baseSchema string) EngineV2Configuration,
 	) {
@@ -44,35 +44,56 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 	streamingClient := &http.Client{}
 
 	t.Run("should create engine V2 configuration", func(t *testing.T) {
-		runWithoutError(t, httpClient, streamingClient, []graphqlDataSource.Configuration{
+		runWithoutError(t, httpClient, streamingClient, []DataSourceConfiguration{
 			{
-				Fetch: graphqlDataSource.FetchConfiguration{
-					URL: "http://user.service",
-				},
-				Federation: graphqlDataSource.FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: accountSchema,
+				"users",
+				graphqlDataSource.Configuration{
+					Fetch: graphqlDataSource.FetchConfiguration{
+						URL: "http://user.service",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						&graphqlDataSource.FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: accountSchema,
+						},
+						accountSchema,
+					),
 				},
 			},
 			{
-				Fetch: graphqlDataSource.FetchConfiguration{
-					URL: "http://product.service",
-				},
-				Federation: graphqlDataSource.FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: productSchema,
+				"products",
+				graphqlDataSource.Configuration{
+					Fetch: graphqlDataSource.FetchConfiguration{
+						URL: "http://product.service",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						&graphqlDataSource.FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: productSchema,
+						},
+						productSchema,
+					),
 				},
 			},
 			{
-				Fetch: graphqlDataSource.FetchConfiguration{
-					URL: "http://review.service",
-				},
-				Federation: graphqlDataSource.FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: reviewSchema,
-				},
-				Subscription: graphqlDataSource.SubscriptionConfiguration{
-					UseSSE: true,
+				"reviews",
+				graphqlDataSource.Configuration{
+					Fetch: graphqlDataSource.FetchConfiguration{
+						URL: "http://review.service",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						&graphqlDataSource.FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: reviewSchema,
+						},
+						reviewSchema,
+					),
+					Subscription: graphqlDataSource.SubscriptionConfiguration{
+						UseSSE: true,
+					},
 				},
 			},
 		}, baseFederationSchema, func(t *testing.T, baseSchema string) EngineV2Configuration {
@@ -118,114 +139,136 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 				},
 			})
 
-			conf.SetDataSources([]plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"me"},
+			conf.SetDataSources([]plan.DataSource{
+				plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
+					"users",
+					&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
+						HTTPClient:         httpClient,
+						StreamingClient:    streamingClient,
+						SubscriptionClient: mockSubscriptionClient,
+					},
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"me"},
+							},
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id", "username"},
+							},
 						},
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "username"},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id", "username"},
+							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "username"},
-						},
-					},
-					Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{
+					graphqlDataSource.Configuration{
 						Fetch: graphqlDataSource.FetchConfiguration{
 							URL: "http://user.service",
 						},
-						Federation: graphqlDataSource.FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: accountSchema,
-						},
-					}),
-					Factory: &graphqlDataSource.Factory{
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							&graphqlDataSource.FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: accountSchema,
+							},
+							accountSchema,
+						),
+					},
+				),
+				plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
+					"products",
+					&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
 						HTTPClient:         httpClient,
 						StreamingClient:    streamingClient,
 						SubscriptionClient: mockSubscriptionClient,
 					},
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"topProducts"},
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"topProducts"},
+							},
+							{
+								TypeName:   "Product",
+								FieldNames: []string{"upc", "name", "price"},
+							},
 						},
-						{
-							TypeName:   "Product",
-							FieldNames: []string{"upc", "name", "price"},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Product",
+								FieldNames: []string{"upc", "name", "price"},
+							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Product",
-							FieldNames: []string{"upc", "name", "price"},
-						},
-					},
-					Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{
+					graphqlDataSource.Configuration{
 						Fetch: graphqlDataSource.FetchConfiguration{
 							URL: "http://product.service",
 						},
-						Federation: graphqlDataSource.FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: productSchema,
-						},
-					}),
-					Factory: &graphqlDataSource.Factory{
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							&graphqlDataSource.FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: productSchema,
+							},
+							productSchema,
+						),
+					},
+				),
+				plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
+					"reviews",
+					&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
 						HTTPClient:         httpClient,
 						StreamingClient:    streamingClient,
 						SubscriptionClient: mockSubscriptionClient,
 					},
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"reviews"},
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"reviews"},
+							},
+							{
+								TypeName:   "Product",
+								FieldNames: []string{"reviews"},
+							},
 						},
-						{
-							TypeName:   "Product",
-							FieldNames: []string{"reviews"},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Review",
+								FieldNames: []string{"body", "author", "product"},
+							},
+							{
+								TypeName:   "Product",
+								FieldNames: []string{"reviews", "upc"},
+							},
+							{
+								TypeName:   "User",
+								FieldNames: []string{"reviews", "id", "username"},
+							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Review",
-							FieldNames: []string{"body", "author", "product"},
-						},
-						{
-							TypeName:   "Product",
-							FieldNames: []string{"reviews", "upc"},
-						},
-						{
-							TypeName:   "User",
-							FieldNames: []string{"reviews", "id", "username"},
-						},
-					},
-					Factory: &graphqlDataSource.Factory{
-						HTTPClient:         httpClient,
-						StreamingClient:    streamingClient,
-						SubscriptionClient: mockSubscriptionClient,
-					},
-					Custom: graphqlDataSource.ConfigJson(graphqlDataSource.Configuration{
+
+					graphqlDataSource.Configuration{
 						Fetch: graphqlDataSource.FetchConfiguration{
 							URL: "http://review.service",
-						},
-						Federation: graphqlDataSource.FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: reviewSchema,
 						},
 						Subscription: graphqlDataSource.SubscriptionConfiguration{
 							UseSSE: true,
 						},
-					}),
-				},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							&graphqlDataSource.FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: reviewSchema,
+							},
+							reviewSchema,
+						),
+					},
+				),
 			})
 
 			return conf
