@@ -259,23 +259,29 @@ func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string
 	chatSchema, err := graphql.NewSchemaFromReader(bytes.NewBuffer(chatSchemaBytes))
 	require.NoError(t, err)
 
+	schemaConfiguration, err := graphql_datasource.NewSchemaConfiguration(string(chatSchemaBytes), nil)
+	require.NoError(t, err)
+
 	engineConf := graphql.NewEngineV2Configuration(chatSchema)
 	engineConf.SetWebsocketBeforeStartHook(onBeforeStartHook)
-	engineConf.SetDataSources([]plan.DataSourceConfiguration{
-		{
-			RootNodes: []plan.TypeField{
-				{TypeName: "Query", FieldNames: []string{"room"}},
-				{TypeName: "Mutation", FieldNames: []string{"post"}},
-				{TypeName: "Subscription", FieldNames: []string{"messageAdded"}},
-			},
-			ChildNodes: []plan.TypeField{
-				{TypeName: "Chatroom", FieldNames: []string{"name", "messages"}},
-				{TypeName: "Message", FieldNames: []string{"text", "createdBy"}},
-			},
-			Factory: &graphql_datasource.Factory{
+	engineConf.SetDataSources([]plan.DataSource{
+		plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+			"chat",
+			&graphql_datasource.Factory[graphql_datasource.Configuration]{
 				HTTPClient: httpclient.DefaultNetHttpClient,
 			},
-			Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Query", FieldNames: []string{"room"}},
+					{TypeName: "Mutation", FieldNames: []string{"post"}},
+					{TypeName: "Subscription", FieldNames: []string{"messageAdded"}},
+				},
+				ChildNodes: []plan.TypeField{
+					{TypeName: "Chatroom", FieldNames: []string{"name", "messages"}},
+					{TypeName: "Message", FieldNames: []string{"text", "createdBy"}},
+				},
+			},
+			graphql_datasource.Configuration{
 				Fetch: graphql_datasource.FetchConfiguration{
 					URL:    chatServerURL,
 					Method: http.MethodPost,
@@ -284,8 +290,9 @@ func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string
 				Subscription: graphql_datasource.SubscriptionConfiguration{
 					URL: chatServerURL,
 				},
-			}),
-		},
+				SchemaConfiguration: schemaConfiguration,
+			},
+		),
 	})
 	engineConf.SetFieldConfigurations([]plan.FieldConfiguration{
 		{
