@@ -24,7 +24,6 @@ type PlannerConfiguration interface {
 
 	ObjectFetchConfiguration() *objectFetchConfiguration
 	DataSourceConfiguration() DataSource
-	modifyObjectFetchConfiguration(func(o *objectFetchConfiguration))
 
 	RequiredFields() *FederationFieldConfigurations
 	ProvidedFields() *NodeSuggestions
@@ -78,10 +77,6 @@ func (p *plannerConfiguration[T]) ProvidedFields() *NodeSuggestions {
 
 func (p *plannerConfiguration[T]) RequiredFields() *FederationFieldConfigurations {
 	return &p.requiredFields
-}
-
-func (p *plannerConfiguration[T]) modifyObjectFetchConfiguration(f func(o *objectFetchConfiguration)) {
-	f(p.objectFetchConfiguration)
 }
 
 func (p *plannerConfiguration[T]) DataSourceConfiguration() DataSource {

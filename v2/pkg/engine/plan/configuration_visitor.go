@@ -395,13 +395,10 @@ func (c *configurationVisitor) addRootField(fieldRef, plannerIdx int) {
 		HasAuthorizationRule: fieldHasAuthorizationRule,
 	}
 
-	c.planners[plannerIdx].modifyObjectFetchConfiguration(func(cfg *objectFetchConfiguration) {
-		if slices.Contains(cfg.rootFields, coordinate) {
-			return
-		}
-
-		cfg.rootFields = append(cfg.rootFields, coordinate)
-	})
+	fetchConfiguration := c.planners[plannerIdx].ObjectFetchConfiguration()
+	if !slices.Contains(fetchConfiguration.rootFields, coordinate) {
+		fetchConfiguration.rootFields = append(fetchConfiguration.rootFields, coordinate)
+	}
 }
 
 func (c *configurationVisitor) fieldHasAuthorizationRule(typeName, fieldName string) bool {
@@ -425,22 +422,22 @@ func (c *configurationVisitor) addPlannerDependencies(fieldRef int, currentPlann
 	for _, notifyPlannerIdx := range plannerIds {
 		notified := false
 
-		c.planners[notifyPlannerIdx].modifyObjectFetchConfiguration(func(cfg *objectFetchConfiguration) {
-			for _, existingPlannerId := range cfg.dependsOnFetchIDs {
-				if existingPlannerId == currentPlannerIdx {
-					notified = true
-					break
-				}
-			}
-			if !notified {
-				if notifyPlannerIdx == currentPlannerIdx {
-					return
-					// c.walker.StopWithInternalErr(fmt.Errorf("wrong fetch dependencies planner %d depends on itself", notifyPlannerIdx))
-				}
+		fetchConfiguration := c.planners[notifyPlannerIdx].ObjectFetchConfiguration()
 
-				cfg.dependsOnFetchIDs = append(cfg.dependsOnFetchIDs, currentPlannerIdx)
+		for _, existingPlannerId := range fetchConfiguration.dependsOnFetchIDs {
+			if existingPlannerId == currentPlannerIdx {
+				notified = true
+				break
 			}
-		})
+		}
+		if !notified {
+			if notifyPlannerIdx == currentPlannerIdx {
+				return
+				// c.walker.StopWithInternalErr(fmt.Errorf("wrong fetch dependencies planner %d depends on itself", notifyPlannerIdx))
+			}
+
+			fetchConfiguration.dependsOnFetchIDs = append(fetchConfiguration.dependsOnFetchIDs, currentPlannerIdx)
+		}
 	}
 }
 
