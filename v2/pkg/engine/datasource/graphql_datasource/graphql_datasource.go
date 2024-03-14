@@ -88,7 +88,14 @@ type onTypeInlineFragment struct {
 }
 
 func (p *Planner[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
-	return Configuration(dataSourceConfig.CustomConfiguration()).SchemaConfiguration.UpstreamSchema(), true
+	cfg := Configuration(dataSourceConfig.CustomConfiguration())
+
+	schema, err := cfg.UpstreamSchema()
+	if err != nil {
+		return nil, false
+	}
+
+	return schema, true
 }
 
 func (p *Planner[T]) SetID(id int) {
@@ -142,7 +149,13 @@ func (p *Planner[T]) addDirectiveToNode(directiveRef int, node ast.Node) {
 		return
 	}
 	upstreamDirectiveName := p.dataSourceConfig.DirectiveConfigurations().RenameTypeNameOnMatchStr(directiveName)
-	if !p.config.SchemaConfiguration.UpstreamSchema().DirectiveIsAllowedOnNodeKind(upstreamDirectiveName, node.Kind, operationType) {
+
+	upstreamSchema, err := p.config.UpstreamSchema()
+	if err != nil {
+		p.stopWithError(failedToReadUpstreamSchemaErrMsg, err.Error())
+	}
+
+	if !upstreamSchema.DirectiveIsAllowedOnNodeKind(upstreamDirectiveName, node.Kind, operationType) {
 		return
 	}
 	upstreamDirective := p.visitor.Importer.ImportDirectiveWithRename(directiveRef, upstreamDirectiveName, p.visitor.Operation, p.upstreamOperation)
@@ -257,45 +270,6 @@ func (p *Planner[T]) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavio
 		OverrideFieldPathFromAlias: true,
 		IncludeTypeNameFields:      true,
 	}
-}
-
-type Configuration struct {
-	Fetch                  FetchConfiguration
-	Subscription           SubscriptionConfiguration
-	SchemaConfiguration    SchemaConfiguration
-	CustomScalarTypeFields []SingleTypeField
-}
-
-type SingleTypeField struct {
-	TypeName  string
-	FieldName string
-}
-
-func ConfigJson(config Configuration) json.RawMessage {
-	out, _ := json.Marshal(config)
-	return out
-}
-
-type SubscriptionConfiguration struct {
-	URL           string
-	UseSSE        bool
-	SSEMethodPost bool
-	// ForwardedClientHeaderNames indicates headers names that might be forwarded from the
-	// client to the upstream server. This is used to determine which connections
-	// can be multiplexed together, but the subscription engine does not forward
-	// these headers by itself.
-	ForwardedClientHeaderNames []string
-	// ForwardedClientHeaderRegularExpressions regular expressions that if matched to the header
-	// name might be forwarded from the client to the upstream server. This is used to determine
-	// which connections can be multiplexed together, but the subscription engine does not forward
-	// these headers by itself.
-	ForwardedClientHeaderRegularExpressions []*regexp.Regexp
-}
-
-type FetchConfiguration struct {
-	URL    string
-	Method string
-	Header http.Header
 }
 
 func (p *Planner[T]) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration[T], dataSourcePlannerConfiguration plan.DataSourcePlannerConfiguration) error {
@@ -1205,10 +1179,11 @@ func (p *Planner[T]) configureObjectFieldSource(upstreamFieldRef, downstreamFiel
 }
 
 const (
-	normalizationFailedErrMsg  = "upstream operation: normalization failed: %s"
-	printOperationFailedErrMsg = "upstream operation: failed to print: %s"
-	validationFailedErrMsg     = "upstream operation: validation failed: %s"
-	parseDocumentFailedErrMsg  = "upstream operation: parse %s failed"
+	normalizationFailedErrMsg        = "upstream operation: normalization failed: %s"
+	printOperationFailedErrMsg       = "upstream operation: failed to print: %s"
+	validationFailedErrMsg           = "upstream operation: validation failed: %s"
+	parseDocumentFailedErrMsg        = "upstream operation: parse %s failed"
+	failedToReadUpstreamSchemaErrMsg = "failed to read upstream schema: %s"
 )
 
 func (p *Planner[T]) debugPrintOperationOnEnter(kind ast.NodeKind, ref int) {
@@ -1329,7 +1304,12 @@ func (p *Planner[T]) printOperation() []byte {
 
 	// create empty operation and definition documents
 	operation := ast.NewSmallDocument()
-	definition := p.config.SchemaConfiguration.UpstreamSchema()
+	definition, err := p.config.UpstreamSchema()
+	if err != nil {
+		p.stopWithError(failedToReadUpstreamSchemaErrMsg, err.Error())
+		return nil
+	}
+
 	report := &operationreport.Report{}
 	operationParser := astparser.NewParser()
 

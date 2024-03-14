@@ -25,7 +25,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/subscriptiontesting"
 )
 
-func mustSchema(t *testing.T, federationConfiguration *FederationConfiguration, schema string) SchemaConfiguration {
+func mustSchema(t *testing.T, federationConfiguration *FederationConfiguration, schema string) *SchemaConfiguration {
 	t.Helper()
 	s, err := NewSchemaConfiguration(schema, federationConfiguration)
 	require.NoError(t, err)

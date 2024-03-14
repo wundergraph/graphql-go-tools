@@ -2,7 +2,6 @@ package plan
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/cespare/xxhash/v2"
 
@@ -12,14 +11,14 @@ import (
 
 type DSHash uint64
 
-type PlannerFactory[T any] interface {
+type PlannerFactory[DataSourceSpecificConfiguration any] interface {
 	// Planner should return the DataSourcePlanner
 	// closer is the closing channel for all stateful DataSources
 	// At runtime, the Execution Engine will be instantiated with one global resolve.Closer.
 	// Once the Closer gets closed, all stateful DataSources must close their connections and cleanup themselves.
 	// They can do so by starting a goroutine on instantiation time that blocking reads on the resolve.Closer.
 	// Once the Closer emits the close event, they have to terminate (e.g. close database connections).
-	Planner(ctx context.Context) DataSourcePlanner[T]
+	Planner(ctx context.Context) DataSourcePlanner[DataSourceSpecificConfiguration]
 }
 
 type DataSourceMetadata struct {
@@ -87,8 +86,7 @@ type dataSourceConfiguration[T any] struct {
 	*DataSourceMetadata                   // DataSourceMetadata is the information about root and child nodes and federation metadata if applicable
 	ID                  string            // ID is a unique identifier for the DataSource
 	Factory             PlannerFactory[T] // Factory is the factory for the creation of the concrete DataSourcePlanner
-	Custom              json.RawMessage
-	NewCustom           T // NewCustom is the datasource specific configuration
+	Custom              T                 // Custom is the datasource specific configuration
 
 	hash DSHash // hash is a unique hash for the dataSourceConfiguration used to match datasources
 }
@@ -98,7 +96,7 @@ func NewDataSourceConfiguration[T any](id string, factory PlannerFactory[T], met
 		ID:                 id,
 		Factory:            factory,
 		DataSourceMetadata: metadata,
-		NewCustom:          customConfig,
+		Custom:             customConfig,
 		hash:               DSHash(xxhash.Sum64([]byte(id))),
 	}
 }
@@ -119,7 +117,7 @@ type DataSource interface {
 }
 
 func (d *dataSourceConfiguration[T]) CustomConfiguration() T {
-	return d.NewCustom
+	return d.Custom
 }
 
 func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(ctx context.Context, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration) PlannerConfiguration {

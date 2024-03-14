@@ -203,15 +203,9 @@ func (p *plannerPathsConfiguration) RemovePath(path string) {
 		return
 	}
 
+	// NOTE: we do not remove item itself to preserve the correct slice indexes in an index map
 	p.paths[idx] = pathConfiguration{}
 	delete(p.index, path)
-
-	// for i := range p.paths {
-	// 	if p.paths[i].path == path {
-	// 		p.paths = append(p.paths[:i], p.paths[i+1:]...)
-	// 		return
-	// 	}
-	// }
 }
 
 func (p *plannerPathsConfiguration) HasParent(parent string) bool {
