@@ -6,7 +6,6 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"slices"
@@ -210,10 +209,6 @@ func redactHeaders(headers http.Header) http.Header {
 	return redactedHeaders
 }
 
-var (
-	ErrNonGraphQLResponse = errors.New("non-graphql response")
-)
-
 func respBodyReader(res *http.Response) (io.Reader, error) {
 	switch res.Header.Get(ContentEncodingHeader) {
 	case EncodingGzip:
@@ -223,16 +218,4 @@ func respBodyReader(res *http.Response) (io.Reader, error) {
 	default:
 		return res.Body, nil
 	}
-}
-
-// check if the response is application/json or application/graphql or application/graphql+json or application/json+graphql or application/graphql-response+json
-func responseIsGraphQL(res *http.Response) bool {
-	contentType := res.Header.Get(ContentTypeHeader)
-	if strings.Contains(contentType, "application/json") {
-		return true
-	}
-	if strings.Contains(contentType, "application/graphql") {
-		return true
-	}
-	return false
 }
