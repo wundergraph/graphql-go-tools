@@ -292,6 +292,10 @@ func (p *Planner[T]) Register(visitor *plan.Visitor, configuration plan.DataSour
 }
 
 func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
+	if p.config.fetch == nil {
+		p.stopWithError("fetch configuration is empty")
+	}
+
 	var input []byte
 	input = httpclient.SetInputBodyWithPath(input, p.upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
@@ -300,17 +304,13 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		input = httpclient.SetInputFlag(input, httpclient.UNNULL_VARIABLES)
 	}
 
-	header, err := json.Marshal(p.config.Fetch.Header)
+	header, err := json.Marshal(p.config.fetch.Header)
 	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
 		input = httpclient.SetInputHeader(input, header)
 	}
 
-	input = httpclient.SetInputURL(input, []byte(p.config.Fetch.URL))
-	if p.config.Fetch.Method == "" {
-		input = httpclient.SetInputMethod(input, []byte("POST"))
-	} else {
-		input = httpclient.SetInputMethod(input, []byte(p.config.Fetch.Method))
-	}
+	input = httpclient.SetInputURL(input, []byte(p.config.fetch.URL))
+	input = httpclient.SetInputMethod(input, []byte(p.config.fetch.Method))
 
 	postProcessing := DefaultPostProcessingConfiguration
 	if p.extractEntities {
@@ -348,23 +348,27 @@ func (p *Planner[T]) requiresEntityBatchFetch() bool {
 }
 
 func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
+	if p.config.subscription == nil {
+		p.stopWithError("subscription configuration is empty")
+	}
+
 	input := httpclient.SetInputBodyWithPath(nil, p.upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
-	input = httpclient.SetInputURL(input, []byte(p.config.Subscription.URL))
-	if p.config.Subscription.UseSSE {
+	input = httpclient.SetInputURL(input, []byte(p.config.subscription.URL))
+	if p.config.subscription.UseSSE {
 		input = httpclient.SetInputFlag(input, httpclient.USE_SSE)
-		if p.config.Subscription.SSEMethodPost {
+		if p.config.subscription.SSEMethodPost {
 			input = httpclient.SetInputFlag(input, httpclient.SSE_METHOD_POST)
 		}
 	}
 
-	header, err := json.Marshal(p.config.Fetch.Header)
+	header, err := json.Marshal(p.config.subscription.Header)
 	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
 		input = httpclient.SetInputHeader(input, header)
 	}
 
-	if len(p.config.Subscription.ForwardedClientHeaderNames) > 0 {
-		headers, err := json.Marshal(p.config.Subscription.ForwardedClientHeaderNames)
+	if len(p.config.subscription.ForwardedClientHeaderNames) > 0 {
+		headers, err := json.Marshal(p.config.subscription.ForwardedClientHeaderNames)
 		if err != nil {
 			// XXX: Since this is a very unlikely error, to avoid breaking
 			// the API we panic here
@@ -373,8 +377,8 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 		input = httpclient.SetForwardedClientHeaderNames(input, headers)
 	}
 
-	if len(p.config.Subscription.ForwardedClientHeaderRegularExpressions) > 0 {
-		headers, err := json.Marshal(p.config.Subscription.ForwardedClientHeaderRegularExpressions)
+	if len(p.config.subscription.ForwardedClientHeaderRegularExpressions) > 0 {
+		headers, err := json.Marshal(p.config.subscription.ForwardedClientHeaderRegularExpressions)
 		if err != nil {
 			// XXX: Since this is a very unlikely error, to avoid breaking
 			// the API we panic here
@@ -493,7 +497,7 @@ func (p *Planner[T]) EnterInlineFragment(ref int) {
 		return
 	}
 
-	if p.config.SchemaConfiguration.IsFederationEnabled() && !p.hasFederationRoot && p.isNestedRequest() {
+	if p.config.IsFederationEnabled() && !p.hasFederationRoot && p.isNestedRequest() {
 		// if we're inside the nested root of a federated abstract query,
 		// we're walking into the inline fragment as the root
 		// however, as we're already handling the inline fragment when we walk into the root field,
@@ -577,8 +581,8 @@ func (p *Planner[T]) EnterField(ref int) {
 	fieldName := p.visitor.Operation.FieldNameString(ref)
 	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(p.lastFieldEnclosingTypeName, fieldName)
 
-	for i := range p.config.CustomScalarTypeFields {
-		if p.config.CustomScalarTypeFields[i].TypeName == p.lastFieldEnclosingTypeName && p.config.CustomScalarTypeFields[i].FieldName == fieldName {
+	for i := range p.config.customScalarTypeFields {
+		if p.config.customScalarTypeFields[i].TypeName == p.lastFieldEnclosingTypeName && p.config.customScalarTypeFields[i].FieldName == fieldName {
 			p.insideCustomScalarField = true
 			p.customScalarFieldRef = ref
 			p.addFieldArguments(p.addCustomField(ref), ref, fieldConfiguration)
@@ -739,7 +743,7 @@ func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
 }
 
 func (p *Planner[T]) addRepresentationsQuery() {
-	isNestedFederationRequest := p.dataSourcePlannerConfig.IsNested && p.config.SchemaConfiguration.IsFederationEnabled() && p.dataSourcePlannerConfig.HasRequiredFields()
+	isNestedFederationRequest := p.dataSourcePlannerConfig.IsNested && p.config.IsFederationEnabled() && p.dataSourcePlannerConfig.HasRequiredFields()
 
 	if !isNestedFederationRequest {
 		return
@@ -1240,7 +1244,7 @@ func (p *Planner[T]) DebugPrint(args ...interface{}) {
 }
 
 func (p *Planner[T]) debugPrintln(args ...interface{}) {
-	allArgs := []interface{}{fmt.Sprintf("[id: %d] [ds_hash: %d url: %s] ", p.id, p.dataSourceConfig.Hash(), p.config.Fetch.URL)}
+	allArgs := []interface{}{fmt.Sprintf("[id: %d] [ds_hash: %d url: %s] ", p.id, p.dataSourceConfig.Hash(), p.config.fetch.URL)}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
 }
@@ -1426,7 +1430,7 @@ it might be the case that no FieldDefinition exists for the rewritten root field
 In that case, we transform the schema so that normalization and printing of the upstream Query succeeds.
 */
 func (p *Planner[T]) replaceQueryType(definition *ast.Document) {
-	if !p.dataSourcePlannerConfig.IsNested || p.config.SchemaConfiguration.IsFederationEnabled() {
+	if !p.dataSourcePlannerConfig.IsNested || p.config.IsFederationEnabled() {
 		return
 	}
 

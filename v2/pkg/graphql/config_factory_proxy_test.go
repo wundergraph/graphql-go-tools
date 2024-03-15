@@ -105,19 +105,23 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 					},
 				},
 			},
-			graphqlDataSource.Configuration{
-				Fetch: graphqlDataSource.FetchConfiguration{
+			mustConfiguration(t, graphqlDataSource.ConfigurationInput{
+				Fetch: &graphqlDataSource.FetchConfiguration{
 					URL:    "http://localhost:8080",
 					Method: "GET",
 					Header: map[string][]string{
 						"Authorization": {"123abc"},
 					},
 				},
-				Subscription: graphqlDataSource.SubscriptionConfiguration{
+				Subscription: &graphqlDataSource.SubscriptionConfiguration{
 					URL:    "http://localhost:8080",
 					UseSSE: false,
 				},
-			},
+				SchemaConfiguration: mustSchemaConfig(t,
+					nil,
+					graphqlGeneratorSchema,
+				),
+			}),
 		)
 
 		expectedConfig := NewEngineV2Configuration(schema)
@@ -184,19 +188,23 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 					},
 				},
 			},
-			graphqlDataSource.Configuration{
-				Fetch: graphqlDataSource.FetchConfiguration{
+			mustConfiguration(t, graphqlDataSource.ConfigurationInput{
+				Fetch: &graphqlDataSource.FetchConfiguration{
 					URL:    "http://localhost:8080",
 					Method: "GET",
 					Header: map[string][]string{
 						"Authorization": {"123abc"},
 					},
 				},
-				Subscription: graphqlDataSource.SubscriptionConfiguration{
+				Subscription: &graphqlDataSource.SubscriptionConfiguration{
 					URL:    "http://localhost:8080",
 					UseSSE: false,
 				},
-			},
+				SchemaConfiguration: mustSchemaConfig(t,
+					nil,
+					graphqlGeneratorSchema,
+				),
+			}),
 		)
 
 		expectedConfig := NewEngineV2Configuration(schema)
@@ -263,19 +271,23 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 					},
 				},
 			},
-			graphqlDataSource.Configuration{
-				Fetch: graphqlDataSource.FetchConfiguration{
+			mustConfiguration(t, graphqlDataSource.ConfigurationInput{
+				Fetch: &graphqlDataSource.FetchConfiguration{
 					URL:    "http://localhost:8080",
 					Method: "GET",
 					Header: map[string][]string{
 						"Authorization": {"123abc"},
 					},
 				},
-				Subscription: graphqlDataSource.SubscriptionConfiguration{
+				Subscription: &graphqlDataSource.SubscriptionConfiguration{
 					URL:    "http://localhost:8080",
 					UseSSE: true,
 				},
-			},
+				SchemaConfiguration: mustSchemaConfig(t,
+					nil,
+					graphqlGeneratorSchema,
+				),
+			}),
 		)
 
 		expectedConfig := NewEngineV2Configuration(schema)

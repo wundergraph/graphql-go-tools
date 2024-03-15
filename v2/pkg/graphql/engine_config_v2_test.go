@@ -100,15 +100,19 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 	}
 
 	t.Run("without subscription configuration", func(t *testing.T) {
-		dataSourceConfig := graphqlDataSource.Configuration{
-			Fetch: graphqlDataSource.FetchConfiguration{
+		dataSourceConfig := mustConfiguration(t, graphqlDataSource.ConfigurationInput{
+			Fetch: &graphqlDataSource.FetchConfiguration{
 				URL:    "http://localhost:8080",
 				Method: http.MethodGet,
 				Header: map[string][]string{
 					"Authorization": {"123abc"},
 				},
 			},
-		}
+			SchemaConfiguration: mustSchemaConfig(t,
+				nil,
+				graphqlGeneratorSchema,
+			),
+		})
 
 		dataSource, err := newGraphQLDataSourceV2Generator(&doc).Generate(
 			"test",
@@ -126,18 +130,22 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 	})
 
 	t.Run("with subscription configuration (SSE)", func(t *testing.T) {
-		dataSourceConfig := graphqlDataSource.Configuration{
-			Fetch: graphqlDataSource.FetchConfiguration{
+		dataSourceConfig := mustConfiguration(t, graphqlDataSource.ConfigurationInput{
+			Fetch: &graphqlDataSource.FetchConfiguration{
 				URL:    "http://localhost:8080",
 				Method: http.MethodGet,
 				Header: map[string][]string{
 					"Authorization": {"123abc"},
 				},
 			},
-			Subscription: graphqlDataSource.SubscriptionConfiguration{
+			Subscription: &graphqlDataSource.SubscriptionConfiguration{
 				UseSSE: true,
 			},
-		}
+			SchemaConfiguration: mustSchemaConfig(t,
+				nil,
+				graphqlGeneratorSchema,
+			),
+		})
 
 		dataSource, err := newGraphQLDataSourceV2Generator(&doc).Generate(
 			"test",

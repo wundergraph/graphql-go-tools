@@ -13,23 +13,77 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-type Configuration struct {
-	Fetch                  FetchConfiguration
-	Subscription           SubscriptionConfiguration
+type ConfigurationInput struct {
+	Fetch                  *FetchConfiguration
+	Subscription           *SubscriptionConfiguration
 	SchemaConfiguration    *SchemaConfiguration
 	CustomScalarTypeFields []SingleTypeField
 }
 
-func (c *Configuration) UpstreamSchema() (*ast.Document, error) {
-	if c.SchemaConfiguration == nil {
-		return nil, errors.New("schema configuration is empty")
+type Configuration struct {
+	fetch                  *FetchConfiguration
+	subscription           *SubscriptionConfiguration
+	schemaConfiguration    SchemaConfiguration
+	customScalarTypeFields []SingleTypeField
+}
+
+func NewConfiguration(input ConfigurationInput) (Configuration, error) {
+	cfg := Configuration{
+		customScalarTypeFields: input.CustomScalarTypeFields,
 	}
 
-	if c.SchemaConfiguration.upstreamSchemaAst == nil {
+	if input.SchemaConfiguration == nil {
+		return Configuration{}, errors.New("schema configuration is required")
+	}
+	if input.SchemaConfiguration.upstreamSchema == "" {
+		return Configuration{}, errors.New("schema configuration is invalid: upstream schema is required")
+	}
+
+	cfg.schemaConfiguration = *input.SchemaConfiguration
+
+	if input.Fetch == nil && input.Subscription == nil {
+		return Configuration{}, errors.New("fetch or subscription configuration is required")
+	}
+
+	if input.Fetch != nil {
+		cfg.fetch = input.Fetch
+
+		if cfg.fetch.Method == "" {
+			cfg.fetch.Method = "POST"
+		}
+	}
+
+	if input.Subscription != nil {
+		cfg.subscription = input.Subscription
+
+		if cfg.fetch != nil {
+			if len(cfg.subscription.Header) == 0 && len(cfg.fetch.Header) > 0 {
+				cfg.subscription.Header = cfg.fetch.Header
+			}
+
+			if cfg.subscription.URL == "" {
+				cfg.subscription.URL = cfg.fetch.URL
+			}
+		}
+	}
+
+	return cfg, nil
+}
+
+func (c *Configuration) UpstreamSchema() (*ast.Document, error) {
+	if c.schemaConfiguration.upstreamSchemaAst == nil {
 		return nil, errors.New("upstream schema is not parsed")
 	}
 
-	return c.SchemaConfiguration.upstreamSchemaAst, nil
+	return c.schemaConfiguration.upstreamSchemaAst, nil
+}
+
+func (c *Configuration) IsFederationEnabled() bool {
+	return c.schemaConfiguration.federation != nil && c.schemaConfiguration.federation.Enabled
+}
+
+func (c *Configuration) FederationConfiguration() *FederationConfiguration {
+	return c.schemaConfiguration.federation
 }
 
 type SingleTypeField struct {
@@ -39,6 +93,7 @@ type SingleTypeField struct {
 
 type SubscriptionConfiguration struct {
 	URL           string
+	Header        http.Header
 	UseSSE        bool
 	SSEMethodPost bool
 	// ForwardedClientHeaderNames indicates headers names that might be forwarded from the

@@ -10,8 +10,6 @@ import (
 )
 
 func TestGraphQLDataSourceFederation(t *testing.T) {
-	federationFactory := &Factory[Configuration]{}
-
 	t.Run("composite keys, provides, requires", func(t *testing.T) {
 		definition := `
 			type Account {
@@ -89,17 +87,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 		// TODO: add test for requires when query already has the required field with the different argument - potentially requires alias?
 		// TODO: add test for requires+provides
 
-		usersDatasourceSchemaConfiguration, _ := NewSchemaConfiguration(
-			usersSubgraphSDL,
-			&FederationConfiguration{
-				Enabled:    true,
-				ServiceSDL: usersSubgraphSDL,
-			},
-		)
-
-		usersDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+		usersDatasourceConfiguration := mustDataSourceConfiguration(t,
 			"user.service",
-			federationFactory,
 			&plan.DataSourceMetadata{
 				RootNodes: []plan.TypeField{
 					{
@@ -153,14 +142,21 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					},
 				},
 			},
-			Configuration{
-				Fetch: FetchConfiguration{
-					URL: "http://user.service",
+			mustCustomConfiguration(t,
+				ConfigurationInput{
+					Fetch: &FetchConfiguration{
+						URL: "http://user.service",
+					},
+					SchemaConfiguration: mustSchema(t,
+						&FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: usersSubgraphSDL,
+						},
+						usersSubgraphSDL,
+					),
 				},
-				SchemaConfiguration: usersDatasourceSchemaConfiguration,
-			},
+			),
 		)
-
 		accountsSubgraphSDL := `
 			type Query {
 				account: Account
@@ -191,17 +187,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				fullAddress: String! @requires(fields: "line1 line2 line3(test:\"BOOM\") zip")
 			}
 		`
-		accountsDatasourceSchemaConfiguration, _ := NewSchemaConfiguration(
-			accountsSubgraphSDL,
-			&FederationConfiguration{
-				Enabled:    true,
-				ServiceSDL: accountsSubgraphSDL,
-			},
-		)
 
-		accountsDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+		accountsDatasourceConfiguration := mustDataSourceConfiguration(
+			t,
 			"account.service",
-			federationFactory,
 			&plan.DataSourceMetadata{
 				RootNodes: []plan.TypeField{
 					{
@@ -249,12 +238,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					},
 				},
 			},
-			Configuration{
-				Fetch: FetchConfiguration{
-					URL: "http://account.service",
+			mustCustomConfiguration(t,
+				ConfigurationInput{
+					Fetch: &FetchConfiguration{
+						URL: "http://account.service",
+					},
+					SchemaConfiguration: mustSchema(t,
+						&FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: accountsSubgraphSDL,
+						},
+						accountsSubgraphSDL,
+					),
 				},
-				SchemaConfiguration: accountsDatasourceSchemaConfiguration,
-			},
+			),
 		)
 
 		addressesSubgraphSDL := `
@@ -267,16 +264,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			}
 		`
 
-		addressesDatasourceSchemaConfiguration, _ := NewSchemaConfiguration(
-			addressesSubgraphSDL,
-			&FederationConfiguration{
-				Enabled:    true,
-				ServiceSDL: addressesSubgraphSDL,
-			},
-		)
-		addressesDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+		addressesDatasourceConfiguration := mustDataSourceConfiguration(
+			t,
 			"address.service",
-			federationFactory,
+
 			&plan.DataSourceMetadata{
 				RootNodes: []plan.TypeField{
 					{
@@ -301,12 +292,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					},
 				},
 			},
-			Configuration{
-				Fetch: FetchConfiguration{
-					URL: "http://address.service",
+			mustCustomConfiguration(t,
+				ConfigurationInput{
+					Fetch: &FetchConfiguration{
+						URL: "http://address.service",
+					},
+					SchemaConfiguration: mustSchema(t,
+						&FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: addressesSubgraphSDL,
+						},
+						addressesSubgraphSDL,
+					),
 				},
-				SchemaConfiguration: addressesDatasourceSchemaConfiguration,
-			},
+			),
 		)
 
 		addressesEnricherSubgraphSDL := `
@@ -317,17 +316,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			}
 		`
 
-		addressesEnricherDatasourceSchemaConfiguration, _ := NewSchemaConfiguration(
-			addressesEnricherSubgraphSDL,
-			&FederationConfiguration{
-				Enabled:    true,
-				ServiceSDL: addressesEnricherSubgraphSDL,
-			},
-		)
-
-		addressesEnricherDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+		addressesEnricherDatasourceConfiguration := mustDataSourceConfiguration(
+			t,
 			"address-enricher.service",
-			federationFactory,
+
 			&plan.DataSourceMetadata{
 				RootNodes: []plan.TypeField{
 					{
@@ -345,12 +337,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					},
 				},
 			},
-			Configuration{
-				Fetch: FetchConfiguration{
-					URL: "http://address-enricher.service",
+			mustCustomConfiguration(t,
+				ConfigurationInput{
+					Fetch: &FetchConfiguration{
+						URL: "http://address-enricher.service",
+					},
+					SchemaConfiguration: mustSchema(t,
+						&FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: addressesEnricherSubgraphSDL,
+						},
+						addressesEnricherSubgraphSDL,
+					),
 				},
-				SchemaConfiguration: addressesEnricherDatasourceSchemaConfiguration,
-			},
+			),
 		)
 
 		dataSources := []plan.DataSource{
@@ -762,17 +762,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					otherUser: User!
 				}`
 
-			subgraphASchemaConfiguration, _ := NewSchemaConfiguration(
-				subgraphA,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: subgraphA,
-				},
-			)
-
-			subgraphADatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			subgraphADatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"service-a",
-				federationFactory,
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -801,12 +793,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://service-a",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://service-a",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: subgraphA,
+							},
+							subgraphA,
+						),
 					},
-					SchemaConfiguration: subgraphASchemaConfiguration,
-				},
+				),
 			)
 
 			subgraphB := `
@@ -820,17 +820,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					foo: Boolean!
 				}`
 
-			subgraphBSchemaConfiguration, _ := NewSchemaConfiguration(
-				subgraphB,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: subgraphB,
-				},
-			)
-
-			subgraphBDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			subgraphBDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"service-b",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -857,12 +850,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://service-b",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://service-b",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: subgraphB,
+							},
+							subgraphB,
+						),
 					},
-					SchemaConfiguration: subgraphBSchemaConfiguration,
-				},
+				),
 			)
 
 			planConfiguration := plan.Configuration{
@@ -1808,17 +1809,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstSchemaConfiguration, _ := NewSchemaConfiguration(
-				firstSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: firstSubgraphSDL,
-				},
-			)
-
-			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			firstDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"first.service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -1845,12 +1839,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://first.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://first.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: firstSchemaConfiguration,
-				},
+				),
 			)
 
 			secondSubgraphSDL := `
@@ -1869,17 +1871,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			secondSchemaConfiguration, _ := NewSchemaConfiguration(
-				secondSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: secondSubgraphSDL,
-				},
-			)
-
-			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			secondDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"second-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -1906,12 +1901,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://second.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://second.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: secondSchemaConfiguration,
-				},
+				),
 			)
 
 			thirdSubgraphSDL := `
@@ -1925,17 +1928,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			thirdSchemaConfiguration, _ := NewSchemaConfiguration(
-				thirdSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: thirdSubgraphSDL,
-				},
-			)
-
-			thirdDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			thirdDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"third-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -1958,12 +1954,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://third.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://third.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: thirdSubgraphSDL,
+							},
+							thirdSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: thirdSchemaConfiguration,
-				},
+				),
 			)
 
 			planConfiguration := plan.Configuration{
@@ -2718,17 +2722,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstSchemaConfiguration, _ := NewSchemaConfiguration(
-				firstSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: firstSubgraphSDL,
-				},
-			)
-
-			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			firstDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"first-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -2763,12 +2760,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://first.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://first.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: firstSchemaConfiguration,
-				},
+				),
 			)
 
 			secondSubgraphSDL := `
@@ -2785,17 +2790,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			secondSchemaConfiguration, _ := NewSchemaConfiguration(
-				secondSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: secondSubgraphSDL,
-				},
-			)
-
-			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			secondDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"second-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -2820,12 +2818,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://second.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://second.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: secondSchemaConfiguration,
-				},
+				),
 			)
 
 			planConfiguration := plan.Configuration{
@@ -3201,17 +3207,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstSchemaConfiguration, _ := NewSchemaConfiguration(
-				firstSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: firstSubgraphSDL,
-				},
-			)
-
-			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			firstDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"first-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -3254,12 +3253,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://first.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://first.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: firstSchemaConfiguration,
-				},
+				),
 			)
 
 			secondSubgraphSDL := `
@@ -3275,17 +3282,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			secondSchemaConfiguration, _ := NewSchemaConfiguration(
-				secondSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: secondSubgraphSDL,
-				},
-			)
-
-			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			secondDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"second-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -3310,12 +3310,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://second.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://second.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: secondSchemaConfiguration,
-				},
+				),
 			)
 
 			thirdSubgraphSDL := `
@@ -3326,17 +3334,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			thirdSchemaConfiguration, _ := NewSchemaConfiguration(
-				thirdSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: thirdSubgraphSDL,
-				},
-			)
-
-			thirdDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			thirdDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"third-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -3353,12 +3354,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://third.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://third.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: thirdSubgraphSDL,
+							},
+							thirdSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: thirdSchemaConfiguration,
-				},
+				),
 			)
 
 			planConfiguration := plan.Configuration{
@@ -3690,17 +3699,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstSchemaConfiguration, _ := NewSchemaConfiguration(
-				firstSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: firstSubgraphSDL,
-				},
-			)
-
-			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			firstDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"first-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -3721,12 +3723,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://first.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://first.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: firstSchemaConfiguration,
-				},
+				),
 			)
 
 			secondSubgraphSDL := `
@@ -3736,17 +3746,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					name: String!
 				}
 			`
-			secondSchemaConfiguration, _ := NewSchemaConfiguration(
-				secondSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: secondSubgraphSDL,
-				},
-			)
 
-			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			secondDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"second-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -3767,12 +3771,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://second.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://second.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: secondSchemaConfiguration,
-				},
+				),
 			)
 
 			thirdSubgraphSDL := `
@@ -3782,17 +3794,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			thirdSchemaConfiguration, _ := NewSchemaConfiguration(
-				thirdSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: thirdSubgraphSDL,
-				},
-			)
-
-			thirdDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			thirdDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"third-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -3809,12 +3814,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://third.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://third.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: thirdSubgraphSDL,
+							},
+							thirdSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: thirdSchemaConfiguration,
-				},
+				),
 			)
 
 			fourthSubgraphSDL := `
@@ -3828,17 +3841,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			fourthSchemaConfiguration, _ := NewSchemaConfiguration(
-				fourthSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: fourthSubgraphSDL,
-				},
-			)
-
-			fourthDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			fourthDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"fourth-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 
 					RootNodes: []plan.TypeField{
@@ -3862,12 +3868,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://fourth.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://fourth.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: fourthSubgraphSDL,
+							},
+							fourthSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: fourthSchemaConfiguration,
-				},
+				),
 			)
 
 			planConfiguration := plan.Configuration{
@@ -4102,17 +4116,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstSchemaConfiguration, _ := NewSchemaConfiguration(
-				firstSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: firstSubgraphSDL,
-				},
-			)
-
-			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			firstDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"first-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -4133,12 +4140,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://first.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://first.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: firstSchemaConfiguration,
-				},
+				),
 			)
 
 			secondSubgraphSDL := `
@@ -4149,17 +4164,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			secondSchemaConfiguration, _ := NewSchemaConfiguration(
-				secondSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: secondSubgraphSDL,
-				},
-			)
-
-			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			secondDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"second-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -4180,12 +4188,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://second.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://second.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: secondSchemaConfiguration,
-				},
+				),
 			)
 
 			thirdSubgraphSDL := `
@@ -4196,17 +4212,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			thirdSchemaConfiguration, _ := NewSchemaConfiguration(
-				thirdSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: thirdSubgraphSDL,
-				},
-			)
-
-			thirdDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			thirdDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"third-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -4227,12 +4236,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://third.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://third.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: thirdSubgraphSDL,
+							},
+							thirdSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: thirdSchemaConfiguration,
-				},
+				),
 			)
 
 			fourthSubgraphSDL := `
@@ -4242,17 +4259,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			fourthSchemaConfiguration, _ := NewSchemaConfiguration(
-				fourthSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: fourthSubgraphSDL,
-				},
-			)
-
-			fourthDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			fourthDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"fourth-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -4269,12 +4279,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://fourth.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://fourth.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: fourthSubgraphSDL,
+							},
+							fourthSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: fourthSchemaConfiguration,
-				},
+				),
 			)
 
 			dataSources := []plan.DataSource{
@@ -4698,17 +4716,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstSchemaConfiguration, _ := NewSchemaConfiguration(
-				firstSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: firstSubgraphSDL,
-				},
-			)
-
-			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			firstDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"first-service",
-				federationFactory,
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -4729,12 +4739,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://first.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://first.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: firstSchemaConfiguration,
-				},
+				),
 			)
 
 			secondSubgraphSDL := `
@@ -4748,17 +4766,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			secondSchemaConfiguration, _ := NewSchemaConfiguration(
-				secondSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: secondSubgraphSDL,
-				},
-			)
-
-			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			secondDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"second-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -4780,12 +4791,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://second.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://second.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: secondSchemaConfiguration,
-				},
+				),
 			)
 
 			thirdSubgraphSDL := `
@@ -4795,17 +4814,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			thirdSchemaConfiguration, _ := NewSchemaConfiguration(
-				thirdSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: thirdSubgraphSDL,
-				},
-			)
-
-			thirdDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			thirdDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"third-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -4822,12 +4834,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://third.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://third.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: thirdSubgraphSDL,
+							},
+							thirdSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: thirdSchemaConfiguration,
-				},
+				),
 			)
 
 			planConfiguration := plan.Configuration{
@@ -5043,17 +5063,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstSchemaConfiguration, _ := NewSchemaConfiguration(
-				firstSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: firstSubgraphSDL,
-				},
-			)
-
-			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			firstDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"first-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -5075,12 +5088,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://first.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://first.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: firstSchemaConfiguration,
-				},
+				),
 			)
 
 			secondSubgraphSDL := `
@@ -5090,17 +5111,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			secondSchemaConfiguration, _ := NewSchemaConfiguration(
-				secondSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: secondSubgraphSDL,
-				},
-			)
-
-			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			secondDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"second-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -5117,12 +5131,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://second.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://second.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: secondSchemaConfiguration,
-				},
+				),
 			)
 
 			planConfiguration := plan.Configuration{
@@ -5258,17 +5280,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstSchemaConfiguration, _ := NewSchemaConfiguration(
-				firstSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: firstSubgraphSDL,
-				},
-			)
-
-			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			firstDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"first-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -5295,12 +5310,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://first.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://first.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: firstSchemaConfiguration,
-				},
+				),
 			)
 
 			secondSubgraphSDL := `
@@ -5311,17 +5334,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			secondSchemaConfiguration, _ := NewSchemaConfiguration(
-				secondSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: secondSubgraphSDL,
-				},
-			)
-
-			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			secondDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"second-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -5342,12 +5358,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://second.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://second.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: secondSchemaConfiguration,
-				},
+				),
 			)
 
 			planConfiguration := plan.Configuration{
@@ -5496,17 +5520,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			firstSchemaConfiguration, _ := NewSchemaConfiguration(
-				firstSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: firstSubgraphSDL,
-				},
-			)
-
-			firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			firstDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"first-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -5537,12 +5554,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://first.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://first.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: firstSchemaConfiguration,
-				},
+				),
 			)
 
 			secondSubgraphSDL := `
@@ -5558,17 +5583,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					rating: Float!
 				}
 			`
-			secondSchemaConfiguration, _ := NewSchemaConfiguration(
-				secondSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: secondSubgraphSDL,
-				},
-			)
 
-			secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			secondDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"second-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -5599,12 +5618,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://second.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://second.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: secondSchemaConfiguration,
-				},
+				),
 			)
 
 			thirdSubgraphSDL := `
@@ -5621,17 +5648,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			thirdSchemaConfiguration, _ := NewSchemaConfiguration(
-				thirdSubgraphSDL,
-				&FederationConfiguration{
-					Enabled:    true,
-					ServiceSDL: thirdSubgraphSDL,
-				},
-			)
-
-			thirdDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+			thirdDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
 				"third-service",
-				federationFactory,
+
 				&plan.DataSourceMetadata{RootNodes: []plan.TypeField{
 					{
 						TypeName:   "Query",
@@ -5661,12 +5681,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
-						URL: "http://third.service",
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://third.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: thirdSubgraphSDL,
+							},
+							thirdSubgraphSDL,
+						),
 					},
-					SchemaConfiguration: thirdSchemaConfiguration,
-				},
+				),
 			)
 
 			planConfiguration := plan.Configuration{

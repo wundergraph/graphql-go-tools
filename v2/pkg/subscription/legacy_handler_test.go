@@ -552,6 +552,19 @@ func setupEngineV2(t *testing.T, ctx context.Context, chatServerURL string) (*Ex
 	schemaConfiguration, err := graphql_datasource.NewSchemaConfiguration(string(chatSchemaBytes), nil)
 	require.NoError(t, err)
 
+	customConfiguration, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
+		Fetch: &graphql_datasource.FetchConfiguration{
+			URL:    chatServerURL,
+			Method: http.MethodPost,
+			Header: nil,
+		},
+		Subscription: &graphql_datasource.SubscriptionConfiguration{
+			URL: chatServerURL,
+		},
+		SchemaConfiguration: schemaConfiguration,
+	})
+	require.NoError(t, err)
+
 	engineConf := graphql.NewEngineV2Configuration(chatSchema)
 	engineConf.SetDataSources([]plan.DataSource{
 		plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
@@ -568,17 +581,7 @@ func setupEngineV2(t *testing.T, ctx context.Context, chatServerURL string) (*Ex
 					{TypeName: "Message", FieldNames: []string{"text", "createdBy"}},
 				},
 			},
-			graphql_datasource.Configuration{
-				Fetch: graphql_datasource.FetchConfiguration{
-					URL:    chatServerURL,
-					Method: http.MethodPost,
-					Header: nil,
-				},
-				Subscription: graphql_datasource.SubscriptionConfiguration{
-					URL: chatServerURL,
-				},
-				SchemaConfiguration: schemaConfiguration,
-			},
+			customConfiguration,
 		),
 	})
 	engineConf.SetFieldConfigurations([]plan.FieldConfiguration{

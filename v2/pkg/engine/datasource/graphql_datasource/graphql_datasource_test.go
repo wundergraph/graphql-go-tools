@@ -32,6 +32,14 @@ func mustSchema(t *testing.T, federationConfiguration *FederationConfiguration, 
 	return s
 }
 
+func mustCustomConfiguration(t *testing.T, input ConfigurationInput) Configuration {
+	t.Helper()
+
+	cfg, err := NewConfiguration(input)
+	require.NoError(t, err)
+	return cfg
+}
+
 func mustDataSourceConfiguration(t *testing.T, id string, metadata *plan.DataSourceMetadata, config Configuration) plan.DataSource {
 	t.Helper()
 
@@ -116,12 +124,12 @@ func TestGraphQLDataSourceTypenames(t *testing.T) {
 								},
 							},
 						},
-						Configuration{
-							Fetch: FetchConfiguration{
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
 								URL: "https://example.com/graphql",
 							},
 							SchemaConfiguration: mustSchema(t, nil, def),
-						},
+						}),
 					),
 				},
 				DisableResolveFieldPositions: true,
@@ -189,12 +197,12 @@ func TestGraphQLDataSource(t *testing.T) {
 								},
 							},
 						},
-						Configuration{
-							Fetch: FetchConfiguration{
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
 								URL: "https://swapi.com/graphql",
 							},
 							SchemaConfiguration: mustSchema(t, nil, definition),
-						},
+						}),
 					),
 				},
 				Fields: []plan.FieldConfiguration{
@@ -359,8 +367,8 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 						Header: http.Header{
 							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
@@ -369,6 +377,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 					SchemaConfiguration: mustSchema(t, nil, starWarsSchema),
 				}),
+			),
 		},
 		Fields: []plan.FieldConfiguration{
 			{
@@ -657,8 +666,8 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 						Header: http.Header{
 							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
@@ -666,7 +675,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					SchemaConfiguration: mustSchema(t, nil, starWarsSchema),
-				},
+				}),
 			),
 		},
 		Fields: []plan.FieldConfiguration{
@@ -760,12 +769,13 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
 					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
 				}),
+			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
@@ -885,12 +895,12 @@ func TestGraphQLDataSource(t *testing.T) {
 								},
 							},
 						},
-						Configuration{
-							Fetch: FetchConfiguration{
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
 								URL: "https://swapi.com/graphql",
 							},
 							SchemaConfiguration: mustSchema(t, nil, definition),
-						},
+						}),
 					),
 				},
 				Fields:                       []plan.FieldConfiguration{},
@@ -972,12 +982,12 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
 					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
-				},
+				}),
 			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
@@ -1074,12 +1084,12 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
 					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
-				},
+				}),
 			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
@@ -1166,12 +1176,12 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
 					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
-				},
+				}),
 			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
@@ -1258,12 +1268,12 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
 					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
-				},
+				}),
 			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
@@ -1330,12 +1340,12 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
 					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
-				},
+				}),
 			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
@@ -1408,12 +1418,12 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
 					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
-				},
+				}),
 			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
@@ -1494,12 +1504,12 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
 					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
-				},
+				}),
 			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
@@ -1572,12 +1582,12 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
 					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
-				},
+				}),
 			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
@@ -1643,12 +1653,12 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
 					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
-				},
+				}),
 			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
@@ -1731,12 +1741,12 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
 					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
-				},
+				}),
 			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
@@ -1804,12 +1814,12 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
 					SchemaConfiguration: mustSchema(t, nil, variableSchema),
-				},
+				}),
 			),
 		},
 		Fields: []plan.FieldConfiguration{
@@ -1926,12 +1936,12 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "https://swapi.com/graphql",
 						},
 						SchemaConfiguration: mustSchema(t, nil, starWarsSchema),
-					},
+					}),
 				),
 			},
 			Fields: []plan.FieldConfiguration{
@@ -2124,8 +2134,8 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 						Header: http.Header{
 							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
@@ -2133,7 +2143,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					SchemaConfiguration: mustSchema(t, nil, starWarsSchema),
-				},
+				}),
 			),
 		},
 		Fields: []plan.FieldConfiguration{
@@ -2424,8 +2434,8 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					}),
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 						Header: http.Header{
 							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
@@ -2433,7 +2443,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					SchemaConfiguration: mustSchema(t, nil, starWarsSchema),
-				},
+				}),
 			),
 		},
 		Fields: []plan.FieldConfiguration{
@@ -2641,12 +2651,12 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://subgraph-reviews/query",
 					},
 					SchemaConfiguration: mustSchema(t, nil, subgraphTestSchema),
-				},
+				}),
 			),
 		},
 		Fields: []plan.FieldConfiguration{
@@ -2916,8 +2926,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "https://service.one",
 						},
 						SchemaConfiguration: mustSchema(t, nil, `
@@ -2929,7 +2939,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								name: String!
 							}
 						`),
-					},
+					}),
 				),
 			},
 			Fields: []plan.FieldConfiguration{
@@ -3026,8 +3036,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "https://foo.service",
 						},
 						SchemaConfiguration: mustSchema(t, nil, `
@@ -3038,7 +3048,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								bar(bal: String):String
 							}
 						`),
-					},
+					}),
 				),
 			},
 			Fields: []plan.FieldConfiguration{
@@ -3157,12 +3167,12 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "https://countries.service",
 						},
 						SchemaConfiguration: mustSchema(t, nil, countriesSchema),
-					},
+					}),
 				),
 			},
 			Fields: []plan.FieldConfiguration{
@@ -3283,12 +3293,12 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "https://countries.service",
 						},
 						SchemaConfiguration: mustSchema(t, nil, countriesSchema),
-					},
+					}),
 				),
 			},
 			Fields: []plan.FieldConfiguration{
@@ -3582,12 +3592,12 @@ func TestGraphQLDataSource(t *testing.T) {
 								},
 							},
 						},
-						Configuration{
-							Fetch: FetchConfiguration{
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
 								URL: "https://service.one",
 							},
 							SchemaConfiguration: mustSchema(t, nil, definition),
-						},
+						}),
 					),
 					mustDataSourceConfiguration(
 						t,
@@ -3606,12 +3616,12 @@ func TestGraphQLDataSource(t *testing.T) {
 								},
 							},
 						},
-						Configuration{
-							Fetch: FetchConfiguration{
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
 								URL: "https://service.two",
 							},
 							SchemaConfiguration: mustSchema(t, nil, definition),
-						},
+						}),
 					),
 					mustDataSourceConfiguration(
 						t,
@@ -3630,12 +3640,12 @@ func TestGraphQLDataSource(t *testing.T) {
 								},
 							},
 						},
-						Configuration{
-							Fetch: FetchConfiguration{
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
 								URL: "https://country.service",
 							},
 							SchemaConfiguration: mustSchema(t, nil, definition),
-						},
+						}),
 					),
 				},
 				Fields: []plan.FieldConfiguration{
@@ -3812,12 +3822,12 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "https://graphql.service",
 						},
 						SchemaConfiguration: mustSchema(t, nil, todoSchema),
-					},
+					}),
 				),
 			},
 			Fields: []plan.FieldConfiguration{
@@ -3961,12 +3971,12 @@ func TestGraphQLDataSource(t *testing.T) {
 								},
 							},
 						},
-						Configuration{
-							Fetch: FetchConfiguration{
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
 								URL: "https://user.service",
 							},
 							SchemaConfiguration: mustSchema(t, nil, definition),
-						},
+						}),
 					),
 				},
 				Fields: []plan.FieldConfiguration{
@@ -4120,16 +4130,16 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL:    "http://api.com",
 							Method: "POST",
 						},
-						Subscription: SubscriptionConfiguration{
+						Subscription: &SubscriptionConfiguration{
 							URL: "ws://api.com",
 						},
 						SchemaConfiguration: mustSchema(t, nil, wgSchema),
-					},
+					}),
 				),
 			},
 			Fields: []plan.FieldConfiguration{
@@ -4227,16 +4237,16 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL:    "http://api.com",
 							Method: "POST",
 						},
-						Subscription: SubscriptionConfiguration{
+						Subscription: &SubscriptionConfiguration{
 							URL: "ws://api.com",
 						},
 						SchemaConfiguration: mustSchema(t, nil, wgSchema),
-					},
+					}),
 				),
 			},
 			Fields: []plan.FieldConfiguration{
@@ -4341,8 +4351,8 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Subscription: SubscriptionConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Subscription: &SubscriptionConfiguration{
 						URL: "wss://swapi.com/graphql",
 					},
 					SchemaConfiguration: mustSchema(t, nil, `
@@ -4350,7 +4360,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							foo(bar: String): Int!
 						}
 					`),
-				},
+				}),
 			),
 		},
 		Fields: []plan.FieldConfiguration{
@@ -4622,8 +4632,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -4633,7 +4643,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							`type Query {me: User} type User @key(fields: "id"){ id: ID! username: String!}`,
 						),
-					},
+					}),
 				),
 				mustDataSourceConfiguration(
 					t,
@@ -4662,11 +4672,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://product.service",
 						},
-						Subscription: SubscriptionConfiguration{
+						Subscription: &SubscriptionConfiguration{
 							URL: "ws://product.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -4676,7 +4686,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							`type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: "upc"){upc: String! name: String! price: Int!}`,
 						),
-					},
+					}),
 				),
 				mustDataSourceConfiguration(
 					t,
@@ -4718,8 +4728,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://review.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -4729,7 +4739,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							`type Review { body: String! author: User! @provides(fields: "username") product: Product! } type User @key(fields: "id") { id: ID! username: String! @external reviews: [Review] } type Product @key(fields: "upc") { upc: String! reviews: [Review] }`,
 						),
-					},
+					}),
 				),
 			},
 			Fields: []plan.FieldConfiguration{
@@ -4866,8 +4876,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -4877,7 +4887,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							"type Query { me: User user(id: ID!): User} type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccount type UserMetadata { name: String address: String description: String }",
 						),
-					},
+					}),
 				),
 				mustDataSourceConfiguration(
 					t,
@@ -4896,8 +4906,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://product.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -4907,7 +4917,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							"type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea extend type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
 						),
-					},
+					}),
 				),
 			},
 			Fields: []plan.FieldConfiguration{
@@ -5222,8 +5232,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -5233,7 +5243,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							"type Query { me: User user(id: ID!): User} type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccount type UserMetadata { name: String address: String description: String }",
 						),
-					},
+					}),
 				),
 				mustDataSourceConfiguration(
 					t,
@@ -5268,8 +5278,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://product.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -5279,7 +5289,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							"type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
 						),
-					},
+					}),
 				),
 			},
 			Fields: []plan.FieldConfiguration{
@@ -5582,8 +5592,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -5593,7 +5603,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							"type Query { me: User user(id: ID!): User} type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccount type UserMetadata { name: String address: String description: String }",
 						),
-					},
+					}),
 				),
 				mustDataSourceConfiguration(
 					t,
@@ -5620,8 +5630,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://product.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -5631,7 +5641,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							"type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
 						),
-					},
+					}),
 				),
 			},
 			Fields: []plan.FieldConfiguration{
@@ -5787,8 +5797,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -5798,7 +5808,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							"type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
 						),
-					},
+					}),
 				),
 				mustDataSourceConfiguration(
 					t,
@@ -5825,8 +5835,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://review.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -5836,7 +5846,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							"type Review { body: String! notes: String likes(filterToPublicOnly: Boolean): Int! } type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
 						),
-					},
+					}),
 				),
 			},
 			Fields: []plan.FieldConfiguration{
@@ -5991,8 +6001,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -6002,7 +6012,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							federationTestSchemaWithRename,
 						),
-					},
+					}),
 				),
 				mustDataSourceConfiguration(
 					t,
@@ -6029,8 +6039,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://review.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -6040,7 +6050,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							federationTestSchemaWithRename,
 						),
-					},
+					}),
 				),
 			},
 			Fields: []plan.FieldConfiguration{
@@ -6178,8 +6188,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://one.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -6189,7 +6199,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							"type Query {serviceOne: ServiceOneType} type ServiceOneType @key(fields: \"id\"){ id: ID! serviceOneFieldOne: String! serviceOneFieldTwo: String!}",
 						),
-					},
+					}),
 				),
 				mustDataSourceConfiguration(
 					t,
@@ -6222,8 +6232,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://two.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -6233,7 +6243,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							"type ServiceOneType @key(fields: \"id\") { id: ID! @external serviceOneFieldOne: String! @external serviceOneFieldTwo: String! @external serviceTwoFieldOne: String! @requires(fields: \"serviceOneFieldOne\") serviceTwoFieldTwo: String! @requires(fields: \"serviceOneFieldTwo\")}",
 						),
-					},
+					}),
 				),
 			},
 			DisableResolveFieldPositions: true,
@@ -6489,8 +6499,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -6500,7 +6510,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							federationTestSchema,
 						),
-					},
+					}),
 				),
 				mustDataSourceConfiguration(
 					t,
@@ -6525,11 +6535,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://product.service",
 						},
-						Subscription: SubscriptionConfiguration{
+						Subscription: &SubscriptionConfiguration{
 							URL: "ws://product.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -6539,7 +6549,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							federationTestSchema,
 						),
-					},
+					}),
 				),
 				mustDataSourceConfiguration(
 					t,
@@ -6562,8 +6572,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://review.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -6573,7 +6583,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							federationTestSchema,
 						),
-					},
+					}),
 				),
 			},
 			Fields: []plan.FieldConfiguration{
@@ -6646,8 +6656,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -6671,7 +6681,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							}
 						`,
 						),
-					},
+					}),
 				),
 				mustDataSourceConfiguration(
 					t,
@@ -6721,8 +6731,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://review.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -6757,7 +6767,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								reviews: [Review] 
 							}`,
 						),
-					},
+					}),
 				),
 			},
 			DisableResolveFieldPositions: true,
@@ -7168,8 +7178,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -7187,7 +7197,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							}
 						`,
 						),
-					},
+					}),
 				),
 				mustDataSourceConfiguration(
 					t,
@@ -7226,8 +7236,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://pet.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -7263,7 +7273,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							}
 						`,
 						),
-					},
+					}),
 				),
 			},
 			DisableResolveFieldPositions: true,
@@ -7915,8 +7925,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -7933,7 +7943,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								username: String!
 							}`,
 						),
-					},
+					}),
 				),
 				mustDataSourceConfiguration(
 					t,
@@ -7963,8 +7973,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://pet.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -8002,7 +8012,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								}
 	                       `,
 						),
-					},
+					}),
 				),
 			},
 			DisableResolveFieldPositions: true,
@@ -8199,8 +8209,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -8239,7 +8249,7 @@ func TestGraphQLDataSource(t *testing.T) {
                                     id: ID!
                                 }`,
 						),
-					},
+					}),
 				),
 				mustDataSourceConfiguration(
 					t,
@@ -8268,8 +8278,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						},
 					},
-					Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://pet.service",
 						},
 						SchemaConfiguration: mustSchema(t,
@@ -8303,7 +8313,7 @@ func TestGraphQLDataSource(t *testing.T) {
                                 }
                             `,
 						),
-					},
+					}),
 				),
 			},
 			DisableResolveFieldPositions: true,
@@ -8442,8 +8452,8 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 						Header: http.Header{
 							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
@@ -8451,7 +8461,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					SchemaConfiguration: mustSchema(t, nil, starWarsSchemaWithRenamedArgument),
-				},
+				}),
 			),
 		},
 		Fields: []plan.FieldConfiguration{
@@ -8577,8 +8587,8 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "http://localhost:8084/query",
 					},
 					CustomScalarTypeFields: []SingleTypeField{
@@ -8588,7 +8598,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					SchemaConfiguration: mustSchema(t, nil, userSchema),
-				},
+				}),
 			),
 		},
 		Fields: []plan.FieldConfiguration{
@@ -8953,16 +8963,16 @@ func runTestOnTestDefinition(t *testing.T, operation, operationName string, expe
 						},
 					},
 				},
-				Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL:    "https://swapi.com/graphql",
 						Method: "POST",
 					},
-					Subscription: SubscriptionConfiguration{
+					Subscription: &SubscriptionConfiguration{
 						URL: "wss://swapi.com/graphql",
 					},
 					SchemaConfiguration: mustSchema(t, nil, testDefinition),
-				},
+				}),
 			),
 		},
 		Fields: []plan.FieldConfiguration{

@@ -35,11 +35,20 @@ func (customResolver) Resolve(value []byte) ([]byte, error) {
 	return value, nil
 }
 
-func mustSchemaConfig(t *testing.T, federationConfiguration *graphql_datasource.FederationConfiguration, schema string) graphql_datasource.SchemaConfiguration {
+func mustSchemaConfig(t *testing.T, federationConfiguration *graphql_datasource.FederationConfiguration, schema string) *graphql_datasource.SchemaConfiguration {
 	t.Helper()
+
 	s, err := graphql_datasource.NewSchemaConfiguration(schema, federationConfiguration)
 	require.NoError(t, err)
 	return s
+}
+
+func mustConfiguration(t *testing.T, input graphql_datasource.ConfigurationInput) graphql_datasource.Configuration {
+	t.Helper()
+
+	cfg, err := graphql_datasource.NewConfiguration(input)
+	require.NoError(t, err)
+	return cfg
 }
 
 func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
@@ -338,8 +347,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							},
 						},
 					},
-					graphql_datasource.Configuration{
-						Fetch: graphql_datasource.FetchConfiguration{
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
@@ -348,7 +357,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							nil,
 							string(starwarsSchema(t).Document()),
 						),
-					},
+					}),
 				),
 			},
 			fields:           []plan.FieldConfiguration{},
@@ -390,8 +399,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							},
 						},
 					},
-					graphql_datasource.Configuration{
-						Fetch: graphql_datasource.FetchConfiguration{
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
@@ -400,7 +409,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							nil,
 							string(starwarsSchema(t).Document()),
 						),
-					},
+					}),
 				),
 			},
 			fields:           []plan.FieldConfiguration{},
@@ -451,8 +460,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							},
 						},
 					},
-					graphql_datasource.Configuration{
-						Fetch: graphql_datasource.FetchConfiguration{
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
@@ -461,7 +470,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							nil,
 							string(schemaWithCustomScalar.Document()),
 						),
-					},
+					}),
 				),
 			},
 			customResolveMap: map[string]resolve.CustomResolve{
@@ -501,8 +510,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							},
 						},
 					},
-					graphql_datasource.Configuration{
-						Fetch: graphql_datasource.FetchConfiguration{
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
@@ -511,7 +520,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							nil,
 							string(starwarsSchema(t).Document()),
 						),
-					},
+					}),
 				),
 			},
 			fields: []plan.FieldConfiguration{
@@ -562,8 +571,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						{TypeName: "Query", FieldNames: []string{"heroes"}},
 					},
 				},
-				graphql_datasource.Configuration{
-					Fetch: graphql_datasource.FetchConfiguration{
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
 						URL:    "https://example.com/",
 						Method: "POST",
 					},
@@ -572,7 +581,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						nil,
 						string(heroWithArgumentSchema(t).Document()),
 					),
-				},
+				}),
 			),
 		},
 		fields: []plan.FieldConfiguration{
@@ -628,8 +637,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						{TypeName: "Query", FieldNames: []string{"heroes"}},
 					},
 				},
-				graphql_datasource.Configuration{
-					Fetch: graphql_datasource.FetchConfiguration{
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
 						URL:    "https://example.com/",
 						Method: "POST",
 					},
@@ -638,7 +647,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						nil,
 						`type Query { heroes(names: [String!], height: String): [String!] }`,
 					),
-				},
+				}),
 			),
 		},
 		fields: []plan.FieldConfiguration{
@@ -690,8 +699,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						{TypeName: "Query", FieldNames: []string{"hero"}},
 					},
 				},
-				graphql_datasource.Configuration{
-					Fetch: graphql_datasource.FetchConfiguration{
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
 						URL:    "https://example.com/",
 						Method: "POST",
 					},
@@ -700,7 +709,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						nil,
 						`type Query { hero(name: String!): String! }`,
 					),
-				},
+				}),
 			),
 		},
 		fields: []plan.FieldConfiguration{
@@ -758,8 +767,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						},
 					},
 				},
-				graphql_datasource.Configuration{
-					Fetch: graphql_datasource.FetchConfiguration{
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
 						URL:    "https://example.com/",
 						Method: "POST",
 					},
@@ -768,7 +777,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						nil,
 						string(inputCoercionForListSchema(t).Document()),
 					),
-				},
+				}),
 			),
 		},
 		fields: []plan.FieldConfiguration{
@@ -825,8 +834,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						},
 					},
 				},
-				graphql_datasource.Configuration{
-					Fetch: graphql_datasource.FetchConfiguration{
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
 						URL:    "https://example.com/",
 						Method: "POST",
 					},
@@ -835,7 +844,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						nil,
 						string(inputCoercionForListSchema(t).Document()),
 					),
-				},
+				}),
 			),
 		},
 		fields: []plan.FieldConfiguration{
@@ -885,8 +894,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							},
 						},
 					},
-					graphql_datasource.Configuration{
-						Fetch: graphql_datasource.FetchConfiguration{
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
@@ -895,7 +904,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							nil,
 							string(starwarsSchema(t).Document()),
 						),
-					},
+					}),
 				),
 			},
 			fields: []plan.FieldConfiguration{
@@ -916,7 +925,6 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 	))
 
 	t.Run("execute operation with default arguments", func(t *testing.T) {
-		t.Skip("TODO: FIXME")
 		t.Run("query variables with default value", runWithoutError(
 			ExecutionEngineV2TestCase{
 				schema: heroWithArgumentSchema(t),
@@ -947,12 +955,17 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 								{TypeName: "Query", FieldNames: []string{"hero"}},
 							},
 						},
-						graphql_datasource.Configuration{
-							Fetch: graphql_datasource.FetchConfiguration{
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
 								URL:    "https://example.com/",
 								Method: "GET",
 							},
-						},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								string(heroWithArgumentSchema(t).Document()),
+							),
+						}),
 					),
 				},
 				fields: []plan.FieldConfiguration{
@@ -1005,12 +1018,17 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 								{TypeName: "Query", FieldNames: []string{"hero"}},
 							},
 						},
-						graphql_datasource.Configuration{
-							Fetch: graphql_datasource.FetchConfiguration{
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
 								URL:    "https://example.com/",
 								Method: "GET",
 							},
-						},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								string(heroWithArgumentSchema(t).Document()),
+							),
+						}),
 					),
 				},
 				fields: []plan.FieldConfiguration{
@@ -1062,12 +1080,17 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 								{TypeName: "Query", FieldNames: []string{"heroDefault", "heroDefaultRequired"}},
 							},
 						},
-						graphql_datasource.Configuration{
-							Fetch: graphql_datasource.FetchConfiguration{
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
 								URL:    "https://example.com/",
 								Method: "GET",
 							},
-						},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								string(heroWithArgumentSchema(t).Document()),
+							),
+						}),
 					),
 				},
 				fields: []plan.FieldConfiguration{
@@ -1128,12 +1151,17 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 								{TypeName: "Query", FieldNames: []string{"heroDefault", "heroDefaultRequired"}},
 							},
 						},
-						graphql_datasource.Configuration{
-							Fetch: graphql_datasource.FetchConfiguration{
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
 								URL:    "https://example.com/",
 								Method: "GET",
 							},
-						},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								string(heroWithArgumentSchema(t).Document()),
+							),
+						}),
 					),
 				},
 				fields: []plan.FieldConfiguration{
@@ -1219,8 +1247,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							},
 						},
 					},
-					graphql_datasource.Configuration{
-						Fetch: graphql_datasource.FetchConfiguration{
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
@@ -1229,7 +1257,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							nil,
 							countriesSchema,
 						),
-					},
+					}),
 				),
 			},
 			fields:           []plan.FieldConfiguration{},
@@ -1267,12 +1295,17 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							},
 						},
 					},
-					graphql_datasource.Configuration{
-						Fetch: graphql_datasource.FetchConfiguration{
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
-					},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(starwarsSchema(t).Document()),
+						),
+					}),
 				),
 			},
 			fields: []plan.FieldConfiguration{
@@ -1332,12 +1365,17 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 							},
 						},
 					},
-					graphql_datasource.Configuration{
-						Fetch: graphql_datasource.FetchConfiguration{
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
-					},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(starwarsSchema(t).Document()),
+						),
+					}),
 				),
 			},
 			fields:           []plan.FieldConfiguration{},
@@ -1407,8 +1445,8 @@ func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 					},
 				},
 			},
-			graphql_datasource.Configuration{
-				Subscription: graphql_datasource.SubscriptionConfiguration{
+			mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Subscription: &graphql_datasource.SubscriptionConfiguration{
 					URL: "http://localhost:8080",
 				},
 				SchemaConfiguration: mustSchemaConfig(
@@ -1416,7 +1454,7 @@ func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 					nil,
 					testSubscriptionDefinition,
 				),
-			},
+			}),
 		),
 	})
 
@@ -1663,6 +1701,17 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 		},
 	)
 
+	accountsConfiguration, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
+		Fetch: &graphql_datasource.FetchConfiguration{
+			URL:    setup.accountsUpstreamServer.URL,
+			Method: http.MethodPost,
+		},
+		SchemaConfiguration: accountsSchemaConfiguration,
+	})
+	if err != nil {
+		return
+	}
+
 	accountsDataSource := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
 		"accounts",
 		&graphql_datasource.Factory[graphql_datasource.Configuration]{
@@ -1734,13 +1783,7 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 				},
 			},
 		},
-		graphql_datasource.Configuration{
-			Fetch: graphql_datasource.FetchConfiguration{
-				URL:    setup.accountsUpstreamServer.URL,
-				Method: http.MethodPost,
-			},
-			SchemaConfiguration: accountsSchemaConfiguration,
-		},
+		accountsConfiguration,
 	)
 
 	productsSchemaConfiguration, err := graphql_datasource.NewSchemaConfiguration(
@@ -1750,6 +1793,20 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 			ServiceSDL: string(productsSDL),
 		},
 	)
+
+	productsConfiguration, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
+		Fetch: &graphql_datasource.FetchConfiguration{
+			URL:    setup.productsUpstreamServer.URL,
+			Method: http.MethodPost,
+		},
+		Subscription: &graphql_datasource.SubscriptionConfiguration{
+			URL: setup.productsUpstreamServer.URL,
+		},
+		SchemaConfiguration: productsSchemaConfiguration,
+	})
+	if err != nil {
+		return
+	}
 
 	productsDataSource := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
 		"products",
@@ -1784,16 +1841,7 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 				},
 			},
 		},
-		graphql_datasource.Configuration{
-			Fetch: graphql_datasource.FetchConfiguration{
-				URL:    setup.productsUpstreamServer.URL,
-				Method: http.MethodPost,
-			},
-			Subscription: graphql_datasource.SubscriptionConfiguration{
-				URL: setup.productsUpstreamServer.URL,
-			},
-			SchemaConfiguration: productsSchemaConfiguration,
-		},
+		productsConfiguration,
 	)
 
 	reviewsSchemaConfiguration, err := graphql_datasource.NewSchemaConfiguration(
@@ -1803,6 +1851,20 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 			ServiceSDL: string(reviewsSDL),
 		},
 	)
+
+	reviewsConfiguration, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
+		Fetch: &graphql_datasource.FetchConfiguration{
+			URL:    setup.reviewsUpstreamServer.URL,
+			Method: http.MethodPost,
+		},
+		Subscription: &graphql_datasource.SubscriptionConfiguration{
+			URL: setup.reviewsUpstreamServer.URL,
+		},
+		SchemaConfiguration: reviewsSchemaConfiguration,
+	})
+	if err != nil {
+		return
+	}
 
 	reviewsDataSource := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
 		"reviews",
@@ -1871,16 +1933,7 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 				},
 			},
 		},
-		graphql_datasource.Configuration{
-			Fetch: graphql_datasource.FetchConfiguration{
-				URL:    setup.reviewsUpstreamServer.URL,
-				Method: http.MethodPost,
-			},
-			Subscription: graphql_datasource.SubscriptionConfiguration{
-				URL: setup.reviewsUpstreamServer.URL,
-			},
-			SchemaConfiguration: reviewsSchemaConfiguration,
-		},
+		reviewsConfiguration,
 	)
 
 	fieldConfigs := plan.FieldConfigurations{

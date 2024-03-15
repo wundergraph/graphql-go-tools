@@ -114,7 +114,12 @@ func (f *FederationEngineConfigFactory) MergedSchema() (*Schema, error) {
 
 	SDLs := make([]string, len(f.dataSourceConfigs))
 	for i := range f.dataSourceConfigs {
-		SDLs[i] = f.dataSourceConfigs[i].Configuration.SchemaConfiguration.FederationServiceSDL()
+		federationConfiguration := f.dataSourceConfigs[i].Configuration.FederationConfiguration()
+		if federationConfiguration == nil {
+			return nil, fmt.Errorf("federation configuration is missing for data source %s", f.dataSourceConfigs[i].ID)
+		}
+
+		SDLs[i] = federationConfiguration.ServiceSDL
 	}
 
 	rawBaseSchema, err := federation.BuildBaseSchemaDocument(SDLs...)
@@ -161,7 +166,12 @@ func (f *FederationEngineConfigFactory) engineConfigFieldConfigs(schema *Schema)
 	var planFieldConfigs plan.FieldConfigurations
 
 	for _, dataSourceConfig := range f.dataSourceConfigs {
-		doc, report := astparser.ParseGraphqlDocumentString(dataSourceConfig.Configuration.SchemaConfiguration.FederationServiceSDL())
+		federationConfiguration := dataSourceConfig.Configuration.FederationConfiguration()
+		if federationConfiguration == nil {
+			return nil, fmt.Errorf("federation configuration is missing for data source %s", dataSourceConfig.ID)
+		}
+
+		doc, report := astparser.ParseGraphqlDocumentString(federationConfiguration.ServiceSDL)
 		if report.HasErrors() {
 			return nil, fmt.Errorf("parse graphql document string: %s", report.Error())
 		}
@@ -175,7 +185,12 @@ func (f *FederationEngineConfigFactory) engineConfigFieldConfigs(schema *Schema)
 
 func (f *FederationEngineConfigFactory) engineConfigDataSources() (planDataSources []plan.DataSource, err error) {
 	for _, dataSourceConfig := range f.dataSourceConfigs {
-		doc, report := astparser.ParseGraphqlDocumentString(dataSourceConfig.Configuration.SchemaConfiguration.FederationServiceSDL())
+		federationConfiguration := dataSourceConfig.Configuration.FederationConfiguration()
+		if federationConfiguration == nil {
+			return nil, fmt.Errorf("federation configuration is missing for data source %s", dataSourceConfig.ID)
+		}
+
+		doc, report := astparser.ParseGraphqlDocumentString(federationConfiguration.ServiceSDL)
 		if report.HasErrors() {
 			return nil, fmt.Errorf("parse graphql document string: %s", report.Error())
 		}

@@ -47,8 +47,8 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 		runWithoutError(t, httpClient, streamingClient, []DataSourceConfiguration{
 			{
 				"users",
-				graphqlDataSource.Configuration{
-					Fetch: graphqlDataSource.FetchConfiguration{
+				mustConfiguration(t, graphqlDataSource.ConfigurationInput{
+					Fetch: &graphqlDataSource.FetchConfiguration{
 						URL: "http://user.service",
 					},
 					SchemaConfiguration: mustSchemaConfig(
@@ -59,12 +59,12 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 						accountSchema,
 					),
-				},
+				}),
 			},
 			{
 				"products",
-				graphqlDataSource.Configuration{
-					Fetch: graphqlDataSource.FetchConfiguration{
+				mustConfiguration(t, graphqlDataSource.ConfigurationInput{
+					Fetch: &graphqlDataSource.FetchConfiguration{
 						URL: "http://product.service",
 					},
 					SchemaConfiguration: mustSchemaConfig(
@@ -75,12 +75,12 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 						productSchema,
 					),
-				},
+				}),
 			},
 			{
 				"reviews",
-				graphqlDataSource.Configuration{
-					Fetch: graphqlDataSource.FetchConfiguration{
+				mustConfiguration(t, graphqlDataSource.ConfigurationInput{
+					Fetch: &graphqlDataSource.FetchConfiguration{
 						URL: "http://review.service",
 					},
 					SchemaConfiguration: mustSchemaConfig(
@@ -91,10 +91,10 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						},
 						reviewSchema,
 					),
-					Subscription: graphqlDataSource.SubscriptionConfiguration{
+					Subscription: &graphqlDataSource.SubscriptionConfiguration{
 						UseSSE: true,
 					},
-				},
+				}),
 			},
 		}, baseFederationSchema, func(t *testing.T, baseSchema string) EngineV2Configuration {
 			schema, err := NewSchemaFromString(baseSchema)
@@ -165,8 +165,8 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 							},
 						},
 					},
-					graphqlDataSource.Configuration{
-						Fetch: graphqlDataSource.FetchConfiguration{
+					mustConfiguration(t, graphqlDataSource.ConfigurationInput{
+						Fetch: &graphqlDataSource.FetchConfiguration{
 							URL: "http://user.service",
 						},
 						SchemaConfiguration: mustSchemaConfig(
@@ -177,7 +177,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 							},
 							accountSchema,
 						),
-					},
+					}),
 				),
 				plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
 					"products",
@@ -204,8 +204,8 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 							},
 						},
 					},
-					graphqlDataSource.Configuration{
-						Fetch: graphqlDataSource.FetchConfiguration{
+					mustConfiguration(t, graphqlDataSource.ConfigurationInput{
+						Fetch: &graphqlDataSource.FetchConfiguration{
 							URL: "http://product.service",
 						},
 						SchemaConfiguration: mustSchemaConfig(
@@ -216,7 +216,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 							},
 							productSchema,
 						),
-					},
+					}),
 				),
 				plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
 					"reviews",
@@ -251,12 +251,11 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 							},
 						},
 					},
-
-					graphqlDataSource.Configuration{
-						Fetch: graphqlDataSource.FetchConfiguration{
+					mustConfiguration(t, graphqlDataSource.ConfigurationInput{
+						Fetch: &graphqlDataSource.FetchConfiguration{
 							URL: "http://review.service",
 						},
-						Subscription: graphqlDataSource.SubscriptionConfiguration{
+						Subscription: &graphqlDataSource.SubscriptionConfiguration{
 							UseSSE: true,
 						},
 						SchemaConfiguration: mustSchemaConfig(
@@ -267,7 +266,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 							},
 							reviewSchema,
 						),
-					},
+					}),
 				),
 			})
 

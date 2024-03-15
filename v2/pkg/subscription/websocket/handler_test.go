@@ -262,6 +262,19 @@ func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string
 	schemaConfiguration, err := graphql_datasource.NewSchemaConfiguration(string(chatSchemaBytes), nil)
 	require.NoError(t, err)
 
+	customConfiguration, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
+		Fetch: &graphql_datasource.FetchConfiguration{
+			URL:    chatServerURL,
+			Method: http.MethodPost,
+			Header: nil,
+		},
+		Subscription: &graphql_datasource.SubscriptionConfiguration{
+			URL: chatServerURL,
+		},
+		SchemaConfiguration: schemaConfiguration,
+	})
+	require.NoError(t, err)
+
 	engineConf := graphql.NewEngineV2Configuration(chatSchema)
 	engineConf.SetWebsocketBeforeStartHook(onBeforeStartHook)
 	engineConf.SetDataSources([]plan.DataSource{
@@ -281,17 +294,7 @@ func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string
 					{TypeName: "Message", FieldNames: []string{"text", "createdBy"}},
 				},
 			},
-			graphql_datasource.Configuration{
-				Fetch: graphql_datasource.FetchConfiguration{
-					URL:    chatServerURL,
-					Method: http.MethodPost,
-					Header: nil,
-				},
-				Subscription: graphql_datasource.SubscriptionConfiguration{
-					URL: chatServerURL,
-				},
-				SchemaConfiguration: schemaConfiguration,
-			},
+			customConfiguration,
 		),
 	})
 	engineConf.SetFieldConfigurations([]plan.FieldConfiguration{

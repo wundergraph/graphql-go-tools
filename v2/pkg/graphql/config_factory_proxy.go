@@ -92,16 +92,25 @@ func NewProxyEngineConfigFactory(schema *Schema, proxyUpstreamConfig ProxyUpstre
 }
 
 func (p *ProxyEngineConfigFactory) EngineV2Configuration() (EngineV2Configuration, error) {
-	dataSourceConfig := graphqlDataSource.Configuration{
-		Fetch: graphqlDataSource.FetchConfiguration{
+	schemaConfiguration, err := graphqlDataSource.NewSchemaConfiguration(string(p.schema.rawInput), nil)
+	if err != nil {
+		return EngineV2Configuration{}, err
+	}
+
+	dataSourceConfig, err := graphqlDataSource.NewConfiguration(graphqlDataSource.ConfigurationInput{
+		Fetch: &graphqlDataSource.FetchConfiguration{
 			URL:    p.proxyUpstreamConfig.URL,
 			Method: p.proxyUpstreamConfig.Method,
 			Header: p.proxyUpstreamConfig.StaticHeaders,
 		},
-		Subscription: graphqlDataSource.SubscriptionConfiguration{
+		Subscription: &graphqlDataSource.SubscriptionConfiguration{
 			URL:    p.proxyUpstreamConfig.URL,
 			UseSSE: p.proxyUpstreamConfig.SubscriptionType == SubscriptionTypeSSE,
 		},
+		SchemaConfiguration: schemaConfiguration,
+	})
+	if err != nil {
+		return EngineV2Configuration{}, err
 	}
 
 	conf := NewEngineV2Configuration(p.schema)

@@ -91,6 +91,14 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 	)
 	require.NoError(t, err)
 
+	firstCustomConfiguration, err := NewConfiguration(ConfigurationInput{
+		Fetch: &FetchConfiguration{
+			URL: "http://localhost:4001/graphql",
+		},
+		SchemaConfiguration: firstDatasourceSchemaConfiguration,
+	})
+	require.NoError(t, err)
+
 	firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
 		"first",
 		factory,
@@ -144,12 +152,7 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 				},
 			},
 		},
-		Configuration{
-			Fetch: FetchConfiguration{
-				URL: "http://localhost:4001/graphql",
-			},
-			SchemaConfiguration: firstDatasourceSchemaConfiguration,
-		},
+		firstCustomConfiguration,
 	)
 
 	secondSubgraphSDL := `
@@ -173,6 +176,14 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 			ServiceSDL: secondSubgraphSDL,
 		},
 	)
+	require.NoError(t, err)
+
+	secondCustomConfiguration, err := NewConfiguration(ConfigurationInput{
+		Fetch: &FetchConfiguration{
+			URL: "http://localhost:4002/graphql",
+		},
+		SchemaConfiguration: secondDatasourceSchemaConfiguration,
+	})
 	require.NoError(t, err)
 
 	secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
@@ -234,12 +245,7 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 				},
 			},
 		},
-		Configuration{
-			Fetch: FetchConfiguration{
-				URL: "http://localhost:4002/graphql",
-			},
-			SchemaConfiguration: secondDatasourceSchemaConfiguration,
-		},
+		secondCustomConfiguration,
 	)
 
 	thirdSubgraphSDL := `
@@ -255,6 +261,14 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 			ServiceSDL: thirdSubgraphSDL,
 		},
 	)
+	require.NoError(t, err)
+
+	thirdCustomConfiguration, err := NewConfiguration(ConfigurationInput{
+		Fetch: &FetchConfiguration{
+			URL: "http://localhost:4003/graphql",
+		},
+		SchemaConfiguration: thirdDatasourceSchemaConfiguration,
+	})
 	require.NoError(t, err)
 
 	thirdDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
@@ -276,12 +290,7 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 				},
 			},
 		},
-		Configuration{
-			Fetch: FetchConfiguration{
-				URL: "http://localhost:4003/graphql",
-			},
-			SchemaConfiguration: thirdDatasourceSchemaConfiguration,
-		},
+		thirdCustomConfiguration,
 	)
 
 	fourthSubgraphSDL := `
@@ -297,6 +306,14 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 			ServiceSDL: fourthSubgraphSDL,
 		},
 	)
+	require.NoError(t, err)
+
+	fourthCustomConfiguration, err := NewConfiguration(ConfigurationInput{
+		Fetch: &FetchConfiguration{
+			URL: "http://localhost:4004/graphql",
+		},
+		SchemaConfiguration: fourthDatasourceSchemaConfiguration,
+	})
 	require.NoError(t, err)
 
 	fourthDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
@@ -348,12 +365,7 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 				},
 			},
 		},
-		Configuration{
-			Fetch: FetchConfiguration{
-				URL: "http://localhost:4004/graphql",
-			},
-			SchemaConfiguration: fourthDatasourceSchemaConfiguration,
-		},
+		fourthCustomConfiguration,
 	)
 
 	dataSources := []plan.DataSource{

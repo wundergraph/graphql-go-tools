@@ -161,18 +161,23 @@ func (d *DatasourcePollerPoller) createDatasourceConfig() []graphql.DataSourceCo
 			panic(fmt.Errorf("create schema configuration: %v", err))
 		}
 
-		dataSourceConfig := graphql.DataSourceConfiguration{
-			ID: serviceConfig.Name,
-			Configuration: graphqlDataSource.Configuration{
-				Fetch: graphqlDataSource.FetchConfiguration{
-					URL:    serviceConfig.URL,
-					Method: http.MethodPost,
-				},
-				Subscription: graphqlDataSource.SubscriptionConfiguration{
-					URL: serviceConfig.WS,
-				},
-				SchemaConfiguration: schemaConfiguration,
+		customConfig, err := graphqlDataSource.NewConfiguration(graphqlDataSource.ConfigurationInput{
+			Fetch: &graphqlDataSource.FetchConfiguration{
+				URL:    serviceConfig.URL,
+				Method: http.MethodPost,
 			},
+			Subscription: &graphqlDataSource.SubscriptionConfiguration{
+				URL: serviceConfig.WS,
+			},
+			SchemaConfiguration: schemaConfiguration,
+		})
+		if err != nil {
+			panic(fmt.Errorf("create configuration: %v", err))
+		}
+
+		dataSourceConfig := graphql.DataSourceConfiguration{
+			ID:            serviceConfig.Name,
+			Configuration: customConfig,
 		}
 
 		dataSourceConfigs = append(dataSourceConfigs, dataSourceConfig)
