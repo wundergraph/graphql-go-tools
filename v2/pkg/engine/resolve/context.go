@@ -1,32 +1,82 @@
 package resolve
 
 import (
-	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
-	"strconv"
+	"time"
 
-	"github.com/TykTechnologies/graphql-go-tools/v2/internal/pkg/unsafebytes"
-	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/lexer/literal"
-	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/pool"
+	"github.com/hashicorp/go-multierror"
+	"go.uber.org/atomic"
 )
 
 type Context struct {
-	ctx              context.Context
-	Variables        []byte
-	Request          Request
-	pathElements     [][]byte
-	responseElements []string
-	usedBuffers      []*bytes.Buffer
-	pathPrefix       []byte
-	beforeFetchHook  BeforeFetchHook
-	afterFetchHook   AfterFetchHook
-	position         Position
-	RenameTypeNames  []RenameTypeName
-	EnableTracing    bool
+	ctx                   context.Context
+	Variables             []byte
+	Request               Request
+	RenameTypeNames       []RenameTypeName
+	RequestTracingOptions RequestTraceOptions
+	InitialPayload        []byte
+	Extensions            []byte
+	Stats                 Stats
+
+	authorizer Authorizer
+
+	subgraphErrors error
+}
+
+type AuthorizationDeny struct {
+	Reason string
+}
+
+type Authorizer interface {
+	// AuthorizePreFetch is called prior to making a fetch in the loader
+	// This allows to implement policies to prevent fetches to an origin
+	// E.g. for Mutations, it might be undesired to just filter out the response
+	// You'd want to prevent sending the Operation to the Origin completely
+	//
+	// The input argument is the final render of the datasource input
+	AuthorizePreFetch(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error)
+	// AuthorizeObjectField operates on the response and can solely be used to implement policies to filter out response fields
+	// In contrast to AuthorizePreFetch, this cannot be used to prevent origin requests
+	// This function only allows you to filter the response before rendering it to the client
+	//
+	// The object argument is the flat render of the field-enclosing response object
+	// Flat render means, we're only rendering scalars, not arrays or objects
+	AuthorizeObjectField(ctx *Context, dataSourceID string, object json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error)
+}
+
+func (c *Context) WithAuthorizer(authorizer Authorizer) *Context {
+	c.authorizer = authorizer
+	return c
+}
+
+func (c *Context) SubgraphErrors() error {
+	return c.subgraphErrors
+}
+
+func (c *Context) appendSubgraphError(err error) {
+	c.subgraphErrors = multierror.Append(c.subgraphErrors, err)
+}
+
+type Stats struct {
+	NumberOfFetches      atomic.Int32
+	CombinedResponseSize atomic.Int64
+	ResolvedNodes        int
+	ResolvedObjects      int
+	ResolvedLeafs        int
+}
+
+func (s *Stats) Reset() {
+	s.NumberOfFetches.Store(0)
+	s.CombinedResponseSize.Store(0)
+	s.ResolvedNodes = 0
+	s.ResolvedObjects = 0
+	s.ResolvedLeafs = 0
 }
 
 type Request struct {
+	ID     string
 	Header http.Header
 }
 
@@ -35,12 +85,7 @@ func NewContext(ctx context.Context) *Context {
 		panic("nil context.Context")
 	}
 	return &Context{
-		ctx:          ctx,
-		Variables:    make([]byte, 0, 4096),
-		pathPrefix:   make([]byte, 0, 4096),
-		pathElements: make([][]byte, 0, 16),
-		usedBuffers:  make([]*bytes.Buffer, 0, 48),
-		position:     Position{},
+		ctx: ctx,
 	}
 }
 
@@ -57,117 +102,86 @@ func (c *Context) WithContext(ctx context.Context) *Context {
 	return &cpy
 }
 
-func (c *Context) clone() Context {
-	variables := make([]byte, len(c.Variables))
-	copy(variables, c.Variables)
-	pathPrefix := make([]byte, len(c.pathPrefix))
-	copy(pathPrefix, c.pathPrefix)
-	pathElements := make([][]byte, len(c.pathElements))
-	for i := range pathElements {
-		pathElements[i] = make([]byte, len(c.pathElements[i]))
-		copy(pathElements[i], c.pathElements[i])
-	}
-	return Context{
-		ctx:             c.ctx,
-		Variables:       variables,
-		Request:         c.Request,
-		pathElements:    pathElements,
-		usedBuffers:     make([]*bytes.Buffer, 0, 48),
-		pathPrefix:      pathPrefix,
-		beforeFetchHook: c.beforeFetchHook,
-		afterFetchHook:  c.afterFetchHook,
-		position:        c.position,
-	}
+func (c *Context) clone(ctx context.Context) *Context {
+	cpy := *c
+	cpy.ctx = ctx
+	cpy.Variables = append([]byte(nil), c.Variables...)
+	cpy.Request.Header = c.Request.Header.Clone()
+	cpy.RenameTypeNames = append([]RenameTypeName(nil), c.RenameTypeNames...)
+	return &cpy
 }
 
 func (c *Context) Free() {
 	c.ctx = nil
-	c.Variables = c.Variables[:0]
-	c.pathPrefix = c.pathPrefix[:0]
-	c.pathElements = c.pathElements[:0]
-	for i := range c.usedBuffers {
-		pool.BytesBuffer.Put(c.usedBuffers[i])
-	}
-	c.usedBuffers = c.usedBuffers[:0]
-	c.beforeFetchHook = nil
-	c.afterFetchHook = nil
+	c.Variables = nil
 	c.Request.Header = nil
-	c.position = Position{}
 	c.RenameTypeNames = nil
+	c.RequestTracingOptions.DisableAll()
+	c.Extensions = nil
+	c.Stats.Reset()
+	c.subgraphErrors = nil
+	c.authorizer = nil
 }
 
-func (c *Context) SetBeforeFetchHook(hook BeforeFetchHook) {
-	c.beforeFetchHook = hook
+type traceStartKey struct{}
+
+type TraceInfo struct {
+	TraceStart     time.Time    `json:"-"`
+	TraceStartTime string       `json:"trace_start_time"`
+	TraceStartUnix int64        `json:"trace_start_unix"`
+	PlannerStats   PlannerStats `json:"planner_stats"`
+	debug          bool
 }
 
-func (c *Context) SetAfterFetchHook(hook AfterFetchHook) {
-	c.afterFetchHook = hook
+type PlannerStats struct {
+	PlanningTimeNano         int64  `json:"planning_time_nanoseconds"`
+	PlanningTimePretty       string `json:"planning_time_pretty"`
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
 }
 
-func (c *Context) setPosition(position Position) {
-	c.position = position
-}
-
-func (c *Context) addResponseElements(elements []string) {
-	c.responseElements = append(c.responseElements, elements...)
-}
-
-func (c *Context) addResponseArrayElements(elements []string) {
-	c.responseElements = append(c.responseElements, elements...)
-}
-
-func (c *Context) removeResponseLastElements(elements []string) {
-	c.responseElements = c.responseElements[:len(c.responseElements)-len(elements)]
-}
-func (c *Context) removeResponseArrayLastElements(elements []string) {
-	c.responseElements = c.responseElements[:len(c.responseElements)-(len(elements))]
-}
-
-func (c *Context) resetResponsePathElements() {
-	c.responseElements = nil
-}
-
-func (c *Context) addPathElement(elem []byte) {
-	c.pathElements = append(c.pathElements, elem)
-}
-
-func (c *Context) addIntegerPathElement(elem int) {
-	b := unsafebytes.StringToBytes(strconv.Itoa(elem))
-	c.pathElements = append(c.pathElements, b)
-}
-
-func (c *Context) removeLastPathElement() {
-	c.pathElements = c.pathElements[:len(c.pathElements)-1]
-}
-
-func (c *Context) path() []byte {
-	buf := pool.BytesBuffer.Get()
-	c.usedBuffers = append(c.usedBuffers, buf)
-	if len(c.pathPrefix) != 0 {
-		buf.Write(c.pathPrefix)
+func SetTraceStart(ctx context.Context, predictableDebugTimings bool) context.Context {
+	info := &TraceInfo{}
+	if predictableDebugTimings {
+		info.debug = true
+		info.TraceStart = time.UnixMilli(0)
+		info.TraceStartUnix = 0
+		info.TraceStartTime = ""
 	} else {
-		buf.Write(literal.SLASH)
-		buf.Write(literal.DATA)
+		info.TraceStart = time.Now()
+		info.TraceStartUnix = info.TraceStart.Unix()
+		info.TraceStartTime = info.TraceStart.Format(time.RFC3339)
 	}
-	for i := range c.pathElements {
-		if i == 0 && bytes.Equal(literal.DATA, c.pathElements[0]) {
-			continue
-		}
-		_, _ = buf.Write(literal.SLASH)
-		_, _ = buf.Write(c.pathElements[i])
+	return context.WithValue(ctx, traceStartKey{}, info)
+}
+
+func GetDurationNanoSinceTraceStart(ctx context.Context) int64 {
+	info, ok := ctx.Value(traceStartKey{}).(*TraceInfo)
+	if !ok {
+		return 0
 	}
-	return buf.Bytes()
+	if info.debug {
+		return 1
+	}
+	return time.Since(info.TraceStart).Nanoseconds()
 }
 
-type HookContext struct {
-	CurrentPath []byte
+func SetPlannerStats(ctx context.Context, stats PlannerStats) {
+	info, ok := ctx.Value(traceStartKey{}).(*TraceInfo)
+	if !ok {
+		return
+	}
+	if info.debug {
+		stats.DurationSinceStartNano = 5
+		stats.DurationSinceStartPretty = time.Duration(5).String()
+		stats.PlanningTimeNano = 5
+		stats.PlanningTimePretty = time.Duration(5).String()
+	}
+	info.PlannerStats = stats
 }
 
-type BeforeFetchHook interface {
-	OnBeforeFetch(ctx HookContext, input []byte)
-}
-
-type AfterFetchHook interface {
-	OnData(ctx HookContext, output []byte, singleFlight bool)
-	OnError(ctx HookContext, output []byte, singleFlight bool)
+func GetTraceInfo(ctx context.Context) *TraceInfo {
+	// The context might not have trace info, in that case we return nil
+	info, _ := ctx.Value(traceStartKey{}).(*TraceInfo)
+	return info
 }

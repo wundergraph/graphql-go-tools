@@ -82,3 +82,7 @@ func (d *Document) InlineFragmentSelectionSet(ref int) (selectionSetRef int, ok 
 	}
 	return d.InlineFragments[ref].SelectionSet, true
 }
+
+func (d *Document) InlineFragmentDirectives(ref int) []int {
+	return d.InlineFragments[ref].Directives.Refs
+}

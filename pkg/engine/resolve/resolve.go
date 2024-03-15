@@ -603,8 +603,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		select {
 		case <-resolverDone:
 			return nil
-		default:
-			data, ok := <-next
+		case data, ok := <-next:
 			if !ok {
 				return nil
 			}

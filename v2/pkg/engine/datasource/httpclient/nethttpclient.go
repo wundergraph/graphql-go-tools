@@ -5,8 +5,12 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/andybalholm/brotli"
@@ -42,9 +46,27 @@ var (
 	}
 )
 
+type TraceHTTP struct {
+	Request  TraceHTTPRequest  `json:"request"`
+	Response TraceHTTPResponse `json:"response"`
+}
+
+type TraceHTTPRequest struct {
+	Method  string      `json:"method"`
+	URL     string      `json:"url"`
+	Headers http.Header `json:"headers"`
+}
+
+type TraceHTTPResponse struct {
+	StatusCode int         `json:"status_code"`
+	Status     string      `json:"status"`
+	Headers    http.Header `json:"headers"`
+	BodySize   int         `json:"body_size"`
+}
+
 func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Writer) (err error) {
 
-	url, method, body, headers, queryParams := requestInputParams(requestInput)
+	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
 
 	request, err := http.NewRequestWithContext(ctx, string(method), string(url), bytes.NewReader(body))
 	if err != nil {
@@ -116,19 +138,78 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 		return err
 	}
 
-	_, err = io.Copy(out, respReader)
-	return
+	if !enableTrace {
+		_, err = io.Copy(out, respReader)
+		return
+	}
+
+	buf := &bytes.Buffer{}
+	_, err = io.Copy(buf, respReader)
+	if err != nil {
+		return err
+	}
+	responseTrace := TraceHTTP{
+		Request: TraceHTTPRequest{
+			Method:  request.Method,
+			URL:     request.URL.String(),
+			Headers: redactHeaders(request.Header),
+		},
+		Response: TraceHTTPResponse{
+			StatusCode: response.StatusCode,
+			Status:     response.Status,
+			Headers:    redactHeaders(response.Header),
+			BodySize:   buf.Len(),
+		},
+	}
+	trace, err := json.Marshal(responseTrace)
+	if err != nil {
+		return err
+	}
+	responseWithTraceExtension, err := jsonparser.Set(buf.Bytes(), trace, "extensions", "trace")
+	if err != nil {
+		return err
+	}
+	_, err = out.Write(responseWithTraceExtension)
+	return err
 }
 
-func respBodyReader(resp *http.Response) (io.ReadCloser, error) {
-	switch resp.Header.Get(ContentEncodingHeader) {
+var headersToRedact = []string{
+	"authorization",
+	"www-authenticate",
+	"proxy-authenticate",
+	"proxy-authorization",
+	"cookie",
+	"set-cookie",
+}
+
+func redactHeaders(headers http.Header) http.Header {
+	redactedHeaders := make(http.Header)
+	for key, values := range headers {
+		if slices.Contains(headersToRedact, strings.ToLower(key)) {
+			redactedHeaders[key] = []string{"****"}
+		} else {
+			redactedHeaders[key] = values
+		}
+	}
+	return redactedHeaders
+}
+
+var (
+	ErrNonOkResponse = errors.New("server returned non 200 OK response")
+)
+
+func respBodyReader(res *http.Response) (io.Reader, error) {
+	if res.StatusCode != http.StatusOK {
+		return nil, ErrNonOkResponse
+	}
+	switch res.Header.Get(ContentEncodingHeader) {
 	case EncodingGzip:
-		return gzip.NewReader(resp.Body)
+		return gzip.NewReader(res.Body)
 	case EncodingDeflate:
-		return flate.NewReader(resp.Body), nil
+		return flate.NewReader(res.Body), nil
 	case EncodingBrotli:
-		return io.NopCloser(brotli.NewReader(resp.Body)), nil
+		return io.NopCloser(brotli.NewReader(res.Body)), nil
 	default:
-		return resp.Body, nil
+		return res.Body, nil
 	}
 }

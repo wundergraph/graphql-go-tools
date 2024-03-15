@@ -75,6 +75,8 @@ func RequestBody(t TestingTB, query string, variables QueryVariables) []byte {
 		var err error
 		variableJsonBytes, err = json.Marshal(variables)
 		require.NoError(t, err)
+	} else {
+		variableJsonBytes = []byte(`{}`)
 	}
 
 	body := GraphqlRequest{

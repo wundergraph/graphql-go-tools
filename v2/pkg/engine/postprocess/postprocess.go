@@ -26,8 +26,9 @@ func (p *Processor) Count() int {
 func DefaultProcessor() *Processor {
 	return &Processor{
 		[]PostProcessor{
-			&ProcessDataSource{},
-			&DataSourceFetch{},
+			&ResolveInputTemplates{},
+			&CreateMultiFetchTypes{},
+			&CreateConcreteSingleFetchTypes{},
 		},
 	}
 }

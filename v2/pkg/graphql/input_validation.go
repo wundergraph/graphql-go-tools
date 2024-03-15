@@ -2,7 +2,7 @@ package graphql
 
 import (
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/operationreport"
-	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/variablevalidator"
+	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/variablesvalidation"
 )
 
 type InputValidationResult struct {
@@ -31,14 +31,29 @@ func inputValidationResultFromReport(report operationreport.Report) (InputValida
 	return result, err
 }
 
+func inputValidationResultFromErr(err error) (InputValidationResult, error) {
+	result := InputValidationResult{
+		Valid:  false,
+		Errors: nil,
+	}
+
+	if err == nil {
+		result.Valid = true
+		return result, nil
+	}
+
+	result.Errors = RequestErrorsFromError(err)
+	return result, nil
+}
+
 func (r *Request) ValidateInput(schema *Schema) (InputValidationResult, error) {
-	validator := variablevalidator.NewVariableValidator()
+	validator := variablesvalidation.NewVariablesValidator()
 
 	report := r.parseQueryOnce()
 	if report.HasErrors() {
 		return inputValidationResultFromReport(report)
 	}
-	validator.Validate(&r.document, &schema.document, []byte(r.OperationName), r.Variables, &report)
 
-	return inputValidationResultFromReport(report)
+	err := validator.Validate(&r.document, &schema.document, r.Variables)
+	return inputValidationResultFromErr(err)
 }

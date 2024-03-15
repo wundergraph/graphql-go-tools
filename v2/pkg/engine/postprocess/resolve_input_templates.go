@@ -4,16 +4,14 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/exp/slices"
-
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-// ProcessDataSource is a postprocessor that processes input template and sort fetches of serial fetch
-type ProcessDataSource struct{}
+// ResolveInputTemplates is a postprocessor that resolves input template
+type ResolveInputTemplates struct{}
 
-func (d *ProcessDataSource) Process(pre plan.Plan) plan.Plan {
+func (d *ResolveInputTemplates) Process(pre plan.Plan) plan.Plan {
 	switch t := pre.(type) {
 	case *plan.SynchronousResponsePlan:
 		d.traverseNode(t.Response.Data)
@@ -24,7 +22,7 @@ func (d *ProcessDataSource) Process(pre plan.Plan) plan.Plan {
 	return pre
 }
 
-func (d *ProcessDataSource) traverseNode(node resolve.Node) {
+func (d *ResolveInputTemplates) traverseNode(node resolve.Node) {
 	switch n := node.(type) {
 	case *resolve.Object:
 		d.traverseFetch(n.Fetch)
@@ -36,40 +34,31 @@ func (d *ProcessDataSource) traverseNode(node resolve.Node) {
 	}
 }
 
-func (d *ProcessDataSource) traverseFetch(fetch resolve.Fetch) {
+func (d *ResolveInputTemplates) traverseFetch(fetch resolve.Fetch) {
 	if fetch == nil {
 		return
 	}
 	switch f := fetch.(type) {
 	case *resolve.SingleFetch:
 		d.traverseSingleFetch(f)
-	case *resolve.ParallelFetch:
-		for i := range f.Fetches {
-			d.traverseFetch(f.Fetches[i])
-		}
-	case *resolve.SerialFetch:
-		slices.SortFunc(f.Fetches, func(a, b resolve.Fetch) int {
-			// serial fetch always has a single fetch as child
-			// sort descending by serial id
-			return b.(*resolve.SingleFetch).SerialID - a.(*resolve.SingleFetch).SerialID
-		})
+	case *resolve.MultiFetch:
 		for i := range f.Fetches {
 			d.traverseFetch(f.Fetches[i])
 		}
 	default:
 		// at this point, we should not have any other types of fetches
-		// as from planner we could get only SingleFetch, ParallelFetch and SerialFetch
-		// other types of fetches are created only during postprocessing via DataSourceFetch postprocessor
+		// as from planner we could get only SingleFetch and MultiFetch
+		// other types of fetches are created only during postprocessing via CreateConcreteSingleFetchTypes postprocessor
 	}
 }
 
-func (d *ProcessDataSource) traverseTrigger(trigger *resolve.GraphQLSubscriptionTrigger) {
+func (d *ResolveInputTemplates) traverseTrigger(trigger *resolve.GraphQLSubscriptionTrigger) {
 	d.resolveInputTemplate(trigger.Variables, string(trigger.Input), &trigger.InputTemplate)
 	trigger.Input = nil
 	trigger.Variables = nil
 }
 
-func (d *ProcessDataSource) traverseSingleFetch(fetch *resolve.SingleFetch) {
+func (d *ResolveInputTemplates) traverseSingleFetch(fetch *resolve.SingleFetch) {
 	d.resolveInputTemplate(fetch.Variables, fetch.Input, &fetch.InputTemplate)
 	fetch.Input = ""
 	fetch.Variables = nil
@@ -77,7 +66,7 @@ func (d *ProcessDataSource) traverseSingleFetch(fetch *resolve.SingleFetch) {
 	fetch.SetTemplateOutputToNullOnVariableNull = false
 }
 
-func (d *ProcessDataSource) resolveInputTemplate(variables resolve.Variables, input string, template *resolve.InputTemplate) {
+func (d *ResolveInputTemplates) resolveInputTemplate(variables resolve.Variables, input string, template *resolve.InputTemplate) {
 
 	if input == "" {
 		return

@@ -4,10 +4,16 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/cespare/xxhash/v2"
+	"github.com/jensneuse/abstractlogger"
+
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/ast"
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/jensneuse/abstractlogger"
+)
+
+var (
+	dataSourceName = []byte("kafka")
 )
 
 type Planner struct {
@@ -60,20 +66,38 @@ func ConfigJSON(config Configuration) json.RawMessage {
 }
 
 type GraphQLSubscriptionClient interface {
-	Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error
+	Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.CloseableSubscriptionUpdater) error
+	UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error)
 }
 
 type SubscriptionSource struct {
 	client GraphQLSubscriptionClient
 }
 
-func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, next chan<- []byte) error {
+func (s *SubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte, xxh *xxhash.Digest) (err error) {
+	_, err = xxh.Write(dataSourceName)
+	if err != nil {
+		return err
+	}
+	var options GraphQLSubscriptionOptions
+	err = json.Unmarshal(input, &options)
+	if err != nil {
+		return err
+	}
+	return s.client.UniqueRequestID(ctx, options, xxh)
+}
+
+func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, updater resolve.SubscriptionUpdater) error {
 	var options GraphQLSubscriptionOptions
 	err := json.Unmarshal(input, &options)
 	if err != nil {
 		return err
 	}
-	return s.client.Subscribe(ctx, options, next)
+	closeableUpdater, ok := resolve.AsCloseableSubscriptionUpdater(updater)
+	if !ok {
+		return resolve.ErrSubscriptionUpdaterNotCloseable
+	}
+	return s.client.Subscribe(ctx, options, closeableUpdater)
 }
 
 var _ plan.PlannerFactory = (*Factory)(nil)

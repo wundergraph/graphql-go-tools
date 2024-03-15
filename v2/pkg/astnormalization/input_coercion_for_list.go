@@ -1,7 +1,6 @@
 package astnormalization
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -196,7 +195,7 @@ func (i *inputCoercionForListVisitor) walkJsonObject(inputObjDefTypeRef int, dat
 
 		inputValueDefRef := i.definition.InputObjectTypeDefinitionInputValueDefinitionByName(inputObjDefTypeRef, key)
 		if inputValueDefRef == ast.InvalidRef {
-			return fmt.Errorf("nested field %s is not defined in any subfield of type %s", string(key), i.definition.InputObjectTypeDefinitionNameBytes(inputObjDefTypeRef))
+			return nil // skip unknown fields, this is checked by package variablesvalidation
 		}
 
 		typeRef := i.definition.ResolveListOrNameType(i.definition.InputValueDefinitionType(inputValueDefRef))

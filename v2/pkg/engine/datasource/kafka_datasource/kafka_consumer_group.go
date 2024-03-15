@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash/v2"
 	log "github.com/jensneuse/abstractlogger"
+
+	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 const consumerGroupRetryInterval = time.Second
@@ -262,8 +264,72 @@ func (c *KafkaConsumerGroupBridge) prepareSaramaConfig(options *GraphQLSubscript
 	return sc, nil
 }
 
+func (c *KafkaConsumerGroupBridge) UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error) {
+	_, err = hash.WriteString(options.ClientID)
+	if err != nil {
+		return err
+	}
+
+	_, err = hash.WriteString(options.GroupID)
+	if err != nil {
+		return err
+	}
+
+	for _, brokerAddress := range options.BrokerAddresses {
+		_, err = hash.WriteString(brokerAddress)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, topic := range options.Topics {
+		_, err = hash.WriteString(topic)
+		if err != nil {
+			return err
+		}
+	}
+
+	if options.StartConsumingLatest {
+		_, err = hash.WriteString("startConsumingLatest")
+		if err != nil {
+			return err
+		}
+
+	}
+
+	_, err = hash.WriteString(options.KafkaVersion)
+	if err != nil {
+		return err
+	}
+
+	_, err = hash.WriteString(options.IsolationLevel)
+	if err != nil {
+		return err
+	}
+
+	_, err = hash.WriteString(options.BalanceStrategy)
+	if err != nil {
+		return err
+	}
+
+	if options.SASL.Enable {
+		_, err = hash.WriteString(options.SASL.User)
+		if err != nil {
+			return err
+		}
+
+		_, err = hash.WriteString(options.SASL.Password)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+
+}
+
 // Subscribe creates a new consumer group with given config and streams messages via next channel.
-func (c *KafkaConsumerGroupBridge) Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+func (c *KafkaConsumerGroupBridge) Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.CloseableSubscriptionUpdater) error {
 	options.Sanitize()
 	if err := options.Validate(); err != nil {
 		return err
@@ -293,7 +359,7 @@ func (c *KafkaConsumerGroupBridge) Subscribe(ctx *resolve.Context, options Graph
 					log.Error(err),
 				)
 			}
-			close(next)
+			updater.Close()
 		}()
 
 		for {
@@ -313,7 +379,7 @@ func (c *KafkaConsumerGroupBridge) Subscribe(ctx *resolve.Context, options Graph
 				if err != nil {
 					return
 				}
-				next <- result
+				updater.Update(result)
 			}
 		}
 	}()

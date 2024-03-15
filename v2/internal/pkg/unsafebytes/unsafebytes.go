@@ -21,6 +21,7 @@ func BytesToFloat32(byteSlice []byte) float32 {
 }
 
 func BytesToString(b []byte) string {
+	// Ignore if IDE shows an error here; it's a false positive.
 	return unsafe.String(unsafe.SliceData(b), len(b))
 }
 

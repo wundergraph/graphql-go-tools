@@ -30,7 +30,7 @@ type CustomExecutionEngineV2InputValidationStage interface {
 type CustomExecutionEngineV2ResolverStage interface {
 	Setup(ctx context.Context, postProcessor *postprocess.Processor, resolveContext *resolve.Context, operation *Request, options ...ExecutionOptionsV2)
 	Plan(postProcessor *postprocess.Processor, operation *Request, report *operationreport.Report) (plan.Plan, error)
-	Resolve(resolveContext *resolve.Context, planResult plan.Plan, writer resolve.FlushWriter) error
+	Resolve(resolveContext *resolve.Context, planResult plan.Plan, writer resolve.SubscriptionResponseWriter) error
 	Teardown()
 }
 
@@ -42,7 +42,7 @@ type CustomExecutionEngineV2 interface {
 }
 
 type ExecutionEngineV2Executor interface {
-	Execute(ctx context.Context, operation *Request, writer resolve.FlushWriter, options ...ExecutionOptionsV2) error
+	Execute(ctx context.Context, operation *Request, writer resolve.SubscriptionResponseWriter, options ...ExecutionOptionsV2) error
 }
 
 type CustomExecutionEngineV2Stages struct {
@@ -103,7 +103,7 @@ func (c *CustomExecutionEngineV2Executor) putExecutionCtx(ctx *internalExecution
 	c.internalExecutionContextPool.Put(ctx)
 }
 
-func (c *CustomExecutionEngineV2Executor) Execute(ctx context.Context, operation *Request, writer resolve.FlushWriter, options ...ExecutionOptionsV2) error {
+func (c *CustomExecutionEngineV2Executor) Execute(ctx context.Context, operation *Request, writer resolve.SubscriptionResponseWriter, options ...ExecutionOptionsV2) error {
 	if !c.ExecutionStages.AllRequiredStagesProvided() {
 		return ErrRequiredStagesMissing
 	}

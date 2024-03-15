@@ -8,25 +8,25 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/ast"
 )
 
-func mergeInlineFragments(walker *astvisitor.Walker) {
-	visitor := mergeInlineFragmentsVisitor{
+func inlineSelectionsFromInlineFragments(walker *astvisitor.Walker) {
+	visitor := inlineSelectionsFromInlineFragmentsVisitor{
 		Walker: walker,
 	}
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterSelectionSetVisitor(&visitor)
 }
 
-type mergeInlineFragmentsVisitor struct {
+type inlineSelectionsFromInlineFragmentsVisitor struct {
 	*astvisitor.Walker
 	operation, definition *ast.Document
 }
 
-func (m *mergeInlineFragmentsVisitor) EnterDocument(operation, definition *ast.Document) {
+func (m *inlineSelectionsFromInlineFragmentsVisitor) EnterDocument(operation, definition *ast.Document) {
 	m.operation = operation
 	m.definition = definition
 }
 
-func (m *mergeInlineFragmentsVisitor) couldInline(set, inlineFragment int) bool {
+func (m *inlineSelectionsFromInlineFragmentsVisitor) couldInline(set, inlineFragment int) bool {
 	if m.operation.InlineFragmentHasDirectives(inlineFragment) {
 		return false
 	}
@@ -43,11 +43,11 @@ func (m *mergeInlineFragmentsVisitor) couldInline(set, inlineFragment int) bool 
 	return m.definition.TypeDefinitionContainsImplementsInterface(enclosingTypeName, inlineFragmentTypeName)
 }
 
-func (m *mergeInlineFragmentsVisitor) resolveInlineFragment(set, index, inlineFragment int) {
+func (m *inlineSelectionsFromInlineFragmentsVisitor) resolveInlineFragment(set, index, inlineFragment int) {
 	m.operation.ReplaceSelectionOnSelectionSet(set, index, m.operation.InlineFragments[inlineFragment].SelectionSet)
 }
 
-func (m *mergeInlineFragmentsVisitor) EnterSelectionSet(ref int) {
+func (m *inlineSelectionsFromInlineFragmentsVisitor) EnterSelectionSet(ref int) {
 
 	for index, selection := range m.operation.SelectionSets[ref].SelectionRefs {
 		if m.operation.Selections[selection].Kind != ast.SelectionKindInlineFragment {

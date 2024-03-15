@@ -14,34 +14,44 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/testing/goldie"
 )
 
-func TestPrint(t *testing.T) {
-
-	must := func(t *testing.T, err error) {
-		t.Helper()
-		if report, ok := err.(operationreport.Report); ok {
-			if report.HasErrors() {
-				t.Fatalf("report has errors %s", report.Error())
-			}
+func must(t *testing.T, err error) {
+	t.Helper()
+	if report, ok := err.(operationreport.Report); ok {
+		if report.HasErrors() {
+			t.Fatalf("report has errors %s", report.Error())
 		}
-		require.NoError(t, err)
+	}
+	require.NoError(t, err)
+}
+
+func runWithIndent(t *testing.T, raw string, expected string, indent bool) {
+	t.Helper()
+
+	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	doc := unsafeparser.ParseGraphqlDocumentString(raw)
+
+	buff := &bytes.Buffer{}
+	printer := Printer{}
+
+	if indent {
+		printer.indent = []byte("  ")
 	}
 
-	run := func(t *testing.T, raw string, expected string) {
-		t.Helper()
+	must(t, printer.Print(&doc, &definition, buff))
 
-		definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
-		doc := unsafeparser.ParseGraphqlDocumentString(raw)
+	actual := buff.String()
+	assert.Equal(t, expected, actual)
+}
 
-		buff := &bytes.Buffer{}
-		// printer := Printer{indent: []byte("  ")}
-		printer := Printer{}
+func runIndent(t *testing.T, raw string, expected string) {
+	runWithIndent(t, raw, expected, true)
+}
 
-		must(t, printer.Print(&doc, &definition, buff))
+func run(t *testing.T, raw string, expected string) {
+	runWithIndent(t, raw, expected, false)
+}
 
-		actual := buff.String()
-		assert.Equal(t, expected, actual)
-	}
-
+func TestPrint(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		run(t, "query o($id: String!){user(id: $id){id name birthday}}",
 			"query o($id: String!){user(id: $id){id name birthday}}")
@@ -154,31 +164,141 @@ vary: [String]! = []) on QUERY directive @include(if: Boolean!) repeatable on FI
 			`query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}`)
 	})
 	t.Run("directives", func(t *testing.T) {
-		t.Run("on field", func(t *testing.T) {
-			run(t, `
-			query directivesQuery @foo(bar: BAZ) {
-				dog @include(if: true, or: false) {
-					doesKnowCommand(dogCommand: $catCommand)
-				}
-			}`, `query directivesQuery @foo(bar: BAZ) {dog @include(if: true, or: false) {doesKnowCommand(dogCommand: $catCommand)}}`)
-		})
-		t.Run("on inline fragment", func(t *testing.T) {
-			run(t, `
-				{
-					dog {
-						name: nickname
-						... @include(if: true) {
-							name
+		t.Run("no indentation", func(t *testing.T) {
+			t.Run("on field with selections", func(t *testing.T) {
+				run(t, `
+					query directivesQuery @foo(bar: BAZ) {
+						dog @include(if: true, or: false) {
+							doesKnowCommand(dogCommand: $catCommand)
+						}
+					}`, `query directivesQuery @foo(bar: BAZ) {dog @include(if: true, or: false) {doesKnowCommand(dogCommand: $catCommand)}}`)
+			})
+			t.Run("on field with selections and selections after", func(t *testing.T) {
+				run(t, `
+					query directivesQuery @foo(bar: BAZ) {
+						dog @include(if: true, or: false) {
+							doesKnowCommand(dogCommand: $catCommand)
+						}
+						anotherField
+					}`, `query directivesQuery @foo(bar: BAZ) {dog @include(if: true, or: false) {doesKnowCommand(dogCommand: $catCommand)} anotherField}`)
+			})
+
+			t.Run("on inline fragment", func(t *testing.T) {
+				run(t, `
+					{
+						dog {
+							name: nickname
+							... @include(if: true) {
+								name
+							}
+						}
+						cat {
+							name @include(if: true)
+							nickname
+						}
+					}`, `{dog {name: nickname ... @include(if: true){name}} cat {name @include(if: true) nickname}}`)
+			})
+			t.Run("on fragment spread", func(t *testing.T) {
+				run(t, `
+					{
+						dog {
+							...NameFragment @include(if: true)
 						}
 					}
-					cat {
-						name @include(if: true)
-						nickname
+					fragment NameFragment on Dog {
+						name
 					}
-				}`, `{dog {name: nickname ... @include(if: true){name}} cat {name @include(if: true) nickname}}`)
+					`, `{dog {...NameFragment @include(if: true)}} fragment NameFragment on Dog {name}`)
+			})
 		})
-		t.Run("on fragment spread", func(t *testing.T) {
-			run(t, `
+
+		t.Run("with indentation", func(t *testing.T) {
+			t.Run("on field with selections", func(t *testing.T) {
+				runIndent(t, `
+					query directivesQuery @foo(bar: BAZ) {
+						dog @include(if: true, or: false) {
+							doesKnowCommand(dogCommand: $catCommand)
+						}
+					}`,
+					`query directivesQuery @foo(bar: BAZ) {
+    dog @include(if: true, or: false) {
+        doesKnowCommand(dogCommand: $catCommand)
+    }
+}`)
+			})
+
+			t.Run("on field with selections and selections after", func(t *testing.T) {
+				runIndent(t, `
+					query directivesQuery @foo(bar: BAZ) {
+						dog @include(if: true, or: false) {
+							doesKnowCommand(dogCommand: $catCommand)
+						}
+						anotherField
+					}`,
+					`query directivesQuery @foo(bar: BAZ) {
+    dog @include(if: true, or: false) {
+        doesKnowCommand(dogCommand: $catCommand)
+    }
+    anotherField
+}`)
+			})
+			t.Run("on field without selections", func(t *testing.T) {
+				runIndent(t, `
+					{
+						cat {
+							name @include(if: true)
+							nickname
+						}
+					}`,
+					`{
+    cat {
+        name @include(if: true)
+        nickname
+    }
+}`)
+			})
+
+			t.Run("on inline fragment", func(t *testing.T) {
+				runIndent(t, `
+					{
+						dog {
+							... @include(if: true) {
+								name
+							}
+						}
+					}`,
+					`{
+    dog {
+        ... @include(if: true) {
+            name
+        }
+    }
+}`)
+			})
+
+			t.Run("on inline fragment and selections after", func(t *testing.T) {
+				runIndent(t, `
+					{
+						dog {
+							... @include(if: true) {
+								name
+							}
+							name: nickname
+						}
+					}`,
+					`{
+    dog {
+        ... @include(if: true) {
+            name
+        }
+        name: nickname
+    }
+}`)
+
+			})
+
+			t.Run("on fragment spread", func(t *testing.T) {
+				runIndent(t, `
 				{
 					dog {
 						...NameFragment @include(if: true)
@@ -187,7 +307,40 @@ vary: [String]! = []) on QUERY directive @include(if: Boolean!) repeatable on FI
 				fragment NameFragment on Dog {
 					name
 				}
-				`, `{dog {...NameFragment @include(if: true)}} fragment NameFragment on Dog {name}`)
+				`, `{
+    dog {
+        ...NameFragment @include(if: true)
+    }
+}
+
+fragment NameFragment on Dog {
+    name
+}`)
+			})
+
+			t.Run("on fragment spread and selections after", func(t *testing.T) {
+				runIndent(t, `
+				{
+					dog {
+						...NameFragment @include(if: true)
+						otherField
+					}
+				}
+				fragment NameFragment on Dog {
+					name
+				}
+				`, `{
+    dog {
+        ...NameFragment @include(if: true)
+        otherField
+    }
+}
+
+fragment NameFragment on Dog {
+    name
+}`)
+			})
+
 		})
 	})
 	t.Run("complex operation", func(t *testing.T) {

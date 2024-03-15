@@ -8,13 +8,15 @@ import (
 	"testing"
 
 	"github.com/IBM/sarama"
-	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/engine/datasourcetesting"
-	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/engine/plan"
-	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/engine/datasourcetesting"
+	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 const (
@@ -30,7 +32,7 @@ type Subscription {
 `
 )
 
-type runTestOnTestDefinitionOptions func(planConfig *plan.Configuration, extraChecks *[]datasourcetesting.CheckFunc)
+type runTestOnTestDefinitionOptions func(planConfig *plan.Configuration, extraChecks []datasourcetesting.CheckFunc)
 
 func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.Plan, options ...runTestOnTestDefinitionOptions) func(t *testing.T) {
 	extraChecks := make([]datasourcetesting.CheckFunc, 0)
@@ -65,14 +67,14 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 	}
 
 	for _, opt := range options {
-		opt(&config, &extraChecks)
+		opt(&config, extraChecks)
 	}
 
-	return datasourcetesting.RunTest(testDefinition, operation, operationName, expectedPlan, config, extraChecks...)
+	return datasourcetesting.RunTest(testDefinition, operation, operationName, expectedPlan, config, datasourcetesting.WithCheckFuncs(extraChecks...))
 }
 
 func testWithFactory(factory *Factory) runTestOnTestDefinitionOptions {
-	return func(planConfig *plan.Configuration, extraChecks *[]datasourcetesting.CheckFunc) {
+	return func(planConfig *plan.Configuration, extraChecks []datasourcetesting.CheckFunc) {
 		for _, ds := range planConfig.DataSources {
 			ds.Factory = factory
 		}
@@ -214,7 +216,12 @@ var errSubscriptionClientFail = errors.New("subscription client fail error")
 
 type FailingSubscriptionClient struct{}
 
-func (f FailingSubscriptionClient) Subscribe(_ *resolve.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+func (f FailingSubscriptionClient) UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error) {
+	_, err = hash.Write([]byte("test"))
+	return err
+}
+
+func (f FailingSubscriptionClient) Subscribe(_ *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.CloseableSubscriptionUpdater) error {
 	return errSubscriptionClientFail
 }
 
@@ -255,7 +262,8 @@ func TestKafkaDataSource_Subscription_Start(t *testing.T) {
 		require.NoError(t, err)
 
 		next := make(chan []byte)
-		err = source.Start(resolveCtx, optionsBytes, next)
+		subscriptionUpdater := newTestSubscriptionUpdater(next)
+		err = source.Start(resolveCtx, optionsBytes, subscriptionUpdater)
 		require.NoError(t, err)
 
 		testMessageKey := sarama.StringEncoder("test.message.key")
@@ -300,7 +308,8 @@ func TestKafkaConsumerGroupBridge_Subscribe(t *testing.T) {
 	}
 
 	next := make(chan []byte)
-	err := cg.Subscribe(ctx, options, next)
+	subscriptionUpdater := newTestSubscriptionUpdater(next)
+	err := cg.Subscribe(ctx, options, subscriptionUpdater)
 	require.NoError(t, err)
 
 	msg := <-next
@@ -310,4 +319,26 @@ func TestKafkaConsumerGroupBridge_Subscribe(t *testing.T) {
 	value, _, _, err := jsonparser.Get(msg, "data")
 	require.NoError(t, err)
 	require.Equal(t, expectedMsg, value)
+}
+
+type testSubscriptionUpdater struct {
+	next chan []byte
+}
+
+func newTestSubscriptionUpdater(next chan []byte) *testSubscriptionUpdater {
+	return &testSubscriptionUpdater{
+		next: next,
+	}
+}
+
+func (t *testSubscriptionUpdater) Update(data []byte) {
+	t.next <- data
+}
+
+func (t *testSubscriptionUpdater) Done() {
+	close(t.next)
+}
+
+func (t *testSubscriptionUpdater) Close() {
+	close(t.next)
 }

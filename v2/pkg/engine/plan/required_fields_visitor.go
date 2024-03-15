@@ -29,32 +29,37 @@ type addRequiredFieldsInput struct {
 	key, operation, definition *ast.Document
 	report                     *operationreport.Report
 	operationSelectionSet      int
-	skipFieldRefs              *[]int
 	parentPath                 string
 }
 
-func addRequiredFields(input *addRequiredFieldsInput) {
+func addRequiredFields(input *addRequiredFieldsInput) (skipFieldRefs []int, requiredFieldRefs []int) {
 	walker := astvisitor.NewWalker(48)
 
 	importer := &astimport.Importer{}
 
 	visitor := &requiredFieldsVisitor{
-		Walker:   &walker,
-		input:    input,
-		importer: importer,
+		Walker:            &walker,
+		input:             input,
+		importer:          importer,
+		skipFieldRefs:     make([]int, 0, 2),
+		requiredFieldRefs: make([]int, 0, 2),
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterFieldVisitor(visitor)
 	walker.RegisterEnterSelectionSetVisitor(visitor)
 
 	walker.Walk(input.key, input.definition, input.report)
+
+	return visitor.skipFieldRefs, visitor.requiredFieldRefs
 }
 
 type requiredFieldsVisitor struct {
 	*astvisitor.Walker
-	OperationNodes []ast.Node
-	input          *addRequiredFieldsInput
-	importer       *astimport.Importer
+	OperationNodes    []ast.Node
+	input             *addRequiredFieldsInput
+	importer          *astimport.Importer
+	skipFieldRefs     []int
+	requiredFieldRefs []int
 }
 
 func (v *requiredFieldsVisitor) EnterDocument(_, _ *ast.Document) {
@@ -92,6 +97,8 @@ func (v *requiredFieldsVisitor) EnterField(ref int) {
 
 	operationHasField, operationFieldRef := v.input.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldName)
 	if operationHasField {
+		v.requiredFieldRefs = append(v.requiredFieldRefs, operationFieldRef)
+
 		// do not add required field if the field is already present in the operation with the same name
 		// but add an operation node from operation if the field has selections
 		if !v.input.operation.FieldHasSelections(operationFieldRef) {
@@ -135,7 +142,8 @@ func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteS
 	}
 	v.input.operation.AddSelection(selectionSet, selection)
 
-	*v.input.skipFieldRefs = append(*v.input.skipFieldRefs, addedField.Ref)
+	v.skipFieldRefs = append(v.skipFieldRefs, addedField.Ref)
+	v.requiredFieldRefs = append(v.requiredFieldRefs, addedField.Ref)
 
 	return addedField
 }

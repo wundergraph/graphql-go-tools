@@ -11,9 +11,10 @@ type plannerConfiguration struct {
 	parentPath     string
 	parentPathType PlannerPathType
 
-	planner                 DataSourcePlanner
-	paths                   []pathConfiguration
-	dataSourceConfiguration DataSourceConfiguration
+	planner                  DataSourcePlanner
+	paths                    []pathConfiguration
+	dataSourceConfiguration  DataSourceConfiguration
+	objectFetchConfiguration objectFetchConfiguration
 
 	requiredFields FederationFieldConfigurations
 	providedFields NodeSuggestions
@@ -115,7 +116,6 @@ type pathConfiguration struct {
 	fieldRef      int
 	enclosingNode ast.Node
 
-	depth      int
 	dsHash     DSHash
 	isRootNode bool
 	pathType   PathType

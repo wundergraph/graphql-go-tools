@@ -776,17 +776,5 @@ func TestInputCoercionForList(t *testing.T) {
 				`{}`,
 				`{"a":{"list":[{"foo":"bar","list":[{"foo":"bar2","list":[{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}]}]}]}}`, inputCoercionForList)
 		})
-		t.Run("walk into nested non existing object", func(t *testing.T) {
-			runWithExpectedErrors(t, extractVariables, inputCoercionForListDefinition, `
-				query {
-				  inputWithListNestedList(input: {
-				    nested: {non_existing_field: true},
-				  }) {
- 				   id
- 				   name
- 				 }
-				}
-`, "nested field non_existing_field is not defined in any subfield of type InputWithList", inputCoercionForList)
-		})
 	})
 }

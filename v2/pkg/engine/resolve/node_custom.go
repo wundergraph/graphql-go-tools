@@ -17,3 +17,7 @@ func (_ *CustomNode) NodeKind() NodeKind {
 func (c *CustomNode) NodePath() []string {
 	return c.Path
 }
+
+func (c *CustomNode) NodeNullable() bool {
+	return c.Nullable
+}

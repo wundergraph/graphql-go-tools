@@ -30,8 +30,23 @@ type Mutation {
   mutationWithMultiNestedInput(in: MultiNestedInput): String
   mutationComplexNestedListInput(in: ComplexNestedListInput): String
   mutationSimpleInputList(in: [SimpleTestInput]): String
+  mutationSimpleInputListDoubleNested(in: [[SimpleTestInput]]): String
   mutationUseCustomScalar(in: CustomScalar!): String
   mutationUseCustomScalarList(in: [CustomScalar!]): String
+
+  testNullDefaultValuesForObjectAndList(data: NullDefaultForObjectAndListField!): String!
+  testNullDefaultValueForFields(data: NullDefaultFields!): String!
+}
+
+input NullDefaultForObjectAndListField {
+  other: String!
+  nested: NullDefaultFields = null
+  nestedList: [NullDefaultFields] = null
+}
+
+input NullDefaultFields {
+  a: String = null
+  b: Int = null
 }
 
 input MultiNestedInput {
@@ -241,6 +256,32 @@ func TestInputDefaultValueExtraction(t *testing.T) {
 			}`, `{"a":[{"thirdField":1}]}`, `{"a":[{"thirdField":1,"firstField":"firstField","secondField":1}]}`)
 	})
 
+	t.Run("simple list nested input with more than 2 elements", func(t *testing.T) {
+		runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
+			injectInputFieldDefaults(walker)
+		}, testInputDefaultSchema, `
+			mutation mutationSimpleInputList($a: [SimpleTestInput]) {
+			  mutationSimpleInputList(data: $a)
+			}`, "", `
+			mutation mutationSimpleInputList($a: [SimpleTestInput]) {
+			  mutationSimpleInputList(data: $a)
+		}`, `{"a":[{"thirdField":1}, {"thirdField":2}, {"thirdField":3}]}`,
+			`{"a":[{"thirdField":1,"firstField":"firstField","secondField":1}, {"thirdField":2,"firstField":"firstField","secondField":1}, {"thirdField":3,"firstField":"firstField","secondField":1}]}`)
+	})
+
+	t.Run("simple list double nested input with more than 2 elements", func(t *testing.T) {
+		runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
+			injectInputFieldDefaults(walker)
+		}, testInputDefaultSchema, `
+			mutation mutationSimpleInputListDoubleNested($a: [[SimpleTestInput]]) {
+			  mutationSimpleInputListDoubleNested(data: $a)
+			}`, "", `
+			mutation mutationSimpleInputListDoubleNested($a: [[SimpleTestInput]]) {
+			  mutationSimpleInputListDoubleNested(data: $a)
+		}`, `{"a":[[{"thirdField":1}, {"thirdField":2}, {"thirdField":3}],[{"thirdField":4}, {"thirdField":5}],[{"thirdField":6}]]}`,
+			`{"a":[[{"thirdField":1,"firstField":"firstField","secondField":1}, {"thirdField":2,"firstField":"firstField","secondField":1}, {"thirdField":3,"firstField":"firstField","secondField":1}],[{"thirdField":4,"firstField":"firstField","secondField":1}, {"thirdField":5,"firstField":"firstField","secondField":1}],[{"thirdField":6,"firstField":"firstField","secondField":1}]]}`)
+	})
+
 	t.Run("use custom scalar variable", func(t *testing.T) {
 		runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
 			injectInputFieldDefaults(walker)
@@ -263,5 +304,32 @@ func TestInputDefaultValueExtraction(t *testing.T) {
 			mutation mutationUseCustomScalarList($a: [CustomScalar!]) {
 			  mutationUseCustomScalarList(in: $a)
 			}`, `{"a":[{"test": "testval"}]}`, `{"a":[{"test": "testval"}]}`)
+	})
+
+	t.Run("null default value for object and list fields", func(t *testing.T) {
+		runWithVariables(t, extractVariables, testInputDefaultSchema, `
+			mutation TestDefaults($data: NullDefaultForObjectAndListField!) {
+  				testNullDefaultValuesForObjectAndList(data: $data)
+			}`, "", `
+			mutation TestDefaults($data: NullDefaultForObjectAndListField!) {
+  				testNullDefaultValuesForObjectAndList(data: $data)
+			}`, `{"data":{"other":"value"}}`,
+			`{"data":{"other":"value","nested":null,"nestedList":null}}`,
+			func(walker *astvisitor.Walker) {
+				injectInputFieldDefaults(walker)
+			})
+	})
+
+	t.Run("null default value for scalar fields", func(t *testing.T) {
+		runWithVariables(t, extractVariables, testInputDefaultSchema, `
+			mutation{
+  				testNullDefaultValueForFields(data: {})
+			}`, "", `
+			mutation($a: NullDefaultFields!) {
+  				testNullDefaultValueForFields(data: $a)
+			}`, "", `{"a":{"a":null,"b":null}}`,
+			func(walker *astvisitor.Walker) {
+				injectInputFieldDefaults(walker)
+			})
 	})
 }

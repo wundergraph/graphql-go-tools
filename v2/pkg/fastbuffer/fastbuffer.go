@@ -1,5 +1,9 @@
 package fastbuffer
 
+import (
+	"unsafe"
+)
+
 func New() *FastBuffer {
 	return &FastBuffer{
 		b: make([]byte, 0, 1024),
@@ -47,6 +51,10 @@ func (f *FastBuffer) Grow(n int) {
 		copy(b, f.b)
 		f.b = b
 	}
+}
+
+func (f *FastBuffer) UnsafeString() string {
+	return unsafe.String(unsafe.SliceData(f.b), len(f.b))
 }
 
 func (f *FastBuffer) String() string {

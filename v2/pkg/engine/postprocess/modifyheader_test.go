@@ -75,7 +75,7 @@ func TestProcessModifyHeader_Process(t *testing.T) {
 
 		t.Run("should modify a parallel fetch", runTest(
 			&resolve.ParallelFetch{
-				Fetches: resolve.Fetches{
+				Fetches: []resolve.Fetch{
 					&resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
 							Input: fetchInput,
@@ -89,7 +89,7 @@ func TestProcessModifyHeader_Process(t *testing.T) {
 				},
 			},
 			&resolve.ParallelFetch{
-				Fetches: resolve.Fetches{
+				Fetches: []resolve.Fetch{
 					&resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
 							Input: expectedFetchInput,

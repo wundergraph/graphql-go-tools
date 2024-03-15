@@ -27,6 +27,6 @@ func TestRequest_ValidateInput(t *testing.T) {
 		result, err := request.ValidateInput(schema)
 		assert.NoError(t, err)
 		assert.False(t, result.Valid)
-		assert.Equal(t, `Required variable "$droidID" was not provided, locations: [{Line:1 Column:13}], path: [query]`, result.Errors.Error())
+		assert.Equal(t, `Variable "$droidID" of required type "ID!" was not provided., locations: [], path: []`, result.Errors.Error())
 	})
 }

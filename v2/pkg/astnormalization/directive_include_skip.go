@@ -55,10 +55,7 @@ func (d *directiveIncludeSkipVisitor) handleSkip(ref int) {
 	case false:
 		d.operation.RemoveDirectiveFromNode(d.Ancestors[len(d.Ancestors)-1], ref)
 	case true:
-		if len(d.Ancestors) < 2 {
-			return
-		}
-		d.operation.RemoveNodeFromNode(d.Ancestors[len(d.Ancestors)-1], d.Ancestors[len(d.Ancestors)-2])
+		d.handleRemoveNode()
 	}
 }
 
@@ -79,9 +76,40 @@ func (d *directiveIncludeSkipVisitor) handleInclude(ref int) {
 	case true:
 		d.operation.RemoveDirectiveFromNode(d.Ancestors[len(d.Ancestors)-1], ref)
 	case false:
-		if len(d.Ancestors) < 2 {
-			return
-		}
-		d.operation.RemoveNodeFromNode(d.Ancestors[len(d.Ancestors)-1], d.Ancestors[len(d.Ancestors)-2])
+		d.handleRemoveNode()
 	}
+}
+
+func (d *directiveIncludeSkipVisitor) handleRemoveNode() {
+	if len(d.Ancestors) < 2 {
+		return
+	}
+
+	removed := d.operation.RemoveNodeFromSelectionSetNode(d.Ancestors[len(d.Ancestors)-1], d.Ancestors[len(d.Ancestors)-2])
+	if !removed {
+		return
+	}
+
+	if d.Ancestors[len(d.Ancestors)-2].Kind != ast.NodeKindSelectionSet {
+		return
+	}
+
+	// if the node is the last one, we add a __typename to keep query valid
+
+	selectionSetRef := d.Ancestors[len(d.Ancestors)-2].Ref
+
+	if d.operation.SelectionSetIsEmpty(selectionSetRef) {
+		selectionRef, _ := d.typeNameSelection()
+		d.operation.AddSelectionRefToSelectionSet(selectionSetRef, selectionRef)
+	}
+}
+
+func (d *directiveIncludeSkipVisitor) typeNameSelection() (selectionRef int, fieldRef int) {
+	field := d.operation.AddField(ast.Field{
+		Name: d.operation.Input.AppendInputString("__typename"),
+	})
+	return d.operation.AddSelectionToDocument(ast.Selection{
+		Ref:  field.Ref,
+		Kind: ast.SelectionKindField,
+	}), field.Ref
 }

@@ -29,7 +29,7 @@ func TestProcessInjectHeader_Process(t *testing.T) {
 						Name: []byte("me"),
 						Value: &resolve.Object{
 							Fetch: &resolve.SingleFetch{
-								SerialID: 0,
+								FetchID: 0,
 								FetchConfiguration: resolve.FetchConfiguration{
 									Input: `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"$$0$$","__typename":"User"}]}}}`,
 									Variables: resolve.NewVariables(
@@ -66,7 +66,7 @@ func TestProcessInjectHeader_Process(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
-					SerialID: 0,
+					FetchID: 0,
 					FetchConfiguration: resolve.FetchConfiguration{
 						Variables: []resolve.Variable{
 							&resolve.HeaderVariable{
@@ -82,7 +82,7 @@ func TestProcessInjectHeader_Process(t *testing.T) {
 						Name: []byte("me"),
 						Value: &resolve.Object{
 							Fetch: &resolve.SingleFetch{
-								SerialID: 0,
+								FetchID: 0,
 								FetchConfiguration: resolve.FetchConfiguration{
 									Variables: resolve.NewVariables(
 										&resolve.ObjectVariable{

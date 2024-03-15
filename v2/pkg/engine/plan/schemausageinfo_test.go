@@ -104,7 +104,7 @@ type Starship implements Vehicle {
 
 func TestGetSchemaUsageInfo(t *testing.T) {
 	operation := `
-		query Search($name: String!, $filter2: SearchFilter $enumValue: Episode $enumList: [Episode] $filterList: [SearchFilter]) {
+		query Search($name: String! $filter2: SearchFilter $enumValue: Episode $enumList: [Episode] $filterList: [SearchFilter]) {
 			searchResults(name: $name, filter: {excludeName: "Jannik"} filter2: $filter2, enumValue: $enumValue enumList: $enumList, enumList2: [JEDI, EMPIRE] filterList: $filterList ) {
 				__typename
 				... on Human {
@@ -225,7 +225,7 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 			},
 			{
 				Path:               []string{"searchResults", "name"},
-				EnclosingTypeNames: []string{"Human"},
+				EnclosingTypeNames: []string{"Human", "Droid"},
 				FieldName:          "name",
 				FieldTypeName:      "String",
 				Source: TypeFieldSource{
@@ -236,15 +236,6 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 				Path:               []string{"searchResults", "inlineName"},
 				EnclosingTypeNames: []string{"Human"},
 				FieldName:          "inlineName",
-				FieldTypeName:      "String",
-				Source: TypeFieldSource{
-					IDs: []string{"https://swapi.dev/api"},
-				},
-			},
-			{
-				Path:               []string{"searchResults", "name"},
-				EnclosingTypeNames: []string{"Droid"},
-				FieldName:          "name",
 				FieldTypeName:      "String",
 				Source: TypeFieldSource{
 					IDs: []string{"https://swapi.dev/api"},

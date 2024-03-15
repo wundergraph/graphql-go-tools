@@ -5,10 +5,10 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/astvisitor"
 )
 
-// inlineFragmentAddOnType adds on type condition to inline fragments of the same type
+// InlineFragmentAddOnType adds on type condition to inline fragments of the same type
 // this is needed for the planner to work correctly
 // Such typename will not be printed by astprinter
-func inlineFragmentAddOnType(walker *astvisitor.Walker) {
+func InlineFragmentAddOnType(walker *astvisitor.Walker) {
 	visitor := inlineFragmentAddOnTypeVisitor{
 		Walker: walker,
 	}

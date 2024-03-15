@@ -5,10 +5,10 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-// DataSourceFetch is a postprocessor that transforms fetches into more concrete fetch types
-type DataSourceFetch struct{}
+// CreateConcreteSingleFetchTypes is a postprocessor that transforms fetches into more concrete fetch types
+type CreateConcreteSingleFetchTypes struct{}
 
-func (d *DataSourceFetch) Process(pre plan.Plan) plan.Plan {
+func (d *CreateConcreteSingleFetchTypes) Process(pre plan.Plan) plan.Plan {
 	switch t := pre.(type) {
 	case *plan.SynchronousResponsePlan:
 		d.traverseNode(t.Response.Data)
@@ -18,7 +18,7 @@ func (d *DataSourceFetch) Process(pre plan.Plan) plan.Plan {
 	return pre
 }
 
-func (d *DataSourceFetch) traverseNode(node resolve.Node) {
+func (d *CreateConcreteSingleFetchTypes) traverseNode(node resolve.Node) {
 	switch n := node.(type) {
 	case *resolve.Object:
 		n.Fetch = d.traverseFetch(n.Fetch)
@@ -30,7 +30,7 @@ func (d *DataSourceFetch) traverseNode(node resolve.Node) {
 	}
 }
 
-func (d *DataSourceFetch) traverseFetch(fetch resolve.Fetch) resolve.Fetch {
+func (d *CreateConcreteSingleFetchTypes) traverseFetch(fetch resolve.Fetch) resolve.Fetch {
 	if fetch == nil {
 		return nil
 	}
@@ -54,7 +54,7 @@ func (d *DataSourceFetch) traverseFetch(fetch resolve.Fetch) resolve.Fetch {
 	return fetch
 }
 
-func (d *DataSourceFetch) traverseSingleFetch(fetch *resolve.SingleFetch) resolve.Fetch {
+func (d *CreateConcreteSingleFetchTypes) traverseSingleFetch(fetch *resolve.SingleFetch) resolve.Fetch {
 	switch {
 	case fetch.RequiresEntityBatchFetch:
 		return d.createEntityBatchFetch(fetch)
@@ -67,13 +67,13 @@ func (d *DataSourceFetch) traverseSingleFetch(fetch *resolve.SingleFetch) resolv
 	}
 }
 
-func (d *DataSourceFetch) createParallelListItemFetch(fetch *resolve.SingleFetch) resolve.Fetch {
+func (d *CreateConcreteSingleFetchTypes) createParallelListItemFetch(fetch *resolve.SingleFetch) resolve.Fetch {
 	return &resolve.ParallelListItemFetch{
 		Fetch: fetch,
 	}
 }
 
-func (d *DataSourceFetch) createEntityBatchFetch(fetch *resolve.SingleFetch) resolve.Fetch {
+func (d *CreateConcreteSingleFetchTypes) createEntityBatchFetch(fetch *resolve.SingleFetch) resolve.Fetch {
 	representationsVariableIndex := -1
 	for i, segment := range fetch.InputTemplate.Segments {
 		if segment.SegmentType == resolve.VariableSegmentType &&
@@ -84,6 +84,7 @@ func (d *DataSourceFetch) createEntityBatchFetch(fetch *resolve.SingleFetch) res
 	}
 
 	return &resolve.BatchEntityFetch{
+		Info: fetch.Info,
 		Input: resolve.BatchInput{
 			Header: resolve.InputTemplate{
 				Segments:                              fetch.InputTemplate.Segments[:representationsVariableIndex],
@@ -111,13 +112,12 @@ func (d *DataSourceFetch) createEntityBatchFetch(fetch *resolve.SingleFetch) res
 				SetTemplateOutputToNullOnVariableNull: fetch.InputTemplate.SetTemplateOutputToNullOnVariableNull,
 			},
 		},
-		DataSource:           fetch.DataSource,
-		PostProcessing:       fetch.PostProcessing,
-		DisallowSingleFlight: fetch.DisallowSingleFlight,
+		DataSource:     fetch.DataSource,
+		PostProcessing: fetch.PostProcessing,
 	}
 }
 
-func (d *DataSourceFetch) createEntityFetch(fetch *resolve.SingleFetch) resolve.Fetch {
+func (d *CreateConcreteSingleFetchTypes) createEntityFetch(fetch *resolve.SingleFetch) resolve.Fetch {
 	representationsVariableIndex := -1
 	for i, segment := range fetch.InputTemplate.Segments {
 		if segment.SegmentType == resolve.VariableSegmentType &&
@@ -128,6 +128,7 @@ func (d *DataSourceFetch) createEntityFetch(fetch *resolve.SingleFetch) resolve.
 	}
 
 	return &resolve.EntityFetch{
+		Info: fetch.Info,
 		Input: resolve.EntityInput{
 			Header: resolve.InputTemplate{
 				Segments:                              fetch.InputTemplate.Segments[:representationsVariableIndex],
@@ -143,8 +144,7 @@ func (d *DataSourceFetch) createEntityFetch(fetch *resolve.SingleFetch) resolve.
 				SetTemplateOutputToNullOnVariableNull: fetch.InputTemplate.SetTemplateOutputToNullOnVariableNull,
 			},
 		},
-		DataSource:           fetch.DataSource,
-		PostProcessing:       fetch.PostProcessing,
-		DisallowSingleFlight: fetch.DisallowSingleFlight,
+		DataSource:     fetch.DataSource,
+		PostProcessing: fetch.PostProcessing,
 	}
 }

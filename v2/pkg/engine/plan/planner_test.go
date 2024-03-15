@@ -17,8 +17,6 @@ import (
 )
 
 func TestPlanner_Plan(t *testing.T) {
-	t.Skip("FIXME")
-
 	testLogic := func(definition, operation, operationName string, config Configuration, report *operationreport.Report) Plan {
 		def := unsafeparser.ParseGraphqlDocumentString(definition)
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
@@ -32,8 +30,14 @@ func TestPlanner_Plan(t *testing.T) {
 		valid.Validate(&op, &def, report)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+
+		config.DataSources[0].Factory = &FakeFactory{upstreamSchema: &def}
+
 		p := NewPlanner(ctx, config)
-		return p.Plan(&op, &def, operationName, report)
+
+		pp := p.Plan(&op, &def, operationName, report)
+
+		return pp
 	}
 
 	test := func(definition, operation, operationName string, expectedPlan Plan, config Configuration) func(t *testing.T) {
@@ -69,146 +73,6 @@ func TestPlanner_Plan(t *testing.T) {
 			assert.True(t, report.HasErrors())
 		}
 	}
-
-	t.Run("stream & defer Query", test(testDefinition, `
-		query MyQuery($id: ID!) @flushInterval(milliSeconds: 100) {
-			droid(id: $id){
-				name
-				aliased: name
-				friends @stream {
-					name
-				}
-				friendsWithInitialBatch: friends @stream(initialBatchSize: 5) {
-					name
-				}
-				primaryFunction
-				favoriteEpisode @defer
-			}
-		}
-	`, "MyQuery", &SynchronousResponsePlan{
-		FlushInterval: 100,
-		Response: &resolve.GraphQLResponse{
-			Data: &resolve.Object{
-				Fields: []*resolve.Field{
-					{
-						Name: []byte("droid"),
-						Position: resolve.Position{
-							Line:   3,
-							Column: 4,
-						},
-						Value: &resolve.Object{
-							Path:     []string{"droid"},
-							Nullable: true,
-							Fields: []*resolve.Field{
-								{
-									Name: []byte("name"),
-									Value: &resolve.String{
-										Path: []string{"name"},
-									},
-									Position: resolve.Position{
-										Line:   4,
-										Column: 5,
-									},
-								},
-								{
-									Name: []byte("aliased"),
-									Value: &resolve.String{
-										Path: []string{"name"},
-									},
-									Position: resolve.Position{
-										Line:   5,
-										Column: 5,
-									},
-								},
-								{
-									Name: []byte("friends"),
-									Stream: &resolve.StreamField{
-										InitialBatchSize: 0,
-									},
-									Position: resolve.Position{
-										Line:   6,
-										Column: 5,
-									},
-									Value: &resolve.Array{
-										Nullable: true,
-										Path:     []string{"friends"},
-										Item: &resolve.Object{
-											Nullable: true,
-											Fields: []*resolve.Field{
-												{
-													Name: []byte("name"),
-													Value: &resolve.String{
-														Path: []string{"name"},
-													},
-													Position: resolve.Position{
-														Line:   7,
-														Column: 6,
-													},
-												},
-											},
-										},
-									},
-								},
-								{
-									Name: []byte("friendsWithInitialBatch"),
-									Position: resolve.Position{
-										Line:   9,
-										Column: 5,
-									},
-									Stream: &resolve.StreamField{
-										InitialBatchSize: 5,
-									},
-									Value: &resolve.Array{
-										Nullable: true,
-										Path:     []string{"friends"},
-										Item: &resolve.Object{
-											Nullable: true,
-											Fields: []*resolve.Field{
-												{
-													Name: []byte("name"),
-													Value: &resolve.String{
-														Path: []string{"name"},
-													},
-													Position: resolve.Position{
-														Line:   10,
-														Column: 6,
-													},
-												},
-											},
-										},
-									},
-								},
-								{
-									Name: []byte("primaryFunction"),
-									Position: resolve.Position{
-										Line:   12,
-										Column: 5,
-									},
-									Value: &resolve.String{
-										Path: []string{"primaryFunction"},
-									},
-								},
-								{
-									Name: []byte("favoriteEpisode"),
-									Position: resolve.Position{
-										Line:   13,
-										Column: 5,
-									},
-									Defer: &resolve.DeferField{},
-									Value: &resolve.String{
-										Nullable: true,
-										Path:     []string{"favoriteEpisode"},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}, Configuration{
-		DefaultFlushIntervalMillis: 0,
-	}))
 
 	t.Run("Union response type with interface fragments", test(testDefinition, `
 		query SearchResults {
@@ -256,20 +120,369 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 					},
 				},
+				Fetch: &resolve.SingleFetch{
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: &FakeDataSource{&StatefulSource{}},
+					},
+					DataSourceIdentifier: []byte("plan.FakeDataSource"),
+				},
 			},
 		},
 	}, Configuration{
 		DisableResolveFieldPositions: true,
+		DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
 	}))
 
+	t.Run("Merging duplicate fields in response", func(t *testing.T) {
+		t.Run("Interface response type with type fragments and shared field", test(testDefinition, `
+			query Hero {
+				hero {
+					name
+					... on Droid {
+						name
+					}
+					... on Human {
+						name
+					}
+				}
+			}
+			`, "Hero", &SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Nullable: false,
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("hero"),
+							Value: &resolve.Object{
+								Path:     []string{"hero"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
+									},
+								},
+							},
+						},
+					},
+					Fetch: &resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &FakeDataSource{&StatefulSource{}},
+						},
+						DataSourceIdentifier: []byte("plan.FakeDataSource"),
+					},
+				},
+			},
+		}, Configuration{
+			DisableResolveFieldPositions: true,
+			DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+		}))
+
+		t.Run("Interface response type with type fragments", test(testDefinition, `
+			query Hero {
+				hero {
+					... on Droid {
+						name
+					}
+					... on Human {
+						name
+					}
+				}
+			}
+			`, "Hero", &SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Nullable: false,
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("hero"),
+							Value: &resolve.Object{
+								Path:     []string{"hero"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
+										OnTypeNames: [][]byte{[]byte("Droid"), []byte("Human")},
+									},
+								},
+							},
+						},
+					},
+					Fetch: &resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &FakeDataSource{&StatefulSource{}},
+						},
+						DataSourceIdentifier: []byte("plan.FakeDataSource"),
+					},
+				},
+			},
+		}, Configuration{
+			DisableResolveFieldPositions: true,
+			DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+		}))
+
+		t.Run("skip on fields", func(t *testing.T) {
+			t.Run("skip on one of the fields", test(testDefinition, `
+				query Hero($skip: Boolean!) {
+					hero {
+						... on Droid {
+							name @skip(if: $skip)
+						}
+						... on Human {
+							height
+						}
+					}
+				}`,
+				"Hero", &SynchronousResponsePlan{
+					Response: &resolve.GraphQLResponse{
+						Data: &resolve.Object{
+							Nullable: false,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("hero"),
+									Value: &resolve.Object{
+										Path:     []string{"hero"},
+										Nullable: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("name"),
+												Value: &resolve.String{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+												OnTypeNames:          [][]byte{[]byte("Droid")},
+												SkipDirectiveDefined: true,
+												SkipVariableName:     "skip",
+											},
+											{
+												Name: []byte("height"),
+												Value: &resolve.String{
+													Path:     []string{"height"},
+													Nullable: false,
+												},
+												OnTypeNames: [][]byte{[]byte("Human")},
+											},
+										},
+									},
+								},
+							},
+							Fetch: &resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+				}, Configuration{
+					DisableResolveFieldPositions: true,
+					DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+				}))
+		})
+
+		t.Run("skip on fragments", func(t *testing.T) {
+			t.Run("skip on wrapping fragments", test(testDefinition, `
+				query Hero($skip: Boolean!, $skip2: Boolean!) {
+					hero {
+						... on Character @skip(if: $skip) {
+							... on Droid {
+								name
+							}
+						}
+						... on Character @skip(if: $skip2) {
+							... on Human {
+								height
+							}
+						}
+					}
+				}`,
+				"Hero", &SynchronousResponsePlan{
+					Response: &resolve.GraphQLResponse{
+						Data: &resolve.Object{
+							Nullable: false,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("hero"),
+									Value: &resolve.Object{
+										Path:     []string{"hero"},
+										Nullable: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("name"),
+												Value: &resolve.String{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+												OnTypeNames:          [][]byte{[]byte("Droid")},
+												SkipDirectiveDefined: true,
+												SkipVariableName:     "skip",
+											},
+											{
+												Name: []byte("height"),
+												Value: &resolve.String{
+													Path:     []string{"height"},
+													Nullable: false,
+												},
+												OnTypeNames:          [][]byte{[]byte("Human")},
+												SkipDirectiveDefined: true,
+												SkipVariableName:     "skip2",
+											},
+										},
+									},
+								},
+							},
+							Fetch: &resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+				}, Configuration{
+					DisableResolveFieldPositions: true,
+					DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+				}))
+
+			t.Run("only one of fields has skip", test(testDefinition, `
+				query Hero($skip: Boolean!) {
+					hero {
+						... on Character @skip(if: $skip) {
+							... on Droid {
+								name
+							}
+						}
+						... on Human {
+							name
+						}
+					}
+				}`,
+				"Hero", &SynchronousResponsePlan{
+					Response: &resolve.GraphQLResponse{
+						Data: &resolve.Object{
+							Nullable: false,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("hero"),
+									Value: &resolve.Object{
+										Path:     []string{"hero"},
+										Nullable: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("name"),
+												Value: &resolve.String{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+												OnTypeNames:          [][]byte{[]byte("Droid")},
+												SkipDirectiveDefined: true,
+												SkipVariableName:     "skip",
+											},
+											{
+												Name: []byte("name"),
+												Value: &resolve.String{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+												OnTypeNames: [][]byte{[]byte("Human")},
+											},
+										},
+									},
+								},
+							},
+							Fetch: &resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+				}, Configuration{
+					DisableResolveFieldPositions: true,
+					DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+				}))
+
+			t.Run("2 fragments has skip", test(testDefinition, `
+				query Hero($skip: Boolean!) {
+					hero {
+						... on Droid @skip(if: $skip) {
+							name
+						}
+						... on Human @skip(if: $skip) {
+							name
+						}
+					}
+				}`,
+				"Hero", &SynchronousResponsePlan{
+					Response: &resolve.GraphQLResponse{
+						Data: &resolve.Object{
+							Nullable: false,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("hero"),
+									Value: &resolve.Object{
+										Path:     []string{"hero"},
+										Nullable: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("name"),
+												Value: &resolve.String{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+												OnTypeNames:          [][]byte{[]byte("Droid")},
+												SkipDirectiveDefined: true,
+												SkipVariableName:     "skip",
+											},
+											{
+												Name: []byte("name"),
+												Value: &resolve.String{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+												OnTypeNames:          [][]byte{[]byte("Human")},
+												SkipDirectiveDefined: true,
+												SkipVariableName:     "skip",
+											},
+										},
+									},
+								},
+							},
+							Fetch: &resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+				}, Configuration{
+					DisableResolveFieldPositions: true,
+					DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+				}))
+		})
+	})
+
 	t.Run("operation selection", func(t *testing.T) {
+		cfg := Configuration{
+			DataSources: []DataSourceConfiguration{testDefinitionDSConfiguration},
+		}
+
 		t.Run("should successfully plan a single named query by providing an operation name", test(testDefinition, `
 				query MyHero {
 					hero{
 						name
 					}
 				}
-			`, "MyHero", expectedMyHeroPlan, Configuration{},
+			`, "MyHero", expectedMyHeroPlan, cfg,
 		))
 
 		t.Run("should successfully plan unnamed query with fragment", test(testDefinition, `
@@ -281,7 +494,7 @@ func TestPlanner_Plan(t *testing.T) {
 						...CharacterFields
 					}
 				}
-			`, "", expectedMyHeroPlanWithFragment, Configuration{},
+			`, "", expectedMyHeroPlanWithFragment, cfg,
 		))
 
 		t.Run("should successfully plan multiple named queries by providing an operation name", test(testDefinition, `
@@ -296,7 +509,7 @@ func TestPlanner_Plan(t *testing.T) {
 						name
 					}
 				}
-			`, "MyHero", expectedMyHeroPlan, Configuration{},
+			`, "MyHero", expectedMyHeroPlan, cfg,
 		))
 
 		t.Run("should successfully plan a single named query without providing an operation name", test(testDefinition, `
@@ -305,7 +518,7 @@ func TestPlanner_Plan(t *testing.T) {
 						name
 					}
 				}
-			`, "", expectedMyHeroPlan, Configuration{},
+			`, "", expectedMyHeroPlan, cfg,
 		))
 
 		t.Run("should successfully plan a single unnamed query without providing an operation name", test(testDefinition, `
@@ -314,7 +527,7 @@ func TestPlanner_Plan(t *testing.T) {
 						name
 					}
 				}
-			`, "", expectedMyHeroPlan, Configuration{},
+			`, "", expectedMyHeroPlan, cfg,
 		))
 
 		t.Run("should write into error report when no query with name was found", testWithError(testDefinition, `
@@ -323,7 +536,7 @@ func TestPlanner_Plan(t *testing.T) {
 						name
 					}
 				}
-			`, "NoHero", Configuration{},
+			`, "NoHero", cfg,
 		))
 
 		t.Run("should write into error report when no operation name was provided on multiple named queries", testWithError(testDefinition, `
@@ -338,7 +551,7 @@ func TestPlanner_Plan(t *testing.T) {
 						name
 					}
 				}
-			`, "", Configuration{},
+			`, "", cfg,
 		))
 	})
 
@@ -359,6 +572,11 @@ func TestPlanner_Plan(t *testing.T) {
 				infos: [JSON!]!
 			}
 		`
+
+		dsConfig := dsb().Schema(schema).
+			RootNode("Query", "hero").
+			ChildNode("Character", "info", "infos").
+			DS()
 
 		t.Run("with field configuration", func(t *testing.T) {
 			t.Run("field with json type", test(
@@ -390,6 +608,12 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 							},
+							Fetch: &resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
 						},
 					},
 				},
@@ -402,6 +626,7 @@ func TestPlanner_Plan(t *testing.T) {
 							UnescapeResponseJson: true,
 						},
 					},
+					DataSources: []DataSourceConfiguration{dsConfig},
 				},
 			))
 			t.Run("list with json type", test(
@@ -435,6 +660,12 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 							},
+							Fetch: &resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
 						},
 					},
 				},
@@ -447,6 +678,7 @@ func TestPlanner_Plan(t *testing.T) {
 							UnescapeResponseJson: true,
 						},
 					},
+					DataSources: []DataSourceConfiguration{dsConfig},
 				},
 			))
 		})
@@ -472,20 +704,26 @@ func TestPlanner_Plan(t *testing.T) {
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("info"),
-												Value: &resolve.String{
-													Path:                 []string{"info"},
-													UnescapeResponseJson: false,
+												Value: &resolve.Scalar{
+													Path: []string{"info"},
 												},
 											},
 										},
 									},
 								},
 							},
+							Fetch: &resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
 						},
 					},
 				},
 				Configuration{
 					DisableResolveFieldPositions: true,
+					DataSources:                  []DataSourceConfiguration{dsConfig},
 				},
 			))
 		})
@@ -521,6 +759,12 @@ var expectedMyHeroPlan = &SynchronousResponsePlan{
 					},
 				},
 			},
+			Fetch: &resolve.SingleFetch{
+				FetchConfiguration: resolve.FetchConfiguration{
+					DataSource: &FakeDataSource{&StatefulSource{}},
+				},
+				DataSourceIdentifier: []byte("plan.FakeDataSource"),
+			},
 		},
 	},
 }
@@ -555,9 +799,27 @@ var expectedMyHeroPlanWithFragment = &SynchronousResponsePlan{
 					},
 				},
 			},
+			Fetch: &resolve.SingleFetch{
+				FetchConfiguration: resolve.FetchConfiguration{
+					DataSource: &FakeDataSource{&StatefulSource{}},
+				},
+				DataSourceIdentifier: []byte("plan.FakeDataSource"),
+			},
 		},
 	},
 }
+
+var testDefinitionDSConfiguration = dsb().
+	Schema(testDefinition).
+	RootNode("Query", "hero", "droid", "search", "searchResults").
+	RootNode("Mutation", "createReview").
+	ChildNode("Review", "id", "stars", "commentary").
+	ChildNode("Character", "name", "friends").
+	ChildNode("Human", "name", "friends", "height").
+	ChildNode("Droid", "name", "friends", "primaryFunction", "favoriteEpisode").
+	ChildNode("Vehicle", "length", "width").
+	ChildNode("Starship", "name", "length", "width").
+	DS()
 
 const testDefinition = `
 
@@ -627,11 +889,13 @@ type Droid implements Character {
 }
 
 interface Vehicle {
+	width: Float!
 	length: Float!
 }
 
 type Starship implements Vehicle {
     name: String!
+	width: Float!
     length: Float!
 }
 `

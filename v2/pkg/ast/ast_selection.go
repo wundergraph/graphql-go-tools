@@ -147,6 +147,10 @@ func (d *Document) EmptySelectionSet(ref int) {
 	d.SelectionSets[ref].SelectionRefs = d.SelectionSets[ref].SelectionRefs[:0]
 }
 
+func (d *Document) SelectionSetIsEmpty(ref int) bool {
+	return len(d.SelectionSets[ref].SelectionRefs) == 0
+}
+
 func (d *Document) AppendSelectionSet(ref int, appendRef int) {
 	d.SelectionSets[ref].SelectionRefs = append(d.SelectionSets[ref].SelectionRefs, d.SelectionSets[appendRef].SelectionRefs...)
 }
@@ -236,4 +240,12 @@ func (d *Document) SelectionSetFieldNames(set int) (fieldNames []string) {
 		fieldNames = append(fieldNames, d.FieldNameString(d.Selections[fieldSelectionRef].Ref))
 	}
 	return
+}
+
+func (d *Document) SelectionIsFieldSelection(ref int) bool {
+	return d.Selections[ref].Kind == SelectionKindField
+}
+
+func (d *Document) SelectionIsInlineFragmentSelection(ref int) bool {
+	return d.Selections[ref].Kind == SelectionKindInlineFragment
 }

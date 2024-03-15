@@ -31,6 +31,10 @@ type EngineResultWriter struct {
 	flushCallback func(data []byte)
 }
 
+func (e *EngineResultWriter) Complete() {
+
+}
+
 func NewEngineResultWriter() EngineResultWriter {
 	return EngineResultWriter{
 		buf: &bytes.Buffer{},
@@ -159,21 +163,9 @@ type WebsocketBeforeStartHook interface {
 
 type ExecutionOptionsV2 func(postProcessor *postprocess.Processor, resolveContext *resolve.Context)
 
-func WithBeforeFetchHook(hook resolve.BeforeFetchHook) ExecutionOptionsV2 {
-	return func(postProcessor *postprocess.Processor, resolveContext *resolve.Context) {
-		resolveContext.SetBeforeFetchHook(hook)
-	}
-}
-
 func WithUpstreamHeaders(header http.Header) ExecutionOptionsV2 {
 	return func(postProcessor *postprocess.Processor, resolveContext *resolve.Context) {
 		postProcessor.AddPostProcessor(postprocess.NewProcessInjectHeader(header))
-	}
-}
-
-func WithAfterFetchHook(hook resolve.AfterFetchHook) ExecutionOptionsV2 {
-	return func(postProcessor *postprocess.Processor, resolveContext *resolve.Context) {
-		resolveContext.SetAfterFetchHook(hook)
 	}
 }
 
@@ -233,10 +225,12 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 	}
 
 	executionEngine := &ExecutionEngineV2{
-		logger:             logger,
-		config:             engineConfig,
-		planner:            plan.NewPlanner(ctx, engineConfig.plannerConfig),
-		resolver:           resolve.New(ctx, engineConfig.dataLoaderConfig.EnableSingleFlightLoader),
+		logger:  logger,
+		config:  engineConfig,
+		planner: plan.NewPlanner(ctx, engineConfig.plannerConfig),
+		resolver: resolve.New(ctx, resolve.ResolverOptions{
+			MaxConcurrency: 1024,
+		}),
 		executionPlanCache: executionPlanCache,
 	}
 
@@ -298,13 +292,13 @@ func (e *ExecutionEngineV2) Plan(postProcessor *postprocess.Processor, operation
 	return cachedPlan, nil
 }
 
-func (e *ExecutionEngineV2) Resolve(resolveContext *resolve.Context, planResult plan.Plan, writer resolve.FlushWriter) error {
+func (e *ExecutionEngineV2) Resolve(resolveContext *resolve.Context, planResult plan.Plan, writer resolve.SubscriptionResponseWriter) error {
 	var err error
 	switch p := planResult.(type) {
 	case *plan.SynchronousResponsePlan:
 		err = e.resolver.ResolveGraphQLResponse(resolveContext, p.Response, nil, writer)
 	case *plan.SubscriptionResponsePlan:
-		err = e.resolver.ResolveGraphQLSubscription(resolveContext, p.Response, writer)
+		err = e.resolver.AsyncResolveGraphQLSubscription(resolveContext, p.Response, writer, resolve.SubscriptionIdentifier{})
 	default:
 		return errors.New("execution of operation is not possible")
 	}
@@ -315,7 +309,7 @@ func (e *ExecutionEngineV2) Resolve(resolveContext *resolve.Context, planResult 
 func (e *ExecutionEngineV2) Teardown() {
 }
 
-func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, writer resolve.FlushWriter, options ...ExecutionOptionsV2) error {
+func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, writer resolve.SubscriptionResponseWriter, options ...ExecutionOptionsV2) error {
 	return e.customExecutionEngineExecutor.Execute(ctx, operation, writer, options...)
 }
 

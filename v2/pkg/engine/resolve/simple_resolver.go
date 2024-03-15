@@ -29,12 +29,16 @@ func (r *SimpleResolver) resolveNode(node Node, data []byte, buf *fastbuffer.Fas
 		return
 	case *String:
 		return r.resolveString(n, data, buf)
+	case *StaticString:
+		return r.resolveStaticString(n, data, buf)
 	case *Boolean:
 		return r.resolveBoolean(n, data, buf)
 	case *Integer:
 		return r.resolveInteger(n, data, buf)
 	case *Float:
 		return r.resolveFloat(n, data, buf)
+	case *Scalar:
+		return r.resolveScalar(n, data, buf)
 	case *EmptyObject:
 		r.resolveEmptyObject(buf)
 		return
@@ -289,6 +293,13 @@ func (r *SimpleResolver) resolveString(str *String, data []byte, stringBuf *fast
 	return nil
 }
 
+func (r *SimpleResolver) resolveStaticString(str *StaticString, data []byte, stringBuf *fastbuffer.FastBuffer) error {
+	stringBuf.WriteBytes(quote)
+	stringBuf.WriteBytes([]byte(str.Value))
+	stringBuf.WriteBytes(quote)
+	return nil
+}
+
 func (r *SimpleResolver) resolveEmptyArray(b *fastbuffer.FastBuffer) {
 	b.WriteBytes(lBrack)
 	b.WriteBytes(rBrack)
@@ -297,4 +308,23 @@ func (r *SimpleResolver) resolveEmptyArray(b *fastbuffer.FastBuffer) {
 func (r *SimpleResolver) resolveEmptyObject(b *fastbuffer.FastBuffer) {
 	b.WriteBytes(lBrace)
 	b.WriteBytes(rBrace)
+}
+
+func (r *SimpleResolver) resolveScalar(scalarValue *Scalar, data []byte, scalarBuf *fastbuffer.FastBuffer) error {
+	value, valueType, _, err := jsonparser.Get(data, scalarValue.Path...)
+	switch {
+	case err != nil, valueType == jsonparser.Null:
+		if !scalarValue.Nullable {
+			return errNonNullableFieldValueIsNull
+		}
+		r.resolveNull(scalarBuf)
+		return nil
+	case valueType == jsonparser.String:
+		scalarBuf.WriteBytes(quote)
+		scalarBuf.WriteBytes(value)
+		scalarBuf.WriteBytes(quote)
+	default:
+		scalarBuf.WriteBytes(value)
+	}
+	return nil
 }

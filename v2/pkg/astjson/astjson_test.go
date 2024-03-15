@@ -367,6 +367,16 @@ func TestJSON_MergeObjectsDifferingDuplicates(t *testing.T) {
 	assert.Equal(t, `{"name":"Jannik","pet":"dog"}`, out.String())
 }
 
+func TestJSON_PrintObjectFlat(t *testing.T) {
+	js := &JSON{}
+	err := js.ParseObject([]byte(`{"name":"Jens","pet":"dog","age":30,"married":true,"height":1.8,"children":[{"name":"Jannik"},{"name":"Leonie"}],"address":{"street":"Musterstraße","number":123,"city":"Musterstadt"}}`))
+	assert.NoError(t, err)
+	out := &bytes.Buffer{}
+	err = js.PrintObjectFlat(js.RootNode, out)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"name":"Jens","pet":"dog","age":30,"married":true,"height":1.8}`, out.String())
+}
+
 func Benchmark_JsonParserJsonGet(b *testing.B) {
 	input := []byte(`{"data":{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}}`)
 	expectedOut := []byte(`{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}`)

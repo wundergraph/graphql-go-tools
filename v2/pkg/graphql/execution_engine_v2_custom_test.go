@@ -182,7 +182,7 @@ func (t testCustomExecutionV2ResolverStage) Plan(postProcessor *postprocess.Proc
 	return &plan.SynchronousResponsePlan{}, nil
 }
 
-func (t testCustomExecutionV2ResolverStage) Resolve(resolveContext *resolve.Context, planResult plan.Plan, writer resolve.FlushWriter) error {
+func (t testCustomExecutionV2ResolverStage) Resolve(resolveContext *resolve.Context, planResult plan.Plan, writer resolve.SubscriptionResponseWriter) error {
 	if t.failResolve {
 		return errFailedResolve
 	}

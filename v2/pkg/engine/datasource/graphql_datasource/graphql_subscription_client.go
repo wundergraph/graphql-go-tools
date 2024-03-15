@@ -110,15 +110,36 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 // If an existing WS connection with the same ID (Hash) exists, it is being re-used
 // If connection protocol is SSE, a new connection is always created
 // If no connection exists, the client initiates a new one
-func (c *SubscriptionClient) Subscribe(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+func (c *SubscriptionClient) Subscribe(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	if options.UseSSE {
-		return c.subscribeSSE(reqCtx, options, next)
+		return c.subscribeSSE(reqCtx, options, updater)
 	}
 
-	return c.subscribeWS(reqCtx, options, next)
+	return c.subscribeWS(reqCtx, options, updater)
 }
 
-func (c *SubscriptionClient) subscribeSSE(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+var (
+	withSSE           = []byte(`sse:true`)
+	withSSEMethodPost = []byte(`sse_method_post:true`)
+)
+
+func (c *SubscriptionClient) UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error) {
+	if options.UseSSE {
+		_, err = hash.Write(withSSE)
+		if err != nil {
+			return err
+		}
+	}
+	if options.SSEMethodPost {
+		_, err = hash.Write(withSSEMethodPost)
+		if err != nil {
+			return err
+		}
+	}
+	return c.requestHash(ctx, options, hash)
+}
+
+func (c *SubscriptionClient) subscribeSSE(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	if c.streamingClient == nil {
 		return fmt.Errorf("streaming http client is nil")
 	}
@@ -126,7 +147,7 @@ func (c *SubscriptionClient) subscribeSSE(reqCtx *resolve.Context, options Graph
 	sub := Subscription{
 		ctx:     reqCtx.Context(),
 		options: options,
-		next:    next,
+		updater: updater,
 	}
 
 	handler := newSSEConnectionHandler(reqCtx, c.streamingClient, options, c.log)
@@ -138,7 +159,7 @@ func (c *SubscriptionClient) subscribeSSE(reqCtx *resolve.Context, options Graph
 	return nil
 }
 
-func (c *SubscriptionClient) subscribeWS(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, next chan<- []byte) error {
+func (c *SubscriptionClient) subscribeWS(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	if c.httpClient == nil {
 		return fmt.Errorf("http client is nil")
 	}
@@ -146,7 +167,7 @@ func (c *SubscriptionClient) subscribeWS(reqCtx *resolve.Context, options GraphQ
 	sub := Subscription{
 		ctx:     reqCtx.Context(),
 		options: options,
-		next:    next,
+		updater: updater,
 	}
 
 	// each WS connection to an origin is uniquely identified by the Hash(URL,Headers,Body)
@@ -183,49 +204,63 @@ func (c *SubscriptionClient) subscribeWS(reqCtx *resolve.Context, options GraphQ
 	return nil
 }
 
-// generateHandlerIDHash generates a Hash based on: URL and Headers to uniquely identify Upgrade Requests
 func (c *SubscriptionClient) generateHandlerIDHash(ctx *resolve.Context, options GraphQLSubscriptionOptions) (uint64, error) {
-	var (
-		err error
-	)
 	xxh := c.hashPool.Get().(*xxhash.Digest)
 	defer c.hashPool.Put(xxh)
 	xxh.Reset()
-
-	if _, err = xxh.WriteString(options.URL); err != nil {
+	err := c.requestHash(ctx, options, xxh)
+	if err != nil {
 		return 0, err
 	}
+	return xxh.Sum64(), nil
+}
+
+// generateHandlerIDHash generates a Hash based on: URL and Headers to uniquely identify Upgrade Requests
+func (c *SubscriptionClient) requestHash(ctx *resolve.Context, options GraphQLSubscriptionOptions, xxh *xxhash.Digest) (err error) {
+	if _, err = xxh.WriteString(options.URL); err != nil {
+		return err
+	}
 	if err := options.Header.Write(xxh); err != nil {
-		return 0, err
+		return err
 	}
 	// Make sure any header that will be forwarded to the subgraph
 	// is hashed to create the handlerID, this way requests with
 	// different headers will use separate connections.
 	for _, headerName := range options.ForwardedClientHeaderNames {
-		if _, err := xxh.WriteString(headerName); err != nil {
-			return 0, err
+		if _, err = xxh.WriteString(headerName); err != nil {
+			return err
 		}
 		for _, val := range ctx.Request.Header[textproto.CanonicalMIMEHeaderKey(headerName)] {
-			if _, err := xxh.WriteString(val); err != nil {
-				return 0, err
+			if _, err = xxh.WriteString(val); err != nil {
+				return err
 			}
 		}
 	}
 	for _, headerRegexp := range options.ForwardedClientHeaderRegularExpressions {
-		if _, err := xxh.WriteString(headerRegexp.String()); err != nil {
-			return 0, err
+		if _, err = xxh.WriteString(headerRegexp.String()); err != nil {
+			return err
 		}
 		for headerName, values := range ctx.Request.Header {
 			if headerRegexp.MatchString(headerName) {
 				for _, val := range values {
-					if _, err := xxh.WriteString(val); err != nil {
-						return 0, err
+					if _, err = xxh.WriteString(val); err != nil {
+						return err
 					}
 				}
 			}
 		}
 	}
-	return xxh.Sum64(), nil
+	if len(ctx.InitialPayload) > 0 {
+		if _, err = xxh.Write(ctx.InitialPayload); err != nil {
+			return err
+		}
+	}
+	if options.Body.Extensions != nil {
+		if _, err = xxh.Write(options.Body.Extensions); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, options GraphQLSubscriptionOptions) (ConnectionHandler, error) {
@@ -253,6 +288,20 @@ func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 	connectionInitMessage, err := c.getConnectionInitMessage(reqCtx, options.URL, options.Header)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(options.InitialPayload) > 0 {
+		connectionInitMessage, err = jsonparser.Set(connectionInitMessage, options.InitialPayload, "payload")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if options.Body.Extensions != nil {
+		connectionInitMessage, err = jsonparser.Set(connectionInitMessage, options.Body.Extensions, "payload", "extensions")
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// init + ack
@@ -311,7 +360,7 @@ type ConnectionHandler interface {
 type Subscription struct {
 	ctx     context.Context
 	options GraphQLSubscriptionOptions
-	next    chan<- []byte
+	updater resolve.SubscriptionUpdater
 }
 
 func waitForAck(ctx context.Context, conn *websocket.Conn) error {

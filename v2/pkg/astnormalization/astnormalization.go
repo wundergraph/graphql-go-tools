@@ -200,7 +200,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	directivesIncludeSkip := astvisitor.NewWalker(48)
-	inlineFragmentAddOnType(&directivesIncludeSkip)
 	directiveIncludeSkip(&directivesIncludeSkip)
 
 	if o.options.removeNotMatchingOperationDefinitions {
@@ -223,14 +222,21 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	other := astvisitor.NewWalker(48)
 	removeSelfAliasing(&other)
-	mergeInlineFragments(&other)
-	mergeFieldSelections(&other)
+	inlineSelectionsFromInlineFragments(&other)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
-		name:   "removeSelfAliasing, mergeInlineFragments, mergeFieldSelections",
+		name:   "removeSelfAliasing, inlineSelectionsFromInlineFragments",
 		walker: &other,
 	})
 
+	mergeInlineFragments := astvisitor.NewWalker(48)
+	mergeInlineFragmentSelections(&mergeInlineFragments)
+	o.operationWalkers = append(o.operationWalkers, walkerStage{
+		name:   "mergeInlineFragmentSelections",
+		walker: &mergeInlineFragments,
+	})
+
 	cleanup := astvisitor.NewWalker(48)
+	mergeFieldSelections(&cleanup)
 	deduplicateFields(&cleanup)
 	if o.options.removeFragmentDefinitions {
 		removeFragmentDefinitions(&cleanup)
@@ -239,7 +245,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		deleteUnusedVariables(&cleanup)
 	}
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
-		name:   "deduplicateFields, removeFragmentDefinitions, deleteUnusedVariables",
+		name:   "mergeFieldSelections, deduplicateFields, removeFragmentDefinitions, deleteUnusedVariables",
 		walker: &cleanup,
 	})
 

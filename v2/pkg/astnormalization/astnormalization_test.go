@@ -128,6 +128,26 @@ func TestNormalizeOperation(t *testing.T) {
 					}
 				}`, `{"unused":"foo"}`, `{}`)
 	})
+	t.Run("inline fragment spreads and merge fragments", func(t *testing.T) {
+		run(t, testDefinition, `
+				query q {
+					pet {
+						...DogName
+						...DogBarkVolume
+					}
+				}
+				fragment DogName on Pet { ... on Dog { name } }
+				fragment DogBarkVolume on Pet { ... on Dog { barkVolume } }`, `
+				query q {
+					pet {
+						... on Dog {
+							name
+							barkVolume
+						}
+					}
+				}`, ``, ``)
+	})
+
 	t.Run("fragments", func(t *testing.T) {
 		run(t, variablesExtractionDefinition, `
 			mutation HttpBinPost{
@@ -471,24 +491,29 @@ var runWithVariablesAssert = func(t *testing.T, registerVisitor func(walker *ast
 	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
 	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
 	report := operationreport.Report{}
-	walker := astvisitor.NewWalker(48)
 
 	if variablesInput != "" {
 		operationDocument.Input.Variables = []byte(variablesInput)
 	}
 
-	registerVisitor(&walker)
+	// some rules depend on other rules
+	// like InjectInputDefaultValues, InputCoercionForList depends on ExtractVariables
+	// for such tests we run preliminary rule first
+	// and the actual rule which we are testing as an additional rule
 
-	for _, fn := range additionalNormalizers {
-		fn(&walker)
+	initialWorker := astvisitor.NewWalker(48)
+	registerVisitor(&initialWorker)
+	initialWorker.Walk(&operationDocument, &definitionDocument, &report)
+	if report.HasErrors() {
+		panic(report.Error())
 	}
 
-	walker.Walk(&operationDocument, &definitionDocument, &report)
-	// we run this walker twice because some normalizers may depend on other normalizers
-	// walking twice ensures that all prerequisites are met
-	// additionally, walking twice also ensures that the normalizers are idempotent
-	walker.Walk(&operationDocument, &definitionDocument, &report)
-
+	additionalWalker := astvisitor.NewWalker(48)
+	for _, fn := range additionalNormalizers {
+		fn(&additionalWalker)
+	}
+	report = operationreport.Report{}
+	additionalWalker.Walk(&operationDocument, &definitionDocument, &report)
 	if report.HasErrors() {
 		panic(report.Error())
 	}

@@ -9,9 +9,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,6 +24,84 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/testing/subscriptiontesting"
 )
+
+func TestGraphQLDataSourceTypenames(t *testing.T) {
+	t.Run("__typename on union", func(t *testing.T) {
+		def := `
+			schema {
+				query: Query
+			}
+	
+			type A {
+				a: String
+			}
+	
+			union U = A
+	
+			type Query {
+				u: U
+			}`
+
+		t.Run("run", RunTest(
+			def, `
+			query TypenameOnUnion {
+				u {
+					__typename
+				}
+			}`,
+			"TypenameOnUnion", &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource:     &Source{},
+								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{u {__typename}}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("u"),
+								Value: &resolve.Object{
+									Path:     []string{"u"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path:       []string{"__typename"},
+												IsTypeName: true,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, plan.Configuration{
+				DataSources: []plan.DataSourceConfiguration{
+					{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"u"},
+							},
+						},
+						Factory: &Factory{},
+						Custom: ConfigJson(Configuration{
+							Fetch: FetchConfiguration{
+								URL: "https://example.com/graphql",
+							},
+							UpstreamSchema: def,
+						}),
+					},
+				},
+				DisableResolveFieldPositions: true,
+			}))
+	})
+}
 
 func TestGraphQLDataSource(t *testing.T) {
 	t.Skip("FIXME")
@@ -2634,8 +2714,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 								},
 							),
-							DisallowSingleFlight: true,
-							PostProcessing:       DefaultPostProcessingConfiguration,
+							PostProcessing: DefaultPostProcessingConfiguration,
 						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
@@ -2736,8 +2815,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 								},
 							),
-							DisallowSingleFlight: false,
-							PostProcessing:       DefaultPostProcessingConfiguration,
+							PostProcessing: DefaultPostProcessingConfiguration,
 						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
@@ -2841,8 +2919,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 								},
 							),
-							DisallowSingleFlight: false,
-							PostProcessing:       DefaultPostProcessingConfiguration,
+							PostProcessing: DefaultPostProcessingConfiguration,
 						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
@@ -2964,8 +3041,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
 								},
 							),
-							DisallowSingleFlight: false,
-							PostProcessing:       DefaultPostProcessingConfiguration,
+							PostProcessing: DefaultPostProcessingConfiguration,
 						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
@@ -3460,8 +3536,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
 								},
 							),
-							DisallowSingleFlight: true,
-							PostProcessing:       DefaultPostProcessingConfiguration,
+							PostProcessing: DefaultPostProcessingConfiguration,
 						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
@@ -3603,8 +3678,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
 								},
 							),
-							DisallowSingleFlight: true,
-							PostProcessing:       DefaultPostProcessingConfiguration,
+							PostProcessing: DefaultPostProcessingConfiguration,
 						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
@@ -3729,8 +3803,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
 								},
 							),
-							DisallowSingleFlight: true,
-							PostProcessing:       DefaultPostProcessingConfiguration,
+							PostProcessing: DefaultPostProcessingConfiguration,
 						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
@@ -3867,9 +3940,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
-							Input:                `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){namespaceCreate(input: {name: $name,personal: $personal}){__typename}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
-							DataSource:           &Source{},
-							DisallowSingleFlight: true,
+							Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){namespaceCreate(input: {name: $name,personal: $personal}){__typename}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
+							DataSource: &Source{},
 							Variables: resolve.NewVariables(
 								&resolve.ContextVariable{
 									Path:     []string{"name"},
@@ -7996,8 +8068,68 @@ var errSubscriptionClientFail = errors.New("subscription client fail error")
 
 type FailingSubscriptionClient struct{}
 
-func (f FailingSubscriptionClient) Subscribe(_ *resolve.Context, _ GraphQLSubscriptionOptions, _ chan<- []byte) error {
+func (f *FailingSubscriptionClient) Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	return errSubscriptionClientFail
+}
+
+func (f *FailingSubscriptionClient) UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error) {
+	return errSubscriptionClientFail
+}
+
+type testSubscriptionUpdater struct {
+	updates []string
+	done    bool
+	mux     sync.Mutex
+}
+
+func (t *testSubscriptionUpdater) AwaitUpdates(tt *testing.T, timeout time.Duration, count int) {
+	ticker := time.NewTicker(timeout)
+	defer ticker.Stop()
+	for {
+		time.Sleep(10 * time.Millisecond)
+		select {
+		case <-ticker.C:
+			tt.Fatalf("timed out waiting for updates")
+		default:
+			t.mux.Lock()
+			if len(t.updates) == count {
+				t.mux.Unlock()
+				return
+			}
+			t.mux.Unlock()
+		}
+	}
+}
+
+func (t *testSubscriptionUpdater) AwaitDone(tt *testing.T, timeout time.Duration) {
+	ticker := time.NewTicker(timeout)
+	defer ticker.Stop()
+	for {
+		time.Sleep(10 * time.Millisecond)
+		select {
+		case <-ticker.C:
+			tt.Fatalf("timed out waiting for done")
+		default:
+			t.mux.Lock()
+			if t.done {
+				t.mux.Unlock()
+				return
+			}
+			t.mux.Unlock()
+		}
+	}
+}
+
+func (t *testSubscriptionUpdater) Update(data []byte) {
+	t.mux.Lock()
+	defer t.mux.Unlock()
+	t.updates = append(t.updates, string(data))
+}
+
+func (t *testSubscriptionUpdater) Done() {
+	t.mux.Lock()
+	defer t.mux.Unlock()
+	t.done = true
 }
 
 func TestSubscriptionSource_Start(t *testing.T) {
@@ -8042,84 +8174,86 @@ func TestSubscriptionSource_Start(t *testing.T) {
 	}
 
 	t.Run("should return error when input is invalid", func(t *testing.T) {
-		source := SubscriptionSource{client: FailingSubscriptionClient{}}
+		source := SubscriptionSource{client: &FailingSubscriptionClient{}}
 		err := source.Start(resolve.NewContext(context.Background()), []byte(`{"url": "", "body": "", "header": null}`), nil)
 		assert.Error(t, err)
 	})
 
 	t.Run("should return error when subscription client returns an error", func(t *testing.T) {
-		source := SubscriptionSource{client: FailingSubscriptionClient{}}
+		source := SubscriptionSource{client: &FailingSubscriptionClient{}}
 		err := source.Start(resolve.NewContext(context.Background()), []byte(`{"url": "", "body": {}, "header": null}`), nil)
 		assert.Error(t, err)
 		assert.Equal(t, resolve.ErrUnableToResolve, err)
 	})
 
 	t.Run("invalid json: should stop before sending to upstream", func(t *testing.T) {
-		next := make(chan []byte)
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
+		updater := &testSubscriptionUpdater{}
+
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: "#test") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
+		err := source.Start(ctx, chatSubscriptionOptions, updater)
 		require.ErrorIs(t, err, resolve.ErrUnableToResolve)
 	})
 
 	t.Run("invalid syntax (roomNam)", func(t *testing.T) {
-		next := make(chan []byte)
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
+		updater := &testSubscriptionUpdater{}
+
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
+		err := source.Start(ctx, chatSubscriptionOptions, updater)
 		require.NoError(t, err)
-
-		msg, ok := <-next
-		assert.True(t, ok)
-		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, string(msg))
-		_, ok = <-next
-		assert.False(t, ok)
+		updater.AwaitUpdates(t, time.Second, 1)
+		assert.Len(t, updater.updates, 1)
+		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, updater.updates[0])
+		assert.Equal(t, true, updater.done)
 	})
 
 	t.Run("should close connection on stop message", func(t *testing.T) {
-		next := make(chan []byte)
 		subscriptionLifecycle, cancelSubscription := context.WithCancel(context.Background())
 		resolverLifecycle, cancelResolver := context.WithCancel(context.Background())
 		defer cancelResolver()
 
+		updater := &testSubscriptionUpdater{}
+
 		source := newSubscriptionSource(resolverLifecycle)
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, next)
+		err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
 		require.NoError(t, err)
 
 		username := "myuser"
 		message := "hello world!"
 		go sendChatMessage(t, username, message)
 
-		nextBytes := <-next
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, string(nextBytes))
+		updater.AwaitUpdates(t, time.Second, 1)
 		cancelSubscription()
-		_, ok := <-next
-		assert.False(t, ok)
+		updater.AwaitDone(t, time.Second*5)
+		assert.Len(t, updater.updates, 1)
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
 	})
 
 	t.Run("should successfully subscribe with chat example", func(t *testing.T) {
-		next := make(chan []byte)
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
+		updater := &testSubscriptionUpdater{}
+
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
+		err := source.Start(ctx, chatSubscriptionOptions, updater)
 		require.NoError(t, err)
 
 		username := "myuser"
 		message := "hello world!"
 		go sendChatMessage(t, username, message)
-
-		nextBytes := <-next
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, string(nextBytes))
+		updater.AwaitUpdates(t, time.Second, 1)
+		assert.Len(t, updater.updates, 1)
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
 	})
 }
 
@@ -8167,82 +8301,79 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 	}
 
 	t.Run("invalid syntax (roomNam)", func(t *testing.T) {
-		next := make(chan []byte)
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
+		updater := &testSubscriptionUpdater{}
+
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomNam: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
+		err := source.Start(ctx, chatSubscriptionOptions, updater)
 		require.NoError(t, err)
 
-		msg, ok := <-next
-		assert.True(t, ok)
-		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, string(msg))
-		_, ok = <-next
-		assert.False(t, ok)
+		updater.AwaitUpdates(t, time.Second, 1)
+		assert.Len(t, updater.updates, 1)
+		assert.Equal(t, `{"errors":[{"message":"Unknown argument \"roomNam\" on field \"Subscription.messageAdded\". Did you mean \"roomName\"?","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"messageAdded\" argument \"roomName\" of type \"String!\" is required, but it was not provided.","locations":[{"line":1,"column":29}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}`, updater.updates[0])
+		updater.AwaitDone(t, time.Second)
+		assert.Equal(t, true, updater.done)
 	})
 
 	t.Run("should close connection on stop message", func(t *testing.T) {
-		next := make(chan []byte)
 		subscriptionLifecycle, cancelSubscription := context.WithCancel(context.Background())
 		resolverLifecycle, cancelResolver := context.WithCancel(context.Background())
 		defer cancelResolver()
 
+		updater := &testSubscriptionUpdater{}
+
 		source := newSubscriptionSource(resolverLifecycle)
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, next)
+		err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
 		require.NoError(t, err)
 
 		username := "myuser"
 		message := "hello world!"
 		go sendChatMessage(t, username, message)
 
-		nextBytes := <-next
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, string(nextBytes))
+		updater.AwaitUpdates(t, time.Second, 1)
+		assert.Len(t, updater.updates, 1)
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
 		cancelSubscription()
-		_, ok := <-next
-		assert.False(t, ok)
+		updater.AwaitDone(t, time.Second*5)
+		assert.Equal(t, true, updater.done)
 	})
 
 	t.Run("should successfully subscribe with chat example", func(t *testing.T) {
-		next := make(chan []byte)
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
+		updater := &testSubscriptionUpdater{}
+
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, next)
+		err := source.Start(ctx, chatSubscriptionOptions, updater)
 		require.NoError(t, err)
 
 		username := "myuser"
 		message := "hello world!"
 		go sendChatMessage(t, username, message)
 
-		nextBytes := <-next
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, string(nextBytes))
+		updater.AwaitUpdates(t, time.Second, 1)
+		assert.Len(t, updater.updates, 1)
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
 	})
 }
 
-type runTestOnTestDefinitionOptions func(planConfig *plan.Configuration, extraChecks *[]CheckFunc)
+type runTestOnTestDefinitionOptions func(planConfig *plan.Configuration)
 
 func testWithFactory(factory *Factory) runTestOnTestDefinitionOptions {
-	return func(planConfig *plan.Configuration, extraChecks *[]CheckFunc) {
+	return func(planConfig *plan.Configuration) {
 		for _, ds := range planConfig.DataSources {
 			ds.Factory = factory
 		}
 	}
 }
 
-// nolint:deadcode,unused
-func testWithExtraChecks(extraChecks ...CheckFunc) runTestOnTestDefinitionOptions {
-	return func(planConfig *plan.Configuration, availableChecks *[]CheckFunc) {
-		*availableChecks = append(*availableChecks, extraChecks...)
-	}
-}
-
 func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.Plan, options ...runTestOnTestDefinitionOptions) func(t *testing.T) {
-	extraChecks := make([]CheckFunc, 0)
 	config := plan.Configuration{
 		DataSources: []plan.DataSourceConfiguration{
 			{
@@ -8339,11 +8470,7 @@ func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.
 		DisableResolveFieldPositions: true,
 	}
 
-	for _, opt := range options {
-		opt(&config, &extraChecks)
-	}
-
-	return RunTest(testDefinition, operation, operationName, expectedPlan, config, extraChecks...)
+	return RunTest(testDefinition, operation, operationName, expectedPlan, config)
 }
 
 func TestSource_Load(t *testing.T) {
