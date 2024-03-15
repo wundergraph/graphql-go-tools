@@ -51,6 +51,9 @@ type Resolver struct {
 
 	reporter         Reporter
 	asyncErrorWriter AsyncErrorWriter
+
+	forwardSubgraphErrors     bool
+	forwardSubgraphStatusCode bool
 }
 
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
@@ -77,6 +80,9 @@ type ResolverOptions struct {
 
 	Reporter         Reporter
 	AsyncErrorWriter AsyncErrorWriter
+
+	ForwardSubgraphErrors     bool
+	ForwardSubgraphStatusCode bool
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -89,7 +95,10 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 			New: func() interface{} {
 				return &tools{
 					resolvable: NewResolvable(),
-					loader:     &Loader{},
+					loader: &Loader{
+						forwardSubgraphErrors:     options.ForwardSubgraphErrors,
+						forwardSubgraphStatusCode: options.ForwardSubgraphStatusCode,
+					},
 				}
 			},
 		},

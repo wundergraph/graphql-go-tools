@@ -59,8 +59,10 @@ func fakeDataSourceWithInputCheck(t TestingTB, input []byte, data []byte) *_fake
 
 func newResolver(ctx context.Context) *Resolver {
 	return New(ctx, ResolverOptions{
-		MaxConcurrency: 1024,
-		Debug:          false,
+		MaxConcurrency:            1024,
+		Debug:                     false,
+		ForwardSubgraphErrors:     true,
+		ForwardSubgraphStatusCode: true,
 	})
 }
 
@@ -1475,6 +1477,33 @@ func testFn(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLRespons
 	}
 }
 
+func testFnNoSubgraphErrorForwarding(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		ctrl := gomock.NewController(t)
+		rCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		r := New(rCtx, ResolverOptions{
+			MaxConcurrency:            1024,
+			Debug:                     false,
+			ForwardSubgraphErrors:     false,
+			ForwardSubgraphStatusCode: false,
+		})
+		node, ctx, expectedOutput := fn(t, ctrl)
+
+		if t.Skipped() {
+			return
+		}
+
+		buf := &bytes.Buffer{}
+		err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedOutput, buf.String())
+		ctrl.Finish()
+	}
+}
+
 func testFnWithPostEvaluation(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T))) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
@@ -1707,7 +1736,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.countries'.","path":["countries"]}],"data":null}`
 	}))
-	t.Run("fetch with simple error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("fetch with simple error without datasource ID", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -1737,7 +1766,74 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage"}],"data":{"name":null}}`
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph at path 'query'.","extensions":{"errors":[{"message":"errorMessage"}]}}],"data":{"name":null}}`
+	}))
+	t.Run("fetch with simple error without datasource ID no subgraph error forwarding", testFnNoSubgraphErrorForwarding(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				pair := NewBufPair()
+				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
+				return writeGraphqlResponse(pair, w, false)
+			})
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: false,
+				Fetch: &SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: mockDataSource,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseErrorsPath: []string{"errors"},
+						},
+					},
+				},
+				Fields: []*Field{
+					{
+						Name: []byte("name"),
+						Value: &String{
+							Path:     []string{"name"},
+							Nullable: true,
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph at path 'query'."}],"data":{"name":null}}`
+	}))
+	t.Run("fetch with simple error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				pair := NewBufPair()
+				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
+				return writeGraphqlResponse(pair, w, false)
+			})
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: false,
+				Fetch: &SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: mockDataSource,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseErrorsPath: []string{"errors"},
+						},
+					},
+					Info: &FetchInfo{
+						DataSourceID: "Users",
+					},
+				},
+				Fields: []*Field{
+					{
+						Name: []byte("name"),
+						Value: &String{
+							Path:     []string{"name"},
+							Nullable: true,
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at path 'query'.","extensions":{"errors":[{"message":"errorMessage"}]}}],"data":{"name":null}}`
 	}))
 	t.Run("fetch with returned err", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -1833,7 +1929,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage1"},{"message":"errorMessage2"}],"data":{"name":null}}`
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph at path 'query'.","extensions":{"errors":[{"message":"errorMessage1"},{"message":"errorMessage2"}]}}],"data":{"name":null}}`
 	}))
 	t.Run("not nullable object in nullable field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -2156,7 +2252,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos",0,"name"]}],"data":null}`
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph at path 'query'.","extensions":{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos",0,"name"]}]}}],"data":null}`
 	}))
 	t.Run("complex GraphQL Server plan", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		serviceOne := NewMockDataSource(ctrl)
