@@ -495,7 +495,7 @@ so that the planner knows how to create an execution plan for the DataSource and
 */
 
 func ExamplePlanOperation() {
-    staticDataSource := plan.NewDataSourceConfiguration[staticdatasource.Configuration](
+    staticDataSource, err := plan.NewDataSourceConfiguration[staticdatasource.Configuration](
       "StaticDataSource",
       &staticdatasource.Factory[staticdatasource.Configuration]{},
       &plan.DataSourceMetadata{
@@ -524,6 +524,9 @@ func ExamplePlanOperation() {
         },
       },
       IncludeInfo: true,
+    }
+	if err != nil {
+        panic(err)
     }
 
 	operationDocument := ast.NewSmallDocument() // containing the following query: query O { hello }
