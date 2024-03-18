@@ -47,14 +47,6 @@ type Configuration struct {
 	Events []EventConfiguration `json:"events"`
 }
 
-func ConfigJson(config Configuration) json.RawMessage {
-	out, err := json.Marshal(config)
-	if err != nil {
-		panic(err)
-	}
-	return out
-}
-
 type Planner[T Configuration] struct {
 	visitor      *plan.Visitor
 	variables    resolve.Variables

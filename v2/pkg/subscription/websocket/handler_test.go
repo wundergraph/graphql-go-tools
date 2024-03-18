@@ -296,6 +296,7 @@ func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string
 		},
 		customConfiguration,
 	)
+	require.NoError(t, err)
 
 	engineConf.SetDataSources([]plan.DataSource{
 		dsCfg,
