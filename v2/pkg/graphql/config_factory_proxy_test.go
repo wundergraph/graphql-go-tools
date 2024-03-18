@@ -72,7 +72,7 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 			return
 		}
 
-		expectedDataSource := plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
+		expectedDataSource := mustGraphqlDataSourceConfiguration(t,
 			"some",
 			&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
 				HTTPClient:         client,
@@ -155,7 +155,7 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 			return
 		}
 
-		expectedDataSource := plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
+		expectedDataSource := mustGraphqlDataSourceConfiguration(t,
 			"some",
 			&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
 				HTTPClient:         client,
@@ -238,7 +238,7 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 			return
 		}
 
-		expectedDataSource := plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
+		expectedDataSource := mustGraphqlDataSourceConfiguration(t,
 			"some",
 			&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
 				HTTPClient:         client,

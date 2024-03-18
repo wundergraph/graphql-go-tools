@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
@@ -139,47 +140,50 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	dsCfg, err := NewDataSourceConfiguration[any](
+		"https://swapi.dev/api",
+		&FakeFactory[any]{
+			upstreamSchema: &def,
+		},
+		&DataSourceMetadata{
+			RootNodes: []TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"searchResults", "hero"},
+				},
+			},
+			ChildNodes: []TypeField{
+				{
+					TypeName:   "Human",
+					FieldNames: []string{"name", "inlineName"},
+				},
+				{
+					TypeName:   "Droid",
+					FieldNames: []string{"name"},
+				},
+				{
+					TypeName:   "Starship",
+					FieldNames: []string{"length"},
+				},
+				{
+					TypeName:   "SearchResult",
+					FieldNames: []string{"__typename"},
+				},
+				{
+					TypeName:   "Character",
+					FieldNames: []string{"name", "friends"},
+				},
+			},
+		},
+		nil,
+	)
+	require.NoError(t, err)
+
 	p := NewPlanner(ctx, Configuration{
 		DisableResolveFieldPositions: true,
 		IncludeInfo:                  true,
 		DataSources: []DataSource{
-			NewDataSourceConfiguration[any](
-				"https://swapi.dev/api",
-				&FakeFactory[any]{
-					upstreamSchema: &def,
-				},
-				&DataSourceMetadata{
-					RootNodes: []TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"searchResults", "hero"},
-						},
-					},
-					ChildNodes: []TypeField{
-						{
-							TypeName:   "Human",
-							FieldNames: []string{"name", "inlineName"},
-						},
-						{
-							TypeName:   "Droid",
-							FieldNames: []string{"name"},
-						},
-						{
-							TypeName:   "Starship",
-							FieldNames: []string{"length"},
-						},
-						{
-							TypeName:   "SearchResult",
-							FieldNames: []string{"__typename"},
-						},
-						{
-							TypeName:   "Character",
-							FieldNames: []string{"name", "friends"},
-						},
-					},
-				},
-				nil,
-			),
+			dsCfg,
 		},
 	})
 	generatedPlan := p.Plan(&op, &def, "Search", report)

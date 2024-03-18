@@ -43,17 +43,19 @@ func mustCustomConfiguration(t *testing.T, input ConfigurationInput) Configurati
 func mustDataSourceConfiguration(t *testing.T, id string, metadata *plan.DataSourceMetadata, config Configuration) plan.DataSource {
 	t.Helper()
 
-	// &Factory{
-	// 	HTTPClient: http.DefaultClient,
-	// }
+	dsCfg, err := plan.NewDataSourceConfiguration[Configuration](id, &Factory[Configuration]{}, metadata, config)
+	require.NoError(t, err)
 
-	return plan.NewDataSourceConfiguration[Configuration](id, &Factory[Configuration]{}, metadata, config)
+	return dsCfg
 }
 
 func mustDataSourceConfigurationWithHttpClient(t *testing.T, id string, metadata *plan.DataSourceMetadata, config Configuration) plan.DataSource {
 	t.Helper()
 
-	return plan.NewDataSourceConfiguration[Configuration](id, &Factory[Configuration]{HTTPClient: http.DefaultClient}, metadata, config)
+	dsCfg, err := plan.NewDataSourceConfiguration[Configuration](id, &Factory[Configuration]{HTTPClient: http.DefaultClient}, metadata, config)
+	require.NoError(t, err)
+
+	return dsCfg
 }
 
 func TestGraphQLDataSourceTypenames(t *testing.T) {

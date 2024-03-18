@@ -6,6 +6,8 @@ import (
 	"io"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -54,7 +56,7 @@ func TestPubSub(t *testing.T) {
 		helloSubscription(id: String!): String! @eventsSubscribe(topic: "helloSubscription.{{ args.id }}")
 	}`
 
-	dataSourceConfig := Configuration{
+	dataSourceCustomConfig := Configuration{
 		Events: []EventConfiguration{
 			{
 				Type:      EventTypeRequest,
@@ -77,29 +79,32 @@ func TestPubSub(t *testing.T) {
 		},
 	}
 
+	dataSourceConfiguration, err := plan.NewDataSourceConfiguration[Configuration](
+		"test",
+		factory,
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"helloQuery"},
+				},
+				{
+					TypeName:   "Mutation",
+					FieldNames: []string{"helloMutation"},
+				},
+				{
+					TypeName:   "Subscription",
+					FieldNames: []string{"helloSubscription"},
+				},
+			},
+		},
+		dataSourceCustomConfig,
+	)
+	require.NoError(t, err)
+
 	planConfig := plan.Configuration{
 		DataSources: []plan.DataSource{
-			plan.NewDataSourceConfiguration[Configuration](
-				"test",
-				factory,
-				&plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"helloQuery"},
-						},
-						{
-							TypeName:   "Mutation",
-							FieldNames: []string{"helloMutation"},
-						},
-						{
-							TypeName:   "Subscription",
-							FieldNames: []string{"helloSubscription"},
-						},
-					},
-				},
-				dataSourceConfig,
-			),
+			dataSourceConfiguration,
 		},
 		Fields: []plan.FieldConfiguration{
 			{

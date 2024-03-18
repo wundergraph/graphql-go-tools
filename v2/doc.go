@@ -467,7 +467,7 @@ so that the planner knows how to create an execution plan for the DataSource and
 */
 
 func ExamplePlanOperation() {
-	staticDataSource := plan.NewDataSourceConfiguration[staticdatasource.Configuration](
+	staticDataSource, _ := plan.NewDataSourceConfiguration[staticdatasource.Configuration](
 		"StaticDataSource",
 		&staticdatasource.Factory[staticdatasource.Configuration]{},
 		&plan.DataSourceMetadata{

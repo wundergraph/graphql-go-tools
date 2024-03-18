@@ -65,14 +65,18 @@ func (f *IntrospectionConfigFactory) BuildFieldConfigurations() (planFields plan
 }
 
 func (f *IntrospectionConfigFactory) BuildDataSourceConfigurations() []plan.DataSource {
+	root, _ := f.buildRootDataSourceConfiguration()
+	fields, _ := f.buildFieldsConfiguration()
+	enums, _ := f.buildEnumsConfiguration()
+
 	return []plan.DataSource{
-		f.buildRootDataSourceConfiguration(),
-		f.buildFieldsConfiguration(),
-		f.buildEnumsConfiguration(),
+		root,
+		fields,
+		enums,
 	}
 }
 
-func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() plan.DataSourceConfiguration[Configuration] {
+func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() (plan.DataSourceConfiguration[Configuration], error) {
 	return plan.NewDataSourceConfiguration[Configuration](
 		"introspection__schema&__type",
 		NewFactory[Configuration](f.introspectionData),
@@ -110,7 +114,7 @@ func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() plan.Dat
 	)
 }
 
-func (f *IntrospectionConfigFactory) buildFieldsConfiguration() plan.DataSourceConfiguration[Configuration] {
+func (f *IntrospectionConfigFactory) buildFieldsConfiguration() (plan.DataSourceConfiguration[Configuration], error) {
 	return plan.NewDataSourceConfiguration[Configuration](
 		"introspection__type__fields",
 		NewFactory[Configuration](f.introspectionData),
@@ -140,7 +144,7 @@ func (f *IntrospectionConfigFactory) buildFieldsConfiguration() plan.DataSourceC
 	)
 }
 
-func (f *IntrospectionConfigFactory) buildEnumsConfiguration() plan.DataSourceConfiguration[Configuration] {
+func (f *IntrospectionConfigFactory) buildEnumsConfiguration() (plan.DataSourceConfiguration[Configuration], error) {
 	return plan.NewDataSourceConfiguration[Configuration](
 		"introspection__type__enumValues",
 		NewFactory[Configuration](f.introspectionData),

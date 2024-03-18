@@ -27,7 +27,7 @@ func TestNewEngineV2Configuration(t *testing.T) {
 	})
 
 	t.Run("should successfully add a data source", func(t *testing.T) {
-		ds := plan.NewDataSourceConfiguration[any]("1", nil, nil, []byte("1"))
+		ds, _ := plan.NewDataSourceConfiguration[any]("1", nil, nil, []byte("1"))
 		engineConfig.AddDataSource(ds)
 
 		assert.Len(t, engineConfig.plannerConfig.DataSources, 1)
@@ -35,10 +35,13 @@ func TestNewEngineV2Configuration(t *testing.T) {
 	})
 
 	t.Run("should successfully set all data sources", func(t *testing.T) {
+		one, _ := plan.NewDataSourceConfiguration[any]("1", nil, nil, []byte("1"))
+		two, _ := plan.NewDataSourceConfiguration[any]("2", nil, nil, []byte("2"))
+		three, _ := plan.NewDataSourceConfiguration[any]("3", nil, nil, []byte("3"))
 		ds := []plan.DataSource{
-			plan.NewDataSourceConfiguration[any]("1", nil, nil, []byte("1")),
-			plan.NewDataSourceConfiguration[any]("2", nil, nil, []byte("2")),
-			plan.NewDataSourceConfiguration[any]("3", nil, nil, []byte("3")),
+			one,
+			two,
+			three,
 		}
 		engineConfig.SetDataSources(ds)
 

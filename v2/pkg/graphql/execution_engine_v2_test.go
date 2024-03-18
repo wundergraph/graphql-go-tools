@@ -51,6 +51,20 @@ func mustConfiguration(t *testing.T, input graphql_datasource.ConfigurationInput
 	return cfg
 }
 
+func mustGraphqlDataSourceConfiguration(t *testing.T, id string, factory plan.PlannerFactory[graphql_datasource.Configuration], metadata *plan.DataSourceMetadata, customConfig graphql_datasource.Configuration) plan.DataSourceConfiguration[graphql_datasource.Configuration] {
+	t.Helper()
+
+	cfg, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+		id,
+		factory,
+		metadata,
+		customConfig,
+	)
+	require.NoError(t, err)
+
+	return cfg
+}
+
 func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 	t.Run("no compression", func(t *testing.T) {
 		rw := NewEngineResultWriter()
@@ -322,7 +336,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			schema:    starwarsSchema(t),
 			operation: loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
 			dataSources: []plan.DataSource{
-				plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+				mustGraphqlDataSourceConfiguration(t,
 					"id",
 					&graphql_datasource.Factory[graphql_datasource.Configuration]{
 						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -374,7 +388,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				return request
 			},
 			dataSources: []plan.DataSource{
-				plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+				mustGraphqlDataSourceConfiguration(t,
 					"id",
 					&graphql_datasource.Factory[graphql_datasource.Configuration]{
 						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -435,7 +449,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				}
 			},
 			dataSources: []plan.DataSource{
-				plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+				mustGraphqlDataSourceConfiguration(t,
 					"id",
 					&graphql_datasource.Factory[graphql_datasource.Configuration]{
 						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -485,7 +499,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			schema:    starwarsSchema(t),
 			operation: loadStarWarsQuery(starwars.FileDroidWithArgAndVarQuery, map[string]interface{}{"droidID": "R2D2"}),
 			dataSources: []plan.DataSource{
-				plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+				mustGraphqlDataSourceConfiguration(t,
 					"id",
 					&graphql_datasource.Factory[graphql_datasource.Configuration]{
 						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -555,7 +569,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			}
 		},
 		dataSources: []plan.DataSource{
-			plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+			mustGraphqlDataSourceConfiguration(t,
 				"id",
 				&graphql_datasource.Factory[graphql_datasource.Configuration]{
 					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -621,7 +635,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			}
 		},
 		dataSources: []plan.DataSource{
-			plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+			mustGraphqlDataSourceConfiguration(t,
 				"id",
 				&graphql_datasource.Factory[graphql_datasource.Configuration]{
 					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -691,7 +705,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			}
 		},
 		dataSources: []plan.DataSource{
-			plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+			mustGraphqlDataSourceConfiguration(t,
 				"id",
 				&graphql_datasource.Factory[graphql_datasource.Configuration]{},
 				&plan.DataSourceMetadata{
@@ -742,7 +756,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			}
 		},
 		dataSources: []plan.DataSource{
-			plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+			mustGraphqlDataSourceConfiguration(t,
 				"id",
 				&graphql_datasource.Factory[graphql_datasource.Configuration]{
 					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -809,7 +823,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			}
 		},
 		dataSources: []plan.DataSource{
-			plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+			mustGraphqlDataSourceConfiguration(t,
 				"id",
 				&graphql_datasource.Factory[graphql_datasource.Configuration]{
 					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -869,7 +883,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			schema:    starwarsSchema(t),
 			operation: loadStarWarsQuery(starwars.FileDroidWithArgQuery, nil),
 			dataSources: []plan.DataSource{
-				plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+				mustGraphqlDataSourceConfiguration(t,
 					"id",
 					&graphql_datasource.Factory[graphql_datasource.Configuration]{
 						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -939,7 +953,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					}
 				},
 				dataSources: []plan.DataSource{
-					plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+					mustGraphqlDataSourceConfiguration(t,
 						"id",
 						&graphql_datasource.Factory[graphql_datasource.Configuration]{
 							HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -1002,7 +1016,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					}
 				},
 				dataSources: []plan.DataSource{
-					plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+					mustGraphqlDataSourceConfiguration(t,
 						"id",
 						&graphql_datasource.Factory[graphql_datasource.Configuration]{
 							HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -1064,7 +1078,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					}
 				},
 				dataSources: []plan.DataSource{
-					plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+					mustGraphqlDataSourceConfiguration(t,
 						"id",
 						&graphql_datasource.Factory[graphql_datasource.Configuration]{
 							HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -1135,7 +1149,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					}
 				},
 				dataSources: []plan.DataSource{
-					plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+					mustGraphqlDataSourceConfiguration(t,
 						"id",
 						&graphql_datasource.Factory[graphql_datasource.Configuration]{
 							HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -1205,7 +1219,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				}
 			},
 			dataSources: []plan.DataSource{
-				plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+				mustGraphqlDataSourceConfiguration(t,
 					"id",
 					&graphql_datasource.Factory[graphql_datasource.Configuration]{
 						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -1270,7 +1284,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			schema:    starwarsSchema(t),
 			operation: loadStarWarsQuery(starwars.FileInvalidFragmentsQuery, nil),
 			dataSources: []plan.DataSource{
-				plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+				mustGraphqlDataSourceConfiguration(t,
 					"id",
 					&graphql_datasource.Factory[graphql_datasource.Configuration]{
 						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -1336,7 +1350,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				return request
 			},
 			dataSources: []plan.DataSource{
-				plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+				mustGraphqlDataSourceConfiguration(t,
 					"id",
 					&graphql_datasource.Factory[graphql_datasource.Configuration]{
 						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
@@ -1428,7 +1442,7 @@ func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 
 	engineConfig := NewEngineV2Configuration(schema)
 	engineConfig.SetDataSources([]plan.DataSource{
-		plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+		mustGraphqlDataSourceConfiguration(t,
 			"id",
 			&graphql_datasource.Factory[graphql_datasource.Configuration]{},
 			&plan.DataSourceMetadata{
@@ -1593,20 +1607,23 @@ func BenchmarkExecutionEngineV2(b *testing.B) {
 		schema, err := NewSchemaFromString(`type Query { hello: String}`)
 		require.NoError(b, err)
 
+		dsCfg, err := plan.NewDataSourceConfiguration[staticdatasource.Configuration](
+			"id",
+			&staticdatasource.Factory[staticdatasource.Configuration]{},
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Query", FieldNames: []string{"hello"}},
+				},
+			},
+			staticdatasource.Configuration{
+				Data: `"world"`,
+			},
+		)
+		require.NoError(b, err)
+
 		engineConf := NewEngineV2Configuration(schema)
 		engineConf.SetDataSources([]plan.DataSource{
-			plan.NewDataSourceConfiguration[staticdatasource.Configuration](
-				"id",
-				&staticdatasource.Factory[staticdatasource.Configuration]{},
-				&plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{TypeName: "Query", FieldNames: []string{"hello"}},
-					},
-				},
-				staticdatasource.Configuration{
-					Data: `"world"`,
-				},
-			),
+			dsCfg,
 		})
 		engineConf.SetFieldConfigurations([]plan.FieldConfiguration{
 			{
@@ -1700,6 +1717,9 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 			ServiceSDL: string(accountsSDL),
 		},
 	)
+	if err != nil {
+		return
+	}
 
 	accountsConfiguration, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
 		Fetch: &graphql_datasource.FetchConfiguration{
@@ -1712,7 +1732,7 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 		return
 	}
 
-	accountsDataSource := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+	accountsDataSource, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
 		"accounts",
 		&graphql_datasource.Factory[graphql_datasource.Configuration]{
 			HTTPClient: httpclient.DefaultNetHttpClient,
@@ -1785,6 +1805,9 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 		},
 		accountsConfiguration,
 	)
+	if err != nil {
+		return
+	}
 
 	productsSchemaConfiguration, err := graphql_datasource.NewSchemaConfiguration(
 		string(productsSDL),
@@ -1793,6 +1816,9 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 			ServiceSDL: string(productsSDL),
 		},
 	)
+	if err != nil {
+		return
+	}
 
 	productsConfiguration, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
 		Fetch: &graphql_datasource.FetchConfiguration{
@@ -1808,7 +1834,7 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 		return
 	}
 
-	productsDataSource := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+	productsDataSource, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
 		"products",
 		&graphql_datasource.Factory[graphql_datasource.Configuration]{
 			HTTPClient: httpclient.DefaultNetHttpClient,
@@ -1843,6 +1869,9 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 		},
 		productsConfiguration,
 	)
+	if err != nil {
+		return
+	}
 
 	reviewsSchemaConfiguration, err := graphql_datasource.NewSchemaConfiguration(
 		string(reviewsSDL),
@@ -1851,6 +1880,9 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 			ServiceSDL: string(reviewsSDL),
 		},
 	)
+	if err != nil {
+		return
+	}
 
 	reviewsConfiguration, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
 		Fetch: &graphql_datasource.FetchConfiguration{
@@ -1866,7 +1898,7 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 		return
 	}
 
-	reviewsDataSource := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+	reviewsDataSource, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
 		"reviews",
 		&graphql_datasource.Factory[graphql_datasource.Configuration]{
 			HTTPClient: httpclient.DefaultNetHttpClient,
@@ -1935,6 +1967,9 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 		},
 		reviewsConfiguration,
 	)
+	if err != nil {
+		return
+	}
 
 	fieldConfigs := plan.FieldConfigurations{
 		{

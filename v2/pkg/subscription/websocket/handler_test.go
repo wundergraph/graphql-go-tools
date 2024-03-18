@@ -277,25 +277,28 @@ func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string
 
 	engineConf := graphql.NewEngineV2Configuration(chatSchema)
 	engineConf.SetWebsocketBeforeStartHook(onBeforeStartHook)
+
+	dsCfg, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+		"chat",
+		&graphql_datasource.Factory[graphql_datasource.Configuration]{
+			HTTPClient: httpclient.DefaultNetHttpClient,
+		},
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"room"}},
+				{TypeName: "Mutation", FieldNames: []string{"post"}},
+				{TypeName: "Subscription", FieldNames: []string{"messageAdded"}},
+			},
+			ChildNodes: []plan.TypeField{
+				{TypeName: "Chatroom", FieldNames: []string{"name", "messages"}},
+				{TypeName: "Message", FieldNames: []string{"text", "createdBy"}},
+			},
+		},
+		customConfiguration,
+	)
+
 	engineConf.SetDataSources([]plan.DataSource{
-		plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
-			"chat",
-			&graphql_datasource.Factory[graphql_datasource.Configuration]{
-				HTTPClient: httpclient.DefaultNetHttpClient,
-			},
-			&plan.DataSourceMetadata{
-				RootNodes: []plan.TypeField{
-					{TypeName: "Query", FieldNames: []string{"room"}},
-					{TypeName: "Mutation", FieldNames: []string{"post"}},
-					{TypeName: "Subscription", FieldNames: []string{"messageAdded"}},
-				},
-				ChildNodes: []plan.TypeField{
-					{TypeName: "Chatroom", FieldNames: []string{"name", "messages"}},
-					{TypeName: "Message", FieldNames: []string{"text", "createdBy"}},
-				},
-			},
-			customConfiguration,
-		),
+		dsCfg,
 	})
 	engineConf.SetFieldConfigurations([]plan.FieldConfiguration{
 		{

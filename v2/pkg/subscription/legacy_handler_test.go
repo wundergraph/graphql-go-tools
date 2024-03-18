@@ -566,23 +566,27 @@ func setupEngineV2(t *testing.T, ctx context.Context, chatServerURL string) (*Ex
 	require.NoError(t, err)
 
 	engineConf := graphql.NewEngineV2Configuration(chatSchema)
+
+	dsCfg, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+		"chat",
+		&graphql_datasource.Factory[graphql_datasource.Configuration]{
+			HTTPClient: httpclient.DefaultNetHttpClient,
+		},
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{TypeName: "Mutation", FieldNames: []string{"post"}},
+				{TypeName: "Subscription", FieldNames: []string{"messageAdded"}},
+			},
+			ChildNodes: []plan.TypeField{
+				{TypeName: "Message", FieldNames: []string{"text", "createdBy"}},
+			},
+		},
+		customConfiguration,
+	)
+	require.NoError(t, err)
+
 	engineConf.SetDataSources([]plan.DataSource{
-		plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
-			"chat",
-			&graphql_datasource.Factory[graphql_datasource.Configuration]{
-				HTTPClient: httpclient.DefaultNetHttpClient,
-			},
-			&plan.DataSourceMetadata{
-				RootNodes: []plan.TypeField{
-					{TypeName: "Mutation", FieldNames: []string{"post"}},
-					{TypeName: "Subscription", FieldNames: []string{"messageAdded"}},
-				},
-				ChildNodes: []plan.TypeField{
-					{TypeName: "Message", FieldNames: []string{"text", "createdBy"}},
-				},
-			},
-			customConfiguration,
-		),
+		dsCfg,
 	})
 	engineConf.SetFieldConfigurations([]plan.FieldConfiguration{
 		{

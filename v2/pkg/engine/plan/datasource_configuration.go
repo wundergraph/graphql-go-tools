@@ -2,6 +2,7 @@ package plan
 
 import (
 	"context"
+	"errors"
 
 	"github.com/cespare/xxhash/v2"
 
@@ -91,14 +92,18 @@ type dataSourceConfiguration[T any] struct {
 	hash DSHash // hash is a unique hash for the dataSourceConfiguration used to match datasources
 }
 
-func NewDataSourceConfiguration[T any](id string, factory PlannerFactory[T], metadata *DataSourceMetadata, customConfig T) DataSourceConfiguration[T] {
+func NewDataSourceConfiguration[T any](id string, factory PlannerFactory[T], metadata *DataSourceMetadata, customConfig T) (DataSourceConfiguration[T], error) {
+	if id == "" {
+		return nil, errors.New("data source id could not be empty")
+	}
+
 	return &dataSourceConfiguration[T]{
 		ID:                 id,
 		Factory:            factory,
 		DataSourceMetadata: metadata,
 		Custom:             customConfig,
 		hash:               DSHash(xxhash.Sum64([]byte(id))),
-	}
+	}, nil
 }
 
 type DataSourceConfiguration[T any] interface {

@@ -99,7 +99,7 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 	})
 	require.NoError(t, err)
 
-	firstDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+	firstDatasourceConfiguration, err := plan.NewDataSourceConfiguration[Configuration](
 		"first",
 		factory,
 		&plan.DataSourceMetadata{
@@ -154,6 +154,7 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 		},
 		firstCustomConfiguration,
 	)
+	require.NoError(t, err)
 
 	secondSubgraphSDL := `
 		type Account @key(fields: "id") @interfaceObject {
@@ -186,7 +187,7 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 	})
 	require.NoError(t, err)
 
-	secondDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+	secondDatasourceConfiguration, err := plan.NewDataSourceConfiguration[Configuration](
 		"second",
 		factory,
 		&plan.DataSourceMetadata{
@@ -247,6 +248,7 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 		},
 		secondCustomConfiguration,
 	)
+	require.NoError(t, err)
 
 	thirdSubgraphSDL := `
 		type Admin @key(fields: "id"){
@@ -271,7 +273,7 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 	})
 	require.NoError(t, err)
 
-	thirdDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+	thirdDatasourceConfiguration, err := plan.NewDataSourceConfiguration[Configuration](
 		"third",
 		factory,
 		&plan.DataSourceMetadata{
@@ -292,6 +294,7 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 		},
 		thirdCustomConfiguration,
 	)
+	require.NoError(t, err)
 
 	fourthSubgraphSDL := `
 		type Account @key(fields: "id") @interfaceObject {
@@ -316,7 +319,7 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 	})
 	require.NoError(t, err)
 
-	fourthDatasourceConfiguration := plan.NewDataSourceConfiguration[Configuration](
+	fourthDatasourceConfiguration, err := plan.NewDataSourceConfiguration[Configuration](
 		"fourth",
 		factory,
 		&plan.DataSourceMetadata{
@@ -367,6 +370,7 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 		},
 		fourthCustomConfiguration,
 	)
+	require.NoError(t, err)
 
 	dataSources := []plan.DataSource{
 		firstDatasourceConfiguration,

@@ -133,7 +133,7 @@ func (d *graphqlDataSourceV2Generator) Generate(dsID string, config graphqlDataS
 	}
 	factory.SubscriptionClient = subscriptionClient
 
-	planDataSource := plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
+	return plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
 		dsID,
 		factory,
 		&plan.DataSourceMetadata{
@@ -142,8 +142,6 @@ func (d *graphqlDataSourceV2Generator) Generate(dsID string, config graphqlDataS
 		},
 		config,
 	)
-
-	return planDataSource, nil
 }
 
 func (d *graphqlDataSourceV2Generator) generateSubscriptionClient(httpClient *http.Client, definedOptions *dataSourceV2GeneratorOptions) (*graphqlDataSource.SubscriptionClient, error) {

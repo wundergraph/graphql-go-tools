@@ -140,7 +140,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 			})
 
 			conf.SetDataSources([]plan.DataSource{
-				plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
+				mustGraphqlDataSourceConfiguration(t,
 					"users",
 					&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
 						HTTPClient:         httpClient,
@@ -179,7 +179,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						),
 					}),
 				),
-				plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
+				mustGraphqlDataSourceConfiguration(t,
 					"products",
 					&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
 						HTTPClient:         httpClient,
@@ -218,7 +218,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 						),
 					}),
 				),
-				plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
+				mustGraphqlDataSourceConfiguration(t,
 					"reviews",
 					&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
 						HTTPClient:         httpClient,
