@@ -32,8 +32,8 @@ type Loader struct {
 	path       []string
 	info       *GraphQLResponseInfo
 
-	forwardSubgraphErrors     bool
-	forwardSubgraphStatusCode bool
+	propagateSubgraphErrors      bool
+	propagateSubgraphStatusCodes bool
 }
 
 func (l *Loader) Free() {
@@ -534,7 +534,7 @@ func (l *Loader) mergeErrors(res *result, ref int) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	if !l.forwardSubgraphErrors {
+	if !l.propagateSubgraphErrors {
 		l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
 		return nil
 	}
@@ -550,7 +550,7 @@ func (l *Loader) mergeErrors(res *result, ref int) error {
 }
 
 func (l *Loader) setSubgraphStatusCode(errorObjectRef, statusCode int) {
-	if !l.forwardSubgraphStatusCode {
+	if !l.propagateSubgraphStatusCodes {
 		return
 	}
 	if statusCode == 0 {

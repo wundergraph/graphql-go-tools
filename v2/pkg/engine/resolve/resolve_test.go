@@ -59,10 +59,10 @@ func fakeDataSourceWithInputCheck(t TestingTB, input []byte, data []byte) *_fake
 
 func newResolver(ctx context.Context) *Resolver {
 	return New(ctx, ResolverOptions{
-		MaxConcurrency:            1024,
-		Debug:                     false,
-		ForwardSubgraphErrors:     true,
-		ForwardSubgraphStatusCode: true,
+		MaxConcurrency:               1024,
+		Debug:                        false,
+		PropagateSubgraphErrors:      true,
+		PropagateSubgraphStatusCodes: true,
 	})
 }
 
@@ -1485,10 +1485,10 @@ func testFnNoSubgraphErrorForwarding(fn func(t *testing.T, ctrl *gomock.Controll
 		rCtx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		r := New(rCtx, ResolverOptions{
-			MaxConcurrency:            1024,
-			Debug:                     false,
-			ForwardSubgraphErrors:     false,
-			ForwardSubgraphStatusCode: false,
+			MaxConcurrency:               1024,
+			Debug:                        false,
+			PropagateSubgraphErrors:      false,
+			PropagateSubgraphStatusCodes: false,
 		})
 		node, ctx, expectedOutput := fn(t, ctrl)
 

@@ -81,8 +81,8 @@ type ResolverOptions struct {
 	Reporter         Reporter
 	AsyncErrorWriter AsyncErrorWriter
 
-	ForwardSubgraphErrors     bool
-	ForwardSubgraphStatusCode bool
+	PropagateSubgraphErrors      bool
+	PropagateSubgraphStatusCodes bool
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -96,8 +96,8 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 				return &tools{
 					resolvable: NewResolvable(),
 					loader: &Loader{
-						forwardSubgraphErrors:     options.ForwardSubgraphErrors,
-						forwardSubgraphStatusCode: options.ForwardSubgraphStatusCode,
+						propagateSubgraphErrors:      options.PropagateSubgraphErrors,
+						propagateSubgraphStatusCodes: options.PropagateSubgraphStatusCodes,
 					},
 				}
 			},
