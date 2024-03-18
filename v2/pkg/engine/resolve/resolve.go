@@ -52,8 +52,8 @@ type Resolver struct {
 	reporter         Reporter
 	asyncErrorWriter AsyncErrorWriter
 
-	forwardSubgraphErrors     bool
-	forwardSubgraphStatusCode bool
+	propagateSubgraphErrors      bool
+	propagateSubgraphStatusCodes bool
 }
 
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
@@ -89,8 +89,10 @@ type ResolverOptions struct {
 func New(ctx context.Context, options ResolverOptions) *Resolver {
 	//options.Debug = true
 	resolver := &Resolver{
-		ctx:     ctx,
-		options: options,
+		ctx:                          ctx,
+		options:                      options,
+		propagateSubgraphErrors:      options.PropagateSubgraphErrors,
+		propagateSubgraphStatusCodes: options.PropagateSubgraphStatusCodes,
 		toolPool: sync.Pool{
 			New: func() interface{} {
 				return &tools{
