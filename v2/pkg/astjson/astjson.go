@@ -24,6 +24,7 @@ var (
 	}
 	ErrParseJSONObject = errors.New("failed to parse json object")
 	ErrParseJSONArray  = errors.New("failed to parse json array")
+	ErrParseJSONValue  = errors.New("failed to parse json value")
 )
 
 type pool struct {
@@ -132,22 +133,14 @@ func (j *JSON) DebugPrintNode(ref int) string {
 	return out.String()
 }
 
-func (j *JSON) SetObjectField(nodeRef, setFieldNodeRef int, path []string) bool {
-	before := j.DebugPrintNode(nodeRef)
-	if len(path) >= 2 {
-		subPath := path[:len(path)-1]
-		nodeRef = j.Get(nodeRef, subPath)
-	}
-	after := j.DebugPrintNode(nodeRef)
-	_, _ = before, after
+func (j *JSON) SetObjectField(nodeRef, setFieldNodeRef int, key string) bool {
 	for i, fieldRef := range j.Nodes[nodeRef].ObjectFields {
-		if j.objectFieldKeyEquals(fieldRef, path[len(path)-1]) {
+		if j.objectFieldKeyEquals(fieldRef, key) {
 			objectFieldNodeRef := j.Nodes[nodeRef].ObjectFields[i]
 			j.Nodes[objectFieldNodeRef].ObjectFieldValue = setFieldNodeRef
 			return true
 		}
 	}
-	key := path[len(path)-1]
 	j.storage = append(j.storage, key...)
 	j.Nodes = append(j.Nodes, Node{
 		Kind:             NodeKindObjectField,
@@ -275,7 +268,7 @@ func (j *JSON) getJsonType(input []byte) jsonparser.ValueType {
 			if i+3 < len(input) && input[i+1] == 'u' && input[i+2] == 'l' && input[i+3] == 'l' {
 				return jsonparser.Null
 			}
-		default:
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 			return jsonparser.Number
 		}
 	}
@@ -306,6 +299,17 @@ func (j *JSON) AppendStringBytes(input []byte) int {
 	end := len(j.storage)
 	return j.appendNode(Node{
 		Kind:       NodeKindString,
+		valueStart: start,
+		valueEnd:   end,
+	})
+}
+
+func (j *JSON) AppendInt(value int) int {
+	start := len(j.storage)
+	j.storage = append(j.storage, strconv.FormatInt(int64(value), 10)...)
+	end := len(j.storage)
+	return j.appendNode(Node{
+		Kind:       NodeKindNumber,
 		valueStart: start,
 		valueEnd:   end,
 	})
@@ -548,8 +552,9 @@ func (j *JSON) parseKnownValue(value []byte, dataType jsonparser.ValueType, star
 		return j.parseBoolean(value, start)
 	case jsonparser.Null:
 		return j.parseNull(value, start)
+	default:
+		return -1, ErrParseJSONValue
 	}
-	return -1, fmt.Errorf("unknown json type: %v", dataType)
 }
 
 func (j *JSON) parseString(value []byte, start int) (int, error) {
@@ -664,8 +669,7 @@ func (j *JSON) PrintObjectFlat(ref int, out io.Writer) (err error) {
 	}
 	for _, fieldRef := range j.Nodes[ref].ObjectFields {
 		fieldValue := j.Nodes[fieldRef].ObjectFieldValue
-		switch j.Nodes[fieldValue].Kind {
-		case NodeKindObject, NodeKindArray:
+		if j.Nodes[fieldValue].Kind == NodeKindObject || j.Nodes[fieldValue].Kind == NodeKindArray {
 			continue
 		}
 		if writeComma {

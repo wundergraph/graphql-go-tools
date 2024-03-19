@@ -26,6 +26,48 @@ func TestJSON_ParsePrint(t *testing.T) {
 	assert.Equal(t, `{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}`, out.String())
 }
 
+func TestJSON_ParseInvalidJSON(t *testing.T) {
+	js := &JSON{}
+	input := `unauthorized`
+	ref, err := js.AppendAnyJSONBytes([]byte(input))
+	assert.Equal(t, -1, ref)
+	assert.NotNil(t, err)
+	assert.ErrorIs(t, err, ErrParseJSONValue)
+}
+
+func TestJSON_AddIntToObject(t *testing.T) {
+	js := &JSON{}
+	err := js.ParseObject([]byte(`{"name":"Jens"}`))
+	assert.NoError(t, err)
+	ref := js.AppendInt(123)
+	assert.NotEqual(t, -1, ref)
+	replaced := js.SetObjectField(js.RootNode, ref, "age")
+	assert.False(t, replaced)
+	out := &bytes.Buffer{}
+	err = js.PrintNode(js.Nodes[js.RootNode], out)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"name":"Jens","age":123}`, out.String())
+}
+
+func TestJSON_AddIntToObjectNested(t *testing.T) {
+	js := &JSON{}
+	err := js.ParseObject([]byte(`{"name":"Jens"}`))
+	assert.NoError(t, err)
+	ref := js.AppendInt(123)
+	assert.NotEqual(t, -1, ref)
+	addr, err := js.AppendObject([]byte(`{}`))
+	assert.NoError(t, err)
+	assert.NotEqual(t, -1, addr)
+	replaced := js.SetObjectField(addr, ref, "number")
+	assert.False(t, replaced)
+	replaced = js.SetObjectField(js.RootNode, addr, "address")
+	assert.False(t, replaced)
+	out := &bytes.Buffer{}
+	err = js.PrintNode(js.Nodes[js.RootNode], out)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"name":"Jens","address":{"number":123}}`, out.String())
+}
+
 func TestJSON_ParsePrintArray(t *testing.T) {
 	js := &JSON{}
 	err := js.ParseObject([]byte(`{"strings": ["Alex", "true", "123",true,123,0.123,"foo"]}`))
@@ -100,66 +142,6 @@ func TestJSON_ParsePrintNested(t *testing.T) {
 	err = js.PrintNode(dataNode, out)
 	assert.NoError(t, err)
 	assert.Equal(t, `[{"stock":8},{"stock":2},{"stock":5}]`, out.String())
-}
-
-func TestJSON_ParseAppendSetPrint(t *testing.T) {
-	js := &JSON{}
-	input := `{"data":{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}}`
-	err := js.ParseObject([]byte(input))
-	assert.NoError(t, err)
-
-	nothing, err := js.AppendObject([]byte(`{"nothing":"here"}`))
-	assert.NoError(t, err)
-	assert.NotEqual(t, -1, nothing)
-	replaced := js.SetObjectField(js.RootNode, nothing, []string{"data", "_entities"})
-	assert.True(t, replaced)
-
-	out := &bytes.Buffer{}
-	err = js.PrintNode(js.Nodes[js.RootNode], out)
-	assert.NoError(t, err)
-	assert.Equal(t, `{"data":{"_entities":{"nothing":"here"}}}`, out.String())
-
-	nothing, err = js.AppendObject([]byte(`{"nothing":"there"}`))
-	assert.NoError(t, err)
-	assert.NotEqual(t, -1, nothing)
-
-	replaced = js.SetObjectField(js.RootNode, nothing, []string{"data", "_entities", "nothing"})
-	assert.True(t, replaced)
-
-	out.Reset()
-	err = js.PrintNode(js.Nodes[js.RootNode], out)
-	assert.NoError(t, err)
-	assert.Equal(t, `{"data":{"_entities":{"nothing":{"nothing":"there"}}}}`, out.String())
-
-	another, err := js.AppendObject([]byte(`{"another":true}`))
-	assert.NoError(t, err)
-	assert.NotEqual(t, -1, another)
-
-	trueField := js.Get(another, []string{"another"})
-	assert.NotEqual(t, -1, trueField)
-
-	notReplaced := js.SetObjectField(js.RootNode, trueField, []string{"another"})
-	assert.False(t, notReplaced)
-
-	out.Reset()
-	err = js.PrintNode(js.Nodes[js.RootNode], out)
-	assert.NoError(t, err)
-	assert.Equal(t, `{"data":{"_entities":{"nothing":{"nothing":"there"}}},"another":true}`, out.String())
-
-	number, err := js.AppendObject([]byte(`{"number":123}`))
-	assert.NoError(t, err)
-	assert.NotEqual(t, -1, another)
-
-	oneTwoThree := js.Get(number, []string{"number"})
-	assert.NotEqual(t, -1, oneTwoThree)
-
-	notReplaced = js.SetObjectField(js.RootNode, oneTwoThree, []string{"number"})
-	assert.False(t, notReplaced)
-
-	out.Reset()
-	err = js.PrintNode(js.Nodes[js.RootNode], out)
-	assert.NoError(t, err)
-	assert.Equal(t, `{"data":{"_entities":{"nothing":{"nothing":"there"}}},"another":true,"number":123}`, out.String())
 }
 
 func TestJSON_MergeNodes(t *testing.T) {
