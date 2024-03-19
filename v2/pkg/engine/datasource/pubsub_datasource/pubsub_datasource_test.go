@@ -29,13 +29,6 @@ func (t *testPubsub) Request(ctx context.Context, topic string, data []byte, w i
 	return errors.New("not implemented")
 }
 
-//type testConnector struct {
-//}
-//
-//func (c *testConnector) New(ctx context.Context) PubSub {
-//	return &testPubsub{}
-//}
-
 func TestPubSub(t *testing.T) {
 	factory := &Factory{
 		PubSubBySourceName: nil,
