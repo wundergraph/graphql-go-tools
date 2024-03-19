@@ -51,6 +51,15 @@ func mustConfiguration(t *testing.T, input graphql_datasource.ConfigurationInput
 	return cfg
 }
 
+func mustFactory(t testing.TB, httpClient *http.Client) plan.PlannerFactory[graphql_datasource.Configuration] {
+	t.Helper()
+
+	factory, err := graphql_datasource.NewFactory(context.Background(), httpClient, &graphql_datasource.SubscriptionClient{})
+	require.NoError(t, err)
+
+	return factory
+}
+
 func mustGraphqlDataSourceConfiguration(t *testing.T, id string, factory plan.PlannerFactory[graphql_datasource.Configuration], metadata *plan.DataSourceMetadata, customConfig graphql_datasource.Configuration) plan.DataSourceConfiguration[graphql_datasource.Configuration] {
 	t.Helper()
 
@@ -338,15 +347,15 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			dataSources: []plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
 					"id",
-					&graphql_datasource.Factory[graphql_datasource.Configuration]{
-						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
 							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 							sendStatusCode:   200,
 						}),
-					},
+					),
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
 							{
@@ -390,15 +399,15 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			dataSources: []plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
 					"id",
-					&graphql_datasource.Factory[graphql_datasource.Configuration]{
-						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
 							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 							sendStatusCode:   200,
 						}),
-					},
+					),
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
 							{
@@ -451,15 +460,15 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			dataSources: []plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
 					"id",
-					&graphql_datasource.Factory[graphql_datasource.Configuration]{
-						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
 							sendResponseBody: `{"data":{"asset":{"id":1}}}`,
 							sendStatusCode:   200,
 						}),
-					},
+					),
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
 							{
@@ -501,15 +510,15 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			dataSources: []plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
 					"id",
-					&graphql_datasource.Factory[graphql_datasource.Configuration]{
-						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
 							sendResponseBody: `{"data":{"droid":{"name":"R2D2"}}}`,
 							sendStatusCode:   200,
 						}),
-					},
+					),
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
 							{
@@ -571,15 +580,15 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		dataSources: []plan.DataSource{
 			mustGraphqlDataSourceConfiguration(t,
 				"id",
-				&graphql_datasource.Factory[graphql_datasource.Configuration]{
-					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
 						expectedBody:     `{"query":"query($heroNames: [String!]!){heroes(names: $heroNames)}","variables":{"heroNames":["Luke Skywalker","R2-D2"]}}`,
 						sendResponseBody: `{"data":{"heroes":["Human","Droid"]}}`,
 						sendStatusCode:   200,
 					}),
-				},
+				),
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{TypeName: "Query", FieldNames: []string{"heroes"}},
@@ -637,15 +646,15 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		dataSources: []plan.DataSource{
 			mustGraphqlDataSourceConfiguration(t,
 				"id",
-				&graphql_datasource.Factory[graphql_datasource.Configuration]{
-					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
 						expectedBody:     `{"query":"query($heroNames: [String!], $height: String){heroes(names: $heroNames, height: $height)}","variables":{"height":null}}`,
 						sendResponseBody: `{"data":{"heroes":[]}}`,
 						sendStatusCode:   200,
 					}),
-				},
+				),
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{TypeName: "Query", FieldNames: []string{"heroes"}},
@@ -707,7 +716,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		dataSources: []plan.DataSource{
 			mustGraphqlDataSourceConfiguration(t,
 				"id",
-				&graphql_datasource.Factory[graphql_datasource.Configuration]{},
+				mustFactory(t, http.DefaultClient),
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{TypeName: "Query", FieldNames: []string{"hero"}},
@@ -758,15 +767,15 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		dataSources: []plan.DataSource{
 			mustGraphqlDataSourceConfiguration(t,
 				"id",
-				&graphql_datasource.Factory[graphql_datasource.Configuration]{
-					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
 						expectedBody:     `{"query":"query($a: [Int]){charactersByIds(ids: $a){name}}","variables":{"a":[1]}}`,
 						sendResponseBody: `{"data":{"charactersByIds":[{"name": "Luke"}]}}`,
 						sendStatusCode:   200,
 					}),
-				},
+				),
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -825,15 +834,15 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		dataSources: []plan.DataSource{
 			mustGraphqlDataSourceConfiguration(t,
 				"id",
-				&graphql_datasource.Factory[graphql_datasource.Configuration]{
-					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
 						expectedBody:     `{"query":"query($ids: [Int]){charactersByIds(ids: $ids){name}}","variables":{"ids":[1]}}`,
 						sendResponseBody: `{"data":{"charactersByIds":[{"name": "Luke"}]}}`,
 						sendStatusCode:   200,
 					}),
-				},
+				),
 				&plan.DataSourceMetadata{
 					RootNodes: []plan.TypeField{
 						{
@@ -885,15 +894,15 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			dataSources: []plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
 					"id",
-					&graphql_datasource.Factory[graphql_datasource.Configuration]{
-						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
 							sendResponseBody: `{"data":{"droid":{"name":"R2D2"}}}`,
 							sendStatusCode:   200,
 						}),
-					},
+					),
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
 							{
@@ -955,15 +964,15 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				dataSources: []plan.DataSource{
 					mustGraphqlDataSourceConfiguration(t,
 						"id",
-						&graphql_datasource.Factory[graphql_datasource.Configuration]{
-							HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost:     "example.com",
 								expectedPath:     "/",
 								expectedBody:     `{"query":"query($name: String!, $nameOptional: String){hero(name: $name) hero2: hero(name: $nameOptional)}","variables":{"nameOptional":"R2D2","name":"R2D2"}}`,
 								sendResponseBody: `{"data":{"hero":"R2D2","hero2":"R2D2"}}`,
 								sendStatusCode:   200,
 							}),
-						},
+						),
 						&plan.DataSourceMetadata{
 							RootNodes: []plan.TypeField{
 								{TypeName: "Query", FieldNames: []string{"hero"}},
@@ -1018,15 +1027,15 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				dataSources: []plan.DataSource{
 					mustGraphqlDataSourceConfiguration(t,
 						"id",
-						&graphql_datasource.Factory[graphql_datasource.Configuration]{
-							HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost:     "example.com",
 								expectedPath:     "/",
 								expectedBody:     `{"query":"query($name: String!, $nameOptional: String){hero(name: $name) hero2: hero(name: $nameOptional)}","variables":{"nameOptional":"Skywalker","name":"Luke"}}`,
 								sendResponseBody: `{"data":{"hero":"R2D2","hero2":"R2D2"}}`,
 								sendStatusCode:   200,
 							}),
-						},
+						),
 						&plan.DataSourceMetadata{
 							RootNodes: []plan.TypeField{
 								{TypeName: "Query", FieldNames: []string{"hero"}},
@@ -1080,15 +1089,15 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				dataSources: []plan.DataSource{
 					mustGraphqlDataSourceConfiguration(t,
 						"id",
-						&graphql_datasource.Factory[graphql_datasource.Configuration]{
-							HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost:     "example.com",
 								expectedPath:     "/",
 								expectedBody:     `{"query":"query($name: String!, $nameOptional: String!){hero: heroDefault(name: $name) hero2: heroDefault(name: $nameOptional) hero3: heroDefaultRequired(name: $name) hero4: heroDefaultRequired(name: $nameOptional)}","variables":{"nameOptional":"R2D2","name":"R2D2"}}`,
 								sendResponseBody: `{"data":{"hero":"R2D2","hero2":"R2D2","hero3":"R2D2","hero4":"R2D2"}}`,
 								sendStatusCode:   200,
 							}),
-						},
+						),
 						&plan.DataSourceMetadata{
 							RootNodes: []plan.TypeField{
 								{TypeName: "Query", FieldNames: []string{"heroDefault", "heroDefaultRequired"}},
@@ -1151,15 +1160,15 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				dataSources: []plan.DataSource{
 					mustGraphqlDataSourceConfiguration(t,
 						"id",
-						&graphql_datasource.Factory[graphql_datasource.Configuration]{
-							HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost:     "example.com",
 								expectedPath:     "/",
 								expectedBody:     `{"query":"query($a: String, $b: String!){heroDefault(name: $a) heroDefaultRequired(name: $b)}","variables":{"b":"AnyRequired","a":"Any"}}`,
 								sendResponseBody: `{"data":{"heroDefault":"R2D2","heroDefaultRequired":"R2D2"}}`,
 								sendStatusCode:   200,
 							}),
-						},
+						),
 						&plan.DataSourceMetadata{
 							RootNodes: []plan.TypeField{
 								{TypeName: "Query", FieldNames: []string{"heroDefault", "heroDefaultRequired"}},
@@ -1221,15 +1230,15 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			dataSources: []plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
 					"id",
-					&graphql_datasource.Factory[graphql_datasource.Configuration]{
-						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     `{"query":"{codeType {code __typename ... on Country {name}}}"}`,
 							sendResponseBody: `{"data":{"codeType":{"__typename":"Country","code":"de","name":"Germany"}}}`,
 							sendStatusCode:   200,
 						}),
-					},
+					),
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
 							{TypeName: "Query", FieldNames: []string{"codeType"}},
@@ -1286,15 +1295,15 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			dataSources: []plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
 					"id",
-					&graphql_datasource.Factory[graphql_datasource.Configuration]{
-						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
 							sendResponseBody: `{"data":{"droid":{"name":"R2D2"}}}`,
 							sendStatusCode:   200,
 						}),
-					},
+					),
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
 							{
@@ -1352,15 +1361,15 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			dataSources: []plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
 					"id",
-					&graphql_datasource.Factory[graphql_datasource.Configuration]{
-						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
 							sendResponseBody: `{"data":{"searchResults":[{"name"":"Luke Skywalker"},{"length":13.37}]}}`,
 							sendStatusCode:   200,
 						}),
-					},
+					),
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
 							{
@@ -1444,7 +1453,7 @@ func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 	engineConfig.SetDataSources([]plan.DataSource{
 		mustGraphqlDataSourceConfiguration(t,
 			"id",
-			&graphql_datasource.Factory[graphql_datasource.Configuration]{},
+			mustFactory(t, http.DefaultClient),
 			&plan.DataSourceMetadata{
 				RootNodes: []plan.TypeField{
 					{
@@ -1710,6 +1719,11 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 		return
 	}
 
+	graphqlFactory, err := graphql_datasource.NewFactory(ctx, httpclient.DefaultNetHttpClient, &graphql_datasource.SubscriptionClient{})
+	if err != nil {
+		return
+	}
+
 	accountsSchemaConfiguration, err := graphql_datasource.NewSchemaConfiguration(
 		string(accountsSDL),
 		&graphql_datasource.FederationConfiguration{
@@ -1734,9 +1748,7 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 
 	accountsDataSource, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
 		"accounts",
-		&graphql_datasource.Factory[graphql_datasource.Configuration]{
-			HTTPClient: httpclient.DefaultNetHttpClient,
-		},
+		graphqlFactory,
 		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{
 				{
@@ -1836,9 +1848,7 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 
 	productsDataSource, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
 		"products",
-		&graphql_datasource.Factory[graphql_datasource.Configuration]{
-			HTTPClient: httpclient.DefaultNetHttpClient,
-		},
+		graphqlFactory,
 		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{
 				{
@@ -1900,9 +1910,7 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 
 	reviewsDataSource, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
 		"reviews",
-		&graphql_datasource.Factory[graphql_datasource.Configuration]{
-			HTTPClient: httpclient.DefaultNetHttpClient,
-		},
+		graphqlFactory,
 		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{
 				{

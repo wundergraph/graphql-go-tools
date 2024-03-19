@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/jensneuse/abstractlogger"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -12,14 +13,16 @@ import (
 
 type DSHash uint64
 
+// PlannerFactory is the factory for the creation of the concrete DataSourcePlanner
+// For stateful datasources, the factory should contain execution context
+// Once the context gets cancelled, all stateful DataSources must close their connections and cleanup themselves.
 type PlannerFactory[DataSourceSpecificConfiguration any] interface {
-	// Planner should return the DataSourcePlanner
-	// closer is the closing channel for all stateful DataSources
-	// At runtime, the Execution Engine will be instantiated with one global resolve.Closer.
-	// Once the Closer gets closed, all stateful DataSources must close their connections and cleanup themselves.
-	// They can do so by starting a goroutine on instantiation time that blocking reads on the resolve.Closer.
-	// Once the Closer emits the close event, they have to terminate (e.g. close database connections).
-	Planner(ctx context.Context) DataSourcePlanner[DataSourceSpecificConfiguration]
+	// Planner creates a new DataSourcePlanner
+	Planner(logger abstractlogger.Logger) DataSourcePlanner[DataSourceSpecificConfiguration]
+	// Context returns the execution context of the factory
+	// For stateful datasources, the factory should contain cancellable gloabal execution context
+	// This method serves as a flag that factory should have a context
+	Context() context.Context
 }
 
 type DataSourceMetadata struct {
@@ -118,15 +121,15 @@ type DataSource interface {
 	Id() string
 	Hash() DSHash
 	FederationConfiguration() FederationMetaData
-	CreatePlannerConfiguration(ctx context.Context, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration) PlannerConfiguration
+	CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration) PlannerConfiguration
 }
 
 func (d *dataSourceConfiguration[T]) CustomConfiguration() T {
 	return d.Custom
 }
 
-func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(ctx context.Context, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration) PlannerConfiguration {
-	planner := d.Factory.Planner(ctx)
+func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration) PlannerConfiguration {
+	planner := d.Factory.Planner(logger)
 
 	fetchConfig.planner = planner
 

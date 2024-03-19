@@ -1,12 +1,12 @@
 package plan
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
@@ -17,7 +17,9 @@ import (
 )
 
 func TestPlanner_Plan(t *testing.T) {
-	testLogic := func(definition, operation, operationName string, config Configuration, report *operationreport.Report) Plan {
+	testLogic := func(t *testing.T, definition, operation, operationName string, config Configuration, report *operationreport.Report) Plan {
+		t.Helper()
+
 		def := unsafeparser.ParseGraphqlDocumentString(definition)
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
 		err := asttransform.MergeDefinitionWithBaseSchema(&def)
@@ -28,10 +30,9 @@ func TestPlanner_Plan(t *testing.T) {
 		norm.NormalizeOperation(&op, &def, report)
 		valid := astvalidation.DefaultOperationValidator()
 		valid.Validate(&op, &def, report)
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 
-		p := NewPlanner(ctx, config)
+		p, err := NewPlanner(config)
+		require.NoError(t, err)
 
 		pp := p.Plan(&op, &def, operationName, report)
 
@@ -43,7 +44,7 @@ func TestPlanner_Plan(t *testing.T) {
 			t.Helper()
 
 			var report operationreport.Report
-			plan := testLogic(definition, operation, operationName, config, &report)
+			plan := testLogic(t, definition, operation, operationName, config, &report)
 			if report.HasErrors() {
 				t.Fatal(report.Error())
 			}
@@ -67,7 +68,7 @@ func TestPlanner_Plan(t *testing.T) {
 			t.Helper()
 
 			var report operationreport.Report
-			_ = testLogic(definition, operation, operationName, config, &report)
+			_ = testLogic(t, definition, operation, operationName, config, &report)
 			assert.True(t, report.HasErrors())
 		}
 	}

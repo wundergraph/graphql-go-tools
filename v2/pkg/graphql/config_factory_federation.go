@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -58,7 +59,7 @@ type DataSourceConfiguration struct {
 	Configuration graphqlDataSource.Configuration
 }
 
-func NewFederationEngineConfigFactory(dataSourceConfigs []DataSourceConfiguration, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
+func NewFederationEngineConfigFactory(engineCtx context.Context, dataSourceConfigs []DataSourceConfiguration, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
 	options := federationEngineConfigFactoryOptions{
 		httpClient: &http.Client{
 			Timeout: time.Second * 10,
@@ -79,6 +80,7 @@ func NewFederationEngineConfigFactory(dataSourceConfigs []DataSourceConfiguratio
 	}
 
 	return &FederationEngineConfigFactory{
+		engineCtx:                 engineCtx,
 		httpClient:                options.httpClient,
 		streamingClient:           options.streamingClient,
 		dataSourceConfigs:         dataSourceConfigs,
@@ -90,6 +92,7 @@ func NewFederationEngineConfigFactory(dataSourceConfigs []DataSourceConfiguratio
 
 // FederationEngineConfigFactory is used to create a v2 engine config for a supergraph with multiple data sources for subgraphs.
 type FederationEngineConfigFactory struct {
+	engineCtx                 context.Context
 	httpClient                *http.Client
 	streamingClient           *http.Client
 	dataSourceConfigs         []DataSourceConfiguration
@@ -195,7 +198,7 @@ func (f *FederationEngineConfigFactory) engineConfigDataSources() (planDataSourc
 			return nil, fmt.Errorf("parse graphql document string: %s", report.Error())
 		}
 
-		planDataSource, err := newGraphQLDataSourceV2Generator(&doc).Generate(
+		planDataSource, err := newGraphQLDataSourceV2Generator(f.engineCtx, &doc).Generate(
 			dataSourceConfig.ID,
 			dataSourceConfig.Configuration,
 			f.httpClient,

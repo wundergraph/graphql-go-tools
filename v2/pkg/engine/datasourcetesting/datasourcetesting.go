@@ -1,7 +1,6 @@
 package datasourcetesting
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gonum.org/v1/gonum/stat/combin"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
@@ -116,9 +116,9 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		norm.NormalizeOperation(&op, &def, &report)
 		valid := astvalidation.DefaultOperationValidator()
 		valid.Validate(&op, &def, &report)
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		p := plan.NewPlanner(ctx, config)
+
+		p, err := plan.NewPlanner(config)
+		require.NoError(t, err)
 		actualPlan := p.Plan(&op, &def, operationName, &report)
 		if report.HasErrors() {
 			_, err := astprinter.PrintStringIndent(&def, nil, "  ")

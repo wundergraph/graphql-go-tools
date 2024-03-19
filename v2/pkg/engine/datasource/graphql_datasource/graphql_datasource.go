@@ -1527,30 +1527,41 @@ func (p *Planner[T]) addField(ref int) (upstreamFieldRef int) {
 type OnWsConnectionInitCallback func(ctx context.Context, url string, header http.Header) (json.RawMessage, error)
 
 type Factory[T Configuration] struct {
-	HTTPClient                 *http.Client
-	StreamingClient            *http.Client
-	OnWsConnectionInitCallback *OnWsConnectionInitCallback
-	SubscriptionClient         *SubscriptionClient
-	Logger                     abstractlogger.Logger
+	executionContext   context.Context
+	httpClient         *http.Client
+	subscriptionClient *SubscriptionClient
 }
 
-func (f *Factory[T]) Planner(ctx context.Context) plan.DataSourcePlanner[T] {
-	if f.SubscriptionClient == nil {
-		opts := make([]Options, 0)
-		if f.OnWsConnectionInitCallback != nil {
-			opts = append(opts, WithOnWsConnectionInitCallback(f.OnWsConnectionInitCallback))
-		}
-		if f.Logger != nil {
-			opts = append(opts, WithLogger(f.Logger))
-		}
-		f.SubscriptionClient = NewGraphQLSubscriptionClient(f.HTTPClient, f.StreamingClient, ctx, opts...)
-	} else if f.SubscriptionClient.engineCtx == nil {
-		f.SubscriptionClient.engineCtx = ctx
+// NewFactory creates a new factory for the GraphQL datasource planner
+// Graphql Datasource could be stateful in case you are using subscriptions,
+// make sure you are using the same execution context for all datasources
+func NewFactory(executionContext context.Context, httpClient *http.Client, subscriptionClient *SubscriptionClient) (*Factory[Configuration], error) {
+	if executionContext == nil {
+		return nil, fmt.Errorf("execution context is required")
 	}
+	if httpClient == nil {
+		return nil, fmt.Errorf("http client is required")
+	}
+	if subscriptionClient == nil {
+		return nil, fmt.Errorf("subscription client is required")
+	}
+
+	return &Factory[Configuration]{
+		executionContext:   executionContext,
+		httpClient:         httpClient,
+		subscriptionClient: subscriptionClient,
+	}, nil
+}
+
+func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanner[T] {
 	return &Planner[T]{
-		fetchClient:        f.HTTPClient,
-		subscriptionClient: f.SubscriptionClient,
+		fetchClient:        f.httpClient,
+		subscriptionClient: f.subscriptionClient,
 	}
+}
+
+func (f *Factory[T]) Context() context.Context {
+	return f.executionContext
 }
 
 type Source struct {

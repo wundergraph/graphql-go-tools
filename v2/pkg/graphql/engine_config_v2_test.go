@@ -73,6 +73,8 @@ func TestNewEngineV2Configuration(t *testing.T) {
 func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 	client := &http.Client{}
 	streamingClient := &http.Client{}
+	engineCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	doc, report := astparser.ParseGraphqlDocumentString(graphqlGeneratorSchema)
 	require.Falsef(t, report.HasErrors(), "document parser report has errors")
@@ -117,7 +119,7 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 			),
 		})
 
-		dataSource, err := newGraphQLDataSourceV2Generator(&doc).Generate(
+		dataSource, err := newGraphQLDataSourceV2Generator(engineCtx, &doc).Generate(
 			"test",
 			dataSourceConfig,
 			client,
@@ -150,7 +152,7 @@ func TestGraphQLDataSourceV2Generator_Generate(t *testing.T) {
 			),
 		})
 
-		dataSource, err := newGraphQLDataSourceV2Generator(&doc).Generate(
+		dataSource, err := newGraphQLDataSourceV2Generator(engineCtx, &doc).Generate(
 			"test",
 			dataSourceConfig,
 			client,

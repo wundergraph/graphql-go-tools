@@ -1,10 +1,13 @@
 package plan
 
 import (
+	"github.com/jensneuse/abstractlogger"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 type Configuration struct {
+	Logger                     abstractlogger.Logger
 	DefaultFlushIntervalMillis int64
 	DataSources                []DataSource
 	Fields                     FieldConfigurations

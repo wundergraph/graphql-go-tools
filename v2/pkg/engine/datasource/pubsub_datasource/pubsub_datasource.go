@@ -12,6 +12,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
+	"github.com/jensneuse/abstractlogger"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -228,14 +229,26 @@ type Connector interface {
 	New(ctx context.Context) PubSub
 }
 
-type Factory[T Configuration] struct {
-	Connector Connector
+func NewFactory[T Configuration](executionContext context.Context, connector Connector) *Factory[T] {
+	return &Factory[T]{
+		connector:        connector,
+		executionContext: executionContext,
+	}
 }
 
-func (f *Factory[T]) Planner(ctx context.Context) plan.DataSourcePlanner[T] {
+type Factory[T Configuration] struct {
+	executionContext context.Context
+	connector        Connector
+}
+
+func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanner[T] {
 	return &Planner[T]{
-		pubSub: f.Connector.New(ctx),
+		pubSub: f.connector.New(f.executionContext),
 	}
+}
+
+func (f *Factory[T]) Context() context.Context {
+	return f.executionContext
 }
 
 // PubSub describe the interface that implements the primitive operations for pubsub

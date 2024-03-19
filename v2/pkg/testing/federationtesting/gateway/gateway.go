@@ -72,6 +72,7 @@ func (g *Gateway) Ready() {
 func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphql.DataSourceConfiguration) {
 	ctx := context.Background()
 	engineConfigFactory := graphql.NewFederationEngineConfigFactory(
+		ctx,
 		newDataSourcesConfig,
 		graphql.WithFederationHttpClient(g.httpClient),
 	)

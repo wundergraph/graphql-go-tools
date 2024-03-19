@@ -503,7 +503,10 @@ func ExamplePlanOperation() {
 	report := &operationreport.Report{}
 	operationName := "O"
 
-	planner := plan.NewPlanner(context.Background(), config)
+	planner, err := plan.NewPlanner(config)
+	if err != nil {
+		panic(err)
+	}
 	executionPlan := planner.Plan(operationDocument, schemaDocument, operationName, report)
 	if report.HasErrors() {
 		panic(report.Error())

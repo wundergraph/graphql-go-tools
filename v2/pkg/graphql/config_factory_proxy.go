@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -59,9 +60,10 @@ type ProxyEngineConfigFactory struct {
 	schema                    *Schema
 	proxyUpstreamConfig       ProxyUpstreamConfig
 	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
+	engineCtx                 context.Context
 }
 
-func NewProxyEngineConfigFactory(schema *Schema, proxyUpstreamConfig ProxyUpstreamConfig, opts ...ProxyEngineConfigFactoryOption) *ProxyEngineConfigFactory {
+func NewProxyEngineConfigFactory(engineCtx context.Context, schema *Schema, proxyUpstreamConfig ProxyUpstreamConfig, opts ...ProxyEngineConfigFactoryOption) *ProxyEngineConfigFactory {
 	options := proxyEngineConfigFactoryOptions{
 		dataSourceID: uuid.New().String(),
 		httpClient: &http.Client{
@@ -82,6 +84,7 @@ func NewProxyEngineConfigFactory(schema *Schema, proxyUpstreamConfig ProxyUpstre
 	}
 
 	return &ProxyEngineConfigFactory{
+		engineCtx:                 engineCtx,
 		dataSourceID:              options.dataSourceID,
 		httpClient:                options.httpClient,
 		streamingClient:           options.streamingClient,
@@ -120,7 +123,7 @@ func (p *ProxyEngineConfigFactory) EngineV2Configuration() (EngineV2Configuratio
 		return EngineV2Configuration{}, report
 	}
 
-	dataSource, err := newGraphQLDataSourceV2Generator(&rawDoc).Generate(
+	dataSource, err := newGraphQLDataSourceV2Generator(p.engineCtx, &rawDoc).Generate(
 		p.dataSourceID,
 		dataSourceConfig,
 		p.httpClient,

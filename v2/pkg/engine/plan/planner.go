@@ -1,9 +1,10 @@
 package plan
 
 import (
-	"context"
 	"fmt"
 	"strings"
+
+	"github.com/jensneuse/abstractlogger"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
@@ -22,15 +23,27 @@ type Planner struct {
 	prepareOperationWalker *astvisitor.Walker
 }
 
-// NewPlanner creates a new Planner from the Configuration and a ctx object
+// NewPlanner creates a new Planner from the Configuration
+// NOTE: All stateful DataSources should be initiated with the same context.Context object provided to the PlannerFactory.
 // The context.Context object is used to determine the lifecycle of stateful DataSources
 // It's important to note that stateful DataSources must be closed when they are no longer being used
 // Stateful DataSources could be those that initiate a WebSocket connection to an origin, a database client, a streaming client, etc...
-// All DataSources are initiated with the same context.Context object provided to the Planner.
 // To ensure that there are no memory leaks, it's therefore important to add a cancel func or timeout to the context.Context
 // At the time when the resolver and all operations should be garbage collected, ensure to first cancel or timeout the ctx object
 // If you don't cancel the context.Context, the goroutines will run indefinitely and there's no reference left to stop them
-func NewPlanner(ctx context.Context, config Configuration) *Planner {
+func NewPlanner(config Configuration) (*Planner, error) {
+	if config.Logger == nil {
+		config.Logger = abstractlogger.Noop{}
+	}
+
+	dsIDs := make(map[string]struct{}, len(config.DataSources))
+	for _, ds := range config.DataSources {
+		if _, ok := dsIDs[ds.Id()]; ok {
+			return nil, fmt.Errorf("duplicate datasource id: %s", ds.Id())
+		}
+		dsIDs[ds.Id()] = struct{}{}
+	}
+
 	// prepare operation walker handles internal normalization for planner
 	prepareOperationWalker := astvisitor.NewWalker(48)
 	astnormalization.InlineFragmentAddOnType(&prepareOperationWalker)
@@ -39,7 +52,6 @@ func NewPlanner(ctx context.Context, config Configuration) *Planner {
 	configurationWalker := astvisitor.NewWalker(48)
 	configVisitor := &configurationVisitor{
 		walker:              &configurationWalker,
-		ctx:                 ctx,
 		fieldConfigurations: config.Fields,
 	}
 
@@ -66,7 +78,7 @@ func NewPlanner(ctx context.Context, config Configuration) *Planner {
 		prepareOperationWalker: &prepareOperationWalker,
 	}
 
-	return p
+	return p, nil
 }
 
 func (p *Planner) SetConfig(config Configuration) {

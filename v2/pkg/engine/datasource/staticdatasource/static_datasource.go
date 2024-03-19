@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 
+	"github.com/jensneuse/abstractlogger"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -15,8 +17,12 @@ type Configuration struct {
 
 type Factory[T Configuration] struct{}
 
-func (f *Factory[T]) Planner(ctx context.Context) plan.DataSourcePlanner[T] {
+func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanner[T] {
 	return &Planner[T]{}
+}
+
+func (f *Factory[T]) Context() context.Context {
+	return context.TODO()
 }
 
 type Planner[T Configuration] struct {

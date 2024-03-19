@@ -1,11 +1,11 @@
 package plan
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/jensneuse/abstractlogger"
 	"github.com/pkg/errors"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -14,8 +14,8 @@ import (
 )
 
 type configurationVisitor struct {
-	ctx   context.Context
-	debug bool
+	logger abstractlogger.Logger
+	debug  bool
 
 	operationName         string
 	operation, definition *ast.Document
@@ -790,7 +790,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		paths,
 	)
 
-	plannerConfig := config.CreatePlannerConfiguration(c.ctx, fetchConfiguration, plannerPathConfig)
+	plannerConfig := config.CreatePlannerConfiguration(c.logger, fetchConfiguration, plannerPathConfig)
 
 	c.planners = append(c.planners, plannerConfig)
 

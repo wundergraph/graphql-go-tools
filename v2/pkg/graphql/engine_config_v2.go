@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -99,12 +100,14 @@ func WithDataSourceV2GeneratorSubscriptionClientFactory(factory graphqlDataSourc
 }
 
 type graphqlDataSourceV2Generator struct {
-	document *ast.Document
+	document  *ast.Document
+	engineCtx context.Context
 }
 
-func newGraphQLDataSourceV2Generator(document *ast.Document) *graphqlDataSourceV2Generator {
+func newGraphQLDataSourceV2Generator(engineCtx context.Context, document *ast.Document) *graphqlDataSourceV2Generator {
 	return &graphqlDataSourceV2Generator{
-		document: document,
+		document:  document,
+		engineCtx: engineCtx,
 	}
 }
 
@@ -122,16 +125,19 @@ func (d *graphqlDataSourceV2Generator) Generate(dsID string, config graphqlDataS
 		option(definedOptions)
 	}
 
-	factory := &graphqlDataSource.Factory[graphqlDataSource.Configuration]{
-		HTTPClient:      httpClient,
-		StreamingClient: definedOptions.streamingClient,
-	}
-
 	subscriptionClient, err := d.generateSubscriptionClient(httpClient, definedOptions)
 	if err != nil {
 		return nil, err
 	}
-	factory.SubscriptionClient = subscriptionClient
+
+	factory, err := graphqlDataSource.NewFactory(
+		d.engineCtx,
+		httpClient,
+		subscriptionClient,
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	return plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
 		dsID,

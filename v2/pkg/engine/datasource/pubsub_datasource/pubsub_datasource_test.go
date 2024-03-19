@@ -40,7 +40,7 @@ func (c *testConnector) New(ctx context.Context) PubSub {
 
 func TestPubSub(t *testing.T) {
 	factory := &Factory[Configuration]{
-		Connector: &testConnector{},
+		connector: &testConnector{},
 	}
 
 	const schema = `

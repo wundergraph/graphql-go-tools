@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"context"
 	"net/http"
 	"sort"
 	"testing"
@@ -13,11 +14,16 @@ import (
 )
 
 func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
+	engineCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	schema, err := NewSchemaFromString(graphqlGeneratorSchema)
 	require.NoError(t, err)
 
 	client := &http.Client{}
 	streamingClient := &http.Client{}
+	gqlFactory, err := graphqlDataSource.NewFactory(engineCtx, client, mockSubscriptionClient)
+	require.NoError(t, err)
 
 	expectedFieldConfigs := plan.FieldConfigurations{
 		{
@@ -60,6 +66,7 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 		}
 
 		configFactory := NewProxyEngineConfigFactory(
+			engineCtx,
 			schema,
 			upstreamConfig,
 			WithProxyHttpClient(client),
@@ -74,11 +81,7 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 
 		expectedDataSource := mustGraphqlDataSourceConfiguration(t,
 			"some",
-			&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
-				HTTPClient:         client,
-				StreamingClient:    streamingClient,
-				SubscriptionClient: mockSubscriptionClient,
-			},
+			gqlFactory,
 			&plan.DataSourceMetadata{
 				RootNodes: []plan.TypeField{
 					{
@@ -143,6 +146,7 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 		}
 
 		configFactory := NewProxyEngineConfigFactory(
+			engineCtx,
 			schema,
 			upstreamConfig,
 			WithProxyHttpClient(client),
@@ -157,11 +161,7 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 
 		expectedDataSource := mustGraphqlDataSourceConfiguration(t,
 			"some",
-			&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
-				HTTPClient:         client,
-				StreamingClient:    streamingClient,
-				SubscriptionClient: mockSubscriptionClient,
-			},
+			gqlFactory,
 			&plan.DataSourceMetadata{
 				RootNodes: []plan.TypeField{
 					{
@@ -226,6 +226,7 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 		}
 
 		configFactory := NewProxyEngineConfigFactory(
+			engineCtx,
 			schema,
 			upstreamConfig,
 			WithProxyHttpClient(client),
@@ -240,11 +241,7 @@ func TestProxyEngineConfigFactory_EngineV2Configuration(t *testing.T) {
 
 		expectedDataSource := mustGraphqlDataSourceConfiguration(t,
 			"some",
-			&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
-				HTTPClient:         client,
-				StreamingClient:    streamingClient,
-				SubscriptionClient: mockSubscriptionClient,
-			},
+			gqlFactory,
 			&plan.DataSourceMetadata{
 				RootNodes: []plan.TypeField{
 					{

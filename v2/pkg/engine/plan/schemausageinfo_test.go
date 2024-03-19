@@ -6,6 +6,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -137,8 +138,6 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 	norm.NormalizeOperation(&op, &def, report)
 	valid := astvalidation.DefaultOperationValidator()
 	valid.Validate(&op, &def, report)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	dsCfg, err := NewDataSourceConfiguration[any](
 		"https://swapi.dev/api",
@@ -179,13 +178,15 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	p := NewPlanner(ctx, Configuration{
+	p, err := NewPlanner(Configuration{
 		DisableResolveFieldPositions: true,
 		IncludeInfo:                  true,
 		DataSources: []DataSource{
 			dsCfg,
 		},
 	})
+	require.NoError(t, err)
+
 	generatedPlan := p.Plan(&op, &def, "Search", report)
 	if report.HasErrors() {
 		t.Fatal(report.Error())
@@ -410,7 +411,7 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 type StatefulSource struct {
 }
 
-func (s *StatefulSource) Start(ctx context.Context) {
+func (s *StatefulSource) Start() {
 
 }
 
@@ -418,13 +419,17 @@ type FakeFactory[T any] struct {
 	upstreamSchema *ast.Document
 }
 
-func (f *FakeFactory[T]) Planner(ctx context.Context) DataSourcePlanner[T] {
+func (f *FakeFactory[T]) Planner(logger abstractlogger.Logger) DataSourcePlanner[T] {
 	source := &StatefulSource{}
-	go source.Start(ctx)
+	go source.Start()
 	return &FakePlanner[T]{
 		source:         source,
 		upstreamSchema: f.upstreamSchema,
 	}
+}
+
+func (f *FakeFactory[T]) Context() context.Context {
+	return context.TODO()
 }
 
 type FakePlanner[T any] struct {

@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -14,6 +15,9 @@ import (
 )
 
 func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
+	engineCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	runWithoutError := func(
 		t *testing.T,
 		httpClient *http.Client,
@@ -30,6 +34,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 		require.NoError(t, err)
 
 		engineConfigV2Factory := NewFederationEngineConfigFactory(
+			engineCtx,
 			dataSourceConfigs,
 			WithFederationHttpClient(httpClient),
 			WithFederationStreamingClient(streamingClient),
@@ -139,14 +144,13 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 				},
 			})
 
+			gqlFactory, err := graphqlDataSource.NewFactory(engineCtx, httpClient, mockSubscriptionClient)
+			require.NoError(t, err)
+
 			conf.SetDataSources([]plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
 					"users",
-					&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
-						HTTPClient:         httpClient,
-						StreamingClient:    streamingClient,
-						SubscriptionClient: mockSubscriptionClient,
-					},
+					gqlFactory,
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
 							{
@@ -181,11 +185,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 				),
 				mustGraphqlDataSourceConfiguration(t,
 					"products",
-					&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
-						HTTPClient:         httpClient,
-						StreamingClient:    streamingClient,
-						SubscriptionClient: mockSubscriptionClient,
-					},
+					gqlFactory,
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
 							{
@@ -220,11 +220,7 @@ func TestEngineConfigV2Factory_EngineV2Configuration(t *testing.T) {
 				),
 				mustGraphqlDataSourceConfiguration(t,
 					"reviews",
-					&graphqlDataSource.Factory[graphqlDataSource.Configuration]{
-						HTTPClient:         httpClient,
-						StreamingClient:    streamingClient,
-						SubscriptionClient: mockSubscriptionClient,
-					},
+					gqlFactory,
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
 							{

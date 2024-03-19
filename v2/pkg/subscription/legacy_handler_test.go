@@ -567,11 +567,12 @@ func setupEngineV2(t *testing.T, ctx context.Context, chatServerURL string) (*Ex
 
 	engineConf := graphql.NewEngineV2Configuration(chatSchema)
 
+	factory, err := graphql_datasource.NewFactory(ctx, httpclient.DefaultNetHttpClient, &graphql_datasource.SubscriptionClient{})
+	require.NoError(t, err)
+
 	dsCfg, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
 		"chat",
-		&graphql_datasource.Factory[graphql_datasource.Configuration]{
-			HTTPClient: httpclient.DefaultNetHttpClient,
-		},
+		factory,
 		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{
 				{TypeName: "Mutation", FieldNames: []string{"post"}},
