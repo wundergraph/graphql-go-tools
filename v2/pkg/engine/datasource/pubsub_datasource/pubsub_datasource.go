@@ -36,10 +36,11 @@ func EventTypeFromString(s string) (EventType, error) {
 }
 
 type EventConfiguration struct {
-	Type      EventType `json:"type"`
-	TypeName  string    `json:"typeName"`
-	FieldName string    `json:"fieldName"`
-	Topic     string    `json:"topic"`
+	FieldName  string    `json:"fieldName"`
+	SourceName string    `json:"sourceName"`
+	Topic      string    `json:"topic"`
+	Type       EventType `json:"type"`
+	TypeName   string    `json:"typeName"`
 }
 
 type Configuration struct {
@@ -55,12 +56,12 @@ func ConfigJson(config Configuration) json.RawMessage {
 }
 
 type Planner struct {
-	visitor      *plan.Visitor
-	variables    resolve.Variables
-	rootFieldRef int
-	pubSub       PubSub
-	config       Configuration
-	current      struct {
+	visitor            *plan.Visitor
+	variables          resolve.Variables
+	rootFieldRef       int
+	pubSubBySourceName map[string]PubSub
+	config             Configuration
+	current            struct {
 		topic  string
 		data   []byte
 		config *EventConfiguration
@@ -182,11 +183,11 @@ func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 	switch p.current.config.Type {
 	case EventTypePublish:
 		dataSource = &PublishDataSource{
-			pubSub: p.pubSub,
+			pubSub: p.pubSubBySourceName[p.current.config.SourceName],
 		}
 	case EventTypeRequest:
 		dataSource = &RequestDataSource{
-			pubSub: p.pubSub,
+			pubSub: p.pubSubBySourceName[p.current.config.SourceName],
 		}
 	default:
 		panic(errors.New("invalid event type for fetch"))
@@ -209,7 +210,7 @@ func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
 		Input:     fmt.Sprintf(`{"topic":"%s"}`, p.current.topic),
 		Variables: p.variables,
 		DataSource: &SubscriptionSource{
-			pubSub: p.pubSub,
+			pubSub: p.pubSubBySourceName[p.current.config.SourceName],
 		},
 		PostProcessing: resolve.PostProcessingConfiguration{
 			MergePath: []string{p.current.config.FieldName},
@@ -238,12 +239,12 @@ type Connector interface {
 }
 
 type Factory struct {
-	Connector Connector
+	PubSubBySourceName map[string]PubSub
 }
 
 func (f *Factory) Planner(ctx context.Context) plan.DataSourcePlanner {
 	return &Planner{
-		pubSub: f.Connector.New(ctx),
+		pubSubBySourceName: f.PubSubBySourceName,
 	}
 }
 
