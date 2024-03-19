@@ -669,8 +669,7 @@ func (j *JSON) PrintObjectFlat(ref int, out io.Writer) (err error) {
 	}
 	for _, fieldRef := range j.Nodes[ref].ObjectFields {
 		fieldValue := j.Nodes[fieldRef].ObjectFieldValue
-		switch j.Nodes[fieldValue].Kind {
-		case NodeKindObject, NodeKindArray:
+		if j.Nodes[fieldValue].Kind == NodeKindObject || j.Nodes[fieldValue].Kind == NodeKindArray {
 			continue
 		}
 		if writeComma {
