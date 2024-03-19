@@ -51,6 +51,9 @@ type Resolver struct {
 
 	reporter         Reporter
 	asyncErrorWriter AsyncErrorWriter
+
+	propagateSubgraphErrors      bool
+	propagateSubgraphStatusCodes bool
 }
 
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
@@ -77,19 +80,27 @@ type ResolverOptions struct {
 
 	Reporter         Reporter
 	AsyncErrorWriter AsyncErrorWriter
+
+	PropagateSubgraphErrors      bool
+	PropagateSubgraphStatusCodes bool
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
 func New(ctx context.Context, options ResolverOptions) *Resolver {
 	//options.Debug = true
 	resolver := &Resolver{
-		ctx:     ctx,
-		options: options,
+		ctx:                          ctx,
+		options:                      options,
+		propagateSubgraphErrors:      options.PropagateSubgraphErrors,
+		propagateSubgraphStatusCodes: options.PropagateSubgraphStatusCodes,
 		toolPool: sync.Pool{
 			New: func() interface{} {
 				return &tools{
 					resolvable: NewResolvable(),
-					loader:     &Loader{},
+					loader: &Loader{
+						propagateSubgraphErrors:      options.PropagateSubgraphErrors,
+						propagateSubgraphStatusCodes: options.PropagateSubgraphStatusCodes,
+					},
 				}
 			},
 		},

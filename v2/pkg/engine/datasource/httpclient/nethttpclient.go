@@ -6,7 +6,6 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"slices"
@@ -60,6 +59,23 @@ type TraceHTTPResponse struct {
 	Status     string      `json:"status"`
 	Headers    http.Header `json:"headers"`
 	BodySize   int         `json:"body_size"`
+}
+
+type responseContextKey struct{}
+
+type ResponseContext struct {
+	StatusCode int
+}
+
+func InjectResponseContext(ctx context.Context) (context.Context, *ResponseContext) {
+	value := &ResponseContext{}
+	return context.WithValue(ctx, responseContextKey{}, value), value
+}
+
+func setResponseStatusCode(ctx context.Context, statusCode int) {
+	if value, ok := ctx.Value(responseContextKey{}).(*ResponseContext); ok {
+		value.StatusCode = statusCode
+	}
 }
 
 func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Writer) (err error) {
@@ -130,6 +146,8 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 	}
 	defer response.Body.Close()
 
+	setResponseStatusCode(ctx, response.StatusCode)
+
 	respReader, err := respBodyReader(response)
 	if err != nil {
 		return err
@@ -191,14 +209,7 @@ func redactHeaders(headers http.Header) http.Header {
 	return redactedHeaders
 }
 
-var (
-	ErrNonOkResponse = errors.New("server returned non 200 OK response")
-)
-
 func respBodyReader(res *http.Response) (io.Reader, error) {
-	if res.StatusCode != http.StatusOK {
-		return nil, ErrNonOkResponse
-	}
 	switch res.Header.Get(ContentEncodingHeader) {
 	case EncodingGzip:
 		return gzip.NewReader(res.Body)
