@@ -55,8 +55,8 @@ func WithFederationSubscriptionType(subscriptionType SubscriptionType) Federatio
 }
 
 type DataSourceConfiguration struct {
-	ID            string
-	Configuration graphqlDataSource.Configuration
+	ID            string                          // ID of the data source which is used to identify the data source in the engine.
+	Configuration graphqlDataSource.Configuration // Configuration fetch and schema related configuration for the data source.
 }
 
 func NewFederationEngineConfigFactory(engineCtx context.Context, dataSourceConfigs []DataSourceConfiguration, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
