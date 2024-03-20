@@ -1,13 +1,18 @@
 package httpclient
 
 import (
+	"bufio"
 	"bytes"
 	"compress/flate"
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -218,4 +223,190 @@ func respBodyReader(res *http.Response) (io.Reader, error) {
 	default:
 		return res.Body, nil
 	}
+}
+
+func DoMultipartForm(
+	client *http.Client, ctx context.Context, requestInput []byte, files []File, out io.Writer,
+) (err error) {
+	if files == nil || len(files) == 0 {
+		return errors.New("no files provided")
+	}
+
+	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
+
+	formValues := map[string]io.Reader{
+		"operations": bytes.NewReader(body),
+	}
+
+	var fileMap string
+	for i, file := range files {
+		if len(fileMap) == 0 {
+			if len(files) == 1 {
+				fileMap = fmt.Sprintf(`"%d" : ["variables.file"]`, i)
+			} else {
+				fileMap = fmt.Sprintf(`"%d" : ["variables.file%d"]`, i, i+1)
+			}
+		} else {
+			fileMap = fmt.Sprintf(`%s, "%d" : ["variables.file%d"]`, fileMap, i, i+1)
+		}
+		key := fmt.Sprintf("%d", i)
+		temporaryFile, err := os.Open(file.Path())
+		if err != nil {
+			return err
+		}
+		formValues[key] = bufio.NewReader(temporaryFile)
+	}
+	formValues["map"] = strings.NewReader("{ " + fileMap + " }")
+
+	multipartBody, contentType, err := multipartBytes(formValues, files)
+	if err != nil {
+		return err
+	}
+
+	request, err := http.NewRequestWithContext(ctx, string(method), string(url), &multipartBody)
+	if err != nil {
+		return err
+	}
+
+	if headers != nil {
+		err = jsonparser.ObjectEach(headers, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+			_, err = jsonparser.ArrayEach(value, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+				if err != nil {
+					return
+				}
+				if len(value) == 0 {
+					return
+				}
+				request.Header.Add(string(key), string(value))
+			})
+			return err
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	if queryParams != nil {
+		query := request.URL.Query()
+		_, err = jsonparser.ArrayEach(queryParams, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+			var (
+				parameterName, parameterValue []byte
+			)
+			jsonparser.EachKey(value, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
+				switch i {
+				case 0:
+					parameterName = bytes
+				case 1:
+					parameterValue = bytes
+				}
+			}, queryParamsKeys...)
+			if len(parameterName) != 0 && len(parameterValue) != 0 {
+				if bytes.Equal(parameterValue[:1], literal.LBRACK) {
+					_, _ = jsonparser.ArrayEach(parameterValue, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+						query.Add(string(parameterName), string(value))
+					})
+				} else {
+					query.Add(string(parameterName), string(parameterValue))
+				}
+			}
+		})
+		if err != nil {
+			return err
+		}
+		request.URL.RawQuery = query.Encode()
+	}
+
+	request.Header.Add(AcceptHeader, ContentTypeJSON)
+	request.Header.Add(ContentTypeHeader, contentType)
+	request.Header.Set(AcceptEncodingHeader, EncodingGzip)
+	request.Header.Add(AcceptEncodingHeader, EncodingDeflate)
+
+	response, err := client.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	for _, file := range files {
+		err = os.Remove(file.Path())
+		if err != nil {
+			return err
+		}
+	}
+
+	respReader, err := respBodyReader(response)
+	if err != nil {
+		return err
+	}
+
+	if !enableTrace {
+		_, err = io.Copy(out, respReader)
+		return
+	}
+
+	buf := &bytes.Buffer{}
+	_, err = io.Copy(buf, respReader)
+	if err != nil {
+		return err
+	}
+	responseTrace := TraceHTTP{
+		Request: TraceHTTPRequest{
+			Method:  request.Method,
+			URL:     request.URL.String(),
+			Headers: redactHeaders(request.Header),
+		},
+		Response: TraceHTTPResponse{
+			StatusCode: response.StatusCode,
+			Status:     response.Status,
+			Headers:    redactHeaders(response.Header),
+			BodySize:   buf.Len(),
+		},
+	}
+	trace, err := json.Marshal(responseTrace)
+	if err != nil {
+		return err
+	}
+	responseWithTraceExtension, err := jsonparser.Set(buf.Bytes(), trace, "extensions", "trace")
+	if err != nil {
+		return err
+	}
+	_, err = out.Write(responseWithTraceExtension)
+	return err
+}
+
+func multipartBytes(values map[string]io.Reader, files []File) (bytes.Buffer, string, error) {
+	var err error
+	var b bytes.Buffer
+	var fw io.Writer
+	w := multipart.NewWriter(&b)
+
+	// First create the fields to control the file upload
+	valuesInOrder := []string{"operations", "map"}
+	for _, key := range valuesInOrder {
+		r := values[key]
+		if fw, err = w.CreateFormField(key); err != nil {
+			return b, "", err
+		}
+		if _, err = io.Copy(fw, r); err != nil {
+			return b, "", err
+		}
+	}
+
+	// Now create one form for each file
+	for i, file := range files {
+		key := fmt.Sprintf("%d", i)
+		r := values[key]
+		if fw, err = w.CreateFormFile(key, file.Name()); err != nil {
+			return b, "", err
+		}
+		if _, err = io.Copy(fw, r); err != nil {
+			return b, "", err
+		}
+	}
+
+	err = w.Close()
+	if err != nil {
+		return b, "", err
+	}
+
+	return b, w.FormDataContentType(), nil
 }

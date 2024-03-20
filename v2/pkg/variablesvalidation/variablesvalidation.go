@@ -121,7 +121,7 @@ func (v *variablesVisitor) EnterVariableDefinition(ref int) {
 			v.renderVariableRequiredError(varName, varTypeRef)
 			return
 		}
-		if v.variables.Nodes[jsonField].Kind == astjson.NodeKindNull {
+		if v.variables.Nodes[jsonField].Kind == astjson.NodeKindNull && varTypeName.String() != "Upload" {
 			v.renderVariableInvalidNullError(varName, varTypeRef)
 			return
 		}
