@@ -49,16 +49,16 @@ type Configuration struct {
 }
 
 type Planner[T Configuration] struct {
-	visitor            *plan.Visitor
-	variables          resolve.Variables
-	rootFieldRef       int
-	pubSubBySourceName map[string]PubSub
-	config             Configuration
-	current            struct {
+	config  Configuration
+	current struct {
 		topic  string
 		data   []byte
 		config *EventConfiguration
 	}
+	pubSubBySourceName map[string]PubSub
+	rootFieldRef       int
+	variables          resolve.Variables
+	visitor            *plan.Visitor
 }
 
 func (p *Planner[T]) EnterField(ref int) {
@@ -248,8 +248,8 @@ type Connector interface {
 
 func NewFactory[T Configuration](executionContext context.Context, pubSubBySourceName map[string]PubSub) *Factory[T] {
 	return &Factory[T]{
-		PubSubBySourceName: pubSubBySourceName,
 		executionContext:   executionContext,
+		PubSubBySourceName: pubSubBySourceName,
 	}
 }
 
