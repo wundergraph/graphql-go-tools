@@ -31,16 +31,9 @@ func (t *testPubsub) Request(ctx context.Context, topic string, data []byte, w i
 	return errors.New("not implemented")
 }
 
-type testConnector struct {
-}
-
-func (c *testConnector) New(ctx context.Context) PubSub {
-	return &testPubsub{}
-}
-
 func TestPubSub(t *testing.T) {
 	factory := &Factory[Configuration]{
-		connector: &testConnector{},
+		PubSubBySourceName: map[string]PubSub{"default": &testPubsub{}},
 	}
 
 	const schema = `
@@ -59,22 +52,25 @@ func TestPubSub(t *testing.T) {
 	dataSourceCustomConfig := Configuration{
 		Events: []EventConfiguration{
 			{
-				Type:      EventTypeRequest,
-				TypeName:  "Query",
-				FieldName: "helloQuery",
-				Topic:     "helloQuery.{{ args.id }}",
+				FieldName:  "helloQuery",
+				SourceName: "default",
+				Topic:      "helloQuery.{{ args.id }}",
+				Type:       EventTypeRequest,
+				TypeName:   "Query",
 			},
 			{
-				Type:      EventTypePublish,
-				TypeName:  "Mutation",
-				FieldName: "helloMutation",
-				Topic:     "helloMutation.{{ args.id }}",
+				FieldName:  "helloMutation",
+				SourceName: "default",
+				Topic:      "helloMutation.{{ args.id }}",
+				Type:       EventTypePublish,
+				TypeName:   "Mutation",
 			},
 			{
-				Type:      EventTypeSubscribe,
-				TypeName:  "Subscription",
-				FieldName: "helloSubscription",
-				Topic:     "helloSubscription.{{ args.id }}",
+				FieldName:  "helloSubscription",
+				SourceName: "default",
+				Topic:      "helloSubscription.{{ args.id }}",
+				Type:       EventTypeSubscribe,
+				TypeName:   "Subscription",
 			},
 		},
 	}
