@@ -13,6 +13,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jensneuse/abstractlogger"
+
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/introspection_datasource"
 
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
@@ -200,14 +201,16 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 	}
 	fetcher := resolve.NewFetcher(engineConfig.dataLoaderConfig.EnableSingleFlightLoader)
 
-	introspectionCfg, err := introspection_datasource.NewIntrospectionConfigFactory(&engineConfig.schema.document)
-	if err != nil {
-		return nil, err
-	}
+	if !engineConfig.options.disableIntrospection {
+		introspectionCfg, err := introspection_datasource.NewIntrospectionConfigFactory(&engineConfig.schema.document)
+		if err != nil {
+			return nil, err
+		}
 
-	engineConfig.AddDataSource(introspectionCfg.BuildDataSourceConfiguration())
-	for _, fieldCfg := range introspectionCfg.BuildFieldConfigurations() {
-		engineConfig.AddFieldConfiguration(fieldCfg)
+		engineConfig.AddDataSource(introspectionCfg.BuildDataSourceConfiguration())
+		for _, fieldCfg := range introspectionCfg.BuildFieldConfigurations() {
+			engineConfig.AddFieldConfiguration(fieldCfg)
+		}
 	}
 
 	return &ExecutionEngineV2{
@@ -225,6 +228,15 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 }
 
 func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, writer resolve.FlushWriter, options ...ExecutionOptionsV2) error {
+	if e.config.options.disableIntrospection {
+		isIntrospection, _ := operation.IsIntrospectionQuery()
+		if isIntrospection {
+			_, _ = writer.Write([]byte(`{"data":null}`))
+			// writer.Flush()
+			return nil
+		}
+	}
+
 	if !operation.IsNormalized() {
 		result, err := operation.Normalize(e.config.schema)
 		if err != nil {
