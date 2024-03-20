@@ -1,7 +1,7 @@
 package ast
 
 import (
-	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafebytes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
 )
 
@@ -81,4 +81,8 @@ func (d *Document) InlineFragmentSelectionSet(ref int) (selectionSetRef int, ok 
 		return InvalidRef, false
 	}
 	return d.InlineFragments[ref].SelectionSet, true
+}
+
+func (d *Document) InlineFragmentDirectives(ref int) []int {
+	return d.InlineFragments[ref].Directives.Refs
 }

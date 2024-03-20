@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
+	"strings"
 	"unsafe"
 
-	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafebytes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
 
 type PathKind int
@@ -96,26 +97,42 @@ func (p Path) String() string {
 }
 
 func (p Path) DotDelimitedString() string {
-	out := ""
+	builder := strings.Builder{}
+
+	toGrow := 0
+	for i := range p {
+		switch p[i].Kind {
+		case ArrayIndex:
+			toGrow += 1
+		case InlineFragmentName:
+			toGrow += len(p[i].FieldName) + 1 // 1 for the prefix $
+		case FieldName:
+			toGrow += len(p[i].FieldName)
+		}
+	}
+	builder.Grow(toGrow + 5 + len(p) - 1) // 5 is for the query prefix, len(p) - 1 for each dot
+
+	builder.WriteString("")
 	for i := range p {
 		if i != 0 {
-			out += "."
+			builder.WriteString(".")
 		}
 		switch p[i].Kind {
 		case ArrayIndex:
-			out += strconv.Itoa(p[i].ArrayIndex)
+			builder.WriteString(strconv.Itoa(p[i].ArrayIndex))
 		case FieldName:
 			if len(p[i].FieldName) == 0 {
-				out += "query"
+				builder.WriteString("query")
 			} else {
-				out += unsafebytes.BytesToString(p[i].FieldName)
+				builder.WriteString(unsafebytes.BytesToString(p[i].FieldName))
 			}
 		case InlineFragmentName:
-			out += InlineFragmentPathPrefix
-			out += unsafebytes.BytesToString(p[i].FieldName)
+			builder.WriteString(InlineFragmentPathPrefix)
+			builder.WriteString(unsafebytes.BytesToString(p[i].FieldName))
 		}
 	}
-	return out
+
+	return builder.String()
 }
 
 func (p *PathItem) UnmarshalJSON(data []byte) error {

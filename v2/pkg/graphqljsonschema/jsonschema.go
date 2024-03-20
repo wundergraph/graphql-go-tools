@@ -137,6 +137,10 @@ func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, t
 		}
 		if !isRootObject {
 			if _, exists := (*r.defs)[name]; exists {
+				if !nonNull {
+					return NewNullableRef(name)
+				}
+
 				return NewRef(name)
 			}
 			(*r.defs)[name] = object
@@ -260,6 +264,8 @@ const (
 	AnyKind
 	IDKind
 	RefKind
+	NullableRefKind
+	NullKind
 )
 
 func maybeAppendNull(nonNull bool, types ...string) []string {
@@ -394,6 +400,47 @@ func NewObjectAny(nonNull bool) Object {
 		AdditionalProperties: true,
 	}
 }
+
+type Null struct {
+	Type []string `json:"type"`
+}
+
+func (Null) Kind() Kind {
+	return AnyKind
+}
+
+func NewNull() Null {
+	return Null{
+		Type: []string{"null"},
+	}
+}
+
+type NullableRef struct {
+	OneOf []JsonSchema `json:"oneOf"`
+}
+
+func (NullableRef) Kind() Kind {
+	return NullableRefKind
+}
+
+func NewNullableRef(definitionName string) NullableRef {
+	return NullableRef{
+		OneOf: []JsonSchema{
+			NewNull(),
+			NewRef(definitionName),
+		},
+	}
+}
+
+/*
+ "owner":{
+        "oneOf": [
+            {"type": "null"},
+            {"$ref":"#/definitions/id"}
+        ]
+    }
+
+*/
 
 type Array struct {
 	Type     []string              `json:"type"`

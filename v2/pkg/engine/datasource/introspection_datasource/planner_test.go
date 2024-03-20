@@ -5,11 +5,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/introspection"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -116,7 +116,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 				Fields:      cfgFactory.BuildFieldConfigurations(),
 			}
 
-			datasourcetesting.RunTest(schema, introspectionQuery, "", expectedPlan, planConfiguration)(t)
+			datasourcetesting.RunTest(schema, introspectionQuery, "", expectedPlan, planConfiguration, datasourcetesting.WithMultiFetchPostProcessor())(t)
 		}
 	}
 
@@ -376,7 +376,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 								Fetch: &resolve.ParallelFetch{
 									Fetches: []resolve.Fetch{
 										&resolve.SingleFetch{
-											SerialID:             1,
+											FetchID:              1,
 											DataSourceIdentifier: dataSourceIdentifier,
 											FetchConfiguration: resolve.FetchConfiguration{
 												Input:      `{"request_type":3,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
@@ -397,7 +397,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 											},
 										},
 										&resolve.SingleFetch{
-											SerialID:             2,
+											FetchID:              2,
 											DataSourceIdentifier: dataSourceIdentifier,
 											FetchConfiguration: resolve.FetchConfiguration{
 												Input:      `{"request_type":4,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
@@ -408,7 +408,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 														Renderer: resolve.NewPlainVariableRenderer(),
 													},
 													&resolve.ContextVariable{
-														Path:     []string{"c"},
+														Path:     []string{"b"},
 														Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["boolean","null"]}`),
 													},
 												),

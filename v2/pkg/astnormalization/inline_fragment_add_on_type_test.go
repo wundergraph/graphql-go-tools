@@ -7,7 +7,7 @@ func TestInlineFragmentAddOnType(t *testing.T) {
 	// but printed query remains the same
 
 	t.Run("simple", func(t *testing.T) {
-		run(t, inlineFragmentAddOnType, testDefinition, `
+		run(t, InlineFragmentAddOnType, testDefinition, `
 					query dog {
 						dog {
 							... {
@@ -25,7 +25,7 @@ func TestInlineFragmentAddOnType(t *testing.T) {
 					}`)
 	})
 	t.Run("with interface type", func(t *testing.T) {
-		run(t, inlineFragmentAddOnType, testDefinition, `
+		run(t, InlineFragmentAddOnType, testDefinition, `
 					query pet {
 						pet {
 							... {

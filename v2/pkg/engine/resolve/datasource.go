@@ -3,6 +3,8 @@ package resolve
 import (
 	"context"
 	"io"
+
+	"github.com/cespare/xxhash/v2"
 )
 
 type DataSource interface {
@@ -10,5 +12,6 @@ type DataSource interface {
 }
 
 type SubscriptionDataSource interface {
-	Start(ctx *Context, input []byte, next chan<- []byte) error
+	Start(ctx *Context, input []byte, updater SubscriptionUpdater) error
+	UniqueRequestID(ctx *Context, input []byte, xxh *xxhash.Digest) (err error)
 }

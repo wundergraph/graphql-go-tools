@@ -3,28 +3,107 @@ package datasourcetesting
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math/rand"
+	"reflect"
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
+	"gonum.org/v1/gonum/stat/combin"
 
-	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafeparser"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/postprocess"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-type CheckFunc func(t *testing.T, op ast.Document, actualPlan plan.Plan)
+type testOptions struct {
+	postProcessors []postprocess.PostProcessor
+	skipReason     string
+}
 
-func RunTest(definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration, extraChecks ...CheckFunc) func(t *testing.T) {
+func WithPostProcessors(postProcessors ...postprocess.PostProcessor) func(*testOptions) {
+	return func(o *testOptions) {
+		o.postProcessors = postProcessors
+	}
+}
+
+func WithSkipReason(reason string) func(*testOptions) {
+	return func(o *testOptions) {
+		o.skipReason = reason
+	}
+}
+
+func WithMultiFetchPostProcessor() func(*testOptions) {
+	return WithPostProcessors(&postprocess.CreateMultiFetchTypes{})
+}
+
+func RunWithPermutations(t *testing.T, definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration, options ...func(*testOptions)) {
+	t.Helper()
+
+	dataSourcePermutations := DataSourcePermutations(config.DataSources)
+
+	for i := range dataSourcePermutations {
+		permutation := dataSourcePermutations[i]
+		t.Run(fmt.Sprintf("permutation %v", permutation.Order), func(t *testing.T) {
+			permutationPlanConfiguration := config
+			permutationPlanConfiguration.DataSources = permutation.DataSources
+
+			t.Run("run", RunTest(
+				definition,
+				operation,
+				operationName,
+				expectedPlan,
+				permutationPlanConfiguration,
+				options...,
+			))
+		})
+	}
+}
+
+func RunWithPermutationsVariants(t *testing.T, definition, operation, operationName string, expectedPlans []plan.Plan, config plan.Configuration, options ...func(*testOptions)) {
+	dataSourcePermutations := DataSourcePermutations(config.DataSources)
+
+	if len(dataSourcePermutations) != len(expectedPlans) {
+		t.Fatalf("expected %d plan variants, got %d", len(dataSourcePermutations), len(expectedPlans))
+	}
+
+	for i := range dataSourcePermutations {
+		permutation := dataSourcePermutations[i]
+		t.Run(fmt.Sprintf("permutation %v", permutation.Order), func(t *testing.T) {
+			permutationPlanConfiguration := config
+			permutationPlanConfiguration.DataSources = permutation.DataSources
+
+			t.Run("run", RunTest(
+				definition,
+				operation,
+				operationName,
+				expectedPlans[i],
+				permutationPlanConfiguration,
+				options...,
+			))
+		})
+	}
+}
+
+func RunTest(definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration, options ...func(*testOptions)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
+
+		opts := &testOptions{}
+		for _, o := range options {
+			o(opts)
+		}
+
+		if opts.skipReason != "" {
+			t.Skip(opts.skipReason)
+		}
 
 		def := unsafeparser.ParseGraphqlDocumentString(definition)
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
@@ -53,16 +132,29 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 			t.Fatal(report.Error())
 		}
 
+		if opts.postProcessors != nil {
+			for _, pp := range opts.postProcessors {
+				actualPlan = pp.Process(actualPlan)
+			}
+		}
+
 		actualBytes, _ := json.MarshalIndent(actualPlan, "", "  ")
 		expectedBytes, _ := json.MarshalIndent(expectedPlan, "", "  ")
 
-		if string(expectedBytes) != string(actualBytes) {
-			assert.Equal(t, expectedPlan, actualPlan)
-			t.Error(cmp.Diff(string(expectedBytes), string(actualBytes)))
-		}
+		if !assert.Equal(t, string(expectedBytes), string(actualBytes)) {
+			formatterConfig := map[reflect.Type]interface{}{
+				reflect.TypeOf([]byte{}): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
+			}
 
-		for _, extraCheck := range extraChecks {
-			extraCheck(t, op, actualPlan)
+			prettyCfg := &pretty.Config{
+				Diffable:          true,
+				IncludeUnexported: false,
+				Formatter:         formatterConfig,
+			}
+
+			if diff := prettyCfg.Compare(expectedPlan, actualPlan); diff != "" {
+				t.Errorf("Plan does not match(-want +got)\n%s", diff)
+			}
 		}
 	}
 }
@@ -76,4 +168,36 @@ func ShuffleDS(dataSources []plan.DataSourceConfiguration) []plan.DataSourceConf
 	})
 
 	return dataSources
+}
+
+func OrderDS(dataSources []plan.DataSourceConfiguration, order []int) (out []plan.DataSourceConfiguration) {
+	out = make([]plan.DataSourceConfiguration, 0, len(dataSources))
+
+	for _, i := range order {
+		out = append(out, dataSources[i])
+	}
+
+	return out
+}
+
+func DataSourcePermutations(dataSources []plan.DataSourceConfiguration) []*Permutation {
+	size := len(dataSources)
+	elementsCount := len(dataSources)
+	list := combin.Permutations(size, elementsCount)
+
+	permutations := make([]*Permutation, 0, len(list))
+
+	for _, v := range list {
+		permutations = append(permutations, &Permutation{
+			Order:       v,
+			DataSources: OrderDS(dataSources, v),
+		})
+	}
+
+	return permutations
+}
+
+type Permutation struct {
+	Order       []int
+	DataSources []plan.DataSourceConfiguration
 }

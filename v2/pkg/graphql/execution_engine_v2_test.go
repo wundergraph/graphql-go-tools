@@ -668,9 +668,8 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				},
 			},
 		},
-		expectedResponse: `{"errors":[{"message":"Cannot return null for non-nullable field Query.hero.","path":["hero"]}],"data":null}`,
+		expectedResponse: `{"errors":[{"message":"Failed to fetch from Subgraph at path 'query'."}],"data":null}`,
 	}))
-
 	t.Run("execute operation and apply input coercion for lists without variables", runWithoutError(ExecutionEngineV2TestCase{
 		schema: inputCoercionForListSchema(t),
 		operation: func(t *testing.T) Request {
@@ -1234,94 +1233,6 @@ func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) *http.Client
 	}
 }
 
-type beforeFetchHook struct {
-	input string
-}
-
-func (b *beforeFetchHook) OnBeforeFetch(_ resolve.HookContext, input []byte) {
-	b.input += string(input)
-}
-
-type afterFetchHook struct {
-	data string
-	err  string
-}
-
-func (a *afterFetchHook) OnData(_ resolve.HookContext, output []byte, _ bool) {
-	a.data += string(output)
-}
-
-func (a *afterFetchHook) OnError(_ resolve.HookContext, output []byte, _ bool) {
-	a.err += string(output)
-}
-
-func TestExecutionWithOptions(t *testing.T) {
-	t.Skip("FIXME")
-
-	closer := make(chan struct{})
-	defer close(closer)
-
-	testCase := ExecutionEngineV2TestCase{
-		schema:    starwarsSchema(t),
-		operation: loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
-		dataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"hero"},
-					},
-				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Character",
-						FieldNames: []string{"name"},
-					},
-				},
-				Factory: &graphql_datasource.Factory{
-					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
-						expectedHost:     "example.com",
-						expectedPath:     "/",
-						expectedBody:     "",
-						sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
-						sendStatusCode:   200,
-					}),
-				},
-				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-					Fetch: graphql_datasource.FetchConfiguration{
-						URL:    "https://example.com/",
-						Method: "GET",
-					},
-				}),
-			},
-		},
-		fields:           []plan.FieldConfiguration{},
-		expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
-	}
-
-	engineConf := NewEngineV2Configuration(testCase.schema)
-	engineConf.SetDataSources(testCase.dataSources)
-	engineConf.SetFieldConfigurations(testCase.fields)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	engine, err := NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConf)
-	require.NoError(t, err)
-
-	before := &beforeFetchHook{}
-	after := &afterFetchHook{}
-
-	operation := testCase.operation(t)
-	resultWriter := NewEngineResultWriter()
-	err = engine.Execute(context.Background(), &operation, &resultWriter, WithBeforeFetchHook(before), WithAfterFetchHook(after))
-
-	assert.Equal(t, `{"method":"GET","url":"https://example.com/","body":{"query":"{hero {name}}"}}`, before.input)
-	assert.Equal(t, `{"hero":{"name":"Luke Skywalker"}}`, after.data)
-	assert.Equal(t, "", after.err)
-	assert.NoError(t, err)
-}
-
 func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 	schema, err := NewSchemaFromString(testSubscriptionDefinition)
 	require.NoError(t, err)
@@ -1881,9 +1792,9 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 	engineConfig.SetFieldConfigurations(fieldConfigs)
 
 	engineConfig.plannerConfig.Debug = plan.DebugConfiguration{
-		PrintOperationTransformations: true,
-		PrintPlanningPaths:            true,
-		PrintQueryPlans:               true,
+		PrintOperationTransformations: false,
+		PrintPlanningPaths:            false,
+		PrintQueryPlans:               false,
 		ConfigurationVisitor:          false,
 		PlanningVisitor:               false,
 		DatasourceVisitor:             false,

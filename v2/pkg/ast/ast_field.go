@@ -3,7 +3,7 @@ package ast
 import (
 	"bytes"
 
-	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafebytes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
 )
 
@@ -134,4 +134,35 @@ func (d *Document) FieldSelectionSet(ref int) (selectionSetRef int, ok bool) {
 		return InvalidRef, false
 	}
 	return d.Fields[ref].SelectionSet, true
+}
+
+// FieldTypeNode - returns the type node of a field. it is applicable for fields on object and interface types
+func (d *Document) FieldTypeNode(fieldName []byte, enclosingNode Node) (node Node, ok bool) {
+	var (
+		fieldDefRef int
+		hasField    bool
+	)
+
+	switch enclosingNode.Kind {
+	case NodeKindObjectTypeDefinition:
+		fieldDefRef, hasField = d.ObjectTypeDefinitionFieldWithName(enclosingNode.Ref, fieldName)
+		if !hasField {
+			return
+		}
+	case NodeKindInterfaceTypeDefinition:
+		fieldDefRef, hasField = d.InterfaceTypeDefinitionFieldWithName(enclosingNode.Ref, fieldName)
+		if !hasField {
+			return
+		}
+	default:
+		return
+	}
+
+	fieldDefTypeName := d.FieldDefinitionTypeNameBytes(fieldDefRef)
+	node, hasNode := d.NodeByName(fieldDefTypeName)
+	if !hasNode {
+		return
+	}
+
+	return node, true
 }

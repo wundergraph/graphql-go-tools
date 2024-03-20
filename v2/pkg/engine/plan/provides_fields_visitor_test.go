@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 )
 
 func TestProvidesSuggestions(t *testing.T) {
@@ -35,13 +35,14 @@ func TestProvidesSuggestions(t *testing.T) {
 
 	suggestions := providesSuggestions(input)
 
-	assert.Equal(t, []NodeSuggestion{
+	assert.Equal(t, []*NodeSuggestion{
 		{
 			TypeName:       "User",
 			FieldName:      "name",
 			DataSourceHash: 2023,
 			Path:           "query.me.name",
 			ParentPath:     "query.me",
+			Selected:       true,
 		},
 		{
 			TypeName:       "User",
@@ -49,6 +50,7 @@ func TestProvidesSuggestions(t *testing.T) {
 			DataSourceHash: 2023,
 			Path:           "query.me.info",
 			ParentPath:     "query.me",
+			Selected:       true,
 		},
 		{
 			TypeName:       "Info",
@@ -56,6 +58,7 @@ func TestProvidesSuggestions(t *testing.T) {
 			DataSourceHash: 2023,
 			Path:           "query.me.info.age",
 			ParentPath:     "query.me.info",
+			Selected:       true,
 		},
 	}, suggestions)
 }

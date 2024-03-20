@@ -1,22 +1,33 @@
 package plan
 
 type FederationMetaData struct {
-	Keys     FederationFieldConfigurations
-	Requires FederationFieldConfigurations
-	Provides FederationFieldConfigurations
+	Keys             FederationFieldConfigurations
+	Requires         FederationFieldConfigurations
+	Provides         FederationFieldConfigurations
+	EntityInterfaces []EntityInterfaceConfiguration
+	InterfaceObjects []EntityInterfaceConfiguration
+}
+
+type EntityInterfaceConfiguration struct {
+	InterfaceTypeName string
+	ConcreteTypeNames []string
 }
 
 type FederationFieldConfiguration struct {
-	TypeName     string
-	FieldName    string
-	SelectionSet string
+	TypeName              string
+	FieldName             string
+	SelectionSet          string
+	DisableEntityResolver bool // applicable only for the keys. If true it means that the given entity could not be resolved by this key.
 }
 
 type FederationFieldConfigurations []FederationFieldConfiguration
 
-func (f FederationFieldConfigurations) FilterByType(typeName string) (out []FederationFieldConfiguration) {
+func (f FederationFieldConfigurations) FilterByTypeAndResolvability(typeName string, skipUnresovable bool) (out []FederationFieldConfiguration) {
 	for i := range f {
 		if f[i].TypeName != typeName || f[i].FieldName != "" {
+			continue
+		}
+		if skipUnresovable && f[i].DisableEntityResolver {
 			continue
 		}
 		out = append(out, f[i])
@@ -46,7 +57,7 @@ func (f FederationFieldConfigurations) FilterByTypeAndField(typeName, fieldName 
 	return out
 }
 
-func (f FederationFieldConfigurations) HasSelectionSet(typeName, fieldName, selectionSet string) bool {
+func (f FederationFieldConfigurations) HasSelectionSet(typeName, fieldName, selectionSet string) (ok bool) {
 	for i := range f {
 		if typeName == f[i].TypeName &&
 			fieldName == f[i].FieldName &&

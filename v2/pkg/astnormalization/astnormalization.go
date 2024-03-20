@@ -102,11 +102,14 @@ type walkerStage struct {
 
 // OperationNormalizer walks a given AST and applies all registered rules
 type OperationNormalizer struct {
-	operationWalkers                  []walkerStage
+	operationWalkers []walkerStage
+
 	variablesExtraction               *variablesExtractionVisitor
+	variablesDefaultValuesExtraction  *variablesDefaultValueExtractionVisitor
 	removeOperationDefinitionsVisitor *removeOperationDefinitionsVisitor
-	options                           options
-	definitionNormalizer              *DefinitionNormalizer
+
+	options              options
+	definitionNormalizer *DefinitionNormalizer
 }
 
 // NewNormalizer creates a new OperationNormalizer and sets up all default rules
@@ -200,7 +203,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	directivesIncludeSkip := astvisitor.NewWalker(48)
-	inlineFragmentAddOnType(&directivesIncludeSkip)
 	directiveIncludeSkip(&directivesIncludeSkip)
 
 	if o.options.removeNotMatchingOperationDefinitions {
@@ -223,14 +225,21 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	other := astvisitor.NewWalker(48)
 	removeSelfAliasing(&other)
-	mergeInlineFragments(&other)
-	mergeFieldSelections(&other)
+	inlineSelectionsFromInlineFragments(&other)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
-		name:   "removeSelfAliasing, mergeInlineFragments, mergeFieldSelections",
+		name:   "removeSelfAliasing, inlineSelectionsFromInlineFragments",
 		walker: &other,
 	})
 
+	mergeInlineFragments := astvisitor.NewWalker(48)
+	mergeInlineFragmentSelections(&mergeInlineFragments)
+	o.operationWalkers = append(o.operationWalkers, walkerStage{
+		name:   "mergeInlineFragmentSelections",
+		walker: &mergeInlineFragments,
+	})
+
 	cleanup := astvisitor.NewWalker(48)
+	mergeFieldSelections(&cleanup)
 	deduplicateFields(&cleanup)
 	if o.options.removeFragmentDefinitions {
 		removeFragmentDefinitions(&cleanup)
@@ -239,14 +248,14 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		deleteUnusedVariables(&cleanup)
 	}
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
-		name:   "deduplicateFields, removeFragmentDefinitions, deleteUnusedVariables",
+		name:   "mergeFieldSelections, deduplicateFields, removeFragmentDefinitions, deleteUnusedVariables",
 		walker: &cleanup,
 	})
 
 	if o.options.extractVariables {
 		variablesProcessing := astvisitor.NewWalker(48)
 		inputCoercionForList(&variablesProcessing)
-		extractVariablesDefaultValue(&variablesProcessing)
+		o.variablesDefaultValuesExtraction = extractVariablesDefaultValue(&variablesProcessing)
 		injectInputFieldDefaults(&variablesProcessing)
 
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
@@ -276,10 +285,6 @@ func (o *OperationNormalizer) NormalizeOperation(operation, definition *ast.Docu
 		if report.HasErrors() {
 			return
 		}
-
-		// TODO: remove me - DEBUG
-		// printed, _ := astprinter.PrintStringIndent(operation, definition, "  ")
-		// fmt.Println("NormalizeOperation stage:", o.operationWalkers[i].name, "\n", printed)
 	}
 }
 
@@ -295,7 +300,9 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 	if o.variablesExtraction != nil {
 		o.variablesExtraction.operationName = operationName
 	}
-
+	if o.variablesDefaultValuesExtraction != nil {
+		o.variablesDefaultValuesExtraction.operationName = operationName
+	}
 	if o.removeOperationDefinitionsVisitor != nil {
 		o.removeOperationDefinitionsVisitor.operationName = operationName
 	}
@@ -305,5 +312,10 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 		if report.HasErrors() {
 			return
 		}
+
+		// printed, _ := astprinter.PrintStringIndent(operation, definition, "  ")
+		// fmt.Println("\n\nNormalizeOperation stage:", o.operationWalkers[i].name)
+		// fmt.Println(printed)
+		// fmt.Println("variables:", string(operation.Input.Variables))
 	}
 }

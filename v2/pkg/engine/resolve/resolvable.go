@@ -2,39 +2,58 @@ package resolve
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 type Resolvable struct {
-	storage         *astjson.JSON
-	dataRoot        int
-	errorsRoot      int
-	variablesRoot   int
-	print           bool
-	out             io.Writer
-	printErr        error
-	path            []astjson.PathElement
-	depth           int
-	operationType   ast.OperationType
-	renameTypeNames []RenameTypeName
+	storage            *astjson.JSON
+	dataRoot           int
+	errorsRoot         int
+	variablesRoot      int
+	print              bool
+	out                io.Writer
+	printErr           error
+	path               []astjson.PathElement
+	depth              int
+	operationType      ast.OperationType
+	renameTypeNames    []RenameTypeName
+	ctx                *Context
+	authorizationError error
+	xxh                *xxhash.Digest
+	authorizationAllow map[uint64]struct{}
+	authorizationDeny  map[uint64]string
+
+	authorizationBuf          *bytes.Buffer
+	authorizationBufObjectRef int
+
+	wroteErrors bool
+	wroteData   bool
 }
 
 func NewResolvable() *Resolvable {
 	return &Resolvable{
-		storage: &astjson.JSON{
-			Nodes: make([]astjson.Node, 0, 4096),
-		},
+		storage:            &astjson.JSON{},
+		xxh:                xxhash.New(),
+		authorizationAllow: make(map[uint64]struct{}),
+		authorizationDeny:  make(map[uint64]string),
 	}
 }
 
 func (r *Resolvable) Reset() {
 	r.storage.Reset()
+	r.wroteErrors = false
+	r.wroteData = false
 	r.dataRoot = -1
 	r.errorsRoot = -1
 	r.variablesRoot = -1
@@ -44,9 +63,20 @@ func (r *Resolvable) Reset() {
 	r.printErr = nil
 	r.path = r.path[:0]
 	r.operationType = ast.OperationTypeUnknown
+	r.renameTypeNames = r.renameTypeNames[:0]
+	r.authorizationError = nil
+	r.xxh.Reset()
+	r.authorizationBufObjectRef = -1
+	for k := range r.authorizationAllow {
+		delete(r.authorizationAllow, k)
+	}
+	for k := range r.authorizationDeny {
+		delete(r.authorizationDeny, k)
+	}
 }
 
 func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.OperationType) (err error) {
+	r.ctx = ctx
 	r.operationType = operationType
 	r.renameTypeNames = ctx.RenameTypeNames
 	r.dataRoot, r.errorsRoot, err = r.storage.InitResolvable(initialData)
@@ -60,75 +90,67 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 }
 
 func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProcessing PostProcessingConfiguration) (err error) {
+	r.ctx = ctx
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
 	if len(ctx.Variables) != 0 {
 		r.variablesRoot, err = r.storage.AppendObject(ctx.Variables)
+		if err != nil {
+			return
+		}
 	}
-	switch {
-	case postProcessing.SelectResponseErrorsPath == nil && postProcessing.SelectResponseDataPath == nil:
-		r.dataRoot, r.errorsRoot, err = r.storage.InitResolvable(initialData)
-		if err != nil {
-			return
-		}
-	case postProcessing.SelectResponseErrorsPath == nil && postProcessing.SelectResponseDataPath != nil:
-		r.dataRoot, r.errorsRoot, err = r.storage.InitResolvable(nil)
-		if err != nil {
-			return
-		}
-		raw, err := r.storage.AppendObject(initialData)
-		if err != nil {
-			return err
-		}
-		data := r.storage.Get(raw, postProcessing.SelectResponseDataPath)
-		if !r.storage.NodeIsDefined(data) {
-			return nil
-		}
-		r.storage.MergeNodes(r.dataRoot, data)
-	case postProcessing.SelectResponseErrorsPath != nil && postProcessing.SelectResponseDataPath == nil:
-		r.dataRoot, r.errorsRoot, err = r.storage.InitResolvable(nil)
-		if err != nil {
-			return
-		}
-		raw, err := r.storage.AppendObject(initialData)
-		if err != nil {
-			return err
-		}
-		errors := r.storage.Get(raw, postProcessing.SelectResponseErrorsPath)
-		if !r.storage.NodeIsDefined(errors) {
-			return nil
-		}
+	r.dataRoot, r.errorsRoot, err = r.storage.InitResolvable(nil)
+	if err != nil {
+		return
+	}
+	raw, err := r.storage.AppendObject(initialData)
+	if err != nil {
+		return err
+	}
+	data := r.storage.Get(raw, postProcessing.SelectResponseDataPath)
+	if r.storage.NodeIsDefined(data) {
+		r.storage.MergeNodesWithPath(r.dataRoot, data, postProcessing.MergePath)
+	}
+	errors := r.storage.Get(raw, postProcessing.SelectResponseErrorsPath)
+	if r.storage.NodeIsDefined(errors) {
 		r.storage.MergeArrays(r.errorsRoot, errors)
-	case postProcessing.SelectResponseErrorsPath != nil && postProcessing.SelectResponseDataPath != nil:
-		r.dataRoot, r.errorsRoot, err = r.storage.InitResolvable(nil)
-		if err != nil {
-			return
-		}
-		raw, err := r.storage.AppendObject(initialData)
-		if err != nil {
-			return err
-		}
-		data := r.storage.Get(raw, postProcessing.SelectResponseDataPath)
-		if r.storage.NodeIsDefined(data) {
-			r.storage.MergeNodes(r.dataRoot, data)
-		}
-		errors := r.storage.Get(raw, postProcessing.SelectResponseErrorsPath)
-		if r.storage.NodeIsDefined(errors) {
-			r.storage.MergeArrays(r.errorsRoot, errors)
-		}
 	}
 	return
 }
 
-func (r *Resolvable) Resolve(root *Object, out io.Writer) error {
+func (r *Resolvable) Resolve(ctx context.Context, root *Object, out io.Writer) error {
 	r.out = out
 	r.print = false
 	r.printErr = nil
+	r.authorizationError = nil
+
+	// if we have errors and no data, we only print the errors and set data to null
+	// in this case, we're skipping the walk because it would lead to unnecessary non-null errors
+	if r.hasErrors() && !r.hasData() {
+		r.printBytes(lBrace)
+		r.printErrors()
+		r.printBytes(quote)
+		r.printBytes(literalData)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printBytes(null)
+		if r.hasExtensions() {
+			r.printBytes(comma)
+			r.printErr = r.printExtensions(ctx, root)
+		}
+		r.printBytes(rBrace)
+		return nil
+	}
+
 	err := r.walkObject(root, r.dataRoot)
+	if r.authorizationError != nil {
+		return r.authorizationError
+	}
 	r.printBytes(lBrace)
 	if r.hasErrors() {
 		r.printErrors()
 	}
+
 	if err {
 		r.printBytes(quote)
 		r.printBytes(literalData)
@@ -138,7 +160,12 @@ func (r *Resolvable) Resolve(root *Object, out io.Writer) error {
 	} else {
 		r.printData(root)
 	}
+	if r.hasExtensions() {
+		r.printBytes(comma)
+		r.printErr = r.printExtensions(ctx, root)
+	}
 	r.printBytes(rBrace)
+
 	return r.printErr
 }
 
@@ -153,6 +180,7 @@ func (r *Resolvable) printErrors() {
 	r.printBytes(colon)
 	r.printNode(r.errorsRoot)
 	r.printBytes(comma)
+	r.wroteErrors = true
 }
 
 func (r *Resolvable) printData(root *Object) {
@@ -165,13 +193,118 @@ func (r *Resolvable) printData(root *Object) {
 	_ = r.walkObject(root, r.dataRoot)
 	r.print = false
 	r.printBytes(rBrace)
+	r.wroteData = true
+}
+
+func (r *Resolvable) printExtensions(ctx context.Context, root *Object) error {
+	r.printBytes(quote)
+	r.printBytes(literalExtensions)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrace)
+
+	var (
+		writeComma bool
+	)
+
+	if r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
+		writeComma = true
+		err := r.printAuthorizerExtension()
+		if err != nil {
+			return err
+		}
+	}
+
+	if r.ctx.RateLimitOptions.Enable && r.ctx.RateLimitOptions.IncludeStatsInResponseExtension && r.ctx.rateLimiter != nil {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		writeComma = true
+		err := r.printRateLimitingExtension()
+		if err != nil {
+			return err
+		}
+	}
+
+	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		err := r.printTraceExtension(ctx, root)
+		if err != nil {
+			return err
+		}
+	}
+
+	r.printBytes(rBrace)
+	return nil
+}
+
+func (r *Resolvable) printAuthorizerExtension() error {
+	r.printBytes(quote)
+	r.printBytes(literalAuthorization)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	return r.ctx.authorizer.RenderResponseExtension(r.ctx, r.out)
+}
+
+func (r *Resolvable) printRateLimitingExtension() error {
+	r.printBytes(quote)
+	r.printBytes(literalRateLimit)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	return r.ctx.rateLimiter.RenderResponseExtension(r.ctx, r.out)
+}
+
+func (r *Resolvable) printTraceExtension(ctx context.Context, root *Object) error {
+	var trace *TraceNode
+	if r.ctx.TracingOptions.Debug {
+		trace = GetTrace(ctx, root, GetTraceDebug())
+	} else {
+		trace = GetTrace(ctx, root)
+	}
+	traceData, err := json.Marshal(trace)
+	if err != nil {
+		return err
+	}
+	r.printBytes(quote)
+	r.printBytes(literalTrace)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(traceData)
+	return nil
+}
+
+func (r *Resolvable) hasExtensions() bool {
+	if r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
+		return true
+	}
+	if r.ctx.RateLimitOptions.Enable && r.ctx.RateLimitOptions.IncludeStatsInResponseExtension && r.ctx.rateLimiter != nil {
+		return true
+	}
+	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
+		return true
+	}
+	return false
+}
+
+func (r *Resolvable) WroteErrorsWithoutData() bool {
+	return r.wroteErrors && !r.wroteData
 }
 
 func (r *Resolvable) hasErrors() bool {
-	if r.errorsRoot == -1 {
+	return r.storage.NodeIsDefined(r.errorsRoot) &&
+		len(r.storage.Nodes[r.errorsRoot].ArrayValues) > 0
+}
+
+func (r *Resolvable) hasData() bool {
+	if !r.storage.NodeIsDefined(r.dataRoot) {
 		return false
 	}
-	return len(r.storage.Nodes[r.errorsRoot].ArrayValues) > 0
+	if r.storage.Nodes[r.dataRoot].Kind != astjson.NodeKindObject {
+		return false
+	}
+	return len(r.storage.Nodes[r.dataRoot].ObjectFields) > 0
 }
 
 func (r *Resolvable) printBytes(b []byte) {
@@ -213,6 +346,12 @@ func (r *Resolvable) popNodePathElement(path []string) {
 }
 
 func (r *Resolvable) walkNode(node Node, ref int) bool {
+	if r.authorizationError != nil {
+		return true
+	}
+	if r.print {
+		r.ctx.Stats.ResolvedNodes++
+	}
 	switch n := node.(type) {
 	case *Object:
 		return r.walkObject(n, ref)
@@ -244,26 +383,28 @@ func (r *Resolvable) walkNode(node Node, ref int) bool {
 }
 
 func (r *Resolvable) walkObject(obj *Object, ref int) bool {
-	r.pushNodePathElement(obj.Path)
-	isRoot := r.depth < 2
-	defer r.popNodePathElement(obj.Path)
 	ref = r.storage.Get(ref, obj.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if obj.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(obj.Path)
+		r.addNonNullableFieldError(ref, obj.Path)
 		return r.err()
 	}
+	r.pushNodePathElement(obj.Path)
+	isRoot := r.depth < 2
+	defer r.popNodePathElement(obj.Path)
+
 	if r.storage.Nodes[ref].Kind == astjson.NodeKindNull {
 		return r.walkNull()
 	}
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindObject {
-		r.addTypeMismatchError("Object cannot represent non-object value.", obj.Path)
+		r.addError("Object cannot represent non-object value.", obj.Path)
 		return r.err()
 	}
 	if r.print && !isRoot {
 		r.printBytes(lBrace)
+		r.ctx.Stats.ResolvedObjects++
 	}
 	addComma := false
 	for i := range obj.Fields {
@@ -279,6 +420,28 @@ func (r *Resolvable) walkObject(obj *Object, ref int) bool {
 		}
 		if obj.Fields[i].OnTypeNames != nil {
 			if r.skipFieldOnTypeNames(ref, obj.Fields[i]) {
+				continue
+			}
+		}
+		if !r.print {
+			skip := r.authorizeField(ref, obj.Fields[i])
+			if skip {
+				if obj.Fields[i].Value.NodeNullable() {
+					// if the field value is nullable, we can just set it to null
+					// we already set an error in authorizeField
+					field := r.storage.Get(ref, obj.Fields[i].Value.NodePath())
+					if r.storage.NodeIsDefined(field) {
+						r.storage.Nodes[field].Kind = astjson.NodeKindNull
+					}
+				} else if obj.Nullable {
+					// if the field value is not nullable, but the object is nullable
+					// we can just set the whole object to null
+					r.storage.Nodes[ref].Kind = astjson.NodeKindNull
+				} else {
+					// if the field value is not nullable and the object is not nullable
+					// we return true to indicate an error
+					return true
+				}
 				continue
 			}
 		}
@@ -305,6 +468,99 @@ func (r *Resolvable) walkObject(obj *Object, ref int) bool {
 		r.printBytes(rBrace)
 	}
 	return false
+}
+
+func (r *Resolvable) authorizeField(ref int, field *Field) (skipField bool) {
+	if field.Info == nil {
+		return false
+	}
+	if !field.Info.HasAuthorizationRule {
+		return false
+	}
+	if r.ctx.authorizer == nil {
+		return false
+	}
+	if len(field.Info.Source.IDs) == 0 {
+		return false
+	}
+	dataSourceID := field.Info.Source.IDs[0]
+	typeName := r.objectFieldTypeName(ref, field)
+	fieldName := unsafebytes.BytesToString(field.Name)
+	gc := GraphCoordinate{
+		TypeName:  typeName,
+		FieldName: fieldName,
+	}
+	result, authErr := r.authorize(ref, dataSourceID, gc)
+	if authErr != nil {
+		r.authorizationError = authErr
+		return true
+	}
+	if result != nil {
+		r.addRejectFieldError(result.Reason, field)
+		return true
+	}
+	return false
+}
+
+func (r *Resolvable) authorize(objectRef int, dataSourceID string, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
+	r.xxh.Reset()
+	_, _ = r.xxh.WriteString(dataSourceID)
+	_, _ = r.xxh.WriteString(coordinate.TypeName)
+	_, _ = r.xxh.WriteString(coordinate.FieldName)
+	decisionID := r.xxh.Sum64()
+	if _, ok := r.authorizationAllow[decisionID]; ok {
+		return nil, nil
+	}
+	if reason, ok := r.authorizationDeny[decisionID]; ok {
+		return &AuthorizationDeny{Reason: reason}, nil
+	}
+	if r.authorizationBufObjectRef != objectRef {
+		if r.authorizationBuf == nil {
+			r.authorizationBuf = bytes.NewBuffer(nil)
+		}
+		r.authorizationBuf.Reset()
+		err = r.storage.PrintObjectFlat(objectRef, r.authorizationBuf)
+		if err != nil {
+			return nil, err
+		}
+		r.authorizationBufObjectRef = objectRef
+	}
+	result, err = r.ctx.authorizer.AuthorizeObjectField(r.ctx, dataSourceID, r.authorizationBuf.Bytes(), coordinate)
+	if err != nil {
+		return nil, err
+	}
+	if result == nil {
+		r.authorizationAllow[decisionID] = struct{}{}
+	} else {
+		r.authorizationDeny[decisionID] = result.Reason
+	}
+	return result, nil
+}
+
+func (r *Resolvable) addRejectFieldError(reason string, field *Field) {
+	var (
+		message string
+	)
+	nodePath := field.Value.NodePath()
+	r.pushNodePathElement(nodePath)
+	fieldPath := r.renderFieldPath()
+	if reason == "" {
+		message = fmt.Sprintf("Unauthorized to load field '%s'.", fieldPath)
+	} else {
+		message = fmt.Sprintf("Unauthorized to load field '%s'. Reason: %s", fieldPath, reason)
+	}
+	ref := r.storage.AppendErrorWithMessage(message, r.path)
+	r.storage.Nodes[r.errorsRoot].ArrayValues = append(r.storage.Nodes[r.errorsRoot].ArrayValues, ref)
+	r.popNodePathElement(nodePath)
+}
+
+func (r *Resolvable) objectFieldTypeName(ref int, field *Field) string {
+	typeName := r.storage.GetObjectField(ref, "__typename")
+	if r.storage.NodeIsDefined(typeName) && r.storage.Nodes[typeName].Kind == astjson.NodeKindString {
+		name := r.storage.Nodes[typeName].ValueBytes(r.storage)
+		return unsafebytes.BytesToString(name)
+	}
+	return field.Info.ExactParentTypeName
 }
 
 func (r *Resolvable) skipFieldOnTypeNames(ref int, field *Field) bool {
@@ -349,18 +605,18 @@ func (r *Resolvable) excludeField(includeVariableName string) bool {
 }
 
 func (r *Resolvable) walkArray(arr *Array, ref int) bool {
-	r.pushNodePathElement(arr.Path)
-	defer r.popNodePathElement(arr.Path)
 	ref = r.storage.Get(ref, arr.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if arr.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(arr.Path)
+		r.addNonNullableFieldError(ref, arr.Path)
 		return r.err()
 	}
+	r.pushNodePathElement(arr.Path)
+	defer r.popNodePathElement(arr.Path)
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindArray {
-		r.addTypeMismatchError("Array cannot represent non-array value.", arr.Path)
+		r.addError("Array cannot represent non-array value.", arr.Path)
 		return r.err()
 	}
 	if r.print {
@@ -390,22 +646,26 @@ func (r *Resolvable) walkArray(arr *Array, ref int) bool {
 func (r *Resolvable) walkNull() bool {
 	if r.print {
 		r.printBytes(null)
+		r.ctx.Stats.ResolvedLeafs++
 	}
 	return false
 }
 
 func (r *Resolvable) walkString(s *String, ref int) bool {
+	if r.print {
+		r.ctx.Stats.ResolvedLeafs++
+	}
 	ref = r.storage.Get(ref, s.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if s.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(s.Path)
+		r.addNonNullableFieldError(ref, s.Path)
 		return r.err()
 	}
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindString {
 		value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
-		r.addTypeMismatchError(fmt.Sprintf("String cannot represent non-string value: \\\"%s\\\"", value), s.Path)
+		r.addError(fmt.Sprintf("String cannot represent non-string value: \\\"%s\\\"", value), s.Path)
 		return r.err()
 	}
 	if r.print {
@@ -440,17 +700,20 @@ func (r *Resolvable) walkString(s *String, ref int) bool {
 }
 
 func (r *Resolvable) walkBoolean(b *Boolean, ref int) bool {
+	if r.print {
+		r.ctx.Stats.ResolvedLeafs++
+	}
 	ref = r.storage.Get(ref, b.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if b.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(b.Path)
+		r.addNonNullableFieldError(ref, b.Path)
 		return r.err()
 	}
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindBoolean {
 		value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
-		r.addTypeMismatchError(fmt.Sprintf("Bool cannot represent non-boolean value: \\\"%s\\\"", value), b.Path)
+		r.addError(fmt.Sprintf("Bool cannot represent non-boolean value: \\\"%s\\\"", value), b.Path)
 		return r.err()
 	}
 	if r.print {
@@ -460,17 +723,20 @@ func (r *Resolvable) walkBoolean(b *Boolean, ref int) bool {
 }
 
 func (r *Resolvable) walkInteger(i *Integer, ref int) bool {
+	if r.print {
+		r.ctx.Stats.ResolvedLeafs++
+	}
 	ref = r.storage.Get(ref, i.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if i.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(i.Path)
+		r.addNonNullableFieldError(ref, i.Path)
 		return r.err()
 	}
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindNumber {
 		value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
-		r.addTypeMismatchError(fmt.Sprintf("Int cannot represent non-integer value: \\\"%s\\\"", value), i.Path)
+		r.addError(fmt.Sprintf("Int cannot represent non-integer value: \\\"%s\\\"", value), i.Path)
 		return r.err()
 	}
 	if r.print {
@@ -480,17 +746,20 @@ func (r *Resolvable) walkInteger(i *Integer, ref int) bool {
 }
 
 func (r *Resolvable) walkFloat(f *Float, ref int) bool {
+	if r.print {
+		r.ctx.Stats.ResolvedLeafs++
+	}
 	ref = r.storage.Get(ref, f.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if f.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(f.Path)
+		r.addNonNullableFieldError(ref, f.Path)
 		return r.err()
 	}
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindNumber {
 		value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
-		r.addTypeMismatchError(fmt.Sprintf("Float cannot represent non-float value: \\\"%s\\\"", value), f.Path)
+		r.addError(fmt.Sprintf("Float cannot represent non-float value: \\\"%s\\\"", value), f.Path)
 		return r.err()
 	}
 	if r.print {
@@ -500,12 +769,15 @@ func (r *Resolvable) walkFloat(f *Float, ref int) bool {
 }
 
 func (r *Resolvable) walkBigInt(b *BigInt, ref int) bool {
+	if r.print {
+		r.ctx.Stats.ResolvedLeafs++
+	}
 	ref = r.storage.Get(ref, b.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if b.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(b.Path)
+		r.addNonNullableFieldError(ref, b.Path)
 		return r.err()
 	}
 	if r.print {
@@ -515,12 +787,15 @@ func (r *Resolvable) walkBigInt(b *BigInt, ref int) bool {
 }
 
 func (r *Resolvable) walkScalar(s *Scalar, ref int) bool {
+	if r.print {
+		r.ctx.Stats.ResolvedLeafs++
+	}
 	ref = r.storage.Get(ref, s.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if s.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(s.Path)
+		r.addNonNullableFieldError(ref, s.Path)
 		return r.err()
 	}
 	if r.print {
@@ -546,18 +821,21 @@ func (r *Resolvable) walkEmptyArray(_ *EmptyArray) bool {
 }
 
 func (r *Resolvable) walkCustom(c *CustomNode, ref int) bool {
+	if r.print {
+		r.ctx.Stats.ResolvedLeafs++
+	}
 	ref = r.storage.Get(ref, c.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if c.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(c.Path)
+		r.addNonNullableFieldError(ref, c.Path)
 		return r.err()
 	}
 	value := r.storage.Nodes[ref].ValueBytes(r.storage)
 	resolved, err := c.Resolve(value)
 	if err != nil {
-		r.addUnableToResolveError(err.Error(), c.Path)
+		r.addError(err.Error(), c.Path)
 		return r.err()
 	}
 	if r.print {
@@ -566,7 +844,10 @@ func (r *Resolvable) walkCustom(c *CustomNode, ref int) bool {
 	return false
 }
 
-func (r *Resolvable) addNonNullableFieldError(fieldPath []string) {
+func (r *Resolvable) addNonNullableFieldError(fieldRef int, fieldPath []string) {
+	if fieldRef != -1 && r.storage.Nodes[fieldRef].Kind == astjson.NodeKindNullSkipError {
+		return
+	}
 	r.pushNodePathElement(fieldPath)
 	ref := r.storage.AppendNonNullableFieldIsNullErr(r.renderFieldPath(), r.path)
 	r.storage.Nodes[r.errorsRoot].ArrayValues = append(r.storage.Nodes[r.errorsRoot].ArrayValues, ref)
@@ -593,14 +874,7 @@ func (r *Resolvable) renderFieldPath() string {
 	return buf.String()
 }
 
-func (r *Resolvable) addTypeMismatchError(message string, fieldPath []string) {
-	r.pushNodePathElement(fieldPath)
-	ref := r.storage.AppendErrorWithMessage(message, r.path)
-	r.storage.Nodes[r.errorsRoot].ArrayValues = append(r.storage.Nodes[r.errorsRoot].ArrayValues, ref)
-	r.popNodePathElement(fieldPath)
-}
-
-func (r *Resolvable) addUnableToResolveError(message string, fieldPath []string) {
+func (r *Resolvable) addError(message string, fieldPath []string) {
 	r.pushNodePathElement(fieldPath)
 	ref := r.storage.AppendErrorWithMessage(message, r.path)
 	r.storage.Nodes[r.errorsRoot].ArrayValues = append(r.storage.Nodes[r.errorsRoot].ArrayValues, ref)

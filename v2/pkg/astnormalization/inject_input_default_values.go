@@ -1,10 +1,10 @@
 package astnormalization
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/buger/jsonparser"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
@@ -171,20 +171,23 @@ func (v *inputFieldDefaultInjectionVisitor) processObjectOrListInput(fieldType i
 	finalVal := defaultValue
 	replaced := false
 	valIsList := valType == jsonparser.Array
-	if fieldIsList && valIsList {
+
+	switch {
+	case valType == jsonparser.Null:
+		replaced = true
+	case fieldIsList && valIsList:
 		_, err := jsonparser.ArrayEach(varVal, v.jsonWalker(typeDoc.ResolveListOrNameType(fieldType), defaultValue, &node, typeDoc, &finalVal, &replaced))
 		if err != nil {
 			return nil, false, err
 
 		}
-	} else if !fieldIsList && !valIsList {
+	case !fieldIsList && !valIsList:
 		finalVal, replaced, err = v.recursiveInjectInputFields(node.Ref, defaultValue)
 		if err != nil {
 			return nil, false, err
 		}
-	} else {
-		return nil, false, errors.New("mismatched input value")
 	}
+	// mismatching types are handled by variablesvalidation package
 	return finalVal, replaced, nil
 }
 
@@ -205,6 +208,7 @@ func (v *inputFieldDefaultInjectionVisitor) jsonWalker(fieldType int, defaultVal
 			}
 			if replaced {
 				*finalVal, err = jsonparser.Set(defaultValue, newVal, fmt.Sprintf("[%d]", i))
+				defaultValue = *finalVal
 				if err != nil {
 					return
 				}
@@ -217,6 +221,7 @@ func (v *inputFieldDefaultInjectionVisitor) jsonWalker(fieldType int, defaultVal
 			}
 			if replaced {
 				*finalVal, err = jsonparser.Set(defaultValue, newVal, fmt.Sprintf("[%d]", i))
+				defaultValue = *finalVal
 				if err != nil {
 					return
 				}

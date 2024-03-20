@@ -212,3 +212,31 @@ func (d *Document) DirectiveIsAllowedOnNodeKind(directiveName string, kind NodeK
 
 	return false
 }
+
+func (d *Document) ResolveSkipDirectiveVariable(directiveRefs []int) (variableName string, exists bool) {
+	for _, i := range directiveRefs {
+		if !bytes.Equal(d.DirectiveNameBytes(i), literal.SKIP) {
+			continue
+		}
+		if value, ok := d.DirectiveArgumentValueByName(i, literal.IF); ok {
+			if value.Kind == ValueKindVariable {
+				return d.VariableValueNameString(value.Ref), true
+			}
+		}
+	}
+	return "", false
+}
+
+func (d *Document) ResolveIncludeDirectiveVariable(directiveRefs []int) (variableName string, exists bool) {
+	for _, i := range directiveRefs {
+		if !bytes.Equal(d.DirectiveNameBytes(i), literal.INCLUDE) {
+			continue
+		}
+		if value, ok := d.DirectiveArgumentValueByName(i, literal.IF); ok {
+			if value.Kind == ValueKindVariable {
+				return d.VariableValueNameString(value.Ref), true
+			}
+		}
+	}
+	return "", false
+}

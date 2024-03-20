@@ -14,6 +14,10 @@ func (s *Scalar) NodePath() []string {
 	return s.Path
 }
 
+func (s *Scalar) NodeNullable() bool {
+	return s.Nullable
+}
+
 type String struct {
 	Path                 []string
 	Nullable             bool
@@ -30,6 +34,27 @@ func (s *String) NodePath() []string {
 	return s.Path
 }
 
+func (s *String) NodeNullable() bool {
+	return s.Nullable
+}
+
+type StaticString struct {
+	Path  []string
+	Value string
+}
+
+func (_ *StaticString) NodeKind() NodeKind {
+	return NodeKindStaticString
+}
+
+func (s *StaticString) NodePath() []string {
+	return s.Path
+}
+
+func (s *StaticString) NodeNullable() bool {
+	return false
+}
+
 type Boolean struct {
 	Path     []string
 	Nullable bool
@@ -42,6 +67,10 @@ func (_ *Boolean) NodeKind() NodeKind {
 
 func (b *Boolean) NodePath() []string {
 	return b.Path
+}
+
+func (b *Boolean) NodeNullable() bool {
+	return b.Nullable
 }
 
 type Float struct {
@@ -58,6 +87,10 @@ func (f *Float) NodePath() []string {
 	return f.Path
 }
 
+func (f *Float) NodeNullable() bool {
+	return f.Nullable
+}
+
 type Integer struct {
 	Path     []string
 	Nullable bool
@@ -70,6 +103,10 @@ func (_ *Integer) NodeKind() NodeKind {
 
 func (i *Integer) NodePath() []string {
 	return i.Path
+}
+
+func (i *Integer) NodeNullable() bool {
+	return i.Nullable
 }
 
 type BigInt struct {
@@ -86,13 +123,11 @@ func (b *BigInt) NodePath() []string {
 	return b.Path
 }
 
-type Null struct {
-	Defer Defer
+func (b *BigInt) NodeNullable() bool {
+	return b.Nullable
 }
 
-type Defer struct {
-	Enabled    bool
-	PatchIndex int
+type Null struct {
 }
 
 func (_ *Null) NodeKind() NodeKind {
@@ -101,6 +136,10 @@ func (_ *Null) NodeKind() NodeKind {
 
 func (_ *Null) NodePath() []string {
 	return nil
+}
+
+func (_ *Null) NodeNullable() bool {
+	return true
 }
 
 // FieldExport takes the value of the field during evaluation (rendering of the field)

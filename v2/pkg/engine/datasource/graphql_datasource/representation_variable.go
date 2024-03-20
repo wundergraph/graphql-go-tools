@@ -2,6 +2,7 @@ package graphql_datasource
 
 import (
 	"bytes"
+	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -15,7 +16,7 @@ type objectFields struct {
 	fields     *[]*resolve.Field
 }
 
-func buildRepresentationVariableNode(cfg plan.FederationFieldConfiguration, definition *ast.Document) (*resolve.Object, error) {
+func buildRepresentationVariableNode(definition *ast.Document, cfg plan.FederationFieldConfiguration, dsCfg plan.DataSourceConfiguration) (*resolve.Object, error) {
 	key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, false)
 	if report.HasErrors() {
 		return nil, report
@@ -23,11 +24,28 @@ func buildRepresentationVariableNode(cfg plan.FederationFieldConfiguration, defi
 
 	walker := astvisitor.NewWalker(48)
 
+	var interfaceObjectTypeName *string
+	for _, interfaceObjCfg := range dsCfg.FederationMetaData.InterfaceObjects {
+		if slices.Contains(interfaceObjCfg.ConcreteTypeNames, cfg.TypeName) {
+			interfaceObjectTypeName = &interfaceObjCfg.InterfaceTypeName
+			break
+		}
+	}
+	var entityInterfaceTypeName *string
+	for _, entityInterfaceCfg := range dsCfg.FederationMetaData.EntityInterfaces {
+		if slices.Contains(entityInterfaceCfg.ConcreteTypeNames, cfg.TypeName) {
+			entityInterfaceTypeName = &entityInterfaceCfg.InterfaceTypeName
+			break
+		}
+	}
+
 	visitor := &representationVariableVisitor{
-		typeName:    cfg.TypeName,
-		addOnType:   true,
-		addTypeName: true,
-		Walker:      &walker,
+		typeName:                cfg.TypeName,
+		interfaceObjectTypeName: interfaceObjectTypeName,
+		entityInterfaceTypeName: entityInterfaceTypeName,
+		addOnType:               true,
+		addTypeName:             true,
+		Walker:                  &walker,
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterFieldVisitor(visitor)
@@ -90,7 +108,10 @@ type representationVariableVisitor struct {
 	currentFields []objectFields
 	rootObject    *resolve.Object
 
-	typeName    string
+	typeName                string
+	interfaceObjectTypeName *string
+	entityInterfaceTypeName *string
+
 	addOnType   bool
 	addTypeName bool
 }
@@ -103,13 +124,21 @@ func (v *representationVariableVisitor) EnterDocument(key, definition *ast.Docum
 	if v.addTypeName {
 		typeNameField := &resolve.Field{
 			Name: []byte("__typename"),
-			Value: &resolve.String{
+		}
+
+		if v.interfaceObjectTypeName != nil {
+			typeNameField.Value = &resolve.StaticString{
+				Path:  []string{"__typename"},
+				Value: *v.interfaceObjectTypeName,
+			}
+		} else {
+			typeNameField.Value = &resolve.String{
 				Path: []string{"__typename"},
-			},
+			}
 		}
 
 		if v.addOnType {
-			typeNameField.OnTypeNames = [][]byte{[]byte(v.typeName)}
+			v.addTypeNameToField(typeNameField)
 		}
 
 		fields = append(fields, typeNameField)
@@ -142,10 +171,21 @@ func (v *representationVariableVisitor) EnterField(ref int) {
 	}
 
 	if v.addOnType && v.currentFields[len(v.currentFields)-1].isRoot {
-		currentField.OnTypeNames = [][]byte{[]byte(v.typeName)}
+		v.addTypeNameToField(currentField)
 	}
 
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, currentField)
+}
+
+func (v *representationVariableVisitor) addTypeNameToField(field *resolve.Field) {
+	switch {
+	case v.interfaceObjectTypeName != nil:
+		field.OnTypeNames = [][]byte{[]byte(v.typeName), []byte(*v.interfaceObjectTypeName)}
+	case v.entityInterfaceTypeName != nil:
+		field.OnTypeNames = [][]byte{[]byte(v.typeName), []byte(*v.entityInterfaceTypeName)}
+	default:
+		field.OnTypeNames = [][]byte{[]byte(v.typeName)}
+	}
 }
 
 func (v *representationVariableVisitor) LeaveField(ref int) {
@@ -197,7 +237,7 @@ func (v *representationVariableVisitor) resolveFieldValue(fieldRef, typeRef int,
 					Nullable: nullable,
 				}
 			default:
-				return &resolve.String{
+				return &resolve.Scalar{
 					Path:     path,
 					Nullable: nullable,
 				}

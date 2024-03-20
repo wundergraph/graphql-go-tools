@@ -166,42 +166,20 @@ func (h *gqlWSConnectionHandler) handleMessageTypeData(data []byte) {
 	if err != nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(h.ctx, time.Second*5)
-	defer cancel()
 
-	select {
-	case <-ctx.Done():
-	case sub.next <- payload:
-	case <-sub.ctx.Done():
-	}
+	sub.updater.Update(payload)
 }
 
 func (h *gqlWSConnectionHandler) handleMessageTypeConnectionError() {
 	for _, sub := range h.subscriptions {
-		ctx, cancel := context.WithTimeout(h.ctx, time.Second*5)
-		select {
-		case sub.next <- []byte(connectionError):
-			cancel()
-			continue
-		case <-ctx.Done():
-			cancel()
-			continue
-		}
+		sub.updater.Update([]byte(connectionError))
 	}
 }
 
 func (h *gqlWSConnectionHandler) broadcastErrorMessage(err error) {
 	errMsg := fmt.Sprintf(errorMessageTemplate, err)
 	for _, sub := range h.subscriptions {
-		ctx, cancel := context.WithTimeout(h.ctx, time.Second*5)
-		select {
-		case sub.next <- []byte(errMsg):
-			cancel()
-			continue
-		case <-ctx.Done():
-			cancel()
-			continue
-		}
+		sub.updater.Update([]byte(errMsg))
 	}
 }
 
@@ -214,7 +192,7 @@ func (h *gqlWSConnectionHandler) handleMessageTypeComplete(data []byte) {
 	if !ok {
 		return
 	}
-	close(sub.next)
+	sub.updater.Done()
 	delete(h.subscriptions, id)
 }
 
@@ -229,7 +207,7 @@ func (h *gqlWSConnectionHandler) handleMessageTypeError(data []byte) {
 	}
 	value, valueType, _, err := jsonparser.Get(data, "payload")
 	if err != nil {
-		sub.next <- []byte(internalError)
+		sub.updater.Update([]byte(internalError))
 		return
 	}
 	switch valueType {
@@ -237,20 +215,20 @@ func (h *gqlWSConnectionHandler) handleMessageTypeError(data []byte) {
 		response := []byte(`{}`)
 		response, err = jsonparser.Set(response, value, "errors")
 		if err != nil {
-			sub.next <- []byte(internalError)
+			sub.updater.Update([]byte(internalError))
 			return
 		}
-		sub.next <- response
+		sub.updater.Update(response)
 	case jsonparser.Object:
 		response := []byte(`{"errors":[]}`)
 		response, err = jsonparser.Set(response, value, "errors", "[0]")
 		if err != nil {
-			sub.next <- []byte(internalError)
+			sub.updater.Update([]byte(internalError))
 			return
 		}
-		sub.next <- response
+		sub.updater.Update(response)
 	default:
-		sub.next <- []byte(internalError)
+		sub.updater.Update([]byte(internalError))
 	}
 }
 
@@ -259,7 +237,7 @@ func (h *gqlWSConnectionHandler) unsubscribe(subscriptionID string) {
 	if !ok {
 		return
 	}
-	close(sub.next)
+	sub.updater.Done()
 	delete(h.subscriptions, subscriptionID)
 	stopRequest := fmt.Sprintf(stopMessage, subscriptionID)
 	_ = h.conn.Write(h.ctx, websocket.MessageText, []byte(stopRequest))

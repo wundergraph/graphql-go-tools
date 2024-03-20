@@ -8,11 +8,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
 )
 
@@ -355,6 +355,7 @@ func TestPlanner_Plan(t *testing.T) {
 			type Character {
 				info: JSON!
 				infos: [JSON!]!
+				optInfo: JSON
 			}
 		`
 
@@ -487,7 +488,95 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 			))
 		})
+
+		t.Run("field with required custom resolve", test(
+			schema, `
+			{
+				hero {
+					info
+				}
+			}
+			`, "",
+			&SynchronousResponsePlan{
+				FlushInterval: 0,
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("hero"),
+								Value: &resolve.Object{
+									Path: []string{"hero"},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("info"),
+											Value: &resolve.CustomNode{
+												Path:          []string{"info"},
+												Nullable:      false,
+												CustomResolve: &customResolver{},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Configuration{
+				DisableResolveFieldPositions: true,
+				CustomResolveMap: map[string]resolve.CustomResolve{
+					"JSON": &customResolver{},
+				},
+			},
+		))
+
+		t.Run("field with nullable custom resolve", test(
+			schema, `
+			{
+				hero {
+					optInfo
+				}
+			}
+			`, "",
+			&SynchronousResponsePlan{
+				FlushInterval: 0,
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("hero"),
+								Value: &resolve.Object{
+									Path: []string{"hero"},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("optInfo"),
+											Value: &resolve.CustomNode{
+												Path:          []string{"optInfo"},
+												Nullable:      true,
+												CustomResolve: &customResolver{},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Configuration{
+				DisableResolveFieldPositions: true,
+				CustomResolveMap: map[string]resolve.CustomResolve{
+					"JSON": &customResolver{},
+				},
+			},
+		))
 	})
+}
+
+type customResolver struct{}
+
+func (customResolver) Resolve(data []byte) ([]byte, error) {
+	return data, nil
 }
 
 var expectedMyHeroPlan = &SynchronousResponsePlan{

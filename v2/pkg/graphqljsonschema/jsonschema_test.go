@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wundergraph/graphql-go-tools/v2/internal/pkg/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 )
 
 func prettyPrint(s string) string {
@@ -135,6 +135,19 @@ func TestJsonSchema(t *testing.T) {
 			`false`,
 		},
 	))
+	t.Run("nested input object both as required and not required", runTest(
+		`scalar String input StringInput { str: String } input Input { requireInput: StringInput! optionalInput: StringInput }`,
+		`query ($input: Input){}`,
+		`{"type":["object","null"],"properties":{"optionalInput":{"oneOf":[{"type":["null"]},{"$ref":"#/$defs/StringInput"}]},"requireInput":{"$ref":"#/$defs/StringInput"}},"required":["requireInput"],"additionalProperties":false,"$defs":{"StringInput":{"type":["object"],"properties":{"str":{"type":["string","null"]}},"additionalProperties":false}}}`,
+		[]string{
+			`{"optionalInput": {}, "requireInput": {"str":"validString"}}`,
+			`{"requireInput": {"str":"validString"}}`,
+		},
+		[]string{
+			`{}`,
+			`{"optionalInput": {}}`,
+		},
+	))
 	t.Run("required array", runTest(
 		`scalar String`,
 		`query ($input: [String]!){}`,
@@ -210,7 +223,7 @@ func TestJsonSchema(t *testing.T) {
 	t.Run("recursive object", runTest(
 		`scalar String scalar Boolean input Test { str: String! nested: Nested } input Nested { boo: Boolean recursive: Test }`,
 		`query ($input: Test){}`,
-		`{"type":["object","null"],"properties":{"nested":{"$ref":"#/$defs/Nested"},"str":{"type":["string"]}},"required":["str"],"additionalProperties":false,"$defs":{"Nested":{"type":["object","null"],"properties":{"boo":{"type":["boolean","null"]},"recursive":{"$ref":"#/$defs/Test"}},"additionalProperties":false},"Test":{"type":["object","null"],"properties":{"nested":{"$ref":"#/$defs/Nested"},"str":{"type":["string"]}},"required":["str"],"additionalProperties":false}}}`,
+		`{"type":["object","null"],"properties":{"nested":{"$ref":"#/$defs/Nested"},"str":{"type":["string"]}},"required":["str"],"additionalProperties":false,"$defs":{"Nested":{"type":["object","null"],"properties":{"boo":{"type":["boolean","null"]},"recursive":{"$ref":"#/$defs/Test"}},"additionalProperties":false},"Test":{"type":["object","null"],"properties":{"nested":{"oneOf":[{"type":["null"]},{"$ref":"#/$defs/Nested"}]},"str":{"type":["string"]}},"required":["str"],"additionalProperties":false}}}`,
 		[]string{
 			`{"str":"validString"}`,
 			`{"str":"validString","nested":{"boo":true}}`,
@@ -226,7 +239,7 @@ func TestJsonSchema(t *testing.T) {
 	t.Run("recursive object with multiple branches", runTest(
 		`scalar String scalar Boolean input Root { test: Test another: Another } input Test { str: String! nested: Nested } input Nested { boo: Boolean recursive: Test another: Another } input Another { boo: Boolean }`,
 		`query ($input: Root){}`,
-		`{"type":["object","null"],"properties":{"another":{"$ref":"#/$defs/Another"},"test":{"$ref":"#/$defs/Test"}},"additionalProperties":false,"$defs":{"Another":{"type":["object","null"],"properties":{"boo":{"type":["boolean","null"]}},"additionalProperties":false},"Nested":{"type":["object","null"],"properties":{"another":{"$ref":"#/$defs/Another"},"boo":{"type":["boolean","null"]},"recursive":{"$ref":"#/$defs/Test"}},"additionalProperties":false},"Test":{"type":["object","null"],"properties":{"nested":{"$ref":"#/$defs/Nested"},"str":{"type":["string"]}},"required":["str"],"additionalProperties":false}}}`,
+		`{"type":["object","null"],"properties":{"another":{"oneOf":[{"type":["null"]},{"$ref":"#/$defs/Another"}]},"test":{"$ref":"#/$defs/Test"}},"additionalProperties":false,"$defs":{"Another":{"type":["object","null"],"properties":{"boo":{"type":["boolean","null"]}},"additionalProperties":false},"Nested":{"type":["object","null"],"properties":{"another":{"$ref":"#/$defs/Another"},"boo":{"type":["boolean","null"]},"recursive":{"oneOf":[{"type":["null"]},{"$ref":"#/$defs/Test"}]}},"additionalProperties":false},"Test":{"type":["object","null"],"properties":{"nested":{"$ref":"#/$defs/Nested"},"str":{"type":["string"]}},"required":["str"],"additionalProperties":false}}}`,
 		[]string{
 			`{"test":{"str":"validString"}}`,
 			`{"test":{"str":"validString","nested":{"boo":true}}}`,
@@ -1093,549 +1106,782 @@ input db_WidgetsInput {
 const complexRecursiveSchemaResult = `
 {
   "type": [
-      "object",
-      "null"
+    "object",
+    "null"
   ],
   "properties": {
-      "AND": {
-          "$ref": "#/$defs/db_messagesWhereInput"
-      },
-      "NOT": {
-          "$ref": "#/$defs/db_messagesWhereInput"
-      },
-      "OR": {
+    "AND": {
+      "$ref": "#/$defs/db_messagesWhereInput"
+    },
+    "NOT": {
+      "oneOf": [
+        {
           "type": [
-              "array",
+            "null"
+          ]
+        },
+        {
+          "$ref": "#/$defs/db_messagesWhereInput"
+        }
+      ]
+    },
+    "OR": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "oneOf": [
+          {
+            "type": [
               "null"
-          ],
-          "items": {
-              "$ref": "#/$defs/db_messagesWhereInput"
+            ]
+          },
+          {
+            "$ref": "#/$defs/db_messagesWhereInput"
           }
-      },
-      "id": {
-          "$ref": "#/$defs/db_IntFilter"
-      },
-      "message": {
-          "$ref": "#/$defs/db_StringFilter"
-      },
-      "payload": {
-          "$ref": "#/$defs/db_JsonFilter"
-      },
-      "user_id": {
-          "$ref": "#/$defs/db_IntFilter"
-      },
-      "users": {
-          "$ref": "#/$defs/db_UsersRelationFilter"
+        ]
       }
+    },
+    "id": {
+      "oneOf": [
+        {
+          "type": [
+            "null"
+          ]
+        },
+        {
+          "$ref": "#/$defs/db_IntFilter"
+        }
+      ]
+    },
+    "message": {
+      "oneOf": [
+        {
+          "type": [
+            "null"
+          ]
+        },
+        {
+          "$ref": "#/$defs/db_StringFilter"
+        }
+      ]
+    },
+    "payload": {
+      "oneOf": [
+        {
+          "type": [
+            "null"
+          ]
+        },
+        {
+          "$ref": "#/$defs/db_JsonFilter"
+        }
+      ]
+    },
+    "user_id": {
+      "oneOf": [
+        {
+          "type": [
+            "null"
+          ]
+        },
+        {
+          "$ref": "#/$defs/db_IntFilter"
+        }
+      ]
+    },
+    "users": {
+      "oneOf": [
+        {
+          "type": [
+            "null"
+          ]
+        },
+        {
+          "$ref": "#/$defs/db_UsersRelationFilter"
+        }
+      ]
+    }
   },
   "additionalProperties": false,
   "$defs": {
-      "db_DateTimeFilter": {
+    "db_DateTimeFilter": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "equals": {},
+        "gt": {},
+        "gte": {},
+        "in": {
           "type": [
-              "object",
-              "null"
+            "array",
+            "null"
           ],
-          "properties": {
-              "equals": {},
-              "gt": {},
-              "gte": {},
-              "in": {
-                  "type": [
-                      "array",
-                      "null"
-                  ],
-                  "items": {}
-              },
-              "lt": {},
-              "lte": {},
-              "not": {
-                  "$ref": "#/$defs/db_NestedDateTimeFilter"
-              },
-              "notIn": {
-                  "type": [
-                      "array",
-                      "null"
-                  ],
-                  "items": {}
-              }
-          },
-          "additionalProperties": false
+          "items": {}
+        },
+        "lt": {},
+        "lte": {},
+        "not": {
+          "$ref": "#/$defs/db_NestedDateTimeFilter"
+        },
+        "notIn": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {}
+        }
       },
-      "db_IntFilter": {
+      "additionalProperties": false
+    },
+    "db_IntFilter": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "equals": {
           "type": [
-              "object",
-              "null"
+            "integer",
+            "null"
+          ]
+        },
+        "gt": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "gte": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "in": {
+          "type": [
+            "array",
+            "null"
           ],
-          "properties": {
-              "equals": {
-                  "type": [
-                      "integer",
-                      "null"
-                  ]
-              },
-              "gt": {
-                  "type": [
-                      "integer",
-                      "null"
-                  ]
-              },
-              "gte": {
-                  "type": [
-                      "integer",
-                      "null"
-                  ]
-              },
-              "in": {
-                  "type": [
-                      "array",
-                      "null"
-                  ],
-                  "items": {
-                      "type": [
-                          "integer",
-                          "null"
-                      ]
-                  }
-              },
-              "lt": {
-                  "type": [
-                      "integer",
-                      "null"
-                  ]
-              },
-              "lte": {
-                  "type": [
-                      "integer",
-                      "null"
-                  ]
-              },
-              "not": {
-                  "$ref": "#/$defs/db_NestedIntFilter"
-              },
-              "notIn": {
-                  "type": [
-                      "array",
-                      "null"
-                  ],
-                  "items": {
-                      "type": [
-                          "integer",
-                          "null"
-                      ]
-                  }
-              }
-          },
-          "additionalProperties": false
+          "items": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "lt": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "lte": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "not": {
+          "$ref": "#/$defs/db_NestedIntFilter"
+        },
+        "notIn": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
       },
-      "db_JsonFilter": {
+      "additionalProperties": false
+    },
+    "db_JsonFilter": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "equals": {
           "type": [
-              "object",
-              "null"
-          ],
-          "properties": {
-              "equals": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              },
-              "not": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              }
-          },
-          "additionalProperties": false
+            "string",
+            "null"
+          ]
+        },
+        "not": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       },
-      "db_MessagesListRelationFilter": {
-          "type": [
-              "object",
-              "null"
-          ],
-          "properties": {
-              "every": {
-                  "$ref": "#/$defs/db_messagesWhereInput"
-              },
-              "none": {
-                  "$ref": "#/$defs/db_messagesWhereInput"
-              },
-              "some": {
-                  "$ref": "#/$defs/db_messagesWhereInput"
-              }
-          },
-          "additionalProperties": false
+      "additionalProperties": false
+    },
+    "db_MessagesListRelationFilter": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "every": {
+          "oneOf": [
+            {
+              "type": [
+                "null"
+              ]
+            },
+            {
+              "$ref": "#/$defs/db_messagesWhereInput"
+            }
+          ]
+        },
+        "none": {
+          "oneOf": [
+            {
+              "type": [
+                "null"
+              ]
+            },
+            {
+              "$ref": "#/$defs/db_messagesWhereInput"
+            }
+          ]
+        },
+        "some": {
+          "oneOf": [
+            {
+              "type": [
+                "null"
+              ]
+            },
+            {
+              "$ref": "#/$defs/db_messagesWhereInput"
+            }
+          ]
+        }
       },
-      "db_NestedDateTimeFilter": {
+      "additionalProperties": false
+    },
+    "db_NestedDateTimeFilter": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "equals": {},
+        "gt": {},
+        "gte": {},
+        "in": {
           "type": [
-              "object",
-              "null"
+            "array",
+            "null"
           ],
-          "properties": {
-              "equals": {},
-              "gt": {},
-              "gte": {},
-              "in": {
-                  "type": [
-                      "array",
-                      "null"
-                  ],
-                  "items": {}
-              },
-              "lt": {},
-              "lte": {},
-              "not": {
-                  "$ref": "#/$defs/db_NestedDateTimeFilter"
-              },
-              "notIn": {
-                  "type": [
-                      "array",
-                      "null"
-                  ],
-                  "items": {}
-              }
-          },
-          "additionalProperties": false
+          "items": {}
+        },
+        "lt": {},
+        "lte": {},
+        "not": {
+          "oneOf": [
+            {
+              "type": [
+                "null"
+              ]
+            },
+            {
+              "$ref": "#/$defs/db_NestedDateTimeFilter"
+            }
+          ]
+        },
+        "notIn": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {}
+        }
       },
-      "db_NestedIntFilter": {
+      "additionalProperties": false
+    },
+    "db_NestedIntFilter": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "equals": {
           "type": [
-              "object",
-              "null"
+            "integer",
+            "null"
+          ]
+        },
+        "gt": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "gte": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "in": {
+          "type": [
+            "array",
+            "null"
           ],
-          "properties": {
-              "equals": {
-                  "type": [
-                      "integer",
-                      "null"
-                  ]
-              },
-              "gt": {
-                  "type": [
-                      "integer",
-                      "null"
-                  ]
-              },
-              "gte": {
-                  "type": [
-                      "integer",
-                      "null"
-                  ]
-              },
-              "in": {
-                  "type": [
-                      "array",
-                      "null"
-                  ],
-                  "items": {
-                      "type": [
-                          "integer",
-                          "null"
-                      ]
-                  }
-              },
-              "lt": {
-                  "type": [
-                      "integer",
-                      "null"
-                  ]
-              },
-              "lte": {
-                  "type": [
-                      "integer",
-                      "null"
-                  ]
-              },
-              "not": {
-                  "$ref": "#/$defs/db_NestedIntFilter"
-              },
-              "notIn": {
-                  "type": [
-                      "array",
-                      "null"
-                  ],
-                  "items": {
-                      "type": [
-                          "integer",
-                          "null"
-                      ]
-                  }
-              }
-          },
-          "additionalProperties": false
+          "items": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "lt": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "lte": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "not": {
+          "oneOf": [
+            {
+              "type": [
+                "null"
+              ]
+            },
+            {
+              "$ref": "#/$defs/db_NestedIntFilter"
+            }
+          ]
+        },
+        "notIn": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
       },
-      "db_NestedStringFilter": {
+      "additionalProperties": false
+    },
+    "db_NestedStringFilter": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "contains": {
           "type": [
-              "object",
-              "null"
+            "string",
+            "null"
+          ]
+        },
+        "endsWith": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "equals": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "gt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "gte": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "in": {
+          "type": [
+            "array",
+            "null"
           ],
-          "properties": {
-              "contains": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              },
-              "endsWith": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              },
-              "equals": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              },
-              "gt": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              },
-              "gte": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              },
-              "in": {
-                  "type": [
-                      "array",
-                      "null"
-                  ],
-                  "items": {
-                      "type": [
-                          "string",
-                          "null"
-                      ]
-                  }
-              },
-              "lt": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              },
-              "lte": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              },
-              "not": {
-                  "$ref": "#/$defs/db_NestedStringFilter"
-              },
-              "notIn": {
-                  "type": [
-                      "array",
-                      "null"
-                  ],
-                  "items": {
-                      "type": [
-                          "string",
-                          "null"
-                      ]
-                  }
-              },
-              "startsWith": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              }
-          },
-          "additionalProperties": false
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "lt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lte": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "not": {
+          "oneOf": [
+            {
+              "type": [
+                "null"
+              ]
+            },
+            {
+              "$ref": "#/$defs/db_NestedStringFilter"
+            }
+          ]
+        },
+        "notIn": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "startsWith": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       },
-      "db_StringFilter": {
+      "additionalProperties": false
+    },
+    "db_StringFilter": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "contains": {
           "type": [
-              "object",
-              "null"
+            "string",
+            "null"
+          ]
+        },
+        "endsWith": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "equals": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "gt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "gte": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "in": {
+          "type": [
+            "array",
+            "null"
           ],
-          "properties": {
-              "contains": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              },
-              "endsWith": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              },
-              "equals": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              },
-              "gt": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              },
-              "gte": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              },
-              "in": {
-                  "type": [
-                      "array",
-                      "null"
-                  ],
-                  "items": {
-                      "type": [
-                          "string",
-                          "null"
-                      ]
-                  }
-              },
-              "lt": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              },
-              "lte": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              },
-              "mode": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              },
-              "not": {
-                  "$ref": "#/$defs/db_NestedStringFilter"
-              },
-              "notIn": {
-                  "type": [
-                      "array",
-                      "null"
-                  ],
-                  "items": {
-                      "type": [
-                          "string",
-                          "null"
-                      ]
-                  }
-              },
-              "startsWith": {
-                  "type": [
-                      "string",
-                      "null"
-                  ]
-              }
-          },
-          "additionalProperties": false
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "lt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lte": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "not": {
+          "$ref": "#/$defs/db_NestedStringFilter"
+        },
+        "notIn": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "startsWith": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       },
-      "db_UsersRelationFilter": {
-          "type": [
-              "object",
-              "null"
-          ],
-          "properties": {
-              "is": {
-                  "$ref": "#/$defs/db_usersWhereInput"
-              },
-              "isNot": {
-                  "$ref": "#/$defs/db_usersWhereInput"
-              }
-          },
-          "additionalProperties": false
+      "additionalProperties": false
+    },
+    "db_UsersRelationFilter": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "is": {
+          "$ref": "#/$defs/db_usersWhereInput"
+        },
+        "isNot": {
+          "oneOf": [
+            {
+              "type": [
+                "null"
+              ]
+            },
+            {
+              "$ref": "#/$defs/db_usersWhereInput"
+            }
+          ]
+        }
       },
-      "db_messagesWhereInput": {
+      "additionalProperties": false
+    },
+    "db_messagesWhereInput": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "AND": {
+          "oneOf": [
+            {
+              "type": [
+                "null"
+              ]
+            },
+            {
+              "$ref": "#/$defs/db_messagesWhereInput"
+            }
+          ]
+        },
+        "NOT": {
+          "oneOf": [
+            {
+              "type": [
+                "null"
+              ]
+            },
+            {
+              "$ref": "#/$defs/db_messagesWhereInput"
+            }
+          ]
+        },
+        "OR": {
           "type": [
-              "object",
-              "null"
+            "array",
+            "null"
           ],
-          "properties": {
-              "AND": {
-                  "$ref": "#/$defs/db_messagesWhereInput"
+          "items": {
+            "oneOf": [
+              {
+                "type": [
+                  "null"
+                ]
               },
-              "NOT": {
-                  "$ref": "#/$defs/db_messagesWhereInput"
-              },
-              "OR": {
-                  "type": [
-                      "array",
-                      "null"
-                  ],
-                  "items": {
-                      "$ref": "#/$defs/db_messagesWhereInput"
-                  }
-              },
-              "id": {
-                  "$ref": "#/$defs/db_IntFilter"
-              },
-              "message": {
-                  "$ref": "#/$defs/db_StringFilter"
-              },
-              "payload": {
-                  "$ref": "#/$defs/db_JsonFilter"
-              },
-              "user_id": {
-                  "$ref": "#/$defs/db_IntFilter"
-              },
-              "users": {
-                  "$ref": "#/$defs/db_UsersRelationFilter"
+              {
+                "$ref": "#/$defs/db_messagesWhereInput"
               }
-          },
-          "additionalProperties": false
+            ]
+          }
+        },
+        "id": {
+          "$ref": "#/$defs/db_IntFilter"
+        },
+        "message": {
+          "$ref": "#/$defs/db_StringFilter"
+        },
+        "payload": {
+          "$ref": "#/$defs/db_JsonFilter"
+        },
+        "user_id": {
+          "oneOf": [
+            {
+              "type": [
+                "null"
+              ]
+            },
+            {
+              "$ref": "#/$defs/db_IntFilter"
+            }
+          ]
+        },
+        "users": {
+          "$ref": "#/$defs/db_UsersRelationFilter"
+        }
       },
-      "db_usersWhereInput": {
+      "additionalProperties": false
+    },
+    "db_usersWhereInput": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "AND": {
+          "oneOf": [
+            {
+              "type": [
+                "null"
+              ]
+            },
+            {
+              "$ref": "#/$defs/db_usersWhereInput"
+            }
+          ]
+        },
+        "NOT": {
+          "oneOf": [
+            {
+              "type": [
+                "null"
+              ]
+            },
+            {
+              "$ref": "#/$defs/db_usersWhereInput"
+            }
+          ]
+        },
+        "OR": {
           "type": [
-              "object",
-              "null"
+            "array",
+            "null"
           ],
-          "properties": {
-              "AND": {
-                  "$ref": "#/$defs/db_usersWhereInput"
+          "items": {
+            "oneOf": [
+              {
+                "type": [
+                  "null"
+                ]
               },
-              "NOT": {
-                  "$ref": "#/$defs/db_usersWhereInput"
-              },
-              "OR": {
-                  "type": [
-                      "array",
-                      "null"
-                  ],
-                  "items": {
-                      "$ref": "#/$defs/db_usersWhereInput"
-                  }
-              },
-              "email": {
-                  "$ref": "#/$defs/db_StringFilter"
-              },
-              "id": {
-                  "$ref": "#/$defs/db_IntFilter"
-              },
-              "lastlogin": {
-                  "$ref": "#/$defs/db_DateTimeFilter"
-              },
-              "messages": {
-                  "$ref": "#/$defs/db_MessagesListRelationFilter"
-              },
-              "name": {
-                  "$ref": "#/$defs/db_StringFilter"
-              },
-              "pet": {
-                  "$ref": "#/$defs/db_StringFilter"
-              },
-              "updatedat": {
-                  "$ref": "#/$defs/db_DateTimeFilter"
+              {
+                "$ref": "#/$defs/db_usersWhereInput"
               }
-          },
-          "additionalProperties": false
-      }
+            ]
+          }
+        },
+        "email": {
+          "oneOf": [
+            {
+              "type": [
+                "null"
+              ]
+            },
+            {
+              "$ref": "#/$defs/db_StringFilter"
+            }
+          ]
+        },
+        "id": {
+          "oneOf": [
+            {
+              "type": [
+                "null"
+              ]
+            },
+            {
+              "$ref": "#/$defs/db_IntFilter"
+            }
+          ]
+        },
+        "lastlogin": {
+          "oneOf": [
+            {
+              "type": [
+                "null"
+              ]
+            },
+            {
+              "$ref": "#/$defs/db_DateTimeFilter"
+            }
+          ]
+        },
+        "messages": {
+          "$ref": "#/$defs/db_MessagesListRelationFilter"
+        },
+        "name": {
+          "oneOf": [
+            {
+              "type": [
+                "null"
+              ]
+            },
+            {
+              "$ref": "#/$defs/db_StringFilter"
+            }
+          ]
+        },
+        "pet": {
+          "oneOf": [
+            {
+              "type": [
+                "null"
+              ]
+            },
+            {
+              "$ref": "#/$defs/db_StringFilter"
+            }
+          ]
+        },
+        "updatedat": {
+          "$ref": "#/$defs/db_DateTimeFilter"
+        }
+      },
+      "additionalProperties": false
+    }
   }
-}
-`
+}`

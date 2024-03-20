@@ -24,6 +24,7 @@ var (
 	}
 	ErrParseJSONObject = errors.New("failed to parse json object")
 	ErrParseJSONArray  = errors.New("failed to parse json array")
+	ErrParseJSONValue  = errors.New("failed to parse json value")
 )
 
 type pool struct {
@@ -65,13 +66,17 @@ func (j *JSON) Get(nodeRef int, path []string) int {
 		}
 		return j.Get(j.Nodes[nodeRef].ArrayValues[index], path[1:])
 	}
-	if j.Nodes[nodeRef].Kind != NodeKindObject {
-		return -1
-	}
-	for _, i := range j.Nodes[nodeRef].ObjectFields {
-		if j.objectFieldKeyEquals(i, path[0]) {
-			return j.Get(j.Nodes[i].ObjectFieldValue, path[1:])
+	switch j.Nodes[nodeRef].Kind {
+	case NodeKindObject:
+		for _, i := range j.Nodes[nodeRef].ObjectFields {
+			if j.objectFieldKeyEquals(i, path[0]) {
+				return j.Get(j.Nodes[i].ObjectFieldValue, path[1:])
+			}
 		}
+	case NodeKindNull, NodeKindNullSkipError:
+		return nodeRef
+	default:
+		return -1
 	}
 	return -1
 }
@@ -82,6 +87,18 @@ func (j *JSON) GetObjectField(nodeRef int, path string) int {
 	}
 	for _, i := range j.Nodes[nodeRef].ObjectFields {
 		if j.objectFieldKeyEquals(i, path) {
+			return j.Nodes[i].ObjectFieldValue
+		}
+	}
+	return -1
+}
+
+func (j *JSON) GetObjectFieldBytes(nodeRef int, path []byte) int {
+	if j.Nodes[nodeRef].Kind != NodeKindObject {
+		return -1
+	}
+	for _, i := range j.Nodes[nodeRef].ObjectFields {
+		if j.objectFieldKeyEqualsBytes(i, path) {
 			return j.Nodes[i].ObjectFieldValue
 		}
 	}
@@ -116,22 +133,14 @@ func (j *JSON) DebugPrintNode(ref int) string {
 	return out.String()
 }
 
-func (j *JSON) SetObjectField(nodeRef, setFieldNodeRef int, path []string) bool {
-	before := j.DebugPrintNode(nodeRef)
-	if len(path) >= 2 {
-		subPath := path[:len(path)-1]
-		nodeRef = j.Get(nodeRef, subPath)
-	}
-	after := j.DebugPrintNode(nodeRef)
-	_, _ = before, after
+func (j *JSON) SetObjectField(nodeRef, setFieldNodeRef int, key string) bool {
 	for i, fieldRef := range j.Nodes[nodeRef].ObjectFields {
-		if j.objectFieldKeyEquals(fieldRef, path[len(path)-1]) {
+		if j.objectFieldKeyEquals(fieldRef, key) {
 			objectFieldNodeRef := j.Nodes[nodeRef].ObjectFields[i]
 			j.Nodes[objectFieldNodeRef].ObjectFieldValue = setFieldNodeRef
 			return true
 		}
 	}
-	key := path[len(path)-1]
 	j.storage = append(j.storage, key...)
 	j.Nodes = append(j.Nodes, Node{
 		Kind:             NodeKindObjectField,
@@ -145,6 +154,19 @@ func (j *JSON) SetObjectField(nodeRef, setFieldNodeRef int, path []string) bool 
 }
 
 func (j *JSON) objectFieldKeyEquals(objectFieldRef int, another string) bool {
+	key := j.ObjectFieldKey(objectFieldRef)
+	if len(key) != len(another) {
+		return false
+	}
+	for i := range key {
+		if key[i] != another[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (j *JSON) objectFieldKeyEqualsBytes(objectFieldRef int, another []byte) bool {
 	key := j.ObjectFieldKey(objectFieldRef)
 	if len(key) != len(another) {
 		return false
@@ -191,6 +213,11 @@ const (
 	NodeKindNumber
 	NodeKindBoolean
 	NodeKindNull
+	// NodeKindNullSkipError indicates that the node is null, but no error should be emitted
+	// There's no need to emit an error if the field should be non-nullable,
+	// because an error was already emitted when the field was fetched
+	// or a nested error was emitted, so there's no need to emit another one
+	NodeKindNullSkipError
 )
 
 func (j *JSON) ParseObject(input []byte) (err error) {
@@ -241,7 +268,7 @@ func (j *JSON) getJsonType(input []byte) jsonparser.ValueType {
 			if i+3 < len(input) && input[i+1] == 'u' && input[i+2] == 'l' && input[i+3] == 'l' {
 				return jsonparser.Null
 			}
-		default:
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 			return jsonparser.Number
 		}
 	}
@@ -272,6 +299,17 @@ func (j *JSON) AppendStringBytes(input []byte) int {
 	end := len(j.storage)
 	return j.appendNode(Node{
 		Kind:       NodeKindString,
+		valueStart: start,
+		valueEnd:   end,
+	})
+}
+
+func (j *JSON) AppendInt(value int) int {
+	start := len(j.storage)
+	j.storage = append(j.storage, strconv.FormatInt(int64(value), 10)...)
+	end := len(j.storage)
+	return j.appendNode(Node{
+		Kind:       NodeKindNumber,
 		valueStart: start,
 		valueEnd:   end,
 	})
@@ -374,7 +412,7 @@ func (j *JSON) AppendNonNullableFieldIsNullErr(fieldPath string, errorPath []Pat
 		ObjectFields: j.getIntSlice(),
 	})
 	errMessageStart, errMessageEnd := j.appendString("message")
-	errMessageValueStart, errMessageValueEnd := j.appendString(fmt.Sprintf("Cannot return null for non-nullable field %s.", fieldPath))
+	errMessageValueStart, errMessageValueEnd := j.appendString(fmt.Sprintf("Cannot return null for non-nullable field '%s'.", fieldPath))
 	errMessageField := j.appendNode(Node{
 		Kind:     NodeKindObjectField,
 		keyStart: errMessageStart,
@@ -514,8 +552,9 @@ func (j *JSON) parseKnownValue(value []byte, dataType jsonparser.ValueType, star
 		return j.parseBoolean(value, start)
 	case jsonparser.Null:
 		return j.parseNull(value, start)
+	default:
+		return -1, ErrParseJSONValue
 	}
-	return -1, fmt.Errorf("unknown json type: %v", dataType)
 }
 
 func (j *JSON) parseString(value []byte, start int) (int, error) {
@@ -578,7 +617,7 @@ func (j *JSON) PrintNode(node Node, out io.Writer) error {
 		return j.printArray(node, out)
 	case NodeKindString:
 		return j.printString(node, out)
-	case NodeKindNumber, NodeKindBoolean, NodeKindNull:
+	case NodeKindNumber, NodeKindBoolean, NodeKindNull, NodeKindNullSkipError:
 		return j.printNonStringScalar(node, out)
 	}
 	return fmt.Errorf("unknown node kind: %v", node.Kind)
@@ -611,6 +650,39 @@ func (j *JSON) printObject(node Node, out io.Writer) error {
 		if err != nil {
 			return err
 		}
+	}
+	_, err = out.Write(rBrace)
+	return err
+}
+
+// PrintObjectFlat prints the flat object without nested fields (array, object)
+func (j *JSON) PrintObjectFlat(ref int, out io.Writer) (err error) {
+	if j.Nodes[ref].Kind != NodeKindObject {
+		return fmt.Errorf("node is not an object")
+	}
+	var (
+		writeComma = false
+	)
+	_, err = out.Write(lBrace)
+	if err != nil {
+		return err
+	}
+	for _, fieldRef := range j.Nodes[ref].ObjectFields {
+		fieldValue := j.Nodes[fieldRef].ObjectFieldValue
+		if j.Nodes[fieldValue].Kind == NodeKindObject || j.Nodes[fieldValue].Kind == NodeKindArray {
+			continue
+		}
+		if writeComma {
+			_, err = out.Write(comma)
+			if err != nil {
+				return err
+			}
+		}
+		err = j.PrintNode(j.Nodes[fieldRef], out)
+		if err != nil {
+			return err
+		}
+		writeComma = true
 	}
 	_, err = out.Write(rBrace)
 	return err
@@ -798,6 +870,9 @@ func (j *JSON) NodeIsDefined(ref int) bool {
 		return false
 	}
 	if j.Nodes[ref].Kind == NodeKindNull {
+		return false
+	}
+	if j.Nodes[ref].Kind == NodeKindNullSkipError {
 		return false
 	}
 	return true

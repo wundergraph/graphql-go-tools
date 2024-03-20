@@ -40,23 +40,23 @@ func (f *fieldSelectionMergeVisitor) fieldsCanMerge(left, right int) bool {
 	return f.operation.DirectiveSetsAreEqual(leftDirectives, rightDirectives)
 }
 
-func (f *fieldSelectionMergeVisitor) isFieldSelection(ref int) bool {
-	return f.operation.Selections[ref].Kind == ast.SelectionKindField
-}
-
 func (f *fieldSelectionMergeVisitor) fieldsHaveSelections(left, right int) bool {
 	return f.operation.Fields[left].HasSelections && f.operation.Fields[right].HasSelections
 }
 
-func (f *fieldSelectionMergeVisitor) removeSelection(set, i int) {
-	f.operation.SelectionSets[set].SelectionRefs = append(f.operation.SelectionSets[set].SelectionRefs[:i], f.operation.SelectionSets[set].SelectionRefs[i+1:]...)
-}
+func (f *fieldSelectionMergeVisitor) mergeFields(left, right int) (ok bool) {
+	var leftSet, rightSet int
+	leftSet, ok = f.operation.FieldSelectionSet(left)
+	if !ok {
+		return false
+	}
+	rightSet, ok = f.operation.FieldSelectionSet(right)
+	if !ok {
+		return false
+	}
 
-func (f *fieldSelectionMergeVisitor) mergeFields(left, right int) {
-	leftSet := f.operation.Fields[left].SelectionSet
-	rightSet := f.operation.Fields[right].SelectionSet
-	f.operation.SelectionSets[leftSet].SelectionRefs = append(f.operation.SelectionSets[leftSet].SelectionRefs, f.operation.SelectionSets[rightSet].SelectionRefs...)
-	f.operation.Fields[left].Directives.Refs = append(f.operation.Fields[left].Directives.Refs, f.operation.Fields[right].Directives.Refs...)
+	f.operation.AppendSelectionSet(leftSet, rightSet)
+	return true
 }
 
 func (f *fieldSelectionMergeVisitor) EnterSelectionSet(ref int) {
@@ -66,12 +66,12 @@ func (f *fieldSelectionMergeVisitor) EnterSelectionSet(ref int) {
 	}
 
 	for _, leftSelection := range f.operation.SelectionSets[ref].SelectionRefs {
-		if !f.isFieldSelection(leftSelection) {
+		if !f.operation.SelectionIsFieldSelection(leftSelection) {
 			continue
 		}
 		leftField := f.operation.Selections[leftSelection].Ref
 		for i, rightSelection := range f.operation.SelectionSets[ref].SelectionRefs {
-			if !f.isFieldSelection(rightSelection) {
+			if !f.operation.SelectionIsFieldSelection(rightSelection) {
 				continue
 			}
 			if leftSelection == rightSelection {
@@ -84,9 +84,11 @@ func (f *fieldSelectionMergeVisitor) EnterSelectionSet(ref int) {
 			if !f.fieldsCanMerge(leftField, rightField) {
 				continue
 			}
-			f.removeSelection(ref, i)
-			f.mergeFields(leftField, rightField)
-			f.RevisitNode()
+
+			if f.mergeFields(leftField, rightField) {
+				f.operation.RemoveFromSelectionSet(ref, i)
+				f.RevisitNode()
+			}
 			return
 		}
 	}

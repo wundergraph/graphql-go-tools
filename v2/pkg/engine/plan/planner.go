@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -17,6 +18,8 @@ type Planner struct {
 	configurationVisitor *configurationVisitor
 	planningWalker       *astvisitor.Walker
 	planningVisitor      *Visitor
+
+	prepareOperationWalker *astvisitor.Walker
 }
 
 // NewPlanner creates a new Planner from the Configuration and a ctx object
@@ -28,12 +31,16 @@ type Planner struct {
 // At the time when the resolver and all operations should be garbage collected, ensure to first cancel or timeout the ctx object
 // If you don't cancel the context.Context, the goroutines will run indefinitely and there's no reference left to stop them
 func NewPlanner(ctx context.Context, config Configuration) *Planner {
-	// configuration
+	// prepare operation walker handles internal normalization for planner
+	prepareOperationWalker := astvisitor.NewWalker(48)
+	astnormalization.InlineFragmentAddOnType(&prepareOperationWalker)
 
+	// configuration
 	configurationWalker := astvisitor.NewWalker(48)
 	configVisitor := &configurationVisitor{
-		walker: &configurationWalker,
-		ctx:    ctx,
+		walker:              &configurationWalker,
+		ctx:                 ctx,
+		fieldConfigurations: config.Fields,
 	}
 
 	configurationWalker.RegisterEnterDocumentVisitor(configVisitor)
@@ -51,11 +58,12 @@ func NewPlanner(ctx context.Context, config Configuration) *Planner {
 	}
 
 	p := &Planner{
-		config:               config,
-		configurationWalker:  &configurationWalker,
-		configurationVisitor: configVisitor,
-		planningWalker:       &planningWalker,
-		planningVisitor:      planningVisitor,
+		config:                 config,
+		configurationWalker:    &configurationWalker,
+		configurationVisitor:   configVisitor,
+		planningWalker:         &planningWalker,
+		planningVisitor:        planningVisitor,
+		prepareOperationWalker: &prepareOperationWalker,
 	}
 
 	return p
@@ -75,6 +83,11 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		return
 	}
 
+	p.prepareOperation(operation, definition, report)
+	if report.HasErrors() {
+		return
+	}
+
 	// assign hash to each datasource
 	for i := range p.config.DataSources {
 		p.config.DataSources[i].Hash()
@@ -89,12 +102,17 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		p.debugMessage("Planning visitor:")
 	}
 
+	hasConditionalSkipInclude := hasConditionalSkipInclude(operation, definition, report)
+	if report.HasErrors() {
+		return nil
+	}
+
 	// configure planning visitor
 
 	p.planningVisitor.planners = p.configurationVisitor.planners
 	p.planningVisitor.Config = p.config
-	p.planningVisitor.fetchConfigurations = p.configurationVisitor.fetches
 	p.planningVisitor.skipFieldsRefs = p.configurationVisitor.skipFieldsRefs
+	p.planningVisitor.allowFieldMerge = !hasConditionalSkipInclude
 
 	p.planningWalker.ResetVisitors()
 	p.planningWalker.SetVisitorFilter(p.planningVisitor)
@@ -163,10 +181,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 	}
 
 	if p.config.Debug.PrintNodeSuggestions {
-		p.debugMessage("Initial node suggestions:")
-		for i := range p.configurationVisitor.nodeSuggestions {
-			fmt.Println(p.configurationVisitor.nodeSuggestions[i].String())
-		}
+		p.configurationVisitor.nodeSuggestions.printNodes("\n\nInitial node suggestions:\n\n")
 	}
 
 	p.configurationVisitor.secondaryRun = false
@@ -189,17 +204,16 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 	for p.configurationVisitor.hasNewFields || p.configurationVisitor.hasMissingPaths() {
 		p.configurationVisitor.secondaryRun = true
 
-		// update suggestions for the new required fields
-		p.configurationVisitor.dataSources, p.configurationVisitor.nodeSuggestions =
-			dsFilter.FilterDataSources(p.config.DataSources, p.configurationVisitor.nodeSuggestions)
-		if report.HasErrors() {
-			return
-		}
+		if p.configurationVisitor.hasNewFields {
+			// update suggestions for the new required fields
+			p.configurationVisitor.dataSources, p.configurationVisitor.nodeSuggestions =
+				dsFilter.FilterDataSources(p.config.DataSources, p.configurationVisitor.nodeSuggestions, p.configurationVisitor.nodeSuggestionHints...)
+			if report.HasErrors() {
+				return
+			}
 
-		if p.config.Debug.PrintNodeSuggestions {
-			p.debugMessage("Recalculated node suggestions:")
-			for i := range p.configurationVisitor.nodeSuggestions {
-				fmt.Println(p.configurationVisitor.nodeSuggestions[i].String())
+			if p.config.Debug.PrintNodeSuggestions {
+				p.configurationVisitor.nodeSuggestions.printNodes("\n\nRecalculated node suggestions:\n\n")
 			}
 		}
 
@@ -216,18 +230,17 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 
 		if p.config.Debug.PrintPlanningPaths {
 			p.debugMessage(fmt.Sprintf("After run #%d. Planning paths", i))
-			if p.configurationVisitor.hasMissingPaths() {
-				p.debugMessage("Missing paths:")
-				for path := range p.configurationVisitor.missingPathTracker {
-					fmt.Println(path)
-				}
-			}
 			p.printPlanningPaths()
 		}
 		i++
 
 		if i > 100 {
-			report.AddInternalError(fmt.Errorf("bad datasource configuration - could not plan the operation"))
+			missingPaths := make([]string, 0, len(p.configurationVisitor.missingPathTracker))
+			for path := range p.configurationVisitor.missingPathTracker {
+				missingPaths = append(missingPaths, path)
+			}
+
+			report.AddInternalError(fmt.Errorf("bad datasource configuration - could not plan the operation. missing path: %v", missingPaths))
 			return
 		}
 	}
@@ -280,6 +293,10 @@ func (p *Planner) selectOperation(operation *ast.Document, operationName string,
 	p.planningVisitor.OperationName = operationName
 }
 
+func (p *Planner) prepareOperation(operation, definition *ast.Document, report *operationreport.Report) {
+	p.prepareOperationWalker.Walk(operation, definition, report)
+}
+
 func (p *Planner) printOperation(operation *ast.Document) {
 	var pp string
 
@@ -298,6 +315,13 @@ func (p *Planner) printPlanningPaths() {
 		fmt.Println("Paths for planner", i+1)
 		fmt.Println("Planner parent path", planner.parentPath)
 		for _, path := range planner.paths {
+			fmt.Println(path.String())
+		}
+	}
+
+	if p.configurationVisitor.hasMissingPaths() {
+		p.debugMessage("Missing paths:")
+		for _, path := range p.configurationVisitor.missingPathTracker {
 			fmt.Println(path.String())
 		}
 	}

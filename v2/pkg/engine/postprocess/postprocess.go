@@ -15,8 +15,9 @@ type Processor struct {
 func DefaultProcessor() *Processor {
 	return &Processor{
 		[]PostProcessor{
-			&ProcessDataSource{},
-			&DataSourceFetch{},
+			&ResolveInputTemplates{},
+			&CreateMultiFetchTypes{},
+			&CreateConcreteSingleFetchTypes{},
 		},
 	}
 }

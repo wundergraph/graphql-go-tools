@@ -17,8 +17,8 @@ import (
 	"github.com/tidwall/gjson"
 	errors "golang.org/x/xerrors"
 
-	"github.com/wundergraph/graphql-go-tools/internal/pkg/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/pkg/fastbuffer"
+	"github.com/wundergraph/graphql-go-tools/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/pkg/pool"
 )
@@ -602,8 +602,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		select {
 		case <-resolverDone:
 			return nil
-		default:
-			data, ok := <-next
+		case data, ok := <-next:
 			if !ok {
 				return nil
 			}

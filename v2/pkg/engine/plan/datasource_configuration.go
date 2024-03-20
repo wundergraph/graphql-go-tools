@@ -52,7 +52,7 @@ func (d *DataSourceConfiguration) Hash() DSHash {
 
 type DataSourcePlannerConfiguration struct {
 	RequiredFields FederationFieldConfigurations
-	ProvidedFields NodeSuggestions
+	ProvidedFields *NodeSuggestions
 	ParentPath     string
 	PathType       PlannerPathType
 	IsNested       bool
@@ -91,7 +91,11 @@ func (d *DataSourceConfiguration) HasKeyRequirement(typeName, requiresFields str
 }
 
 func (d *DataSourceConfiguration) RequiredFieldsByKey(typeName string) []FederationFieldConfiguration {
-	return d.FederationMetaData.Keys.FilterByType(typeName)
+	return d.FederationMetaData.Keys.FilterByTypeAndResolvability(typeName, true)
+}
+
+func (d *DataSourceConfiguration) HasEntity(typeName string) bool {
+	return len(d.FederationMetaData.Keys.FilterByTypeAndResolvability(typeName, false)) > 0
 }
 
 func (d *DataSourceConfiguration) RequiredFieldsByRequires(typeName, fieldName string) []FederationFieldConfiguration {

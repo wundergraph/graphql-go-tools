@@ -38,7 +38,7 @@ func mockedDS(t TestingTB, ctrl *gomock.Controller, expectedInput, responseData 
 
 func TestResolveGraphQLResponse_Federation(t *testing.T) {
 	t.Run("federation: composed keys, requires, provides, shareable", func(t *testing.T) {
-		t.Run("composed keys", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		t.Run("composed keys", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			expectedAccountsQuery := `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":[{"__typename":"Account","id":"1234","info":{"a":"foo","b":"bar"}}]}}}`
 
 			return &GraphQLResponse{
@@ -177,7 +177,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 			}, Context{ctx: context.Background()}, `{"data":{"user":{"account":{"name":"John Doe","shippingInfo":{"zip":"12345"}}}}}`
 		}))
 
-		t.Run("federation with shareable", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		t.Run("federation with shareable", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			firstService := NewMockDataSource(ctrl)
 			firstService.EXPECT().
 				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -370,7 +370,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 	})
 
 	t.Run("federation: response renderer", func(t *testing.T) {
-		t.Run("multiple entities with response renderer", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		t.Run("multiple entities with response renderer", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
@@ -566,7 +566,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"user":{"name":"Bill","info":{"age":21},"address":{"line1":"Munich"}}}}`
 		}))
 
-		t.Run("multiple entities with response renderer and batching", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		t.Run("multiple entities with response renderer and batching", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
@@ -782,7 +782,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"users":[{"name":"Bill","info":{"age":21},"address":{"line1":"Munich"}},{"name":"John","info":{"age":22},"address":{"line1":"Berlin"}},{"name":"Jane","info":{"age":23},"address":{"line1":"Hamburg"}}]}}`
 		}))
 
-		t.Run("multiple entities with response renderer and batching, duplicates", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		t.Run("multiple entities with response renderer and batching, duplicates", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
@@ -998,7 +998,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"users":[{"name":"Bill","info":{"age":21},"address":{"line1":"Munich"}},{"name":"John","info":{"age":22},"address":{"line1":"Munich"}},{"name":"Jane","info":{"age":23},"address":{"line1":"Munich"}}]}}`
 		}))
 
-		t.Run("multiple entities with response renderer and batching, one null", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		t.Run("multiple entities with response renderer and batching, one null", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
@@ -1221,7 +1221,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 			}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"users":[{"name":"Bill","info":{"age":21},"address":{"line1":"Munich"}},{"name":"John","info":null,"address":{"line1":"Berlin"}},{"name":"Jane","info":{"age":23},"address":{"line1":"Hamburg"}}]}}`
 		}))
 
-		t.Run("multiple entities with response renderer and batching, one render err", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		t.Run("multiple entities with response renderer and batching, one render err", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
 				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -1438,11 +1438,11 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 						},
 					},
 				},
-			}, Context{ctx: context.Background(), Variables: nil}, `{"errors":[{"message":"Cannot return null for non-nullable field Query.users.address.line1.","path":["users",0,"address","line1"]}],"data":{"users":[{"name":"Bill","info":{"age":21},"address":null},{"name":"John","info":{"age":22},"address":{"line1":"Berlin"}},{"name":"Jane","info":{"age":23},"address":{"line1":"Hamburg"}}]}}`
+			}, Context{ctx: context.Background(), Variables: nil}, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.users.address.line1'.","path":["users",0,"address","line1"]}],"data":{"users":[{"name":"Bill","info":{"age":21},"address":null},{"name":"John","info":{"age":22},"address":{"line1":"Berlin"}},{"name":"Jane","info":{"age":23},"address":{"line1":"Hamburg"}}]}}`
 		}))
 	})
 
-	t.Run("serial fetch", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("serial fetch", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 		user := mockedDS(t, ctrl,
 			`{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {__typename id line1 line2}}}}"}}`,
@@ -1684,7 +1684,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 		}, Context{ctx: context.Background()}, `{"data":{"user":{"account":{"address":{"fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1"}}}}}`
 	}))
 
-	t.Run("nested batching", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("nested batching", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 		productsService := mockedDS(t, ctrl,
 			`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`,
@@ -1956,7 +1956,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 		}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`
 	}))
 
-	t.Run("nested batching single root result", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("nested batching single root result", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 		productsService := mockedDS(t, ctrl,
 			`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`,
@@ -2228,7 +2228,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 		}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}}]}]}}`
 	}))
 
-	t.Run("nested batching of direct array children", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("nested batching of direct array children", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 		accountsService := mockedDS(t, ctrl,
 			`{"method":"POST","url":"http://accounts","body":{"query":"{accounts{__typename ... on User {__typename id} ... on Moderator {__typename moderatorID} ... on Admin {__typename adminID}}}"}}`,

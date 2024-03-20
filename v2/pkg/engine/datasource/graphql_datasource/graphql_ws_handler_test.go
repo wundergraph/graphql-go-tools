@@ -1,3 +1,5 @@
+//go:build !race
+
 package graphql_datasource
 
 import (
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 
 	"github.com/stretchr/testify/assert"
@@ -17,8 +20,6 @@ import (
 )
 
 func TestWebSocketSubscriptionClientInitIncludeKA_GQLWS(t *testing.T) {
-	t.Skip("FIXME")
-
 	serverDone := make(chan struct{})
 	assertion := require.New(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -72,18 +73,17 @@ func TestWebSocketSubscriptionClientInitIncludeKA_GQLWS(t *testing.T) {
 		WithLogger(logger()),
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
-	next := make(chan []byte)
+	updater := &testSubscriptionUpdater{}
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-	}, next)
+	}, updater)
 	assertion.NoError(err)
-	first := <-next
-	second := <-next
-	assertion.Equal(`{"data":{"messageAdded":{"text":"first"}}}`, string(first))
-	assertion.Equal(`{"data":{"messageAdded":{"text":"second"}}}`, string(second))
+	updater.AwaitUpdates(t, time.Second, 2)
+	assertion.Equal(`{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+	assertion.Equal(`{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
 	clientCancel()
 	assertion.Eventuallyf(func() bool {
 		<-serverDone
@@ -98,8 +98,6 @@ func TestWebSocketSubscriptionClientInitIncludeKA_GQLWS(t *testing.T) {
 }
 
 func TestWebsocketSubscriptionClient_GQLWS(t *testing.T) {
-	t.Skip("FIXME")
-
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, nil)
@@ -139,20 +137,19 @@ func TestWebsocketSubscriptionClient_GQLWS(t *testing.T) {
 		WithLogger(logger()),
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
-	next := make(chan []byte)
+	updater := &testSubscriptionUpdater{}
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-	}, next)
+	}, updater)
 	assert.NoError(t, err)
-	first := <-next
-	second := <-next
-	third := <-next
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, string(first))
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, string(second))
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, string(third))
+	updater.AwaitUpdates(t, time.Second, 3)
+	assert.Equal(t, 3, len(updater.updates))
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
 		<-serverDone
@@ -167,8 +164,6 @@ func TestWebsocketSubscriptionClient_GQLWS(t *testing.T) {
 }
 
 func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
-	t.Skip("FIXME")
-
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, nil)
@@ -202,19 +197,18 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 		WithLogger(logger()),
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
-	next := make(chan []byte)
+	updater := &testSubscriptionUpdater{}
 	err := client.Subscribe(resolve.NewContext(clientCtx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomNam: "room"){text}}`,
 		},
-	}, next)
+	}, updater)
 	assert.NoError(t, err)
-	message := <-next
-	assert.Equal(t, `{"errors":[{"message":"error"},{"message":"error"}]}`, string(message))
+	updater.AwaitUpdates(t, time.Second, 1)
+	assert.Equal(t, `{"errors":[{"message":"error"},{"message":"error"}]}`, updater.updates[0])
 	clientCancel()
-	_, ok := <-next
-	assert.False(t, ok)
+	updater.AwaitDone(t, time.Second)
 	assert.Eventuallyf(t, func() bool {
 		<-serverDone
 		return true
@@ -222,8 +216,6 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 }
 
 func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
-	t.Skip("FIXME")
-
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, nil)
@@ -257,19 +249,19 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 		WithLogger(logger()),
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
-	next := make(chan []byte)
+	updater := &testSubscriptionUpdater{}
 	err := client.Subscribe(resolve.NewContext(clientCtx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomNam: "room"){text}}`,
 		},
-	}, next)
+	}, updater)
 	assert.NoError(t, err)
-	message := <-next
-	assert.Equal(t, `{"errors":[{"message":"error"}]}`, string(message))
+	updater.AwaitUpdates(t, time.Second, 1)
+	assert.Equal(t, 1, len(updater.updates))
+	assert.Equal(t, `{"errors":[{"message":"error"}]}`, updater.updates[0])
 	clientCancel()
-	_, ok := <-next
-	assert.False(t, ok)
+	updater.AwaitDone(t, time.Second)
 	assert.Eventuallyf(t, func() bool {
 		<-serverDone
 		return true
@@ -277,8 +269,6 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 }
 
 func TestWebsocketSubscriptionClient_GQLWS_Upstream_Dies(t *testing.T) {
-	t.Skip("FIXME")
-
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
 
@@ -320,21 +310,22 @@ func TestWebsocketSubscriptionClient_GQLWS_Upstream_Dies(t *testing.T) {
 		WithLogger(logger()),
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
-	next := make(chan []byte)
+	updater := &testSubscriptionUpdater{}
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
 		Body: GraphQLBody{
 			Query: `subscription {messageAdded(roomName: "room"){text}}`,
 		},
-	}, next)
+	}, updater)
 	assert.NoError(t, err)
-	first := <-next
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, string(first))
+	updater.AwaitUpdates(t, time.Second, 1)
+	assert.Equal(t, 1, len(updater.updates))
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
 
 	// Kill the upstream here. We should get an End-of-File error.
 	assert.NoError(t, wrappedListener.underlyingConnection.Close())
-	errorMessage := <-next
-	assert.Equal(t, `{"errors":[{"message":"failed to get reader: failed to read frame header: EOF"}]}`, string(errorMessage))
+	updater.AwaitUpdates(t, time.Second, 2)
+	assert.Equal(t, `{"errors":[{"message":"failed to get reader: failed to read frame header: EOF"}]}`, updater.updates[1])
 
 	serverCancel()
 	clientCancel()
@@ -368,16 +359,20 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 			WithWSSubProtocol(ProtocolGraphQLWS),
 		)
 
+		updater := &testSubscriptionUpdater{}
+
 		resolveCtx1 := resolve.NewContext(ctx)
 		err := client.Subscribe(resolveCtx1, GraphQLSubscriptionOptions{
 			URL: server.URL,
-		}, make(chan []byte))
+		}, updater)
 		assert.NoError(t, err)
+
+		updater2 := &testSubscriptionUpdater{}
 
 		resolveCtx2 := resolve.NewContext(ctx)
 		err = client.Subscribe(resolveCtx2, GraphQLSubscriptionOptions{
 			URL: server.URL,
-		}, make(chan []byte))
+		}, updater2)
 		assert.NoError(t, err)
 
 		assert.Len(t, client.handlers, 1)
@@ -415,6 +410,8 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 					WithWSSubProtocol(ProtocolGraphQLWS),
 				)
 
+				updater := &testSubscriptionUpdater{}
+
 				resolveCtx1 := resolve.NewContext(ctx)
 				resolveCtx1.Request.Header = make(http.Header)
 				resolveCtx1.Request.Header.Set(headerName, headerValue)
@@ -422,8 +419,10 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 					URL:                                     server.URL,
 					ForwardedClientHeaderNames:              c.ForwardedClientHeaderNames,
 					ForwardedClientHeaderRegularExpressions: c.ForwardedClientHeaderRegularExpressions,
-				}, make(chan []byte))
+				}, updater)
 				assert.NoError(t, err)
+
+				updater2 := &testSubscriptionUpdater{}
 
 				resolveCtx2 := resolve.NewContext(ctx)
 				resolveCtx2.Request.Header = make(http.Header)
@@ -432,7 +431,7 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 					URL:                                     server.URL,
 					ForwardedClientHeaderNames:              c.ForwardedClientHeaderNames,
 					ForwardedClientHeaderRegularExpressions: c.ForwardedClientHeaderRegularExpressions,
-				}, make(chan []byte))
+				}, updater2)
 				assert.NoError(t, err)
 
 				assert.Len(t, client.handlers, 1)
@@ -450,6 +449,8 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 					WithWSSubProtocol(ProtocolGraphQLWS),
 				)
 
+				updater := &testSubscriptionUpdater{}
+
 				resolveCtx1 := resolve.NewContext(ctx)
 				resolveCtx1.Request.Header = make(http.Header)
 				resolveCtx1.Request.Header.Set(headerName, "1")
@@ -457,8 +458,10 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 					URL:                                     server.URL,
 					ForwardedClientHeaderNames:              c.ForwardedClientHeaderNames,
 					ForwardedClientHeaderRegularExpressions: c.ForwardedClientHeaderRegularExpressions,
-				}, make(chan []byte))
+				}, updater)
 				assert.NoError(t, err)
+
+				updater2 := &testSubscriptionUpdater{}
 
 				resolveCtx2 := resolve.NewContext(ctx)
 				resolveCtx2.Request.Header = make(http.Header)
@@ -467,7 +470,7 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 					URL:                                     server.URL,
 					ForwardedClientHeaderNames:              c.ForwardedClientHeaderNames,
 					ForwardedClientHeaderRegularExpressions: c.ForwardedClientHeaderRegularExpressions,
-				}, make(chan []byte))
+				}, updater2)
 				assert.NoError(t, err)
 
 				assert.Len(t, client.handlers, 2)

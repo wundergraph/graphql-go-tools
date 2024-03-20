@@ -93,6 +93,8 @@ type FieldConfiguration struct {
 	// e.g. {"response":"{\"foo\":\"bar\"}"} will be returned as {"foo":"bar"} when path is "response"
 	// This way, it is possible to resolve a JSON string as part of the response without extra String encoding of the JSON
 	UnescapeResponseJson bool
+	// HasAuthorizationRule needs to be set to true if the Authorizer should be called for this field
+	HasAuthorizationRule bool
 }
 
 type ArgumentsConfigurations []ArgumentConfiguration

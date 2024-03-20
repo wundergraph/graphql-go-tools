@@ -11,7 +11,7 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
-	"github.com/wundergraph/graphql-go-tools/internal/pkg/quotes"
+	"github.com/wundergraph/graphql-go-tools/pkg/internal/quotes"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/literal"
 )
 

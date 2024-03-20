@@ -736,6 +736,7 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			return &resolve.CustomNode{
 				CustomResolve: customResolve,
 				Path:          path,
+				Nullable:      nullable,
 			}
 		}
 		typeDefinitionNode, ok := v.Definition.Index.FirstNodeByNameStr(typeName)

@@ -30,6 +30,10 @@ type EngineResultWriter struct {
 	flushCallback func(data []byte)
 }
 
+func (e *EngineResultWriter) Complete() {
+
+}
+
 func NewEngineResultWriter() EngineResultWriter {
 	return EngineResultWriter{
 		buf: &bytes.Buffer{},
@@ -54,12 +58,13 @@ func (e *EngineResultWriter) Read(p []byte) (n int, err error) {
 	return e.buf.Read(p)
 }
 
-func (e *EngineResultWriter) Flush() {
+func (e *EngineResultWriter) Flush() error {
 	if e.flushCallback != nil {
 		e.flushCallback(e.Bytes())
 	}
 
 	e.Reset()
+	return nil
 }
 
 func (e *EngineResultWriter) Len() int {
@@ -154,18 +159,6 @@ type WebsocketBeforeStartHook interface {
 
 type ExecutionOptionsV2 func(ctx *internalExecutionContext)
 
-func WithBeforeFetchHook(hook resolve.BeforeFetchHook) ExecutionOptionsV2 {
-	return func(ctx *internalExecutionContext) {
-		ctx.resolveContext.SetBeforeFetchHook(hook)
-	}
-}
-
-func WithAfterFetchHook(hook resolve.AfterFetchHook) ExecutionOptionsV2 {
-	return func(ctx *internalExecutionContext) {
-		ctx.resolveContext.SetAfterFetchHook(hook)
-	}
-}
-
 func WithAdditionalHttpHeaders(headers http.Header, excludeByKeys ...string) ExecutionOptionsV2 {
 	return func(ctx *internalExecutionContext) {
 		if len(headers) == 0 {
@@ -213,10 +206,12 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 	}
 
 	return &ExecutionEngineV2{
-		logger:   logger,
-		config:   engineConfig,
-		planner:  plan.NewPlanner(ctx, engineConfig.plannerConfig),
-		resolver: resolve.New(ctx, engineConfig.dataLoaderConfig.EnableSingleFlightLoader),
+		logger:  logger,
+		config:  engineConfig,
+		planner: plan.NewPlanner(ctx, engineConfig.plannerConfig),
+		resolver: resolve.New(ctx, resolve.ResolverOptions{
+			MaxConcurrency: 1024,
+		}),
 		internalExecutionContextPool: sync.Pool{
 			New: func() interface{} {
 				return newInternalExecutionContext()
@@ -226,7 +221,7 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 	}, nil
 }
 
-func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, writer resolve.FlushWriter, options ...ExecutionOptionsV2) error {
+func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, writer resolve.SubscriptionResponseWriter, options ...ExecutionOptionsV2) error {
 	if !operation.IsNormalized() {
 		result, err := operation.Normalize(e.config.schema)
 		if err != nil {
@@ -265,7 +260,7 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 	case *plan.SynchronousResponsePlan:
 		err = e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
 	case *plan.SubscriptionResponsePlan:
-		err = e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
+		err = e.resolver.AsyncResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer, resolve.SubscriptionIdentifier{})
 	default:
 		return errors.New("execution of operation is not possible")
 	}

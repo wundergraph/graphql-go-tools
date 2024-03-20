@@ -1,5 +1,11 @@
 package resolve
 
+import (
+	"encoding/json"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+)
+
 type FetchKind int
 
 const (
@@ -9,19 +15,29 @@ const (
 	FetchKindParallelListItem
 	FetchKindEntity
 	FetchKindEntityBatch
+	FetchKindMulti
 )
 
 type Fetch interface {
 	FetchKind() FetchKind
 }
 
-type Fetches []Fetch
+type MultiFetch struct {
+	Fetches []*SingleFetch
+}
+
+func (_ *MultiFetch) FetchKind() FetchKind {
+	return FetchKindMulti
+}
 
 type SingleFetch struct {
 	FetchConfiguration
-	SerialID             int
+	FetchID              int
+	DependsOnFetchIDs    []int
 	InputTemplate        InputTemplate
 	DataSourceIdentifier []byte
+	Trace                *DataSourceLoadTrace
+	Info                 *FetchInfo
 }
 
 type PostProcessingConfiguration struct {
@@ -54,6 +70,7 @@ func (_ *SingleFetch) FetchKind() FetchKind {
 // should be used only for object fields which could be fetched parallel
 type ParallelFetch struct {
 	Fetches []Fetch
+	Trace   *DataSourceLoadTrace
 }
 
 func (_ *ParallelFetch) FetchKind() FetchKind {
@@ -64,6 +81,7 @@ func (_ *ParallelFetch) FetchKind() FetchKind {
 // should be used only for object fields which should be fetched serial
 type SerialFetch struct {
 	Fetches []Fetch
+	Trace   *DataSourceLoadTrace
 }
 
 func (_ *SerialFetch) FetchKind() FetchKind {
@@ -77,7 +95,8 @@ type BatchEntityFetch struct {
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
 	DataSourceIdentifier []byte
-	DisallowSingleFlight bool
+	Trace                *DataSourceLoadTrace
+	Info                 *FetchInfo
 }
 
 type BatchInput struct {
@@ -104,7 +123,8 @@ type EntityFetch struct {
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
 	DataSourceIdentifier []byte
-	DisallowSingleFlight bool
+	Trace                *DataSourceLoadTrace
+	Info                 *FetchInfo
 }
 
 type EntityInput struct {
@@ -122,7 +142,9 @@ func (_ *EntityFetch) FetchKind() FetchKind {
 // Usually, you want to batch fetches within a list, which is the default behavior of SingleFetch
 // However, if the data source does not support batching, you can use this fetch to make parallel fetches within a list
 type ParallelListItemFetch struct {
-	Fetch *SingleFetch
+	Fetch  *SingleFetch
+	Traces []*SingleFetch
+	Trace  *DataSourceLoadTrace
 }
 
 func (_ *ParallelListItemFetch) FetchKind() FetchKind {
@@ -133,14 +155,6 @@ type FetchConfiguration struct {
 	Input      string
 	Variables  Variables
 	DataSource DataSource
-	// DisallowSingleFlight is used for write operations like mutations, POST, DELETE etc. to disable singleFlight
-	// By default SingleFlight for fetches is disabled and needs to be enabled on the Resolver first
-	// If the resolver allows SingleFlight it's up to each individual DataSource Planner to decide whether an Operation
-	// should be allowed to use SingleFlight
-	DisallowSingleFlight bool
-	// RequiresSerialFetch is used to indicate that the single fetches should be executed serially
-	// When we have multiple fetches attached to the object - after post-processing of a plan we will get SerialFetch instead of ParallelFetch
-	RequiresSerialFetch bool
 	// RequiresParallelListItemFetch is used to indicate that the single fetches should be executed without batching
 	// When we have multiple fetches attached to the object - after post-processing of a plan we will get ParallelListItemFetch instead of ParallelFetch
 	RequiresParallelListItemFetch bool
@@ -153,4 +167,114 @@ type FetchConfiguration struct {
 	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
 	// Returning null in this case tells the batch implementation to skip this item
 	SetTemplateOutputToNullOnVariableNull bool
+}
+
+type FetchInfo struct {
+	DataSourceID  string
+	RootFields    []GraphCoordinate
+	OperationType ast.OperationType
+}
+
+type GraphCoordinate struct {
+	TypeName             string `json:"typeName"`
+	FieldName            string `json:"fieldName"`
+	HasAuthorizationRule bool   `json:"-"`
+}
+
+type DataSourceLoadTrace struct {
+	RawInputData               json.RawMessage `json:"raw_input_data,omitempty"`
+	Input                      json.RawMessage `json:"input,omitempty"`
+	Output                     json.RawMessage `json:"output,omitempty"`
+	LoadError                  string          `json:"error,omitempty"`
+	DurationSinceStartNano     int64           `json:"duration_since_start_nanoseconds,omitempty"`
+	DurationSinceStartPretty   string          `json:"duration_since_start_pretty,omitempty"`
+	DurationLoadNano           int64           `json:"duration_load_nanoseconds,omitempty"`
+	DurationLoadPretty         string          `json:"duration_load_pretty,omitempty"`
+	SingleFlightUsed           bool            `json:"single_flight_used"`
+	SingleFlightSharedResponse bool            `json:"single_flight_shared_response"`
+	LoadSkipped                bool            `json:"load_skipped"`
+	LoadStats                  *LoadStats      `json:"load_stats,omitempty"`
+	Path                       string          `json:"-"`
+}
+
+type LoadStats struct {
+	GetConn              GetConnStats              `json:"get_conn"`
+	GotConn              GotConnStats              `json:"got_conn"`
+	GotFirstResponseByte GotFirstResponseByteStats `json:"got_first_response_byte"`
+	DNSStart             DNSStartStats             `json:"dns_start"`
+	DNSDone              DNSDoneStats              `json:"dns_done"`
+	ConnectStart         ConnectStartStats         `json:"connect_start"`
+	ConnectDone          ConnectDoneStats          `json:"connect_done"`
+	TLSHandshakeStart    TLSHandshakeStartStats    `json:"tls_handshake_start"`
+	TLSHandshakeDone     TLSHandshakeDoneStats     `json:"tls_handshake_done"`
+	WroteHeaders         WroteHeadersStats         `json:"wrote_headers"`
+	WroteRequest         WroteRequestStats         `json:"wrote_request"`
+}
+
+type GetConnStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+	HostPort                 string `json:"host_port"`
+}
+
+type GotConnStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+	Reused                   bool   `json:"reused"`
+	WasIdle                  bool   `json:"was_idle"`
+	IdleTimeNano             int64  `json:"idle_time_nanoseconds"`
+	IdleTimePretty           string `json:"idle_time_pretty"`
+}
+
+type GotFirstResponseByteStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+}
+
+type DNSStartStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+	Host                     string `json:"host"`
+}
+
+type DNSDoneStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+}
+
+type ConnectStartStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+	Network                  string `json:"network"`
+	Addr                     string `json:"addr"`
+}
+
+type ConnectDoneStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+	Network                  string `json:"network"`
+	Addr                     string `json:"addr"`
+	Err                      string `json:"err,omitempty"`
+}
+
+type TLSHandshakeStartStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+}
+
+type TLSHandshakeDoneStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+	Err                      string `json:"err,omitempty"`
+}
+
+type WroteHeadersStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+}
+
+type WroteRequestStats struct {
+	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
+	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
+	Err                      string `json:"err,omitempty"`
 }
