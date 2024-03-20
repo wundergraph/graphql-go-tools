@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -27,7 +28,7 @@ func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
 		schema: schema,
 		plannerConfig: plan.Configuration{
 			DefaultFlushIntervalMillis: DefaultFlushIntervalInMilliseconds,
-			DataSources:                []plan.DataSourceConfiguration{},
+			DataSources:                []plan.DataSource{},
 			Fields:                     plan.FieldConfigurations{},
 		},
 		dataLoaderConfig: dataLoaderConfig{
@@ -44,11 +45,11 @@ func (e *EngineV2Configuration) SetCustomResolveMap(customResolveMap map[string]
 	e.plannerConfig.CustomResolveMap = customResolveMap
 }
 
-func (e *EngineV2Configuration) AddDataSource(dataSource plan.DataSourceConfiguration) {
+func (e *EngineV2Configuration) AddDataSource(dataSource plan.DataSource) {
 	e.plannerConfig.DataSources = append(e.plannerConfig.DataSources, dataSource)
 }
 
-func (e *EngineV2Configuration) SetDataSources(dataSources []plan.DataSourceConfiguration) {
+func (e *EngineV2Configuration) SetDataSources(dataSources []plan.DataSource) {
 	e.plannerConfig.DataSources = dataSources
 }
 
@@ -60,7 +61,7 @@ func (e *EngineV2Configuration) SetFieldConfigurations(fieldConfigs plan.FieldCo
 	e.plannerConfig.Fields = fieldConfigs
 }
 
-func (e *EngineV2Configuration) DataSources() []plan.DataSourceConfiguration {
+func (e *EngineV2Configuration) DataSources() []plan.DataSource {
 	return e.plannerConfig.DataSources
 }
 
@@ -99,19 +100,20 @@ func WithDataSourceV2GeneratorSubscriptionClientFactory(factory graphqlDataSourc
 }
 
 type graphqlDataSourceV2Generator struct {
-	document *ast.Document
+	document  *ast.Document
+	engineCtx context.Context
 }
 
-func newGraphQLDataSourceV2Generator(document *ast.Document) *graphqlDataSourceV2Generator {
+func newGraphQLDataSourceV2Generator(engineCtx context.Context, document *ast.Document) *graphqlDataSourceV2Generator {
 	return &graphqlDataSourceV2Generator{
-		document: document,
+		document:  document,
+		engineCtx: engineCtx,
 	}
 }
 
-func (d *graphqlDataSourceV2Generator) Generate(config graphqlDataSource.Configuration, httpClient *http.Client, options ...DataSourceV2GeneratorOption) (plan.DataSourceConfiguration, error) {
-	var planDataSource plan.DataSourceConfiguration
+func (d *graphqlDataSourceV2Generator) Generate(dsID string, config graphqlDataSource.Configuration, httpClient *http.Client, options ...DataSourceV2GeneratorOption) (plan.DataSource, error) {
 	extractor := federationdata.NewLocalTypeFieldExtractor(d.document)
-	planDataSource.RootNodes, planDataSource.ChildNodes = extractor.GetAllNodes()
+	rootNodes, childNodes := extractor.GetAllNodes()
 
 	definedOptions := &dataSourceV2GeneratorOptions{
 		streamingClient:           &http.Client{Timeout: 0},
@@ -123,21 +125,29 @@ func (d *graphqlDataSourceV2Generator) Generate(config graphqlDataSource.Configu
 		option(definedOptions)
 	}
 
-	factory := &graphqlDataSource.Factory{
-		HTTPClient:      httpClient,
-		StreamingClient: definedOptions.streamingClient,
-	}
-
 	subscriptionClient, err := d.generateSubscriptionClient(httpClient, definedOptions)
 	if err != nil {
-		return plan.DataSourceConfiguration{}, err
+		return nil, err
 	}
-	factory.SubscriptionClient = subscriptionClient
 
-	planDataSource.Factory = factory
-	planDataSource.Custom = graphqlDataSource.ConfigJson(config)
+	factory, err := graphqlDataSource.NewFactory(
+		d.engineCtx,
+		httpClient,
+		subscriptionClient,
+	)
+	if err != nil {
+		return nil, err
+	}
 
-	return planDataSource, nil
+	return plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
+		dsID,
+		factory,
+		&plan.DataSourceMetadata{
+			RootNodes:  rootNodes,
+			ChildNodes: childNodes,
+		},
+		config,
+	)
 }
 
 func (d *graphqlDataSourceV2Generator) generateSubscriptionClient(httpClient *http.Client, definedOptions *dataSourceV2GeneratorOptions) (*graphqlDataSource.SubscriptionClient, error) {

@@ -6,6 +6,8 @@ import (
 	"io"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -30,7 +32,7 @@ func (t *testPubsub) Request(ctx context.Context, topic string, data []byte, w i
 }
 
 func TestPubSub(t *testing.T) {
-	factory := &Factory{
+	factory := &Factory[Configuration]{
 		PubSubBySourceName: map[string]PubSub{"default": &testPubsub{}},
 	}
 
@@ -47,7 +49,7 @@ func TestPubSub(t *testing.T) {
 		helloSubscription(id: String!): String! @eventsSubscribe(topic: "helloSubscription.{{ args.id }}")
 	}`
 
-	dataSourceConfig := Configuration{
+	dataSourceCustomConfig := Configuration{
 		Events: []EventConfiguration{
 			{
 				FieldName:  "helloQuery",
@@ -73,26 +75,32 @@ func TestPubSub(t *testing.T) {
 		},
 	}
 
-	planConfig := plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"helloQuery"},
-					},
-					{
-						TypeName:   "Mutation",
-						FieldNames: []string{"helloMutation"},
-					},
-					{
-						TypeName:   "Subscription",
-						FieldNames: []string{"helloSubscription"},
-					},
+	dataSourceConfiguration, err := plan.NewDataSourceConfiguration[Configuration](
+		"test",
+		factory,
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"helloQuery"},
 				},
-				Custom:  ConfigJson(dataSourceConfig),
-				Factory: factory,
+				{
+					TypeName:   "Mutation",
+					FieldNames: []string{"helloMutation"},
+				},
+				{
+					TypeName:   "Subscription",
+					FieldNames: []string{"helloSubscription"},
+				},
 			},
+		},
+		dataSourceCustomConfig,
+	)
+	require.NoError(t, err)
+
+	planConfig := plan.Configuration{
+		DataSources: []plan.DataSource{
+			dataSourceConfiguration,
 		},
 		Fields: []plan.FieldConfiguration{
 			{

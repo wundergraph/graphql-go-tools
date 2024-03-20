@@ -549,9 +549,31 @@ func setupEngineV2(t *testing.T, ctx context.Context, chatServerURL string) (*Ex
 	chatSchema, err := graphql.NewSchemaFromReader(bytes.NewBuffer(chatSchemaBytes))
 	require.NoError(t, err)
 
+	schemaConfiguration, err := graphql_datasource.NewSchemaConfiguration(string(chatSchemaBytes), nil)
+	require.NoError(t, err)
+
+	customConfiguration, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
+		Fetch: &graphql_datasource.FetchConfiguration{
+			URL:    chatServerURL,
+			Method: http.MethodPost,
+			Header: nil,
+		},
+		Subscription: &graphql_datasource.SubscriptionConfiguration{
+			URL: chatServerURL,
+		},
+		SchemaConfiguration: schemaConfiguration,
+	})
+	require.NoError(t, err)
+
 	engineConf := graphql.NewEngineV2Configuration(chatSchema)
-	engineConf.SetDataSources([]plan.DataSourceConfiguration{
-		{
+
+	factory, err := graphql_datasource.NewFactory(ctx, httpclient.DefaultNetHttpClient, &graphql_datasource.SubscriptionClient{})
+	require.NoError(t, err)
+
+	dsCfg, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+		"chat",
+		factory,
+		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{
 				{TypeName: "Mutation", FieldNames: []string{"post"}},
 				{TypeName: "Subscription", FieldNames: []string{"messageAdded"}},
@@ -559,20 +581,13 @@ func setupEngineV2(t *testing.T, ctx context.Context, chatServerURL string) (*Ex
 			ChildNodes: []plan.TypeField{
 				{TypeName: "Message", FieldNames: []string{"text", "createdBy"}},
 			},
-			Factory: &graphql_datasource.Factory{
-				HTTPClient: httpclient.DefaultNetHttpClient,
-			},
-			Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-				Fetch: graphql_datasource.FetchConfiguration{
-					URL:    chatServerURL,
-					Method: http.MethodPost,
-					Header: nil,
-				},
-				Subscription: graphql_datasource.SubscriptionConfiguration{
-					URL: chatServerURL,
-				},
-			}),
 		},
+		customConfiguration,
+	)
+	require.NoError(t, err)
+
+	engineConf.SetDataSources([]plan.DataSource{
+		dsCfg,
 	})
 	engineConf.SetFieldConfigurations([]plan.FieldConfiguration{
 		{

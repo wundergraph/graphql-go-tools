@@ -13,6 +13,7 @@ import (
 	"time"
 
 	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
 )
 
 type ServiceConfig struct {
@@ -143,8 +144,8 @@ func (d *DatasourcePollerPoller) updateObservers() {
 	}
 }
 
-func (d *DatasourcePollerPoller) createDatasourceConfig() []graphqlDataSource.Configuration {
-	dataSourceConfigs := make([]graphqlDataSource.Configuration, 0, len(d.config.Services))
+func (d *DatasourcePollerPoller) createDatasourceConfig() []graphql.DataSourceConfiguration {
+	dataSourceConfigs := make([]graphql.DataSourceConfiguration, 0, len(d.config.Services))
 
 	for _, serviceConfig := range d.config.Services {
 		sdl, exists := d.sdlMap[serviceConfig.Name]
@@ -152,18 +153,31 @@ func (d *DatasourcePollerPoller) createDatasourceConfig() []graphqlDataSource.Co
 			continue
 		}
 
-		dataSourceConfig := graphqlDataSource.Configuration{
-			Fetch: graphqlDataSource.FetchConfiguration{
+		schemaConfiguration, err := graphqlDataSource.NewSchemaConfiguration(sdl, &graphqlDataSource.FederationConfiguration{
+			Enabled:    true,
+			ServiceSDL: sdl,
+		})
+		if err != nil {
+			panic(fmt.Errorf("create schema configuration: %v", err))
+		}
+
+		customConfig, err := graphqlDataSource.NewConfiguration(graphqlDataSource.ConfigurationInput{
+			Fetch: &graphqlDataSource.FetchConfiguration{
 				URL:    serviceConfig.URL,
 				Method: http.MethodPost,
 			},
-			Subscription: graphqlDataSource.SubscriptionConfiguration{
+			Subscription: &graphqlDataSource.SubscriptionConfiguration{
 				URL: serviceConfig.WS,
 			},
-			Federation: graphqlDataSource.FederationConfiguration{
-				Enabled:    true,
-				ServiceSDL: sdl,
-			},
+			SchemaConfiguration: schemaConfiguration,
+		})
+		if err != nil {
+			panic(fmt.Errorf("create configuration: %v", err))
+		}
+
+		dataSourceConfig := graphql.DataSourceConfiguration{
+			ID:            serviceConfig.Name,
+			Configuration: customConfig,
 		}
 
 		dataSourceConfigs = append(dataSourceConfigs, dataSourceConfig)

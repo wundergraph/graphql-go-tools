@@ -1,14 +1,18 @@
 package graphql
 
 import (
+	"context"
 	"net/http"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 )
 
 type proxyEngineConfigFactoryOptions struct {
+	dataSourceID              string
 	httpClient                *http.Client
 	streamingClient           *http.Client
 	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
@@ -19,6 +23,12 @@ type ProxyEngineConfigFactoryOption func(options *proxyEngineConfigFactoryOption
 func WithProxyHttpClient(client *http.Client) ProxyEngineConfigFactoryOption {
 	return func(options *proxyEngineConfigFactoryOptions) {
 		options.httpClient = client
+	}
+}
+
+func WithDataSourceID(id string) ProxyEngineConfigFactoryOption {
+	return func(options *proxyEngineConfigFactoryOptions) {
+		options.dataSourceID = id
 	}
 }
 
@@ -44,15 +54,18 @@ type ProxyUpstreamConfig struct {
 
 // ProxyEngineConfigFactory is used to create a v2 engine config with a single upstream and a single data source for this upstream.
 type ProxyEngineConfigFactory struct {
+	dataSourceID              string
 	httpClient                *http.Client
 	streamingClient           *http.Client
 	schema                    *Schema
 	proxyUpstreamConfig       ProxyUpstreamConfig
 	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
+	engineCtx                 context.Context
 }
 
-func NewProxyEngineConfigFactory(schema *Schema, proxyUpstreamConfig ProxyUpstreamConfig, opts ...ProxyEngineConfigFactoryOption) *ProxyEngineConfigFactory {
+func NewProxyEngineConfigFactory(engineCtx context.Context, schema *Schema, proxyUpstreamConfig ProxyUpstreamConfig, opts ...ProxyEngineConfigFactoryOption) *ProxyEngineConfigFactory {
 	options := proxyEngineConfigFactoryOptions{
+		dataSourceID: uuid.New().String(),
 		httpClient: &http.Client{
 			Timeout: time.Second * 10,
 			Transport: &http.Transport{
@@ -71,6 +84,8 @@ func NewProxyEngineConfigFactory(schema *Schema, proxyUpstreamConfig ProxyUpstre
 	}
 
 	return &ProxyEngineConfigFactory{
+		engineCtx:                 engineCtx,
+		dataSourceID:              options.dataSourceID,
 		httpClient:                options.httpClient,
 		streamingClient:           options.streamingClient,
 		schema:                    schema,
@@ -80,16 +95,25 @@ func NewProxyEngineConfigFactory(schema *Schema, proxyUpstreamConfig ProxyUpstre
 }
 
 func (p *ProxyEngineConfigFactory) EngineV2Configuration() (EngineV2Configuration, error) {
-	dataSourceConfig := graphqlDataSource.Configuration{
-		Fetch: graphqlDataSource.FetchConfiguration{
+	schemaConfiguration, err := graphqlDataSource.NewSchemaConfiguration(string(p.schema.rawInput), nil)
+	if err != nil {
+		return EngineV2Configuration{}, err
+	}
+
+	dataSourceConfig, err := graphqlDataSource.NewConfiguration(graphqlDataSource.ConfigurationInput{
+		Fetch: &graphqlDataSource.FetchConfiguration{
 			URL:    p.proxyUpstreamConfig.URL,
 			Method: p.proxyUpstreamConfig.Method,
 			Header: p.proxyUpstreamConfig.StaticHeaders,
 		},
-		Subscription: graphqlDataSource.SubscriptionConfiguration{
+		Subscription: &graphqlDataSource.SubscriptionConfiguration{
 			URL:    p.proxyUpstreamConfig.URL,
 			UseSSE: p.proxyUpstreamConfig.SubscriptionType == SubscriptionTypeSSE,
 		},
+		SchemaConfiguration: schemaConfiguration,
+	})
+	if err != nil {
+		return EngineV2Configuration{}, err
 	}
 
 	conf := NewEngineV2Configuration(p.schema)
@@ -99,7 +123,8 @@ func (p *ProxyEngineConfigFactory) EngineV2Configuration() (EngineV2Configuratio
 		return EngineV2Configuration{}, report
 	}
 
-	dataSource, err := newGraphQLDataSourceV2Generator(&rawDoc).Generate(
+	dataSource, err := newGraphQLDataSourceV2Generator(p.engineCtx, &rawDoc).Generate(
+		p.dataSourceID,
 		dataSourceConfig,
 		p.httpClient,
 		WithDataSourceV2GeneratorSubscriptionConfiguration(p.streamingClient, p.proxyUpstreamConfig.SubscriptionType),

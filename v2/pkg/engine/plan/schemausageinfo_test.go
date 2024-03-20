@@ -3,11 +3,12 @@ package plan
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"testing"
 
+	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
@@ -137,50 +138,55 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 	norm.NormalizeOperation(&op, &def, report)
 	valid := astvalidation.DefaultOperationValidator()
 	valid.Validate(&op, &def, report)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
-	p := NewPlanner(ctx, Configuration{
-		DisableResolveFieldPositions: true,
-		IncludeInfo:                  true,
-		DataSources: []DataSourceConfiguration{
-			{
-				RootNodes: []TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"searchResults", "hero"},
-					},
+	dsCfg, err := NewDataSourceConfiguration[any](
+		"https://swapi.dev/api",
+		&FakeFactory[any]{
+			upstreamSchema: &def,
+		},
+		&DataSourceMetadata{
+			RootNodes: []TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"searchResults", "hero"},
 				},
-				ChildNodes: []TypeField{
-					{
-						TypeName:   "Human",
-						FieldNames: []string{"name", "inlineName"},
-					},
-					{
-						TypeName:   "Droid",
-						FieldNames: []string{"name"},
-					},
-					{
-						TypeName:   "Starship",
-						FieldNames: []string{"length"},
-					},
-					{
-						TypeName:   "SearchResult",
-						FieldNames: []string{"__typename"},
-					},
-					{
-						TypeName:   "Character",
-						FieldNames: []string{"name", "friends"},
-					},
+			},
+			ChildNodes: []TypeField{
+				{
+					TypeName:   "Human",
+					FieldNames: []string{"name", "inlineName"},
 				},
-				ID: "https://swapi.dev/api",
-				Factory: &FakeFactory{
-					upstreamSchema: &def,
+				{
+					TypeName:   "Droid",
+					FieldNames: []string{"name"},
 				},
-				Custom: []byte(fmt.Sprintf(`{"UpstreamSchema":"%s"}`, schemaUsageInfoTestSchema)),
+				{
+					TypeName:   "Starship",
+					FieldNames: []string{"length"},
+				},
+				{
+					TypeName:   "SearchResult",
+					FieldNames: []string{"__typename"},
+				},
+				{
+					TypeName:   "Character",
+					FieldNames: []string{"name", "friends"},
+				},
 			},
 		},
+		nil,
+	)
+	require.NoError(t, err)
+
+	p, err := NewPlanner(Configuration{
+		DisableResolveFieldPositions: true,
+		IncludeInfo:                  true,
+		DataSources: []DataSource{
+			dsCfg,
+		},
 	})
+	require.NoError(t, err)
+
 	generatedPlan := p.Plan(&op, &def, "Search", report)
 	if report.HasErrors() {
 		t.Fatal(report.Error())
@@ -405,42 +411,46 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 type StatefulSource struct {
 }
 
-func (s *StatefulSource) Start(ctx context.Context) {
+func (s *StatefulSource) Start() {
 
 }
 
-type FakeFactory struct {
+type FakeFactory[T any] struct {
 	upstreamSchema *ast.Document
 }
 
-func (f *FakeFactory) Planner(ctx context.Context) DataSourcePlanner {
+func (f *FakeFactory[T]) Planner(logger abstractlogger.Logger) DataSourcePlanner[T] {
 	source := &StatefulSource{}
-	go source.Start(ctx)
-	return &FakePlanner{
+	go source.Start()
+	return &FakePlanner[T]{
 		source:         source,
 		upstreamSchema: f.upstreamSchema,
 	}
 }
 
-type FakePlanner struct {
+func (f *FakeFactory[T]) Context() context.Context {
+	return context.TODO()
+}
+
+type FakePlanner[T any] struct {
 	source         *StatefulSource
 	upstreamSchema *ast.Document
 }
 
-func (f *FakePlanner) UpstreamSchema(dataSourceConfig DataSourceConfiguration) *ast.Document {
-	return f.upstreamSchema
+func (f *FakePlanner[T]) UpstreamSchema(dataSourceConfig DataSourceConfiguration[T]) (*ast.Document, bool) {
+	return f.upstreamSchema, true
 }
 
-func (f *FakePlanner) EnterDocument(operation, definition *ast.Document) {
+func (f *FakePlanner[T]) EnterDocument(operation, definition *ast.Document) {
 
 }
 
-func (f *FakePlanner) Register(visitor *Visitor, _ DataSourceConfiguration, _ DataSourcePlannerConfiguration) error {
+func (f *FakePlanner[T]) Register(visitor *Visitor, _ DataSourceConfiguration[T], _ DataSourcePlannerConfiguration) error {
 	visitor.Walker.RegisterEnterDocumentVisitor(f)
 	return nil
 }
 
-func (f *FakePlanner) ConfigureFetch() resolve.FetchConfiguration {
+func (f *FakePlanner[T]) ConfigureFetch() resolve.FetchConfiguration {
 	return resolve.FetchConfiguration{
 		DataSource: &FakeDataSource{
 			source: f.source,
@@ -448,18 +458,18 @@ func (f *FakePlanner) ConfigureFetch() resolve.FetchConfiguration {
 	}
 }
 
-func (f *FakePlanner) ConfigureSubscription() SubscriptionConfiguration {
+func (f *FakePlanner[T]) ConfigureSubscription() SubscriptionConfiguration {
 	return SubscriptionConfiguration{}
 }
 
-func (f *FakePlanner) DataSourcePlanningBehavior() DataSourcePlanningBehavior {
+func (f *FakePlanner[T]) DataSourcePlanningBehavior() DataSourcePlanningBehavior {
 	return DataSourcePlanningBehavior{
 		MergeAliasedRootNodes:      false,
 		OverrideFieldPathFromAlias: false,
 	}
 }
 
-func (f *FakePlanner) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
+func (f *FakePlanner[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
 	return
 }
 

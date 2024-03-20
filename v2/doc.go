@@ -467,20 +467,25 @@ so that the planner knows how to create an execution plan for the DataSource and
 */
 
 func ExamplePlanOperation() {
-	config := plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"hello"},
-					},
+	staticDataSource, _ := plan.NewDataSourceConfiguration[staticdatasource.Configuration](
+		"StaticDataSource",
+		&staticdatasource.Factory[staticdatasource.Configuration]{},
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"hello"},
 				},
-				Custom: staticdatasource.ConfigJSON(staticdatasource.Configuration{
-					Data: `{"hello":"world"}`,
-				}),
-				Factory: &staticdatasource.Factory{},
 			},
+		},
+		staticdatasource.Configuration{
+			Data: `{"hello":"world"}`,
+		},
+	)
+
+	config := plan.Configuration{
+		DataSources: []plan.DataSource{
+			staticDataSource,
 		},
 		Fields: []plan.FieldConfiguration{
 			{
@@ -498,7 +503,10 @@ func ExamplePlanOperation() {
 	report := &operationreport.Report{}
 	operationName := "O"
 
-	planner := plan.NewPlanner(context.Background(), config)
+	planner, err := plan.NewPlanner(config)
+	if err != nil {
+		panic(err)
+	}
 	executionPlan := planner.Plan(operationDocument, schemaDocument, operationName, report)
 	if report.HasErrors() {
 		panic(report.Error())

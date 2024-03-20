@@ -17,9 +17,10 @@ import (
 // it is responsible for managing all subscriptions using the underlying WebSocket connection
 // if all Subscriptions are complete or cancelled/unsubscribed the handler will terminate
 type gqlWSConnectionHandler struct {
-	conn               *websocket.Conn
-	ctx                context.Context
-	log                abstractlogger.Logger
+	conn *websocket.Conn
+	ctx  context.Context
+	log  abstractlogger.Logger
+	// log                slog.Logger
 	subscribeCh        chan Subscription
 	nextSubscriptionID int
 	subscriptions      map[string]Subscription

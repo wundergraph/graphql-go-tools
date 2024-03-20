@@ -1,7 +1,6 @@
 package datasourcetesting
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gonum.org/v1/gonum/stat/combin"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
@@ -116,9 +116,9 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		norm.NormalizeOperation(&op, &def, &report)
 		valid := astvalidation.DefaultOperationValidator()
 		valid.Validate(&op, &def, &report)
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		p := plan.NewPlanner(ctx, config)
+
+		p, err := plan.NewPlanner(config)
+		require.NoError(t, err)
 		actualPlan := p.Plan(&op, &def, operationName, &report)
 		if report.HasErrors() {
 			_, err := astprinter.PrintStringIndent(&def, nil, "  ")
@@ -161,7 +161,7 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 
 // ShuffleDS randomizes the order of the data sources
 // to ensure that the order doesn't matter
-func ShuffleDS(dataSources []plan.DataSourceConfiguration) []plan.DataSourceConfiguration {
+func ShuffleDS(dataSources []plan.DataSource) []plan.DataSource {
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 	rnd.Shuffle(len(dataSources), func(i, j int) {
 		dataSources[i], dataSources[j] = dataSources[j], dataSources[i]
@@ -170,8 +170,8 @@ func ShuffleDS(dataSources []plan.DataSourceConfiguration) []plan.DataSourceConf
 	return dataSources
 }
 
-func OrderDS(dataSources []plan.DataSourceConfiguration, order []int) (out []plan.DataSourceConfiguration) {
-	out = make([]plan.DataSourceConfiguration, 0, len(dataSources))
+func OrderDS(dataSources []plan.DataSource, order []int) (out []plan.DataSource) {
+	out = make([]plan.DataSource, 0, len(dataSources))
 
 	for _, i := range order {
 		out = append(out, dataSources[i])
@@ -180,7 +180,7 @@ func OrderDS(dataSources []plan.DataSourceConfiguration, order []int) (out []pla
 	return out
 }
 
-func DataSourcePermutations(dataSources []plan.DataSourceConfiguration) []*Permutation {
+func DataSourcePermutations(dataSources []plan.DataSource) []*Permutation {
 	size := len(dataSources)
 	elementsCount := len(dataSources)
 	list := combin.Permutations(size, elementsCount)
@@ -199,5 +199,5 @@ func DataSourcePermutations(dataSources []plan.DataSourceConfiguration) []*Permu
 
 type Permutation struct {
 	Order       []int
-	DataSources []plan.DataSourceConfiguration
+	DataSources []plan.DataSource
 }

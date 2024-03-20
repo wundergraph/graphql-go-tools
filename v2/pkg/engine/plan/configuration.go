@@ -1,12 +1,15 @@
 package plan
 
 import (
+	"github.com/jensneuse/abstractlogger"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 type Configuration struct {
+	Logger                     abstractlogger.Logger
 	DefaultFlushIntervalMillis int64
-	DataSources                []DataSourceConfiguration
+	DataSources                []DataSource
 	Fields                     FieldConfigurations
 	Types                      TypeConfigurations
 	// DisableResolveFieldPositions should be set to true for testing purposes
@@ -86,7 +89,7 @@ type FieldConfiguration struct {
 	// Path - represents a json path to lookup for a field value in response json
 	Path      []string
 	Arguments ArgumentsConfigurations
-	// deprecated: use DataSourceConfiguration.FederationMetaData instead
+	// deprecated: use dataSourceConfiguration.FederationMetaData instead
 	RequiresFields []string
 	// UnescapeResponseJson set to true will allow fields (String,List,Object)
 	// to be resolved from an escaped JSON string

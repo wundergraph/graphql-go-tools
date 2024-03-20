@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -53,7 +54,12 @@ func WithFederationSubscriptionType(subscriptionType SubscriptionType) Federatio
 	}
 }
 
-func NewFederationEngineConfigFactory(dataSourceConfigs []graphqlDataSource.Configuration, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
+type DataSourceConfiguration struct {
+	ID            string                          // ID of the data source which is used to identify the data source in the engine.
+	Configuration graphqlDataSource.Configuration // Configuration fetch and schema related configuration for the data source.
+}
+
+func NewFederationEngineConfigFactory(engineCtx context.Context, dataSourceConfigs []DataSourceConfiguration, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
 	options := federationEngineConfigFactoryOptions{
 		httpClient: &http.Client{
 			Timeout: time.Second * 10,
@@ -74,6 +80,7 @@ func NewFederationEngineConfigFactory(dataSourceConfigs []graphqlDataSource.Conf
 	}
 
 	return &FederationEngineConfigFactory{
+		engineCtx:                 engineCtx,
 		httpClient:                options.httpClient,
 		streamingClient:           options.streamingClient,
 		dataSourceConfigs:         dataSourceConfigs,
@@ -85,9 +92,10 @@ func NewFederationEngineConfigFactory(dataSourceConfigs []graphqlDataSource.Conf
 
 // FederationEngineConfigFactory is used to create a v2 engine config for a supergraph with multiple data sources for subgraphs.
 type FederationEngineConfigFactory struct {
+	engineCtx                 context.Context
 	httpClient                *http.Client
 	streamingClient           *http.Client
-	dataSourceConfigs         []graphqlDataSource.Configuration
+	dataSourceConfigs         []DataSourceConfiguration
 	schema                    *Schema
 	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
 	subscriptionType          SubscriptionType
@@ -109,7 +117,12 @@ func (f *FederationEngineConfigFactory) MergedSchema() (*Schema, error) {
 
 	SDLs := make([]string, len(f.dataSourceConfigs))
 	for i := range f.dataSourceConfigs {
-		SDLs[i] = f.dataSourceConfigs[i].Federation.ServiceSDL
+		federationConfiguration := f.dataSourceConfigs[i].Configuration.FederationConfiguration()
+		if federationConfiguration == nil {
+			return nil, fmt.Errorf("federation configuration is missing for data source %s", f.dataSourceConfigs[i].ID)
+		}
+
+		SDLs[i] = federationConfiguration.ServiceSDL
 	}
 
 	rawBaseSchema, err := federation.BuildBaseSchemaDocument(SDLs...)
@@ -156,7 +169,12 @@ func (f *FederationEngineConfigFactory) engineConfigFieldConfigs(schema *Schema)
 	var planFieldConfigs plan.FieldConfigurations
 
 	for _, dataSourceConfig := range f.dataSourceConfigs {
-		doc, report := astparser.ParseGraphqlDocumentString(dataSourceConfig.Federation.ServiceSDL)
+		federationConfiguration := dataSourceConfig.Configuration.FederationConfiguration()
+		if federationConfiguration == nil {
+			return nil, fmt.Errorf("federation configuration is missing for data source %s", dataSourceConfig.ID)
+		}
+
+		doc, report := astparser.ParseGraphqlDocumentString(federationConfiguration.ServiceSDL)
 		if report.HasErrors() {
 			return nil, fmt.Errorf("parse graphql document string: %s", report.Error())
 		}
@@ -168,15 +186,21 @@ func (f *FederationEngineConfigFactory) engineConfigFieldConfigs(schema *Schema)
 	return planFieldConfigs, nil
 }
 
-func (f *FederationEngineConfigFactory) engineConfigDataSources() (planDataSources []plan.DataSourceConfiguration, err error) {
+func (f *FederationEngineConfigFactory) engineConfigDataSources() (planDataSources []plan.DataSource, err error) {
 	for _, dataSourceConfig := range f.dataSourceConfigs {
-		doc, report := astparser.ParseGraphqlDocumentString(dataSourceConfig.Federation.ServiceSDL)
+		federationConfiguration := dataSourceConfig.Configuration.FederationConfiguration()
+		if federationConfiguration == nil {
+			return nil, fmt.Errorf("federation configuration is missing for data source %s", dataSourceConfig.ID)
+		}
+
+		doc, report := astparser.ParseGraphqlDocumentString(federationConfiguration.ServiceSDL)
 		if report.HasErrors() {
 			return nil, fmt.Errorf("parse graphql document string: %s", report.Error())
 		}
 
-		planDataSource, err := newGraphQLDataSourceV2Generator(&doc).Generate(
-			dataSourceConfig,
+		planDataSource, err := newGraphQLDataSourceV2Generator(f.engineCtx, &doc).Generate(
+			dataSourceConfig.ID,
+			dataSourceConfig.Configuration,
 			f.httpClient,
 			WithDataSourceV2GeneratorSubscriptionConfiguration(f.streamingClient, f.subscriptionType),
 			WithDataSourceV2GeneratorSubscriptionClientFactory(f.subscriptionClientFactory),

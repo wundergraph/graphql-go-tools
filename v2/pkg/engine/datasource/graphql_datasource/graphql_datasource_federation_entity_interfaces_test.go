@@ -9,10 +9,10 @@ import (
 )
 
 func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
-	federationFactory := &Factory{}
+	federationFactory := &Factory[Configuration]{}
 
 	definition := EntityInterfacesDefinition
-	planConfiguration := *EntityInterfacesPlanConfiguration(federationFactory)
+	planConfiguration := *EntityInterfacesPlanConfiguration(t, federationFactory)
 
 	t.Run("query 0 - Interface object typename", func(t *testing.T) {
 		t.Run("run", RunTest(
