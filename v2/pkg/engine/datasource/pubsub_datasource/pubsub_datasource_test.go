@@ -31,7 +31,7 @@ func (t *testPubsub) Request(ctx context.Context, topic string, data []byte, w i
 
 func TestPubSub(t *testing.T) {
 	factory := &Factory{
-		PubSubBySourceName: nil,
+		PubSubBySourceName: map[string]PubSub{"default": &testPubsub{}},
 	}
 
 	const schema = `
