@@ -1,12 +1,12 @@
 package plan
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
@@ -17,7 +17,9 @@ import (
 )
 
 func TestPlanner_Plan(t *testing.T) {
-	testLogic := func(definition, operation, operationName string, config Configuration, report *operationreport.Report) Plan {
+	testLogic := func(t *testing.T, definition, operation, operationName string, config Configuration, report *operationreport.Report) Plan {
+		t.Helper()
+
 		def := unsafeparser.ParseGraphqlDocumentString(definition)
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
 		err := asttransform.MergeDefinitionWithBaseSchema(&def)
@@ -28,12 +30,9 @@ func TestPlanner_Plan(t *testing.T) {
 		norm.NormalizeOperation(&op, &def, report)
 		valid := astvalidation.DefaultOperationValidator()
 		valid.Validate(&op, &def, report)
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 
-		config.DataSources[0].Factory = &FakeFactory{upstreamSchema: &def}
-
-		p := NewPlanner(ctx, config)
+		p, err := NewPlanner(config)
+		require.NoError(t, err)
 
 		pp := p.Plan(&op, &def, operationName, report)
 
@@ -45,7 +44,7 @@ func TestPlanner_Plan(t *testing.T) {
 			t.Helper()
 
 			var report operationreport.Report
-			plan := testLogic(definition, operation, operationName, config, &report)
+			plan := testLogic(t, definition, operation, operationName, config, &report)
 			if report.HasErrors() {
 				t.Fatal(report.Error())
 			}
@@ -69,7 +68,7 @@ func TestPlanner_Plan(t *testing.T) {
 			t.Helper()
 
 			var report operationreport.Report
-			_ = testLogic(definition, operation, operationName, config, &report)
+			_ = testLogic(t, definition, operation, operationName, config, &report)
 			assert.True(t, report.HasErrors())
 		}
 	}
@@ -130,7 +129,7 @@ func TestPlanner_Plan(t *testing.T) {
 		},
 	}, Configuration{
 		DisableResolveFieldPositions: true,
-		DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+		DataSources:                  []DataSource{testDefinitionDSConfiguration},
 	}))
 
 	t.Run("Merging duplicate fields in response", func(t *testing.T) {
@@ -178,7 +177,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		}, Configuration{
 			DisableResolveFieldPositions: true,
-			DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+			DataSources:                  []DataSource{testDefinitionDSConfiguration},
 		}))
 
 		t.Run("Interface response type with type fragments", test(testDefinition, `
@@ -225,7 +224,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		}, Configuration{
 			DisableResolveFieldPositions: true,
-			DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+			DataSources:                  []DataSource{testDefinitionDSConfiguration},
 		}))
 
 		t.Run("skip on fields", func(t *testing.T) {
@@ -283,7 +282,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				}, Configuration{
 					DisableResolveFieldPositions: true,
-					DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+					DataSources:                  []DataSource{testDefinitionDSConfiguration},
 				}))
 		})
 
@@ -348,7 +347,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				}, Configuration{
 					DisableResolveFieldPositions: true,
-					DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+					DataSources:                  []DataSource{testDefinitionDSConfiguration},
 				}))
 
 			t.Run("only one of fields has skip", test(testDefinition, `
@@ -407,7 +406,7 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				}, Configuration{
 					DisableResolveFieldPositions: true,
-					DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+					DataSources:                  []DataSource{testDefinitionDSConfiguration},
 				}))
 
 			t.Run("2 fragments has skip", test(testDefinition, `
@@ -466,14 +465,14 @@ func TestPlanner_Plan(t *testing.T) {
 					},
 				}, Configuration{
 					DisableResolveFieldPositions: true,
-					DataSources:                  []DataSourceConfiguration{testDefinitionDSConfiguration},
+					DataSources:                  []DataSource{testDefinitionDSConfiguration},
 				}))
 		})
 	})
 
 	t.Run("operation selection", func(t *testing.T) {
 		cfg := Configuration{
-			DataSources: []DataSourceConfiguration{testDefinitionDSConfiguration},
+			DataSources: []DataSource{testDefinitionDSConfiguration},
 		}
 
 		t.Run("should successfully plan a single named query by providing an operation name", test(testDefinition, `
@@ -626,7 +625,7 @@ func TestPlanner_Plan(t *testing.T) {
 							UnescapeResponseJson: true,
 						},
 					},
-					DataSources: []DataSourceConfiguration{dsConfig},
+					DataSources: []DataSource{dsConfig},
 				},
 			))
 			t.Run("list with json type", test(
@@ -678,7 +677,7 @@ func TestPlanner_Plan(t *testing.T) {
 							UnescapeResponseJson: true,
 						},
 					},
-					DataSources: []DataSourceConfiguration{dsConfig},
+					DataSources: []DataSource{dsConfig},
 				},
 			))
 		})
@@ -723,7 +722,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 				Configuration{
 					DisableResolveFieldPositions: true,
-					DataSources:                  []DataSourceConfiguration{dsConfig},
+					DataSources:                  []DataSource{dsConfig},
 				},
 			))
 		})

@@ -205,10 +205,15 @@ func NewExecutionEngineV2(ctx context.Context, logger abstractlogger.Logger, eng
 		engineConfig.AddFieldConfiguration(fieldCfg)
 	}
 
+	planner, err := plan.NewPlanner(engineConfig.plannerConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ExecutionEngineV2{
 		logger:  logger,
 		config:  engineConfig,
-		planner: plan.NewPlanner(ctx, engineConfig.plannerConfig),
+		planner: planner,
 		resolver: resolve.New(ctx, resolve.ResolverOptions{
 			MaxConcurrency: 1024,
 		}),

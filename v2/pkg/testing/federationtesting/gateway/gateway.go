@@ -7,12 +7,11 @@ import (
 
 	log "github.com/jensneuse/abstractlogger"
 
-	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
 )
 
 type DataSourceObserver interface {
-	UpdateDataSources(dataSourceConfig []graphqlDataSource.Configuration)
+	UpdateDataSources(newDataSourcesConfig []graphql.DataSourceConfiguration)
 }
 
 type DataSourceSubject interface {
@@ -70,9 +69,10 @@ func (g *Gateway) Ready() {
 }
 
 // Error handling is not finished.
-func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphqlDataSource.Configuration) {
+func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphql.DataSourceConfiguration) {
 	ctx := context.Background()
 	engineConfigFactory := graphql.NewFederationEngineConfigFactory(
+		ctx,
 		newDataSourcesConfig,
 		graphql.WithFederationHttpClient(g.httpClient),
 	)

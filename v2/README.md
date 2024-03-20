@@ -495,31 +495,39 @@ so that the planner knows how to create an execution plan for the DataSource and
 */
 
 func ExamplePlanOperation() {
-	config := plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"hello"},
-					},
-				},
-				Custom: staticdatasource.ConfigJSON(staticdatasource.Configuration{
-					Data: `{"hello":"world"}`,
-				}),
-				Factory: &staticdatasource.Factory{},
-			},
-		},
-		Fields: []plan.FieldConfiguration{
-			{
-				TypeName:              "Query", // attach this config to the Query type and the field hello
-				FieldName:             "hello",
-				DisableDefaultMapping: true,              // disable the default mapping for this field which only applies to GraphQL APIs
-				Path:                  []string{"hello"}, // returns the value of the field "hello" from the JSON data
-			},
-		},
-		IncludeInfo: true,
-	}
+    staticDataSource, err := plan.NewDataSourceConfiguration[staticdatasource.Configuration](
+      "StaticDataSource",
+      &staticdatasource.Factory[staticdatasource.Configuration]{},
+      &plan.DataSourceMetadata{
+        RootNodes: []plan.TypeField{
+          {
+            TypeName:   "Query",
+            FieldNames: []string{"hello"},
+          },
+        },
+      },
+      staticdatasource.Configuration{
+        Data: `{"hello":"world"}`,
+      },
+    )
+  
+    config := plan.Configuration{
+      DataSources: []plan.DataSource{
+        staticDataSource,
+      },
+      Fields: []plan.FieldConfiguration{
+        {
+          TypeName:              "Query", // attach this config to the Query type and the field hello
+          FieldName:             "hello",
+          DisableDefaultMapping: true,              // disable the default mapping for this field which only applies to GraphQL APIs
+          Path:                  []string{"hello"}, // returns the value of the field "hello" from the JSON data
+        },
+      },
+      IncludeInfo: true,
+    }
+	if err != nil {
+        panic(err)
+    }
 
 	operationDocument := ast.NewSmallDocument() // containing the following query: query O { hello }
 	schemaDocument := ast.NewSmallDocument()
