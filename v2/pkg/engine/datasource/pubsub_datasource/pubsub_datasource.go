@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -177,20 +176,27 @@ func (p *Planner) Register(visitor *plan.Visitor, configuration plan.DataSourceC
 
 func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 	if p.current.config == nil {
-		panic(errors.New("config is nil, maybe query was not planned?"))
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure fetch: event config is nil"))
+		return resolve.FetchConfiguration{}
 	}
 	var dataSource resolve.DataSource
+	pubsub, ok := p.pubSubBySourceName[p.current.config.SourceName]
+	if !ok {
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("no pubsub connection exists with source name \"%s\"", p.current.config.SourceName))
+		return resolve.FetchConfiguration{}
+	}
 	switch p.current.config.Type {
 	case EventTypePublish:
 		dataSource = &PublishDataSource{
-			pubSub: p.pubSubBySourceName[p.current.config.SourceName],
+			pubSub: pubsub,
 		}
 	case EventTypeRequest:
 		dataSource = &RequestDataSource{
-			pubSub: p.pubSubBySourceName[p.current.config.SourceName],
+			pubSub: pubsub,
 		}
 	default:
-		panic(errors.New("invalid event type for fetch"))
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure fetch: invalid event type \"%s\"", p.current.config.Type))
+		return resolve.FetchConfiguration{}
 	}
 	return resolve.FetchConfiguration{
 		Input:      fmt.Sprintf(`{"topic":"%s", "data": %s}`, p.current.topic, p.current.data),
@@ -203,14 +209,24 @@ func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 }
 
 func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
-	if p.current.config == nil || p.current.config.Type != EventTypeSubscribe {
-		panic(errors.New("invalid event type for subscription"))
+	if p.current.config == nil {
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure fetch: event config is nil"))
+		return plan.SubscriptionConfiguration{}
+	}
+	if p.current.config.Type != EventTypeSubscribe {
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure fetch: invalid event type \"%s\"", p.current.config.Type))
+		return plan.SubscriptionConfiguration{}
+	}
+	pubsub, ok := p.pubSubBySourceName[p.current.config.SourceName]
+	if !ok {
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure fetch: no pubsub connection exists with source name \"%s\"", p.current.config.SourceName))
+		return plan.SubscriptionConfiguration{}
 	}
 	return plan.SubscriptionConfiguration{
 		Input:     fmt.Sprintf(`{"topic":"%s"}`, p.current.topic),
 		Variables: p.variables,
 		DataSource: &SubscriptionSource{
-			pubSub: p.pubSubBySourceName[p.current.config.SourceName],
+			pubSub: pubsub,
 		},
 		PostProcessing: resolve.PostProcessingConfiguration{
 			MergePath: []string{p.current.config.FieldName},
