@@ -18,6 +18,7 @@ type federationEngineConfigFactoryOptions struct {
 	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
 	subscriptionType          SubscriptionType
 	customResolveMap          map[string]resolve.CustomResolve
+	engineOptions             []EngineV2ConfigurationOption
 }
 
 type FederationEngineConfigFactoryOption func(options *federationEngineConfigFactoryOptions)
@@ -52,6 +53,12 @@ func WithFederationSubscriptionType(subscriptionType SubscriptionType) Federatio
 	}
 }
 
+func WithEngineOptions(engineOptions ...EngineV2ConfigurationOption) FederationEngineConfigFactoryOption {
+	return func(options *federationEngineConfigFactoryOptions) {
+		options.engineOptions = engineOptions
+	}
+}
+
 func NewFederationEngineConfigFactory(dataSourceConfigs []graphqlDataSource.Configuration, batchFactory resolve.DataSourceBatchFactory, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
 	options := federationEngineConfigFactoryOptions{
 		httpClient: &http.Client{
@@ -80,6 +87,7 @@ func NewFederationEngineConfigFactory(dataSourceConfigs []graphqlDataSource.Conf
 		subscriptionClientFactory: options.subscriptionClientFactory,
 		subscriptionType:          options.subscriptionType,
 		customResolveMap:          options.customResolveMap,
+		engineOptions:             options.engineOptions,
 	}
 }
 
@@ -93,6 +101,7 @@ type FederationEngineConfigFactory struct {
 	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
 	subscriptionType          SubscriptionType
 	customResolveMap          map[string]resolve.CustomResolve
+	engineOptions             []EngineV2ConfigurationOption
 }
 
 func (f *FederationEngineConfigFactory) SetMergedSchemaFromString(mergedSchema string) (err error) {
@@ -131,7 +140,7 @@ func (f *FederationEngineConfigFactory) EngineV2Configuration() (conf EngineV2Co
 		return conf, fmt.Errorf("get schema: %v", err)
 	}
 
-	conf = NewEngineV2Configuration(schema)
+	conf = NewEngineV2Configuration(schema, f.engineOptions...)
 
 	fieldConfigs, err := f.engineConfigFieldConfigs(schema)
 	if err != nil {

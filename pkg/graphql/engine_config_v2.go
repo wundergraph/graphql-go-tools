@@ -19,9 +19,27 @@ type EngineV2Configuration struct {
 	plannerConfig            plan.Configuration
 	websocketBeforeStartHook WebsocketBeforeStartHook
 	dataLoaderConfig         dataLoaderConfig
+	options                  EngineV2ConfigurationOptions
 }
 
-func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
+type EngineV2ConfigurationOptions struct {
+	disableIntrospection bool
+}
+
+type EngineV2ConfigurationOption func(config *EngineV2ConfigurationOptions)
+
+func WithDisableIntrospection(disable bool) EngineV2ConfigurationOption {
+	return func(config *EngineV2ConfigurationOptions) {
+		config.disableIntrospection = disable
+	}
+}
+
+func NewEngineV2Configuration(schema *Schema, options ...EngineV2ConfigurationOption) EngineV2Configuration {
+	opts := EngineV2ConfigurationOptions{}
+	for _, option := range options {
+		option(&opts)
+	}
+
 	return EngineV2Configuration{
 		schema: schema,
 		plannerConfig: plan.Configuration{
@@ -33,6 +51,7 @@ func NewEngineV2Configuration(schema *Schema) EngineV2Configuration {
 			EnableSingleFlightLoader: false,
 			EnableDataLoader:         false,
 		},
+		options: opts,
 	}
 }
 
