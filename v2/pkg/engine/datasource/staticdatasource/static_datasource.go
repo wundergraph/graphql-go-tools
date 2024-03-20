@@ -2,6 +2,7 @@ package staticdatasource
 
 import (
 	"context"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"io"
 
 	"github.com/jensneuse/abstractlogger"
@@ -65,7 +66,7 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 
 type Source struct{}
 
-func (Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
+func (Source) Load(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) (err error) {
 	_, err = w.Write(input)
 	return
 }

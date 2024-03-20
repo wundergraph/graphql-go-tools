@@ -1395,13 +1395,13 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 
 		// Prevent that the context is destroyed when the loader hook return an empty context
 		if res.loaderHookContext != nil {
-			res.err = source.Load(res.loaderHookContext, input, res.out)
+			res.err = source.Load(res.loaderHookContext, input, l.ctx.Files, res.out)
 		} else {
-			res.err = source.Load(ctx, input, res.out)
+			res.err = source.Load(ctx, input, l.ctx.Files, res.out)
 		}
 
 	} else {
-		res.err = source.Load(ctx, input, res.out)
+		res.err = source.Load(ctx, input, l.ctx.Files, res.out)
 	}
 
 	res.statusCode = responseContext.StatusCode
