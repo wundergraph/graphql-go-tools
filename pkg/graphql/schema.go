@@ -213,6 +213,16 @@ func (s *Schema) GetAllFieldArguments(skipFieldFuncs ...SkipFieldFunc) []TypeFie
 		objectTypeExtensions[typeName] = objectTypeExtension
 	}
 
+	interfaceTypeExtensions := make(map[string]ast.InterfaceTypeExtension)
+	for _, interfaceTypeExtension := range s.document.InterfaceTypeExtensions {
+		typeName, ok := s.typeNameOfInterfaceTypeIfHavingFields(interfaceTypeExtension.InterfaceTypeDefinition)
+		if !ok {
+			continue
+		}
+
+		interfaceTypeExtensions[typeName] = interfaceTypeExtension
+	}
+
 	typeFieldArguments := make([]TypeFieldArguments, 0)
 	for _, objectType := range s.document.ObjectTypeDefinitions {
 		typeName, ok := s.typeNameOfObjectTypeIfHavingFields(objectType)
@@ -244,6 +254,36 @@ func (s *Schema) GetAllFieldArguments(skipFieldFuncs ...SkipFieldFunc) []TypeFie
 		}
 	}
 
+	for _, interfaceType := range s.document.InterfaceTypeDefinitions {
+		typeName, ok := s.typeNameOfInterfaceTypeIfHavingFields(interfaceType)
+		if !ok {
+			continue
+		}
+
+		for _, fieldRef := range interfaceType.FieldsDefinition.Refs {
+			fieldName, skip := s.determineIfFieldWithFieldNameShouldBeSkipped(fieldRef, typeName, skipFieldFuncs...)
+			if skip {
+				continue
+			}
+
+			s.addTypeFieldArgsForFieldRef(fieldRef, typeName, fieldName, &typeFieldArguments)
+		}
+
+		interfaceTypeExt, ok := interfaceTypeExtensions[typeName]
+		if !ok {
+			continue
+		}
+
+		for _, fieldRef := range interfaceTypeExt.FieldsDefinition.Refs {
+			fieldName, skip := s.determineIfFieldWithFieldNameShouldBeSkipped(fieldRef, typeName, skipFieldFuncs...)
+			if skip {
+				continue
+			}
+
+			s.addTypeFieldArgsForFieldRef(fieldRef, typeName, fieldName, &typeFieldArguments)
+		}
+	}
+
 	return typeFieldArguments
 }
 
@@ -255,6 +295,13 @@ func (s *Schema) typeNameOfObjectTypeIfHavingFields(objectType ast.ObjectTypeDef
 	return s.document.Input.ByteSliceString(objectType.Name), true
 }
 
+func (s *Schema) typeNameOfInterfaceTypeIfHavingFields(interfaceType ast.InterfaceTypeDefinition) (typeName string, ok bool) {
+	if !interfaceType.HasFieldDefinitions {
+		return "", false
+	}
+
+	return s.document.Input.ByteSliceString(interfaceType.Name), true
+}
 func (s *Schema) fieldNameOfFieldDefinitionIfHavingArguments(field ast.FieldDefinition, ref int) (fieldName string, ok bool) {
 	if !field.HasArgumentsDefinitions {
 		return "", false

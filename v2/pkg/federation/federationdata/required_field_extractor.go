@@ -30,6 +30,9 @@ func (f *RequiredFieldExtractor) GetAllRequiredFields() plan.FieldConfigurations
 	f.addFieldsForObjectExtensionDefinitions(&fieldRequires)
 	f.addFieldsForObjectDefinitions(&fieldRequires)
 
+	f.addFieldsForInterfaceExtensionDefinitions(&fieldRequires)
+	f.addFieldsForInterfaceDefinitions(&fieldRequires)
+
 	return fieldRequires
 }
 
@@ -97,6 +100,70 @@ func (f *RequiredFieldExtractor) addFieldsForObjectDefinitions(fieldRequires *pl
 	}
 }
 
+func (f *RequiredFieldExtractor) addFieldsForInterfaceExtensionDefinitions(fieldRequires *plan.FieldConfigurations) {
+	for _, interfaceTypeExt := range f.document.InterfaceTypeExtensions {
+		interfaceType := interfaceTypeExt.InterfaceTypeDefinition
+		typeName := f.document.Input.ByteSliceString(interfaceType.Name)
+
+		primaryKeys, exists := f.primaryKeyFieldsIfInterfaceTypeIsEntity(interfaceType)
+		if !exists {
+			continue
+		}
+
+		for _, fieldDefinitionRef := range interfaceType.FieldsDefinition.Refs {
+			if f.document.FieldDefinitionHasNamedDirective(fieldDefinitionRef, sdlmerge.ExternalDirectiveName) {
+				continue
+			}
+
+			fieldName := f.document.FieldDefinitionNameString(fieldDefinitionRef)
+
+			requiredFields := make([]string, len(primaryKeys))
+			copy(requiredFields, primaryKeys)
+
+			requiredFieldsByRequiresDirective := requiredFieldsByRequiresDirective(f.document, fieldDefinitionRef)
+			requiredFields = append(requiredFields, requiredFieldsByRequiresDirective...)
+
+			*fieldRequires = append(*fieldRequires, plan.FieldConfiguration{
+				TypeName:       typeName,
+				FieldName:      fieldName,
+				RequiresFields: requiredFields,
+			})
+		}
+	}
+}
+
+func (f *RequiredFieldExtractor) addFieldsForInterfaceDefinitions(fieldRequires *plan.FieldConfigurations) {
+	for _, interfaceType := range f.document.InterfaceTypeDefinitions {
+		typeName := f.document.Input.ByteSliceString(interfaceType.Name)
+
+		primaryKeys, exists := f.primaryKeyFieldsIfInterfaceTypeIsEntity(interfaceType)
+		if !exists {
+			continue
+		}
+
+		primaryKeysSet := make(map[string]struct{}, len(primaryKeys))
+		for _, val := range primaryKeys {
+			primaryKeysSet[val] = struct{}{}
+		}
+
+		for _, fieldRef := range interfaceType.FieldsDefinition.Refs {
+			fieldName := f.document.FieldDefinitionNameString(fieldRef)
+			if _, exists := primaryKeysSet[fieldName]; exists { // Field is part of primary key, it couldn't have any required fields
+				continue
+			}
+
+			requiredFields := make([]string, len(primaryKeys))
+			copy(requiredFields, primaryKeys)
+
+			*fieldRequires = append(*fieldRequires, plan.FieldConfiguration{
+				TypeName:       typeName,
+				FieldName:      fieldName,
+				RequiresFields: requiredFields,
+			})
+		}
+	}
+}
+
 func requiredFieldsByRequiresDirective(document *ast.Document, fieldDefinitionRef int) []string {
 	for _, directiveRef := range document.FieldDefinitions[fieldDefinitionRef].Directives.Refs {
 		if directiveName := document.DirectiveNameString(directiveRef); directiveName != sdlmerge.RequireDirectiveName {
@@ -121,6 +188,28 @@ func requiredFieldsByRequiresDirective(document *ast.Document, fieldDefinitionRe
 
 func (f *RequiredFieldExtractor) primaryKeyFieldsIfObjectTypeIsEntity(objectType ast.ObjectTypeDefinition) (keyFields []string, ok bool) {
 	for _, directiveRef := range objectType.Directives.Refs {
+		if directiveName := f.document.DirectiveNameString(directiveRef); directiveName != sdlmerge.KeyDirectiveName {
+			continue
+		}
+
+		value, exists := f.document.DirectiveArgumentValueByName(directiveRef, fieldsArgumentNameBytes)
+		if !exists {
+			continue
+		}
+		if value.Kind != ast.ValueKindString {
+			continue
+		}
+
+		fieldsStr := f.document.StringValueContentString(value.Ref)
+
+		return strings.Split(fieldsStr, " "), true
+	}
+
+	return nil, false
+}
+
+func (f *RequiredFieldExtractor) primaryKeyFieldsIfInterfaceTypeIsEntity(interfaceType ast.InterfaceTypeDefinition) (keyFields []string, ok bool) {
+	for _, directiveRef := range interfaceType.Directives.Refs {
 		if directiveName := f.document.DirectiveNameString(directiveRef); directiveName != sdlmerge.KeyDirectiveName {
 			continue
 		}
