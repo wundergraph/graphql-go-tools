@@ -59,7 +59,7 @@ type fieldSelectionRewriter struct {
 	definition *ast.Document
 
 	upstreamDefinition *ast.Document
-	dsConfiguration    *DataSourceConfiguration
+	dsConfiguration    DataSource
 }
 
 func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document) *fieldSelectionRewriter {
@@ -73,7 +73,7 @@ func (r *fieldSelectionRewriter) SetUpstreamDefinition(upstreamDefinition *ast.D
 	r.upstreamDefinition = upstreamDefinition
 }
 
-func (r *fieldSelectionRewriter) SetDatasourceConfiguration(dsConfiguration *DataSourceConfiguration) {
+func (r *fieldSelectionRewriter) SetDatasourceConfiguration(dsConfiguration DataSource) {
 	r.dsConfiguration = dsConfiguration
 }
 
@@ -251,7 +251,7 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 
 	if node.Kind != ast.NodeKindInterfaceTypeDefinition {
 		interfaceTypeNameStr := string(interfaceTypeName)
-		for _, k := range r.dsConfiguration.FederationMetaData.InterfaceObjects {
+		for _, k := range r.dsConfiguration.FederationConfiguration().InterfaceObjects {
 			if k.InterfaceTypeName == interfaceTypeNameStr {
 				isInterfaceObject = true
 				interfaceTypeNames = k.ConcreteTypeNames

@@ -549,8 +549,10 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 	})
 
 	t.Run("should get field children with skip function for engine v2 data source config", func(t *testing.T) {
-		dataSources := []plan.DataSourceConfiguration{
-			{
+		dsCfg, _ := plan.NewDataSourceConfiguration[any](
+			"test",
+			nil,
+			&plan.DataSourceMetadata{
 				RootNodes: []plan.TypeField{
 					{
 						TypeName:   "WithChildren",
@@ -558,7 +560,10 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 					},
 				},
 			},
-		}
+			nil,
+		)
+
+		dataSources := []plan.DataSource{dsCfg}
 		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Query", "withChildren", NewIsDataSourceConfigV2RootFieldSkipFunc(dataSources))
 		expectedTypeFields := []TypeFields{
 			{

@@ -9,42 +9,44 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/introspection"
 )
 
-type Planner struct {
-	introspectionData       *introspection.Data
-	v                       *plan.Visitor
-	rootField               int
-	rootFieldName           string
-	rootFielPath            string
-	dataSourceConfiguration plan.DataSourceConfiguration
-	isArrayItem             bool
+type Configuration struct {
+	SourceType string
 }
 
-func (p *Planner) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration) *ast.Document {
-	return nil
+type Planner[T Configuration] struct {
+	introspectionData *introspection.Data
+	v                 *plan.Visitor
+	rootField         int
+	rootFieldName     string
+	rootFielPath      string
+	isArrayItem       bool
 }
 
-func (p *Planner) Register(visitor *plan.Visitor, dataSourceConfiguration plan.DataSourceConfiguration, dataSourcePlannerConfiguration plan.DataSourcePlannerConfiguration) error {
+func (p *Planner[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
+	return nil, false
+}
+
+func (p *Planner[T]) Register(visitor *plan.Visitor, dataSourceConfiguration plan.DataSourceConfiguration[T], dataSourcePlannerConfiguration plan.DataSourcePlannerConfiguration) error {
 	p.v = visitor
 	p.rootField = ast.InvalidRef
-	p.dataSourceConfiguration = dataSourceConfiguration
 	p.isArrayItem = dataSourcePlannerConfiguration.PathType == plan.PlannerPathArrayItem
 	visitor.Walker.RegisterEnterFieldVisitor(p)
 	return nil
 }
 
-func (p *Planner) DownstreamResponseFieldAlias(_ int) (alias string, exists bool) {
+func (p *Planner[T]) DownstreamResponseFieldAlias(_ int) (alias string, exists bool) {
 	// the Introspection DataSourcePlanner doesn't rewrite upstream fields: skip
 	return
 }
 
-func (p *Planner) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
+func (p *Planner[T]) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 	return plan.DataSourcePlanningBehavior{
 		MergeAliasedRootNodes:      false,
 		OverrideFieldPathFromAlias: true,
 	}
 }
 
-func (p *Planner) EnterField(ref int) {
+func (p *Planner[T]) EnterField(ref int) {
 	fieldName := p.v.Operation.FieldNameString(ref)
 	fieldAliasOrName := p.v.Operation.FieldAliasOrNameString(ref)
 	switch fieldName {
@@ -55,11 +57,11 @@ func (p *Planner) EnterField(ref int) {
 	}
 }
 
-func (p *Planner) configureInput() string {
+func (p *Planner[T]) configureInput() string {
 	return buildInput(p.rootFieldName)
 }
 
-func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
+func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 	if p.rootField == ast.InvalidRef {
 		p.v.Walker.StopWithInternalErr(errors.New("introspection root field is not set"))
 	}
@@ -84,7 +86,7 @@ func (p *Planner) ConfigureFetch() resolve.FetchConfiguration {
 	}
 }
 
-func (p *Planner) ConfigureSubscription() plan.SubscriptionConfiguration {
+func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	// the Introspection DataSourcePlanner doesn't have subscription
 	return plan.SubscriptionConfiguration{}
 }

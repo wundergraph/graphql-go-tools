@@ -16,7 +16,7 @@ type objectFields struct {
 	fields     *[]*resolve.Field
 }
 
-func buildRepresentationVariableNode(definition *ast.Document, cfg plan.FederationFieldConfiguration, dsCfg plan.DataSourceConfiguration) (*resolve.Object, error) {
+func buildRepresentationVariableNode(definition *ast.Document, cfg plan.FederationFieldConfiguration, federationCfg plan.FederationMetaData) (*resolve.Object, error) {
 	key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, false)
 	if report.HasErrors() {
 		return nil, report
@@ -25,14 +25,14 @@ func buildRepresentationVariableNode(definition *ast.Document, cfg plan.Federati
 	walker := astvisitor.NewWalker(48)
 
 	var interfaceObjectTypeName *string
-	for _, interfaceObjCfg := range dsCfg.FederationMetaData.InterfaceObjects {
+	for _, interfaceObjCfg := range federationCfg.InterfaceObjects {
 		if slices.Contains(interfaceObjCfg.ConcreteTypeNames, cfg.TypeName) {
 			interfaceObjectTypeName = &interfaceObjCfg.InterfaceTypeName
 			break
 		}
 	}
 	var entityInterfaceTypeName *string
-	for _, entityInterfaceCfg := range dsCfg.FederationMetaData.EntityInterfaces {
+	for _, entityInterfaceCfg := range federationCfg.EntityInterfaces {
 		if slices.Contains(entityInterfaceCfg.ConcreteTypeNames, cfg.TypeName) {
 			entityInterfaceTypeName = &entityInterfaceCfg.InterfaceTypeName
 			break

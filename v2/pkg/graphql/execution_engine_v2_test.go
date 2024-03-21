@@ -35,6 +35,45 @@ func (customResolver) Resolve(value []byte) ([]byte, error) {
 	return value, nil
 }
 
+func mustSchemaConfig(t *testing.T, federationConfiguration *graphql_datasource.FederationConfiguration, schema string) *graphql_datasource.SchemaConfiguration {
+	t.Helper()
+
+	s, err := graphql_datasource.NewSchemaConfiguration(schema, federationConfiguration)
+	require.NoError(t, err)
+	return s
+}
+
+func mustConfiguration(t *testing.T, input graphql_datasource.ConfigurationInput) graphql_datasource.Configuration {
+	t.Helper()
+
+	cfg, err := graphql_datasource.NewConfiguration(input)
+	require.NoError(t, err)
+	return cfg
+}
+
+func mustFactory(t testing.TB, httpClient *http.Client) plan.PlannerFactory[graphql_datasource.Configuration] {
+	t.Helper()
+
+	factory, err := graphql_datasource.NewFactory(context.Background(), httpClient, &graphql_datasource.SubscriptionClient{})
+	require.NoError(t, err)
+
+	return factory
+}
+
+func mustGraphqlDataSourceConfiguration(t *testing.T, id string, factory plan.PlannerFactory[graphql_datasource.Configuration], metadata *plan.DataSourceMetadata, customConfig graphql_datasource.Configuration) plan.DataSourceConfiguration[graphql_datasource.Configuration] {
+	t.Helper()
+
+	cfg, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+		id,
+		factory,
+		metadata,
+		customConfig,
+	)
+	require.NoError(t, err)
+
+	return cfg
+}
+
 func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 	t.Run("no compression", func(t *testing.T) {
 		rw := NewEngineResultWriter()
@@ -147,15 +186,14 @@ func TestWithAdditionalHttpHeaders(t *testing.T) {
 }
 
 type ExecutionEngineV2TestCase struct {
-	schema                            *Schema
-	operation                         func(t *testing.T) Request
-	dataSources                       []plan.DataSourceConfiguration
-	generateChildrenForFirstRootField bool
-	fields                            plan.FieldConfigurations
-	engineOptions                     []ExecutionOptionsV2
-	expectedResponse                  string
-	customResolveMap                  map[string]resolve.CustomResolve
-	skipReason                        string
+	schema           *Schema
+	operation        func(t *testing.T) Request
+	dataSources      []plan.DataSource
+	fields           plan.FieldConfigurations
+	engineOptions    []ExecutionOptionsV2
+	expectedResponse string
+	customResolveMap map[string]resolve.CustomResolve
+	skipReason       string
 }
 
 func TestExecutionEngineV2_Execute(t *testing.T) {
@@ -170,18 +208,6 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 			}
 
 			engineConf := NewEngineV2Configuration(testCase.schema)
-			if testCase.generateChildrenForFirstRootField {
-				for i := 0; i < len(testCase.dataSources); i++ {
-					children := testCase.schema.GetAllNestedFieldChildrenFromTypeField(testCase.dataSources[i].RootNodes[0].TypeName, testCase.dataSources[i].RootNodes[0].FieldNames[0])
-					testCase.dataSources[i].ChildNodes = make([]plan.TypeField, len(children))
-					for j, child := range children {
-						testCase.dataSources[i].ChildNodes[j] = plan.TypeField{
-							TypeName:   child.TypeName,
-							FieldNames: child.FieldNames,
-						}
-					}
-				}
-			}
 			engineConf.SetDataSources(testCase.dataSources)
 			engineConf.SetFieldConfigurations(testCase.fields)
 			engineConf.SetCustomResolveMap(testCase.customResolveMap)
@@ -318,37 +344,44 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		ExecutionEngineV2TestCase{
 			schema:    starwarsSchema(t),
 			operation: loadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
-			dataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"hero"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Character",
-							FieldNames: []string{"name"},
-						},
-					},
-					Factory: &graphql_datasource.Factory{
-						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
 							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 							sendStatusCode:   200,
 						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name"},
+							},
+						},
 					},
-					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-						Fetch: graphql_datasource.FetchConfiguration{
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
-						UpstreamSchema: string(starwarsSchema(t).Document()),
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(starwarsSchema(t).Document()),
+						),
 					}),
-				},
+				),
 			},
 			fields:           []plan.FieldConfiguration{},
 			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
@@ -363,37 +396,44 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				request.OperationName = "SingleHero"
 				return request
 			},
-			dataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"hero"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Character",
-							FieldNames: []string{"name"},
-						},
-					},
-					Factory: &graphql_datasource.Factory{
-						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
 							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 							sendStatusCode:   200,
 						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name"},
+							},
+						},
 					},
-					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-						Fetch: graphql_datasource.FetchConfiguration{
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
-						UpstreamSchema: string(starwarsSchema(t).Document()),
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(starwarsSchema(t).Document()),
+						),
 					}),
-				},
+				),
 			},
 			fields:           []plan.FieldConfiguration{},
 			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
@@ -417,36 +457,44 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					Query: `{asset{id}}`,
 				}
 			},
-			dataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"asset"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Asset",
-							FieldNames: []string{"id"},
-						},
-					},
-					Factory: &graphql_datasource.Factory{
-						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
 							sendResponseBody: `{"data":{"asset":{"id":1}}}`,
 							sendStatusCode:   200,
 						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"asset"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Asset",
+								FieldNames: []string{"id"},
+							},
+						},
 					},
-					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-						Fetch: graphql_datasource.FetchConfiguration{
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(schemaWithCustomScalar.Document()),
+						),
 					}),
-				},
+				),
 			},
 			customResolveMap: map[string]resolve.CustomResolve{
 				"Long": &customResolver{},
@@ -459,36 +507,44 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		ExecutionEngineV2TestCase{
 			schema:    starwarsSchema(t),
 			operation: loadStarWarsQuery(starwars.FileDroidWithArgAndVarQuery, map[string]interface{}{"droidID": "R2D2"}),
-			dataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"droid"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Droid",
-							FieldNames: []string{"name"},
-						},
-					},
-					Factory: &graphql_datasource.Factory{
-						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
 							sendResponseBody: `{"data":{"droid":{"name":"R2D2"}}}`,
 							sendStatusCode:   200,
 						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"droid"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Droid",
+								FieldNames: []string{"name"},
+							},
+						},
 					},
-					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-						Fetch: graphql_datasource.FetchConfiguration{
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(starwarsSchema(t).Document()),
+						),
 					}),
-				},
+				),
 			},
 			fields: []plan.FieldConfiguration{
 				{
@@ -521,27 +577,35 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					}`,
 			}
 		},
-		dataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{TypeName: "Query", FieldNames: []string{"heroes"}},
-				},
-				Factory: &graphql_datasource.Factory{
-					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+		dataSources: []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id",
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
 						expectedBody:     `{"query":"query($heroNames: [String!]!){heroes(names: $heroNames)}","variables":{"heroNames":["Luke Skywalker","R2-D2"]}}`,
 						sendResponseBody: `{"data":{"heroes":["Human","Droid"]}}`,
 						sendStatusCode:   200,
 					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"heroes"}},
+					},
 				},
-				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-					Fetch: graphql_datasource.FetchConfiguration{
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
 						URL:    "https://example.com/",
 						Method: "POST",
 					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						nil,
+						string(heroWithArgumentSchema(t).Document()),
+					),
 				}),
-			},
+			),
 		},
 		fields: []plan.FieldConfiguration{
 			{
@@ -579,27 +643,35 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					}`,
 			}
 		},
-		dataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{TypeName: "Query", FieldNames: []string{"heroes"}},
-				},
-				Factory: &graphql_datasource.Factory{
-					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+		dataSources: []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id",
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
 						expectedBody:     `{"query":"query($heroNames: [String!], $height: String){heroes(names: $heroNames, height: $height)}","variables":{"height":null}}`,
 						sendResponseBody: `{"data":{"heroes":[]}}`,
 						sendStatusCode:   200,
 					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"heroes"}},
+					},
 				},
-				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-					Fetch: graphql_datasource.FetchConfiguration{
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
 						URL:    "https://example.com/",
 						Method: "POST",
 					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						nil,
+						`type Query { heroes(names: [String!], height: String): [String!] }`,
+					),
 				}),
-			},
+			),
 		},
 		fields: []plan.FieldConfiguration{
 			{
@@ -641,19 +713,27 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					}`,
 			}
 		},
-		dataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{TypeName: "Query", FieldNames: []string{"hero"}},
+		dataSources: []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id",
+				mustFactory(t, http.DefaultClient),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
 				},
-				Factory: &graphql_datasource.Factory{},
-				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-					Fetch: graphql_datasource.FetchConfiguration{
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
 						URL:    "https://example.com/",
 						Method: "POST",
 					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						nil,
+						`type Query { hero(name: String!): String! }`,
+					),
 				}),
-			},
+			),
 		},
 		fields: []plan.FieldConfiguration{
 			{
@@ -683,36 +763,44 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					}`,
 			}
 		},
-		dataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"charactersByIds"},
-					},
-				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Character",
-						FieldNames: []string{"name"},
-					},
-				},
-				Factory: &graphql_datasource.Factory{
-					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+		dataSources: []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id",
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
 						expectedBody:     `{"query":"query($a: [Int]){charactersByIds(ids: $a){name}}","variables":{"a":[1]}}`,
 						sendResponseBody: `{"data":{"charactersByIds":[{"name": "Luke"}]}}`,
 						sendStatusCode:   200,
 					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"charactersByIds"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Character",
+							FieldNames: []string{"name"},
+						},
+					},
 				},
-				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-					Fetch: graphql_datasource.FetchConfiguration{
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
 						URL:    "https://example.com/",
 						Method: "POST",
 					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						nil,
+						string(inputCoercionForListSchema(t).Document()),
+					),
 				}),
-			},
+			),
 		},
 		fields: []plan.FieldConfiguration{
 			{
@@ -742,36 +830,44 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				Query: `query($ids: [Int]) { charactersByIds(ids: $ids) { name } }`,
 			}
 		},
-		dataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"charactersByIds"},
-					},
-				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Character",
-						FieldNames: []string{"name"},
-					},
-				},
-				Factory: &graphql_datasource.Factory{
-					HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+		dataSources: []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id",
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
 						expectedHost:     "example.com",
 						expectedPath:     "/",
 						expectedBody:     `{"query":"query($ids: [Int]){charactersByIds(ids: $ids){name}}","variables":{"ids":[1]}}`,
 						sendResponseBody: `{"data":{"charactersByIds":[{"name": "Luke"}]}}`,
 						sendStatusCode:   200,
 					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"charactersByIds"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Character",
+							FieldNames: []string{"name"},
+						},
+					},
 				},
-				Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-					Fetch: graphql_datasource.FetchConfiguration{
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
 						URL:    "https://example.com/",
 						Method: "POST",
 					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						nil,
+						string(inputCoercionForListSchema(t).Document()),
+					),
 				}),
-			},
+			),
 		},
 		fields: []plan.FieldConfiguration{
 			{
@@ -794,36 +890,44 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		ExecutionEngineV2TestCase{
 			schema:    starwarsSchema(t),
 			operation: loadStarWarsQuery(starwars.FileDroidWithArgQuery, nil),
-			dataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"droid"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Droid",
-							FieldNames: []string{"name"},
-						},
-					},
-					Factory: &graphql_datasource.Factory{
-						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
 							sendResponseBody: `{"data":{"droid":{"name":"R2D2"}}}`,
 							sendStatusCode:   200,
 						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"droid"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Droid",
+								FieldNames: []string{"name"},
+							},
+						},
 					},
-					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-						Fetch: graphql_datasource.FetchConfiguration{
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(starwarsSchema(t).Document()),
+						),
 					}),
-				},
+				),
 			},
 			fields: []plan.FieldConfiguration{
 				{
@@ -843,7 +947,6 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 	))
 
 	t.Run("execute operation with default arguments", func(t *testing.T) {
-		t.Skip("TODO: FIXME")
 		t.Run("query variables with default value", runWithoutError(
 			ExecutionEngineV2TestCase{
 				schema: heroWithArgumentSchema(t),
@@ -857,27 +960,35 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						}`,
 					}
 				},
-				dataSources: []plan.DataSourceConfiguration{
-					{
-						RootNodes: []plan.TypeField{
-							{TypeName: "Query", FieldNames: []string{"hero"}},
-						},
-						Factory: &graphql_datasource.Factory{
-							HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost:     "example.com",
 								expectedPath:     "/",
 								expectedBody:     `{"query":"query($name: String!, $nameOptional: String){hero(name: $name) hero2: hero(name: $nameOptional)}","variables":{"nameOptional":"R2D2","name":"R2D2"}}`,
 								sendResponseBody: `{"data":{"hero":"R2D2","hero2":"R2D2"}}`,
 								sendStatusCode:   200,
 							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{TypeName: "Query", FieldNames: []string{"hero"}},
+							},
 						},
-						Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-							Fetch: graphql_datasource.FetchConfiguration{
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
 								URL:    "https://example.com/",
 								Method: "GET",
 							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								string(heroWithArgumentSchema(t).Document()),
+							),
 						}),
-					},
+					),
 				},
 				fields: []plan.FieldConfiguration{
 					{
@@ -912,27 +1023,35 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						}`,
 					}
 				},
-				dataSources: []plan.DataSourceConfiguration{
-					{
-						RootNodes: []plan.TypeField{
-							{TypeName: "Query", FieldNames: []string{"hero"}},
-						},
-						Factory: &graphql_datasource.Factory{
-							HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost:     "example.com",
 								expectedPath:     "/",
 								expectedBody:     `{"query":"query($name: String!, $nameOptional: String){hero(name: $name) hero2: hero(name: $nameOptional)}","variables":{"nameOptional":"Skywalker","name":"Luke"}}`,
 								sendResponseBody: `{"data":{"hero":"R2D2","hero2":"R2D2"}}`,
 								sendStatusCode:   200,
 							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{TypeName: "Query", FieldNames: []string{"hero"}},
+							},
 						},
-						Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-							Fetch: graphql_datasource.FetchConfiguration{
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
 								URL:    "https://example.com/",
 								Method: "GET",
 							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								string(heroWithArgumentSchema(t).Document()),
+							),
 						}),
-					},
+					),
 				},
 				fields: []plan.FieldConfiguration{
 					{
@@ -966,27 +1085,35 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						}`,
 					}
 				},
-				dataSources: []plan.DataSourceConfiguration{
-					{
-						RootNodes: []plan.TypeField{
-							{TypeName: "Query", FieldNames: []string{"heroDefault", "heroDefaultRequired"}},
-						},
-						Factory: &graphql_datasource.Factory{
-							HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost:     "example.com",
 								expectedPath:     "/",
 								expectedBody:     `{"query":"query($name: String!, $nameOptional: String!){hero: heroDefault(name: $name) hero2: heroDefault(name: $nameOptional) hero3: heroDefaultRequired(name: $name) hero4: heroDefaultRequired(name: $nameOptional)}","variables":{"nameOptional":"R2D2","name":"R2D2"}}`,
 								sendResponseBody: `{"data":{"hero":"R2D2","hero2":"R2D2","hero3":"R2D2","hero4":"R2D2"}}`,
 								sendStatusCode:   200,
 							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{TypeName: "Query", FieldNames: []string{"heroDefault", "heroDefaultRequired"}},
+							},
 						},
-						Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-							Fetch: graphql_datasource.FetchConfiguration{
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
 								URL:    "https://example.com/",
 								Method: "GET",
 							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								string(heroWithArgumentSchema(t).Document()),
+							),
 						}),
-					},
+					),
 				},
 				fields: []plan.FieldConfiguration{
 					{
@@ -1029,27 +1156,35 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 						}`,
 					}
 				},
-				dataSources: []plan.DataSourceConfiguration{
-					{
-						RootNodes: []plan.TypeField{
-							{TypeName: "Query", FieldNames: []string{"heroDefault", "heroDefaultRequired"}},
-						},
-						Factory: &graphql_datasource.Factory{
-							HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost:     "example.com",
 								expectedPath:     "/",
 								expectedBody:     `{"query":"query($a: String, $b: String!){heroDefault(name: $a) heroDefaultRequired(name: $b)}","variables":{"b":"AnyRequired","a":"Any"}}`,
 								sendResponseBody: `{"data":{"heroDefault":"R2D2","heroDefaultRequired":"R2D2"}}`,
 								sendStatusCode:   200,
 							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{TypeName: "Query", FieldNames: []string{"heroDefault", "heroDefaultRequired"}},
+							},
 						},
-						Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-							Fetch: graphql_datasource.FetchConfiguration{
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
 								URL:    "https://example.com/",
 								Method: "GET",
 							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								string(heroWithArgumentSchema(t).Document()),
+							),
 						}),
-					},
+					),
 				},
 				fields: []plan.FieldConfiguration{
 					{
@@ -1091,29 +1226,61 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 					Query:         `{ codeType { code ...on Country { name } } }`,
 				}
 			},
-			generateChildrenForFirstRootField: true,
-			dataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{TypeName: "Query", FieldNames: []string{"codeType"}},
-					},
-					Factory: &graphql_datasource.Factory{
-						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     `{"query":"{codeType {code __typename ... on Country {name}}}"}`,
 							sendResponseBody: `{"data":{"codeType":{"__typename":"Country","code":"de","name":"Germany"}}}`,
 							sendStatusCode:   200,
 						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{TypeName: "Query", FieldNames: []string{"codeType"}},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Continent",
+								FieldNames: []string{"code", "name", "countries"},
+							},
+							{
+								TypeName:   "Country",
+								FieldNames: []string{"code", "name", "native", "phone", "continent", "capital", "currency", "languages", "emoji", "emojiU", "states"},
+							},
+							{
+								TypeName:   "Language",
+								FieldNames: []string{"code", "name", "native", "rtl"},
+							},
+							{
+								TypeName:   "State",
+								FieldNames: []string{"code", "name", "country"},
+							},
+							{
+								TypeName:   "CodeNameType",
+								FieldNames: []string{"code", "name"},
+							},
+							{
+								TypeName:   "CodeType",
+								FieldNames: []string{"code"},
+							},
+						},
 					},
-					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-						Fetch: graphql_datasource.FetchConfiguration{
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
-						UpstreamSchema: countriesSchema,
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							countriesSchema,
+						),
 					}),
-				},
+				),
 			},
 			fields:           []plan.FieldConfiguration{},
 			expectedResponse: `{"data":{"codeType":{"code":"de","name":"Germany"}}}`,
@@ -1124,36 +1291,44 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		ExecutionEngineV2TestCase{
 			schema:    starwarsSchema(t),
 			operation: loadStarWarsQuery(starwars.FileInvalidFragmentsQuery, nil),
-			dataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"droid"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Droid",
-							FieldNames: []string{"name"},
-						},
-					},
-					Factory: &graphql_datasource.Factory{
-						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
 							sendResponseBody: `{"data":{"droid":{"name":"R2D2"}}}`,
 							sendStatusCode:   200,
 						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"droid"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Droid",
+								FieldNames: []string{"name"},
+							},
+						},
 					},
-					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-						Fetch: graphql_datasource.FetchConfiguration{
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(starwarsSchema(t).Document()),
+						),
 					}),
-				},
+				),
 			},
 			fields: []plan.FieldConfiguration{
 				{
@@ -1182,40 +1357,48 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				request.OperationName = "SearchResults"
 				return request
 			},
-			dataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"searchResults"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Character",
-							FieldNames: []string{"name"},
-						},
-						{
-							TypeName:   "Vehicle",
-							FieldNames: []string{"length"},
-						},
-					},
-					Factory: &graphql_datasource.Factory{
-						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
 							sendResponseBody: `{"data":{"searchResults":[{"name"":"Luke Skywalker"},{"length":13.37}]}}`,
 							sendStatusCode:   200,
 						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"searchResults"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name"},
+							},
+							{
+								TypeName:   "Vehicle",
+								FieldNames: []string{"length"},
+							},
+						},
 					},
-					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-						Fetch: graphql_datasource.FetchConfiguration{
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
 							Method: "GET",
 						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(starwarsSchema(t).Document()),
+						),
 					}),
-				},
+				),
 			},
 			fields:           []plan.FieldConfiguration{},
 			expectedResponse: `{"data":{"searchResults":null}}`,
@@ -1266,27 +1449,35 @@ func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 	require.True(t, normalizationResult.Successful)
 
 	engineConfig := NewEngineV2Configuration(schema)
-	engineConfig.SetDataSources([]plan.DataSourceConfiguration{
-		{
-			RootNodes: []plan.TypeField{
-				{
-					TypeName:   "Subscription",
-					FieldNames: []string{"lastRegisteredUser", "liveUserCount"},
+	engineConfig.SetDataSources([]plan.DataSource{
+		mustGraphqlDataSourceConfiguration(t,
+			"id",
+			mustFactory(t, http.DefaultClient),
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Subscription",
+						FieldNames: []string{"lastRegisteredUser", "liveUserCount"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "username", "email"},
+					},
 				},
 			},
-			ChildNodes: []plan.TypeField{
-				{
-					TypeName:   "User",
-					FieldNames: []string{"id", "username", "email"},
-				},
-			},
-			Factory: &graphql_datasource.Factory{},
-			Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-				Subscription: graphql_datasource.SubscriptionConfiguration{
+			mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Subscription: &graphql_datasource.SubscriptionConfiguration{
 					URL: "http://localhost:8080",
 				},
+				SchemaConfiguration: mustSchemaConfig(
+					t,
+					nil,
+					testSubscriptionDefinition,
+				),
 			}),
-		},
+		),
 	})
 
 	engine, err := NewExecutionEngineV2(context.Background(), abstractlogger.NoopLogger, engineConfig)
@@ -1424,17 +1615,23 @@ func BenchmarkExecutionEngineV2(b *testing.B) {
 		schema, err := NewSchemaFromString(`type Query { hello: String}`)
 		require.NoError(b, err)
 
-		engineConf := NewEngineV2Configuration(schema)
-		engineConf.SetDataSources([]plan.DataSourceConfiguration{
-			{
+		dsCfg, err := plan.NewDataSourceConfiguration[staticdatasource.Configuration](
+			"id",
+			&staticdatasource.Factory[staticdatasource.Configuration]{},
+			&plan.DataSourceMetadata{
 				RootNodes: []plan.TypeField{
 					{TypeName: "Query", FieldNames: []string{"hello"}},
 				},
-				Factory: &staticdatasource.Factory{},
-				Custom: staticdatasource.ConfigJSON(staticdatasource.Configuration{
-					Data: `"world"`,
-				}),
 			},
+			staticdatasource.Configuration{
+				Data: `"world"`,
+			},
+		)
+		require.NoError(b, err)
+
+		engineConf := NewEngineV2Configuration(schema)
+		engineConf.SetDataSources([]plan.DataSource{
+			dsCfg,
 		})
 		engineConf.SetFieldConfigurations([]plan.FieldConfiguration{
 			{
@@ -1521,208 +1718,264 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 		return
 	}
 
-	accountsDataSource := plan.DataSourceConfiguration{
-		RootNodes: []plan.TypeField{
-			{
-				TypeName:   "Query",
-				FieldNames: []string{"me", "identifiable", "histories", "cat"},
-			},
-			{
-				TypeName:   "User",
-				FieldNames: []string{"id", "username", "history", "realName"},
-			},
-			{
-				TypeName:   "Product",
-				FieldNames: []string{"upc"},
-			},
-		},
-		ChildNodes: []plan.TypeField{
-			{
-				TypeName:   "Cat",
-				FieldNames: []string{"name"},
-			},
-			{
-				TypeName:   "Identifiable",
-				FieldNames: []string{"id"},
-			},
-			{
-				TypeName:   "Info",
-				FieldNames: []string{"quantity"},
-			},
-			{
-				TypeName:   "Purchase",
-				FieldNames: []string{"product", "wallet", "quantity"},
-			},
-			{
-				TypeName:   "Store",
-				FieldNames: []string{"location"},
-			},
-			{
-				TypeName:   "Sale",
-				FieldNames: []string{"product", "rating", "location"},
-			},
-			{
-				TypeName:   "Wallet",
-				FieldNames: []string{"currency", "amount"},
-			},
-			{
-				TypeName:   "WalletType1",
-				FieldNames: []string{"currency", "amount", "specialField1"},
-			},
-			{
-				TypeName:   "WalletType2",
-				FieldNames: []string{"currency", "amount", "specialField2"},
-			},
-		},
-		FederationMetaData: plan.FederationMetaData{
-			Keys: plan.FederationFieldConfigurations{
-				{
-					TypeName:     "User",
-					SelectionSet: "id",
-				},
-				{
-					TypeName:     "Product",
-					SelectionSet: "upc",
-				},
-			},
-		},
-		Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-			Fetch: graphql_datasource.FetchConfiguration{
-				URL:    setup.accountsUpstreamServer.URL,
-				Method: http.MethodPost,
-			},
-			Federation: graphql_datasource.FederationConfiguration{
-				Enabled:    true,
-				ServiceSDL: string(accountsSDL),
-			},
-		}),
-		Factory: &graphql_datasource.Factory{
-			HTTPClient: httpclient.DefaultNetHttpClient,
-		},
+	graphqlFactory, err := graphql_datasource.NewFactory(ctx, httpclient.DefaultNetHttpClient, &graphql_datasource.SubscriptionClient{})
+	if err != nil {
+		return
 	}
 
-	productsDataSource := plan.DataSourceConfiguration{
-		RootNodes: []plan.TypeField{
-			{
-				TypeName:   "Query",
-				FieldNames: []string{"topProducts"},
-			},
-			{
-				TypeName:   "Product",
-				FieldNames: []string{"upc", "name", "price", "inStock"},
-			},
-			{
-				TypeName:   "Subscription",
-				FieldNames: []string{"updatedPrice", "updateProductPrice"},
-			},
-			{
-				TypeName:   "Mutation",
-				FieldNames: []string{"setPrice"},
-			},
+	accountsSchemaConfiguration, err := graphql_datasource.NewSchemaConfiguration(
+		string(accountsSDL),
+		&graphql_datasource.FederationConfiguration{
+			Enabled:    true,
+			ServiceSDL: string(accountsSDL),
 		},
-		FederationMetaData: plan.FederationMetaData{
-			Keys: plan.FederationFieldConfigurations{
-				{
-					TypeName:     "Product",
-					SelectionSet: "upc",
-				},
-			},
-		},
-		Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-			Fetch: graphql_datasource.FetchConfiguration{
-				URL:    setup.productsUpstreamServer.URL,
-				Method: http.MethodPost,
-			},
-			Subscription: graphql_datasource.SubscriptionConfiguration{
-				URL: setup.productsUpstreamServer.URL,
-			},
-			Federation: graphql_datasource.FederationConfiguration{
-				Enabled:    true,
-				ServiceSDL: string(productsSDL),
-			},
-		}),
-		Factory: &graphql_datasource.Factory{
-			HTTPClient: httpclient.DefaultNetHttpClient,
-		},
+	)
+	if err != nil {
+		return
 	}
 
-	reviewsDataSource := plan.DataSourceConfiguration{
-		RootNodes: []plan.TypeField{
-			{
-				TypeName:   "Query",
-				FieldNames: []string{"me", "cat"},
-			},
-			{
-				TypeName:   "User",
-				FieldNames: []string{"id", "reviews", "realName"},
-			},
-			{
-				TypeName:   "Product",
-				FieldNames: []string{"upc", "reviews"},
-			},
-			{
-				TypeName:   "Mutation",
-				FieldNames: []string{"addReview"},
-			},
+	accountsConfiguration, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
+		Fetch: &graphql_datasource.FetchConfiguration{
+			URL:    setup.accountsUpstreamServer.URL,
+			Method: http.MethodPost,
 		},
-		ChildNodes: []plan.TypeField{
-			{
-				TypeName:   "Cat",
-				FieldNames: []string{"name"},
-			},
-			{
-				TypeName:   "Comment",
-				FieldNames: []string{"upc", "body"},
-			},
-			{
-				TypeName:   "Review",
-				FieldNames: []string{"body", "author", "product", "attachments"},
-			},
-			{
-				TypeName:   "Question",
-				FieldNames: []string{"upc", "body"},
-			},
-			{
-				TypeName:   "Rating",
-				FieldNames: []string{"upc", "body", "score"},
-			},
-			{
-				TypeName:   "Rating",
-				FieldNames: []string{"upc", "body", "score"},
-			},
-			{
-				TypeName:   "Video",
-				FieldNames: []string{"upc", "size"},
-			},
-		},
-		FederationMetaData: plan.FederationMetaData{
-			Keys: plan.FederationFieldConfigurations{
+		SchemaConfiguration: accountsSchemaConfiguration,
+	})
+	if err != nil {
+		return
+	}
+
+	accountsDataSource, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+		"accounts",
+		graphqlFactory,
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
 				{
-					TypeName:     "User",
-					SelectionSet: "id",
+					TypeName:   "Query",
+					FieldNames: []string{"me", "identifiable", "histories", "cat"},
 				},
 				{
-					TypeName:     "Product",
-					SelectionSet: "upc",
+					TypeName:   "User",
+					FieldNames: []string{"id", "username", "history", "realName"},
+				},
+				{
+					TypeName:   "Product",
+					FieldNames: []string{"upc"},
+				},
+			},
+			ChildNodes: []plan.TypeField{
+				{
+					TypeName:   "Cat",
+					FieldNames: []string{"name"},
+				},
+				{
+					TypeName:   "Identifiable",
+					FieldNames: []string{"id"},
+				},
+				{
+					TypeName:   "Info",
+					FieldNames: []string{"quantity"},
+				},
+				{
+					TypeName:   "Purchase",
+					FieldNames: []string{"product", "wallet", "quantity"},
+				},
+				{
+					TypeName:   "Store",
+					FieldNames: []string{"location"},
+				},
+				{
+					TypeName:   "Sale",
+					FieldNames: []string{"product", "rating", "location"},
+				},
+				{
+					TypeName:   "Wallet",
+					FieldNames: []string{"currency", "amount"},
+				},
+				{
+					TypeName:   "WalletType1",
+					FieldNames: []string{"currency", "amount", "specialField1"},
+				},
+				{
+					TypeName:   "WalletType2",
+					FieldNames: []string{"currency", "amount", "specialField2"},
+				},
+			},
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Product",
+						SelectionSet: "upc",
+					},
 				},
 			},
 		},
-		Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-			Fetch: graphql_datasource.FetchConfiguration{
-				URL:    setup.reviewsUpstreamServer.URL,
-				Method: http.MethodPost,
-			},
-			Subscription: graphql_datasource.SubscriptionConfiguration{
-				URL: setup.reviewsUpstreamServer.URL,
-			},
-			Federation: graphql_datasource.FederationConfiguration{
-				Enabled:    true,
-				ServiceSDL: string(reviewsSDL),
-			},
-		}),
-		Factory: &graphql_datasource.Factory{
-			HTTPClient: httpclient.DefaultNetHttpClient,
+		accountsConfiguration,
+	)
+	if err != nil {
+		return
+	}
+
+	productsSchemaConfiguration, err := graphql_datasource.NewSchemaConfiguration(
+		string(productsSDL),
+		&graphql_datasource.FederationConfiguration{
+			Enabled:    true,
+			ServiceSDL: string(productsSDL),
 		},
+	)
+	if err != nil {
+		return
+	}
+
+	productsConfiguration, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
+		Fetch: &graphql_datasource.FetchConfiguration{
+			URL:    setup.productsUpstreamServer.URL,
+			Method: http.MethodPost,
+		},
+		Subscription: &graphql_datasource.SubscriptionConfiguration{
+			URL: setup.productsUpstreamServer.URL,
+		},
+		SchemaConfiguration: productsSchemaConfiguration,
+	})
+	if err != nil {
+		return
+	}
+
+	productsDataSource, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+		"products",
+		graphqlFactory,
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"topProducts"},
+				},
+				{
+					TypeName:   "Product",
+					FieldNames: []string{"upc", "name", "price", "inStock"},
+				},
+				{
+					TypeName:   "Subscription",
+					FieldNames: []string{"updatedPrice", "updateProductPrice"},
+				},
+				{
+					TypeName:   "Mutation",
+					FieldNames: []string{"setPrice"},
+				},
+			},
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Product",
+						SelectionSet: "upc",
+					},
+				},
+			},
+		},
+		productsConfiguration,
+	)
+	if err != nil {
+		return
+	}
+
+	reviewsSchemaConfiguration, err := graphql_datasource.NewSchemaConfiguration(
+		string(reviewsSDL),
+		&graphql_datasource.FederationConfiguration{
+			Enabled:    true,
+			ServiceSDL: string(reviewsSDL),
+		},
+	)
+	if err != nil {
+		return
+	}
+
+	reviewsConfiguration, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
+		Fetch: &graphql_datasource.FetchConfiguration{
+			URL:    setup.reviewsUpstreamServer.URL,
+			Method: http.MethodPost,
+		},
+		Subscription: &graphql_datasource.SubscriptionConfiguration{
+			URL: setup.reviewsUpstreamServer.URL,
+		},
+		SchemaConfiguration: reviewsSchemaConfiguration,
+	})
+	if err != nil {
+		return
+	}
+
+	reviewsDataSource, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+		"reviews",
+		graphqlFactory,
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"me", "cat"},
+				},
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id", "reviews", "realName"},
+				},
+				{
+					TypeName:   "Product",
+					FieldNames: []string{"upc", "reviews"},
+				},
+				{
+					TypeName:   "Mutation",
+					FieldNames: []string{"addReview"},
+				},
+			},
+			ChildNodes: []plan.TypeField{
+				{
+					TypeName:   "Cat",
+					FieldNames: []string{"name"},
+				},
+				{
+					TypeName:   "Comment",
+					FieldNames: []string{"upc", "body"},
+				},
+				{
+					TypeName:   "Review",
+					FieldNames: []string{"body", "author", "product", "attachments"},
+				},
+				{
+					TypeName:   "Question",
+					FieldNames: []string{"upc", "body"},
+				},
+				{
+					TypeName:   "Rating",
+					FieldNames: []string{"upc", "body", "score"},
+				},
+				{
+					TypeName:   "Rating",
+					FieldNames: []string{"upc", "body", "score"},
+				},
+				{
+					TypeName:   "Video",
+					FieldNames: []string{"upc", "size"},
+				},
+			},
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Product",
+						SelectionSet: "upc",
+					},
+				},
+			},
+		},
+		reviewsConfiguration,
+	)
+	if err != nil {
+		return
 	}
 
 	fieldConfigs := plan.FieldConfigurations{

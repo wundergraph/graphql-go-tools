@@ -25,6 +25,39 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/subscriptiontesting"
 )
 
+func mustSchema(t *testing.T, federationConfiguration *FederationConfiguration, schema string) *SchemaConfiguration {
+	t.Helper()
+	s, err := NewSchemaConfiguration(schema, federationConfiguration)
+	require.NoError(t, err)
+	return s
+}
+
+func mustCustomConfiguration(t *testing.T, input ConfigurationInput) Configuration {
+	t.Helper()
+
+	cfg, err := NewConfiguration(input)
+	require.NoError(t, err)
+	return cfg
+}
+
+func mustDataSourceConfiguration(t *testing.T, id string, metadata *plan.DataSourceMetadata, config Configuration) plan.DataSource {
+	t.Helper()
+
+	dsCfg, err := plan.NewDataSourceConfiguration[Configuration](id, &Factory[Configuration]{}, metadata, config)
+	require.NoError(t, err)
+
+	return dsCfg
+}
+
+func mustDataSourceConfigurationWithHttpClient(t *testing.T, id string, metadata *plan.DataSourceMetadata, config Configuration) plan.DataSource {
+	t.Helper()
+
+	dsCfg, err := plan.NewDataSourceConfiguration[Configuration](id, &Factory[Configuration]{httpClient: http.DefaultClient}, metadata, config)
+	require.NoError(t, err)
+
+	return dsCfg
+}
+
 func TestGraphQLDataSourceTypenames(t *testing.T) {
 	t.Run("__typename on union", func(t *testing.T) {
 		def := `
@@ -81,22 +114,25 @@ func TestGraphQLDataSourceTypenames(t *testing.T) {
 					},
 				},
 			}, plan.Configuration{
-				DataSources: []plan.DataSourceConfiguration{
-					{
-						RootNodes: []plan.TypeField{
-							{
-								TypeName:   "Query",
-								FieldNames: []string{"u"},
+				DataSources: []plan.DataSource{
+					mustDataSourceConfiguration(
+						t,
+						"ds-id",
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"u"},
+								},
 							},
 						},
-						Factory: &Factory{},
-						Custom: ConfigJson(Configuration{
-							Fetch: FetchConfiguration{
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
 								URL: "https://example.com/graphql",
 							},
-							UpstreamSchema: def,
+							SchemaConfiguration: mustSchema(t, nil, def),
 						}),
-					},
+					),
 				},
 				DisableResolveFieldPositions: true,
 			}))
@@ -104,8 +140,9 @@ func TestGraphQLDataSourceTypenames(t *testing.T) {
 }
 
 func TestGraphQLDataSource(t *testing.T) {
-	// XXX: Directive needs to be explicitly declared
-	t.Run("@removeNullVariables directive", RunTest(`
+	t.Run("@removeNullVariables directive", func(t *testing.T) {
+		// XXX: Directive needs to be explicitly declared
+		definition := `
 		directive @removeNullVariables on QUERY | MUTATION
 
 		schema {
@@ -114,69 +151,77 @@ func TestGraphQLDataSource(t *testing.T) {
 		
 		type Query {
 			hero(a: String): String
-		}`, `
-		query MyQuery($a: String) @removeNullVariables {
-			hero(a: $a)
-		}
-	`, "MyQuery", &plan.SynchronousResponsePlan{
-		Response: &resolve.GraphQLResponse{
-			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource: &Source{},
-						Input:      `{"method":"POST","url":"https://swapi.com/graphql","unnull_variables":true,"body":{"query":"query($a: String){hero(a: $a)}","variables":{"a":$$0$$}}}`,
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"a"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+		}`
+
+		t.Run("@removeNullVariables directive", RunTest(definition, `
+			query MyQuery($a: String) @removeNullVariables {
+				hero(a: $a)
+			}
+			`, "MyQuery",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource: &Source{},
+								Input:      `{"method":"POST","url":"https://swapi.com/graphql","unnull_variables":true,"body":{"query":"query($a: String){hero(a: $a)}","variables":{"a":$$0$$}}}`,
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"a"},
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
 							},
-						),
-						PostProcessing: DefaultPostProcessingConfiguration,
-					},
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-				},
-				Fields: []*resolve.Field{
-					{
-						Name: []byte("hero"),
-						Value: &resolve.String{
-							Path:     []string{"hero"},
-							Nullable: true,
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("hero"),
+								Value: &resolve.String{
+									Path:     []string{"hero"},
+									Nullable: true,
+								},
+							},
 						},
 					},
 				},
-			},
-		},
-	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
+			}, plan.Configuration{
+				DataSources: []plan.DataSource{
+					mustDataSourceConfiguration(
+						t,
+						"ds-id",
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"hero"},
+								},
+							},
+						},
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
+								URL: "https://swapi.com/graphql",
+							},
+							SchemaConfiguration: mustSchema(t, nil, definition),
+						}),
+					),
+				},
+				Fields: []plan.FieldConfiguration{
 					{
-						TypeName:   "Query",
-						FieldNames: []string{"hero"},
+						TypeName:  "Query",
+						FieldName: "hero",
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:       "a",
+								SourceType: plan.FieldArgumentSource,
+							},
+						},
 					},
 				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
-						URL: "https://swapi.com/graphql",
-					},
-				}),
-			},
-		},
-		Fields: []plan.FieldConfiguration{
-			{
-				TypeName:  "Query",
-				FieldName: "hero",
-				Arguments: []plan.ArgumentConfiguration{
-					{
-						Name:       "a",
-						SourceType: plan.FieldArgumentSource,
-					},
-				},
-			},
-		},
-		DisableResolveFieldPositions: true,
-	}))
+				DisableResolveFieldPositions: true,
+			}))
+	})
 
 	t.Run("simple named Query", RunTest(starWarsSchema, `
 		query MyQuery($id: ID!) {
@@ -298,40 +343,43 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"droid", "hero", "stringList", "nestedStringList"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"droid", "hero", "stringList", "nestedStringList"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Character",
+							FieldNames: []string{"name", "friends"},
+						},
+						{
+							TypeName:   "Human",
+							FieldNames: []string{"name", "height", "friends"},
+						},
+						{
+							TypeName:   "Droid",
+							FieldNames: []string{"name", "primaryFunction", "friends"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Character",
-						FieldNames: []string{"name", "friends"},
-					},
-					{
-						TypeName:   "Human",
-						FieldNames: []string{"name", "height", "friends"},
-					},
-					{
-						TypeName:   "Droid",
-						FieldNames: []string{"name", "primaryFunction", "friends"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 						Header: http.Header{
 							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
 							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
 						},
 					},
-					UpstreamSchema: starWarsSchema,
+					SchemaConfiguration: mustSchema(t, nil, starWarsSchema),
 				}),
-			},
+			),
 		},
 		Fields: []plan.FieldConfiguration{
 			{
@@ -594,41 +642,43 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 	}, plan.Configuration{
 		IncludeInfo: true,
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				ID: "https://swapi.com",
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"droid", "hero", "stringList", "nestedStringList"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"https://swapi.com",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"droid", "hero", "stringList", "nestedStringList"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Character",
+							FieldNames: []string{"name", "friends"},
+						},
+						{
+							TypeName:   "Human",
+							FieldNames: []string{"name", "height", "friends"},
+						},
+						{
+							TypeName:   "Droid",
+							FieldNames: []string{"name", "primaryFunction", "friends"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Character",
-						FieldNames: []string{"name", "friends"},
-					},
-					{
-						TypeName:   "Human",
-						FieldNames: []string{"name", "height", "friends"},
-					},
-					{
-						TypeName:   "Droid",
-						FieldNames: []string{"name", "primaryFunction", "friends"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 						Header: http.Header{
 							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
 							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
 						},
 					},
-					UpstreamSchema: starWarsSchema,
+					SchemaConfiguration: mustSchema(t, nil, starWarsSchema),
 				}),
-			},
+			),
 		},
 		Fields: []plan.FieldConfiguration{
 			{
@@ -699,32 +749,35 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"user"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
+						{
+							TypeName:   "RegisteredUser",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-					{
-						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
-					UpstreamSchema: interfaceSelectionSchema,
+					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
 				}),
-			},
+			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
@@ -813,40 +866,44 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			}, plan.Configuration{
-				DataSources: []plan.DataSourceConfiguration{
-					{
-						RootNodes: []plan.TypeField{
-							{
-								TypeName:   "Query",
-								FieldNames: []string{"thing"},
+				DataSources: []plan.DataSource{
+
+					mustDataSourceConfiguration(
+						t,
+						"ds-id",
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"thing"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Thing",
+									FieldNames: []string{"id", "abstractThing"},
+								},
+								{
+									TypeName:   "AbstractThing",
+									FieldNames: []string{"name"},
+								},
+								{
+									TypeName:   "ConcreteOne",
+									FieldNames: []string{"name"},
+								},
+								{
+									TypeName:   "ConcreteTwo",
+									FieldNames: []string{"name"},
+								},
 							},
 						},
-						ChildNodes: []plan.TypeField{
-							{
-								TypeName:   "Thing",
-								FieldNames: []string{"id", "abstractThing"},
-							},
-							{
-								TypeName:   "AbstractThing",
-								FieldNames: []string{"name"},
-							},
-							{
-								TypeName:   "ConcreteOne",
-								FieldNames: []string{"name"},
-							},
-							{
-								TypeName:   "ConcreteTwo",
-								FieldNames: []string{"name"},
-							},
-						},
-						Factory: &Factory{},
-						Custom: ConfigJson(Configuration{
-							Fetch: FetchConfiguration{
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
 								URL: "https://swapi.com/graphql",
 							},
-							UpstreamSchema: definition,
+							SchemaConfiguration: mustSchema(t, nil, definition),
 						}),
-					},
+					),
 				},
 				Fields:                       []plan.FieldConfiguration{},
 				DisableResolveFieldPositions: true,
@@ -905,32 +962,35 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"user"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
+						{
+							TypeName:   "RegisteredUser",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-					{
-						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
-					UpstreamSchema: interfaceSelectionSchema,
+					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
 				}),
-			},
+			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
@@ -1004,32 +1064,35 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"user"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
+						{
+							TypeName:   "RegisteredUser",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-					{
-						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
-					UpstreamSchema: interfaceSelectionSchema,
+					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
 				}),
-			},
+			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
@@ -1093,32 +1156,35 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"user"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
+						{
+							TypeName:   "RegisteredUser",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-					{
-						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
-					UpstreamSchema: interfaceSelectionSchema,
+					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
 				}),
-			},
+			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
@@ -1182,32 +1248,35 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"user"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
+						{
+							TypeName:   "RegisteredUser",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-					{
-						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
-					UpstreamSchema: interfaceSelectionSchema,
+					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
 				}),
-			},
+			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
@@ -1251,32 +1320,35 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"user"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
+						{
+							TypeName:   "RegisteredUser",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-					{
-						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
-					UpstreamSchema: interfaceSelectionSchema,
+					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
 				}),
-			},
+			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
@@ -1326,32 +1398,35 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"user"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
+						{
+							TypeName:   "RegisteredUser",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-					{
-						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
-					UpstreamSchema: interfaceSelectionSchema,
+					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
 				}),
-			},
+			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
@@ -1409,32 +1484,35 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"user"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
+						{
+							TypeName:   "RegisteredUser",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-					{
-						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
-					UpstreamSchema: interfaceSelectionSchema,
+					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
 				}),
-			},
+			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
@@ -1484,32 +1562,35 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"user"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
+						{
+							TypeName:   "RegisteredUser",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-					{
-						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
-					UpstreamSchema: interfaceSelectionSchema,
+					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
 				}),
-			},
+			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
@@ -1552,32 +1633,35 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"user"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
+						{
+							TypeName:   "RegisteredUser",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-					{
-						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
-					UpstreamSchema: interfaceSelectionSchema,
+					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
 				}),
-			},
+			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
@@ -1637,32 +1721,35 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"user"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "displayName", "isLoggedIn"},
+						},
+						{
+							TypeName:   "RegisteredUser",
+							FieldNames: []string{"id", "displayName", "isLoggedIn", "hasVerifiedEmail"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "displayName", "isLoggedIn"},
-					},
-					{
-						TypeName:   "RegisteredUser",
-						FieldNames: []string{"id", "displayName", "isLoggedIn", "hasVerifiedEmail"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
-					UpstreamSchema: interfaceSelectionSchema,
+					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
 				}),
-			},
+			),
 		},
 		Fields:                       []plan.FieldConfiguration{},
 		DisableResolveFieldPositions: true,
@@ -1711,28 +1798,31 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"user"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"normalized"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"normalized"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 					},
-					UpstreamSchema: variableSchema,
+					SchemaConfiguration: mustSchema(t, nil, variableSchema),
 				}),
-			},
+			),
 		},
 		Fields: []plan.FieldConfiguration{
 			{
@@ -1826,32 +1916,35 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"droid", "hero"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"droid", "hero"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"id"},
+							},
+							{
+								TypeName:   "Droid",
+								FieldNames: []string{"name"},
+							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Character",
-							FieldNames: []string{"id"},
-						},
-						{
-							TypeName:   "Droid",
-							FieldNames: []string{"name"},
-						},
-					},
-					Factory: &Factory{},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "https://swapi.com/graphql",
 						},
-						UpstreamSchema: starWarsSchema,
+						SchemaConfiguration: mustSchema(t, nil, starWarsSchema),
 					}),
-				},
+				),
 			},
 			Fields: []plan.FieldConfiguration{
 				{
@@ -2017,40 +2110,43 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"droid", "hero", "stringList", "nestedStringList", "search"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"droid", "hero", "stringList", "nestedStringList", "search"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Character",
+							FieldNames: []string{"name", "friends"},
+						},
+						{
+							TypeName:   "Human",
+							FieldNames: []string{"name", "height", "friends"},
+						},
+						{
+							TypeName:   "Droid",
+							FieldNames: []string{"name", "primaryFunction", "friends"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Character",
-						FieldNames: []string{"name", "friends"},
-					},
-					{
-						TypeName:   "Human",
-						FieldNames: []string{"name", "height", "friends"},
-					},
-					{
-						TypeName:   "Droid",
-						FieldNames: []string{"name", "primaryFunction", "friends"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 						Header: http.Header{
 							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
 							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
 						},
 					},
-					UpstreamSchema: starWarsSchema,
+					SchemaConfiguration: mustSchema(t, nil, starWarsSchema),
 				}),
-			},
+			),
 		},
 		Fields: []plan.FieldConfiguration{
 			{
@@ -2296,58 +2392,61 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"api_droid", "api_hero", "api_stringList", "api_nestedStringList", "api_search", "api_searchWithInput"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"api_droid", "api_hero", "api_stringList", "api_nestedStringList", "api_search", "api_searchWithInput"},
+						},
 					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Character_api",
+							FieldNames: []string{"name", "friends"},
+						},
+						{
+							TypeName:   "Human_api",
+							FieldNames: []string{"name", "height", "friends"},
+						},
+						{
+							TypeName:   "Droid_api",
+							FieldNames: []string{"name", "primaryFunction", "friends"},
+						},
+						{
+							TypeName:   "SearchResult_api",
+							FieldNames: []string{"name", "height", "primaryFunction", "friends"},
+						},
+					},
+					Directives: plan.NewDirectiveConfigurations([]plan.DirectiveConfiguration{
+						{
+							DirectiveName: "api_format",
+							RenameTo:      "format",
+						},
+						{
+							DirectiveName: "api_onOperation",
+							RenameTo:      "onOperation",
+						},
+						{
+							DirectiveName: "api_onVariable",
+							RenameTo:      "onVariable",
+						},
+					}),
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Character_api",
-						FieldNames: []string{"name", "friends"},
-					},
-					{
-						TypeName:   "Human_api",
-						FieldNames: []string{"name", "height", "friends"},
-					},
-					{
-						TypeName:   "Droid_api",
-						FieldNames: []string{"name", "primaryFunction", "friends"},
-					},
-					{
-						TypeName:   "SearchResult_api",
-						FieldNames: []string{"name", "height", "primaryFunction", "friends"},
-					},
-				},
-				Directives: []plan.DirectiveConfiguration{
-					{
-						DirectiveName: "api_format",
-						RenameTo:      "format",
-					},
-					{
-						DirectiveName: "api_onOperation",
-						RenameTo:      "onOperation",
-					},
-					{
-						DirectiveName: "api_onVariable",
-						RenameTo:      "onVariable",
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 						Header: http.Header{
 							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
 							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
 						},
 					},
-					UpstreamSchema: starWarsSchema,
+					SchemaConfiguration: mustSchema(t, nil, starWarsSchema),
 				}),
-			},
+			),
 		},
 		Fields: []plan.FieldConfiguration{
 			{
@@ -2425,6 +2524,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 		DisableResolveFieldPositions: true,
 	}, WithSkipReason("Renaming is broken")))
+
 	t.Run("Query with array input", RunTest(subgraphTestSchema, `
 		query($representations: [_Any!]!) {
 			_entities(representations: $representations){
@@ -2519,44 +2619,47 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"_entities", "_service"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"_entities", "_service"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "_Service",
+							FieldNames: []string{"sdl"},
+						},
+						{
+							TypeName:   "Entity",
+							FieldNames: []string{"findProductByUpc", "findUserByID"},
+						},
+						{
+							TypeName:   "Product",
+							FieldNames: []string{"upc", "reviews"},
+						},
+						{
+							TypeName:   "Review",
+							FieldNames: []string{"body", "author", "product"},
+						},
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "username", "reviews"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "_Service",
-						FieldNames: []string{"sdl"},
-					},
-					{
-						TypeName:   "Entity",
-						FieldNames: []string{"findProductByUpc", "findUserByID"},
-					},
-					{
-						TypeName:   "Product",
-						FieldNames: []string{"upc", "reviews"},
-					},
-					{
-						TypeName:   "Review",
-						FieldNames: []string{"body", "author", "product"},
-					},
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "username", "reviews"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://subgraph-reviews/query",
 					},
-					UpstreamSchema: subgraphTestSchema,
+					SchemaConfiguration: mustSchema(t, nil, subgraphTestSchema),
 				}),
-			},
+			),
 		},
 		Fields: []plan.FieldConfiguration{
 			{
@@ -2593,39 +2696,96 @@ func TestGraphQLDataSource(t *testing.T) {
 		DisableResolveFieldPositions: true,
 	}))
 
-	t.Run("Query with ID array input", runTestOnTestDefinition(`
+	t.Run("Query with ID array input", func(t *testing.T) {
+		t.Run("run", runTestOnTestDefinition(t, `
 		query Droids($droidIDs: [ID!]!) {
 			droids(ids: $droidIDs) {
 				name
 				primaryFunction
 			}
 		}`, "Droids",
-		&plan.SynchronousResponsePlan{
-			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidIDs: [ID!]!){droids(ids: $droidIDs){name primaryFunction}}","variables":{"droidIDs":$$0$$}}}`,
-							DataSource: &Source{},
-							Variables: resolve.NewVariables(
-								&resolve.ContextVariable{
-									Path:     []string{"droidIDs"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["array"],"items":{"type":["string","integer"]}}`),
-								},
-							),
-							PostProcessing: DefaultPostProcessingConfiguration,
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidIDs: [ID!]!){droids(ids: $droidIDs){name primaryFunction}}","variables":{"droidIDs":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"droidIDs"},
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["array"],"items":{"type":["string","integer"]}}`),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					},
-					Fields: []*resolve.Field{
-						{
-							Name: []byte("droids"),
-							Value: &resolve.Array{
-								Path:     []string{"droids"},
-								Nullable: true,
-								Item: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("droids"),
+								Value: &resolve.Array{
+									Path:     []string{"droids"},
 									Nullable: true,
-									Path:     nil,
+									Item: &resolve.Object{
+										Nullable: true,
+										Path:     nil,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("name"),
+												Value: &resolve.String{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+											},
+											{
+												Name: []byte("primaryFunction"),
+												Value: &resolve.String{
+													Path:     []string{"primaryFunction"},
+													Nullable: false,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}))
+	})
+
+	t.Run("Query with ID input", func(t *testing.T) {
+		t.Run("run", runTestOnTestDefinition(t, `
+		query Droid($droidID: ID!) {
+			droid(id: $droidID) {
+				name
+				primaryFunction
+			}
+		}`, "Droid",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidID: ID!){droid(id: $droidID){name primaryFunction}}","variables":{"droidID":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"droidID"},
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("droid"),
+								Value: &resolve.Object{
+									Nullable: true,
+									Path:     []string{"droid"},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("name"),
@@ -2647,97 +2807,46 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-			},
-		}))
+			}))
+	})
 
-	t.Run("Query with ID input", runTestOnTestDefinition(`
-		query Droid($droidID: ID!) {
-			droid(id: $droidID) {
-				name
-				primaryFunction
-			}
-		}`, "Droid",
-		&plan.SynchronousResponsePlan{
-			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidID: ID!){droid(id: $droidID){name primaryFunction}}","variables":{"droidID":$$0$$}}}`,
-							DataSource: &Source{},
-							Variables: resolve.NewVariables(
-								&resolve.ContextVariable{
-									Path:     []string{"droidID"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
-								},
-							),
-							PostProcessing: DefaultPostProcessingConfiguration,
-						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					},
-					Fields: []*resolve.Field{
-						{
-							Name: []byte("droid"),
-							Value: &resolve.Object{
-								Nullable: true,
-								Path:     []string{"droid"},
-								Fields: []*resolve.Field{
-									{
-										Name: []byte("name"),
-										Value: &resolve.String{
-											Path:     []string{"name"},
-											Nullable: false,
-										},
-									},
-									{
-										Name: []byte("primaryFunction"),
-										Value: &resolve.String{
-											Path:     []string{"primaryFunction"},
-											Nullable: false,
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}))
-
-	t.Run("Query with Date input aka scalar", runTestOnTestDefinition(`
+	t.Run("Query with Date input aka scalar", func(t *testing.T) {
+		t.Run("run", runTestOnTestDefinition(t, `
 		query HeroByBirthdate($birthdate: Date!) {
 			heroByBirthdate(birthdate: $birthdate) {
 				name
 			}
 		}`, "HeroByBirthdate",
-		&plan.SynchronousResponsePlan{
-			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($birthdate: Date!){heroByBirthdate(birthdate: $birthdate){name}}","variables":{"birthdate":$$0$$}}}`,
-							DataSource: &Source{},
-							Variables: resolve.NewVariables(
-								&resolve.ContextVariable{
-									Path:     []string{"birthdate"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{}`),
-								},
-							),
-							PostProcessing: DefaultPostProcessingConfiguration,
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($birthdate: Date!){heroByBirthdate(birthdate: $birthdate){name}}","variables":{"birthdate":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"birthdate"},
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{}`),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					},
-					Fields: []*resolve.Field{
-						{
-							Name: []byte("heroByBirthdate"),
-							Value: &resolve.Object{
-								Nullable: true,
-								Path:     []string{"heroByBirthdate"},
-								Fields: []*resolve.Field{
-									{
-										Name: []byte("name"),
-										Value: &resolve.String{
-											Path:     []string{"name"},
-											Nullable: false,
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("heroByBirthdate"),
+								Value: &resolve.Object{
+									Nullable: true,
+									Path:     []string{"heroByBirthdate"},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: false,
+											},
 										},
 									},
 								},
@@ -2745,8 +2854,8 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-			},
-		}))
+			}))
+	})
 
 	t.Run("simple mutation", RunTest(`
 		type Mutation {
@@ -2801,27 +2910,39 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Mutation",
-							FieldNames: []string{"addFriend"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Mutation",
+								FieldNames: []string{"addFriend"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Friend",
+								FieldNames: []string{"id", "name"},
+							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Friend",
-							FieldNames: []string{"id", "name"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "https://service.one",
 						},
+						SchemaConfiguration: mustSchema(t, nil, `
+							type Mutation {
+								addFriend(name: String!):Friend!
+							}
+							type Friend {
+								id: ID!
+								name: String!
+							}
+						`),
 					}),
-					Factory: &Factory{},
-				},
+				),
 			},
 			Fields: []plan.FieldConfiguration{
 				{
@@ -2899,27 +3020,38 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"foo"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"foo"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Baz",
+								FieldNames: []string{"bar"},
+							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Baz",
-							FieldNames: []string{"bar"},
-						},
-					},
-					Factory: &Factory{},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "https://foo.service",
 						},
+						SchemaConfiguration: mustSchema(t, nil, `
+							type Query {
+								foo(bar: String):Baz
+							}
+							type Baz {
+								bar(bal: String):String
+							}
+						`),
 					}),
-				},
+				),
 			},
 			Fields: []plan.FieldConfiguration{
 				{
@@ -3019,27 +3151,31 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"country", "countryAlias"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"country", "countryAlias"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Country",
+								FieldNames: []string{"name", "code"},
+							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Country",
-							FieldNames: []string{"name", "code"},
-						},
-					},
-					Factory: &Factory{},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "https://countries.service",
 						},
+						SchemaConfiguration: mustSchema(t, nil, countriesSchema),
 					}),
-				},
+				),
 			},
 			Fields: []plan.FieldConfiguration{
 				{
@@ -3141,27 +3277,31 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"country", "countryAlias"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"country", "countryAlias"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Country",
+								FieldNames: []string{"name", "code"},
+							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Country",
-							FieldNames: []string{"name", "code"},
-						},
-					},
-					Factory: &Factory{},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "https://countries.service",
 						},
+						SchemaConfiguration: mustSchema(t, nil, countriesSchema),
 					}),
-				},
+				),
 			},
 			Fields: []plan.FieldConfiguration{
 				{
@@ -3191,28 +3331,30 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 	))
 
-	nestedGraphQLEngineFactory := &Factory{}
-	t.Run("nested graphql engines", RunTest(`
-		type Query {
-			serviceOne(serviceOneArg: String): ServiceOneResponse
-			anotherServiceOne(anotherServiceOneArg: Int): ServiceOneResponse
-			reusingServiceOne(reusingServiceOneArg: String): ServiceOneResponse
-			serviceTwo(serviceTwoArg: Boolean): ServiceTwoResponse
-			secondServiceTwo(secondServiceTwoArg: Float): ServiceTwoResponse
-		}
-		type ServiceOneResponse {
-			fieldOne: String!
-			countries: [Country!]!
-		}
-		type ServiceTwoResponse {
-			fieldTwo: String
-			serviceOneField: String
-			serviceOneResponse: ServiceOneResponse
-		}
-		type Country {
-			name: String!
-        }
-	`, `
+	t.Run("nested graphql engines", func(t *testing.T) {
+		definition :=
+			`
+			type Query {
+				serviceOne(serviceOneArg: String): ServiceOneResponse
+				anotherServiceOne(anotherServiceOneArg: Int): ServiceOneResponse
+				reusingServiceOne(reusingServiceOneArg: String): ServiceOneResponse
+				serviceTwo(serviceTwoArg: Boolean): ServiceTwoResponse
+				secondServiceTwo(secondServiceTwoArg: Float): ServiceTwoResponse
+			}
+			type ServiceOneResponse {
+				fieldOne: String!
+				countries: [Country!]!
+			}
+			type ServiceTwoResponse {
+				fieldTwo: String
+				serviceOneField: String
+				serviceOneResponse: ServiceOneResponse
+			}
+			type Country {
+				name: String!
+			}
+		`
+		t.Run("nested graphql engines", RunTest(definition, `
 		query NestedQuery ($firstArg: String, $secondArg: Boolean, $thirdArg: Int, $fourthArg: Float){
 			serviceOne(serviceOneArg: $firstArg) {
 				fieldOne
@@ -3238,85 +3380,86 @@ func TestGraphQLDataSource(t *testing.T) {
 			}
 		}
 	`, "NestedQuery",
-		&plan.SynchronousResponsePlan{
-			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetch: &resolve.ParallelFetch{
-						Fetches: []resolve.Fetch{
-							&resolve.SingleFetch{
-								FetchID: 0,
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
-									DataSource: &Source{},
-									Variables: resolve.NewVariables(
-										&resolve.ContextVariable{
-											Path:     []string{"firstArg"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
-										},
-										&resolve.ContextVariable{
-											Path:     []string{"thirdArg"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["integer","null"]}`),
-										},
-									),
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
-								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-							},
-							&resolve.SingleFetch{
-								FetchID: 2,
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:      `{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
-									DataSource: &Source{},
-									Variables: resolve.NewVariables(
-										&resolve.ContextVariable{
-											Path:     []string{"secondArg"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
-										},
-										&resolve.ContextVariable{
-											Path:     []string{"fourthArg"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["number","null"]}`),
-										},
-									),
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
-								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-							},
-						},
-					},
-					Fields: []*resolve.Field{
-						{
-							Name: []byte("serviceOne"),
-							Value: &resolve.Object{
-								Nullable: true,
-								Path:     []string{"serviceOne"},
-
-								Fetch: &resolve.SingleFetch{
-									FetchID: 1,
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.ParallelFetch{
+							Fetches: []resolve.Fetch{
+								&resolve.SingleFetch{
+									FetchID: 0,
 									FetchConfiguration: resolve.FetchConfiguration{
-										DataSource:     &Source{},
-										Input:          `{"method":"POST","url":"https://country.service","body":{"query":"{countries {name}}"}}`,
+										Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
+										DataSource: &Source{},
+										Variables: resolve.NewVariables(
+											&resolve.ContextVariable{
+												Path:     []string{"firstArg"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+											},
+											&resolve.ContextVariable{
+												Path:     []string{"thirdArg"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["integer","null"]}`),
+											},
+										),
 										PostProcessing: DefaultPostProcessingConfiguration,
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
-
-								Fields: []*resolve.Field{
-									{
-										Name: []byte("fieldOne"),
-										Value: &resolve.String{
-											Path: []string{"fieldOne"},
-										},
+								&resolve.SingleFetch{
+									FetchID: 2,
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input:      `{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
+										DataSource: &Source{},
+										Variables: resolve.NewVariables(
+											&resolve.ContextVariable{
+												Path:     []string{"secondArg"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
+											},
+											&resolve.ContextVariable{
+												Path:     []string{"fourthArg"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["number","null"]}`),
+											},
+										),
+										PostProcessing: DefaultPostProcessingConfiguration,
 									},
-									{
-										Name: []byte("countries"),
-										Value: &resolve.Array{
-											Path: []string{"countries"},
-											Item: &resolve.Object{
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("name"),
-														Value: &resolve.String{
-															Path: []string{"name"},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								},
+							},
+						},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("serviceOne"),
+								Value: &resolve.Object{
+									Nullable: true,
+									Path:     []string{"serviceOne"},
+
+									Fetch: &resolve.SingleFetch{
+										FetchID: 1,
+										FetchConfiguration: resolve.FetchConfiguration{
+											DataSource:     &Source{},
+											Input:          `{"method":"POST","url":"https://country.service","body":{"query":"{countries {name}}"}}`,
+											PostProcessing: DefaultPostProcessingConfiguration,
+										},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
+									},
+
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("fieldOne"),
+											Value: &resolve.String{
+												Path: []string{"fieldOne"},
+											},
+										},
+										{
+											Name: []byte("countries"),
+											Value: &resolve.Array{
+												Path: []string{"countries"},
+												Item: &resolve.Object{
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("name"),
+															Value: &resolve.String{
+																Path: []string{"name"},
+															},
 														},
 													},
 												},
@@ -3325,45 +3468,45 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 								},
 							},
-						},
-						{
-							Name: []byte("serviceTwo"),
-							Value: &resolve.Object{
-								Nullable: true,
-								Path:     []string{"serviceTwo"},
-								Fetch: &resolve.SingleFetch{
-									FetchID: 3,
-									FetchConfiguration: resolve.FetchConfiguration{
-										DataSource: &Source{},
-										Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOneResponse: serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":$$0$$}}}`,
-										Variables: resolve.NewVariables(
-											&resolve.ObjectVariable{
-												Path:     []string{"serviceOneField"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
-											},
-										),
-										PostProcessing: DefaultPostProcessingConfiguration,
-									},
-									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								},
-								Fields: []*resolve.Field{
-									{
-										Name: []byte("fieldTwo"),
-										Value: &resolve.String{
-											Nullable: true,
-											Path:     []string{"fieldTwo"},
+							{
+								Name: []byte("serviceTwo"),
+								Value: &resolve.Object{
+									Nullable: true,
+									Path:     []string{"serviceTwo"},
+									Fetch: &resolve.SingleFetch{
+										FetchID: 3,
+										FetchConfiguration: resolve.FetchConfiguration{
+											DataSource: &Source{},
+											Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOneResponse: serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":$$0$$}}}`,
+											Variables: resolve.NewVariables(
+												&resolve.ObjectVariable{
+													Path:     []string{"serviceOneField"},
+													Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+												},
+											),
+											PostProcessing: DefaultPostProcessingConfiguration,
 										},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
-									{
-										Name: []byte("serviceOneResponse"),
-										Value: &resolve.Object{
-											Nullable: true,
-											Path:     []string{"serviceOneResponse"},
-											Fields: []*resolve.Field{
-												{
-													Name: []byte("fieldOne"),
-													Value: &resolve.String{
-														Path: []string{"fieldOne"},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("fieldTwo"),
+											Value: &resolve.String{
+												Nullable: true,
+												Path:     []string{"fieldTwo"},
+											},
+										},
+										{
+											Name: []byte("serviceOneResponse"),
+											Value: &resolve.Object{
+												Nullable: true,
+												Path:     []string{"serviceOneResponse"},
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("fieldOne"),
+														Value: &resolve.String{
+															Path: []string{"fieldOne"},
+														},
 													},
 												},
 											},
@@ -3371,55 +3514,55 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 								},
 							},
-						},
-						{
-							Name: []byte("anotherServiceOne"),
-							Value: &resolve.Object{
-								Nullable: true,
-								Path:     []string{"anotherServiceOne"},
-								Fields: []*resolve.Field{
-									{
-										Name: []byte("fieldOne"),
-										Value: &resolve.String{
-											Path: []string{"fieldOne"},
+							{
+								Name: []byte("anotherServiceOne"),
+								Value: &resolve.Object{
+									Nullable: true,
+									Path:     []string{"anotherServiceOne"},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("fieldOne"),
+											Value: &resolve.String{
+												Path: []string{"fieldOne"},
+											},
 										},
 									},
 								},
 							},
-						},
-						{
-							Name: []byte("secondServiceTwo"),
-							Value: &resolve.Object{
-								Nullable: true,
-								Path:     []string{"secondServiceTwo"},
-								Fields: []*resolve.Field{
-									{
-										Name: []byte("fieldTwo"),
-										Value: &resolve.String{
-											Path:     []string{"fieldTwo"},
-											Nullable: true,
+							{
+								Name: []byte("secondServiceTwo"),
+								Value: &resolve.Object{
+									Nullable: true,
+									Path:     []string{"secondServiceTwo"},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("fieldTwo"),
+											Value: &resolve.String{
+												Path:     []string{"fieldTwo"},
+												Nullable: true,
+											},
 										},
-									},
-									{
-										Name: []byte("serviceOneField"),
-										Value: &resolve.String{
-											Path:     []string{"serviceOneField"},
-											Nullable: true,
+										{
+											Name: []byte("serviceOneField"),
+											Value: &resolve.String{
+												Path:     []string{"serviceOneField"},
+												Nullable: true,
+											},
 										},
 									},
 								},
 							},
-						},
-						{
-							Name: []byte("reusingServiceOne"),
-							Value: &resolve.Object{
-								Nullable: true,
-								Path:     []string{"reusingServiceOne"},
-								Fields: []*resolve.Field{
-									{
-										Name: []byte("fieldOne"),
-										Value: &resolve.String{
-											Path: []string{"fieldOne"},
+							{
+								Name: []byte("reusingServiceOne"),
+								Value: &resolve.Object{
+									Nullable: true,
+									Path:     []string{"reusingServiceOne"},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("fieldOne"),
+											Value: &resolve.String{
+												Path: []string{"fieldOne"},
+											},
 										},
 									},
 								},
@@ -3428,142 +3571,154 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
-		},
-		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"serviceOne", "anotherServiceOne", "reusingServiceOne"},
+			plan.Configuration{
+				DataSources: []plan.DataSource{
+					mustDataSourceConfiguration(
+						t,
+						"ds-id-1",
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"serviceOne", "anotherServiceOne", "reusingServiceOne"},
+								},
+								{
+									TypeName:   "ServiceTwoResponse",
+									FieldNames: []string{"serviceOneResponse"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "ServiceOneResponse",
+									FieldNames: []string{"fieldOne"},
+								},
+							},
 						},
-						{
-							TypeName:   "ServiceTwoResponse",
-							FieldNames: []string{"serviceOneResponse"},
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
+								URL: "https://service.one",
+							},
+							SchemaConfiguration: mustSchema(t, nil, definition),
+						}),
+					),
+					mustDataSourceConfiguration(
+						t,
+						"ds-id-2",
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"serviceTwo", "secondServiceTwo"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "ServiceTwoResponse",
+									FieldNames: []string{"fieldTwo", "serviceOneField"},
+								},
+							},
 						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "ServiceOneResponse",
-							FieldNames: []string{"fieldOne"},
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
+								URL: "https://service.two",
+							},
+							SchemaConfiguration: mustSchema(t, nil, definition),
+						}),
+					),
+					mustDataSourceConfiguration(
+						t,
+						"ds-id-3",
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "ServiceOneResponse",
+									FieldNames: []string{"countries"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Country",
+									FieldNames: []string{"name"},
+								},
+							},
 						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "https://service.one",
-						},
-					}),
-					Factory: nestedGraphQLEngineFactory,
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
+								URL: "https://country.service",
+							},
+							SchemaConfiguration: mustSchema(t, nil, definition),
+						}),
+					),
 				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"serviceTwo", "secondServiceTwo"},
+				Fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "ServiceTwoResponse",
+						FieldName: "serviceOneResponse",
+						Path:      []string{"serviceOne"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:       "serviceOneArg",
+								SourceType: plan.ObjectFieldSource,
+								SourcePath: []string{"serviceOneField"},
+							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "ServiceTwoResponse",
-							FieldNames: []string{"fieldTwo", "serviceOneField"},
+					{
+						TypeName:  "Query",
+						FieldName: "serviceTwo",
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:       "serviceTwoArg",
+								SourceType: plan.FieldArgumentSource,
+							},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "https://service.two",
+					{
+						TypeName:  "Query",
+						FieldName: "secondServiceTwo",
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:       "secondServiceTwoArg",
+								SourceType: plan.FieldArgumentSource,
+							},
 						},
-					}),
-					Factory: nestedGraphQLEngineFactory,
+					},
+					{
+						TypeName:  "Query",
+						FieldName: "serviceOne",
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:       "serviceOneArg",
+								SourceType: plan.FieldArgumentSource,
+							},
+						},
+					},
+					{
+						TypeName:  "Query",
+						FieldName: "reusingServiceOne",
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:       "reusingServiceOneArg",
+								SourceType: plan.FieldArgumentSource,
+							},
+						},
+					},
+					{
+						TypeName:  "Query",
+						FieldName: "anotherServiceOne",
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:       "anotherServiceOneArg",
+								SourceType: plan.FieldArgumentSource,
+							},
+						},
+					},
 				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "ServiceOneResponse",
-							FieldNames: []string{"countries"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Country",
-							FieldNames: []string{"name"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "https://country.service",
-						},
-					}),
-					Factory: nestedGraphQLEngineFactory,
-				},
+				DisableResolveFieldPositions: true,
 			},
-			Fields: []plan.FieldConfiguration{
-				{
-					TypeName:  "ServiceTwoResponse",
-					FieldName: "serviceOneResponse",
-					Path:      []string{"serviceOne"},
-					Arguments: []plan.ArgumentConfiguration{
-						{
-							Name:       "serviceOneArg",
-							SourceType: plan.ObjectFieldSource,
-							SourcePath: []string{"serviceOneField"},
-						},
-					},
-				},
-				{
-					TypeName:  "Query",
-					FieldName: "serviceTwo",
-					Arguments: []plan.ArgumentConfiguration{
-						{
-							Name:       "serviceTwoArg",
-							SourceType: plan.FieldArgumentSource,
-						},
-					},
-				},
-				{
-					TypeName:  "Query",
-					FieldName: "secondServiceTwo",
-					Arguments: []plan.ArgumentConfiguration{
-						{
-							Name:       "secondServiceTwoArg",
-							SourceType: plan.FieldArgumentSource,
-						},
-					},
-				},
-				{
-					TypeName:  "Query",
-					FieldName: "serviceOne",
-					Arguments: []plan.ArgumentConfiguration{
-						{
-							Name:       "serviceOneArg",
-							SourceType: plan.FieldArgumentSource,
-						},
-					},
-				},
-				{
-					TypeName:  "Query",
-					FieldName: "reusingServiceOne",
-					Arguments: []plan.ArgumentConfiguration{
-						{
-							Name:       "reusingServiceOneArg",
-							SourceType: plan.FieldArgumentSource,
-						},
-					},
-				},
-				{
-					TypeName:  "Query",
-					FieldName: "anotherServiceOne",
-					Arguments: []plan.ArgumentConfiguration{
-						{
-							Name:       "anotherServiceOneArg",
-							SourceType: plan.FieldArgumentSource,
-						},
-					},
-				},
-			},
-			DisableResolveFieldPositions: true,
-		},
-		WithMultiFetchPostProcessor(),
-	))
+			WithMultiFetchPostProcessor(),
+		))
+	})
 
 	t.Run("mutation with variables in array object argument", RunTest(
 		todoSchema,
@@ -3647,31 +3802,35 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Mutation",
-							FieldNames: []string{"addTask"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Mutation",
+								FieldNames: []string{"addTask"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "AddTaskPayload",
+								FieldNames: []string{"task"},
+							},
+							{
+								TypeName:   "Task",
+								FieldNames: []string{"id", "title", "completed"},
+							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "AddTaskPayload",
-							FieldNames: []string{"task"},
-						},
-						{
-							TypeName:   "Task",
-							FieldNames: []string{"id", "title", "completed"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "https://graphql.service",
 						},
+						SchemaConfiguration: mustSchema(t, nil, todoSchema),
 					}),
-					Factory: &Factory{},
-				},
+				),
 			},
 			Fields: []plan.FieldConfiguration{
 				{
@@ -3689,7 +3848,8 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 	))
 
-	t.Run("inline object value with arguments", RunTest(`
+	t.Run("inline object value with arguments", func(t *testing.T) {
+		definition := `
 			schema {
 				mutation: Mutation
 			}
@@ -3712,7 +3872,9 @@ func TestGraphQLDataSource(t *testing.T) {
 				createdDate: String
 			}
 			directive @fromClaim(name: String) on VARIABLE_DEFINITION
-			`, `
+			`
+
+		t.Run("inline object value with arguments", RunTest(definition, `
 			mutation Register($name: String $id: String @fromClaim(name: "sub")) {
 			  createUser(input: {user: {id: $id username: $name}}){
 				user {
@@ -3722,60 +3884,61 @@ func TestGraphQLDataSource(t *testing.T) {
 				}
 			  }
 			}`,
-		"Register",
-		&plan.SynchronousResponsePlan{
-			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"method":"POST","url":"https://user.service","body":{"query":"mutation($id: String, $name: String){createUser(input: {user: {id: $id,username: $name}}){user {id username createdDate}}}","variables":{"name":$$1$$,"id":$$0$$}}}`,
-							DataSource: &Source{},
-							Variables: resolve.NewVariables(
-								&resolve.ContextVariable{
-									Path:     []string{"id"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
-								},
-								&resolve.ContextVariable{
-									Path:     []string{"name"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
-								},
-							),
-							PostProcessing: DefaultPostProcessingConfiguration,
+			"Register",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"method":"POST","url":"https://user.service","body":{"query":"mutation($id: String, $name: String){createUser(input: {user: {id: $id,username: $name}}){user {id username createdDate}}}","variables":{"name":$$1$$,"id":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"id"},
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+									},
+									&resolve.ContextVariable{
+										Path:     []string{"name"},
+										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					},
-					Fields: []*resolve.Field{
-						{
-							Name: []byte("createUser"),
-							Value: &resolve.Object{
-								Nullable: true,
-								Path:     []string{"createUser"},
-								Fields: []*resolve.Field{
-									{
-										Name: []byte("user"),
-										Value: &resolve.Object{
-											Path:     []string{"user"},
-											Nullable: true,
-											Fields: []*resolve.Field{
-												{
-													Name: []byte("id"),
-													Value: &resolve.String{
-														Path:     []string{"id"},
-														Nullable: true,
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("createUser"),
+								Value: &resolve.Object{
+									Nullable: true,
+									Path:     []string{"createUser"},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("user"),
+											Value: &resolve.Object{
+												Path:     []string{"user"},
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("id"),
+														Value: &resolve.String{
+															Path:     []string{"id"},
+															Nullable: true,
+														},
 													},
-												},
-												{
-													Name: []byte("username"),
-													Value: &resolve.String{
-														Path:     []string{"username"},
-														Nullable: true,
+													{
+														Name: []byte("username"),
+														Value: &resolve.String{
+															Path:     []string{"username"},
+															Nullable: true,
+														},
 													},
-												},
-												{
-													Name: []byte("createdDate"),
-													Value: &resolve.String{
-														Path:     []string{"createdDate"},
-														Nullable: true,
+													{
+														Name: []byte("createdDate"),
+														Value: &resolve.String{
+															Path:     []string{"createdDate"},
+															Nullable: true,
+														},
 													},
 												},
 											},
@@ -3787,49 +3950,53 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
-		},
-		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Mutation",
-							FieldNames: []string{"createUser"},
+			plan.Configuration{
+				DataSources: []plan.DataSource{
+					mustDataSourceConfiguration(
+						t,
+						"ds-id",
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Mutation",
+									FieldNames: []string{"createUser"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "CreateUser",
+									FieldNames: []string{"user"},
+								},
+								{
+									TypeName:   "User",
+									FieldNames: []string{"id", "username", "createdDate"},
+								},
+							},
 						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "CreateUser",
-							FieldNames: []string{"user"},
-						},
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "username", "createdDate"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
-							URL: "https://user.service",
-						},
-					}),
-					Factory: &Factory{},
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
+								URL: "https://user.service",
+							},
+							SchemaConfiguration: mustSchema(t, nil, definition),
+						}),
+					),
 				},
-			},
-			Fields: []plan.FieldConfiguration{
-				{
-					TypeName:  "Mutation",
-					FieldName: "createUser",
-					Arguments: []plan.ArgumentConfiguration{
-						{
-							Name:       "input",
-							SourceType: plan.FieldArgumentSource,
+				Fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Mutation",
+						FieldName: "createUser",
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:       "input",
+								SourceType: plan.FieldArgumentSource,
+							},
 						},
 					},
 				},
+				DisableResolveFieldPositions: true,
 			},
-			DisableResolveFieldPositions: true,
-		},
-	))
+		))
+	})
 
 	t.Run("mutation with union response", RunTest(wgSchema, `
 		mutation CreateNamespace($name: String! $personal: Boolean!) {
@@ -3935,44 +4102,47 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		}, plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName: "Mutation",
-							FieldNames: []string{
-								"namespaceCreate",
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName: "Mutation",
+								FieldNames: []string{
+									"namespaceCreate",
+								},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName: "NamespaceCreated",
+								FieldNames: []string{
+									"namespace",
+								},
+							},
+							{
+								TypeName:   "Namespace",
+								FieldNames: []string{"id", "name"},
+							},
+							{
+								TypeName:   "Error",
+								FieldNames: []string{"code", "message"},
 							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName: "NamespaceCreated",
-							FieldNames: []string{
-								"namespace",
-							},
-						},
-						{
-							TypeName:   "Namespace",
-							FieldNames: []string{"id", "name"},
-						},
-						{
-							TypeName:   "Error",
-							FieldNames: []string{"code", "message"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL:    "http://api.com",
 							Method: "POST",
 						},
-						Subscription: SubscriptionConfiguration{
+						Subscription: &SubscriptionConfiguration{
 							URL: "ws://api.com",
 						},
-						UpstreamSchema: wgSchema,
+						SchemaConfiguration: mustSchema(t, nil, wgSchema),
 					}),
-					Factory: &Factory{},
-				},
+				),
 			},
 			Fields: []plan.FieldConfiguration{
 				{
@@ -4039,44 +4209,47 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		}, plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName: "Mutation",
-							FieldNames: []string{
-								"namespaceCreate",
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName: "Mutation",
+								FieldNames: []string{
+									"namespaceCreate",
+								},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName: "NamespaceCreated",
+								FieldNames: []string{
+									"namespace",
+								},
+							},
+							{
+								TypeName:   "Namespace",
+								FieldNames: []string{"id", "name"},
+							},
+							{
+								TypeName:   "Error",
+								FieldNames: []string{"code", "message"},
 							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName: "NamespaceCreated",
-							FieldNames: []string{
-								"namespace",
-							},
-						},
-						{
-							TypeName:   "Namespace",
-							FieldNames: []string{"id", "name"},
-						},
-						{
-							TypeName:   "Error",
-							FieldNames: []string{"code", "message"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL:    "http://api.com",
 							Method: "POST",
 						},
-						Subscription: SubscriptionConfiguration{
+						Subscription: &SubscriptionConfiguration{
 							URL: "ws://api.com",
 						},
-						UpstreamSchema: wgSchema,
+						SchemaConfiguration: mustSchema(t, nil, wgSchema),
 					}),
-					Factory: &Factory{},
-				},
+				),
 			},
 			Fields: []plan.FieldConfiguration{
 				{
@@ -4096,39 +4269,39 @@ func TestGraphQLDataSource(t *testing.T) {
 			DefaultFlushIntervalMillis:   500,
 		}))
 
-	factory := &Factory{
-		HTTPClient: http.DefaultClient,
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	t.Run("Subscription", runTestOnTestDefinition(`
+
+	t.Run("Subscription", func(t *testing.T) {
+		t.Run("Subscription", runTestOnTestDefinition(t, `
 		subscription RemainingJedis {
 			remainingJedis
 		}
 	`, "RemainingJedis", &plan.SubscriptionResponsePlan{
-		Response: &resolve.GraphQLSubscription{
-			Trigger: resolve.GraphQLSubscriptionTrigger{
-				Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`),
-				Source: &SubscriptionSource{
-					NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
+			Response: &resolve.GraphQLSubscription{
+				Trigger: resolve.GraphQLSubscriptionTrigger{
+					Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`),
+					Source: &SubscriptionSource{
+						NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
+					},
+					PostProcessing: DefaultPostProcessingConfiguration,
 				},
-				PostProcessing: DefaultPostProcessingConfiguration,
-			},
-			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fields: []*resolve.Field{
-						{
-							Name: []byte("remainingJedis"),
-							Value: &resolve.Integer{
-								Path:     []string{"remainingJedis"},
-								Nullable: false,
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("remainingJedis"),
+								Value: &resolve.Integer{
+									Path:     []string{"remainingJedis"},
+									Nullable: false,
+								},
 							},
 						},
 					},
 				},
 			},
-		},
-	}, testWithFactory(factory)))
+		}))
+	})
 
 	t.Run("Subscription with variables", RunTest(`
 		type Subscription {
@@ -4168,21 +4341,29 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Subscription",
-						FieldNames: []string{"foo"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Subscription",
+							FieldNames: []string{"foo"},
+						},
 					},
 				},
-				Custom: ConfigJson(Configuration{
-					Subscription: SubscriptionConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Subscription: &SubscriptionConfiguration{
 						URL: "wss://swapi.com/graphql",
 					},
+					SchemaConfiguration: mustSchema(t, nil, `
+						type Subscription {
+							foo(bar: String): Int!
+						}
+					`),
 				}),
-				Factory: factory,
-			},
+			),
 		},
 		Fields: []plan.FieldConfiguration{
 			{
@@ -4199,7 +4380,6 @@ func TestGraphQLDataSource(t *testing.T) {
 		DisableResolveFieldPositions: true,
 	}))
 
-	federationFactory := &Factory{}
 	t.Run("federation", RunTest(federationTestSchema,
 		`	query MyReviews {
 						me {
@@ -4430,124 +4610,139 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"me"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-1",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"me"},
+							},
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id", "username"},
+							},
 						},
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "username"},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: `extend type Query {me: User} type User @key(fields: "id"){ id: ID! username: String!}`,
-						},
-						UpstreamSchema: `type Query {me: User} type User @key(fields: "id"){ id: ID! username: String!}`,
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: `extend type Query {me: User} type User @key(fields: "id"){ id: ID! username: String!}`,
+							},
+							`type Query {me: User} type User @key(fields: "id"){ id: ID! username: String!}`,
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-2",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
 							{
-								TypeName:     "User",
-								SelectionSet: "id",
+								TypeName:   "Query",
+								FieldNames: []string{"topProducts"},
+							},
+							{
+								TypeName:   "Subscription",
+								FieldNames: []string{"updatedPrice"},
+							},
+							{
+								TypeName:   "Product",
+								FieldNames: []string{"upc", "name", "price"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "Product",
+									SelectionSet: "upc",
+								},
 							},
 						},
 					},
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"topProducts"},
-						},
-						{
-							TypeName:   "Subscription",
-							FieldNames: []string{"updatedPrice"},
-						},
-						{
-							TypeName:   "Product",
-							FieldNames: []string{"upc", "name", "price"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://product.service",
 						},
-						Subscription: SubscriptionConfiguration{
+						Subscription: &SubscriptionConfiguration{
 							URL: "ws://product.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: `extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: "upc") {upc: String! name: String! price: Int!}`,
-						},
-						UpstreamSchema: `type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: "upc"){upc: String! name: String! price: Int!}`,
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: `extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: "upc") {upc: String! name: String! price: Int!}`,
+							},
+							`type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: "upc"){upc: String! name: String! price: Int!}`,
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-3",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
 							{
-								TypeName:     "Product",
-								SelectionSet: "upc",
+								TypeName:   "User",
+								FieldNames: []string{"id", "username", "reviews"},
+							},
+							{
+								TypeName:   "Product",
+								FieldNames: []string{"upc", "reviews"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Review",
+								FieldNames: []string{"body", "author", "product"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+								{
+									TypeName:     "Product",
+									SelectionSet: "upc",
+								},
+							},
+							Provides: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "Review",
+									FieldName:    "author",
+									SelectionSet: "username",
+								},
 							},
 						},
 					},
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "username", "reviews"},
-						},
-						{
-							TypeName:   "Product",
-							FieldNames: []string{"upc", "reviews"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Review",
-							FieldNames: []string{"body", "author", "product"},
-						},
-					},
-					Factory: federationFactory,
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://review.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: `type Review { body: String! author: User! @provides(fields: "username") product: Product! } extend type User @key(fields: "id") { id: ID! username: String! @external reviews: [Review] } extend type Product @key(fields: "upc") { upc: String! reviews: [Review] }`,
-						},
-						UpstreamSchema: `type Review { body: String! author: User! @provides(fields: "username") product: Product! } type User @key(fields: "id") { id: ID! username: String! @external reviews: [Review] } type Product @key(fields: "upc") { upc: String! reviews: [Review] }`,
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: `type Review { body: String! author: User! @provides(fields: "username") product: Product! } extend type User @key(fields: "id") { id: ID! username: String! @external reviews: [Review] } extend type Product @key(fields: "upc") { upc: String! reviews: [Review] }`,
+							},
+							`type Review { body: String! author: User! @provides(fields: "username") product: Product! } type User @key(fields: "id") { id: ID! username: String! @external reviews: [Review] } type Product @key(fields: "upc") { upc: String! reviews: [Review] }`,
+						),
 					}),
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Product",
-								SelectionSet: "upc",
-							},
-						},
-						Provides: []plan.FederationFieldConfiguration{
-							{
-								TypeName:     "Review",
-								FieldName:    "author",
-								SelectionSet: "username",
-							},
-						},
-					},
-				},
+				),
 			},
 			Fields: []plan.FieldConfiguration{
 				{
@@ -4665,57 +4860,67 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"user"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-1",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"user"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id", "username"},
+							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "username"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: "extend type Query { me: User user(id: ID!): User} extend type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccount type UserMetadata { name: String address: String description: String }",
-						},
-						UpstreamSchema: "type Query { me: User user(id: ID!): User} type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccount type UserMetadata { name: String address: String description: String }",
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "extend type Query { me: User user(id: ID!): User} extend type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccount type UserMetadata { name: String address: String description: String }",
+							},
+							"type Query { me: User user(id: ID!): User} type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccount type UserMetadata { name: String address: String description: String }",
+						),
 					}),
-					Factory: federationFactory,
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"vehicle"},
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-2",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"vehicle"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Vehicle",
+								FieldNames: []string{"id", "name", "description", "price"},
+							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Vehicle",
-							FieldNames: []string{"id", "name", "description", "price"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://product.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: "extend type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} extend type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea extend type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
-						},
-						UpstreamSchema: "type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea extend type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "extend type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} extend type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea extend type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
+							},
+							"type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea extend type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
+						),
 					}),
-					Factory: federationFactory,
-				},
+				),
 			},
 			Fields: []plan.FieldConfiguration{
 				{
@@ -4987,97 +5192,107 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"me", "user"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-1",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"me", "user"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id", "name", "username", "birthDate", "account", "metadata", "ssn"},
+							},
+							{
+								TypeName:   "UserMetadata",
+								FieldNames: []string{"name", "address", "description"},
+							},
+							{
+								TypeName:   "Name",
+								FieldNames: []string{"first", "last"},
+							},
+							{
+								TypeName:   "PasswordAccount",
+								FieldNames: []string{"email"},
+							},
+							{
+								TypeName:   "SMSAccount",
+								FieldNames: []string{"number"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "name", "username", "birthDate", "account", "metadata", "ssn"},
-						},
-						{
-							TypeName:   "UserMetadata",
-							FieldNames: []string{"name", "address", "description"},
-						},
-						{
-							TypeName:   "Name",
-							FieldNames: []string{"first", "last"},
-						},
-						{
-							TypeName:   "PasswordAccount",
-							FieldNames: []string{"email"},
-						},
-						{
-							TypeName:   "SMSAccount",
-							FieldNames: []string{"number"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: "extend type Query { me: User user(id: ID!): User} extend type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccount type UserMetadata { name: String address: String description: String }",
-						},
-						UpstreamSchema: "type Query { me: User user(id: ID!): User} type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccount type UserMetadata { name: String address: String description: String }",
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "extend type Query { me: User user(id: ID!): User} extend type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccount type UserMetadata { name: String address: String description: String }",
+							},
+							"type Query { me: User user(id: ID!): User} type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccount type UserMetadata { name: String address: String description: String }",
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-2",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
 							{
-								TypeName:     "User",
-								SelectionSet: "id",
+								TypeName:   "User",
+								FieldNames: []string{"vehicle"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Vehicle",
+								FieldNames: []string{"id", "name", "description", "price"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+								{
+									TypeName:     "Product",
+									SelectionSet: "upc",
+								},
+								{
+									TypeName:     "Product",
+									SelectionSet: "sku",
+								},
 							},
 						},
 					},
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"vehicle"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Vehicle",
-							FieldNames: []string{"id", "name", "description", "price"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://product.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: "extend type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} extend type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea extend type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
-						},
-						UpstreamSchema: "type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "extend type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} extend type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea extend type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
+							},
+							"type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Product",
-								SelectionSet: "upc",
-							},
-							{
-								TypeName:     "Product",
-								SelectionSet: "sku",
-							},
-						},
-					},
-				},
+				),
 			},
 			Fields: []plan.FieldConfiguration{
 				{
@@ -5337,89 +5552,99 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"me", "user"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-1",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"me", "user"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id", "name", "username", "birthDate", "account", "metadata", "ssn"},
+							},
+							{
+								TypeName:   "UserMetadata",
+								FieldNames: []string{"name", "address", "description"},
+							},
+							{
+								TypeName:   "Name",
+								FieldNames: []string{"first", "last"},
+							},
+							{
+								TypeName:   "PasswordAccount",
+								FieldNames: []string{"email"},
+							},
+							{
+								TypeName:   "SMSAccount",
+								FieldNames: []string{"number"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "name", "username", "birthDate", "account", "metadata", "ssn"},
-						},
-						{
-							TypeName:   "UserMetadata",
-							FieldNames: []string{"name", "address", "description"},
-						},
-						{
-							TypeName:   "Name",
-							FieldNames: []string{"first", "last"},
-						},
-						{
-							TypeName:   "PasswordAccount",
-							FieldNames: []string{"email"},
-						},
-						{
-							TypeName:   "SMSAccount",
-							FieldNames: []string{"number"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: "extend type Query { me: User user(id: ID!): User} extend type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccount type UserMetadata { name: String address: String description: String }",
-						},
-						UpstreamSchema: "type Query { me: User user(id: ID!): User} type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccount type UserMetadata { name: String address: String description: String }",
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "extend type Query { me: User user(id: ID!): User} extend type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccount type UserMetadata { name: String address: String description: String }",
+							},
+							"type Query { me: User user(id: ID!): User} type Mutation { login( username: String! password: String! ): User} type User @key(fields: \"id\") { id: ID! name: Name username: String birthDate(locale: String): String account: AccountType metadata: [UserMetadata] ssn: String} type Name { first: String last: String } type PasswordAccount @key(fields: \"email\") { email: String! } type SMSAccount @key(fields: \"number\") { number: String } union AccountType = PasswordAccount | SMSAccount type UserMetadata { name: String address: String description: String }",
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-2",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
 							{
-								TypeName:     "User",
-								SelectionSet: "id",
+								TypeName:   "User",
+								FieldNames: []string{"vehicle"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Vehicle",
+								FieldNames: []string{"id", "name", "description", "price"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
 							},
 						},
 					},
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"vehicle"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Vehicle",
-							FieldNames: []string{"id", "name", "description", "price"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://product.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: "extend type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} extend type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea extend type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
-						},
-						UpstreamSchema: "type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
-					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "extend type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} extend type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea extend type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
 							},
-						},
-					},
-				},
+							"type Query { product(upc: String!): Product vehicle(id: String!): Vehicle topProducts(first: Int = 5): [Product] topCars(first: Int = 5): [Car]} type Subscription { updatedPrice: Product! updateProductPrice(upc: String!): Product! stock: [Product!]} type Ikea { asile: Int} type Amazon { referrer: String } union Brand = Ikea | Amazon interface Product { upc: String! sku: String! name: String price: String details: ProductDetails inStock: Int! } interface ProductDetails { country: String} type ProductDetailsFurniture implements ProductDetails { country: String color: String} type ProductDetailsBook implements ProductDetails { country: String pages: Int } type Furniture implements Product @key(fields: \"upc\") @key(fields: \"sku\") { upc: String! sku: String! name: String price: String brand: Brand metadata: [MetadataOrError] details: ProductDetailsFurniture inStock: Int!} interface Vehicle { id: String! description: String price: String } type Car implements Vehicle @key(fields: \"id\") { id: String! description: String price: String} type Van implements Vehicle @key(fields: \"id\") { id: String! description: String price: String } union Thing = Car | Ikea type User @key(fields: \"id\") { id: ID! @external vehicle: Vehicle thing: Thing} type KeyValue { key: String! value: String! } type Error { code: Int message: String} union MetadataOrError = KeyValue | Error",
+						),
+					}),
+				),
 			},
 			Fields: []plan.FieldConfiguration{
 				{
@@ -5550,71 +5775,81 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"me"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-1",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"me"},
+							},
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id"},
+							},
 						},
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id"},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
-						},
-						UpstreamSchema: "type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
+							},
+							"type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-2",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
 							{
-								TypeName:     "User",
-								SelectionSet: "id",
+								TypeName:   "User",
+								FieldNames: []string{"reviews", "id"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Review",
+								FieldNames: []string{"body", "notes", "likes"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
 							},
 						},
 					},
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"reviews", "id"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Review",
-							FieldNames: []string{"body", "notes", "likes"},
-						},
-					},
-					Factory: federationFactory,
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://review.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: "type Review { body: String! notes: String likes(filterToPublicOnly: Boolean): Int! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
-						},
-						UpstreamSchema: "type Review { body: String! notes: String likes(filterToPublicOnly: Boolean): Int! } type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
-					}),
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "type Review { body: String! notes: String likes(filterToPublicOnly: Boolean): Int! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
 							},
-						},
-					},
-				},
+							"type Review { body: String! notes: String likes(filterToPublicOnly: Boolean): Int! } type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
+						),
+					}),
+				),
 			},
 			Fields: []plan.FieldConfiguration{
 				{
@@ -5744,71 +5979,81 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"me"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-1",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"me"},
+							},
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id"},
+							},
 						},
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id"},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
-						},
-						UpstreamSchema: federationTestSchemaWithRename,
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
+							},
+							federationTestSchemaWithRename,
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-2",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
 							{
-								TypeName:     "User",
-								SelectionSet: "id",
+								TypeName:   "User",
+								FieldNames: []string{"id", "reviews"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Review",
+								FieldNames: []string{"body", "notes", "likes"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
 							},
 						},
 					},
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "reviews"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Review",
-							FieldNames: []string{"body", "notes", "likes"},
-						},
-					},
-					Factory: federationFactory,
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://review.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: "scalar XBoolean type Review { body: String! notes: String likes(filterToPublicOnly: XBoolean!): Int! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
-						},
-						UpstreamSchema: federationTestSchemaWithRename,
-					}),
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "scalar XBoolean type Review { body: String! notes: String likes(filterToPublicOnly: XBoolean!): Int! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
 							},
-						},
-					},
-				},
+							federationTestSchemaWithRename,
+						),
+					}),
+				),
 			},
 			Fields: []plan.FieldConfiguration{
 				{
@@ -5921,77 +6166,87 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"serviceOne"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-1",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"serviceOne"},
+							},
+							{
+								TypeName:   "ServiceOneType",
+								FieldNames: []string{"id", "serviceOneFieldOne", "serviceOneFieldTwo"},
+							},
 						},
-						{
-							TypeName:   "ServiceOneType",
-							FieldNames: []string{"id", "serviceOneFieldOne", "serviceOneFieldTwo"},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "ServiceOneType",
+									SelectionSet: "id",
+								},
+							},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://one.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: "extend type Query {serviceOne: ServiceOneType} type ServiceOneType @key(fields: \"id\"){ id: ID! serviceOneFieldOne: String! serviceOneFieldTwo: String!}",
-						},
-						UpstreamSchema: "type Query {serviceOne: ServiceOneType} type ServiceOneType @key(fields: \"id\"){ id: ID! serviceOneFieldOne: String! serviceOneFieldTwo: String!}",
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "extend type Query {serviceOne: ServiceOneType} type ServiceOneType @key(fields: \"id\"){ id: ID! serviceOneFieldOne: String! serviceOneFieldTwo: String!}",
+							},
+							"type Query {serviceOne: ServiceOneType} type ServiceOneType @key(fields: \"id\"){ id: ID! serviceOneFieldOne: String! serviceOneFieldTwo: String!}",
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-2",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
 							{
-								TypeName:     "ServiceOneType",
-								SelectionSet: "id",
+								TypeName:   "ServiceOneType",
+								FieldNames: []string{"id", "serviceTwoFieldOne", "serviceTwoFieldTwo"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "ServiceOneType",
+									SelectionSet: "id",
+								},
+							},
+							Requires: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "ServiceOneType",
+									FieldName:    "serviceTwoFieldOne",
+									SelectionSet: "serviceOneFieldOne",
+								},
+								{
+									TypeName:     "ServiceOneType",
+									FieldName:    "serviceTwoFieldTwo",
+									SelectionSet: "serviceOneFieldTwo",
+								},
 							},
 						},
 					},
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "ServiceOneType",
-							FieldNames: []string{"id", "serviceTwoFieldOne", "serviceTwoFieldTwo"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://two.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: "extend type ServiceOneType @key(fields: \"id\") { id: ID! @external serviceOneFieldOne: String! @external serviceOneFieldTwo: String! @external serviceTwoFieldOne: String! @requires(fields: \"serviceOneFieldOne\") serviceTwoFieldTwo: String! @requires(fields: \"serviceOneFieldTwo\")}",
-						},
-						UpstreamSchema: "type ServiceOneType @key(fields: \"id\") { id: ID! @external serviceOneFieldOne: String! @external serviceOneFieldTwo: String! @external serviceTwoFieldOne: String! @requires(fields: \"serviceOneFieldOne\") serviceTwoFieldTwo: String! @requires(fields: \"serviceOneFieldTwo\")}",
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "extend type ServiceOneType @key(fields: \"id\") { id: ID! @external serviceOneFieldOne: String! @external serviceOneFieldTwo: String! @external serviceTwoFieldOne: String! @requires(fields: \"serviceOneFieldOne\") serviceTwoFieldTwo: String! @requires(fields: \"serviceOneFieldTwo\")}",
+							},
+							"type ServiceOneType @key(fields: \"id\") { id: ID! @external serviceOneFieldOne: String! @external serviceOneFieldTwo: String! @external serviceTwoFieldOne: String! @requires(fields: \"serviceOneFieldOne\") serviceTwoFieldTwo: String! @requires(fields: \"serviceOneFieldTwo\")}",
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
-							{
-								TypeName:     "ServiceOneType",
-								SelectionSet: "id",
-							},
-						},
-						Requires: []plan.FederationFieldConfiguration{
-							{
-								TypeName:     "ServiceOneType",
-								FieldName:    "serviceTwoFieldOne",
-								SelectionSet: "serviceOneFieldOne",
-							},
-							{
-								TypeName:     "ServiceOneType",
-								FieldName:    "serviceTwoFieldTwo",
-								SelectionSet: "serviceOneFieldTwo",
-							},
-						},
-					},
-				},
+				),
 			},
 			DisableResolveFieldPositions: true,
 		}))
@@ -6222,101 +6477,116 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"api_me"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-1",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"api_me"},
+							},
+							{
+								TypeName:   "User_api",
+								FieldNames: []string{"id", "username"},
+							},
 						},
-						{
-							TypeName:   "User_api",
-							FieldNames: []string{"id", "username"},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! username: String!}",
-						},
-						UpstreamSchema: federationTestSchema,
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! username: String!}",
+							},
+							federationTestSchema,
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
 							{
-								TypeName:     "User",
-								SelectionSet: "id",
+								TypeName:   "Query",
+								FieldNames: []string{"api_topProducts"},
+							},
+							{
+								TypeName:   "Product_api",
+								FieldNames: []string{"upc", "name", "price"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "Product",
+									SelectionSet: "upc",
+								},
 							},
 						},
 					},
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"api_topProducts"},
-						},
-						{
-							TypeName:   "Product_api",
-							FieldNames: []string{"upc", "name", "price"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://product.service",
 						},
-						Subscription: SubscriptionConfiguration{
+						Subscription: &SubscriptionConfiguration{
 							URL: "ws://product.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") {upc: String! price: Int!}",
-						},
-						UpstreamSchema: federationTestSchema,
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "extend type Query {topProducts(first: Int = 5): [Product]} type Product @key(fields: \"upc\") {upc: String! price: Int!}",
+							},
+							federationTestSchema,
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
 							{
-								TypeName:     "Product",
-								SelectionSet: "upc",
+								TypeName:   "User_api",
+								FieldNames: []string{"id", "username", "reviews"},
+							},
+							{
+								TypeName:   "Product_api",
+								FieldNames: []string{"upc", "reviews"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Review_api",
+								FieldNames: []string{"body", "author", "product"},
 							},
 						},
 					},
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "User_api",
-							FieldNames: []string{"id", "username", "reviews"},
-						},
-						{
-							TypeName:   "Product_api",
-							FieldNames: []string{"upc", "reviews"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Review_api",
-							FieldNames: []string{"body", "author", "product"},
-						},
-					},
-					Factory: federationFactory,
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://review.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: "type Review { body: String! author: User! @provides(fields: \"username\") product: Product! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] } extend type Product @key(fields: \"upc\") { upc: String! @external reviews: [Review] }",
-						},
-						UpstreamSchema: federationTestSchema,
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "type Review { body: String! author: User! @provides(fields: \"username\") product: Product! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] } extend type Product @key(fields: \"upc\") { upc: String! @external reviews: [Review] }",
+							},
+							federationTestSchema,
+						),
 					}),
-				},
+				),
 			},
 			Fields: []plan.FieldConfiguration{
 				{
@@ -6358,33 +6628,46 @@ func TestGraphQLDataSource(t *testing.T) {
 	t.Run("userSDLWithInterface + reviewSDL", func(t *testing.T) {
 
 		planConfiguration := plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"me", "self"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-1",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"me", "self"},
+							},
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id", "username"},
+							},
 						},
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "username"},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Identity",
+								FieldNames: []string{"id"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Identity",
-							FieldNames: []string{"id"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: userSDLWithInterface,
-						},
-						UpstreamSchema: `
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: userSDLWithInterface,
+							},
+							`
 							type Query {
 								me: User
 								self: Identity
@@ -6399,53 +6682,67 @@ func TestGraphQLDataSource(t *testing.T) {
 								username: String!
 							}
 						`,
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
 							{
-								TypeName:     "User",
-								SelectionSet: "id",
+								TypeName:   "User",
+								FieldNames: []string{"id", "reviews"},
+							},
+							{
+								TypeName:   "Review",
+								FieldNames: []string{"id", "body", "author", "attachment"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Medium",
+								FieldNames: []string{"size"},
+							},
+							{
+								TypeName:   "Image",
+								FieldNames: []string{"size", "extension"},
+							},
+							{
+								TypeName:   "Video",
+								FieldNames: []string{"size", "length"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+								{
+									TypeName:     "Review",
+									SelectionSet: "id",
+								},
+							},
+							Provides: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "Review",
+									FieldName:    "author",
+									SelectionSet: "username",
+								},
 							},
 						},
 					},
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "reviews"},
-						},
-						{
-							TypeName:   "Review",
-							FieldNames: []string{"id", "body", "author", "attachment"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-
-						{
-							TypeName:   "Medium",
-							FieldNames: []string{"size"},
-						},
-						{
-							TypeName:   "Image",
-							FieldNames: []string{"size", "extension"},
-						},
-						{
-							TypeName:   "Video",
-							FieldNames: []string{"size", "length"},
-						},
-					},
-					Factory: federationFactory,
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://review.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: reviewSDL,
-						},
-						UpstreamSchema: `
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: reviewSDL,
+							},
+							`
 							interface Medium {
 								size: Int!
 							}
@@ -6471,27 +6768,9 @@ func TestGraphQLDataSource(t *testing.T) {
 								id: ID!
 								reviews: [Review] 
 							}`,
+						),
 					}),
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Review",
-								SelectionSet: "id",
-							},
-						},
-						Provides: []plan.FederationFieldConfiguration{
-							{
-								TypeName:     "Review",
-								FieldName:    "author",
-								SelectionSet: "username",
-							},
-						},
-					},
-				},
+				),
 			},
 			DisableResolveFieldPositions: true,
 		}
@@ -6877,27 +7156,40 @@ func TestGraphQLDataSource(t *testing.T) {
 		t.Skip("problem with merging of resolve.Node")
 
 		planConfiguration := plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"user"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-1",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"user"},
+							},
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id", "username"},
+							},
 						},
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "username"},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: simpleUserSchema,
-						},
-						UpstreamSchema: `
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: simpleUserSchema,
+							},
+							`
 							type Query {
 								user: User
 							}
@@ -6906,51 +7198,56 @@ func TestGraphQLDataSource(t *testing.T) {
 								username: String!
 							}
 						`,
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-2",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
 							{
-								TypeName:     "User",
-								SelectionSet: "id",
+								TypeName:   "User",
+								FieldNames: []string{"id", "pets"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Details",
+								FieldNames: []string{"age", "hasOwner"},
+							},
+							{
+								TypeName:   "Pet",
+								FieldNames: []string{"name", "species", "details"},
+							},
+							{
+								TypeName:   "Cat",
+								FieldNames: []string{"catField", "name", "species", "details"},
+							},
+							{
+								TypeName:   "Dog",
+								FieldNames: []string{"dogField", "name", "species", "details"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
 							},
 						},
 					},
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "pets"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Details",
-							FieldNames: []string{"age", "hasOwner"},
-						},
-						{
-							TypeName:   "Pet",
-							FieldNames: []string{"name", "species", "details"},
-						},
-						{
-							TypeName:   "Cat",
-							FieldNames: []string{"catField", "name", "species", "details"},
-						},
-						{
-							TypeName:   "Dog",
-							FieldNames: []string{"dogField", "name", "species", "details"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://pet.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: petSchema,
-						},
-						UpstreamSchema: `
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: petSchema,
+							},
+							`
 							type Details {
 								age: Int!
 								hasOwner : Boolean!
@@ -6977,17 +7274,9 @@ func TestGraphQLDataSource(t *testing.T) {
 								pets: [Pet!]!
 							}
 						`,
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-						},
-					},
-				},
+				),
 			},
 			DisableResolveFieldPositions: true,
 			Debug: plan.DebugConfiguration{
@@ -7614,27 +7903,40 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"user"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"user"},
+							},
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id", "username"},
+							},
 						},
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "username"},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
 						},
 					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: simpleUserSchema,
-						},
-						UpstreamSchema: `
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: simpleUserSchema,
+							},
+							`
 							type Query {
 								user: User
 							}
@@ -7642,41 +7944,45 @@ func TestGraphQLDataSource(t *testing.T) {
 								id: ID!
 								username: String!
 							}`,
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-2",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
 							{
-								TypeName:     "User",
-								SelectionSet: "id",
+								TypeName:   "User",
+								FieldNames: []string{"id", "pets"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Cat",
+								FieldNames: []string{"name", "catField"},
+							},
+							{
+								TypeName:   "Dog",
+								FieldNames: []string{"name", "dogField"},
+							},
+						}, FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
 							},
 						},
 					},
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "pets"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Cat",
-							FieldNames: []string{"name", "catField"},
-						},
-						{
-							TypeName:   "Dog",
-							FieldNames: []string{"name", "dogField"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://pet.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled: true,
-							ServiceSDL: `
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled: true,
+								ServiceSDL: `
 								union CatOrDog = Cat | Dog
 								type Cat {
 									name: String!
@@ -7691,8 +7997,8 @@ func TestGraphQLDataSource(t *testing.T) {
 									pets: [CatOrDog!]!
 								}
 	                       `,
-						},
-						UpstreamSchema: `
+							},
+							`
 								union CatOrDog = Cat | Dog
 								type Cat {
 									name: String!
@@ -7707,17 +8013,9 @@ func TestGraphQLDataSource(t *testing.T) {
 									pets: [CatOrDog!]!
 								}
 	                       `,
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-						},
-					},
-				},
+				),
 			},
 			DisableResolveFieldPositions: true,
 		}))
@@ -7875,35 +8173,52 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		plan.Configuration{
-			DataSources: []plan.DataSourceConfiguration{
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"user"},
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"user"},
+							},
+							{
+								TypeName:   "Cat",
+								FieldNames: []string{"id"},
+							},
+							{
+								TypeName:   "Dog",
+								FieldNames: []string{"id"},
+							},
 						},
-						{
-							TypeName:   "Cat",
-							FieldNames: []string{"id"},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"username", "pets"},
+							},
 						},
-						{
-							TypeName:   "Dog",
-							FieldNames: []string{"id"},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "Cat",
+									SelectionSet: "id",
+								},
+								{
+									TypeName:     "Dog",
+									SelectionSet: "id",
+								},
+							},
 						},
 					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"username", "pets"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://user.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled: true,
-							ServiceSDL: `
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled: true,
+								ServiceSDL: `
                                 extend type Query {
                                     user: User
                                 }
@@ -7919,8 +8234,8 @@ func TestGraphQLDataSource(t *testing.T) {
                                     id: ID! @external
                                 }
                             `,
-						},
-						UpstreamSchema: `
+							},
+							`
                                 type Query {
                                     user: User
                                 }
@@ -7935,39 +8250,44 @@ func TestGraphQLDataSource(t *testing.T) {
                                 type Dog @key(fields: "id") {
                                     id: ID!
                                 }`,
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-2",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
 							{
-								TypeName:     "Cat",
-								SelectionSet: "id",
+								TypeName:   "Cat",
+								FieldNames: []string{"id", "name", "catField"},
 							},
 							{
-								TypeName:     "Dog",
-								SelectionSet: "id",
+								TypeName:   "Dog",
+								FieldNames: []string{"id", "name", "dogField"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "Cat",
+									SelectionSet: "id",
+								},
+								{
+									TypeName:     "Dog",
+									SelectionSet: "id",
+								},
 							},
 						},
 					},
-				},
-				{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Cat",
-							FieldNames: []string{"id", "name", "catField"},
-						},
-						{
-							TypeName:   "Dog",
-							FieldNames: []string{"id", "name", "dogField"},
-						},
-					},
-					Custom: ConfigJson(Configuration{
-						Fetch: FetchConfiguration{
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
 							URL: "http://pet.service",
 						},
-						Federation: FederationConfiguration{
-							Enabled: true,
-							ServiceSDL: `
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled: true,
+								ServiceSDL: `
                                 union CatOrDog = Cat | Dog
                                 type Cat @key(fields: "id") {
                                     id: ID!
@@ -7980,8 +8300,8 @@ func TestGraphQLDataSource(t *testing.T) {
                                     dogField: String!
                                 }
                             `,
-						},
-						UpstreamSchema: `
+							},
+							`
                                 union CatOrDog = Cat | Dog
                                 type Cat @key(fields: "id") {
                                     id: ID!
@@ -7994,21 +8314,9 @@ func TestGraphQLDataSource(t *testing.T) {
                                     dogField: String!
                                 }
                             `,
+						),
 					}),
-					Factory: federationFactory,
-					FederationMetaData: plan.FederationMetaData{
-						Keys: []plan.FederationFieldConfiguration{
-							{
-								TypeName:     "Cat",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Dog",
-								SelectionSet: "id",
-							},
-						},
-					},
-				},
+				),
 			},
 			DisableResolveFieldPositions: true,
 		}))
@@ -8116,44 +8424,47 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"droid", "review", "hero", "stringList", "nestedStringList"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"droid", "review", "hero", "stringList", "nestedStringList"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Character",
+							FieldNames: []string{"name", "friends"},
+						},
+						{
+							TypeName:   "Human",
+							FieldNames: []string{"name", "height", "friends"},
+						},
+						{
+							TypeName:   "Droid",
+							FieldNames: []string{"name", "primaryFunction", "friends"},
+						},
+						{
+							TypeName:   "Review",
+							FieldNames: []string{"id", "stars", "commentary"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Character",
-						FieldNames: []string{"name", "friends"},
-					},
-					{
-						TypeName:   "Human",
-						FieldNames: []string{"name", "height", "friends"},
-					},
-					{
-						TypeName:   "Droid",
-						FieldNames: []string{"name", "primaryFunction", "friends"},
-					},
-					{
-						TypeName:   "Review",
-						FieldNames: []string{"id", "stars", "commentary"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "https://swapi.com/graphql",
 						Header: http.Header{
 							"Authorization":    []string{"{{ .request.headers.Authorization }}"},
 							"Invalid-Template": []string{"{{ request.headers.Authorization }}"},
 						},
 					},
-					UpstreamSchema: starWarsSchemaWithRenamedArgument,
+					SchemaConfiguration: mustSchema(t, nil, starWarsSchemaWithRenamedArgument),
 				}),
-			},
+			),
 		},
 		Fields: []plan.FieldConfiguration{
 			{
@@ -8256,38 +8567,41 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"custom_user"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"custom_user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "custom_User",
+							FieldNames: []string{"id", "name", "tier", "meta"},
+						},
+						{
+							TypeName:   "custom_Meta",
+							FieldNames: []string{"foo"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "custom_User",
-						FieldNames: []string{"id", "name", "tier", "meta"},
-					},
-					{
-						TypeName:   "custom_Meta",
-						FieldNames: []string{"foo"},
-					},
-				},
-				Factory: &Factory{},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL: "http://localhost:8084/query",
 					},
-					UpstreamSchema: userSchema,
 					CustomScalarTypeFields: []SingleTypeField{
 						{
 							TypeName:  "custom_User",
 							FieldName: "meta",
 						},
 					},
+					SchemaConfiguration: mustSchema(t, nil, userSchema),
 				}),
-			},
+			),
 		},
 		Fields: []plan.FieldConfiguration{
 			{
@@ -8607,66 +8921,61 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 
 type runTestOnTestDefinitionOptions func(planConfig *plan.Configuration)
 
-func testWithFactory(factory *Factory) runTestOnTestDefinitionOptions {
-	return func(planConfig *plan.Configuration) {
-		for _, ds := range planConfig.DataSources {
-			ds.Factory = factory
-		}
-	}
-}
-
-func runTestOnTestDefinition(operation, operationName string, expectedPlan plan.Plan, options ...runTestOnTestDefinitionOptions) func(t *testing.T) {
+func runTestOnTestDefinition(t *testing.T, operation, operationName string, expectedPlan plan.Plan, options ...runTestOnTestDefinitionOptions) func(t *testing.T) {
 	config := plan.Configuration{
-		DataSources: []plan.DataSourceConfiguration{
-			{
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"hero", "heroByBirthdate", "droid", "droids", "search", "stringList", "nestedStringList"},
+		DataSources: []plan.DataSource{
+			mustDataSourceConfigurationWithHttpClient(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"hero", "heroByBirthdate", "droid", "droids", "search", "stringList", "nestedStringList"},
+						},
+						{
+							TypeName:   "Mutation",
+							FieldNames: []string{"createReview"},
+						},
+						{
+							TypeName:   "Subscription",
+							FieldNames: []string{"remainingJedis"},
+						},
 					},
-					{
-						TypeName:   "Mutation",
-						FieldNames: []string{"createReview"},
-					},
-					{
-						TypeName:   "Subscription",
-						FieldNames: []string{"remainingJedis"},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Review",
+							FieldNames: []string{"id", "stars", "commentary"},
+						},
+						{
+							TypeName:   "Character",
+							FieldNames: []string{"name", "friends"},
+						},
+						{
+							TypeName:   "Human",
+							FieldNames: []string{"name", "height", "friends"},
+						},
+						{
+							TypeName:   "Droid",
+							FieldNames: []string{"name", "primaryFunction", "friends"},
+						},
+						{
+							TypeName:   "Starship",
+							FieldNames: []string{"name", "length"},
+						},
 					},
 				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "Review",
-						FieldNames: []string{"id", "stars", "commentary"},
-					},
-					{
-						TypeName:   "Character",
-						FieldNames: []string{"name", "friends"},
-					},
-					{
-						TypeName:   "Human",
-						FieldNames: []string{"name", "height", "friends"},
-					},
-					{
-						TypeName:   "Droid",
-						FieldNames: []string{"name", "primaryFunction", "friends"},
-					},
-					{
-						TypeName:   "Starship",
-						FieldNames: []string{"name", "length"},
-					},
-				},
-				Custom: ConfigJson(Configuration{
-					Fetch: FetchConfiguration{
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch: &FetchConfiguration{
 						URL:    "https://swapi.com/graphql",
 						Method: "POST",
 					},
-					Subscription: SubscriptionConfiguration{
+					Subscription: &SubscriptionConfiguration{
 						URL: "wss://swapi.com/graphql",
 					},
-					UpstreamSchema: testDefinition,
+					SchemaConfiguration: mustSchema(t, nil, testDefinition),
 				}),
-				Factory: &Factory{},
-			},
+			),
 		},
 		Fields: []plan.FieldConfiguration{
 			{

@@ -467,18 +467,11 @@ func createSchema(schemaContent []byte, mergeWithBaseSchema bool) (*Schema, erro
 
 type SkipFieldFunc func(typeName, fieldName string, definition ast.Document) bool
 
-func NewIsDataSourceConfigV2RootFieldSkipFunc(dataSources []plan.DataSourceConfiguration) SkipFieldFunc {
+func NewIsDataSourceConfigV2RootFieldSkipFunc(dataSources []plan.DataSource) SkipFieldFunc {
 	return func(typeName, fieldName string, _ ast.Document) bool {
 		for i := range dataSources {
-			for j := range dataSources[i].RootNodes {
-				if typeName != dataSources[i].RootNodes[j].TypeName {
-					continue
-				}
-				for k := range dataSources[i].RootNodes[j].FieldNames {
-					if fieldName == dataSources[i].RootNodes[j].FieldNames[k] {
-						return true
-					}
-				}
+			if dataSources[i].HasRootNode(typeName, fieldName) {
+				return true
 			}
 		}
 		return false
