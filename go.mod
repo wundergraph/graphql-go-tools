@@ -6,14 +6,12 @@ require (
 	github.com/99designs/gqlgen v0.17.22
 	github.com/IBM/sarama v1.42.1
 	github.com/andybalholm/brotli v1.1.0
-	github.com/asyncapi/parser-go v0.4.2
 	github.com/buger/jsonparser v1.1.1
 	github.com/cespare/xxhash/v2 v2.1.2
 	github.com/dave/jennifer v1.4.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/evanphx/json-patch/v5 v5.1.0
-	github.com/getkin/kin-openapi v0.89.0
 	github.com/go-test/deep v1.0.8
 	github.com/gobwas/ws v1.0.4
 	github.com/golang/mock v1.6.0
@@ -51,8 +49,6 @@ require (
 	github.com/Microsoft/go-winio v0.6.0 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/agnivade/levenshtein v1.1.1 // indirect
-	github.com/asyncapi/converter-go v0.0.0-20190802111537-d8459b2bd403 // indirect
-	github.com/asyncapi/spec-json-schemas/v2 v2.14.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/containerd/continuity v0.3.0 // indirect
 	github.com/docker/cli v20.10.17+incompatible // indirect
@@ -63,9 +59,6 @@ require (
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
-	github.com/ghodss/yaml v1.0.0 // indirect
-	github.com/go-openapi/jsonpointer v0.19.5 // indirect
-	github.com/go-openapi/swag v0.19.5 // indirect
 	github.com/gobwas/httphead v0.0.0-20180130184737-2c6c146eadee // indirect
 	github.com/gobwas/pool v0.2.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -88,7 +81,6 @@ require (
 	github.com/lib/pq v1.10.6 // indirect
 	github.com/logrusorgru/aurora/v3 v3.0.0 // indirect
 	github.com/magiconair/properties v1.8.0 // indirect
-	github.com/mailru/easyjson v0.0.0-20190626092158-b2ccc519800e // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/mitchellh/copystructure v1.0.0 // indirect

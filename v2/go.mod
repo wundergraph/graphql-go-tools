@@ -7,11 +7,9 @@ require (
 	github.com/IBM/sarama v1.42.1
 	github.com/alitto/pond v1.8.3
 	github.com/andybalholm/brotli v1.1.0
-	github.com/asyncapi/parser-go v0.4.2
 	github.com/buger/jsonparser v1.1.1
 	github.com/cespare/xxhash/v2 v2.1.2
 	github.com/davecgh/go-spew v1.1.1
-	github.com/getkin/kin-openapi v0.89.0
 	github.com/gobwas/ws v1.0.4
 	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.5.9
@@ -19,7 +17,6 @@ require (
 	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v0.5.4
-	github.com/iancoleman/strcase v0.3.0
 	github.com/jensneuse/abstractlogger v0.0.4
 	github.com/jensneuse/byte-template v0.0.0-20200214152254-4f3cf06e5c68
 	github.com/jensneuse/diffview v1.0.0
@@ -45,8 +42,6 @@ require (
 	github.com/Microsoft/go-winio v0.6.0 // indirect
 	github.com/Nvveen/Gotty v0.0.0-20120604004816-cd527374f1e5 // indirect
 	github.com/agnivade/levenshtein v1.1.1 // indirect
-	github.com/asyncapi/converter-go v0.0.0-20190802111537-d8459b2bd403 // indirect
-	github.com/asyncapi/spec-json-schemas/v2 v2.14.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/containerd/continuity v0.3.0 // indirect
 	github.com/docker/cli v20.10.17+incompatible // indirect
@@ -56,9 +51,6 @@ require (
 	github.com/eapache/go-resiliency v1.4.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
-	github.com/ghodss/yaml v1.0.0 // indirect
-	github.com/go-openapi/jsonpointer v0.19.5 // indirect
-	github.com/go-openapi/swag v0.19.5 // indirect
 	github.com/gobwas/httphead v0.0.0-20180130184737-2c6c146eadee // indirect
 	github.com/gobwas/pool v0.2.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -75,7 +67,6 @@ require (
 	github.com/klauspost/compress v1.17.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/logrusorgru/aurora/v3 v3.0.0 // indirect
-	github.com/mailru/easyjson v0.0.0-20190626092158-b2ccc519800e // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
