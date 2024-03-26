@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"io"
 	"regexp"
 	"strings"
@@ -311,7 +312,7 @@ type PublishDataSource struct {
 	pubSub PubSub
 }
 
-func (s *PublishDataSource) Load(ctx context.Context, input []byte, w io.Writer) error {
+func (s *PublishDataSource) Load(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) error {
 	topic, err := jsonparser.GetString(input, "topic")
 	if err != nil {
 		return fmt.Errorf("error getting topic from input: %w", err)
@@ -333,7 +334,7 @@ type RequestDataSource struct {
 	pubSub PubSub
 }
 
-func (s *RequestDataSource) Load(ctx context.Context, input []byte, w io.Writer) error {
+func (s *RequestDataSource) Load(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) error {
 	topic, err := jsonparser.GetString(input, "topic")
 	if err != nil {
 		return err

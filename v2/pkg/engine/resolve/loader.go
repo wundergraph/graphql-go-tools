@@ -1147,7 +1147,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 	}
 	var responseContext *httpclient.ResponseContext
 	ctx, responseContext = httpclient.InjectResponseContext(ctx)
-	res.err = source.Load(ctx, input, res.out)
+	res.err = source.Load(ctx, input, l.ctx.Files, res.out)
 	res.statusCode = responseContext.StatusCode
 	if l.ctx.TracingOptions.Enable {
 		stats := GetSingleFlightStats(ctx)
