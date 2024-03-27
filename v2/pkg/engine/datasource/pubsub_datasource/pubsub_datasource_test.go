@@ -20,14 +20,14 @@ func (t *testPubsub) ID() string {
 	return "test"
 }
 
-func (t *testPubsub) Subscribe(ctx context.Context, topic string, updater resolve.SubscriptionUpdater) error {
+func (t *testPubsub) Subscribe(_ context.Context, _ []string, _ resolve.SubscriptionUpdater) error {
 	return errors.New("not implemented")
 }
-func (t *testPubsub) Publish(ctx context.Context, topic string, data []byte) error {
+func (t *testPubsub) Publish(_ context.Context, _ string, _ []byte) error {
 	return errors.New("not implemented")
 }
 
-func (t *testPubsub) Request(ctx context.Context, topic string, data []byte, w io.Writer) error {
+func (t *testPubsub) Request(_ context.Context, _ string, _ []byte, _ io.Writer) error {
 	return errors.New("not implemented")
 }
 
@@ -38,15 +38,16 @@ func TestPubSub(t *testing.T) {
 
 	const schema = `
 	type Query {
-		helloQuery(id: String!): String! @eventsRequest(topic: "helloQuery.{{ args.id }}")
+		helloQuery(id: String!): String! @eventsRequest(subject: "helloQuery.{{ args.id }}")
 	}
 
 	type Mutation {
-		helloMutation(id: String!, input: String!): String! @eventsPublish(topic: "helloMutation.{{ args.id }}")
+		helloMutation(id: String!, input: String!): String! @eventsPublish(subject: "helloMutation.{{ args.id }}")
 	}
 
 	type Subscription {
-		helloSubscription(id: String!): String! @eventsSubscribe(topic: "helloSubscription.{{ args.id }}")
+		helloSubscription(id: String!): String! @eventsSubscribe(subjects: ["helloSubscription.{{ args.id }}"])
+		subscriptionWithMultipleSubjects(firstId: String!, secondId: String!): String! @eventsSubscribe(subjects: ["firstSubscription.{{ args.firstId }}", "secondSubscription.{{ args.secondId }}"])
 	}`
 
 	dataSourceCustomConfig := Configuration{
@@ -54,21 +55,28 @@ func TestPubSub(t *testing.T) {
 			{
 				FieldName:  "helloQuery",
 				SourceName: "default",
-				Topic:      "helloQuery.{{ args.id }}",
+				Subjects:   []string{"helloQuery.{{ args.id }}"},
 				Type:       EventTypeRequest,
 				TypeName:   "Query",
 			},
 			{
 				FieldName:  "helloMutation",
 				SourceName: "default",
-				Topic:      "helloMutation.{{ args.id }}",
+				Subjects:   []string{"helloMutation.{{ args.id }}"},
 				Type:       EventTypePublish,
 				TypeName:   "Mutation",
 			},
 			{
 				FieldName:  "helloSubscription",
 				SourceName: "default",
-				Topic:      "helloSubscription.{{ args.id }}",
+				Subjects:   []string{"helloSubscription.{{ args.id }}"},
+				Type:       EventTypeSubscribe,
+				TypeName:   "Subscription",
+			},
+			{
+				FieldName:  "subscriptionWithMultipleSubjects",
+				SourceName: "default",
+				Subjects:   []string{"firstSubscription.{{ args.firstId }}", "secondSubscription.{{ args.secondId }}"},
 				Type:       EventTypeSubscribe,
 				TypeName:   "Subscription",
 			},
@@ -91,6 +99,10 @@ func TestPubSub(t *testing.T) {
 				{
 					TypeName:   "Subscription",
 					FieldNames: []string{"helloSubscription"},
+				},
+				{
+					TypeName:   "Subscription",
+					FieldNames: []string{"subscriptionWithMultipleSubjects"},
 				},
 			},
 		},
@@ -133,6 +145,20 @@ func TestPubSub(t *testing.T) {
 					},
 				},
 			},
+			{
+				TypeName:  "Subscription",
+				FieldName: "subscriptionWithMultipleSubjects",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "firstId",
+						SourceType: plan.FieldArgumentSource,
+					},
+					{
+						Name:       "secondId",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
 		},
 		DisableResolveFieldPositions: true,
 	}
@@ -153,7 +179,7 @@ func TestPubSub(t *testing.T) {
 					},
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
-							Input: `{"topic":"helloQuery.$$0$$", "data": {"id":$$0$$}}`,
+							Input: `{"subject":"helloQuery.$$0$$", "data": {"id":$$0$$}, "sourceName":"default"}`,
 							Variables: resolve.Variables{
 								&resolve.ContextVariable{
 									Path:     []string{"a"},
@@ -191,7 +217,7 @@ func TestPubSub(t *testing.T) {
 					},
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
-							Input: `{"topic":"helloMutation.$$0$$", "data": {"id":$$0$$,"input":$$1$$}}`,
+							Input: `{"subject":"helloMutation.$$0$$", "data": {"id":$$0$$,"input":$$1$$}, "sourceName":"default"}`,
 							Variables: resolve.Variables{
 								&resolve.ContextVariable{
 									Path:     []string{"a"},
@@ -223,7 +249,7 @@ func TestPubSub(t *testing.T) {
 		expect := &plan.SubscriptionResponsePlan{
 			Response: &resolve.GraphQLSubscription{
 				Trigger: resolve.GraphQLSubscriptionTrigger{
-					Input: []byte(`{"topic":"helloSubscription.$$0$$"}`),
+					Input: []byte(`{"subjects":["helloSubscription.$$0$$"], "sourceName":"default"}`),
 					Variables: resolve.Variables{
 						&resolve.ContextVariable{
 							Path:     []string{"a"},
@@ -244,6 +270,47 @@ func TestPubSub(t *testing.T) {
 								Name: []byte("helloSubscription"),
 								Value: &resolve.String{
 									Path: []string{"helloSubscription"},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		datasourcetesting.RunTest(schema, operation, operationName, expect, planConfig)(t)
+	})
+
+	t.Run("subscription with multiple subjects", func(t *testing.T) {
+		const operation = "subscription SubscriptionWithMultipleSubjects { subscriptionWithMultipleSubjects(firstId: 11, secondId: 23) }"
+		const operationName = `SubscriptionWithMultipleSubjects`
+		expect := &plan.SubscriptionResponsePlan{
+			Response: &resolve.GraphQLSubscription{
+				Trigger: resolve.GraphQLSubscriptionTrigger{
+					Input: []byte(`{"subjects":["firstSubscription.$$0$$","secondSubscription.$$1$$"], "sourceName":"default"}`),
+					Variables: resolve.Variables{
+						&resolve.ContextVariable{
+							Path:     []string{"a"},
+							Renderer: resolve.NewPlainVariableRendererWithValidation("{}"),
+						},
+						&resolve.ContextVariable{
+							Path:     []string{"b"},
+							Renderer: resolve.NewPlainVariableRendererWithValidation("{}"),
+						},
+					},
+					Source: &SubscriptionSource{
+						pubSub: &testPubsub{},
+					},
+					PostProcessing: resolve.PostProcessingConfiguration{
+						MergePath: []string{"subscriptionWithMultipleSubjects"},
+					},
+				},
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("subscriptionWithMultipleSubjects"),
+								Value: &resolve.String{
+									Path: []string{"subscriptionWithMultipleSubjects"},
 								},
 							},
 						},
