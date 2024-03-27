@@ -3,11 +3,11 @@ package resolve
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 )
 
@@ -21,11 +21,17 @@ type Context struct {
 	InitialPayload   []byte
 	Extensions       []byte
 	Stats            Stats
+	RequestHooks     RequestHooks
 
 	authorizer  Authorizer
 	rateLimiter RateLimiter
 
 	subgraphErrors error
+}
+
+type RequestHooks interface {
+	OnRequest(ctx *Context, dataSourceID string) *Context
+	OnResponse(ctx *Context, dataSourceID string, err error) *Context
 }
 
 type AuthorizationDeny struct {
@@ -53,6 +59,10 @@ type Authorizer interface {
 
 func (c *Context) SetAuthorizer(authorizer Authorizer) {
 	c.authorizer = authorizer
+}
+
+func (c *Context) SetRequestHooks(hooks RequestHooks) {
+	c.RequestHooks = hooks
 }
 
 type RateLimitOptions struct {
@@ -86,7 +96,7 @@ func (c *Context) SubgraphErrors() error {
 }
 
 func (c *Context) appendSubgraphError(err error) {
-	c.subgraphErrors = multierror.Append(c.subgraphErrors, err)
+	c.subgraphErrors = errors.Join(c.subgraphErrors, err)
 }
 
 type Stats struct {
@@ -151,6 +161,7 @@ func (c *Context) Free() {
 	c.Stats.Reset()
 	c.subgraphErrors = nil
 	c.authorizer = nil
+	c.RequestHooks = nil
 }
 
 type traceStartKey struct{}
