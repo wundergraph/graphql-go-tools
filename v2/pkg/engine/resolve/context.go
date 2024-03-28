@@ -21,17 +21,12 @@ type Context struct {
 	InitialPayload   []byte
 	Extensions       []byte
 	Stats            Stats
-	RequestHooks     RequestHooks
+	LoaderHooks      LoaderHooks
 
 	authorizer  Authorizer
 	rateLimiter RateLimiter
 
 	subgraphErrors error
-}
-
-type RequestHooks interface {
-	OnRequest(ctx *Context, dataSourceID string) *Context
-	OnResponse(ctx *Context, dataSourceID string, err error) *Context
 }
 
 type AuthorizationDeny struct {
@@ -61,8 +56,8 @@ func (c *Context) SetAuthorizer(authorizer Authorizer) {
 	c.authorizer = authorizer
 }
 
-func (c *Context) SetRequestHooks(hooks RequestHooks) {
-	c.RequestHooks = hooks
+func (c *Context) SetEngineLoaderHooks(hooks LoaderHooks) {
+	c.LoaderHooks = hooks
 }
 
 type RateLimitOptions struct {
@@ -161,7 +156,7 @@ func (c *Context) Free() {
 	c.Stats.Reset()
 	c.subgraphErrors = nil
 	c.authorizer = nil
-	c.RequestHooks = nil
+	c.LoaderHooks = nil
 }
 
 type traceStartKey struct{}

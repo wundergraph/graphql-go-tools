@@ -26,6 +26,17 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
+type LoaderHooks interface {
+	// OnLoad is called before the fetch is executed
+	OnLoad(ctx context.Context, dataSourceID string) context.Context
+	// OnResponse is called after the fetch has been executed and the response has been processed
+	OnResponse(ctx context.Context, dataSourceID string, err error)
+}
+
+func IsIntrospectionDataSource(dataSourceID string) bool {
+	return dataSourceID == "introspection__schema&__type" || dataSourceID == "introspection__type__fields" || dataSourceID == "introspection__type__enumValues"
+}
+
 type Loader struct {
 	data       *astjson.JSON
 	dataRoot   int
@@ -192,8 +203,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			return err
 		}
 		err = l.mergeResult(res, items)
-		if l.ctx.RequestHooks != nil {
-			l.ctx = l.ctx.RequestHooks.OnResponse(l.ctx, res.subgraphName, multierror.Append(res.err, l.ctx.subgraphErrors))
+		if l.ctx.LoaderHooks != nil && !IsIntrospectionDataSource(res.subgraphName) {
+			l.ctx.LoaderHooks.OnResponse(res.ctx, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
 		if err != nil {
 			return err
@@ -234,8 +245,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			if results[i].nestedMergeItems != nil {
 				for j := range results[i].nestedMergeItems {
 					err = l.mergeResult(results[i].nestedMergeItems[j], items[j:j+1])
-					if l.ctx.RequestHooks != nil {
-						l.ctx = l.ctx.RequestHooks.OnResponse(l.ctx, results[i].nestedMergeItems[j].subgraphName, multierror.Append(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors))
+					if l.ctx.LoaderHooks != nil && !IsIntrospectionDataSource(results[i].nestedMergeItems[j].subgraphName) {
+						l.ctx.LoaderHooks.OnResponse(results[i].ctx, results[i].nestedMergeItems[j].subgraphName, multierror.Append(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors))
 					}
 					if err != nil {
 						return errors.WithStack(err)
@@ -243,8 +254,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 				}
 			} else {
 				err = l.mergeResult(results[i], items)
-				if l.ctx.RequestHooks != nil {
-					l.ctx = l.ctx.RequestHooks.OnResponse(l.ctx, results[i].subgraphName, multierror.Append(results[i].err, l.ctx.subgraphErrors))
+				if l.ctx.LoaderHooks != nil && !IsIntrospectionDataSource(results[i].subgraphName) {
+					l.ctx.LoaderHooks.OnResponse(results[i].ctx, results[i].subgraphName, multierror.Append(results[i].err, l.ctx.subgraphErrors))
 				}
 				if err != nil {
 					return errors.WithStack(err)
@@ -274,8 +285,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		for i := range results {
 			err = l.mergeResult(results[i], items[i:i+1])
-			if l.ctx.RequestHooks != nil {
-				l.ctx = l.ctx.RequestHooks.OnResponse(l.ctx, results[i].subgraphName, multierror.Append(results[i].err, l.ctx.subgraphErrors))
+			if l.ctx.LoaderHooks != nil && !IsIntrospectionDataSource(results[i].subgraphName) {
+				l.ctx.LoaderHooks.OnResponse(results[i].ctx, results[i].subgraphName, multierror.Append(results[i].err, l.ctx.subgraphErrors))
 			}
 			if err != nil {
 				return errors.WithStack(err)
@@ -290,8 +301,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(res, items)
-		if l.ctx.RequestHooks != nil {
-			l.ctx = l.ctx.RequestHooks.OnResponse(l.ctx, res.subgraphName, multierror.Append(res.err, l.ctx.subgraphErrors))
+		if l.ctx.LoaderHooks != nil && !IsIntrospectionDataSource(res.subgraphName) {
+			l.ctx.LoaderHooks.OnResponse(res.ctx, res.subgraphName, multierror.Append(res.err, l.ctx.subgraphErrors))
 		}
 		return err
 	case *BatchEntityFetch:
@@ -302,8 +313,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		if l.ctx.RequestHooks != nil {
-			l.ctx = l.ctx.RequestHooks.OnResponse(l.ctx, res.subgraphName, multierror.Append(res.err, l.ctx.subgraphErrors))
+		if l.ctx.LoaderHooks != nil && !IsIntrospectionDataSource(res.subgraphName) {
+			l.ctx.LoaderHooks.OnResponse(res.ctx, res.subgraphName, multierror.Append(res.err, l.ctx.subgraphErrors))
 		}
 		return err
 	}
@@ -521,6 +532,8 @@ type result struct {
 
 	rateLimitRejected       bool
 	rateLimitRejectedReason string
+
+	ctx context.Context
 }
 
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
@@ -815,7 +828,7 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items 
 	if !allowed {
 		return nil
 	}
-	l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res, fetch.Trace, fetch.Info)
+	res.ctx = l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
 }
 
@@ -895,7 +908,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 	if !allowed {
 		return nil
 	}
-	l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res, fetch.Trace, fetch.Info)
+	res.ctx = l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
 }
 
@@ -1016,7 +1029,7 @@ WithNextItem:
 	if !allowed {
 		return nil
 	}
-	l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res, fetch.Trace, fetch.Info)
+	res.ctx = l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
 }
 
@@ -1082,12 +1095,12 @@ func setSingleFlightStats(ctx context.Context, stats *SingleFlightStats) context
 	return context.WithValue(ctx, singleFlightStatsKey{}, stats)
 }
 
-func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input []byte, res *result, trace *DataSourceLoadTrace, fetchInfo *FetchInfo) {
+func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input []byte, res *result, trace *DataSourceLoadTrace) context.Context {
 	if l.ctx.Extensions != nil {
 		input, res.err = jsonparser.Set(input, l.ctx.Extensions, "body", "extensions")
 		if res.err != nil {
 			res.err = errors.WithStack(res.err)
-			return
+			return ctx
 		}
 	}
 	if l.ctx.TracingOptions.Enable {
@@ -1099,7 +1112,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 			redactedInput, err := redactHeaders(trace.Input)
 			if err != nil {
 				res.err = errors.WithStack(err)
-				return
+				return ctx
 			}
 			trace.Input = redactedInput
 		}
@@ -1201,8 +1214,8 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 	var responseContext *httpclient.ResponseContext
 	ctx, responseContext = httpclient.InjectResponseContext(ctx)
 
-	if l.ctx.RequestHooks != nil {
-		l.ctx = l.ctx.RequestHooks.OnRequest(l.ctx, res.subgraphName)
+	if l.ctx.LoaderHooks != nil && !IsIntrospectionDataSource(res.subgraphName) {
+		ctx = l.ctx.LoaderHooks.OnLoad(ctx, res.subgraphName)
 	}
 
 	res.err = source.Load(ctx, input, res.out)
@@ -1237,10 +1250,12 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 		if l.ctx.TracingOptions.Enable {
 			trace.LoadError = res.err.Error()
 			res.err = errors.WithStack(res.err)
-			return
+			return ctx
 		}
-		return
+		return ctx
 	}
 	l.ctx.Stats.NumberOfFetches.Inc()
 	l.ctx.Stats.CombinedResponseSize.Add(int64(res.out.Len()))
+
+	return ctx
 }
