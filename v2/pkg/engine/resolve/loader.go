@@ -195,9 +195,9 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		res := &result{
-			out:          pool.BytesBuffer.Get(),
-			subgraphName: f.Info.DataSourceID,
+			out: pool.BytesBuffer.Get(),
 		}
+
 		err := l.loadSingleFetch(l.ctx.ctx, f, items, res)
 		if err != nil {
 			return err
@@ -313,6 +313,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		err = l.mergeResult(res, items)
 		if l.ctx.LoaderHooks != nil && !IsIntrospectionDataSource(res.subgraphName) {
 			l.ctx.LoaderHooks.OnResponse(res.ctx, res.subgraphName, multierror.Append(res.err, l.ctx.subgraphErrors))
 		}

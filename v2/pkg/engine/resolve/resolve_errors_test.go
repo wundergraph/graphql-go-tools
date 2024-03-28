@@ -27,21 +27,19 @@ func NewRequestHooks() LoaderHooks {
 	}
 }
 
-func (f *TestLoaderHooks) OnLoad(ctx *Context, dataSourceID string) *Context {
+func (f *TestLoaderHooks) OnLoad(ctx context.Context, dataSourceID string) context.Context {
 	f.preFetchCalls.Add(1)
 
 	return ctx
 }
 
-func (f *TestLoaderHooks) OnResponse(ctx *Context, dataSourceID string, err error) *Context {
+func (f *TestLoaderHooks) OnResponse(ctx context.Context, dataSourceID string, err error) {
 	f.postFetchCalls.Add(1)
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.errors = append(f.errors, err)
-
-	return ctx
 }
 
 func TestResolver_FetchPipeline(t *testing.T) {
