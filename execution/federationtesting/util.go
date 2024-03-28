@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	federationTestingDirectoryRelativePath = "../federationtesting"
+	federationTestingDirectoryRelativePath = "pkg/testing/federationtesting"
 
 	QueryReviewsOfMe = `query ReviewsOfMe {
   me {

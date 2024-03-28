@@ -12,13 +12,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wundergraph/graphql-go-tools/execution/engine"
+	graphqlDataSource "github.com/wundergraph/graphql-go-tools/pkg/engine/datasource/graphql_datasource"
 )
 
 type ServiceConfig struct {
-	Name     string
-	URL      string
-	WS       string
+	Name string
+	URL  string
+	WS   string
 	Fallback func(*ServiceConfig) (string, error)
 }
 
@@ -146,15 +146,15 @@ func (d *DatasourcePollerPoller) updateSDLs(ctx context.Context) {
 }
 
 func (d *DatasourcePollerPoller) updateObservers() {
-	subgraphsConfig := d.createSubgraphsConfig()
+	dataSourceConfigs := d.createDatasourceConfig()
 
 	for i := range d.updateDatasourceObservers {
-		d.updateDatasourceObservers[i].UpdateDataSources(subgraphsConfig)
+		d.updateDatasourceObservers[i].UpdateDataSources(dataSourceConfigs)
 	}
 }
 
-func (d *DatasourcePollerPoller) createSubgraphsConfig() []engine.SubgraphConfig {
-	subgraphConfigs := make([]engine.SubgraphConfig, 0, len(d.config.Services))
+func (d *DatasourcePollerPoller) createDatasourceConfig() []graphqlDataSource.Configuration {
+	dataSourceConfigs := make([]graphqlDataSource.Configuration, 0, len(d.config.Services))
 
 	for _, serviceConfig := range d.config.Services {
 		sdl, exists := d.sdlMap[serviceConfig.Name]
@@ -162,17 +162,24 @@ func (d *DatasourcePollerPoller) createSubgraphsConfig() []engine.SubgraphConfig
 			continue
 		}
 
-		subgraphConfig := engine.SubgraphConfig{
-			Name:            serviceConfig.Name,
-			URL:             serviceConfig.URL,
-			SubscriptionUrl: serviceConfig.WS,
-			SDL:             sdl,
+		dataSourceConfig := graphqlDataSource.Configuration{
+			Fetch: graphqlDataSource.FetchConfiguration{
+				URL:    serviceConfig.URL,
+				Method: http.MethodPost,
+			},
+			Subscription: graphqlDataSource.SubscriptionConfiguration{
+				URL: serviceConfig.WS,
+			},
+			Federation: graphqlDataSource.FederationConfiguration{
+				Enabled:    true,
+				ServiceSDL: sdl,
+			},
 		}
 
-		subgraphConfigs = append(subgraphConfigs, subgraphConfig)
+		dataSourceConfigs = append(dataSourceConfigs, dataSourceConfig)
 	}
 
-	return subgraphConfigs
+	return dataSourceConfigs
 }
 
 func (d *DatasourcePollerPoller) fetchServiceSDL(ctx context.Context, serviceURL string) (string, error) {

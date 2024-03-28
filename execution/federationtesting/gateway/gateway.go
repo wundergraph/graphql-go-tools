@@ -7,8 +7,7 @@ import (
 
 	log "github.com/jensneuse/abstractlogger"
 
-	"github.com/wundergraph/graphql-go-tools/execution/engine"
-	"github.com/wundergraph/graphql-go-tools/execution/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
 )
 
 type DataSourceObserver interface {
@@ -20,12 +19,12 @@ type DataSourceSubject interface {
 }
 
 type HandlerFactory interface {
-	Make(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler
+	Make(schema *graphql.Schema, engine *graphql.ExecutionEngineV2) http.Handler
 }
 
-type HandlerFactoryFn func(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler
+type HandlerFactoryFn func(schema *graphql.Schema, engine *graphql.ExecutionEngineV2) http.Handler
 
-func (h HandlerFactoryFn) Make(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler {
+func (h HandlerFactoryFn) Make(schema *graphql.Schema, engine *graphql.ExecutionEngineV2) http.Handler {
 	return h(schema, engine)
 }
 
@@ -75,7 +74,7 @@ func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphql.DataSourceCon
 	engineConfigFactory := graphql.NewFederationEngineConfigFactory(
 		ctx,
 		newDataSourcesConfig,
-		engine.WithFederationHttpClient(g.httpClient),
+		graphql.WithFederationHttpClient(g.httpClient),
 	)
 
 	schema, err := engineConfigFactory.MergedSchema()
@@ -84,20 +83,20 @@ func (g *Gateway) UpdateDataSources(newDataSourcesConfig []graphql.DataSourceCon
 		return
 	}
 
-	engineConfig, err := engineConfigFactory.BuildEngineConfiguration()
+	datasourceConfig, err := engineConfigFactory.EngineV2Configuration()
 	if err != nil {
 		g.logger.Error("get engine config: %v", log.Error(err))
 		return
 	}
 
-	executionEngine, err := engine.NewExecutionEngine(ctx, g.logger, engineConfig)
+	engine, err := graphql.NewExecutionEngineV2(ctx, g.logger, datasourceConfig)
 	if err != nil {
 		g.logger.Error("create engine: %v", log.Error(err))
 		return
 	}
 
 	g.mu.Lock()
-	g.gqlHandler = g.gqlHandlerFactory.Make(engineConfig.Schema(), executionEngine)
+	g.gqlHandler = g.gqlHandlerFactory.Make(schema, engine)
 	g.mu.Unlock()
 
 	g.readyOnce.Do(func() { close(g.readyCh) })

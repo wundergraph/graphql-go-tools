@@ -1,8 +1,10 @@
 package subscriptiontesting
 
 import (
-	_ "embed"
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 const (
@@ -53,8 +55,15 @@ type graphqlRequest struct {
 	Variables     json.RawMessage `json:"variables"`
 }
 
-//go:embed schema.graphql
-var ChatSchema []byte
+func LoadSchemaFromExamplesDirectoryWithinPkg() ([]byte, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
+	absolutePath := filepath.Join(strings.Split(wd, "pkg")[0], chatExampleDirectoryRelativePath, "schema.graphql")
+	return os.ReadFile(absolutePath)
+}
 
 func GraphQLRequestForOperation(operation string) ([]byte, error) {
 	gqlRequest := graphqlRequest{

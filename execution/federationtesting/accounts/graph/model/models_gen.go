@@ -39,7 +39,7 @@ func (Product) IsEntity() {}
 
 type Purchase struct {
 	Product  *Product `json:"product"`
-	Wallet   Wallet   `json:"wallet,omitempty"`
+	Wallet   Wallet   `json:"wallet"`
 	Quantity int      `json:"quantity"`
 }
 

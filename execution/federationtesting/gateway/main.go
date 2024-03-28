@@ -7,9 +7,9 @@ import (
 	"github.com/gobwas/ws"
 	log "github.com/jensneuse/abstractlogger"
 
-	"github.com/wundergraph/graphql-go-tools/execution/engine"
-	http2 "github.com/wundergraph/graphql-go-tools/execution/federationtesting/gateway/http"
-	"github.com/wundergraph/graphql-go-tools/execution/graphql"
+	http2 "github.com/wundergraph/graphql-go-tools/v2/pkg/testing/federationtesting/gateway/http"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphql"
 )
 
 func NewDatasource(serviceConfig []ServiceConfig, httpClient *http.Client) *DatasourcePollerPoller {
@@ -23,7 +23,6 @@ func Handler(
 	logger log.Logger,
 	datasourcePoller *DatasourcePollerPoller,
 	httpClient *http.Client,
-	enableART bool,
 ) *Gateway {
 	upgrader := &ws.DefaultHTTPUpgrader
 	upgrader.Header = http.Header{}
@@ -31,8 +30,8 @@ func Handler(
 
 	datasourceWatcher := datasourcePoller
 
-	var gqlHandlerFactory HandlerFactoryFn = func(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler {
-		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger, enableART)
+	var gqlHandlerFactory HandlerFactoryFn = func(schema *graphql.Schema, engine *graphql.ExecutionEngineV2) http.Handler {
+		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger)
 	}
 
 	gateway := NewGateway(gqlHandlerFactory, httpClient, logger)
