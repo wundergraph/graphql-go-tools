@@ -592,6 +592,8 @@ func (l *Loader) mergeErrors(res *result, ref int) error {
 		return err
 	}
 
+	// Serialize subgraph errors from the response
+	// and make them accessible through the subgraph error type
 	if len(l.data.Nodes[ref].ArrayValues) > 0 {
 		graphqlErrors := make([]GraphQLError, 0, len(l.data.Nodes[ref].ArrayValues))
 		err = json.Unmarshal(input.Bytes(), &graphqlErrors)
@@ -659,6 +661,12 @@ func (l *Loader) renderErrorsFailedToFetch(res *result, reason string) error {
 }
 
 func (l *Loader) renderSubgraphBaseError(subgraphName, path, reason string) string {
+	if subgraphName == "" {
+		if reason == "" {
+			return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph at path '%s'."}`, path)
+		}
+		return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph at path '%s', %s."}`, path, reason)
+	}
 	if reason == "" {
 		return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph '%s' at path '%s'."}`, subgraphName, path)
 	}

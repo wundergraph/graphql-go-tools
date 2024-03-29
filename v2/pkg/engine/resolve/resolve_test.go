@@ -2221,7 +2221,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				Nullable: false,
 				Fetch: &SingleFetch{
 					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(
-						`{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos",0,"name"]}],"data":null}`),
+						`{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos","0","name"]}],"data":null}`),
 						PostProcessing: PostProcessingConfiguration{
 							SelectResponseDataPath:   []string{"data"},
 							SelectResponseErrorsPath: []string{"errors"},
@@ -2252,7 +2252,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph at path 'query'.","extensions":{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos",0,"name"]}]}}],"data":null}`
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph at path 'query'.","extensions":{"errors":[{"message":"Could not get a name","locations":[{"line":3,"column":5}],"path":["todos","0","name"]}]}}],"data":null}`
 	}))
 	t.Run("complex GraphQL Server plan", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		serviceOne := NewMockDataSource(ctrl)
