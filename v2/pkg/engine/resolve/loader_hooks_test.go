@@ -18,7 +18,7 @@ type TestLoaderHooks struct {
 	mu             sync.Mutex
 }
 
-func NewRequestHooks() LoaderHooks {
+func NewTestLoaderHooks() LoaderHooks {
 	return &TestLoaderHooks{
 		preFetchCalls:  atomic.Int64{},
 		postFetchCalls: atomic.Int64{},
@@ -33,7 +33,7 @@ func (f *TestLoaderHooks) OnLoad(ctx context.Context, dataSourceID string) conte
 	return ctx
 }
 
-func (f *TestLoaderHooks) OnResponse(ctx context.Context, dataSourceID string, err error) {
+func (f *TestLoaderHooks) OnFinished(ctx context.Context, statusCode int, dataSourceID string, err error) {
 	f.postFetchCalls.Add(1)
 
 	f.mu.Lock()
@@ -42,7 +42,7 @@ func (f *TestLoaderHooks) OnResponse(ctx context.Context, dataSourceID string, e
 	f.errors = append(f.errors, err)
 }
 
-func TestResolver_FetchPipeline(t *testing.T) {
+func TestLoaderHooks_FetchPipeline(t *testing.T) {
 
 	t.Run("fetch with simple subgraph error", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -55,7 +55,7 @@ func TestResolver_FetchPipeline(t *testing.T) {
 			})
 		resolveCtx := Context{
 			ctx:         context.Background(),
-			LoaderHooks: NewRequestHooks(),
+			LoaderHooks: NewTestLoaderHooks(),
 		}
 		return &GraphQLResponse{
 				Data: &Object{
@@ -108,11 +108,12 @@ func TestResolver_FetchPipeline(t *testing.T) {
 			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 				pair := NewBufPair()
 				pair.WriteErr([]byte("errorMessage"), nil, nil, []byte("{\"code\":\"GRAPHQL_VALIDATION_FAILED\"}"))
+				pair.WriteErr([]byte("errorMessage2"), nil, nil, []byte("{\"code\":\"BAD_USER_INPUT\"}"))
 				return writeGraphqlResponse(pair, w, false)
 			})
 		resolveCtx := Context{
 			ctx:         context.Background(),
-			LoaderHooks: NewRequestHooks(),
+			LoaderHooks: NewTestLoaderHooks(),
 		}
 		return &GraphQLResponse{
 				Data: &Object{
@@ -138,7 +139,7 @@ func TestResolver_FetchPipeline(t *testing.T) {
 						},
 					},
 				},
-			}, resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at path 'query'.","extensions":{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}}],"data":{"name":null}}`,
+			}, resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at path 'query'.","extensions":{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}]}}],"data":{"name":null}}`,
 			func(t *testing.T) {
 				loaderHooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
 
@@ -152,9 +153,11 @@ func TestResolver_FetchPipeline(t *testing.T) {
 				assert.Equal(t, "query", subgraphError.Path)
 				assert.Equal(t, "", subgraphError.Reason)
 				assert.Equal(t, 0, subgraphError.ResponseCode)
-				assert.Len(t, subgraphError.DownstreamErrors, 1)
+				assert.Len(t, subgraphError.DownstreamErrors, 2)
 				assert.Equal(t, "errorMessage", subgraphError.DownstreamErrors[0].Message)
 				assert.Equal(t, "GRAPHQL_VALIDATION_FAILED", subgraphError.DownstreamErrors[0].Extensions.Code)
+				assert.Equal(t, "errorMessage2", subgraphError.DownstreamErrors[1].Message)
+				assert.Equal(t, "BAD_USER_INPUT", subgraphError.DownstreamErrors[1].Extensions.Code)
 			}
 	}))
 
