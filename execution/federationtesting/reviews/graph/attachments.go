@@ -1,6 +1,6 @@
 package graph
 
-import "github.com/wundergraph/graphql-go-tools/v2/pkg/testing/federationtesting/reviews/graph/model"
+import "github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph/model"
 
 var attachments = []model.Attachment{
 	model.Question{

@@ -4,7 +4,7 @@ package reviews
 import (
 	"net/http"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/federationtesting/reviews/graph"
+	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph"
 )
 
 func Handler() http.Handler {

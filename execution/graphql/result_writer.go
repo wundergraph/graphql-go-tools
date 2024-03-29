@@ -44,12 +44,13 @@ func (e *EngineResultWriter) Read(p []byte) (n int, err error) {
 	return e.buf.Read(p)
 }
 
-func (e *EngineResultWriter) Flush() {
+func (e *EngineResultWriter) Flush() error {
 	if e.flushCallback != nil {
 		e.flushCallback(e.Bytes())
 	}
 
 	e.Reset()
+	return nil
 }
 
 func (e *EngineResultWriter) Len() int {

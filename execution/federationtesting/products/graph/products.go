@@ -1,7 +1,7 @@
 package graph
 
 import (
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/federationtesting/products/graph/model"
+	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph/model"
 )
 
 var hats []*model.Product
