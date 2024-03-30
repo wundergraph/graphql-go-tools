@@ -44,18 +44,19 @@ func (e *SubgraphError) AppendDownstreamError(error *GraphQLError) {
 }
 
 func (e *SubgraphError) Error() string {
-	errorStrings := make([]string, 0, len(e.DownstreamErrors))
 
 	var sb strings.Builder
 
 	if e.SubgraphName == "" {
-		sb.WriteString(fmt.Sprintf("Failed to fetch Subgraph at path '%s'", e.Path))
+		sb.WriteString(fmt.Sprintf("Failed to fetch Subgraph at path: '%s'", e.Path))
 	} else {
-		sb.WriteString(fmt.Sprintf("Failed to fetch Subgraph '%s' at path '%s'", e.SubgraphName, e.Path))
+		sb.WriteString(fmt.Sprintf("Failed to fetch Subgraph '%s' at path: '%s'", e.SubgraphName, e.Path))
 	}
 
-	if e.Reason == "" {
-		sb.WriteString(fmt.Sprintf(", Reason: %s", e.Reason))
+	if e.Reason != "" {
+		sb.WriteString(fmt.Sprintf(", Reason: %s.", e.Reason))
+	} else {
+		sb.WriteString(".")
 	}
 
 	if len(e.DownstreamErrors) > 0 {
@@ -70,21 +71,20 @@ func (e *SubgraphError) Error() string {
 			}
 
 			if len(downstreamError.Path) > 0 {
-				sb.WriteString(fmt.Sprintf("Subgraph error (%d) at path '%s' message: %s", i, strings.Join(downstreamError.Path, ","), downstreamError.Message))
+				sb.WriteString(fmt.Sprintf("%d. Subgraph error at path '%s', Message: %s", i+1, strings.Join(downstreamError.Path, ","), downstreamError.Message))
 			} else {
-				sb.WriteString(fmt.Sprintf("Subgraph error (%d) message: %s", i, downstreamError.Message))
+				sb.WriteString(fmt.Sprintf("%d. Subgraph error, Message: %s", i+1, downstreamError.Message))
 			}
 
 			if extensionCodeErrorString != "" {
 				sb.WriteString(fmt.Sprintf(", Extension Code: %s", extensionCodeErrorString))
 			}
 
-			sb.WriteString("\n\n")
-			errorStrings = append(errorStrings, sb.String())
+			sb.WriteString("\n")
 		}
 	}
 
-	return strings.Join(errorStrings, "\n")
+	return sb.String()
 }
 
 func NewRateLimitError(subgraphName, path, reason string) error {
