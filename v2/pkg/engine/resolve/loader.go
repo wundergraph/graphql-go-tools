@@ -202,7 +202,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			return err
 		}
 		err = l.mergeResult(res, items)
-		if l.ctx.LoaderHooks != nil && !res.fetchSkipped {
+		// Only call hooks when fetch has been executed
+		if l.ctx.LoaderHooks != nil && res.ctx != nil {
 			l.ctx.LoaderHooks.OnFinished(res.ctx, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
 		if err != nil {
@@ -244,7 +245,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			if results[i].nestedMergeItems != nil {
 				for j := range results[i].nestedMergeItems {
 					err = l.mergeResult(results[i].nestedMergeItems[j], items[j:j+1])
-					if l.ctx.LoaderHooks != nil && !results[i].nestedMergeItems[j].fetchSkipped {
+					// Only call hooks when fetch has been executed
+					if l.ctx.LoaderHooks != nil && results[i].nestedMergeItems[j].ctx != nil {
 						l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].ctx, results[i].statusCode, results[i].nestedMergeItems[j].subgraphName, goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors))
 					}
 					if err != nil {
@@ -253,7 +255,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 				}
 			} else {
 				err = l.mergeResult(results[i], items)
-				if l.ctx.LoaderHooks != nil && !results[i].fetchSkipped {
+				// Only call hooks when fetch has been executed
+				if l.ctx.LoaderHooks != nil && results[i].ctx != nil {
 					l.ctx.LoaderHooks.OnFinished(results[i].ctx, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
 				}
 				if err != nil {
@@ -284,7 +287,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		for i := range results {
 			err = l.mergeResult(results[i], items[i:i+1])
-			if l.ctx.LoaderHooks != nil && !results[i].fetchSkipped {
+			// Only call hooks when fetch has been executed
+			if l.ctx.LoaderHooks != nil && results[i].ctx != nil {
 				l.ctx.LoaderHooks.OnFinished(results[i].ctx, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
 			}
 			if err != nil {
@@ -300,7 +304,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(res, items)
-		if l.ctx.LoaderHooks != nil && !res.fetchSkipped {
+		// Only call hooks when fetch has been executed
+		if l.ctx.LoaderHooks != nil && res.ctx != nil {
 			l.ctx.LoaderHooks.OnFinished(res.ctx, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
 		return err
@@ -313,7 +318,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(res, items)
-		if l.ctx.LoaderHooks != nil && !res.fetchSkipped {
+		// Only call hooks when fetch has been executed
+		if l.ctx.LoaderHooks != nil && res.ctx != nil {
 			l.ctx.LoaderHooks.OnFinished(res.ctx, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
 		return err
