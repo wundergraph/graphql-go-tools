@@ -194,7 +194,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		res := &result{
-			out: pool.BytesBuffer.Get(),
+			out:         pool.BytesBuffer.Get(),
+			loadContext: context.Background(),
 		}
 
 		err := l.loadSingleFetch(l.ctx.ctx, f, items, res)
@@ -202,9 +203,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			return err
 		}
 		err = l.mergeResult(res, items)
-		// Only call hooks when fetch has been executed
-		if l.ctx.LoaderHooks != nil && res.ctx != nil {
-			l.ctx.LoaderHooks.OnFinished(res.ctx, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
+		if l.ctx.LoaderHooks != nil && res.loadContext != nil {
+			l.ctx.LoaderHooks.OnFinished(res.loadContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
 		if err != nil {
 			return err
@@ -232,7 +232,9 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		g, ctx := errgroup.WithContext(l.ctx.ctx)
 		for i := range f.Fetches {
 			i := i
-			results[i] = &result{}
+			results[i] = &result{
+				loadContext: context.Background(),
+			}
 			g.Go(func() error {
 				return l.loadFetch(ctx, f.Fetches[i], items, results[i])
 			})
@@ -245,9 +247,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			if results[i].nestedMergeItems != nil {
 				for j := range results[i].nestedMergeItems {
 					err = l.mergeResult(results[i].nestedMergeItems[j], items[j:j+1])
-					// Only call hooks when fetch has been executed
-					if l.ctx.LoaderHooks != nil && results[i].nestedMergeItems[j].ctx != nil {
-						l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].ctx, results[i].statusCode, results[i].nestedMergeItems[j].subgraphName, goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors))
+					if l.ctx.LoaderHooks != nil && results[i].nestedMergeItems[j].loadContext != nil {
+						l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loadContext, results[i].nestedMergeItems[j].statusCode, results[i].nestedMergeItems[j].subgraphName, goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors))
 					}
 					if err != nil {
 						return errors.WithStack(err)
@@ -255,9 +256,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 				}
 			} else {
 				err = l.mergeResult(results[i], items)
-				// Only call hooks when fetch has been executed
-				if l.ctx.LoaderHooks != nil && results[i].ctx != nil {
-					l.ctx.LoaderHooks.OnFinished(results[i].ctx, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
+				if l.ctx.LoaderHooks != nil && results[i].loadContext != nil {
+					l.ctx.LoaderHooks.OnFinished(results[i].loadContext, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
 				}
 				if err != nil {
 					return errors.WithStack(err)
@@ -275,7 +275,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		for i := range items {
 			i := i
 			results[i] = &result{
-				out: pool.BytesBuffer.Get(),
+				out:         pool.BytesBuffer.Get(),
+				loadContext: context.Background(),
 			}
 			g.Go(func() error {
 				return l.loadFetch(ctx, f.Fetch, items[i:i+1], results[i])
@@ -287,9 +288,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		for i := range results {
 			err = l.mergeResult(results[i], items[i:i+1])
-			// Only call hooks when fetch has been executed
-			if l.ctx.LoaderHooks != nil && results[i].ctx != nil {
-				l.ctx.LoaderHooks.OnFinished(results[i].ctx, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
+			if l.ctx.LoaderHooks != nil && results[i].loadContext != nil {
+				l.ctx.LoaderHooks.OnFinished(results[i].loadContext, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
 			}
 			if err != nil {
 				return errors.WithStack(err)
@@ -297,30 +297,30 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 	case *EntityFetch:
 		res := &result{
-			out: pool.BytesBuffer.Get(),
+			out:         pool.BytesBuffer.Get(),
+			loadContext: context.Background(),
 		}
 		err := l.loadEntityFetch(l.ctx.ctx, f, items, res)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(res, items)
-		// Only call hooks when fetch has been executed
-		if l.ctx.LoaderHooks != nil && res.ctx != nil {
-			l.ctx.LoaderHooks.OnFinished(res.ctx, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
+		if l.ctx.LoaderHooks != nil && res.loadContext != nil {
+			l.ctx.LoaderHooks.OnFinished(res.loadContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
 		return err
 	case *BatchEntityFetch:
 		res := &result{
-			out: pool.BytesBuffer.Get(),
+			out:         pool.BytesBuffer.Get(),
+			loadContext: context.Background(),
 		}
 		err := l.loadBatchEntityFetch(l.ctx.ctx, f, items, res)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(res, items)
-		// Only call hooks when fetch has been executed
-		if l.ctx.LoaderHooks != nil && res.ctx != nil {
-			l.ctx.LoaderHooks.OnFinished(res.ctx, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
+		if l.ctx.LoaderHooks != nil && res.loadContext != nil {
+			l.ctx.LoaderHooks.OnFinished(res.loadContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
 		return err
 	}
@@ -331,7 +331,6 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res *r
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		res.out = pool.BytesBuffer.Get()
-		res.ctx = ctx
 		return l.loadSingleFetch(ctx, f, items, res)
 	case *SerialFetch:
 		return fmt.Errorf("serial fetch must not be nested")
@@ -346,8 +345,8 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res *r
 		for i := range items {
 			i := i
 			results[i] = &result{
-				out: pool.BytesBuffer.Get(),
-				ctx: ctx,
+				out:         pool.BytesBuffer.Get(),
+				loadContext: context.Background(),
 			}
 			if l.ctx.TracingOptions.Enable {
 				f.Traces[i] = new(SingleFetch)
@@ -369,11 +368,9 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res *r
 		return nil
 	case *EntityFetch:
 		res.out = pool.BytesBuffer.Get()
-		res.ctx = ctx
 		return l.loadEntityFetch(ctx, f, items, res)
 	case *BatchEntityFetch:
 		res.out = pool.BytesBuffer.Get()
-		res.ctx = ctx
 		return l.loadBatchEntityFetch(ctx, f, items, res)
 	}
 	return nil
@@ -543,8 +540,9 @@ type result struct {
 	rateLimitRejected       bool
 	rateLimitRejectedReason string
 
-	// context used for the fetch
-	ctx context.Context
+	// loadContext used to share data between the OnLoad and OnFinished hooks
+	// Only set when the OnLoad is called
+	loadContext context.Context
 }
 
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
@@ -782,6 +780,7 @@ func (l *Loader) isFetchAuthorized(input []byte, info *FetchInfo, res *result) (
 		}
 		if reject != nil {
 			authorized = false
+			res.fetchSkipped = true
 			res.authorizationRejected = true
 			res.authorizationRejectedReasons = append(res.authorizationRejectedReasons, reject.Reason)
 		}
@@ -802,6 +801,7 @@ func (l *Loader) rateLimitFetch(input []byte, info *FetchInfo, res *result) (all
 	}
 	if result != nil {
 		res.rateLimitRejected = true
+		res.fetchSkipped = true
 		res.rateLimitRejectedReason = result.Reason
 		return false, nil
 	}
@@ -849,7 +849,7 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items 
 	if !allowed {
 		return nil
 	}
-	res.ctx = l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res, fetch.Trace)
+	l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
 }
 
@@ -929,7 +929,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 	if !allowed {
 		return nil
 	}
-	res.ctx = l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res, fetch.Trace)
+	l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
 }
 
@@ -1050,7 +1050,7 @@ WithNextItem:
 	if !allowed {
 		return nil
 	}
-	res.ctx = l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res, fetch.Trace)
+	l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
 }
 
@@ -1116,12 +1116,12 @@ func setSingleFlightStats(ctx context.Context, stats *SingleFlightStats) context
 	return context.WithValue(ctx, singleFlightStatsKey{}, stats)
 }
 
-func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input []byte, res *result, trace *DataSourceLoadTrace) context.Context {
+func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input []byte, res *result, trace *DataSourceLoadTrace) {
 	if l.ctx.Extensions != nil {
 		input, res.err = jsonparser.Set(input, l.ctx.Extensions, "body", "extensions")
 		if res.err != nil {
 			res.err = errors.WithStack(res.err)
-			return ctx
+			return
 		}
 	}
 	if l.ctx.TracingOptions.Enable {
@@ -1133,7 +1133,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 			redactedInput, err := redactHeaders(trace.Input)
 			if err != nil {
 				res.err = errors.WithStack(err)
-				return ctx
+				return
 			}
 			trace.Input = redactedInput
 		}
@@ -1236,7 +1236,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 	ctx, responseContext = httpclient.InjectResponseContext(ctx)
 
 	if l.ctx.LoaderHooks != nil {
-		ctx = l.ctx.LoaderHooks.OnLoad(ctx, res.subgraphName)
+		res.loadContext = l.ctx.LoaderHooks.OnLoad(ctx, res.subgraphName)
 	}
 
 	res.err = source.Load(ctx, input, res.out)
@@ -1271,12 +1271,10 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 		if l.ctx.TracingOptions.Enable {
 			trace.LoadError = res.err.Error()
 			res.err = errors.WithStack(res.err)
-			return ctx
+			return
 		}
-		return ctx
+		return
 	}
 	l.ctx.Stats.NumberOfFetches.Inc()
 	l.ctx.Stats.CombinedResponseSize.Add(int64(res.out.Len()))
-
-	return ctx
 }
