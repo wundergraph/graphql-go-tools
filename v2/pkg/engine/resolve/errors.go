@@ -87,8 +87,8 @@ func (e *SubgraphError) Error() string {
 	return sb.String()
 }
 
-func NewRateLimitError(subgraphName, path, reason string) error {
-	return &SubgraphError{
+func NewRateLimitError(subgraphName, path, reason string) *RateLimitError {
+	return &RateLimitError{
 		SubgraphName: subgraphName,
 		Path:         path,
 		Reason:       reason,
@@ -103,7 +103,7 @@ type RateLimitError struct {
 
 func (e *RateLimitError) Error() string {
 	if e.Reason == "" {
-		return fmt.Sprintf("Rate limit rejected for subgraph '%s' at path '%s'", e.SubgraphName, e.Path)
+		return fmt.Sprintf("Rate limit rejected for subgraph '%s' at path '%s'.", e.SubgraphName, e.Path)
 	}
-	return fmt.Sprintf("Rate limit rejected for subgraph '%s' at path '%s'. Reason: %s", e.SubgraphName, e.Path, e.Reason)
+	return fmt.Sprintf("Rate limit rejected for subgraph '%s' at path '%s'. Reason: %s.", e.SubgraphName, e.Path, e.Reason)
 }
