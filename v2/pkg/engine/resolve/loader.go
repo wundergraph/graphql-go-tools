@@ -590,19 +590,20 @@ func (l *Loader) mergeErrors(res *result, ref int) error {
 		return nil
 	}
 
-	input := pool.BytesBuffer.Get()
-	defer pool.BytesBuffer.Put(input)
+	responseErrorsBuf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(responseErrorsBuf)
 
-	err = l.data.PrintNode(l.data.Nodes[ref], input)
+	// print them into the buffer to be able to parse them
+	err = l.data.PrintNode(l.data.Nodes[ref], responseErrorsBuf)
 	if err != nil {
 		return err
 	}
 
 	// Serialize subgraph errors from the response
-	// and make them accessible through the subgraph error type
+	// and apped them to the subgraph downsteam errors
 	if len(l.data.Nodes[ref].ArrayValues) > 0 {
 		graphqlErrors := make([]GraphQLError, 0, len(l.data.Nodes[ref].ArrayValues))
-		err = json.Unmarshal(input.Bytes(), &graphqlErrors)
+		err = json.Unmarshal(responseErrorsBuf.Bytes(), &graphqlErrors)
 		if err != nil {
 			return errors.WithStack(err)
 		}
