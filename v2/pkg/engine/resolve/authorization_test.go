@@ -180,7 +180,7 @@ func TestAuthorization(t *testing.T) {
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			if dataSourceID == "users" && coordinate.TypeName == "Query" && coordinate.FieldName == "me" {
 				return &AuthorizationDeny{
-					Reason: "Not allowed to fetch from users Subgraph.",
+					Reason: "Not allowed to fetch from users Subgraph",
 				}, nil
 			}
 			return nil, nil
@@ -191,7 +191,7 @@ func TestAuthorization(t *testing.T) {
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
 		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
-			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at path 'query'. Reason: Not allowed to fetch from users Subgraph."}],"data":null}`,
+			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query', Reason: Not allowed to fetch from users Subgraph."}],"data":null}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(1), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(0), authorizer.(*testAuthorizer).objectFieldCalls.Load())
@@ -211,7 +211,7 @@ func TestAuthorization(t *testing.T) {
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
 		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
-			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at path 'query'."}],"data":null}`,
+			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query'."}],"data":null}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(1), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(0), authorizer.(*testAuthorizer).objectFieldCalls.Load())
@@ -222,7 +222,7 @@ func TestAuthorization(t *testing.T) {
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			if dataSourceID == "products" && coordinate.TypeName == "Product" && coordinate.FieldName == "name" {
 				return &AuthorizationDeny{
-					Reason: "Not allowed to fetch from products Subgraph.",
+					Reason: "Not allowed to fetch from products Subgraph",
 				}, nil
 			}
 			return nil, nil
@@ -233,7 +233,7 @@ func TestAuthorization(t *testing.T) {
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
 		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
-			`{"errors":[{"message":"Unauthorized request to Subgraph 'products' at path 'query.me.reviews.@.product'. Reason: Not allowed to fetch from products Subgraph."}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
+			`{"errors":[{"message":"Unauthorized request to Subgraph 'products' at Path 'query.me.reviews.@.product', Reason: Not allowed to fetch from products Subgraph."}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
@@ -255,7 +255,7 @@ func TestAuthorization(t *testing.T) {
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
 		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
-			`{"errors":[{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name'. Reason: Not allowed to fetch name on Product","path":["me","reviews",0,"product","data","name"]},{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name'. Reason: Not allowed to fetch name on Product","path":["me","reviews",1,"product","data","name"]}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
+			`{"errors":[{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name', Reason: Not allowed to fetch name on Product.","path":["me","reviews",0,"product","data","name"]},{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name', Reason: Not allowed to fetch name on Product.","path":["me","reviews",1,"product","data","name"]}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
@@ -267,7 +267,7 @@ func TestAuthorization(t *testing.T) {
 
 			if dataSourceID == "products" && coordinate.TypeName == "Product" && coordinate.FieldName == "name" {
 				return &AuthorizationDeny{
-					Reason: "Not allowed to fetch from products Subgraph.",
+					Reason: "Not allowed to fetch from products Subgraph",
 				}, nil
 			}
 
@@ -279,7 +279,7 @@ func TestAuthorization(t *testing.T) {
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
 		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
-			`{"errors":[{"message":"Unauthorized request to Subgraph 'products' at path 'query.me.reviews.@.product'. Reason: Not allowed to fetch from products Subgraph."}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
+			`{"errors":[{"message":"Unauthorized request to Subgraph 'products' at Path 'query.me.reviews.@.product', Reason: Not allowed to fetch from products Subgraph."}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
@@ -314,7 +314,7 @@ func TestAuthorization(t *testing.T) {
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
 		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
-			`{"errors":[{"message":"Unauthorized to load field 'Query.me.reviews.body'. Reason: Not allowed to fetch body on Review","path":["me","reviews",0,"body"]},{"message":"Unauthorized to load field 'Query.me.reviews.body'. Reason: Not allowed to fetch body on Review","path":["me","reviews",1,"body"]}],"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":null,"product":{"upc":"top-1","name":"Trilby"}},{"body":null,"product":{"upc":"top-2","name":"Fedora"}}]}}}`,
+			`{"errors":[{"message":"Unauthorized to load field 'Query.me.reviews.body', Reason: Not allowed to fetch body on Review.","path":["me","reviews",0,"body"]},{"message":"Unauthorized to load field 'Query.me.reviews.body', Reason: Not allowed to fetch body on Review.","path":["me","reviews",1,"body"]}],"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":null,"product":{"upc":"top-1","name":"Trilby"}},{"body":null,"product":{"upc":"top-2","name":"Fedora"}}]}}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
@@ -356,7 +356,7 @@ func TestAuthorization(t *testing.T) {
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
 		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
-			`{"errors":[{"message":"Unauthorized request to Subgraph 'products' at path 'query.me.reviews.@.product'. Reason: Not allowed to fetch name on Product"}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
+			`{"errors":[{"message":"Unauthorized request to Subgraph 'products' at Path 'query.me.reviews.@.product', Reason: Not allowed to fetch name on Product."}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
@@ -378,7 +378,7 @@ func TestAuthorization(t *testing.T) {
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
 		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
-			`{"errors":[{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name'. Reason: Not allowed to fetch name on Product","path":["me","reviews",0,"product","data","name"]},{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name'. Reason: Not allowed to fetch name on Product","path":["me","reviews",1,"product","data","name"]}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
+			`{"errors":[{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name', Reason: Not allowed to fetch name on Product.","path":["me","reviews",0,"product","data","name"]},{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name', Reason: Not allowed to fetch name on Product.","path":["me","reviews",1,"product","data","name"]}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(2), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(4), authorizer.(*testAuthorizer).objectFieldCalls.Load())
@@ -400,7 +400,7 @@ func TestAuthorization(t *testing.T) {
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
 		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
-			`{"errors":[{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name'. Reason: Not allowed to fetch name on Product","path":["me","reviews",0,"product","data","name"]},{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name'. Reason: Not allowed to fetch name on Product","path":["me","reviews",1,"product","data","name"]}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`
+			`{"errors":[{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name', Reason: Not allowed to fetch name on Product.","path":["me","reviews",0,"product","data","name"]},{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name', Reason: Not allowed to fetch name on Product.","path":["me","reviews",1,"product","data","name"]}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`
 	}))
 }
 

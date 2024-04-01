@@ -48,13 +48,15 @@ func (e *SubgraphError) Error() string {
 	var sb strings.Builder
 
 	if e.SubgraphName == "" {
-		sb.WriteString(fmt.Sprintf("Failed to fetch Subgraph at path: '%s'", e.Path))
+		sb.WriteString(fmt.Sprintf("Failed to fetch Subgraph at Path: '%s'", e.Path))
 	} else {
-		sb.WriteString(fmt.Sprintf("Failed to fetch from Subgraph '%s' at path: '%s'", e.SubgraphName, e.Path))
+		sb.WriteString(fmt.Sprintf("Failed to fetch from Subgraph '%s' at Path: '%s'", e.SubgraphName, e.Path))
 	}
 
 	if e.Reason != "" {
-		sb.WriteString(fmt.Sprintf(", Reason: %s", e.Reason))
+		sb.WriteString(fmt.Sprintf(", Reason: %s.", e.Reason))
+	} else {
+		sb.WriteString(".")
 	}
 
 	if len(e.DownstreamErrors) > 0 {
@@ -69,13 +71,13 @@ func (e *SubgraphError) Error() string {
 			}
 
 			if len(downstreamError.Path) > 0 {
-				sb.WriteString(fmt.Sprintf("%d. Subgraph error at path '%s', Message: %s", i+1, strings.Join(downstreamError.Path, ","), downstreamError.Message))
+				sb.WriteString(fmt.Sprintf("%d. Subgraph error at Path '%s', Message: %s", i+1, strings.Join(downstreamError.Path, ","), downstreamError.Message))
 			} else {
-				sb.WriteString(fmt.Sprintf("%d. Subgraph error, Message: %s", i+1, downstreamError.Message))
+				sb.WriteString(fmt.Sprintf("%d. Subgraph error with Message: %s", i+1, downstreamError.Message))
 			}
 
 			if extensionCodeErrorString != "" {
-				sb.WriteString(fmt.Sprintf(", Extension Code: %s", extensionCodeErrorString))
+				sb.WriteString(fmt.Sprintf(", Extension Code: %s.", extensionCodeErrorString))
 			}
 
 			sb.WriteString("\n")
@@ -101,7 +103,7 @@ type RateLimitError struct {
 
 func (e *RateLimitError) Error() string {
 	if e.Reason == "" {
-		return fmt.Sprintf("Rate limit rejected for Subgraph '%s' at path '%s'", e.SubgraphName, e.Path)
+		return fmt.Sprintf("Rate limit rejected for Subgraph '%s' at Path '%s'.", e.SubgraphName, e.Path)
 	}
-	return fmt.Sprintf("Rate limit rejected for Subgraph '%s' at path '%s', Reason: %s", e.SubgraphName, e.Path, e.Reason)
+	return fmt.Sprintf("Rate limit rejected for Subgraph '%s' at Path '%s', Reason: %s.", e.SubgraphName, e.Path, e.Reason)
 }

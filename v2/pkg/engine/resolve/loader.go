@@ -661,14 +661,14 @@ func (l *Loader) renderErrorsFailedToFetch(res *result, reason string) error {
 func (l *Loader) renderSubgraphBaseError(subgraphName, path, reason string) string {
 	if subgraphName == "" {
 		if reason == "" {
-			return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph at path '%s'."}`, path)
+			return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph at Path '%s'."}`, path)
 		}
-		return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph at path '%s', %s."}`, path, reason)
+		return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph at Path '%s', Reason: %s."}`, path, reason)
 	}
 	if reason == "" {
-		return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph '%s' at path '%s'."}`, subgraphName, path)
+		return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph '%s' at Path '%s'."}`, subgraphName, path)
 	}
-	return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph '%s' at path '%s', %s."}`, subgraphName, path, reason)
+	return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph '%s' at Path '%s', Reason: %s."}`, subgraphName, path, reason)
 }
 
 func (l *Loader) renderAuthorizationRejectedErrors(res *result) error {
@@ -679,13 +679,13 @@ func (l *Loader) renderAuthorizationRejectedErrors(res *result) error {
 	if res.subgraphName == "" {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
-				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized Subgraph request at path '%s'."}`, path)))
+				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized Subgraph request at Path '%s'."}`, path)))
 				if err != nil {
 					return errors.WithStack(err)
 				}
 				l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
 			} else {
-				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized Subgraph request at path '%s'. Reason: %s"}`, path, reason)))
+				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized Subgraph request at Path '%s', Reason: %s."}`, path, reason)))
 				if err != nil {
 					return errors.WithStack(err)
 				}
@@ -695,13 +695,13 @@ func (l *Loader) renderAuthorizationRejectedErrors(res *result) error {
 	} else {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
-				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s' at path '%s'."}`, res.subgraphName, path)))
+				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s' at Path '%s'."}`, res.subgraphName, path)))
 				if err != nil {
 					return errors.WithStack(err)
 				}
 				l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
 			} else {
-				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s' at path '%s'. Reason: %s"}`, res.subgraphName, path, reason)))
+				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s' at Path '%s', Reason: %s."}`, res.subgraphName, path, reason)))
 				if err != nil {
 					return errors.WithStack(err)
 				}
@@ -718,13 +718,13 @@ func (l *Loader) renderRateLimitRejectedErrors(res *result) error {
 
 	if res.subgraphName == "" {
 		if res.rateLimitRejectedReason == "" {
-			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request at path '%s'."}`, path)))
+			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request at Path '%s'."}`, path)))
 			if err != nil {
 				return errors.WithStack(err)
 			}
 			l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
 		} else {
-			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request at path '%s'. Reason: %s"}`, path, res.rateLimitRejectedReason)))
+			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request at Path '%s', Reason: %s."}`, path, res.rateLimitRejectedReason)))
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -732,13 +732,13 @@ func (l *Loader) renderRateLimitRejectedErrors(res *result) error {
 		}
 	} else {
 		if res.rateLimitRejectedReason == "" {
-			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s' at path '%s'."}`, res.subgraphName, path)))
+			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s' at Path '%s'."}`, res.subgraphName, path)))
 			if err != nil {
 				return errors.WithStack(err)
 			}
 			l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
 		} else {
-			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s' at path '%s'. Reason: %s"}`, res.subgraphName, path, res.rateLimitRejectedReason)))
+			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s' at Path '%s', Reason: %s."}`, res.subgraphName, path, res.rateLimitRejectedReason)))
 			if err != nil {
 				return errors.WithStack(err)
 			}

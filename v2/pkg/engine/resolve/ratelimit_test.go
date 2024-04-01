@@ -90,7 +90,7 @@ func TestRateLimiter(t *testing.T) {
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
 		return res, Context{ctx: context.Background(), Variables: nil, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true}},
-			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'users' at path 'query'. Reason: rate limit exceeded"}],"data":null}`,
+			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'users' at Path 'query', Reason: rate limit exceeded."}],"data":null}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(1), limiter.rateLimitPreFetchCalls.Load())
 			}
@@ -125,7 +125,7 @@ func TestRateLimiter(t *testing.T) {
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
 		return res, Context{ctx: context.Background(), Variables: nil, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true}},
-			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'products' at path 'query.me.reviews.@.product'. Reason: rate limit exceeded"}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
+			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'products' at Path 'query.me.reviews.@.product', Reason: rate limit exceeded."}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(3), limiter.rateLimitPreFetchCalls.Load())
 			}
@@ -150,7 +150,7 @@ func TestRateLimiter(t *testing.T) {
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
 		return res, Context{ctx: context.Background(), Variables: nil, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}},
-			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'products' at path 'query.me.reviews.@.product'. Reason: rate limit exceeded"}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}},"extensions":{"rateLimit":{"Policy":"1 request per second","Allowed":1,"Used":3}}}`,
+			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'products' at Path 'query.me.reviews.@.product', Reason: rate limit exceeded."}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}},"extensions":{"rateLimit":{"Policy":"1 request per second","Allowed":1,"Used":3}}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(3), limiter.rateLimitPreFetchCalls.Load())
 			}
@@ -173,7 +173,7 @@ func TestRateLimiter(t *testing.T) {
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
 		return res, Context{ctx: context.Background(), Variables: nil, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true}},
-			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'products' at path 'query.me.reviews.@.product'."}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
+			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'products' at Path 'query.me.reviews.@.product'."}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(3), limiter.rateLimitPreFetchCalls.Load())
 			}

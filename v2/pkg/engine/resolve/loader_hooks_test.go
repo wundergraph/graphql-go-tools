@@ -81,7 +81,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 						},
 					},
 				},
-			}, resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at path 'query'.","extensions":{"errors":[{"message":"errorMessage"}]}}],"data":{"name":null}}`,
+			}, resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'.","extensions":{"errors":[{"message":"errorMessage"}]}}],"data":{"name":null}}`,
 			func(t *testing.T) {
 				loaderHooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
 
@@ -139,7 +139,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 						},
 					},
 				},
-			}, resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at path 'query'.","extensions":{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}]}}],"data":{"name":null}}`,
+			}, resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'.","extensions":{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}]}}],"data":{"name":null}}`,
 			func(t *testing.T) {
 				loaderHooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
 

@@ -547,7 +547,7 @@ func (r *Resolvable) addRejectFieldError(reason string, field *Field) {
 	if reason == "" {
 		message = fmt.Sprintf("Unauthorized to load field '%s'.", fieldPath)
 	} else {
-		message = fmt.Sprintf("Unauthorized to load field '%s'. Reason: %s", fieldPath, reason)
+		message = fmt.Sprintf("Unauthorized to load field '%s', Reason: %s.", fieldPath, reason)
 	}
 	ref := r.storage.AppendErrorWithMessage(message, r.path)
 	r.storage.Nodes[r.errorsRoot].ArrayValues = append(r.storage.Nodes[r.errorsRoot].ArrayValues, ref)
