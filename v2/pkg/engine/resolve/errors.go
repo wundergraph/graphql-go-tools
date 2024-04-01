@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 )
@@ -45,24 +46,24 @@ func (e *SubgraphError) AppendDownstreamError(error *GraphQLError) {
 
 func (e *SubgraphError) Error() string {
 
-	var sb strings.Builder
+	var bf bytes.Buffer
 
 	if e.SubgraphName == "" {
-		sb.WriteString(fmt.Sprintf("Failed to fetch Subgraph at Path: '%s'", e.Path))
+		fmt.Fprintf(&bf, "Failed to fetch Subgraph at Path: '%s'", e.Path)
 	} else {
-		sb.WriteString(fmt.Sprintf("Failed to fetch from Subgraph '%s' at Path: '%s'", e.SubgraphName, e.Path))
+		fmt.Fprintf(&bf, "Failed to fetch from Subgraph '%s' at Path: '%s'", e.SubgraphName, e.Path)
 	}
 
 	if e.Reason != "" {
-		sb.WriteString(fmt.Sprintf(", Reason: %s.", e.Reason))
+		fmt.Fprintf(&bf, ", Reason: %s.", e.Reason)
 	} else {
-		sb.WriteString(".")
+		fmt.Fprintf(&bf, ".")
 	}
 
 	if len(e.DownstreamErrors) > 0 {
 
-		sb.WriteString("\n")
-		sb.WriteString("Downstream errors:\n")
+		fmt.Fprintf(&bf, "\n")
+		fmt.Fprintf(&bf, "Downstream errors:\n")
 
 		for i, downstreamError := range e.DownstreamErrors {
 			extensionCodeErrorString := ""
@@ -71,20 +72,20 @@ func (e *SubgraphError) Error() string {
 			}
 
 			if len(downstreamError.Path) > 0 {
-				sb.WriteString(fmt.Sprintf("%d. Subgraph error at Path '%s', Message: %s", i+1, strings.Join(downstreamError.Path, ","), downstreamError.Message))
+				fmt.Fprintf(&bf, "%d. Subgraph error at Path '%s', Message: %s", i+1, strings.Join(downstreamError.Path, ","), downstreamError.Message)
 			} else {
-				sb.WriteString(fmt.Sprintf("%d. Subgraph error with Message: %s", i+1, downstreamError.Message))
+				fmt.Fprintf(&bf, "%d. Subgraph error with Message: %s", i+1, downstreamError.Message)
 			}
 
 			if extensionCodeErrorString != "" {
-				sb.WriteString(fmt.Sprintf(", Extension Code: %s.", extensionCodeErrorString))
+				fmt.Fprintf(&bf, ", Extension Code: %s.", extensionCodeErrorString)
 			}
 
-			sb.WriteString("\n")
+			fmt.Fprintf(&bf, "\n")
 		}
 	}
 
-	return sb.String()
+	return bf.String()
 }
 
 func NewRateLimitError(subgraphName, path, reason string) *RateLimitError {
