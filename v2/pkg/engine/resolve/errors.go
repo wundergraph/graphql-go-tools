@@ -50,13 +50,11 @@ func (e *SubgraphError) Error() string {
 	if e.SubgraphName == "" {
 		sb.WriteString(fmt.Sprintf("Failed to fetch Subgraph at path: '%s'", e.Path))
 	} else {
-		sb.WriteString(fmt.Sprintf("Failed to fetch Subgraph '%s' at path: '%s'", e.SubgraphName, e.Path))
+		sb.WriteString(fmt.Sprintf("Failed to fetch from Subgraph '%s' at path: '%s'", e.SubgraphName, e.Path))
 	}
 
 	if e.Reason != "" {
-		sb.WriteString(fmt.Sprintf(", Reason: %s.", e.Reason))
-	} else {
-		sb.WriteString(".")
+		sb.WriteString(fmt.Sprintf(", Reason: %s", e.Reason))
 	}
 
 	if len(e.DownstreamErrors) > 0 {
@@ -103,7 +101,7 @@ type RateLimitError struct {
 
 func (e *RateLimitError) Error() string {
 	if e.Reason == "" {
-		return fmt.Sprintf("Rate limit rejected for subgraph '%s' at path '%s'.", e.SubgraphName, e.Path)
+		return fmt.Sprintf("Rate limit rejected for Subgraph '%s' at path '%s'", e.SubgraphName, e.Path)
 	}
-	return fmt.Sprintf("Rate limit rejected for subgraph '%s' at path '%s'. Reason: %s.", e.SubgraphName, e.Path, e.Reason)
+	return fmt.Sprintf("Rate limit rejected for Subgraph '%s' at path '%s', Reason: %s", e.SubgraphName, e.Path, e.Reason)
 }
