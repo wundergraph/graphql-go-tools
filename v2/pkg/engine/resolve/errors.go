@@ -7,14 +7,10 @@ import (
 )
 
 type GraphQLError struct {
-	Message    string          `json:"message"`
-	Locations  []Location      `json:"locations,omitempty"`
-	Path       []string        `json:"path"`
-	Extensions *ErrorExtension `json:"extensions,omitempty"`
-}
-
-type ErrorExtension struct {
-	Code string `json:"code"`
+	Message    string                 `json:"message"`
+	Locations  []Location             `json:"locations,omitempty"`
+	Path       []string               `json:"path"`
+	Extensions map[string]interface{} `json:"extensions,omitempty"`
 }
 
 type Location struct {
@@ -67,8 +63,12 @@ func (e *SubgraphError) Error() string {
 
 		for i, downstreamError := range e.DownstreamErrors {
 			extensionCodeErrorString := ""
-			if downstreamError.Extensions != nil && downstreamError.Extensions.Code != "" {
-				extensionCodeErrorString = downstreamError.Extensions.Code
+			if downstreamError.Extensions != nil {
+				if ok := downstreamError.Extensions["code"]; ok != nil {
+					if code, ok := downstreamError.Extensions["code"].(string); ok {
+						extensionCodeErrorString = code
+					}
+				}
 			}
 
 			if len(downstreamError.Path) > 0 {

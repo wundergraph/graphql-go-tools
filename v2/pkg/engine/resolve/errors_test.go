@@ -41,8 +41,8 @@ func TestSubgraphError(t *testing.T) {
 		e.AppendDownstreamError(&GraphQLError{
 			Message: "errorMessage",
 			Path:    []string{"path"},
-			Extensions: &ErrorExtension{
-				Code: "code",
+			Extensions: map[string]interface{}{
+				"code": "code",
 			},
 		})
 

@@ -25,6 +25,12 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
+const (
+	IntrospectionSchemaTypeDataSourceID     = "introspection__schema&__type"
+	IntrospectionTypeFieldsDataSourceID     = "introspection__type__fields"
+	IntrospectionTypeEnumValuesDataSourceID = "introspection__type__enumValues"
+)
+
 type LoaderHooks interface {
 	// OnLoad is called before the fetch is executed
 	OnLoad(ctx context.Context, dataSourceID string) context.Context
@@ -33,7 +39,7 @@ type LoaderHooks interface {
 }
 
 func IsIntrospectionDataSource(dataSourceID string) bool {
-	return dataSourceID == "introspection__schema&__type" || dataSourceID == "introspection__type__fields" || dataSourceID == "introspection__type__enumValues"
+	return dataSourceID == IntrospectionSchemaTypeDataSourceID || dataSourceID == IntrospectionTypeFieldsDataSourceID || dataSourceID == IntrospectionTypeEnumValuesDataSourceID
 }
 
 type Loader struct {

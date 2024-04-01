@@ -155,9 +155,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				assert.Equal(t, 0, subgraphError.ResponseCode)
 				assert.Len(t, subgraphError.DownstreamErrors, 2)
 				assert.Equal(t, "errorMessage", subgraphError.DownstreamErrors[0].Message)
-				assert.Equal(t, "GRAPHQL_VALIDATION_FAILED", subgraphError.DownstreamErrors[0].Extensions.Code)
+				assert.Equal(t, "GRAPHQL_VALIDATION_FAILED", subgraphError.DownstreamErrors[0].Extensions["code"])
 				assert.Equal(t, "errorMessage2", subgraphError.DownstreamErrors[1].Message)
-				assert.Equal(t, "BAD_USER_INPUT", subgraphError.DownstreamErrors[1].Extensions.Code)
+				assert.Equal(t, "BAD_USER_INPUT", subgraphError.DownstreamErrors[1].Extensions["code"])
 			}
 	}))
 
