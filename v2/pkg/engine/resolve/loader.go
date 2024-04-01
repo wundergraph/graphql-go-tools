@@ -194,8 +194,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		res := &result{
-			out:         pool.BytesBuffer.Get(),
-			loadContext: context.Background(),
+			out: pool.BytesBuffer.Get(),
 		}
 
 		err := l.loadSingleFetch(l.ctx.ctx, f, items, res)
@@ -203,8 +202,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			return err
 		}
 		err = l.mergeResult(res, items)
-		if l.ctx.LoaderHooks != nil && res.loadContext != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loadContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
+		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
 		if err != nil {
 			return err
@@ -232,9 +231,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		g, ctx := errgroup.WithContext(l.ctx.ctx)
 		for i := range f.Fetches {
 			i := i
-			results[i] = &result{
-				loadContext: context.Background(),
-			}
+			results[i] = &result{}
 			g.Go(func() error {
 				return l.loadFetch(ctx, f.Fetches[i], items, results[i])
 			})
@@ -247,8 +244,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			if results[i].nestedMergeItems != nil {
 				for j := range results[i].nestedMergeItems {
 					err = l.mergeResult(results[i].nestedMergeItems[j], items[j:j+1])
-					if l.ctx.LoaderHooks != nil && results[i].nestedMergeItems[j].loadContext != nil {
-						l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loadContext, results[i].nestedMergeItems[j].statusCode, results[i].nestedMergeItems[j].subgraphName, goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors))
+					if l.ctx.LoaderHooks != nil && results[i].nestedMergeItems[j].loaderHookContext != nil {
+						l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loaderHookContext, results[i].nestedMergeItems[j].statusCode, results[i].nestedMergeItems[j].subgraphName, goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors))
 					}
 					if err != nil {
 						return errors.WithStack(err)
@@ -256,8 +253,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 				}
 			} else {
 				err = l.mergeResult(results[i], items)
-				if l.ctx.LoaderHooks != nil && results[i].loadContext != nil {
-					l.ctx.LoaderHooks.OnFinished(results[i].loadContext, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
+				if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
+					l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
 				}
 				if err != nil {
 					return errors.WithStack(err)
@@ -275,8 +272,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		for i := range items {
 			i := i
 			results[i] = &result{
-				out:         pool.BytesBuffer.Get(),
-				loadContext: context.Background(),
+				out: pool.BytesBuffer.Get(),
 			}
 			g.Go(func() error {
 				return l.loadFetch(ctx, f.Fetch, items[i:i+1], results[i])
@@ -288,8 +284,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		for i := range results {
 			err = l.mergeResult(results[i], items[i:i+1])
-			if l.ctx.LoaderHooks != nil && results[i].loadContext != nil {
-				l.ctx.LoaderHooks.OnFinished(results[i].loadContext, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
+			if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
+				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
 			}
 			if err != nil {
 				return errors.WithStack(err)
@@ -297,30 +293,28 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 	case *EntityFetch:
 		res := &result{
-			out:         pool.BytesBuffer.Get(),
-			loadContext: context.Background(),
+			out: pool.BytesBuffer.Get(),
 		}
 		err := l.loadEntityFetch(l.ctx.ctx, f, items, res)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(res, items)
-		if l.ctx.LoaderHooks != nil && res.loadContext != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loadContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
+		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
 		return err
 	case *BatchEntityFetch:
 		res := &result{
-			out:         pool.BytesBuffer.Get(),
-			loadContext: context.Background(),
+			out: pool.BytesBuffer.Get(),
 		}
 		err := l.loadBatchEntityFetch(l.ctx.ctx, f, items, res)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(res, items)
-		if l.ctx.LoaderHooks != nil && res.loadContext != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loadContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
+		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
 		return err
 	}
@@ -345,8 +339,7 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res *r
 		for i := range items {
 			i := i
 			results[i] = &result{
-				out:         pool.BytesBuffer.Get(),
-				loadContext: context.Background(),
+				out: pool.BytesBuffer.Get(),
 			}
 			if l.ctx.TracingOptions.Enable {
 				f.Traces[i] = new(SingleFetch)
@@ -540,9 +533,9 @@ type result struct {
 	rateLimitRejected       bool
 	rateLimitRejectedReason string
 
-	// loadContext used to share data between the OnLoad and OnFinished hooks
+	// loaderHookContext used to share data between the OnLoad and OnFinished hooks
 	// Only set when the OnLoad is called
-	loadContext context.Context
+	loaderHookContext context.Context
 }
 
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
@@ -1236,7 +1229,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 	ctx, responseContext = httpclient.InjectResponseContext(ctx)
 
 	if l.ctx.LoaderHooks != nil {
-		res.loadContext = l.ctx.LoaderHooks.OnLoad(ctx, res.subgraphName)
+		res.loaderHookContext = l.ctx.LoaderHooks.OnLoad(ctx, res.subgraphName)
 	}
 
 	res.err = source.Load(ctx, input, res.out)
