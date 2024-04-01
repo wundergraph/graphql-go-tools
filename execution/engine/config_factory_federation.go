@@ -19,7 +19,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-type SubgraphConfig struct {
+type SubgraphConfiguration struct {
 	Name string
 	URL  string
 	SDL  string
@@ -76,12 +76,7 @@ func WithFederationSubscriptionType(subscriptionType SubscriptionType) Federatio
 	}
 }
 
-type DataSourceConfiguration struct {
-	ID            string                          // ID of the data source which is used to identify the data source in the engine.
-	Configuration graphqlDataSource.Configuration // Configuration fetch and schema related configuration for the data source.
-}
-
-func NewFederationEngineConfigFactory(engineCtx context.Context, dataSourceConfigs []DataSourceConfiguration, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
+func NewFederationEngineConfigFactory(engineCtx context.Context, subgraphsConfigs []SubgraphConfiguration, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
 	options := federationEngineConfigFactoryOptions{
 		httpClient: &http.Client{
 			Timeout: time.Second * 10,
@@ -117,12 +112,11 @@ type FederationEngineConfigFactory struct {
 	engineCtx                 context.Context
 	httpClient                *http.Client
 	streamingClient           *http.Client
-	dataSourceConfigs         []DataSourceConfiguration
 	schema                    *graphql.Schema
 	subscriptionClientFactory graphql_datasource.GraphQLSubscriptionClientFactory
 	subscriptionType          SubscriptionType
 	customResolveMap          map[string]resolve.CustomResolve
-	subgraphsConfigs          []SubgraphConfig
+	subgraphsConfigs          []SubgraphConfiguration
 }
 
 func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (conf Configuration, err error) {
@@ -227,166 +221,195 @@ func (f *FederationEngineConfigFactory) createPlannerConfiguration(routerConfig 
 		})
 	}
 
-	for _, in := range engineConfig.DatasourceConfigurations {
-		factory, err := f.resolveFactory(in)
+	for _, ds := range engineConfig.DatasourceConfigurations {
+		if ds.Kind != nodev1.DataSourceKind_GRAPHQL {
+			return nil, fmt.Errorf("invalid datasource kind %q", ds.Kind)
+		}
+
+		dataSource, err := f.subgraphDataSourceConfiguration(engineConfig, ds)
 		if err != nil {
-			return nil, err
-		}
-		if factory == nil {
-			continue
-		}
-		out := plan.DataSourceConfiguration{
-			ID:      in.Id,
-			Factory: factory,
-		}
-		switch in.Kind {
-		case nodev1.DataSourceKind_GRAPHQL:
-			header := http.Header{}
-			for s, httpHeader := range in.CustomGraphql.Fetch.Header {
-				for _, value := range httpHeader.Values {
-					header.Add(s, LoadStringVariable(value))
-				}
-			}
-
-			fetchUrl := LoadStringVariable(in.CustomGraphql.Fetch.GetUrl())
-
-			subscriptionUrl := LoadStringVariable(in.CustomGraphql.Subscription.Url)
-			if subscriptionUrl == "" {
-				subscriptionUrl = fetchUrl
-			}
-
-			customScalarTypeFields := make([]graphql_datasource.SingleTypeField, len(in.CustomGraphql.CustomScalarTypeFields))
-			for i, v := range in.CustomGraphql.CustomScalarTypeFields {
-				customScalarTypeFields[i] = graphql_datasource.SingleTypeField{
-					TypeName:  v.TypeName,
-					FieldName: v.FieldName,
-				}
-			}
-
-			graphqlSchema, err := f.LoadInternedString(engineConfig, in.CustomGraphql.GetUpstreamSchema())
-
-			if err != nil {
-				return nil, fmt.Errorf("could not load GraphQL schema for data source %s: %w", in.Id, err)
-			}
-
-			var subscriptionUseSSE bool
-			var subscriptionSSEMethodPost bool
-			if in.CustomGraphql.Subscription.Protocol != nil {
-				switch *in.CustomGraphql.Subscription.Protocol {
-				case common.GraphQLSubscriptionProtocol_GRAPHQL_SUBSCRIPTION_PROTOCOL_WS:
-					subscriptionUseSSE = false
-					subscriptionSSEMethodPost = false
-				case common.GraphQLSubscriptionProtocol_GRAPHQL_SUBSCRIPTION_PROTOCOL_SSE:
-					subscriptionUseSSE = true
-					subscriptionSSEMethodPost = false
-				case common.GraphQLSubscriptionProtocol_GRAPHQL_SUBSCRIPTION_PROTOCOL_SSE_POST:
-					subscriptionUseSSE = true
-					subscriptionSSEMethodPost = true
-				}
-			} else {
-				// Old style config
-				if in.CustomGraphql.Subscription.UseSSE != nil {
-					subscriptionUseSSE = *in.CustomGraphql.Subscription.UseSSE
-				}
-			}
-			// dataSourceRules := FetchURLRules(&routerEngineConfig.Headers, routerConfig.Subgraphs, subscriptionUrl)
-			// forwardedClientHeaders, forwardedClientRegexps, err := PropagatedHeaders(dataSourceRules)
-			if err != nil {
-				return nil, fmt.Errorf("error parsing header rules for data source %s: %w", in.Id, err)
-			}
-			out.Custom = graphql_datasource.ConfigJson(graphql_datasource.Configuration{
-				Fetch: graphql_datasource.FetchConfiguration{
-					URL:    fetchUrl,
-					Method: in.CustomGraphql.Fetch.Method.String(),
-					Header: header,
-				},
-				Federation: graphql_datasource.FederationConfiguration{
-					Enabled:    in.CustomGraphql.Federation.Enabled,
-					ServiceSDL: in.CustomGraphql.Federation.ServiceSdl,
-				},
-				Subscription: graphql_datasource.SubscriptionConfiguration{
-					URL:           subscriptionUrl,
-					UseSSE:        subscriptionUseSSE,
-					SSEMethodPost: subscriptionSSEMethodPost,
-					// ForwardedClientHeaderNames:              forwardedClientHeaders,
-					// ForwardedClientHeaderRegularExpressions: forwardedClientRegexps,
-				},
-				UpstreamSchema:         graphqlSchema,
-				CustomScalarTypeFields: customScalarTypeFields,
-			})
-		default:
-			return nil, fmt.Errorf("unknown data source type %q", in.Kind)
-		}
-		for _, node := range in.RootNodes {
-			out.RootNodes = append(out.RootNodes, plan.TypeField{
-				TypeName:   node.TypeName,
-				FieldNames: node.FieldNames,
-			})
-		}
-		for _, node := range in.ChildNodes {
-			out.ChildNodes = append(out.ChildNodes, plan.TypeField{
-				TypeName:   node.TypeName,
-				FieldNames: node.FieldNames,
-			})
-		}
-		for _, directive := range in.Directives {
-			out.Directives = append(out.Directives, plan.DirectiveConfiguration{
-				DirectiveName: directive.DirectiveName,
-				RenameTo:      directive.DirectiveName,
-			})
-		}
-		out.FederationMetaData = plan.FederationMetaData{
-			Keys:     nil,
-			Requires: nil,
-			Provides: nil,
-		}
-		for _, keyConfiguration := range in.Keys {
-			out.FederationMetaData.Keys = append(out.FederationMetaData.Keys, plan.FederationFieldConfiguration{
-				TypeName:     keyConfiguration.TypeName,
-				FieldName:    keyConfiguration.FieldName,
-				SelectionSet: keyConfiguration.SelectionSet,
-			})
-		}
-		for _, providesConfiguration := range in.Provides {
-			out.FederationMetaData.Provides = append(out.FederationMetaData.Provides, plan.FederationFieldConfiguration{
-				TypeName:     providesConfiguration.TypeName,
-				FieldName:    providesConfiguration.FieldName,
-				SelectionSet: providesConfiguration.SelectionSet,
-			})
-		}
-		for _, requiresConfiguration := range in.Requires {
-			out.FederationMetaData.Requires = append(out.FederationMetaData.Requires, plan.FederationFieldConfiguration{
-				TypeName:     requiresConfiguration.TypeName,
-				FieldName:    requiresConfiguration.FieldName,
-				SelectionSet: requiresConfiguration.SelectionSet,
-			})
-		}
-		for _, entityInterfacesConfiguration := range in.EntityInterfaces {
-			out.FederationMetaData.EntityInterfaces = append(out.FederationMetaData.EntityInterfaces, plan.EntityInterfaceConfiguration{
-				InterfaceTypeName: entityInterfacesConfiguration.InterfaceTypeName,
-				ConcreteTypeNames: entityInterfacesConfiguration.ConcreteTypeNames,
-			})
-		}
-		for _, interfaceObjectConfiguration := range in.InterfaceObjects {
-			out.FederationMetaData.InterfaceObjects = append(out.FederationMetaData.InterfaceObjects, plan.EntityInterfaceConfiguration{
-				InterfaceTypeName: interfaceObjectConfiguration.InterfaceTypeName,
-				ConcreteTypeNames: interfaceObjectConfiguration.ConcreteTypeNames,
-			})
+			return nil, fmt.Errorf("failed to create data source configuration for data source %s: %w", ds.Id, err)
 		}
 
-		outConfig.DataSources = append(outConfig.DataSources, out)
+		outConfig.DataSources = append(outConfig.DataSources, dataSource)
 	}
 
 	return &outConfig, nil
 }
 
-func (f *FederationEngineConfigFactory) resolveFactory(ds *nodev1.DataSourceConfiguration) (plan.PlannerFactory, error) {
-	switch ds.Kind {
-	case nodev1.DataSourceKind_GRAPHQL:
-		return f.graphqlDataSourceFactory()
-	default:
-		return nil, fmt.Errorf("invalid datasource kind %q", ds.Kind)
+func (f *FederationEngineConfigFactory) subgraphDataSourceConfiguration(engineConfig *nodev1.EngineConfiguration, in *nodev1.DataSourceConfiguration) (plan.DataSource, error) {
+	var out plan.DataSource
+
+	factory, err := f.graphqlDataSourceFactory()
+	if err != nil {
+		return nil, err
 	}
+
+	header := http.Header{}
+	for s, httpHeader := range in.CustomGraphql.Fetch.Header {
+		for _, value := range httpHeader.Values {
+			header.Add(s, LoadStringVariable(value))
+		}
+	}
+
+	fetchUrl := LoadStringVariable(in.CustomGraphql.Fetch.GetUrl())
+
+	subscriptionUrl := LoadStringVariable(in.CustomGraphql.Subscription.Url)
+	if subscriptionUrl == "" {
+		subscriptionUrl = fetchUrl
+	}
+
+	customScalarTypeFields := make([]graphql_datasource.SingleTypeField, len(in.CustomGraphql.CustomScalarTypeFields))
+	for i, v := range in.CustomGraphql.CustomScalarTypeFields {
+		customScalarTypeFields[i] = graphql_datasource.SingleTypeField{
+			TypeName:  v.TypeName,
+			FieldName: v.FieldName,
+		}
+	}
+
+	graphqlSchema, err := f.LoadInternedString(engineConfig, in.CustomGraphql.GetUpstreamSchema())
+	if err != nil {
+		return nil, fmt.Errorf("could not load GraphQL schema for data source %s: %w", in.Id, err)
+	}
+
+	var subscriptionUseSSE bool
+	var subscriptionSSEMethodPost bool
+	if in.CustomGraphql.Subscription.Protocol != nil {
+		switch *in.CustomGraphql.Subscription.Protocol {
+		case common.GraphQLSubscriptionProtocol_GRAPHQL_SUBSCRIPTION_PROTOCOL_WS:
+			subscriptionUseSSE = false
+			subscriptionSSEMethodPost = false
+		case common.GraphQLSubscriptionProtocol_GRAPHQL_SUBSCRIPTION_PROTOCOL_SSE:
+			subscriptionUseSSE = true
+			subscriptionSSEMethodPost = false
+		case common.GraphQLSubscriptionProtocol_GRAPHQL_SUBSCRIPTION_PROTOCOL_SSE_POST:
+			subscriptionUseSSE = true
+			subscriptionSSEMethodPost = true
+		}
+	} else {
+		// Old style config
+		if in.CustomGraphql.Subscription.UseSSE != nil {
+			subscriptionUseSSE = *in.CustomGraphql.Subscription.UseSSE
+		}
+	}
+	// dataSourceRules := FetchURLRules(&routerEngineConfig.Headers, routerConfig.Subgraphs, subscriptionUrl)
+	// forwardedClientHeaders, forwardedClientRegexps, err := PropagatedHeaders(dataSourceRules)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("error parsing header rules for data source %s: %w", in.Id, err)
+	// }
+
+	schemaConfiguration, err := graphql_datasource.NewSchemaConfiguration(
+		graphqlSchema,
+		&graphql_datasource.FederationConfiguration{
+			Enabled:    in.CustomGraphql.Federation.Enabled,
+			ServiceSDL: in.CustomGraphql.Federation.ServiceSdl,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error creating schema configuration for data source %s: %w", in.Id, err)
+	}
+
+	customConfiguration, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
+		Fetch: &graphql_datasource.FetchConfiguration{
+			URL:    fetchUrl,
+			Method: in.CustomGraphql.Fetch.Method.String(),
+			Header: header,
+		},
+		Subscription: &graphql_datasource.SubscriptionConfiguration{
+			URL:           subscriptionUrl,
+			UseSSE:        subscriptionUseSSE,
+			SSEMethodPost: subscriptionSSEMethodPost,
+			// ForwardedClientHeaderNames:              forwardedClientHeaders,
+			// ForwardedClientHeaderRegularExpressions: forwardedClientRegexps,
+		},
+		SchemaConfiguration:    schemaConfiguration,
+		CustomScalarTypeFields: customScalarTypeFields,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error creating custom configuration for data source %s: %w", in.Id, err)
+	}
+
+	out, err = plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+		in.Id,
+		factory,
+		f.dataSourceMetaData(in),
+		customConfiguration,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error creating data source configuration for data source %s: %w", in.Id, err)
+	}
+
+	return out, nil
+}
+
+func (f *FederationEngineConfigFactory) dataSourceMetaData(in *nodev1.DataSourceConfiguration) *plan.DataSourceMetadata {
+	var d plan.DirectiveConfigurations = make([]plan.DirectiveConfiguration, 0, len(in.Directives))
+
+	out := &plan.DataSourceMetadata{
+		RootNodes:  make([]plan.TypeField, 0, len(in.RootNodes)),
+		ChildNodes: make([]plan.TypeField, 0, len(in.ChildNodes)),
+		Directives: &d,
+		FederationMetaData: plan.FederationMetaData{
+			Keys:     make([]plan.FederationFieldConfiguration, 0, len(in.Keys)),
+			Requires: make([]plan.FederationFieldConfiguration, 0, len(in.Requires)),
+			Provides: make([]plan.FederationFieldConfiguration, 0, len(in.Provides)),
+		},
+	}
+
+	for _, node := range in.RootNodes {
+		out.RootNodes = append(out.RootNodes, plan.TypeField{
+			TypeName:   node.TypeName,
+			FieldNames: node.FieldNames,
+		})
+	}
+	for _, node := range in.ChildNodes {
+		out.ChildNodes = append(out.ChildNodes, plan.TypeField{
+			TypeName:   node.TypeName,
+			FieldNames: node.FieldNames,
+		})
+	}
+	for _, directive := range in.Directives {
+		*out.Directives = append(*out.Directives, plan.DirectiveConfiguration{
+			DirectiveName: directive.DirectiveName,
+			RenameTo:      directive.DirectiveName,
+		})
+	}
+
+	for _, keyConfiguration := range in.Keys {
+		out.FederationMetaData.Keys = append(out.FederationMetaData.Keys, plan.FederationFieldConfiguration{
+			TypeName:     keyConfiguration.TypeName,
+			FieldName:    keyConfiguration.FieldName,
+			SelectionSet: keyConfiguration.SelectionSet,
+		})
+	}
+	for _, providesConfiguration := range in.Provides {
+		out.FederationMetaData.Provides = append(out.FederationMetaData.Provides, plan.FederationFieldConfiguration{
+			TypeName:     providesConfiguration.TypeName,
+			FieldName:    providesConfiguration.FieldName,
+			SelectionSet: providesConfiguration.SelectionSet,
+		})
+	}
+	for _, requiresConfiguration := range in.Requires {
+		out.FederationMetaData.Requires = append(out.FederationMetaData.Requires, plan.FederationFieldConfiguration{
+			TypeName:     requiresConfiguration.TypeName,
+			FieldName:    requiresConfiguration.FieldName,
+			SelectionSet: requiresConfiguration.SelectionSet,
+		})
+	}
+	for _, entityInterfacesConfiguration := range in.EntityInterfaces {
+		out.FederationMetaData.EntityInterfaces = append(out.FederationMetaData.EntityInterfaces, plan.EntityInterfaceConfiguration{
+			InterfaceTypeName: entityInterfacesConfiguration.InterfaceTypeName,
+			ConcreteTypeNames: entityInterfacesConfiguration.ConcreteTypeNames,
+		})
+	}
+	for _, interfaceObjectConfiguration := range in.InterfaceObjects {
+		out.FederationMetaData.InterfaceObjects = append(out.FederationMetaData.InterfaceObjects, plan.EntityInterfaceConfiguration{
+			InterfaceTypeName: interfaceObjectConfiguration.InterfaceTypeName,
+			ConcreteTypeNames: interfaceObjectConfiguration.ConcreteTypeNames,
+		})
+	}
+
+	return out
 }
 
 func (f *FederationEngineConfigFactory) LoadInternedString(engineConfig *nodev1.EngineConfiguration, str *nodev1.InternedString) (string, error) {
@@ -398,18 +421,17 @@ func (f *FederationEngineConfigFactory) LoadInternedString(engineConfig *nodev1.
 	return s, nil
 }
 
-func (f *FederationEngineConfigFactory) graphqlDataSourceFactory() (plan.PlannerFactory, error) {
-
+func (f *FederationEngineConfigFactory) graphqlDataSourceFactory() (plan.PlannerFactory[graphql_datasource.Configuration], error) {
 	subscriptionClient, err := f.subscriptionClient(f.httpClient, f.streamingClient, f.subscriptionType, f.subscriptionClientFactory)
 	if err != nil {
 		return nil, err
 	}
 
-	return &graphql_datasource.Factory{
-		HTTPClient:         f.httpClient,
-		StreamingClient:    f.streamingClient,
-		SubscriptionClient: subscriptionClient,
-	}, nil
+	return graphql_datasource.NewFactory(
+		f.engineCtx,
+		f.httpClient,
+		subscriptionClient,
+	)
 }
 
 func (f *FederationEngineConfigFactory) subscriptionClient(

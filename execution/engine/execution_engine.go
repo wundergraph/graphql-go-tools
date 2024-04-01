@@ -98,9 +98,9 @@ func WithAdditionalHttpHeaders(headers http.Header, excludeByKeys ...string) Exe
 	}
 }
 
-func WithRequestTraceOptions(options resolve.RequestTraceOptions) ExecutionOptions {
+func WithRequestTraceOptions(options resolve.TraceOptions) ExecutionOptions {
 	return func(ctx *internalExecutionContext) {
-		ctx.resolveContext.RequestTracingOptions = options
+		ctx.resolveContext.TracingOptions = options
 	}
 }
 
@@ -173,14 +173,14 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		options[i](execContext)
 	}
 
-	if execContext.resolveContext.RequestTracingOptions.Enable {
-		traceCtx := resolve.SetTraceStart(execContext.resolveContext.Context(), execContext.resolveContext.RequestTracingOptions.EnablePredictableDebugTimings)
+	if execContext.resolveContext.TracingOptions.Enable {
+		traceCtx := resolve.SetTraceStart(execContext.resolveContext.Context(), execContext.resolveContext.TracingOptions.EnablePredictableDebugTimings)
 		execContext.setContext(traceCtx)
 	}
 
 	var tracePlanStart int64
 
-	if execContext.resolveContext.RequestTracingOptions.Enable && !execContext.resolveContext.RequestTracingOptions.ExcludePlannerStats {
+	if execContext.resolveContext.TracingOptions.Enable && !execContext.resolveContext.TracingOptions.ExcludePlannerStats {
 		tracePlanStart = resolve.GetDurationNanoSinceTraceStart(execContext.resolveContext.Context())
 	}
 
@@ -191,13 +191,13 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		return report
 	}
 
-	if execContext.resolveContext.RequestTracingOptions.Enable && !execContext.resolveContext.RequestTracingOptions.ExcludePlannerStats {
+	if execContext.resolveContext.TracingOptions.Enable && !execContext.resolveContext.TracingOptions.ExcludePlannerStats {
 		planningTime := resolve.GetDurationNanoSinceTraceStart(execContext.resolveContext.Context()) - tracePlanStart
-		resolve.SetPlannerStats(execContext.resolveContext.Context(), resolve.PlannerStats{
+		resolve.SetPlannerStats(execContext.resolveContext.Context(), resolve.PhaseStats{
 			DurationSinceStartNano:   tracePlanStart,
 			DurationSinceStartPretty: time.Duration(tracePlanStart).String(),
-			PlanningTimeNano:         planningTime,
-			PlanningTimePretty:       time.Duration(planningTime).String(),
+			DurationNano:             planningTime,
+			DurationPretty:           time.Duration(planningTime).String(),
 		})
 	}
 

@@ -12,7 +12,7 @@ import (
 )
 
 type DataSourceObserver interface {
-	UpdateDataSources(subgraphsConfigs []engine.SubgraphConfig)
+	UpdateDataSources(subgraphsConfigs []engine.SubgraphConfiguration)
 }
 
 type DataSourceSubject interface {
@@ -69,7 +69,7 @@ func (g *Gateway) Ready() {
 	<-g.readyCh
 }
 
-func (g *Gateway) UpdateDataSources(subgraphsConfigs []engine.SubgraphConfig) {
+func (g *Gateway) UpdateDataSources(subgraphsConfigs []engine.SubgraphConfiguration) {
 	ctx := context.Background()
 	engineConfigFactory := engine.NewFederationEngineConfigFactory(ctx, subgraphsConfigs, engine.WithFederationHttpClient(g.httpClient))
 

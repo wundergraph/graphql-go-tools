@@ -187,8 +187,8 @@ func TestWithAdditionalHttpHeaders(t *testing.T) {
 }
 
 type ExecutionEngineTestCase struct {
-	schema                            *graphql.Schema
-	operation                         func(t *testing.T) graphql.Request
+	schema           *graphql.Schema
+	operation        func(t *testing.T) graphql.Request
 	dataSources      []plan.DataSource
 	fields           plan.FieldConfigurations
 	engineOptions    []ExecutionOptions
@@ -208,7 +208,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				t.Skip(testCase.skipReason)
 			}
 
-			engineConf := NewEngineV2Configuration(testCase.schema)
+			engineConf := NewConfiguration(testCase.schema)
 			engineConf.SetDataSources(testCase.dataSources)
 			engineConf.SetFieldConfigurations(testCase.fields)
 			engineConf.SetCustomResolveMap(testCase.customResolveMap)
@@ -379,7 +379,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						SchemaConfiguration: mustSchemaConfig(
 							t,
 							nil,
-							string(graphql.starwarsSchema(t).Document()),
+							string(graphql.StarwarsSchema(t).RawSchema()),
 						),
 					}),
 				),
@@ -431,7 +431,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						SchemaConfiguration: mustSchemaConfig(
 							t,
 							nil,
-							string(graphql.starwarsSchema(t).Document()),
+							string(graphql.StarwarsSchema(t).RawSchema()),
 						),
 					}),
 				),
@@ -492,7 +492,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						SchemaConfiguration: mustSchemaConfig(
 							t,
 							nil,
-							string(schemaWithCustomScalar.Document()),
+							string(schemaWithCustomScalar.RawSchema()),
 						),
 					}),
 				),
@@ -542,7 +542,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						SchemaConfiguration: mustSchemaConfig(
 							t,
 							nil,
-							string(graphql.starwarsSchema(t).Document()),
+							string(graphql.StarwarsSchema(t).RawSchema()),
 						),
 					}),
 				),
@@ -603,7 +603,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					SchemaConfiguration: mustSchemaConfig(
 						t,
 						nil,
-						string(heroWithArgumentSchema(t).Document()),
+						string(heroWithArgumentSchema(t).RawSchema()),
 					),
 				}),
 			),
@@ -799,7 +799,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					SchemaConfiguration: mustSchemaConfig(
 						t,
 						nil,
-						string(inputCoercionForListSchema(t).Document()),
+						string(graphql.InputCoercionForListSchema(t).RawSchema()),
 					),
 				}),
 			),
@@ -866,7 +866,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					SchemaConfiguration: mustSchemaConfig(
 						t,
 						nil,
-						string(inputCoercionForListSchema(t).Document()),
+						string(graphql.InputCoercionForListSchema(t).RawSchema()),
 					),
 				}),
 			),
@@ -926,7 +926,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						SchemaConfiguration: mustSchemaConfig(
 							t,
 							nil,
-							string(graphql.StarwarsSchema(t).Document()),
+							string(graphql.StarwarsSchema(t).RawSchema()),
 						),
 					}),
 				),
@@ -987,7 +987,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							SchemaConfiguration: mustSchemaConfig(
 								t,
 								nil,
-								string(heroWithArgumentSchema(t).Document()),
+								string(heroWithArgumentSchema(t).RawSchema()),
 							),
 						}),
 					),
@@ -1050,7 +1050,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							SchemaConfiguration: mustSchemaConfig(
 								t,
 								nil,
-								string(heroWithArgumentSchema(t).Document()),
+								string(heroWithArgumentSchema(t).RawSchema()),
 							),
 						}),
 					),
@@ -1112,7 +1112,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							SchemaConfiguration: mustSchemaConfig(
 								t,
 								nil,
-								string(heroWithArgumentSchema(t).Document()),
+								string(heroWithArgumentSchema(t).RawSchema()),
 							),
 						}),
 					),
@@ -1183,7 +1183,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							SchemaConfiguration: mustSchemaConfig(
 								t,
 								nil,
-								string(heroWithArgumentSchema(t).Document()),
+								string(heroWithArgumentSchema(t).RawSchema()),
 							),
 						}),
 					),
@@ -1292,7 +1292,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	t.Run("Spreading a fragment on an invalid type returns ErrInvalidFragmentSpread", runWithAndCompareError(
 		ExecutionEngineTestCase{
 			schema:    graphql.StarwarsSchema(t),
-			operation: graphql.LadStarWarsQuery(starwars.FileInvalidFragmentsQuery, nil),
+			operation: graphql.LoadStarWarsQuery(starwars.FileInvalidFragmentsQuery, nil),
 			dataSources: []plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
 					"id",
@@ -1327,7 +1327,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						SchemaConfiguration: mustSchemaConfig(
 							t,
 							nil,
-							string(graphql.StarwarsSchema(t).Document()),
+							string(graphql.StarwarsSchema(t).RawSchema()),
 						),
 					}),
 				),
@@ -1397,7 +1397,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						SchemaConfiguration: mustSchemaConfig(
 							t,
 							nil,
-							string(graphql.StarwarsSchema(t).Document()),
+							string(graphql.StarwarsSchema(t).RawSchema()),
 						),
 					}),
 				),
@@ -1452,7 +1452,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, normalizationResult.Successful)
 
-	engineConfig := NewEngineConfiguration(schema)
+	engineConfig := NewConfiguration(schema)
 	engineConfig.SetDataSources([]plan.DataSource{
 		mustGraphqlDataSourceConfiguration(t,
 			"id",
@@ -1633,7 +1633,7 @@ func BenchmarkExecutionEngine(b *testing.B) {
 		)
 		require.NoError(b, err)
 
-		engineConf := NewEngineV2Configuration(schema)
+		engineConf := NewConfiguration(schema)
 		engineConf.SetDataSources([]plan.DataSource{
 			dsCfg,
 		})

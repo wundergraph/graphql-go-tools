@@ -143,8 +143,8 @@ func (d *DatasourcePollerPoller) updateObservers() {
 	}
 }
 
-func (d *DatasourcePollerPoller) createSubgraphsConfig() []engine.SubgraphConfig {
-	subgraphConfigs := make([]engine.SubgraphConfig, 0, len(d.config.Services))
+func (d *DatasourcePollerPoller) createSubgraphsConfig() []engine.SubgraphConfiguration {
+	subgraphConfigs := make([]engine.SubgraphConfiguration, 0, len(d.config.Services))
 
 	for _, serviceConfig := range d.config.Services {
 		sdl, exists := d.sdlMap[serviceConfig.Name]
@@ -152,7 +152,7 @@ func (d *DatasourcePollerPoller) createSubgraphsConfig() []engine.SubgraphConfig
 			continue
 		}
 
-		subgraphConfig := engine.SubgraphConfig{
+		subgraphConfig := engine.SubgraphConfiguration{
 			Name:            serviceConfig.Name,
 			URL:             serviceConfig.URL,
 			SubscriptionUrl: serviceConfig.WS,

@@ -96,15 +96,15 @@ type graphqlDataSourceGenerator struct {
 	engineCtx context.Context
 }
 
-func newGraphQLDataSourceGenerator(engineCtx context.Context, document *ast.Document) *graphqlDataSourceV2Generator {
-	return &graphqlDataSourceV2Generator{
+func newGraphQLDataSourceGenerator(engineCtx context.Context, document *ast.Document) *graphqlDataSourceGenerator {
+	return &graphqlDataSourceGenerator{
 		document:  document,
 		engineCtx: engineCtx,
 	}
 }
 
-func (d *graphqlDataSourceGenerator) Generate(dsID string, config graphqlDataSource.Configuration, httpClient *http.Client, options ...DataSourceV2GeneratorOption) (plan.DataSource, error) {
-	extractor := federationdata.NewLocalTypeFieldExtractor(d.document)
+func (d *graphqlDataSourceGenerator) Generate(dsID string, config graphqlDataSource.Configuration, httpClient *http.Client, options ...DataSourceGeneratorOption) (plan.DataSource, error) {
+	extractor := NewLocalTypeFieldExtractor(d.document)
 	rootNodes, childNodes := extractor.GetAllNodes()
 
 	definedOptions := &dataSourceGeneratorOptions{

@@ -96,9 +96,9 @@ func NewProxyEngineConfigFactory(engineCtx context.Context, schema *graphql.Sche
 }
 
 func (p *ProxyEngineConfigFactory) EngineConfiguration() (Configuration, error) {
-	schemaConfiguration, err := graphqlDataSource.NewSchemaConfiguration(string(p.schema.rawInput), nil)
+	schemaConfiguration, err := graphqlDataSource.NewSchemaConfiguration(string(p.schema.RawSchema()), nil)
 	if err != nil {
-		return EngineV2Configuration{}, err
+		return Configuration{}, err
 	}
 
 	dataSourceConfig, err := graphqlDataSource.NewConfiguration(graphqlDataSource.ConfigurationInput{
@@ -114,7 +114,7 @@ func (p *ProxyEngineConfigFactory) EngineConfiguration() (Configuration, error) 
 		SchemaConfiguration: schemaConfiguration,
 	})
 	if err != nil {
-		return EngineV2Configuration{}, err
+		return Configuration{}, err
 	}
 
 	conf := NewConfiguration(p.schema)

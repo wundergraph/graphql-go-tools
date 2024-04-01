@@ -23,7 +23,7 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 		t *testing.T,
 		httpClient *http.Client,
 		streamingClient *http.Client,
-		dataSourceConfigs []DataSourceConfiguration,
+		subgraphs []SubgraphConfiguration,
 		baseSchema string,
 		expectedConfigFactory func(t *testing.T, baseSchema string) Configuration,
 	) {
@@ -36,12 +36,12 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 
 		engineConfigFactory := NewFederationEngineConfigFactory(
 			engineCtx,
-			dataSourceConfigs,
+			subgraphs,
 			WithFederationHttpClient(httpClient),
 			WithFederationStreamingClient(streamingClient),
 			WithFederationSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
 		)
-		config, err := engineConfigFactory.EngineConfiguration()
+		config, err := engineConfigFactory.BuildEngineConfiguration()
 		assert.NoError(t, err)
 		assert.Equal(t, expectedConfigFactory(t, printedBaseSchema), config)
 	}
@@ -50,57 +50,21 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 	streamingClient := &http.Client{}
 
 	t.Run("should create engine configuration", func(t *testing.T) {
-		runWithoutError(t, httpClient, streamingClient, []DataSourceConfiguration{
+		runWithoutError(t, httpClient, streamingClient, []SubgraphConfiguration{
 			{
-				"users",
-				mustConfiguration(t, graphqlDataSource.ConfigurationInput{
-					Fetch: &graphqlDataSource.FetchConfiguration{
-						URL: "http://user.service",
-					},
-					SchemaConfiguration: mustSchemaConfig(
-						t,
-						&graphqlDataSource.FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: accountSchema,
-						},
-						accountSchema,
-					),
-				}),
+				Name: "users",
+				URL:  "http://user.service",
+				SDL:  accountSchema,
 			},
 			{
-				"products",
-				mustConfiguration(t, graphqlDataSource.ConfigurationInput{
-					Fetch: &graphqlDataSource.FetchConfiguration{
-						URL: "http://product.service",
-					},
-					SchemaConfiguration: mustSchemaConfig(
-						t,
-						&graphqlDataSource.FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: productSchema,
-						},
-						productSchema,
-					),
-				}),
+				Name: "products",
+				URL:  "http://product.service",
+				SDL:  productSchema,
 			},
 			{
-				"reviews",
-				mustConfiguration(t, graphqlDataSource.ConfigurationInput{
-					Fetch: &graphqlDataSource.FetchConfiguration{
-						URL: "http://review.service",
-					},
-					SchemaConfiguration: mustSchemaConfig(
-						t,
-						&graphqlDataSource.FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: reviewSchema,
-						},
-						reviewSchema,
-					),
-					Subscription: &graphqlDataSource.SubscriptionConfiguration{
-						UseSSE: true,
-					},
-				}),
+				Name: "reviews",
+				URL:  "http://review.service",
+				SDL:  reviewSchema,
 			},
 		}, baseFederationSchema, func(t *testing.T, baseSchema string) Configuration {
 			schema, err := graphql.NewSchemaFromString(baseSchema)
@@ -108,31 +72,6 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 
 			conf := NewConfiguration(schema)
 			conf.SetFieldConfigurations(plan.FieldConfigurations{
-				{
-					TypeName:       "User",
-					FieldName:      "username",
-					RequiresFields: []string{"id"},
-				},
-				{
-					TypeName:       "Product",
-					FieldName:      "name",
-					RequiresFields: []string{"upc"},
-				},
-				{
-					TypeName:       "Product",
-					FieldName:      "price",
-					RequiresFields: []string{"upc"},
-				},
-				{
-					TypeName:       "User",
-					FieldName:      "reviews",
-					RequiresFields: []string{"id"},
-				},
-				{
-					TypeName:       "Product",
-					FieldName:      "reviews",
-					RequiresFields: []string{"upc"},
-				},
 				{
 					TypeName:  "Query",
 					FieldName: "topProducts",

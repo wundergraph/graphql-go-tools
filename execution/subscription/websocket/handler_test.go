@@ -275,7 +275,7 @@ func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string
 	})
 	require.NoError(t, err)
 
-	engineConf := graphql.NewEngineV2Configuration(chatSchema)
+	engineConf := engine.NewConfiguration(chatSchema)
 	engineConf.SetWebsocketBeforeStartHook(onBeforeStartHook)
 
 	factory, err := graphql_datasource.NewFactory(ctx, httpclient.DefaultNetHttpClient, &graphql_datasource.SubscriptionClient{})

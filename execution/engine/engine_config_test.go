@@ -15,7 +15,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 )
 
-func TestNewEngineConfiguration(t *testing.T) {
+func TestNewConfiguration(t *testing.T) {
 	var engineConfig Configuration
 
 	t.Run("should create a new engine v2 config", func(t *testing.T) {

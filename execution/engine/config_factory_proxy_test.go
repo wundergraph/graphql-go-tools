@@ -15,6 +15,8 @@ import (
 )
 
 func TestProxyEngineConfigFactory_EngineConfiguration(t *testing.T) {
+	engineCtx := context.Background()
+
 	schema, err := graphql.NewSchemaFromString(graphqlGeneratorSchema)
 	require.NoError(t, err)
 
