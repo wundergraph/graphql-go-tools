@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	goerrors "errors"
 	"fmt"
 	"io"
 	"net/http/httptrace"
@@ -23,6 +24,23 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
+
+const (
+	IntrospectionSchemaTypeDataSourceID     = "introspection__schema&__type"
+	IntrospectionTypeFieldsDataSourceID     = "introspection__type__fields"
+	IntrospectionTypeEnumValuesDataSourceID = "introspection__type__enumValues"
+)
+
+type LoaderHooks interface {
+	// OnLoad is called before the fetch is executed
+	OnLoad(ctx context.Context, dataSourceID string) context.Context
+	// OnFinished is called after the fetch has been executed and the response has been processed and merged
+	OnFinished(ctx context.Context, statusCode int, dataSourceID string, err error)
+}
+
+func IsIntrospectionDataSource(dataSourceID string) bool {
+	return dataSourceID == IntrospectionSchemaTypeDataSourceID || dataSourceID == IntrospectionTypeFieldsDataSourceID || dataSourceID == IntrospectionTypeEnumValuesDataSourceID
+}
 
 type Loader struct {
 	data       *astjson.JSON
@@ -184,11 +202,19 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		res := &result{
 			out: pool.BytesBuffer.Get(),
 		}
+
 		err := l.loadSingleFetch(l.ctx.ctx, f, items, res)
 		if err != nil {
 			return err
 		}
-		return l.mergeResult(res, items)
+		err = l.mergeResult(res, items)
+		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
+		}
+		if err != nil {
+			return err
+		}
+		return nil
 	case *SerialFetch:
 		if l.ctx.TracingOptions.Enable {
 			f.Trace = &DataSourceLoadTrace{
@@ -224,12 +250,18 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			if results[i].nestedMergeItems != nil {
 				for j := range results[i].nestedMergeItems {
 					err = l.mergeResult(results[i].nestedMergeItems[j], items[j:j+1])
+					if l.ctx.LoaderHooks != nil && results[i].nestedMergeItems[j].loaderHookContext != nil {
+						l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loaderHookContext, results[i].nestedMergeItems[j].statusCode, results[i].nestedMergeItems[j].subgraphName, goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors))
+					}
 					if err != nil {
 						return errors.WithStack(err)
 					}
 				}
 			} else {
 				err = l.mergeResult(results[i], items)
+				if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
+					l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
+				}
 				if err != nil {
 					return errors.WithStack(err)
 				}
@@ -258,6 +290,9 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		for i := range results {
 			err = l.mergeResult(results[i], items[i:i+1])
+			if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
+				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
+			}
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -270,7 +305,11 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		return l.mergeResult(res, items)
+		err = l.mergeResult(res, items)
+		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
+		}
+		return err
 	case *BatchEntityFetch:
 		res := &result{
 			out: pool.BytesBuffer.Get(),
@@ -279,7 +318,11 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		return l.mergeResult(res, items)
+		err = l.mergeResult(res, items)
+		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
+		}
+		return err
 	}
 	return nil
 }
@@ -375,11 +418,16 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 	if err != nil {
 		return l.renderErrorsFailedToFetch(res, failedToFetchInvalidJSON)
 	}
+
+	// error handling
 	if res.postProcessing.SelectResponseErrorsPath != nil {
+		// look for errors in the response and merge them into the errors array
 		ref := l.data.Get(node, res.postProcessing.SelectResponseErrorsPath)
-		err = l.mergeErrors(res, ref)
-		if err != nil {
-			return errors.WithStack(err)
+		if ref != -1 {
+			err = l.mergeErrors(res, ref)
+			if err != nil {
+				return errors.WithStack(err)
+			}
 		}
 	}
 	if res.postProcessing.SelectResponseDataPath != nil {
@@ -490,6 +538,10 @@ type result struct {
 
 	rateLimitRejected       bool
 	rateLimitRejectedReason string
+
+	// loaderHookContext used to share data between the OnLoad and OnFinished hooks
+	// Only set when the OnLoad is called
+	loaderHookContext context.Context
 }
 
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
@@ -519,9 +571,6 @@ func (l *Loader) renderErrorsInvalidInput(out *bytes.Buffer) error {
 }
 
 func (l *Loader) mergeErrors(res *result, ref int) error {
-	if ref == -1 {
-		return nil
-	}
 	if l.errorsRoot == -1 {
 		l.data.Nodes = append(l.data.Nodes, astjson.Node{
 			Kind: astjson.NodeKindArray,
@@ -529,7 +578,6 @@ func (l *Loader) mergeErrors(res *result, ref int) error {
 		l.errorsRoot = len(l.data.Nodes) - 1
 	}
 	path := l.renderPath()
-	l.ctx.appendSubgraphError(fmt.Errorf("subgraph '%s' at path '%s' returned errors", res.subgraphName, path))
 	errorObject, err := l.data.AppendObject([]byte(l.renderSubgraphBaseError(res.subgraphName, path, failedToFetchNoReason)))
 	if err != nil {
 		return errors.WithStack(err)
@@ -538,6 +586,35 @@ func (l *Loader) mergeErrors(res *result, ref int) error {
 		l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
 		return nil
 	}
+
+	responseErrorsBuf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(responseErrorsBuf)
+
+	// print them into the buffer to be able to parse them
+	err = l.data.PrintNode(l.data.Nodes[ref], responseErrorsBuf)
+	if err != nil {
+		return err
+	}
+
+	// Serialize subgraph errors from the response
+	// and apped them to the subgraph downsteam errors
+	if len(l.data.Nodes[ref].ArrayValues) > 0 {
+		graphqlErrors := make([]GraphQLError, 0, len(l.data.Nodes[ref].ArrayValues))
+		err = json.Unmarshal(responseErrorsBuf.Bytes(), &graphqlErrors)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		subgraphError := NewSubgraphError(res.subgraphName, path, failedToFetchNoReason, res.statusCode)
+
+		for _, gqlError := range graphqlErrors {
+			gErr := gqlError
+			subgraphError.AppendDownstreamError(&gErr)
+		}
+
+		l.ctx.appendSubgraphError(goerrors.Join(res.err, subgraphError))
+	}
+
 	extensions := l.data.Get(errorObject, []string{"extensions"})
 	if extensions == -1 {
 		extensions, _ = l.data.AppendObject([]byte(`{}`))
@@ -546,6 +623,7 @@ func (l *Loader) mergeErrors(res *result, ref int) error {
 	_ = l.data.SetObjectField(extensions, ref, "errors")
 	l.setSubgraphStatusCode(errorObject, res.statusCode)
 	l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+
 	return nil
 }
 
@@ -570,13 +648,13 @@ func (l *Loader) setSubgraphStatusCode(errorObjectRef, statusCode int) {
 
 const (
 	failedToFetchNoReason      = ""
-	failedToFetchEmptyResponse = ", empty response"
-	failedToFetchInvalidJSON   = ", invalid JSON"
+	failedToFetchEmptyResponse = "empty response"
+	failedToFetchInvalidJSON   = "invalid JSON"
 )
 
 func (l *Loader) renderErrorsFailedToFetch(res *result, reason string) error {
 	path := l.renderPath()
-	l.ctx.appendSubgraphError(errors.Wrap(res.err, fmt.Sprintf("failed to fetch from subgraph '%s' at path '%s'", res.subgraphName, path)))
+	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.subgraphName, path, reason, res.statusCode)))
 	errorObject, err := l.data.AppendObject([]byte(l.renderSubgraphBaseError(res.subgraphName, path, reason)))
 	if err != nil {
 		return errors.WithStack(err)
@@ -587,28 +665,33 @@ func (l *Loader) renderErrorsFailedToFetch(res *result, reason string) error {
 }
 
 func (l *Loader) renderSubgraphBaseError(subgraphName, path, reason string) string {
-	subgraph := " "
-	if subgraphName != "" {
-		subgraph = fmt.Sprintf(" '%s' ", subgraphName)
+	if subgraphName == "" {
+		if reason == "" {
+			return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph at Path '%s'."}`, path)
+		}
+		return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph at Path '%s', Reason: %s."}`, path, reason)
 	}
-	return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph%sat path '%s'%s."}`, subgraph, path, reason)
+	if reason == "" {
+		return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph '%s' at Path '%s'."}`, subgraphName, path)
+	}
+	return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph '%s' at Path '%s', Reason: %s."}`, subgraphName, path, reason)
 }
 
 func (l *Loader) renderAuthorizationRejectedErrors(res *result) error {
 	path := l.renderPath()
 	for i := range res.authorizationRejectedReasons {
-		l.ctx.appendSubgraphError(errors.Wrap(res.err, fmt.Sprintf("Authorization rejected for subgraph '%s' at path '%s'. Reason: %s", res.subgraphName, path, res.authorizationRejectedReasons[i])))
+		l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.subgraphName, path, res.authorizationRejectedReasons[i], res.statusCode)))
 	}
 	if res.subgraphName == "" {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
-				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized Subgraph request at path '%s'."}`, path)))
+				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized Subgraph request at Path '%s'."}`, path)))
 				if err != nil {
 					return errors.WithStack(err)
 				}
 				l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
 			} else {
-				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized Subgraph request at path '%s'. Reason: %s"}`, path, reason)))
+				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized Subgraph request at Path '%s', Reason: %s."}`, path, reason)))
 				if err != nil {
 					return errors.WithStack(err)
 				}
@@ -618,13 +701,13 @@ func (l *Loader) renderAuthorizationRejectedErrors(res *result) error {
 	} else {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
-				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s' at path '%s'."}`, res.subgraphName, path)))
+				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s' at Path '%s'."}`, res.subgraphName, path)))
 				if err != nil {
 					return errors.WithStack(err)
 				}
 				l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
 			} else {
-				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s' at path '%s'. Reason: %s"}`, res.subgraphName, path, reason)))
+				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s' at Path '%s', Reason: %s."}`, res.subgraphName, path, reason)))
 				if err != nil {
 					return errors.WithStack(err)
 				}
@@ -637,16 +720,17 @@ func (l *Loader) renderAuthorizationRejectedErrors(res *result) error {
 
 func (l *Loader) renderRateLimitRejectedErrors(res *result) error {
 	path := l.renderPath()
-	l.ctx.appendSubgraphError(errors.Wrap(res.err, fmt.Sprintf("Rate limit rejected for subgraph '%s' at path '%s'. Reason: %s", res.subgraphName, path, res.rateLimitRejectedReason)))
+	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewRateLimitError(res.subgraphName, path, res.rateLimitRejectedReason)))
+
 	if res.subgraphName == "" {
 		if res.rateLimitRejectedReason == "" {
-			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request at path '%s'."}`, path)))
+			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request at Path '%s'."}`, path)))
 			if err != nil {
 				return errors.WithStack(err)
 			}
 			l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
 		} else {
-			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request at path '%s'. Reason: %s"}`, path, res.rateLimitRejectedReason)))
+			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request at Path '%s', Reason: %s."}`, path, res.rateLimitRejectedReason)))
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -654,13 +738,13 @@ func (l *Loader) renderRateLimitRejectedErrors(res *result) error {
 		}
 	} else {
 		if res.rateLimitRejectedReason == "" {
-			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s' at path '%s'."}`, res.subgraphName, path)))
+			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s' at Path '%s'."}`, res.subgraphName, path)))
 			if err != nil {
 				return errors.WithStack(err)
 			}
 			l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
 		} else {
-			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s' at path '%s'. Reason: %s"}`, res.subgraphName, path, res.rateLimitRejectedReason)))
+			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s' at Path '%s', Reason: %s."}`, res.subgraphName, path, res.rateLimitRejectedReason)))
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -695,6 +779,7 @@ func (l *Loader) isFetchAuthorized(input []byte, info *FetchInfo, res *result) (
 		}
 		if reject != nil {
 			authorized = false
+			res.fetchSkipped = true
 			res.authorizationRejected = true
 			res.authorizationRejectedReasons = append(res.authorizationRejectedReasons, reject.Reason)
 		}
@@ -715,6 +800,7 @@ func (l *Loader) rateLimitFetch(input []byte, info *FetchInfo, res *result) (all
 	}
 	if result != nil {
 		res.rateLimitRejected = true
+		res.fetchSkipped = true
 		res.rateLimitRejectedReason = result.Reason
 		return false, nil
 	}
@@ -1147,8 +1233,14 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 	}
 	var responseContext *httpclient.ResponseContext
 	ctx, responseContext = httpclient.InjectResponseContext(ctx)
+
+	if l.ctx.LoaderHooks != nil {
+		res.loaderHookContext = l.ctx.LoaderHooks.OnLoad(ctx, res.subgraphName)
+	}
+
 	res.err = source.Load(ctx, input, res.out)
 	res.statusCode = responseContext.StatusCode
+
 	if l.ctx.TracingOptions.Enable {
 		stats := GetSingleFlightStats(ctx)
 		if stats != nil {
