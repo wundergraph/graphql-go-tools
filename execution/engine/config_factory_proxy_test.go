@@ -122,7 +122,7 @@ func TestProxyEngineConfigFactory_EngineConfiguration(t *testing.T) {
 				},
 				SchemaConfiguration: mustSchemaConfig(t,
 					nil,
-					graphqlGeneratorSchema,
+					graphqlGeneratorFullSchema,
 				),
 			}),
 		)
@@ -202,7 +202,7 @@ func TestProxyEngineConfigFactory_EngineConfiguration(t *testing.T) {
 				},
 				SchemaConfiguration: mustSchemaConfig(t,
 					nil,
-					graphqlGeneratorSchema,
+					graphqlGeneratorFullSchema,
 				),
 			}),
 		)
@@ -282,7 +282,7 @@ func TestProxyEngineConfigFactory_EngineConfiguration(t *testing.T) {
 				},
 				SchemaConfiguration: mustSchemaConfig(t,
 					nil,
-					graphqlGeneratorSchema,
+					graphqlGeneratorFullSchema,
 				),
 			}),
 		)
