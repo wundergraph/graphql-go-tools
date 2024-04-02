@@ -1236,9 +1236,18 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 
 	if l.ctx.LoaderHooks != nil {
 		res.loaderHookContext = l.ctx.LoaderHooks.OnLoad(ctx, res.subgraphName)
+
+		// Prevent that the context is destroyed when the loader hook return an empty context
+		if res.loaderHookContext != nil {
+			res.err = source.Load(res.loaderHookContext, input, res.out)
+		} else {
+			res.err = source.Load(ctx, input, res.out)
+		}
+
+	} else {
+		res.err = source.Load(ctx, input, res.out)
 	}
 
-	res.err = source.Load(ctx, input, res.out)
 	res.statusCode = responseContext.StatusCode
 
 	if l.ctx.TracingOptions.Enable {
