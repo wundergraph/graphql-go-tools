@@ -9,7 +9,7 @@ import (
 )
 
 func TestExtensions(t *testing.T) {
-	t.Run("authorization", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("authorization", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			return &AuthorizationDeny{Reason: "test"}, nil
@@ -19,11 +19,11 @@ func TestExtensions(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
+		return res, &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
 			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query', Reason: test."}],"data":null}`,
 			func(t *testing.T) {}
 	}))
-	t.Run("authorization deny & rate limit deny", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("authorization deny & rate limit deny", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			return &AuthorizationDeny{Reason: "test"}, nil
@@ -44,11 +44,11 @@ func TestExtensions(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}},
+		return res, &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}},
 			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query', Reason: test."}],"data":null,"extensions":{"authorization":{"missingScopes":[["read:users"]]},"rateLimit":{"Policy":"policy","Allowed":0,"Used":0}}}`,
 			func(t *testing.T) {}
 	}))
-	t.Run("authorization deny & rate limit", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("authorization deny & rate limit", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			return &AuthorizationDeny{Reason: "test"}, nil
@@ -69,11 +69,11 @@ func TestExtensions(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}},
+		return res, &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}},
 			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query', Reason: test."}],"data":null,"extensions":{"authorization":{"missingScopes":[["read:users"]]},"rateLimit":{"Policy":"policy","Allowed":0,"Used":0}}}`,
 			func(t *testing.T) {}
 	}))
-	t.Run("authorization & rate limit deny", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("authorization & rate limit deny", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			return nil, nil
@@ -91,11 +91,11 @@ func TestExtensions(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}},
+		return res, &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}},
 			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'users' at Path 'query', Reason: rate limit exceeded."}],"data":null,"extensions":{"rateLimit":{"Policy":"policy","Allowed":0,"Used":1}}}`,
 			func(t *testing.T) {}
 	}))
-	t.Run("authorization & rate limit & trace", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("authorization & rate limit & trace", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			return &AuthorizationDeny{Reason: "test"}, nil
@@ -116,7 +116,7 @@ func TestExtensions(t *testing.T) {
 
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
-		ctx = Context{ctx: context.Background(), Variables: nil, authorizer: authorizer, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}, TracingOptions: TraceOptions{Enable: true, IncludeTraceOutputInResponseExtensions: true, EnablePredictableDebugTimings: true, Debug: true}}
+		ctx = &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true, IncludeStatsInResponseExtension: true}, TracingOptions: TraceOptions{Enable: true, IncludeTraceOutputInResponseExtensions: true, EnablePredictableDebugTimings: true, Debug: true}}
 		ctx.ctx = SetTraceStart(ctx.ctx, true)
 
 		return res, ctx,

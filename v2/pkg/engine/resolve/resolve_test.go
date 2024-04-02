@@ -1504,7 +1504,7 @@ func testFnNoSubgraphErrorForwarding(fn func(t *testing.T, ctrl *gomock.Controll
 	}
 }
 
-func testFnWithPostEvaluation(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T))) func(t *testing.T) {
+func testFnWithPostEvaluation(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T))) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 
@@ -1519,7 +1519,7 @@ func testFnWithPostEvaluation(fn func(t *testing.T, ctrl *gomock.Controller) (no
 		}
 
 		buf := &bytes.Buffer{}
-		err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
+		err := r.ResolveGraphQLResponse(ctx, node, nil, buf)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedOutput, buf.String())
 		ctrl.Finish()

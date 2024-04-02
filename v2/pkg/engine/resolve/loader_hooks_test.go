@@ -44,7 +44,7 @@ func (f *TestLoaderHooks) OnFinished(ctx context.Context, statusCode int, dataSo
 
 func TestLoaderHooks_FetchPipeline(t *testing.T) {
 
-	t.Run("fetch with simple subgraph error", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("simple fetch with simple subgraph error", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -81,6 +81,67 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 						},
 					},
 				},
+			}, &resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'.","extensions":{"errors":[{"message":"errorMessage"}]}}],"data":{"name":null}}`,
+			func(t *testing.T) {
+				loaderHooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
+
+				assert.Equal(t, int64(1), loaderHooks.preFetchCalls.Load())
+				assert.Equal(t, int64(1), loaderHooks.postFetchCalls.Load())
+
+				var subgraphError *SubgraphError
+				assert.Len(t, loaderHooks.errors, 1)
+				assert.ErrorAs(t, loaderHooks.errors[0], &subgraphError)
+				assert.Equal(t, "Users", subgraphError.SubgraphName)
+				assert.Equal(t, "query", subgraphError.Path)
+				assert.Equal(t, "", subgraphError.Reason)
+				assert.Equal(t, 0, subgraphError.ResponseCode)
+				assert.Len(t, subgraphError.DownstreamErrors, 1)
+				assert.Equal(t, "errorMessage", subgraphError.DownstreamErrors[0].Message)
+				assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions)
+			}
+	}))
+
+	t.Run("parallel fetch with simple subgraph error", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				pair := NewBufPair()
+				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
+				return writeGraphqlResponse(pair, w, false)
+			})
+		resolveCtx := &Context{
+			ctx:         context.Background(),
+			LoaderHooks: NewTestLoaderHooks(),
+		}
+		return &GraphQLResponse{
+				Data: &Object{
+					Nullable: false,
+					Fetch: &ParallelFetch{
+						Fetches: []Fetch{
+							&SingleFetch{
+								FetchConfiguration: FetchConfiguration{
+									DataSource: mockDataSource,
+									PostProcessing: PostProcessingConfiguration{
+										SelectResponseErrorsPath: []string{"errors"},
+									},
+								},
+								Info: &FetchInfo{
+									DataSourceID: "Users",
+								},
+							},
+						},
+					},
+					Fields: []*Field{
+						{
+							Name: []byte("name"),
+							Value: &String{
+								Path:     []string{"name"},
+								Nullable: true,
+							},
+						},
+					},
+				},
 			}, resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'.","extensions":{"errors":[{"message":"errorMessage"}]}}],"data":{"name":null}}`,
 			func(t *testing.T) {
 				loaderHooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
@@ -101,7 +162,66 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			}
 	}))
 
-	t.Run("fetch with subgraph error and custom extension code", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+	t.Run("parallel list item fetch with simple subgraph error", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				pair := NewBufPair()
+				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
+				return writeGraphqlResponse(pair, w, false)
+			})
+		resolveCtx := Context{
+			ctx:         context.Background(),
+			LoaderHooks: NewTestLoaderHooks(),
+		}
+		return &GraphQLResponse{
+				Data: &Object{
+					Nullable: false,
+					Fetch: &ParallelListItemFetch{
+						Fetch: &SingleFetch{
+							FetchConfiguration: FetchConfiguration{
+								DataSource: mockDataSource,
+								PostProcessing: PostProcessingConfiguration{
+									SelectResponseErrorsPath: []string{"errors"},
+								},
+							},
+							Info: &FetchInfo{
+								DataSourceID: "Users",
+							},
+						},
+					},
+					Fields: []*Field{
+						{
+							Name: []byte("name"),
+							Value: &String{
+								Path:     []string{"name"},
+								Nullable: true,
+							},
+						},
+					},
+				},
+			}, &resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'.","extensions":{"errors":[{"message":"errorMessage"}]}}],"data":{"name":null}}`,
+			func(t *testing.T) {
+				loaderHooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
+
+				assert.Equal(t, int64(1), loaderHooks.preFetchCalls.Load())
+				assert.Equal(t, int64(1), loaderHooks.postFetchCalls.Load())
+
+				var subgraphError *SubgraphError
+				assert.Len(t, loaderHooks.errors, 1)
+				assert.ErrorAs(t, loaderHooks.errors[0], &subgraphError)
+				assert.Equal(t, "Users", subgraphError.SubgraphName)
+				assert.Equal(t, "query", subgraphError.Path)
+				assert.Equal(t, "", subgraphError.Reason)
+				assert.Equal(t, 0, subgraphError.ResponseCode)
+				assert.Len(t, subgraphError.DownstreamErrors, 1)
+				assert.Equal(t, "errorMessage", subgraphError.DownstreamErrors[0].Message)
+				assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions)
+			}
+	}))
+
+	t.Run("fetch with subgraph error and custom extension code", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -139,7 +259,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 						},
 					},
 				},
-			}, resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'.","extensions":{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}]}}],"data":{"name":null}}`,
+			}, &resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'.","extensions":{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}]}}],"data":{"name":null}}`,
 			func(t *testing.T) {
 				loaderHooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
 
