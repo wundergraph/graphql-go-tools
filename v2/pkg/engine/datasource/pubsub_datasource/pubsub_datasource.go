@@ -369,7 +369,12 @@ func (p *Planner[T]) eventDataBytes(ref int) ([]byte, error) {
 		}
 		argValue := p.visitor.Operation.ArgumentValue(arg)
 		variableName := p.visitor.Operation.VariableValueNameBytes(argValue.Ref)
-		renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(p.visitor.Operation, p.visitor.Definition, argValue.Ref, string(variableName))
+		variableDefinition, ok := p.visitor.Operation.VariableDefinitionByNameAndOperation(p.visitor.Walker.Ancestors[0].Ref, variableName)
+		if !ok {
+			return nil, fmt.Errorf("expected definition to exist for variable \"%s\"", variableName)
+		}
+		variableTypeRef := p.visitor.Operation.VariableDefinitions[variableDefinition].Type
+		renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(p.visitor.Operation, p.visitor.Definition, variableTypeRef, string(variableName))
 		contextVariable := &resolve.ContextVariable{
 			Path:     []string{string(variableName)},
 			Renderer: renderer,
