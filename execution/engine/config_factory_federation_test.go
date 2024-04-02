@@ -9,8 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 )
@@ -27,13 +25,6 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 		baseSchema string,
 		expectedConfigFactory func(t *testing.T, baseSchema string) Configuration,
 	) {
-		doc, report := astparser.ParseGraphqlDocumentString(baseSchema)
-		if report.HasErrors() {
-			require.Fail(t, report.Error())
-		}
-		printedBaseSchema, err := astprinter.PrintString(&doc, nil)
-		require.NoError(t, err)
-
 		engineConfigFactory := NewFederationEngineConfigFactory(
 			engineCtx,
 			subgraphs,
@@ -43,7 +34,9 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 		)
 		config, err := engineConfigFactory.BuildEngineConfiguration()
 		assert.NoError(t, err)
-		assert.Equal(t, expectedConfigFactory(t, printedBaseSchema), config)
+
+		expectedConfig := expectedConfigFactory(t, baseSchema)
+		assert.Equal(t, expectedConfig, config)
 	}
 
 	httpClient := &http.Client{}
@@ -89,7 +82,7 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 
 			conf.SetDataSources([]plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
-					"users",
+					"0",
 					gqlFactory,
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
@@ -102,15 +95,25 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 								FieldNames: []string{"id", "username"},
 							},
 						},
-						ChildNodes: []plan.TypeField{
-							{
-								TypeName:   "User",
-								FieldNames: []string{"id", "username"},
+						ChildNodes: []plan.TypeField{},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
 							},
+							Requires: []plan.FederationFieldConfiguration{},
+							Provides: []plan.FederationFieldConfiguration{},
 						},
+						Directives: plan.NewDirectiveConfigurations([]plan.DirectiveConfiguration{}),
 					},
 					mustConfiguration(t, graphqlDataSource.ConfigurationInput{
 						Fetch: &graphqlDataSource.FetchConfiguration{
+							URL:    "http://user.service",
+							Header: make(http.Header),
+						},
+						Subscription: &graphqlDataSource.SubscriptionConfiguration{
 							URL: "http://user.service",
 						},
 						SchemaConfiguration: mustSchemaConfig(
@@ -119,12 +122,13 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 								Enabled:    true,
 								ServiceSDL: accountSchema,
 							},
-							accountSchema,
+							accountUpstreamSchema,
 						),
+						CustomScalarTypeFields: []graphqlDataSource.SingleTypeField{},
 					}),
 				),
 				mustGraphqlDataSourceConfiguration(t,
-					"products",
+					"1",
 					gqlFactory,
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
@@ -137,15 +141,25 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 								FieldNames: []string{"upc", "name", "price"},
 							},
 						},
-						ChildNodes: []plan.TypeField{
-							{
-								TypeName:   "Product",
-								FieldNames: []string{"upc", "name", "price"},
+						ChildNodes: []plan.TypeField{},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "Product",
+									SelectionSet: "upc",
+								},
 							},
+							Requires: []plan.FederationFieldConfiguration{},
+							Provides: []plan.FederationFieldConfiguration{},
 						},
+						Directives: plan.NewDirectiveConfigurations([]plan.DirectiveConfiguration{}),
 					},
 					mustConfiguration(t, graphqlDataSource.ConfigurationInput{
 						Fetch: &graphqlDataSource.FetchConfiguration{
+							URL:    "http://product.service",
+							Header: make(http.Header),
+						},
+						Subscription: &graphqlDataSource.SubscriptionConfiguration{
 							URL: "http://product.service",
 						},
 						SchemaConfiguration: mustSchemaConfig(
@@ -154,22 +168,23 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 								Enabled:    true,
 								ServiceSDL: productSchema,
 							},
-							productSchema,
+							productUpstreamSchema,
 						),
+						CustomScalarTypeFields: []graphqlDataSource.SingleTypeField{},
 					}),
 				),
 				mustGraphqlDataSourceConfiguration(t,
-					"reviews",
+					"2",
 					gqlFactory,
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
 							{
 								TypeName:   "User",
-								FieldNames: []string{"reviews"},
+								FieldNames: []string{"reviews", "id"},
 							},
 							{
 								TypeName:   "Product",
-								FieldNames: []string{"reviews"},
+								FieldNames: []string{"reviews", "upc"},
 							},
 						},
 						ChildNodes: []plan.TypeField{
@@ -177,22 +192,36 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 								TypeName:   "Review",
 								FieldNames: []string{"body", "author", "product"},
 							},
-							{
-								TypeName:   "Product",
-								FieldNames: []string{"reviews", "upc"},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+								{
+									TypeName:     "Product",
+									SelectionSet: "upc",
+								},
 							},
-							{
-								TypeName:   "User",
-								FieldNames: []string{"reviews", "id", "username"},
+							Requires: []plan.FederationFieldConfiguration{},
+							Provides: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "Review",
+									FieldName:    "author",
+									SelectionSet: "username",
+								},
 							},
 						},
+						Directives: plan.NewDirectiveConfigurations([]plan.DirectiveConfiguration{}),
 					},
 					mustConfiguration(t, graphqlDataSource.ConfigurationInput{
 						Fetch: &graphqlDataSource.FetchConfiguration{
-							URL: "http://review.service",
+							URL:    "http://review.service",
+							Header: make(http.Header),
 						},
 						Subscription: &graphqlDataSource.SubscriptionConfiguration{
-							UseSSE: true,
+							URL: "http://review.service",
 						},
 						SchemaConfiguration: mustSchemaConfig(
 							t,
@@ -200,8 +229,9 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 								Enabled:    true,
 								ServiceSDL: reviewSchema,
 							},
-							reviewSchema,
+							reviewUpstreamSchema,
 						),
+						CustomScalarTypeFields: []graphqlDataSource.SingleTypeField{},
 					}),
 				),
 			})
@@ -224,11 +254,11 @@ const (
   query: Query
 }
 
-directive @eventsPublish(sourceID: String, topic: String!) on FIELD_DEFINITION
+directive @eventsPublish(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
 
-directive @eventsRequest(sourceID: String, topic: String!) on FIELD_DEFINITION
+directive @eventsRequest(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
 
-directive @eventsSubscribe(sourceID: String, topic: String!) on FIELD_DEFINITION
+directive @eventsSubscribe(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
 
 directive @extends on INTERFACE | OBJECT
 
@@ -266,11 +296,11 @@ scalar openfed__FieldSet`
   query: Query
 }
 
-directive @eventsPublish(sourceID: String, topic: String!) on FIELD_DEFINITION
+directive @eventsPublish(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
 
-directive @eventsRequest(sourceID: String, topic: String!) on FIELD_DEFINITION
+directive @eventsRequest(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
 
-directive @eventsSubscribe(sourceID: String, topic: String!) on FIELD_DEFINITION
+directive @eventsSubscribe(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
 
 directive @extends on INTERFACE | OBJECT
 
@@ -312,11 +342,11 @@ scalar openfed__FieldSet`
 			reviews: [Review] 
 		}`
 
-	reviewUpstreamSchema = `directive @eventsPublish(sourceID: String, topic: String!) on FIELD_DEFINITION
+	reviewUpstreamSchema = `directive @eventsPublish(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
 
-directive @eventsRequest(sourceID: String, topic: String!) on FIELD_DEFINITION
+directive @eventsRequest(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
 
-directive @eventsSubscribe(sourceID: String, topic: String!) on FIELD_DEFINITION
+directive @eventsSubscribe(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
 
 directive @extends on INTERFACE | OBJECT
 
@@ -349,26 +379,29 @@ type User @key(fields: "id") {
 
 scalar openfed__FieldSet`
 
-	baseFederationSchema = `
-	type Query {
-		me: User
-		topProducts(first: Int = 5): [Product]
-	}
-	type User {
-		id: ID!
-		username: String!
-		reviews: [Review]
-	}
-	type Product {
-		upc: String!
-		name: String!
-		price: Int!
-		reviews: [Review]
-	}
-	type Review {
-		body: String!
-		author: User!
-		product: Product!
-	}
-`
+	baseFederationSchema = `directive @tag(name: String!) repeatable on ARGUMENT_DEFINITION | ENUM | ENUM_VALUE | FIELD_DEFINITION | INPUT_FIELD_DEFINITION | INPUT_OBJECT | INTERFACE | OBJECT | SCALAR | UNION
+
+type User {
+  id: ID!
+  username: String!
+  reviews: [Review]
+}
+
+type Product {
+  upc: String!
+  name: String!
+  price: Int!
+  reviews: [Review]
+}
+
+type Review {
+  body: String!
+  author: User!
+  product: Product!
+}
+
+type Query {
+  me: User
+  topProducts(first: Int = 5): [Product]
+}`
 )
