@@ -37,18 +37,18 @@ type Video {
 
 union Attachment = Question | Rating | Video
 
-extend type User @key(fields: "id") {
+type User @key(fields: "id") {
     id: ID! @external
     username: String! @external
     reviews: [Review]
     realName: String!
 }
 
-extend type Product @key(fields: "upc") {
+type Product @key(fields: "upc") {
     upc: String! @external
     reviews: [Review]
 }
 
-extend type Mutation {
+type Mutation {
     addReview(authorID: String! upc: String!, review: String!): Review!
 }

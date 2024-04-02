@@ -1,4 +1,4 @@
-extend type Query {
+type Query {
     me: User
     identifiable: Identifiable
     histories: [History]
@@ -20,7 +20,7 @@ type User implements Identifiable @key(fields: "id")  {
     realName: String!
 }
 
-extend type Product @key(fields: "upc") {
+type Product @key(fields: "upc") {
     upc: String! @external
 }
 

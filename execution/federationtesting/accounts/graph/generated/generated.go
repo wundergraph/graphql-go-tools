@@ -371,7 +371,7 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 }
 
 var sources = []*ast.Source{
-	{Name: "../schema.graphqls", Input: `extend type Query {
+	{Name: "../schema.graphqls", Input: `type Query {
     me: User
     identifiable: Identifiable
     histories: [History]
@@ -393,7 +393,7 @@ type User implements Identifiable @key(fields: "id")  {
     realName: String!
 }
 
-extend type Product @key(fields: "upc") {
+type Product @key(fields: "upc") {
     upc: String! @external
 }
 
@@ -434,7 +434,8 @@ type WalletType2 implements Wallet {
     currency: String!
     amount: Float!
     specialField2: String!
-}`, BuiltIn: false},
+}
+`, BuiltIn: false},
 	{Name: "../../federation/directives.graphql", Input: `
 	scalar _Any
 	scalar _FieldSet
@@ -627,7 +628,7 @@ func (ec *executionContext) _Entity_findUserByID(ctx context.Context, field grap
 	}
 	res := resTmp.(*model.User)
 	fc.Result = res
-	return ec.marshalNUser2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
+	return ec.marshalNUser2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Entity_findUserByID(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -736,7 +737,7 @@ func (ec *executionContext) _Purchase_product(ctx context.Context, field graphql
 	}
 	res := resTmp.(*model.Product)
 	fc.Result = res
-	return ec.marshalNProduct2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐProduct(ctx, field.Selections, res)
+	return ec.marshalNProduct2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐProduct(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Purchase_product(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -781,7 +782,7 @@ func (ec *executionContext) _Purchase_wallet(ctx context.Context, field graphql.
 	}
 	res := resTmp.(model.Wallet)
 	fc.Result = res
-	return ec.marshalOWallet2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐWallet(ctx, field.Selections, res)
+	return ec.marshalOWallet2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐWallet(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Purchase_wallet(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -866,7 +867,7 @@ func (ec *executionContext) _Query_me(ctx context.Context, field graphql.Collect
 	}
 	res := resTmp.(*model.User)
 	fc.Result = res
-	return ec.marshalOUser2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
+	return ec.marshalOUser2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_me(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -917,7 +918,7 @@ func (ec *executionContext) _Query_identifiable(ctx context.Context, field graph
 	}
 	res := resTmp.(model.Identifiable)
 	fc.Result = res
-	return ec.marshalOIdentifiable2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐIdentifiable(ctx, field.Selections, res)
+	return ec.marshalOIdentifiable2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐIdentifiable(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_identifiable(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -958,7 +959,7 @@ func (ec *executionContext) _Query_histories(ctx context.Context, field graphql.
 	}
 	res := resTmp.([]model.History)
 	fc.Result = res
-	return ec.marshalOHistory2ᚕgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistory(ctx, field.Selections, res)
+	return ec.marshalOHistory2ᚕgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistory(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_histories(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -999,7 +1000,7 @@ func (ec *executionContext) _Query_cat(ctx context.Context, field graphql.Collec
 	}
 	res := resTmp.(*model.Cat)
 	fc.Result = res
-	return ec.marshalOCat2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐCat(ctx, field.Selections, res)
+	return ec.marshalOCat2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐCat(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_cat(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1279,7 +1280,7 @@ func (ec *executionContext) _Sale_product(ctx context.Context, field graphql.Col
 	}
 	res := resTmp.(*model.Product)
 	fc.Result = res
-	return ec.marshalNProduct2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐProduct(ctx, field.Selections, res)
+	return ec.marshalNProduct2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐProduct(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Sale_product(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1503,7 +1504,7 @@ func (ec *executionContext) _User_history(ctx context.Context, field graphql.Col
 	}
 	res := resTmp.([]model.History)
 	fc.Result = res
-	return ec.marshalNHistory2ᚕgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistoryᚄ(ctx, field.Selections, res)
+	return ec.marshalNHistory2ᚕgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistoryᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_User_history(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -4630,7 +4631,7 @@ func (ec *executionContext) marshalNFloat2float64(ctx context.Context, sel ast.S
 	return graphql.WrapContextMarshaler(ctx, res)
 }
 
-func (ec *executionContext) marshalNHistory2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistory(ctx context.Context, sel ast.SelectionSet, v model.History) graphql.Marshaler {
+func (ec *executionContext) marshalNHistory2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistory(ctx context.Context, sel ast.SelectionSet, v model.History) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -4640,7 +4641,7 @@ func (ec *executionContext) marshalNHistory2githubᚗcomᚋwundergraphᚋgraphql
 	return ec._History(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNHistory2ᚕgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistoryᚄ(ctx context.Context, sel ast.SelectionSet, v []model.History) graphql.Marshaler {
+func (ec *executionContext) marshalNHistory2ᚕgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistoryᚄ(ctx context.Context, sel ast.SelectionSet, v []model.History) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -4664,7 +4665,7 @@ func (ec *executionContext) marshalNHistory2ᚕgithubᚗcomᚋwundergraphᚋgrap
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNHistory2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistory(ctx, sel, v[i])
+			ret[i] = ec.marshalNHistory2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistory(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -4714,7 +4715,7 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
-func (ec *executionContext) marshalNProduct2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐProduct(ctx context.Context, sel ast.SelectionSet, v *model.Product) graphql.Marshaler {
+func (ec *executionContext) marshalNProduct2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐProduct(ctx context.Context, sel ast.SelectionSet, v *model.Product) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -4739,11 +4740,11 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
-func (ec *executionContext) marshalNUser2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v model.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v model.User) graphql.Marshaler {
 	return ec._User(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -5142,21 +5143,21 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) marshalOCat2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐCat(ctx context.Context, sel ast.SelectionSet, v *model.Cat) graphql.Marshaler {
+func (ec *executionContext) marshalOCat2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐCat(ctx context.Context, sel ast.SelectionSet, v *model.Cat) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Cat(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOHistory2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistory(ctx context.Context, sel ast.SelectionSet, v model.History) graphql.Marshaler {
+func (ec *executionContext) marshalOHistory2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistory(ctx context.Context, sel ast.SelectionSet, v model.History) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._History(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOHistory2ᚕgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistory(ctx context.Context, sel ast.SelectionSet, v []model.History) graphql.Marshaler {
+func (ec *executionContext) marshalOHistory2ᚕgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistory(ctx context.Context, sel ast.SelectionSet, v []model.History) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -5183,7 +5184,7 @@ func (ec *executionContext) marshalOHistory2ᚕgithubᚗcomᚋwundergraphᚋgrap
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalOHistory2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistory(ctx, sel, v[i])
+			ret[i] = ec.marshalOHistory2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐHistory(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -5197,7 +5198,7 @@ func (ec *executionContext) marshalOHistory2ᚕgithubᚗcomᚋwundergraphᚋgrap
 	return ret
 }
 
-func (ec *executionContext) marshalOIdentifiable2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐIdentifiable(ctx context.Context, sel ast.SelectionSet, v model.Identifiable) graphql.Marshaler {
+func (ec *executionContext) marshalOIdentifiable2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐIdentifiable(ctx context.Context, sel ast.SelectionSet, v model.Identifiable) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -5230,14 +5231,14 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalOUser2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
+func (ec *executionContext) marshalOUser2ᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._User(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOWallet2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋv2ᚋpkgᚋtestingᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐWallet(ctx context.Context, sel ast.SelectionSet, v model.Wallet) graphql.Marshaler {
+func (ec *executionContext) marshalOWallet2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐWallet(ctx context.Context, sel ast.SelectionSet, v model.Wallet) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
