@@ -375,6 +375,9 @@ func (p *Planner[T]) eventDataBytes(ref int) ([]byte, error) {
 		}
 		variableTypeRef := p.visitor.Operation.VariableDefinitions[variableDefinition].Type
 		renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(p.visitor.Operation, p.visitor.Definition, variableTypeRef, string(variableName))
+		if err != nil {
+			return nil, err
+		}
 		contextVariable := &resolve.ContextVariable{
 			Path:     []string{string(variableName)},
 			Renderer: renderer,
