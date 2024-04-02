@@ -7,7 +7,9 @@ import (
 
 	log "github.com/jensneuse/abstractlogger"
 
+	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 const (
@@ -25,9 +27,26 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	var opts []engine.ExecutionOptions
+
+	if g.enableART {
+		tracingOpts := resolve.TraceOptions{
+			Enable:                                 true,
+			ExcludePlannerStats:                    false,
+			ExcludeRawInputData:                    false,
+			ExcludeInput:                           false,
+			ExcludeOutput:                          false,
+			ExcludeLoadStats:                       false,
+			EnablePredictableDebugTimings:          false,
+			IncludeTraceOutputInResponseExtensions: true,
+		}
+
+		opts = append(opts, engine.WithRequestTraceOptions(tracingOpts))
+	}
+
 	buf := bytes.NewBuffer(make([]byte, 0, 4096))
 	resultWriter := graphql.NewEngineResultWriterFromBuffer(buf)
-	if err = g.engine.Execute(r.Context(), &gqlRequest, &resultWriter); err != nil {
+	if err = g.engine.Execute(r.Context(), &gqlRequest, &resultWriter, opts...); err != nil {
 		g.log.Error("engine.Execute", log.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
