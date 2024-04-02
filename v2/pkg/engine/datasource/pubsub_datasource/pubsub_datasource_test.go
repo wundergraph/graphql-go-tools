@@ -20,7 +20,7 @@ func (t *testPubsub) ID() string {
 	return "test"
 }
 
-func (t *testPubsub) Subscribe(_ context.Context, _ []string, _ resolve.SubscriptionUpdater) error {
+func (t *testPubsub) Subscribe(_ context.Context, _ []string, _ resolve.SubscriptionUpdater, streamConfiguration *StreamConfiguration) error {
 	return errors.New("not implemented")
 }
 func (t *testPubsub) Publish(_ context.Context, _ string, _ []byte) error {
@@ -183,7 +183,7 @@ func TestPubSub(t *testing.T) {
 							Variables: resolve.Variables{
 								&resolve.ContextVariable{
 									Path:     []string{"a"},
-									Renderer: resolve.NewPlainVariableRendererWithValidation("{}"),
+									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 								},
 							},
 							DataSource: &RequestDataSource{
@@ -221,11 +221,11 @@ func TestPubSub(t *testing.T) {
 							Variables: resolve.Variables{
 								&resolve.ContextVariable{
 									Path:     []string{"a"},
-									Renderer: resolve.NewPlainVariableRendererWithValidation("{}"),
+									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 								},
 								&resolve.ContextVariable{
 									Path:     []string{"b"},
-									Renderer: resolve.NewJSONVariableRenderer(),
+									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 								},
 							},
 							DataSource: &PublishDataSource{
@@ -253,7 +253,7 @@ func TestPubSub(t *testing.T) {
 					Variables: resolve.Variables{
 						&resolve.ContextVariable{
 							Path:     []string{"a"},
-							Renderer: resolve.NewPlainVariableRendererWithValidation("{}"),
+							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 						},
 					},
 					Source: &SubscriptionSource{
@@ -290,11 +290,11 @@ func TestPubSub(t *testing.T) {
 					Variables: resolve.Variables{
 						&resolve.ContextVariable{
 							Path:     []string{"a"},
-							Renderer: resolve.NewPlainVariableRendererWithValidation("{}"),
+							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 						},
 						&resolve.ContextVariable{
 							Path:     []string{"b"},
-							Renderer: resolve.NewPlainVariableRendererWithValidation("{}"),
+							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 						},
 					},
 					Source: &SubscriptionSource{

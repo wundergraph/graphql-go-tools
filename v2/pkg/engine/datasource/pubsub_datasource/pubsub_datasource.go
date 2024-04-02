@@ -38,12 +38,18 @@ func EventTypeFromString(s string) (EventType, error) {
 	}
 }
 
+type StreamConfiguration struct {
+	Consumer   string
+	StreamName string
+}
+
 type EventConfiguration struct {
-	FieldName  string    `json:"fieldName"`
-	SourceName string    `json:"sourceName"`
-	Subjects   []string  `json:"subjects"`
-	Type       EventType `json:"type"`
-	TypeName   string    `json:"typeName"`
+	FieldName           string               `json:"fieldName"`
+	SourceName          string               `json:"sourceName"`
+	StreamConfiguration *StreamConfiguration `json:"streamConfiguration"`
+	Subjects            []string             `json:"subjects"`
+	Type                EventType            `json:"type"`
+	TypeName            string               `json:"typeName"`
 }
 
 type Configuration struct {
@@ -103,9 +109,7 @@ func (p *Planner[T]) EnterField(ref int) {
 	}
 
 	switch eventConfig.Type {
-	case EventTypePublish:
-		fallthrough
-	case EventTypeRequest:
+	case EventTypePublish, EventTypeRequest:
 		p.handlePublishAndRequestEvent(ref, eventConfig)
 	case EventTypeSubscribe:
 		p.handleSubscriptionEvent(ref, eventConfig)
@@ -181,8 +185,17 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to marshal event subscription subjects"))
 		return plan.SubscriptionConfiguration{}
 	}
+	var streamConfiguration string
+	if p.subscriptionEventConfiguration.config.StreamConfiguration != nil {
+		object, err := json.Marshal(p.subscriptionEventConfiguration.config.StreamConfiguration)
+		if err != nil {
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to marshal event subscription streamConfiguration"))
+			return plan.SubscriptionConfiguration{}
+		}
+		streamConfiguration = fmt.Sprintf(", \"streamConfiguration\":%s", object)
+	}
 	return plan.SubscriptionConfiguration{
-		Input:     fmt.Sprintf(`{"subjects":%s, "sourceName":"%s"}`, jsonArray, p.subscriptionEventConfiguration.config.SourceName),
+		Input:     fmt.Sprintf(`{"subjects":%s, "sourceName":"%s"%s}`, jsonArray, p.subscriptionEventConfiguration.config.SourceName, streamConfiguration),
 		Variables: p.variables,
 		DataSource: &SubscriptionSource{
 			pubSub: pubsub,
@@ -241,7 +254,7 @@ type PubSub interface {
 	// This is used to uniquely identify a subscription
 	ID() string
 	// Subscribe starts listening on the given subjects and sends the received messages to the given next channel
-	Subscribe(ctx context.Context, subjects []string, updater resolve.SubscriptionUpdater) error
+	Subscribe(ctx context.Context, subjects []string, updater resolve.SubscriptionUpdater, streamConfiguration *StreamConfiguration) error
 	// Publish sends the given data to the given subject
 	Publish(ctx context.Context, subject string, data []byte) error
 	// Request sends a request on the given subject and writes the response to the given writer
@@ -258,16 +271,19 @@ func (s *SubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte,
 	return err
 }
 
+type SubscriptionSourceInput struct {
+	Subjects            []string             `json:"subjects"`
+	SourceName          string               `json:"sourceName"`
+	StreamConfiguration *StreamConfiguration `json:"streamConfiguration"`
+}
+
 func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, updater resolve.SubscriptionUpdater) error {
-	var subjects []string
-	_, err := jsonparser.ArrayEach(input, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-		subjects = append(subjects, string(value))
-	}, "subjects")
-	if err != nil {
+	var subscriptionSourceInput SubscriptionSourceInput
+	if err := json.Unmarshal(input, &subscriptionSourceInput); err != nil {
 		return err
 	}
 
-	return s.pubSub.Subscribe(ctx.Context(), subjects, updater)
+	return s.pubSub.Subscribe(ctx.Context(), subscriptionSourceInput.Subjects, updater, subscriptionSourceInput.StreamConfiguration)
 }
 
 type PublishDataSource struct {
@@ -326,7 +342,7 @@ func (p *Planner[T]) extractEventSubject(ref int, subject string) (string, error
 		return "", fmt.Errorf("expected definition to exist for variable \"%s\"", variableName)
 	}
 	variableTypeRef := p.visitor.Operation.VariableDefinitions[variableDefinition].Type
-	renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(p.visitor.Operation, p.visitor.Operation, variableTypeRef, string(variableName))
+	renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(p.visitor.Operation, p.visitor.Definition, variableTypeRef, string(variableName))
 	if err != nil {
 		return "", err
 	}
@@ -352,8 +368,8 @@ func (p *Planner[T]) eventDataBytes(ref int) ([]byte, error) {
 			dataBuffer.WriteByte(',')
 		}
 		argValue := p.visitor.Operation.ArgumentValue(arg)
-		renderer := resolve.NewJSONVariableRenderer()
 		variableName := p.visitor.Operation.VariableValueNameBytes(argValue.Ref)
+		renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(p.visitor.Operation, p.visitor.Definition, argValue.Ref, string(variableName))
 		contextVariable := &resolve.ContextVariable{
 			Path:     []string{string(variableName)},
 			Renderer: renderer,
