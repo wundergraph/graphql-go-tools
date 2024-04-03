@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"sync"
 	"testing"
 
@@ -17,9 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
-	accounts "github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph"
-	products "github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph"
-	reviews "github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph"
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
@@ -55,7 +51,7 @@ func mustConfiguration(t *testing.T, input graphql_datasource.ConfigurationInput
 func mustFactory(t testing.TB, httpClient *http.Client) plan.PlannerFactory[graphql_datasource.Configuration] {
 	t.Helper()
 
-	factory, err := graphql_datasource.NewFactory(context.Background(), httpClient, &graphql_datasource.SubscriptionClient{})
+	factory, err := graphql_datasource.NewFactory(context.Background(), httpClient, graphql_datasource.NewGraphQLSubscriptionClient(httpClient, httpClient, context.Background()))
 	require.NoError(t, err)
 
 	return factory
@@ -1689,23 +1685,7 @@ func BenchmarkExecutionEngine(b *testing.B) {
 
 }
 
-type federationSetup struct {
-	accountsUpstreamServer *httptest.Server
-	productsUpstreamServer *httptest.Server
-	reviewsUpstreamServer  *httptest.Server
-	pollingUpstreamServer  *httptest.Server
-}
-
-func newFederationSetup() *federationSetup {
-	return &federationSetup{
-		accountsUpstreamServer: httptest.NewServer(accounts.GraphQLEndpointHandler(accounts.TestOptions)),
-		productsUpstreamServer: httptest.NewServer(products.GraphQLEndpointHandler(products.TestOptions)),
-		reviewsUpstreamServer:  httptest.NewServer(reviews.GraphQLEndpointHandler(reviews.TestOptions)),
-		pollingUpstreamServer:  httptest.NewServer(newPollingUpstreamHandler()),
-	}
-}
-
-func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *ExecutionEngine, schema *graphql.Schema, err error) {
+func newFederationEngineStaticConfig(ctx context.Context, setup *federationtesting.FederationSetup) (engine *ExecutionEngine, schema *graphql.Schema, err error) {
 	accountsSDL, err := federationtesting.LoadTestingSubgraphSDL(federationtesting.UpstreamAccounts)
 	if err != nil {
 		return
@@ -1721,7 +1701,13 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 		return
 	}
 
-	graphqlFactory, err := graphql_datasource.NewFactory(ctx, httpclient.DefaultNetHttpClient, &graphql_datasource.SubscriptionClient{})
+	subscriptionClient := graphql_datasource.NewGraphQLSubscriptionClient(
+		httpclient.DefaultNetHttpClient,
+		httpclient.DefaultNetHttpClient,
+		ctx,
+	)
+
+	graphqlFactory, err := graphql_datasource.NewFactory(ctx, httpclient.DefaultNetHttpClient, subscriptionClient)
 	if err != nil {
 		return
 	}
@@ -1739,7 +1725,7 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 
 	accountsConfiguration, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
 		Fetch: &graphql_datasource.FetchConfiguration{
-			URL:    setup.accountsUpstreamServer.URL,
+			URL:    setup.AccountsUpstreamServer.URL,
 			Method: http.MethodPost,
 		},
 		SchemaConfiguration: accountsSchemaConfiguration,
@@ -1836,11 +1822,11 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 
 	productsConfiguration, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
 		Fetch: &graphql_datasource.FetchConfiguration{
-			URL:    setup.productsUpstreamServer.URL,
+			URL:    setup.ProductsUpstreamServer.URL,
 			Method: http.MethodPost,
 		},
 		Subscription: &graphql_datasource.SubscriptionConfiguration{
-			URL: setup.productsUpstreamServer.URL,
+			URL: setup.ProductsUpstreamServer.URL,
 		},
 		SchemaConfiguration: productsSchemaConfiguration,
 	})
@@ -1898,11 +1884,11 @@ func newFederationEngine(ctx context.Context, setup *federationSetup) (engine *E
 
 	reviewsConfiguration, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
 		Fetch: &graphql_datasource.FetchConfiguration{
-			URL:    setup.reviewsUpstreamServer.URL,
+			URL:    setup.ReviewsUpstreamServer.URL,
 			Method: http.MethodPost,
 		},
 		Subscription: &graphql_datasource.SubscriptionConfiguration{
-			URL: setup.reviewsUpstreamServer.URL,
+			URL: setup.ReviewsUpstreamServer.URL,
 		},
 		SchemaConfiguration: reviewsSchemaConfiguration,
 	})

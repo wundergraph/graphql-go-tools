@@ -26,16 +26,13 @@ func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T)
 	runIntegration := func(t *testing.T, secondRun bool) {
 		t.Helper()
 		ctx, cancelFn := context.WithCancel(context.Background())
-		setup := newFederationSetup()
+		setup := federationtesting.NewFederationSetup()
 		t.Cleanup(func() {
 			cancelFn()
-			setup.accountsUpstreamServer.Close()
-			setup.productsUpstreamServer.Close()
-			setup.reviewsUpstreamServer.Close()
-			setup.pollingUpstreamServer.Close()
+			setup.Close()
 		})
 
-		engine, schema, err := newFederationEngine(ctx, setup)
+		engine, schema, err := newFederationEngineStaticConfig(ctx, setup)
 		require.NoError(t, err)
 
 		t.Run("should successfully execute a federation operation", func(t *testing.T) {
@@ -122,45 +119,6 @@ subscription UpdatedPrice {
 				}, time.Second, 10*time.Millisecond, "did not receive expected messages")
 			}
 		})
-
-		/* Uncomment when polling subscriptions are ready:
-
-		t.Run("should successfully subscribe to rest data source", func(t *testing.T) {
-			gqlRequest := &Request{
-				OperationName: "",
-				Variables:     nil,
-				Query:         "subscription Counter { counter }",
-			}
-
-			validationResult, err := gqlRequest.ValidateForSchema(setup.schema)
-			require.NoError(t, err)
-			require.True(t, validationResult.Valid)
-
-			execCtx, execCtxCancelFn := context.WithCancel(context.Background())
-			defer execCtxCancelFn()
-
-			message := make(chan string)
-			resultWriter := NewEngineResultWriter()
-			resultWriter.SetFlushCallback(func(data []byte) {
-				fmt.Println(string(data))
-				message <- string(data)
-			})
-
-			err = setup.engine.Execute(execCtx, gqlRequest, &resultWriter)
-			assert.NoError(t, err)
-
-			if assert.NoError(t, err) {
-				assert.Eventuallyf(t, func() bool {
-					firstMessage := <-message
-					assert.Equal(t, `{"data":{"counter":1}}`, firstMessage)
-					secondMessage := <-message
-					assert.Equal(t, `{"data":{"counter":2}}`, secondMessage)
-					return true
-				}, time.Second, 10*time.Millisecond, "did not receive expected messages")
-			}
-		})
-		*/
-
 	}
 
 	t.Run("federation", func(t *testing.T) {

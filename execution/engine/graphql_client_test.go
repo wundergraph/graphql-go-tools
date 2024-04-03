@@ -1,4 +1,4 @@
-package federationtesting
+package engine_test
 
 import (
 	"bytes"
