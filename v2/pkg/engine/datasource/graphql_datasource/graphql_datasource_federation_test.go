@@ -2841,7 +2841,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 				DisableResolveFieldPositions: true,
 				Debug: plan.DebugConfiguration{
-					PrintPlanningPaths: true,
+					PrintPlanningPaths: false,
 				},
 			}
 
