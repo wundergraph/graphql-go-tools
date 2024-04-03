@@ -350,11 +350,8 @@ func (p *Planner[T]) extractEventSubject(ref int, subject string) (string, error
 		Path:     []string{string(variableName)},
 		Renderer: renderer,
 	}
-	variablePlaceHolder, exists := p.variables.AddVariable(contextVariable) // $$0$$
-	if exists {
-		return "", fmt.Errorf("context variable \"%s\" already exists", variableName)
-	}
-	// We need to replace the template literal with the variable placeholder
+	// reuse the placeholder if it already exists
+	variablePlaceHolder, _ := p.variables.AddVariable(contextVariable) // $$0$$
 	return eventSubjectRegex.ReplaceAllLiteralString(subject, variablePlaceHolder), nil
 }
 
@@ -427,7 +424,7 @@ func (p *Planner[T]) handleSubscriptionEvent(ref int, eventConfiguration *EventC
 	for _, rawSubject := range eventConfiguration.Subjects {
 		extractedSubject, err := p.extractEventSubject(ref, rawSubject)
 		if err != nil {
-			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("could not extract subscriptionevent subjects: %w", err))
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("could not extract subscription event subjects: %w", err))
 			return
 		}
 		extractedSubjects = append(extractedSubjects, extractedSubject)
