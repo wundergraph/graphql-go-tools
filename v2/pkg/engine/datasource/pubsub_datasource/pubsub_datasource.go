@@ -350,7 +350,7 @@ func (p *Planner[T]) extractEventSubject(ref int, subject string) (string, error
 		Path:     []string{string(variableName)},
 		Renderer: renderer,
 	}
-	// reuse the placeholder if it already exists
+	// We need to replace the template literal with the variable placeholder and (reuse if it already exists)
 	variablePlaceHolder, _ := p.variables.AddVariable(contextVariable) // $$0$$
 	return eventSubjectRegex.ReplaceAllLiteralString(subject, variablePlaceHolder), nil
 }
