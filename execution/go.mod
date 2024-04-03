@@ -12,8 +12,9 @@ require (
 	github.com/jensneuse/abstractlogger v0.0.4
 	github.com/stretchr/testify v1.8.4
 	github.com/vektah/gqlparser/v2 v2.5.10
-	github.com/wundergraph/cosmo/composition-go v0.0.0-20240328090455-8aa618e478fe
+	github.com/wundergraph/cosmo/composition-go v0.0.0-20240403213349-643a902c8b4e
 	github.com/wundergraph/cosmo/router v0.0.0-20240328090455-8aa618e478fe
+	github.com/wundergraph/graphql-go-tools v1.67.2
 	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.14
 	go.uber.org/atomic v1.11.0
 	google.golang.org/protobuf v1.32.0
@@ -70,5 +71,3 @@ require (
 // this is a workaround to make sure that the correct version is used
 // as we cannot pin the specific version in go mod
 replace github.com/99designs/gqlgen => github.com/99designs/gqlgen v0.17.22
-
-replace github.com/wundergraph/cosmo/composition-go => ../../cosmo/composition-go
