@@ -73,6 +73,8 @@ func TestWebSocketSubscriptionClientInitIncludeKA_GQLWS(t *testing.T) {
 		WithLogger(logger()),
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
+	handlersClient := client.(graphQLSubscriptionClientHandlers)
+
 	updater := &testSubscriptionUpdater{}
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
@@ -91,9 +93,9 @@ func TestWebSocketSubscriptionClientInitIncludeKA_GQLWS(t *testing.T) {
 	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
 	assertion.Eventuallyf(func() bool {
-		client.handlersMu.Lock()
-		defer client.handlersMu.Unlock()
-		return len(client.handlers) == 0
+		handlersClient.HandlersMu().Lock()
+		defer handlersClient.HandlersMu().Unlock()
+		return len(handlersClient.Handlers()) == 0
 	}, time.Second, time.Millisecond, "client handlers not 0")
 }
 
@@ -137,6 +139,8 @@ func TestWebsocketSubscriptionClient_GQLWS(t *testing.T) {
 		WithLogger(logger()),
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
+	handlersClient := client.(graphQLSubscriptionClientHandlers)
+
 	updater := &testSubscriptionUpdater{}
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
@@ -157,9 +161,9 @@ func TestWebsocketSubscriptionClient_GQLWS(t *testing.T) {
 	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
 	assert.Eventuallyf(t, func() bool {
-		client.handlersMu.Lock()
-		defer client.handlersMu.Unlock()
-		return len(client.handlers) == 0
+		handlersClient.HandlersMu().Lock()
+		defer handlersClient.HandlersMu().Unlock()
+		return len(handlersClient.Handlers()) == 0
 	}, time.Second, time.Millisecond, "client handlers not 0")
 }
 
@@ -310,6 +314,8 @@ func TestWebsocketSubscriptionClient_GQLWS_Upstream_Dies(t *testing.T) {
 		WithLogger(logger()),
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
+	handlersClient := client.(graphQLSubscriptionClientHandlers)
+
 	updater := &testSubscriptionUpdater{}
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
@@ -330,9 +336,9 @@ func TestWebsocketSubscriptionClient_GQLWS_Upstream_Dies(t *testing.T) {
 	serverCancel()
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
-		client.handlersMu.Lock()
-		defer client.handlersMu.Unlock()
-		return len(client.handlers) == 0
+		handlersClient.HandlersMu().Lock()
+		defer handlersClient.HandlersMu().Unlock()
+		return len(handlersClient.Handlers()) == 0
 	}, time.Second, time.Millisecond, "client handlers not 0")
 }
 
@@ -358,6 +364,7 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 			WithLogger(logger()),
 			WithWSSubProtocol(ProtocolGraphQLWS),
 		)
+		handlersClient := client.(graphQLSubscriptionClientHandlers)
 
 		updater := &testSubscriptionUpdater{}
 
@@ -375,7 +382,7 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 		}, updater2)
 		assert.NoError(t, err)
 
-		assert.Len(t, client.handlers, 1)
+		assert.Len(t, handlersClient.Handlers(), 1)
 	})
 
 	const (
@@ -409,6 +416,7 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 					WithLogger(logger()),
 					WithWSSubProtocol(ProtocolGraphQLWS),
 				)
+				handlersClient := client.(graphQLSubscriptionClientHandlers)
 
 				updater := &testSubscriptionUpdater{}
 
@@ -434,7 +442,7 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 				}, updater2)
 				assert.NoError(t, err)
 
-				assert.Len(t, client.handlers, 1)
+				assert.Len(t, handlersClient.Handlers(), 1)
 			})
 		}
 	})
@@ -448,6 +456,7 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 					WithLogger(logger()),
 					WithWSSubProtocol(ProtocolGraphQLWS),
 				)
+				handlersClient := client.(graphQLSubscriptionClientHandlers)
 
 				updater := &testSubscriptionUpdater{}
 
@@ -473,7 +482,7 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 				}, updater2)
 				assert.NoError(t, err)
 
-				assert.Len(t, client.handlers, 2)
+				assert.Len(t, handlersClient.Handlers(), 2)
 			})
 		}
 	})

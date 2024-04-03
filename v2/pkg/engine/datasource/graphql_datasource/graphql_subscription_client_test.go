@@ -217,6 +217,8 @@ func TestWebsocketSubscriptionClientImmediateClientCancel(t *testing.T) {
 		WithLogger(logger()),
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
+	handlersClient := client.(graphQLSubscriptionClientHandlers)
+
 	updater := &testSubscriptionUpdater{}
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
@@ -230,7 +232,7 @@ func TestWebsocketSubscriptionClientImmediateClientCancel(t *testing.T) {
 	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
 	assert.Eventuallyf(t, func() bool {
-		return len(client.handlers) == 0
+		return len(handlersClient.Handlers()) == 0
 	}, time.Second, time.Millisecond, "client handlers not 0")
 }
 
@@ -272,6 +274,8 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 		WithLogger(logger()),
 		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
+	handlersClient := client.(graphQLSubscriptionClientHandlers)
+
 	updater := &testSubscriptionUpdater{}
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
 		URL: server.URL,
@@ -291,8 +295,8 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 		return true
 	}, time.Second, time.Millisecond*10, "server did not close")
 	assert.Eventuallyf(t, func() bool {
-		client.handlersMu.Lock()
-		defer client.handlersMu.Unlock()
-		return len(client.handlers) == 0
+		handlersClient.HandlersMu().Lock()
+		defer handlersClient.HandlersMu().Unlock()
+		return len(handlersClient.Handlers()) == 0
 	}, time.Second, time.Millisecond, "client handlers not 0")
 }

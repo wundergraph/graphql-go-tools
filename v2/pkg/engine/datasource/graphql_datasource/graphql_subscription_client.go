@@ -111,6 +111,19 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 	}
 }
 
+type graphQLSubscriptionClientHandlers interface {
+	Handlers() map[uint64]ConnectionHandler
+	HandlersMu() *sync.Mutex
+}
+
+func (c *subscriptionClient) Handlers() map[uint64]ConnectionHandler {
+	return c.handlers
+}
+
+func (c *subscriptionClient) HandlersMu() *sync.Mutex {
+	return &c.handlersMu
+}
+
 // Subscribe initiates a new GraphQL Subscription with the origin
 // If an existing WS connection with the same ID (Hash) exists, it is being re-used
 // If connection protocol is SSE, a new connection is always created
