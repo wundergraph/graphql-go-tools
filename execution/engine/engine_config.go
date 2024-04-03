@@ -7,7 +7,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -73,7 +73,7 @@ func (e *Configuration) SetWebsocketBeforeStartHook(hook WebsocketBeforeStartHoo
 type dataSourceGeneratorOptions struct {
 	streamingClient           *http.Client
 	subscriptionType          SubscriptionType
-	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
+	subscriptionClientFactory graphql_datasource.GraphQLSubscriptionClientFactory
 }
 
 type DataSourceGeneratorOption func(options *dataSourceGeneratorOptions)
@@ -85,7 +85,7 @@ func WithDataSourceGeneratorSubscriptionConfiguration(streamingClient *http.Clie
 	}
 }
 
-func WithDataSourceGeneratorSubscriptionClientFactory(factory graphqlDataSource.GraphQLSubscriptionClientFactory) DataSourceGeneratorOption {
+func WithDataSourceGeneratorSubscriptionClientFactory(factory graphql_datasource.GraphQLSubscriptionClientFactory) DataSourceGeneratorOption {
 	return func(options *dataSourceGeneratorOptions) {
 		options.subscriptionClientFactory = factory
 	}
@@ -103,14 +103,14 @@ func newGraphQLDataSourceGenerator(engineCtx context.Context, document *ast.Docu
 	}
 }
 
-func (d *graphqlDataSourceGenerator) Generate(dsID string, config graphqlDataSource.Configuration, httpClient *http.Client, options ...DataSourceGeneratorOption) (plan.DataSource, error) {
+func (d *graphqlDataSourceGenerator) Generate(dsID string, config graphql_datasource.Configuration, httpClient *http.Client, options ...DataSourceGeneratorOption) (plan.DataSource, error) {
 	extractor := NewLocalTypeFieldExtractor(d.document)
 	rootNodes, childNodes := extractor.GetAllNodes()
 
 	definedOptions := &dataSourceGeneratorOptions{
 		streamingClient:           &http.Client{Timeout: 0},
 		subscriptionType:          SubscriptionTypeUnknown,
-		subscriptionClientFactory: &graphqlDataSource.DefaultSubscriptionClientFactory{},
+		subscriptionClientFactory: &graphql_datasource.DefaultSubscriptionClientFactory{},
 	}
 
 	for _, option := range options {
@@ -122,7 +122,7 @@ func (d *graphqlDataSourceGenerator) Generate(dsID string, config graphqlDataSou
 		return nil, err
 	}
 
-	factory, err := graphqlDataSource.NewFactory(
+	factory, err := graphql_datasource.NewFactory(
 		d.engineCtx,
 		httpClient,
 		subscriptionClient,
@@ -131,7 +131,7 @@ func (d *graphqlDataSourceGenerator) Generate(dsID string, config graphqlDataSou
 		return nil, err
 	}
 
-	return plan.NewDataSourceConfiguration[graphqlDataSource.Configuration](
+	return plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
 		dsID,
 		factory,
 		&plan.DataSourceMetadata{
@@ -142,15 +142,15 @@ func (d *graphqlDataSourceGenerator) Generate(dsID string, config graphqlDataSou
 	)
 }
 
-func (d *graphqlDataSourceGenerator) generateSubscriptionClient(httpClient *http.Client, definedOptions *dataSourceGeneratorOptions) (*graphqlDataSource.SubscriptionClient, error) {
-	var graphqlSubscriptionClient graphqlDataSource.GraphQLSubscriptionClient
+func (d *graphqlDataSourceGenerator) generateSubscriptionClient(httpClient *http.Client, definedOptions *dataSourceGeneratorOptions) (graphql_datasource.GraphQLSubscriptionClient, error) {
+	var graphqlSubscriptionClient graphql_datasource.GraphQLSubscriptionClient
 	switch definedOptions.subscriptionType {
 	case SubscriptionTypeGraphQLTransportWS:
 		graphqlSubscriptionClient = definedOptions.subscriptionClientFactory.NewSubscriptionClient(
 			httpClient,
 			definedOptions.streamingClient,
 			nil,
-			graphqlDataSource.WithWSSubProtocol(graphqlDataSource.ProtocolGraphQLTWS),
+			graphql_datasource.WithWSSubProtocol(graphql_datasource.ProtocolGraphQLTWS),
 		)
 	default:
 		// for compatibility reasons we fall back to graphql-ws protocol
@@ -158,15 +158,15 @@ func (d *graphqlDataSourceGenerator) generateSubscriptionClient(httpClient *http
 			httpClient,
 			definedOptions.streamingClient,
 			nil,
-			graphqlDataSource.WithWSSubProtocol(graphqlDataSource.ProtocolGraphQLWS),
+			graphql_datasource.WithWSSubProtocol(graphql_datasource.ProtocolGraphQLWS),
 		)
 	}
 
-	subscriptionClient, ok := graphqlSubscriptionClient.(*graphqlDataSource.SubscriptionClient)
+	ok := graphql_datasource.IsDefaultGraphQLSubscriptionClient(graphqlSubscriptionClient)
 	if !ok {
-		return nil, errors.New("invalid SubscriptionClient was instantiated")
+		return nil, errors.New("invalid subscriptionClient was instantiated")
 	}
-	return subscriptionClient, nil
+	return graphqlSubscriptionClient, nil
 }
 
 type graphqlFieldConfigurationsGenerator struct {

@@ -1528,13 +1528,13 @@ type OnWsConnectionInitCallback func(ctx context.Context, url string, header htt
 type Factory[T Configuration] struct {
 	executionContext   context.Context
 	httpClient         *http.Client
-	subscriptionClient *SubscriptionClient
+	subscriptionClient GraphQLSubscriptionClient
 }
 
 // NewFactory creates a new factory for the GraphQL datasource planner
 // Graphql Datasource could be stateful in case you are using subscriptions,
 // make sure you are using the same execution context for all datasources
-func NewFactory(executionContext context.Context, httpClient *http.Client, subscriptionClient *SubscriptionClient) (*Factory[Configuration], error) {
+func NewFactory(executionContext context.Context, httpClient *http.Client, subscriptionClient GraphQLSubscriptionClient) (*Factory[Configuration], error) {
 	if executionContext == nil {
 		return nil, fmt.Errorf("execution context is required")
 	}

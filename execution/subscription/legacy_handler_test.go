@@ -565,7 +565,13 @@ func setupEngineV2(t *testing.T, ctx context.Context, chatServerURL string) (*Ex
 
 	engineConf := engine.NewConfiguration(chatSchema)
 
-	factory, err := graphql_datasource.NewFactory(ctx, httpclient.DefaultNetHttpClient, &graphql_datasource.SubscriptionClient{})
+	subscriptionClient := graphql_datasource.NewGraphQLSubscriptionClient(
+		httpclient.DefaultNetHttpClient,
+		httpclient.DefaultNetHttpClient,
+		ctx,
+	)
+
+	factory, err := graphql_datasource.NewFactory(ctx, httpclient.DefaultNetHttpClient, subscriptionClient)
 	require.NoError(t, err)
 
 	dsCfg, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](

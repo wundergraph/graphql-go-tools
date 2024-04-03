@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 
 	"github.com/buger/jsonparser"
@@ -55,7 +56,7 @@ func TestGetConnectionInitMessageHelper(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := SubscriptionClient{onWsConnectionInitCallback: tt.callback}
+			client := subscriptionClient{onWsConnectionInitCallback: tt.callback}
 			got, err := client.getConnectionInitMessage(context.Background(), "", nil)
 			require.NoError(t, err)
 			require.NotEmpty(t, got)

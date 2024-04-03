@@ -439,7 +439,7 @@ func (f *FederationEngineConfigFactory) subscriptionClient(
 	streamingClient *http.Client,
 	subscriptionType SubscriptionType,
 	subscriptionClientFactory graphql_datasource.GraphQLSubscriptionClientFactory,
-) (*graphql_datasource.SubscriptionClient, error) {
+) (graphql_datasource.GraphQLSubscriptionClient, error) {
 	var graphqlSubscriptionClient graphql_datasource.GraphQLSubscriptionClient
 	switch subscriptionType {
 	case SubscriptionTypeGraphQLTransportWS:
@@ -459,9 +459,9 @@ func (f *FederationEngineConfigFactory) subscriptionClient(
 		)
 	}
 
-	subscriptionClient, ok := graphqlSubscriptionClient.(*graphql_datasource.SubscriptionClient)
+	ok := graphql_datasource.IsDefaultGraphQLSubscriptionClient(graphqlSubscriptionClient)
 	if !ok {
-		return nil, errors.New("invalid SubscriptionClient was instantiated")
+		return nil, errors.New("invalid subscriptionClient was instantiated")
 	}
-	return subscriptionClient, nil
+	return graphqlSubscriptionClient, nil
 }

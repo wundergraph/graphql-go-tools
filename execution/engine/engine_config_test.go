@@ -278,7 +278,7 @@ func TestGraphqlFieldConfigurationsGenerator_Generate(t *testing.T) {
 
 }
 
-var mockSubscriptionClient = &graphqlDataSource.SubscriptionClient{}
+var mockSubscriptionClient = graphqlDataSource.NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, context.Background())
 
 type MockSubscriptionClientFactory struct{}
 
