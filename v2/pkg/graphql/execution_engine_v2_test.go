@@ -748,7 +748,7 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 				},
 			},
 		},
-		expectedResponse: `{"errors":[{"message":"Failed to fetch from Subgraph at path 'query'."}],"data":null}`,
+		expectedResponse: `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query'."}],"data":null}`,
 	}))
 	t.Run("execute operation and apply input coercion for lists without variables", runWithoutError(ExecutionEngineV2TestCase{
 		schema: inputCoercionForListSchema(t),
