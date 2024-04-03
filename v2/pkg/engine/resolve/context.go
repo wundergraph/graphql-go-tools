@@ -3,11 +3,11 @@ package resolve
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 )
 
@@ -21,6 +21,7 @@ type Context struct {
 	InitialPayload   []byte
 	Extensions       []byte
 	Stats            Stats
+	LoaderHooks      LoaderHooks
 
 	authorizer  Authorizer
 	rateLimiter RateLimiter
@@ -55,6 +56,10 @@ func (c *Context) SetAuthorizer(authorizer Authorizer) {
 	c.authorizer = authorizer
 }
 
+func (c *Context) SetEngineLoaderHooks(hooks LoaderHooks) {
+	c.LoaderHooks = hooks
+}
+
 type RateLimitOptions struct {
 	// Enable switches rate limiting on or off
 	Enable bool
@@ -86,7 +91,7 @@ func (c *Context) SubgraphErrors() error {
 }
 
 func (c *Context) appendSubgraphError(err error) {
-	c.subgraphErrors = multierror.Append(c.subgraphErrors, err)
+	c.subgraphErrors = errors.Join(c.subgraphErrors, err)
 }
 
 type Stats struct {
@@ -151,6 +156,7 @@ func (c *Context) Free() {
 	c.Stats.Reset()
 	c.subgraphErrors = nil
 	c.authorizer = nil
+	c.LoaderHooks = nil
 }
 
 type traceStartKey struct{}

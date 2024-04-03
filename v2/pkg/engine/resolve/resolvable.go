@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	goerrors "errors"
 	"fmt"
+	"github.com/pkg/errors"
 	"io"
 
 	"github.com/cespare/xxhash/v2"
@@ -496,7 +498,7 @@ func (r *Resolvable) authorizeField(ref int, field *Field) (skipField bool) {
 		return true
 	}
 	if result != nil {
-		r.addRejectFieldError(result.Reason, field)
+		r.addRejectFieldError(result.Reason, dataSourceID, field)
 		return true
 	}
 	return false
@@ -537,19 +539,20 @@ func (r *Resolvable) authorize(objectRef int, dataSourceID string, coordinate Gr
 	return result, nil
 }
 
-func (r *Resolvable) addRejectFieldError(reason string, field *Field) {
-	var (
-		message string
-	)
+func (r *Resolvable) addRejectFieldError(reason, dataSourceID string, field *Field) {
 	nodePath := field.Value.NodePath()
 	r.pushNodePathElement(nodePath)
 	fieldPath := r.renderFieldPath()
+
+	var errorMessage string
 	if reason == "" {
-		message = fmt.Sprintf("Unauthorized to load field '%s'.", fieldPath)
+		errorMessage = fmt.Sprintf("Unauthorized to load field '%s'.", fieldPath)
 	} else {
-		message = fmt.Sprintf("Unauthorized to load field '%s'. Reason: %s", fieldPath, reason)
+		errorMessage = fmt.Sprintf("Unauthorized to load field '%s', Reason: %s.", fieldPath, reason)
 	}
-	ref := r.storage.AppendErrorWithMessage(message, r.path)
+	r.ctx.appendSubgraphError(goerrors.Join(errors.New(errorMessage), NewSubgraphError(dataSourceID, fieldPath, reason, 0)))
+
+	ref := r.storage.AppendErrorWithMessage(errorMessage, r.path)
 	r.storage.Nodes[r.errorsRoot].ArrayValues = append(r.storage.Nodes[r.errorsRoot].ArrayValues, ref)
 	r.popNodePathElement(nodePath)
 }

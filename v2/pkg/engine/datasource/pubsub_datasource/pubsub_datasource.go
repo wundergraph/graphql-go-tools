@@ -26,6 +26,8 @@ const (
 	EventTypeSubscribe EventType = "subscribe"
 )
 
+var eventSubjectRegex = regexp.MustCompile(`{{ args.([a-zA-Z0-9_]+) }}`)
+
 func EventTypeFromString(s string) (EventType, error) {
 	et := EventType(strings.ToLower(s))
 	switch et {
@@ -36,38 +38,63 @@ func EventTypeFromString(s string) (EventType, error) {
 	}
 }
 
+type StreamConfiguration struct {
+	Consumer   string
+	StreamName string
+}
+
 type EventConfiguration struct {
-	FieldName  string    `json:"fieldName"`
-	SourceName string    `json:"sourceName"`
-	Topic      string    `json:"topic"`
-	Type       EventType `json:"type"`
-	TypeName   string    `json:"typeName"`
+	FieldName           string               `json:"fieldName"`
+	SourceName          string               `json:"sourceName"`
+	StreamConfiguration *StreamConfiguration `json:"streamConfiguration"`
+	Subjects            []string             `json:"subjects"`
+	Type                EventType            `json:"type"`
+	TypeName            string               `json:"typeName"`
 }
 
 type Configuration struct {
 	Events []EventConfiguration `json:"events"`
 }
 
+type PublishAndRequestEventConfiguration struct {
+	subject string
+	data    []byte
+	config  *EventConfiguration
+}
+
+func (p *PublishAndRequestEventConfiguration) reset() {
+	p.config = nil
+	p.data = nil
+	p.subject = ""
+}
+
+type SubscriptionEventConfiguration struct {
+	subjects []string
+	config   *EventConfiguration
+}
+
+func (s *SubscriptionEventConfiguration) reset() {
+	s.config = nil
+	s.subjects = nil
+}
+
 type Planner[T Configuration] struct {
-	config  Configuration
-	current struct {
-		topic  string
-		data   []byte
-		config *EventConfiguration
-	}
-	pubSubBySourceName map[string]PubSub
-	rootFieldRef       int
-	variables          resolve.Variables
-	visitor            *plan.Visitor
+	config                              Configuration
+	publishAndRequestEventConfiguration PublishAndRequestEventConfiguration
+	subscriptionEventConfiguration      SubscriptionEventConfiguration
+	pubSubBySourceName                  map[string]PubSub
+	rootFieldRef                        int
+	variables                           resolve.Variables
+	visitor                             *plan.Visitor
 }
 
 func (p *Planner[T]) EnterField(ref int) {
-	if p.rootFieldRef == -1 {
-		p.rootFieldRef = ref
-	} else {
-		// This is a nested field, we don't need to do anything here
+	if p.rootFieldRef != -1 {
+		// This is a nested field; nothing needs to be done
 		return
 	}
+	p.rootFieldRef = ref
+
 	fieldName := p.visitor.Operation.FieldNameString(ref)
 	typeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
 	var eventConfig *EventConfiguration
@@ -81,81 +108,20 @@ func (p *Planner[T]) EnterField(ref int) {
 		return
 	}
 
-	topic := eventConfig.Topic
-	rex, err := regexp.Compile(`{{ args.([a-zA-Z0-9_]+) }}`)
-	if err != nil {
-		return
+	switch eventConfig.Type {
+	case EventTypePublish, EventTypeRequest:
+		p.handlePublishAndRequestEvent(ref, eventConfig)
+	case EventTypeSubscribe:
+		p.handleSubscriptionEvent(ref, eventConfig)
+	default:
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("invalid EventType \"%s\"", eventConfig.Type))
 	}
-	matches := rex.FindAllStringSubmatch(topic, -1)
-	if len(matches) != 1 || len(matches[0]) != 2 {
-		return
-	}
-	argName := matches[0][1]
-	// We need to find the argument in the operation
-	arg, ok := p.visitor.Operation.FieldArgument(ref, []byte(argName))
-	if !ok {
-		return
-	}
-	argValue := p.visitor.Operation.ArgumentValue(arg)
-	if argValue.Kind != ast.ValueKindVariable {
-		return
-	}
-	variableName := p.visitor.Operation.VariableValueNameBytes(argValue.Ref)
-	variableDefinition, ok := p.visitor.Operation.VariableDefinitionByNameAndOperation(p.visitor.Walker.Ancestors[0].Ref, variableName)
-	if !ok {
-		return
-	}
-	variableTypeRef := p.visitor.Operation.VariableDefinitions[variableDefinition].Type
-	renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(p.visitor.Operation, p.visitor.Operation, variableTypeRef, string(variableName))
-	if err != nil {
-		return
-	}
-	contextVariable := &resolve.ContextVariable{
-		Path:     []string{string(variableName)},
-		Renderer: renderer,
-	}
-	variablePlaceHolder, exists := p.variables.AddVariable(contextVariable) // $$0$$
-	if exists {
-		return
-	}
-	// We need to replace the template literal with the variable placeholder
-	p.current.topic = rex.ReplaceAllLiteralString(topic, variablePlaceHolder)
-
-	// Collect the field arguments for fetch based operations
-	fieldArgs := p.visitor.Operation.FieldArguments(ref)
-	var dataBuffer bytes.Buffer
-	dataBuffer.WriteByte('{')
-	for ii, arg := range fieldArgs {
-		if ii > 0 {
-			dataBuffer.WriteByte(',')
-		}
-		argValue := p.visitor.Operation.ArgumentValue(arg)
-		renderer := resolve.NewJSONVariableRenderer()
-		variableName := p.visitor.Operation.VariableValueNameBytes(argValue.Ref)
-		contextVariable := &resolve.ContextVariable{
-			Path:     []string{string(variableName)},
-			Renderer: renderer,
-		}
-		variablePlaceHolder, _ := p.variables.AddVariable(contextVariable)
-		argumentName := p.visitor.Operation.ArgumentNameString(arg)
-		escapedKey, err := json.Marshal(argumentName)
-		if err != nil {
-			return
-		}
-		dataBuffer.Write(escapedKey)
-		dataBuffer.WriteByte(':')
-		dataBuffer.WriteString(variablePlaceHolder)
-	}
-
-	dataBuffer.WriteByte('}')
-	p.current.config = eventConfig
-	p.current.data = dataBuffer.Bytes()
 }
 
-func (p *Planner[T]) EnterDocument(operation, definition *ast.Document) {
+func (p *Planner[T]) EnterDocument(_, _ *ast.Document) {
 	p.rootFieldRef = -1
-	p.current.topic = ""
-	p.current.config = nil
+	p.publishAndRequestEventConfiguration.reset()
+	p.subscriptionEventConfiguration.reset()
 }
 
 func (p *Planner[T]) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration[T], dataSourcePlannerConfiguration plan.DataSourcePlannerConfiguration) error {
@@ -167,17 +133,17 @@ func (p *Planner[T]) Register(visitor *plan.Visitor, configuration plan.DataSour
 }
 
 func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
-	if p.current.config == nil {
+	if p.publishAndRequestEventConfiguration.config == nil {
 		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure fetch: event config is nil"))
 		return resolve.FetchConfiguration{}
 	}
 	var dataSource resolve.DataSource
-	pubsub, ok := p.pubSubBySourceName[p.current.config.SourceName]
+	pubsub, ok := p.pubSubBySourceName[p.publishAndRequestEventConfiguration.config.SourceName]
 	if !ok {
-		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("no pubsub connection exists with source name \"%s\"", p.current.config.SourceName))
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("no pubsub connection exists with source name \"%s\"", p.publishAndRequestEventConfiguration.config.SourceName))
 		return resolve.FetchConfiguration{}
 	}
-	switch p.current.config.Type {
+	switch p.publishAndRequestEventConfiguration.config.Type {
 	case EventTypePublish:
 		dataSource = &PublishDataSource{
 			pubSub: pubsub,
@@ -187,41 +153,55 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			pubSub: pubsub,
 		}
 	default:
-		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure fetch: invalid event type \"%s\"", p.current.config.Type))
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure fetch: invalid event type \"%s\"", p.publishAndRequestEventConfiguration.config.Type))
 		return resolve.FetchConfiguration{}
 	}
 	return resolve.FetchConfiguration{
-		Input:      fmt.Sprintf(`{"topic":"%s", "data": %s}`, p.current.topic, p.current.data),
+		Input:      fmt.Sprintf(`{"subject":"%s", "data": %s, "sourceName":"%s"}`, p.publishAndRequestEventConfiguration.subject, p.publishAndRequestEventConfiguration.data, p.publishAndRequestEventConfiguration.config.SourceName),
 		Variables:  p.variables,
 		DataSource: dataSource,
 		PostProcessing: resolve.PostProcessingConfiguration{
-			MergePath: []string{p.current.config.FieldName},
+			MergePath: []string{p.publishAndRequestEventConfiguration.config.FieldName},
 		},
 	}
 }
 
 func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
-	if p.current.config == nil {
+	if p.subscriptionEventConfiguration.config == nil {
 		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure fetch: event config is nil"))
 		return plan.SubscriptionConfiguration{}
 	}
-	if p.current.config.Type != EventTypeSubscribe {
-		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure fetch: invalid event type \"%s\"", p.current.config.Type))
+	if p.subscriptionEventConfiguration.config.Type != EventTypeSubscribe {
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure fetch: invalid event type \"%s\"", p.subscriptionEventConfiguration.config.Type))
 		return plan.SubscriptionConfiguration{}
 	}
-	pubsub, ok := p.pubSubBySourceName[p.current.config.SourceName]
+	pubsub, ok := p.pubSubBySourceName[p.subscriptionEventConfiguration.config.SourceName]
 	if !ok {
-		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure fetch: no pubsub connection exists with source name \"%s\"", p.current.config.SourceName))
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure fetch: no pubsub connection exists with source name \"%s\"", p.subscriptionEventConfiguration.config.SourceName))
 		return plan.SubscriptionConfiguration{}
+	}
+	jsonArray, err := json.Marshal(p.subscriptionEventConfiguration.subjects)
+	if err != nil {
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to marshal event subscription subjects"))
+		return plan.SubscriptionConfiguration{}
+	}
+	var streamConfiguration string
+	if p.subscriptionEventConfiguration.config.StreamConfiguration != nil {
+		object, err := json.Marshal(p.subscriptionEventConfiguration.config.StreamConfiguration)
+		if err != nil {
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to marshal event subscription streamConfiguration"))
+			return plan.SubscriptionConfiguration{}
+		}
+		streamConfiguration = fmt.Sprintf(", \"streamConfiguration\":%s", object)
 	}
 	return plan.SubscriptionConfiguration{
-		Input:     fmt.Sprintf(`{"topic":"%s"}`, p.current.topic),
+		Input:     fmt.Sprintf(`{"subjects":%s, "sourceName":"%s"%s}`, jsonArray, p.subscriptionEventConfiguration.config.SourceName, streamConfiguration),
 		Variables: p.variables,
 		DataSource: &SubscriptionSource{
 			pubSub: pubsub,
 		},
 		PostProcessing: resolve.PostProcessingConfiguration{
-			MergePath: []string{p.current.config.FieldName},
+			MergePath: []string{p.subscriptionEventConfiguration.config.FieldName},
 		},
 	}
 }
@@ -234,11 +214,11 @@ func (p *Planner[T]) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavio
 	}
 }
 
-func (p *Planner[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
+func (p *Planner[T]) DownstreamResponseFieldAlias(_ int) (alias string, exists bool) {
 	return "", false
 }
 
-func (p *Planner[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
+func (p *Planner[T]) UpstreamSchema(_ plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
 	return nil, false
 }
 
@@ -258,7 +238,7 @@ type Factory[T Configuration] struct {
 	PubSubBySourceName map[string]PubSub
 }
 
-func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanner[T] {
+func (f *Factory[T]) Planner(_ abstractlogger.Logger) plan.DataSourcePlanner[T] {
 	return &Planner[T]{
 		pubSubBySourceName: f.PubSubBySourceName,
 	}
@@ -273,12 +253,12 @@ type PubSub interface {
 	// ID is the unique identifier of the pubsub implementation (e.g. NATS)
 	// This is used to uniquely identify a subscription
 	ID() string
-	// Subscribe starts listening on the given topic and sends the received messages to the given next channel
-	Subscribe(ctx context.Context, topic string, updater resolve.SubscriptionUpdater) error
-	// Publish sends the given data to the given topic
-	Publish(ctx context.Context, topic string, data []byte) error
-	// Request sends a request on the given topic and writes the response to the given writer
-	Request(ctx context.Context, topic string, data []byte, w io.Writer) error
+	// Subscribe starts listening on the given subjects and sends the received messages to the given next channel
+	Subscribe(ctx context.Context, subjects []string, updater resolve.SubscriptionUpdater, streamConfiguration *StreamConfiguration) error
+	// Publish sends the given data to the given subject
+	Publish(ctx context.Context, subject string, data []byte) error
+	// Request sends a request on the given subject and writes the response to the given writer
+	Request(ctx context.Context, subject string, data []byte, w io.Writer) error
 }
 
 type SubscriptionSource struct {
@@ -286,25 +266,24 @@ type SubscriptionSource struct {
 }
 
 func (s *SubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte, xxh *xxhash.Digest) error {
-	topic, err := jsonparser.GetString(input, "topic")
-	if err != nil {
-		return err
-	}
-	_, err = xxh.WriteString(topic)
-	if err != nil {
-		return err
-	}
-	_, err = xxh.WriteString(s.pubSub.ID())
+	// input must be unique across datasources
+	_, err := xxh.Write(input)
 	return err
 }
 
+type SubscriptionSourceInput struct {
+	Subjects            []string             `json:"subjects"`
+	SourceName          string               `json:"sourceName"`
+	StreamConfiguration *StreamConfiguration `json:"streamConfiguration"`
+}
+
 func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, updater resolve.SubscriptionUpdater) error {
-	topic, err := jsonparser.GetString(input, "topic")
-	if err != nil {
+	var subscriptionSourceInput SubscriptionSourceInput
+	if err := json.Unmarshal(input, &subscriptionSourceInput); err != nil {
 		return err
 	}
 
-	return s.pubSub.Subscribe(ctx.Context(), topic, updater)
+	return s.pubSub.Subscribe(ctx.Context(), subscriptionSourceInput.Subjects, updater, subscriptionSourceInput.StreamConfiguration)
 }
 
 type PublishDataSource struct {
@@ -312,9 +291,9 @@ type PublishDataSource struct {
 }
 
 func (s *PublishDataSource) Load(ctx context.Context, input []byte, w io.Writer) error {
-	topic, err := jsonparser.GetString(input, "topic")
+	subject, err := jsonparser.GetString(input, "subject")
 	if err != nil {
-		return fmt.Errorf("error getting topic from input: %w", err)
+		return fmt.Errorf("error getting subject from input: %w", err)
 	}
 
 	data, _, _, err := jsonparser.Get(input, "data")
@@ -322,7 +301,7 @@ func (s *PublishDataSource) Load(ctx context.Context, input []byte, w io.Writer)
 		return fmt.Errorf("error getting data from input: %w", err)
 	}
 
-	if err := s.pubSub.Publish(ctx, topic, data); err != nil {
+	if err := s.pubSub.Publish(ctx, subject, data); err != nil {
 		return err
 	}
 	_, err = io.WriteString(w, `{"success": true}`)
@@ -334,10 +313,122 @@ type RequestDataSource struct {
 }
 
 func (s *RequestDataSource) Load(ctx context.Context, input []byte, w io.Writer) error {
-	topic, err := jsonparser.GetString(input, "topic")
+	subject, err := jsonparser.GetString(input, "subject")
 	if err != nil {
 		return err
 	}
 
-	return s.pubSub.Request(ctx, topic, nil, w)
+	return s.pubSub.Request(ctx, subject, nil, w)
+}
+
+func (p *Planner[T]) extractEventSubject(ref int, subject string) (string, error) {
+	matches := eventSubjectRegex.FindAllStringSubmatch(subject, -1)
+	if len(matches) != 1 || len(matches[0]) != 2 {
+		return "", fmt.Errorf("expected subject to match regex")
+	}
+	argumentName := matches[0][1]
+	// We need to find the argument in the operation
+	argumentRef, ok := p.visitor.Operation.FieldArgument(ref, []byte(argumentName))
+	if !ok {
+		return "", fmt.Errorf("argument \"%s\" is not defined", argumentName)
+	}
+	argumentValue := p.visitor.Operation.ArgumentValue(argumentRef)
+	if argumentValue.Kind != ast.ValueKindVariable {
+		return "", fmt.Errorf("expected argument \"%s\" kind to be \"ValueKindVariable\" but received \"%s\"", argumentName, argumentValue.Kind)
+	}
+	variableName := p.visitor.Operation.VariableValueNameBytes(argumentValue.Ref)
+	variableDefinition, ok := p.visitor.Operation.VariableDefinitionByNameAndOperation(p.visitor.Walker.Ancestors[0].Ref, variableName)
+	if !ok {
+		return "", fmt.Errorf("expected definition to exist for variable \"%s\"", variableName)
+	}
+	variableTypeRef := p.visitor.Operation.VariableDefinitions[variableDefinition].Type
+	renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(p.visitor.Operation, p.visitor.Definition, variableTypeRef, string(variableName))
+	if err != nil {
+		return "", err
+	}
+	contextVariable := &resolve.ContextVariable{
+		Path:     []string{string(variableName)},
+		Renderer: renderer,
+	}
+	// We need to replace the template literal with the variable placeholder (and reuse if it already exists)
+	variablePlaceHolder, _ := p.variables.AddVariable(contextVariable) // $$0$$
+	return eventSubjectRegex.ReplaceAllLiteralString(subject, variablePlaceHolder), nil
+}
+
+func (p *Planner[T]) eventDataBytes(ref int) ([]byte, error) {
+	// Collect the field arguments for fetch based operations
+	fieldArgs := p.visitor.Operation.FieldArguments(ref)
+	var dataBuffer bytes.Buffer
+	dataBuffer.WriteByte('{')
+	for i, arg := range fieldArgs {
+		if i > 0 {
+			dataBuffer.WriteByte(',')
+		}
+		argValue := p.visitor.Operation.ArgumentValue(arg)
+		variableName := p.visitor.Operation.VariableValueNameBytes(argValue.Ref)
+		variableDefinition, ok := p.visitor.Operation.VariableDefinitionByNameAndOperation(p.visitor.Walker.Ancestors[0].Ref, variableName)
+		if !ok {
+			return nil, fmt.Errorf("expected definition to exist for variable \"%s\"", variableName)
+		}
+		variableTypeRef := p.visitor.Operation.VariableDefinitions[variableDefinition].Type
+		renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(p.visitor.Operation, p.visitor.Definition, variableTypeRef, string(variableName))
+		if err != nil {
+			return nil, err
+		}
+		contextVariable := &resolve.ContextVariable{
+			Path:     []string{string(variableName)},
+			Renderer: renderer,
+		}
+		variablePlaceHolder, _ := p.variables.AddVariable(contextVariable)
+		argumentName := p.visitor.Operation.ArgumentNameString(arg)
+		escapedKey, err := json.Marshal(argumentName)
+		if err != nil {
+			return nil, err
+		}
+		dataBuffer.Write(escapedKey)
+		dataBuffer.WriteByte(':')
+		dataBuffer.WriteString(variablePlaceHolder)
+	}
+	dataBuffer.WriteByte('}')
+	return dataBuffer.Bytes(), nil
+}
+
+func (p *Planner[T]) handlePublishAndRequestEvent(ref int, eventConfiguration *EventConfiguration) {
+	if len(eventConfiguration.Subjects) != 1 {
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("publish and request events should define one subject but received %d", len(eventConfiguration.Subjects)))
+		return
+	}
+	rawSubject := eventConfiguration.Subjects[0]
+	extractedSubject, err := p.extractEventSubject(ref, rawSubject)
+	if err != nil {
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("could not extract event subject: %w", err))
+		return
+	}
+	dataBytes, err := p.eventDataBytes(ref)
+	if err != nil {
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to write event data bytes: %w", err))
+		return
+	}
+	p.publishAndRequestEventConfiguration.config = eventConfiguration
+	p.publishAndRequestEventConfiguration.data = dataBytes
+	p.publishAndRequestEventConfiguration.subject = extractedSubject
+}
+
+func (p *Planner[T]) handleSubscriptionEvent(ref int, eventConfiguration *EventConfiguration) {
+	subjectsLength := len(eventConfiguration.Subjects)
+	if subjectsLength < 1 {
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("expected at least one subscription subject but received %d", subjectsLength))
+		return
+	}
+	extractedSubjects := make([]string, 0, subjectsLength)
+	for _, rawSubject := range eventConfiguration.Subjects {
+		extractedSubject, err := p.extractEventSubject(ref, rawSubject)
+		if err != nil {
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("could not extract subscription event subjects: %w", err))
+			return
+		}
+		extractedSubjects = append(extractedSubjects, extractedSubject)
+	}
+	p.subscriptionEventConfiguration.subjects = extractedSubjects
+	p.subscriptionEventConfiguration.config = eventConfiguration
 }

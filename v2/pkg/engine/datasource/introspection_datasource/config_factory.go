@@ -3,6 +3,7 @@ package introspection_datasource
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/introspection"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -78,7 +79,7 @@ func (f *IntrospectionConfigFactory) BuildDataSourceConfigurations() []plan.Data
 
 func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() (plan.DataSourceConfiguration[Configuration], error) {
 	return plan.NewDataSourceConfiguration[Configuration](
-		"introspection__schema&__type",
+		resolve.IntrospectionSchemaTypeDataSourceID,
 		NewFactory[Configuration](f.introspectionData),
 		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{
@@ -116,7 +117,7 @@ func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() (plan.Da
 
 func (f *IntrospectionConfigFactory) buildFieldsConfiguration() (plan.DataSourceConfiguration[Configuration], error) {
 	return plan.NewDataSourceConfiguration[Configuration](
-		"introspection__type__fields",
+		resolve.IntrospectionTypeFieldsDataSourceID,
 		NewFactory[Configuration](f.introspectionData),
 		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{
@@ -146,7 +147,7 @@ func (f *IntrospectionConfigFactory) buildFieldsConfiguration() (plan.DataSource
 
 func (f *IntrospectionConfigFactory) buildEnumsConfiguration() (plan.DataSourceConfiguration[Configuration], error) {
 	return plan.NewDataSourceConfiguration[Configuration](
-		"introspection__type__enumValues",
+		resolve.IntrospectionTypeEnumValuesDataSourceID,
 		NewFactory[Configuration](f.introspectionData),
 		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{
