@@ -153,10 +153,11 @@ func (d *DatasourcePollerPoller) createSubgraphsConfig() []engine.SubgraphConfig
 		}
 
 		subgraphConfig := engine.SubgraphConfiguration{
-			Name:            serviceConfig.Name,
-			URL:             serviceConfig.URL,
-			SubscriptionUrl: serviceConfig.WS,
-			SDL:             sdl,
+			Name:                 serviceConfig.Name,
+			URL:                  serviceConfig.URL,
+			SDL:                  sdl,
+			SubscriptionUrl:      serviceConfig.WS,
+			SubscriptionProtocol: engine.SubscriptionProtocolWS,
 		}
 
 		subgraphConfigs = append(subgraphConfigs, subgraphConfig)

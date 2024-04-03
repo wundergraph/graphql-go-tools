@@ -161,15 +161,15 @@ func (f *FederationEngineConfigFactory) compose() (*nodev1.RouterConfig, error) 
 			Schema: subgraphConfig.SDL,
 		}
 
-		// TODO: PROPER SUBSCRIPTION SUPPORT IS NOT YET IMPLEMENTED
-		// if subgraphConfig.SubscriptionUrl != "" {
-		// 	subgraphs[i].SubscriptionURL = &subgraphConfig.SubscriptionUrl
-		// }
-		//
-		// if subgraphConfig.SubscriptionProtocol != "" {
-		// 	protocol := composition.SubscriptionProtocol(subgraphConfig.SubscriptionProtocol)
-		// 	subgraphs[i].SubscriptionProtocol = &protocol
-		// }
+		if subgraphConfig.SubscriptionUrl != "" {
+			subgraphs[i].SubscriptionURL = subgraphConfig.SubscriptionUrl
+		}
+
+		if subgraphConfig.SubscriptionProtocol == "" {
+			subgraphs[i].SubscriptionProtocol = string(SubscriptionProtocolWS)
+		} else {
+			subgraphs[i].SubscriptionProtocol = string(subgraphConfig.SubscriptionProtocol)
+		}
 	}
 
 	resultJSON, err := composition.BuildRouterConfiguration(subgraphs...)
@@ -446,7 +446,7 @@ func (f *FederationEngineConfigFactory) subscriptionClient(
 		graphqlSubscriptionClient = subscriptionClientFactory.NewSubscriptionClient(
 			httpClient,
 			streamingClient,
-			nil,
+			f.engineCtx,
 			graphql_datasource.WithWSSubProtocol(graphql_datasource.ProtocolGraphQLTWS),
 		)
 	default:
@@ -454,7 +454,7 @@ func (f *FederationEngineConfigFactory) subscriptionClient(
 		graphqlSubscriptionClient = subscriptionClientFactory.NewSubscriptionClient(
 			httpClient,
 			streamingClient,
-			nil,
+			f.engineCtx,
 			graphql_datasource.WithWSSubProtocol(graphql_datasource.ProtocolGraphQLWS),
 		)
 	}

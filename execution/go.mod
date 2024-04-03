@@ -70,3 +70,5 @@ require (
 // this is a workaround to make sure that the correct version is used
 // as we cannot pin the specific version in go mod
 replace github.com/99designs/gqlgen => github.com/99designs/gqlgen v0.17.22
+
+replace github.com/wundergraph/cosmo/composition-go => ../../cosmo/composition-go

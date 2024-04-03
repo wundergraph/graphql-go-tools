@@ -63,7 +63,6 @@ func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T)
 		})
 
 		t.Run("should successfully execute a federation subscription", func(t *testing.T) {
-			t.Skip("fails in full test suite with resolver closed error")
 
 			query := `
 subscription UpdatedPrice {

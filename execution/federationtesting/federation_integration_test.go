@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path"
@@ -125,15 +124,13 @@ func TestFederationIntegrationTest(t *testing.T) {
 	})
 
 	t.Run("subscription query through WebSocket transport", func(t *testing.T) {
-		t.Skip("FIXME")
-
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		// Reset the products slice to the original state
 		defer products.Reset()
 
 		wsAddr := strings.ReplaceAll(setup.gatewayServer.URL, "http://", "ws://")
-		fmt.Println("setup.gatewayServer.URL", wsAddr)
+		// fmt.Println("setup.gatewayServer.URL", wsAddr)
 		messages := gqlClient.Subscription(ctx, wsAddr, path.Join("testdata", "subscriptions/subscription.query"), queryVariables{
 			"upc": "top-1",
 		}, t)
