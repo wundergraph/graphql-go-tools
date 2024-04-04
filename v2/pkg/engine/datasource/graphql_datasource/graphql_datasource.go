@@ -76,7 +76,6 @@ type Planner[T Configuration] struct {
 
 	addedInlineFragments map[onTypeInlineFragment]struct{}
 	hasFederationRoot    bool
-	extractEntities      bool
 
 	// tmp
 	upstreamSchema *ast.Document
@@ -313,12 +312,14 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 	input = httpclient.SetInputMethod(input, []byte(p.config.fetch.Method))
 
 	postProcessing := DefaultPostProcessingConfiguration
-	if p.extractEntities {
-		if p.shouldSelectSingleEntity() {
-			postProcessing = SingleEntityPostProcessingConfiguration
-		} else {
-			postProcessing = EntitiesPostProcessingConfiguration
-		}
+	requiresEntityFetch := p.requiresEntityFetch()
+	requiresEntityBatchFetch := p.requiresEntityBatchFetch()
+
+	switch {
+	case requiresEntityFetch:
+		postProcessing = SingleEntityPostProcessingConfiguration
+	case requiresEntityBatchFetch:
+		postProcessing = EntitiesPostProcessingConfiguration
 	}
 
 	return resolve.FetchConfiguration{
@@ -327,10 +328,10 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			httpClient: p.fetchClient,
 		},
 		Variables:                             p.variables,
-		RequiresEntityFetch:                   p.requiresEntityFetch(),
-		RequiresEntityBatchFetch:              p.requiresEntityBatchFetch(),
+		RequiresEntityFetch:                   requiresEntityFetch,
+		RequiresEntityBatchFetch:              requiresEntityBatchFetch,
 		PostProcessing:                        postProcessing,
-		SetTemplateOutputToNullOnVariableNull: p.extractEntities,
+		SetTemplateOutputToNullOnVariableNull: requiresEntityFetch || requiresEntityBatchFetch,
 	}
 }
 
@@ -696,7 +697,6 @@ func (p *Planner[T]) EnterDocument(_, _ *ast.Document) {
 	p.upstreamVariables = nil
 	p.variables = p.variables[:0]
 	p.hasFederationRoot = false
-	p.extractEntities = false
 
 	// reset information about root type
 	p.rootTypeName = ""
@@ -722,7 +722,6 @@ func (p *Planner[T]) addRepresentationsVariable() {
 	variable, _ := p.variables.AddVariable(p.buildRepresentationsVariable())
 
 	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", []byte(fmt.Sprintf("[%s]", variable)))
-	p.extractEntities = true
 }
 
 func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
@@ -1529,13 +1528,13 @@ type OnWsConnectionInitCallback func(ctx context.Context, url string, header htt
 type Factory[T Configuration] struct {
 	executionContext   context.Context
 	httpClient         *http.Client
-	subscriptionClient *SubscriptionClient
+	subscriptionClient GraphQLSubscriptionClient
 }
 
 // NewFactory creates a new factory for the GraphQL datasource planner
 // Graphql Datasource could be stateful in case you are using subscriptions,
 // make sure you are using the same execution context for all datasources
-func NewFactory(executionContext context.Context, httpClient *http.Client, subscriptionClient *SubscriptionClient) (*Factory[Configuration], error) {
+func NewFactory(executionContext context.Context, httpClient *http.Client, subscriptionClient GraphQLSubscriptionClient) (*Factory[Configuration], error) {
 	if executionContext == nil {
 		return nil, fmt.Errorf("execution context is required")
 	}

@@ -12,16 +12,17 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"nhooyr.io/websocket"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 const ackWaitTimeout = 30 * time.Second
 
-// SubscriptionClient allows running multiple subscriptions via the same WebSocket either SSE connection
+// subscriptionClient allows running multiple subscriptions via the same WebSocket either SSE connection
 // It takes care of de-duplicating connections to the same origin under certain circumstances
 // If Hash(URL,Body,Headers) result in the same result, an existing connection is re-used
-type SubscriptionClient struct {
+type subscriptionClient struct {
 	streamingClient            *http.Client
 	httpClient                 *http.Client
 	engineCtx                  context.Context
@@ -80,7 +81,12 @@ func (d *DefaultSubscriptionClientFactory) NewSubscriptionClient(httpClient, str
 	return NewGraphQLSubscriptionClient(httpClient, streamingClient, engineCtx, options...)
 }
 
-func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context, options ...Options) *SubscriptionClient {
+func IsDefaultGraphQLSubscriptionClient(client GraphQLSubscriptionClient) bool {
+	_, ok := client.(*subscriptionClient)
+	return ok
+}
+
+func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context, options ...Options) GraphQLSubscriptionClient {
 	op := &opts{
 		readTimeout: time.Second,
 		log:         abstractlogger.NoopLogger,
@@ -88,7 +94,7 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 	for _, option := range options {
 		option(op)
 	}
-	return &SubscriptionClient{
+	return &subscriptionClient{
 		httpClient:      httpClient,
 		streamingClient: streamingClient,
 		engineCtx:       engineCtx,
@@ -109,7 +115,7 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 // If an existing WS connection with the same ID (Hash) exists, it is being re-used
 // If connection protocol is SSE, a new connection is always created
 // If no connection exists, the client initiates a new one
-func (c *SubscriptionClient) Subscribe(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+func (c *subscriptionClient) Subscribe(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	if options.UseSSE {
 		return c.subscribeSSE(reqCtx, options, updater)
 	}
@@ -122,7 +128,7 @@ var (
 	withSSEMethodPost = []byte(`sse_method_post:true`)
 )
 
-func (c *SubscriptionClient) UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error) {
+func (c *subscriptionClient) UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error) {
 	if options.UseSSE {
 		_, err = hash.Write(withSSE)
 		if err != nil {
@@ -138,7 +144,7 @@ func (c *SubscriptionClient) UniqueRequestID(ctx *resolve.Context, options Graph
 	return c.requestHash(ctx, options, hash)
 }
 
-func (c *SubscriptionClient) subscribeSSE(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+func (c *subscriptionClient) subscribeSSE(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	if c.streamingClient == nil {
 		return fmt.Errorf("streaming http client is nil")
 	}
@@ -158,7 +164,7 @@ func (c *SubscriptionClient) subscribeSSE(reqCtx *resolve.Context, options Graph
 	return nil
 }
 
-func (c *SubscriptionClient) subscribeWS(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+func (c *subscriptionClient) subscribeWS(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	if c.httpClient == nil {
 		return fmt.Errorf("http client is nil")
 	}
@@ -203,7 +209,7 @@ func (c *SubscriptionClient) subscribeWS(reqCtx *resolve.Context, options GraphQ
 	return nil
 }
 
-func (c *SubscriptionClient) generateHandlerIDHash(ctx *resolve.Context, options GraphQLSubscriptionOptions) (uint64, error) {
+func (c *subscriptionClient) generateHandlerIDHash(ctx *resolve.Context, options GraphQLSubscriptionOptions) (uint64, error) {
 	xxh := c.hashPool.Get().(*xxhash.Digest)
 	defer c.hashPool.Put(xxh)
 	xxh.Reset()
@@ -215,7 +221,7 @@ func (c *SubscriptionClient) generateHandlerIDHash(ctx *resolve.Context, options
 }
 
 // generateHandlerIDHash generates a Hash based on: URL and Headers to uniquely identify Upgrade Requests
-func (c *SubscriptionClient) requestHash(ctx *resolve.Context, options GraphQLSubscriptionOptions, xxh *xxhash.Digest) (err error) {
+func (c *subscriptionClient) requestHash(ctx *resolve.Context, options GraphQLSubscriptionOptions, xxh *xxhash.Digest) (err error) {
 	if _, err = xxh.WriteString(options.URL); err != nil {
 		return err
 	}
@@ -280,7 +286,7 @@ func (c *SubscriptionClient) requestHash(ctx *resolve.Context, options GraphQLSu
 	return nil
 }
 
-func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, options GraphQLSubscriptionOptions) (ConnectionHandler, error) {
+func (c *subscriptionClient) newWSConnectionHandler(reqCtx context.Context, options GraphQLSubscriptionOptions) (ConnectionHandler, error) {
 	subProtocols := []string{ProtocolGraphQLWS, ProtocolGraphQLTWS}
 	if c.wsSubProtocol != "" {
 		subProtocols = []string{c.wsSubProtocol}
@@ -345,7 +351,7 @@ func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 	}
 }
 
-func (c *SubscriptionClient) getConnectionInitMessage(ctx context.Context, url string, header http.Header) ([]byte, error) {
+func (c *subscriptionClient) getConnectionInitMessage(ctx context.Context, url string, header http.Header) ([]byte, error) {
 	if c.onWsConnectionInitCallback == nil {
 		return connectionInitMessage, nil
 	}

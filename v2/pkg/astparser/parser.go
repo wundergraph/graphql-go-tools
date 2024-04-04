@@ -6,7 +6,6 @@ import (
 	"runtime"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/identkeyword"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/keyword"
@@ -141,7 +140,7 @@ func (p *Parser) errUnexpectedIdentKey(unexpected token.Token, unexpectedKey ide
 
 	p.report.AddExternalError(operationreport.ExternalError{
 		Message: fmt.Sprintf("unexpected literal - got: %s want one of: %v", unexpectedKey, expectedKeywords),
-		Locations: []graphqlerrors.Location{
+		Locations: []operationreport.Location{
 			{
 				Line:   unexpected.TextPosition.LineStart,
 				Column: unexpected.TextPosition.CharStart,
@@ -188,7 +187,7 @@ func (p *Parser) errUnexpectedToken(unexpected token.Token, expectedKeywords ...
 
 	p.report.AddExternalError(operationreport.ExternalError{
 		Message: fmt.Sprintf("unexpected token - got: %s want one of: %v", unexpected.Keyword, expectedKeywords),
-		Locations: []graphqlerrors.Location{
+		Locations: []operationreport.Location{
 			{
 				Line:   unexpected.TextPosition.LineStart,
 				Column: unexpected.TextPosition.CharStart,
@@ -1235,7 +1234,7 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 				if err != nil {
 					p.report.AddExternalError(operationreport.ExternalError{
 						Message: fmt.Sprintf("invalid directive location: %s", unsafebytes.BytesToString(raw)),
-						Locations: []graphqlerrors.Location{
+						Locations: []operationreport.Location{
 							{
 								Line:   ident.TextPosition.LineStart,
 								Column: ident.TextPosition.CharStart,

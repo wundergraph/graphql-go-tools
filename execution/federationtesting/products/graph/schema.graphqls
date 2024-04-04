@@ -1,0 +1,19 @@
+type Query {
+    topProducts(first: Int = 5): [Product]
+}
+
+type Mutation {
+    setPrice(upc: String!, price: Int!): Product
+}
+
+type Subscription {
+    updatedPrice: Product!
+    updateProductPrice(upc: String!): Product!
+}
+
+type Product @key(fields: "upc") {
+    upc: String!
+    name: String!
+    price: Int!
+    inStock: Int!
+}

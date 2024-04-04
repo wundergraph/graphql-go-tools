@@ -14,9 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/flags"
 )
 
 func TestGraphQLSubscriptionClientSubscribe_SSE(t *testing.T) {
+	if flags.IsWindows {
+		t.Skip("skipping test on windows")
+	}
+
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		urlQuery := r.URL.Query()
@@ -75,6 +80,10 @@ func TestGraphQLSubscriptionClientSubscribe_SSE(t *testing.T) {
 }
 
 func TestGraphQLSubscriptionClientSubscribe_SSE_RequestAbort(t *testing.T) {
+	if flags.IsWindows {
+		t.Skip("skipping test on windows")
+	}
+
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
 
@@ -101,6 +110,10 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_RequestAbort(t *testing.T) {
 }
 
 func TestGraphQLSubscriptionClientSubscribe_SSE_POST(t *testing.T) {
+	if flags.IsWindows {
+		t.Skip("skipping test on windows")
+	}
+
 	postReqBody := GraphQLBody{
 		Query: `subscription {messageAdded(roomName: "room"){text}}`,
 	}
@@ -167,6 +180,10 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_POST(t *testing.T) {
 }
 
 func TestGraphQLSubscriptionClientSubscribe_SSE_WithEvents(t *testing.T) {
+	if flags.IsWindows {
+		t.Skip("skipping test on windows")
+	}
+
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Make sure that the writer supports flushing.
@@ -225,6 +242,10 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_WithEvents(t *testing.T) {
 }
 
 func TestGraphQLSubscriptionClientSubscribe_SSE_Error(t *testing.T) {
+	if flags.IsWindows {
+		t.Skip("skipping test on windows")
+	}
+
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Make sure that the writer supports flushing.
@@ -276,6 +297,10 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Error(t *testing.T) {
 }
 
 func TestGraphQLSubscriptionClientSubscribe_SSE_Error_Without_Header(t *testing.T) {
+	if flags.IsWindows {
+		t.Skip("skipping test on windows")
+	}
+
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Make sure that the writer supports flushing.
@@ -327,6 +352,10 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Error_Without_Header(t *testing.
 }
 
 func TestGraphQLSubscriptionClientSubscribe_QueryParams(t *testing.T) {
+	if flags.IsWindows {
+		t.Skip("skipping test on windows")
+	}
+
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		urlQuery := r.URL.Query()
@@ -386,6 +415,10 @@ func TestGraphQLSubscriptionClientSubscribe_QueryParams(t *testing.T) {
 }
 
 func TestBuildPOSTRequestSSE(t *testing.T) {
+	if flags.IsWindows {
+		t.Skip("skipping test on windows")
+	}
+
 	subscriptionOptions := GraphQLSubscriptionOptions{
 		URL: "test",
 		Body: GraphQLBody{
@@ -414,6 +447,10 @@ func TestBuildPOSTRequestSSE(t *testing.T) {
 }
 
 func TestBuildGETRequestSSE(t *testing.T) {
+	if flags.IsWindows {
+		t.Skip("skipping test on windows")
+	}
+
 	subscriptionOptions := GraphQLSubscriptionOptions{
 		URL: "test",
 		Body: GraphQLBody{
@@ -443,6 +480,10 @@ func TestBuildGETRequestSSE(t *testing.T) {
 }
 
 func TestGraphQLSubscriptionClientSubscribe_SSE_Upstream_Dies(t *testing.T) {
+	if flags.IsWindows {
+		t.Skip("skipping test on windows")
+	}
+
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		urlQuery := r.URL.Query()

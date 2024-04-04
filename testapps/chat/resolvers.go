@@ -1,4 +1,4 @@
-//go:generate go run -mod=mod github.com/99designs/gqlgen
+//go:generate go run github.com/99designs/gqlgen
 
 package chat
 
@@ -29,10 +29,6 @@ func (r *resolver) Query() QueryResolver {
 
 func (r *resolver) Subscription() SubscriptionResolver {
 	return &subscriptionResolver{r}
-}
-
-func (r *resolver) __Directive() __DirectiveResolver {
-	return directiveResolver{r}
 }
 
 func New() Config {

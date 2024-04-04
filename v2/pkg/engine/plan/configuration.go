@@ -89,8 +89,6 @@ type FieldConfiguration struct {
 	// Path - represents a json path to lookup for a field value in response json
 	Path      []string
 	Arguments ArgumentsConfigurations
-	// deprecated: use dataSourceConfiguration.FederationMetaData instead
-	RequiresFields []string
 	// UnescapeResponseJson set to true will allow fields (String,List,Object)
 	// to be resolved from an escaped JSON string
 	// e.g. {"response":"{\"foo\":\"bar\"}"} will be returned as {"foo":"bar"} when path is "response"

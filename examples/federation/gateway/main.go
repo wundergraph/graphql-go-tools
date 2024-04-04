@@ -12,10 +12,10 @@ import (
 	log "github.com/jensneuse/abstractlogger"
 	"go.uber.org/zap"
 
-	"github.com/wundergraph/graphql-go-tools/pkg/graphql"
-	"github.com/wundergraph/graphql-go-tools/pkg/playground"
-
-	http2 "github.com/wundergraph/graphql-go-tools/examples/federation/gateway/http"
+	gatewayHttp "github.com/wundergraph/graphql-go-tools/examples/federation/gateway/http"
+	"github.com/wundergraph/graphql-go-tools/execution/engine"
+	"github.com/wundergraph/graphql-go-tools/execution/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/playground"
 )
 
 // It's just a simple example of graphql federation gateway server, it's NOT a production ready code.
@@ -82,11 +82,13 @@ func startServer() {
 		mux.Handle(handlers[i].Path, handlers[i].Handler)
 	}
 
-	var gqlHandlerFactory HandlerFactoryFn = func(schema *graphql.Schema, engine *graphql.ExecutionEngineV2) http.Handler {
-		return http2.NewGraphqlHTTPHandler(schema, engine, upgrader, logger)
+	enableART := true
+
+	var gqlHandlerFactory HandlerFactoryFn = func(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler {
+		return gatewayHttp.NewGraphqlHTTPHandler(schema, engine, upgrader, logger, enableART)
 	}
 
-	gateway := NewGateway(gqlHandlerFactory, httpClient, logger)
+	gateway := NewGateway(ctx, gqlHandlerFactory, httpClient, logger)
 
 	datasourceWatcher.Register(gateway)
 	go datasourceWatcher.Run(ctx)
