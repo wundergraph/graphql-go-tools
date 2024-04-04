@@ -12,12 +12,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/flags"
 
 	"github.com/stretchr/testify/assert"
 	"nhooyr.io/websocket"
 )
 
 func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
+	if flags.IsWindows {
+		t.Skip("skipping test on windows")
+	}
+
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, nil)
@@ -89,6 +94,10 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 }
 
 func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
+	if flags.IsWindows {
+		t.Skip("skipping test on windows")
+	}
+
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, nil)
@@ -163,6 +172,10 @@ func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
 }
 
 func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
+	if flags.IsWindows {
+		t.Skip("skipping test on windows")
+	}
+
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, nil)
@@ -224,6 +237,10 @@ func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
 }
 
 func TestWebSocketSubscriptionClientInitIncludePing_GQLTWS(t *testing.T) {
+	if flags.IsWindows {
+		t.Skip("skipping test on windows")
+	}
+
 	serverDone := make(chan struct{})
 	assertion := require.New(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -310,6 +327,10 @@ func TestWebSocketSubscriptionClientInitIncludePing_GQLTWS(t *testing.T) {
 }
 
 func TestWebsocketSubscriptionClient_GQLTWS_Upstream_Dies(t *testing.T) {
+	if flags.IsWindows {
+		t.Skip("skipping test on windows")
+	}
+
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
 
