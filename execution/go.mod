@@ -14,8 +14,7 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.10
 	github.com/wundergraph/cosmo/composition-go v0.0.0-20240404090137-207661436138
 	github.com/wundergraph/cosmo/router v0.0.0-20240404090137-207661436138
-	github.com/wundergraph/graphql-go-tools v1.67.2
-	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.16
+	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.19
 	go.uber.org/atomic v1.11.0
 	google.golang.org/protobuf v1.32.0
 )
@@ -25,7 +24,6 @@ require (
 	github.com/alitto/pond v1.8.3 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/chenzhuoyu/iasm v0.9.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.7.0 // indirect
 	github.com/dop251/goja v0.0.0-20230906160731-9410bcaa81d2 // indirect
@@ -34,7 +32,6 @@ require (
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/pprof v0.0.0-20230207041349-798e818bf904 // indirect
 	github.com/jensneuse/byte-template v0.0.0-20200214152254-4f3cf06e5c68 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -58,7 +55,6 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.11 // indirect
-	go.uber.org/goleak v1.3.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
 	golang.org/x/net v0.20.0 // indirect

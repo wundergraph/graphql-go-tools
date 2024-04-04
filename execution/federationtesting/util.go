@@ -7,9 +7,9 @@ import (
 	"strings"
 	"sync"
 
-	accounts "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/accounts/graph"
-	products "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/products/graph"
-	reviews "github.com/wundergraph/graphql-go-tools/pkg/testing/federationtesting/reviews/graph"
+	accounts "github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph"
+	products "github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph"
+	reviews "github.com/wundergraph/graphql-go-tools/execution/federationtesting/reviews/graph"
 )
 
 const (
