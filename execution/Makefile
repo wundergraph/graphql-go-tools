@@ -27,3 +27,11 @@ ci: test
 
 .PHONY: ci-quick
 ci-full: test-quick
+
+.PHONY: update-deps
+update-deps:
+	go get github.com/wundergraph/graphql-go-tools/v2@upgrade
+	go get github.com/wundergraph/cosmo/composition-go@upgrade
+	go get github.com/wundergraph/cosmo/router@upgrade
+	go mod tidy
+	cd .. && go work sync

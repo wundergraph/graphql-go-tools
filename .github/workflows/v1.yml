@@ -10,6 +10,8 @@ on:
       - '.github/workflows/execution.yml'
       - 'go.work'
       - 'go.work.sum'
+      - 'examples/**'
+      - 'testapps/**'
   push:
     branches:
       - master
@@ -20,6 +22,8 @@ on:
       - '.github/workflows/execution.yml'
       - 'go.work'
       - 'go.sum'
+      - 'examples/**'
+      - 'testapps/**'
 jobs:
   test:
     name: Build and test (go ${{ matrix.go }} / ${{ matrix.os }})
