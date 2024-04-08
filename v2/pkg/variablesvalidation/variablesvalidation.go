@@ -111,44 +111,6 @@ func (v *variablesVisitor) popPath() {
 	v.path = v.path[:len(v.path)-1]
 }
 
-// func (v *variablesVisitor) EnterVariableDefinition(ref int) {
-// 	varTypeRef := v.operation.VariableDefinitions[ref].Type
-// 	varName := v.operation.VariableValueNameBytes(v.operation.VariableDefinitions[ref].VariableValue.Ref)
-// 	varTypeName := v.operation.ResolveTypeNameBytes(varTypeRef)
-// 	jsonField := v.variables.GetObjectFieldBytes(v.variables.RootNode, varName)
-// 	if v.operation.TypeIsNonNull(varTypeRef) {
-// 		if jsonField == -1 {
-// 			v.renderVariableRequiredError(varName, varTypeRef)
-// 			return
-// 		}
-// 		if v.variables.Nodes[jsonField].Kind == astjson.NodeKindNull {
-// 			v.renderVariableInvalidNullError(varName, varTypeRef)
-// 			return
-// 		}
-// 	}
-// 	if !v.variables.NodeIsDefined(jsonField) {
-// 		return
-// 	}
-// 	v.path = v.path[:0]
-// 	v.pushObjectPath(varName)
-// 	v.currentVariableName = varName
-// 	v.currentVariableJsonNodeRef = jsonField
-// 	if v.operation.TypeIsList(varTypeRef) {
-// 		if v.variables.Nodes[jsonField].Kind != astjson.NodeKindArray {
-// 			v.renderVariableInvalidObjectTypeError(varTypeName, v.variables.Nodes[jsonField])
-// 			return
-// 		}
-// 		for i, arrayValue := range v.variables.Nodes[jsonField].ArrayValues {
-// 			v.pushArrayPath(i)
-// 			v.traverseNamedTypeNode(arrayValue, varTypeName)
-// 			v.popPath()
-// 			continue
-// 		}
-// 		return
-// 	}
-// 	v.traverseNamedTypeNode(jsonField, varTypeName)
-// }
-
 func (v *variablesVisitor) EnterVariableDefinition(ref int) {
 	varTypeRef := v.operation.VariableDefinitions[ref].Type
 	varName := v.operation.VariableValueNameBytes(v.operation.VariableDefinitions[ref].VariableValue.Ref)
