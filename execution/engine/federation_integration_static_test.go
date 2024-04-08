@@ -100,7 +100,7 @@ subscription UpdatedPrice {
 			}()
 
 			assert.Eventuallyf(t, func() bool {
-				msg := `{"data":{"updatedPrice":{"name":"Trilby","price":%d,"reviews":[{"body":"A highly effective form of birth control.","author":{"id":"1234","username":"Me"}}]}}}`
+				msg := `{"data":{"updatedPrice":{"name":"Boater","price":%d,"reviews":[{"body":"This is the last straw. Hat you will wear. 11/10","author":{"id":"7777","username":"User 7777"}}]}}}`
 				price := 10
 				if secondRun {
 					price += 2
