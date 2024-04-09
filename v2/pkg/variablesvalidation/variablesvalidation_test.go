@@ -637,6 +637,67 @@ func TestVariablesValidation(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, `Variable "$input" got invalid value "hello" at "input.bat"; Int cannot represent non-integer value: "hello"`, err.Error())
 	})
+
+	t.Run("input field is a double nested list", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Filter { option: String! } input FilterWrapper { filters: [[Filter!]!] } type Query { hello(filter: FilterWrapper): String }`,
+			operation: `query Foo($input: FilterWrapper) { hello(filter: $input) }`,
+			variables: `{"input":{"filters":[[{"option": "a"}]]}}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+
+	t.Run("variable of double nested list type", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(filter: [[String]]): String }`,
+			operation: `query Foo($input: [[String]]) { hello(filter: $input) }`,
+			variables: `{"input":[["value"]]}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+
+	t.Run("triple nested value into variable of double nested list type", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(filter: [[String]]): String }`,
+			operation: `query Foo($input: [[String]]) { hello(filter: $input) }`,
+			variables: `{"input":[[["value"]]]}`,
+		}
+		err := runTest(t, tc)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$input" got invalid value ["value"] at "input.[0].[0]"; String cannot represent a non string value: ["value"]`, err.Error())
+	})
+
+	t.Run("null into non required list value", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(filter: [String]): String }`,
+			operation: `query Foo($input: [String]) { hello(filter: $input) }`,
+			variables: `{"input":[null]}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+
+	t.Run("value and null into non required list value", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(filter: [String]): String }`,
+			operation: `query Foo($input: [String]) { hello(filter: $input) }`,
+			variables: `{"input":["ok", null]}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+
+	t.Run("null into non required value", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(filter: String): String }`,
+			operation: `query Foo($input: String) { hello(filter: $input) }`,
+			variables: `{"input":null}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
 }
 
 type testCase struct {

@@ -82,7 +82,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 
 	t.Run("query spans multiple federated servers", func(t *testing.T) {
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/multiple_upstream.query"), nil, t)
-		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","author":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"username":"Me"}}]},{"name":"Boater","reviews":[{"body":"This is the last straw. Hat you will wear. 11/10","author":{"username":"User 7777"}}]}]}}`, string(resp))
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","author":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"username":"Me"}}]}]}}`, string(resp))
 	})
 
 	t.Run("mutation operation with variables", func(t *testing.T) {
@@ -130,18 +130,13 @@ func TestFederationIntegrationTest(t *testing.T) {
 		"topProducts": [
 			{
 				"__typename": "Product",
-				"price": 2,
+				"price": 11,
 				"upc": "top-1"
 			},
 			{
 				"__typename": "Product",
 				"price": 22,
 				"upc": "top-2"
-			},
-			{
-				"__typename": "Product",
-				"price": 33,
-				"upc": "top-3"
 			}
 		],
 		"me": {
@@ -153,7 +148,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 					"__typename": "Review",
 					"product": {
 						"__typename": "Product",
-						"price": 2,
+						"price": 11,
 						"upc": "top-1"
 					}
 				},
@@ -182,18 +177,13 @@ func TestFederationIntegrationTest(t *testing.T) {
 		"topProducts": [
 			{
 				"__typename": "Product",
-				"price": 2,
+				"price": 11,
 				"upc": "top-1"
 			},
 			{
 				"__typename": "Product",
 				"price": 22,
 				"upc": "top-2"
-			},
-			{
-				"__typename": "Product",
-				"price": 33,
-				"upc": "top-3"
 			}
 		],
 		"me": {

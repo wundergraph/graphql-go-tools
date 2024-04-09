@@ -21,7 +21,7 @@ func (r *mutationResolver) SetPrice(ctx context.Context, upc string, price int) 
 
 // TopProducts is the resolver for the topProducts field.
 func (r *queryResolver) TopProducts(ctx context.Context, first *int) ([]*model.Product, error) {
-	return hats, nil
+	return hats[:len(hats)-1], nil
 }
 
 // UpdatedPrice is the resolver for the updatedPrice field.
@@ -33,7 +33,7 @@ func (r *subscriptionResolver) UpdatedPrice(ctx context.Context) (<-chan *model.
 			case <-ctx.Done():
 				return
 			case <-time.After(updateInterval):
-				product := hats[0]
+				product := hats[len(hats)-1]
 				if randomnessEnabled {
 					product = hats[rand.Intn(len(hats)-1)]
 					product.Price = rand.Intn(maxPrice-minPrice+1) + minPrice
