@@ -664,7 +664,7 @@ Following, here's a list of all the important packages in this library and what 
 - [Jens Neuse][jens-neuse-github] (Project Lead & Active Maintainer)
   - Initial version of graphql-go-tools
   - Currently responsible for the loader and resolver implementation
-- [Sergey Petrunin][sergey-petrunin-github] (Active Maintainer)
+- [Sergiy Petrunin 🇺🇦][sergiy-petrunin-github] (Active Maintainer)
   - Helped cleaning up the API of the pipeline package
   - Refactored the ast package into multiple files
   - Author of the introspection converter (introspection JSON -> AST)
@@ -691,7 +691,7 @@ Following, here's a list of all the important packages in this library and what 
 [mantas-vidutis-github]: https://github.com/mvid
 [jonas-bergner-github]: https://github.com/java-jonas
 [patric-vormstein-github]: https://github.com/pvormste
-[sergey-petrunin-github]: https://github.com/spetrunin
+[sergiy-petrunin-github]: https://github.com/devsergiy
 [vasyl-github]: https://github.com/chedom
 
 ## Contributions
