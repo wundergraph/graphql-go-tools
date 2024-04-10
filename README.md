@@ -691,7 +691,7 @@ Following, here's a list of all the important packages in this library and what 
 [mantas-vidutis-github]: https://github.com/mvid
 [jonas-bergner-github]: https://github.com/java-jonas
 [patric-vormstein-github]: https://github.com/pvormste
-[sergey-petrunin-github]: https://github.com/spetrunin
+[sergey-petrunin-github]: https://github.com/devsergiy
 [vasyl-github]: https://github.com/chedom
 
 ## Contributions
