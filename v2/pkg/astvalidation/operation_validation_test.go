@@ -2799,6 +2799,47 @@ func TestExecutionValidation(t *testing.T) {
 									}`,
 							Fragments(), Invalid)
 					})
+					t.Run("interface into interface", func(t *testing.T) {
+						runWithDefinition(t,
+							`
+								scalar String
+
+								schema {
+									query: Query
+								}
+
+								interface Title {
+									title: String
+								}
+
+								interface Name {
+									name: String
+								}
+
+								type A implements Title & Name {
+									title: String
+									name: String
+								}
+
+								type B implements Name {
+									name: String
+								}
+
+								type Query {
+									titles: [Title]
+								}
+							`,
+							`
+									{
+										titles {
+											title
+											... on Name {
+												name
+											}
+										}
+									}`,
+							Fragments(), Valid)
+					})
 				})
 			})
 		})

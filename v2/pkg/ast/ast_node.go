@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
@@ -504,7 +505,8 @@ func (d *Document) NodeFragmentIsAllowedOnInterfaceTypeDefinition(fragmentNode, 
 	case NodeKindObjectTypeDefinition:
 		return d.NodeImplementsInterfaceFields(fragmentNode, interfaceTypeNode)
 	case NodeKindInterfaceTypeDefinition:
-		return bytes.Equal(d.InterfaceTypeDefinitionNameBytes(fragmentNode.Ref), d.InterfaceTypeDefinitionNameBytes(interfaceTypeNode.Ref))
+		return bytes.Equal(d.InterfaceTypeDefinitionNameBytes(fragmentNode.Ref), d.InterfaceTypeDefinitionNameBytes(interfaceTypeNode.Ref)) ||
+			d.InterfaceNodeIntersectsInterfaceNode(fragmentNode, interfaceTypeNode)
 	case NodeKindUnionTypeDefinition:
 		return d.UnionNodeIntersectsInterfaceNode(fragmentNode, interfaceTypeNode)
 	}
@@ -553,4 +555,19 @@ func (d *Document) UnionNodeIntersectsInterfaceNode(unionNode, interfaceNode Nod
 		}
 	}
 	return false
+}
+
+func (d *Document) InterfaceNodeIntersectsInterfaceNode(interfaceNodeA, interfaceNodeB Node) bool {
+	typeNamesImplementingInterfaceA, _ := d.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceNodeA.Ref)
+	typeNamesImplementingInterfaceB, _ := d.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceNodeB.Ref)
+
+	hasIntersection := false
+	for _, typeNameB := range typeNamesImplementingInterfaceB {
+		if slices.Contains(typeNamesImplementingInterfaceA, typeNameB) {
+			hasIntersection = true
+			break
+		}
+	}
+
+	return hasIntersection
 }
