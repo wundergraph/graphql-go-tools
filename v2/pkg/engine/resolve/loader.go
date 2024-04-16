@@ -582,10 +582,6 @@ func (l *Loader) mergeErrors(res *result, ref int) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	if !l.propagateSubgraphErrors {
-		l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
-		return nil
-	}
 
 	responseErrorsBuf := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(responseErrorsBuf)
@@ -613,6 +609,11 @@ func (l *Loader) mergeErrors(res *result, ref int) error {
 		}
 
 		l.ctx.appendSubgraphError(goerrors.Join(res.err, subgraphError))
+	}
+
+	if !l.propagateSubgraphErrors {
+		l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+		return nil
 	}
 
 	extensions := l.data.Get(errorObject, []string{"extensions"})
