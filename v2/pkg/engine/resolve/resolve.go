@@ -213,7 +213,10 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 	if err := t.resolvable.InitSubscription(ctx, input, sub.resolve.Trigger.PostProcessing); err != nil {
 		buf := pool.BytesBuffer.Get()
 		defer pool.BytesBuffer.Put(buf)
+		sub.mux.Lock()
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)
+		sub.pendingUpdates--
+		sub.mux.Unlock()
 		_ = r.AsyncUnsubscribeSubscription(sub.id)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:init:failed:%d\n", sub.id.SubscriptionID)
@@ -223,22 +226,28 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 	if err := t.loader.LoadGraphQLResponseData(ctx, sub.resolve.Response, t.resolvable); err != nil {
 		buf := pool.BytesBuffer.Get()
 		defer pool.BytesBuffer.Put(buf)
+		sub.mux.Lock()
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)
+		sub.pendingUpdates--
+		sub.mux.Unlock()
 		_ = r.AsyncUnsubscribeSubscription(sub.id)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:load:failed:%d\n", sub.id.SubscriptionID)
 		}
 		return
 	}
-	sub.mux.Lock()
-	sub.pendingUpdates--
-	defer sub.mux.Unlock()
 	if sub.writer == nil {
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:writer:nil:%d\n", sub.id.SubscriptionID)
 		}
+		sub.mux.Lock()
+		sub.pendingUpdates--
+		sub.mux.Unlock()
 		return // subscription was already closed by the client
 	}
+	sub.mux.Lock()
+	sub.pendingUpdates--
+	defer sub.mux.Unlock()
 	if err := t.resolvable.Resolve(ctx.ctx, sub.resolve.Response.Data, sub.writer); err != nil {
 		buf := pool.BytesBuffer.Get()
 		defer pool.BytesBuffer.Put(buf)
