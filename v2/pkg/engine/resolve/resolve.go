@@ -236,18 +236,15 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		}
 		return
 	}
+	sub.mux.Lock()
+	sub.pendingUpdates--
+	defer sub.mux.Unlock()
 	if sub.writer == nil {
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:writer:nil:%d\n", sub.id.SubscriptionID)
 		}
-		sub.mux.Lock()
-		sub.pendingUpdates--
-		sub.mux.Unlock()
 		return // subscription was already closed by the client
 	}
-	sub.mux.Lock()
-	sub.pendingUpdates--
-	defer sub.mux.Unlock()
 	if err := t.resolvable.Resolve(ctx.ctx, sub.resolve.Response.Data, sub.writer); err != nil {
 		buf := pool.BytesBuffer.Get()
 		defer pool.BytesBuffer.Put(buf)
