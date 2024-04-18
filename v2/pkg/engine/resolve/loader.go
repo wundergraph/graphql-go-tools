@@ -412,31 +412,45 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 		return nil
 	}
 	if res.out.Len() == 0 {
-		return l.renderErrorsFailedToFetch(res, failedToFetchEmptyResponse)
-	}
-	node, err := l.data.AppendAnyJSONBytes(res.out.Bytes())
-	if err != nil {
-		return l.renderErrorsFailedToFetch(res, failedToFetchInvalidJSON)
+		return l.renderErrorsFailedToFetch(res, emptyGraphQLResponse)
 	}
 
-	// error handling
+	// We expect a JSON object according to GraphQL over HTTP spec
+	node, err := l.data.AppendObject(res.out.Bytes())
+	if err != nil {
+		return l.renderErrorsFailedToFetch(res, invalidGraphQLResponse)
+	}
+
+	hasErrors := false
+
+	// We check if any subgraph errors has been set
 	if res.postProcessing.SelectResponseErrorsPath != nil {
 		// look for errors in the response and merge them into the errors array
 		ref := l.data.Get(node, res.postProcessing.SelectResponseErrorsPath)
 		if ref != -1 {
+			hasErrors = l.data.NodeIsDefined(ref) && len(l.data.Nodes[ref].ArrayValues) > 0
 			err = l.mergeErrors(res, ref)
 			if err != nil {
 				return errors.WithStack(err)
 			}
 		}
 	}
+
+	// We also check if any data is there to processed
 	if res.postProcessing.SelectResponseDataPath != nil {
 		node = l.data.Get(node, res.postProcessing.SelectResponseDataPath)
+		// Check if the data is an array and not null
 		if !l.data.NodeIsDefined(node) {
+			// If we didn't get any data nor errors, we return an error because the response is invalid
+			// Returning an error here also avoids walking over the response and merging it into the data
+			if !hasErrors {
+				return l.renderErrorsFailedToFetch(res, invalidGraphQLResponseShape)
+			}
 			// no data
 			return nil
 		}
 	}
+
 	withPostProcessing := res.postProcessing.ResponseTemplate != nil
 	if withPostProcessing && len(items) <= 1 {
 		postProcessed := pool.BytesBuffer.Get()
@@ -593,7 +607,7 @@ func (l *Loader) mergeErrors(res *result, ref int) error {
 	}
 
 	// Serialize subgraph errors from the response
-	// and apped them to the subgraph downsteam errors
+	// and append them to the subgraph downsteam errors
 	if len(l.data.Nodes[ref].ArrayValues) > 0 {
 		graphqlErrors := make([]GraphQLError, 0, len(l.data.Nodes[ref].ArrayValues))
 		err = json.Unmarshal(responseErrorsBuf.Bytes(), &graphqlErrors)
@@ -648,9 +662,10 @@ func (l *Loader) setSubgraphStatusCode(errorObjectRef, statusCode int) {
 }
 
 const (
-	failedToFetchNoReason      = ""
-	failedToFetchEmptyResponse = "empty response"
-	failedToFetchInvalidJSON   = "invalid JSON"
+	failedToFetchNoReason       = ""
+	emptyGraphQLResponse        = "empty response"
+	invalidGraphQLResponse      = "invalid JSON"
+	invalidGraphQLResponseShape = "no data or errors in response"
 )
 
 func (l *Loader) renderErrorsFailedToFetch(res *result, reason string) error {
