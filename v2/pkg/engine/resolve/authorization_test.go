@@ -205,7 +205,7 @@ func TestAuthorization(t *testing.T) {
 		resolveCtx := &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer}
 
 		return res, resolveCtx,
-			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query', Reason: Not allowed to fetch from users Subgraph."}],"data":null}`,
+			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query', Reason: Not allowed to fetch from users Subgraph."},{"message":"Failed to fetch from Subgraph 'reviews' at Path 'query.me'.","extensions":{"errors":[{"message":"could not render fetch input","path":["me"]}]}},{"message":"Failed to fetch from Subgraph 'products' at Path 'query.me.reviews.@.product'.","extensions":{"errors":[{"message":"could not render fetch input","path":["me","reviews","@","product"]}]}}],"data":null}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(1), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(0), authorizer.(*testAuthorizer).objectFieldCalls.Load())
@@ -236,7 +236,7 @@ func TestAuthorization(t *testing.T) {
 		resolveCtx := &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer}
 
 		return res, resolveCtx,
-			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query'."}],"data":null}`,
+			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query'."},{"message":"Failed to fetch from Subgraph 'reviews' at Path 'query.me'.","extensions":{"errors":[{"message":"could not render fetch input","path":["me"]}]}},{"message":"Failed to fetch from Subgraph 'products' at Path 'query.me.reviews.@.product'.","extensions":{"errors":[{"message":"could not render fetch input","path":["me","reviews","@","product"]}]}}],"data":null}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(1), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(0), authorizer.(*testAuthorizer).objectFieldCalls.Load())
@@ -556,7 +556,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 				FetchConfiguration: FetchConfiguration{
 					DataSource: userService,
 					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
+						SelectResponseErrorsPath: []string{"errors"},
+						SelectResponseDataPath:   []string{"data"},
 					},
 				},
 				Info: &FetchInfo{
@@ -619,7 +620,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 							FetchConfiguration: FetchConfiguration{
 								DataSource: reviewsService,
 								PostProcessing: PostProcessingConfiguration{
-									SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+									SelectResponseErrorsPath: []string{"errors"},
+									SelectResponseDataPath:   []string{"data", "_entities", "[0]"},
 								},
 							},
 						},
@@ -743,8 +745,9 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 														FetchConfiguration: FetchConfiguration{
 															DataSource: productService,
 															PostProcessing: PostProcessingConfiguration{
-																SelectResponseDataPath: []string{"data", "_entities"},
-																MergePath:              []string{"data"},
+																SelectResponseErrorsPath: []string{"errors"},
+																SelectResponseDataPath:   []string{"data", "_entities"},
+																MergePath:                []string{"data"},
 															},
 														},
 													},
