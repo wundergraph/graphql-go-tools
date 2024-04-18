@@ -415,8 +415,7 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 		return l.renderErrorsFailedToFetch(res, emptyGraphQLResponse)
 	}
 
-	// We expect a JSON object according to GraphQL over HTTP spec
-	node, err := l.data.AppendObject(res.out.Bytes())
+	node, err := l.data.AppendAnyJSONBytes(res.out.Bytes())
 	if err != nil {
 		return l.renderErrorsFailedToFetch(res, invalidGraphQLResponse)
 	}
@@ -442,12 +441,17 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 		// Check if the data is set and not null
 		if !l.data.NodeIsDefined(node) {
 			// If we didn't get any data nor errors, we return an error because the response is invalid
-			// Returning an error here also avoids the need to walk over it.
+			// Returning an error here also avoids the need to walk over it later.
 			if !hasErrors {
 				return l.renderErrorsFailedToFetch(res, invalidGraphQLResponseShape)
 			}
 			// no data
 			return nil
+		}
+
+		// Check if the data is object according to GraphQL over HTTP spec
+		if l.data.Nodes[l.data.RootNode].Kind != astjson.NodeKindObject {
+			return l.renderErrorsFailedToFetch(res, invalidGraphQLResponseShape)
 		}
 	}
 
