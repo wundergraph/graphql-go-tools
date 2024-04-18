@@ -439,7 +439,7 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 	// We also check if any data is there to processed
 	if res.postProcessing.SelectResponseDataPath != nil {
 		node = l.data.Get(node, res.postProcessing.SelectResponseDataPath)
-		// Check if the data is an array and not null
+		// Check if the data is set and not null
 		if !l.data.NodeIsDefined(node) {
 			// If we didn't get any data nor errors, we return an error because the response is invalid
 			// Returning an error here also avoids the need to walk over it.
