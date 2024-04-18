@@ -442,7 +442,7 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 		// Check if the data is an array and not null
 		if !l.data.NodeIsDefined(node) {
 			// If we didn't get any data nor errors, we return an error because the response is invalid
-			// Returning an error here also avoids walking over the response and merging it into the data
+			// Returning an error here also avoids the need to walk over it.
 			if !hasErrors {
 				return l.renderErrorsFailedToFetch(res, invalidGraphQLResponseShape)
 			}
