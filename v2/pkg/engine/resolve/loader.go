@@ -423,7 +423,7 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 
 	hasErrors := false
 
-	// We check if any subgraph errors has been set
+	// We check if the subgraph response has errors
 	if res.postProcessing.SelectResponseErrorsPath != nil {
 		// look for errors in the response and merge them into the errors array
 		ref := l.data.Get(node, res.postProcessing.SelectResponseErrorsPath)
