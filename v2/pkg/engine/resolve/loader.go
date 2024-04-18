@@ -1266,6 +1266,9 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 
 	res.statusCode = responseContext.StatusCode
 
+	l.ctx.Stats.NumberOfFetches.Inc()
+	l.ctx.Stats.CombinedResponseSize.Add(int64(res.out.Len()))
+
 	if l.ctx.TracingOptions.Enable {
 		stats := GetSingleFlightStats(ctx)
 		if stats != nil {
@@ -1295,10 +1298,6 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 		if l.ctx.TracingOptions.Enable {
 			trace.LoadError = res.err.Error()
 			res.err = errors.WithStack(res.err)
-			return
 		}
-		return
 	}
-	l.ctx.Stats.NumberOfFetches.Inc()
-	l.ctx.Stats.CombinedResponseSize.Add(int64(res.out.Len()))
 }
