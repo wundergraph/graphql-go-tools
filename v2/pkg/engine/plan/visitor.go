@@ -621,8 +621,19 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 		typeName := v.Definition.ResolveTypeNameString(typeRef)
 		typeDefinitionNode, ok := v.Definition.Index.FirstNodeByNameStr(typeName)
 		if !ok {
+			v.Walker.StopWithInternalErr(fmt.Errorf("type %s not found in the definition", typeName))
 			return &resolve.Null{}
 		}
+
+		customResolve, ok := v.Config.CustomResolveMap[typeName]
+		if ok {
+			return &resolve.CustomNode{
+				CustomResolve: customResolve,
+				Path:          path,
+				Nullable:      nullable,
+			}
+		}
+
 		switch typeDefinitionNode.Kind {
 		case ast.NodeKindScalarTypeDefinition:
 			fieldExport := v.resolveFieldExport(fieldRef)

@@ -1,7 +1,7 @@
 package resolve
 
 type CustomResolve interface {
-	Resolve(value []byte) ([]byte, error)
+	Resolve(ctx *Context, value []byte) ([]byte, error)
 }
 
 type CustomNode struct {

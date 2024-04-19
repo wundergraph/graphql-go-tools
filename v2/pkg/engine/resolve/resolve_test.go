@@ -68,13 +68,13 @@ func newResolver(ctx context.Context) *Resolver {
 
 type customResolver struct{}
 
-func (customResolver) Resolve(value []byte) ([]byte, error) {
+func (customResolver) Resolve(_ *Context, value []byte) ([]byte, error) {
 	return value, nil
 }
 
 type customErrResolve struct{}
 
-func (customErrResolve) Resolve(value []byte) ([]byte, error) {
+func (customErrResolve) Resolve(_ *Context, value []byte) ([]byte, error) {
 	return nil, errors.New("custom error")
 }
 
