@@ -8,7 +8,7 @@ require (
 	github.com/gorilla/websocket v1.5.1
 	github.com/jensneuse/abstractlogger v0.0.4
 	github.com/vektah/gqlparser/v2 v2.5.10
-	github.com/wundergraph/graphql-go-tools/execution v1.0.0
+	github.com/wundergraph/graphql-go-tools/execution v1.0.1
 	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.26
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.26.0
