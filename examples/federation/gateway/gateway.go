@@ -9,6 +9,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 type DataSourceObserver interface {
@@ -81,7 +82,9 @@ func (g *Gateway) UpdateDataSources(subgraphsConfigs []engine.SubgraphConfigurat
 		return
 	}
 
-	executionEngine, err := engine.NewExecutionEngine(g.engineCtx, g.logger, engineConfig)
+	executionEngine, err := engine.NewExecutionEngine(g.engineCtx, g.logger, engineConfig, resolve.ResolverOptions{
+		MaxConcurrency: 1024,
+	})
 	if err != nil {
 		g.logger.Error("create engine: %v", log.Error(err))
 		return

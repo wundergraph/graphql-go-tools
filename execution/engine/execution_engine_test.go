@@ -28,8 +28,8 @@ import (
 
 type customResolver struct{}
 
-func (customResolver) Resolve(value []byte) ([]byte, error) {
-	return value, nil
+func (customResolver) Resolve(_ *resolve.Context, value []byte) ([]byte, error) {
+	return []byte("15"), nil
 }
 
 func mustSchemaConfig(t *testing.T, federationConfiguration *graphql_datasource.FederationConfiguration, schema string) *graphql_datasource.SchemaConfiguration {
@@ -220,7 +220,9 @@ func TestExecutionEngine_Execute(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf)
+			engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolve.ResolverOptions{
+				MaxConcurrency: 1024,
+			})
 			require.NoError(t, err)
 
 			operation := testCase.operation(t)
@@ -496,7 +498,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			customResolveMap: map[string]resolve.CustomResolve{
 				"Long": &customResolver{},
 			},
-			expectedResponse: `{"data":{"asset":{"id":1}}}`,
+			expectedResponse: `{"data":{"asset":{"id":15}}}`,
 		},
 	))
 
@@ -1479,7 +1481,9 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 		),
 	})
 
-	engine, err := NewExecutionEngine(context.Background(), abstractlogger.NoopLogger, engineConfig)
+	engine, err := NewExecutionEngine(context.Background(), abstractlogger.NoopLogger, engineConfig, resolve.ResolverOptions{
+		MaxConcurrency: 1024,
+	})
 	require.NoError(t, err)
 
 	t.Run("should reuse cached plan", func(t *testing.T) {
@@ -1554,7 +1558,9 @@ func BenchmarkIntrospection(b *testing.B) {
 	}
 
 	newEngine := func() *ExecutionEngine {
-		engine, err := NewExecutionEngine(ctx, abstractlogger.NoopLogger, engineConf)
+		engine, err := NewExecutionEngine(ctx, abstractlogger.NoopLogger, engineConf, resolve.ResolverOptions{
+			MaxConcurrency: 1024,
+		})
 		require.NoError(b, err)
 
 		return engine
@@ -1640,7 +1646,9 @@ func BenchmarkExecutionEngine(b *testing.B) {
 			},
 		})
 
-		engine, err := NewExecutionEngine(ctx, abstractlogger.NoopLogger, engineConf)
+		engine, err := NewExecutionEngine(ctx, abstractlogger.NoopLogger, engineConf, resolve.ResolverOptions{
+			MaxConcurrency: 1024,
+		})
 		require.NoError(b, err)
 
 		return engine
@@ -2042,7 +2050,9 @@ func newFederationEngineStaticConfig(ctx context.Context, setup *federationtesti
 		DatasourceVisitor:             false,
 	}
 
-	engine, err = NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConfig)
+	engine, err = NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConfig, resolve.ResolverOptions{
+		MaxConcurrency: 1024,
+	})
 	if err != nil {
 		return
 	}

@@ -6,8 +6,9 @@ import (
 	"encoding/json"
 	goerrors "errors"
 	"fmt"
-	"github.com/pkg/errors"
 	"io"
+
+	"github.com/pkg/errors"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
@@ -836,7 +837,7 @@ func (r *Resolvable) walkCustom(c *CustomNode, ref int) bool {
 		return r.err()
 	}
 	value := r.storage.Nodes[ref].ValueBytes(r.storage)
-	resolved, err := c.Resolve(value)
+	resolved, err := c.Resolve(r.ctx, value)
 	if err != nil {
 		r.addError(err.Error(), c.Path)
 		return r.err()

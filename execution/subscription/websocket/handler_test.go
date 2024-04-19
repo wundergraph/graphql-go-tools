@@ -21,6 +21,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/subscriptiontesting"
 )
 
@@ -356,7 +357,9 @@ func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string
 
 	initCtx := subscription.NewInitialHttpRequestContext(req)
 
-	eng, err := engine.NewExecutionEngine(initCtx, abstractlogger.NoopLogger, engineConf)
+	eng, err := engine.NewExecutionEngine(initCtx, abstractlogger.NoopLogger, engineConf, resolve.ResolverOptions{
+		MaxConcurrency: 1024,
+	})
 	require.NoError(t, err)
 
 	executorPool := subscription.NewExecutorV2Pool(eng, ctx)

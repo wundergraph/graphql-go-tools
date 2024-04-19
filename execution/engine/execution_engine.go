@@ -104,7 +104,7 @@ func WithRequestTraceOptions(options resolve.TraceOptions) ExecutionOptions {
 	}
 }
 
-func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engineConfig Configuration) (*ExecutionEngine, error) {
+func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engineConfig Configuration, resolverOptions resolve.ResolverOptions) (*ExecutionEngine, error) {
 	executionPlanCache, err := lru.New(1024)
 	if err != nil {
 		return nil, err
@@ -129,12 +129,10 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 	}
 
 	return &ExecutionEngine{
-		logger:  logger,
-		config:  engineConfig,
-		planner: planner,
-		resolver: resolve.New(ctx, resolve.ResolverOptions{
-			MaxConcurrency: 1024,
-		}),
+		logger:   logger,
+		config:   engineConfig,
+		planner:  planner,
+		resolver: resolve.New(ctx, resolverOptions),
 		internalExecutionContextPool: sync.Pool{
 			New: func() interface{} {
 				return newInternalExecutionContext()
