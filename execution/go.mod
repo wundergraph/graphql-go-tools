@@ -14,7 +14,7 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.10
 	github.com/wundergraph/cosmo/composition-go v0.0.0-20240404090137-207661436138
 	github.com/wundergraph/cosmo/router v0.0.0-20240404090137-207661436138
-	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.19
+	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.26
 	go.uber.org/atomic v1.11.0
 	google.golang.org/protobuf v1.32.0
 )
