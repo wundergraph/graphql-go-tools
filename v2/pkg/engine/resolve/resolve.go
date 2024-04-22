@@ -83,6 +83,7 @@ type ResolverOptions struct {
 
 	PropagateSubgraphErrors      bool
 	PropagateSubgraphStatusCodes bool
+	SubgraphErrorPropagationMode SubgraphErrorPropagationMode
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -100,6 +101,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 					loader: &Loader{
 						propagateSubgraphErrors:      options.PropagateSubgraphErrors,
 						propagateSubgraphStatusCodes: options.PropagateSubgraphStatusCodes,
+						subgraphErrorPropagationMode: options.SubgraphErrorPropagationMode,
 					},
 				}
 			},
