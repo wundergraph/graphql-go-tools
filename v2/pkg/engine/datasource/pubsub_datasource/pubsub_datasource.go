@@ -326,7 +326,7 @@ func (s *RequestDataSource) Load(ctx context.Context, input []byte, w io.Writer)
 	return s.pubSub.Request(ctx, subject, nil, w)
 }
 
-func (p *Planner[T]) inputObjectDefinitionRefByFieldArgument(fieldDefinitionRef int, argumentNameBytes []byte) (inputObjectDefinitionRef int, inputValueTypeRef int) {
+func (p *Planner[T]) inputObjectDefinitionRefByFieldDefinitionRef(fieldDefinitionRef int, argumentNameBytes []byte) (inputObjectDefinitionRef int, inputValueTypeRef int) {
 	inputValueTypeRef = -1
 	for _, inputValueDefinitionRef := range p.visitor.Definition.FieldDefinitions[fieldDefinitionRef].ArgumentsDefinition.Refs {
 		if !p.visitor.Definition.InputValueDefinitionNameBytes(inputValueDefinitionRef).Equals(argumentNameBytes) {
@@ -373,7 +373,7 @@ func (p *Planner[T]) extractEventSubject(fieldRef int, subject string) (string, 
 		if !ok {
 			return "", fmt.Errorf(`expected field definition to exist for field "%s"`, fieldNameBytes)
 		}
-		inputObjectDefinitionRef, lastInputValueTypeRef := p.inputObjectDefinitionRefByFieldArgument(fieldDefinitionRef, []byte(argumentPath[0]))
+		inputObjectDefinitionRef, lastInputValueTypeRef := p.inputObjectDefinitionRefByFieldDefinitionRef(fieldDefinitionRef, []byte(argumentPath[0]))
 		for _, path := range argumentPath[1:] {
 			inputValueNameBytes := []byte(path)
 			if inputObjectDefinitionRef < 0 {
