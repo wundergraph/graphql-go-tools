@@ -157,12 +157,9 @@ func TestPubSub(t *testing.T) {
 					TypeName:   "Subscription",
 					FieldNames: []string{"subscriptionWithArgTemplateAndStaticValue"},
 				},
-				{
-					TypeName:   "User",
-					FieldNames: []string{"id", "tenant"},
-				},
 			},
 			ChildNodes: []plan.TypeField{
+				// Entities are child nodes in pubsub datasources
 				{
 					TypeName:   "User",
 					FieldNames: []string{"id", "tenant"},
