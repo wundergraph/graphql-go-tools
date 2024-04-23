@@ -7,10 +7,11 @@ import (
 )
 
 type GraphQLError struct {
-	Message    string                 `json:"message"`
-	Locations  []Location             `json:"locations,omitempty"`
-	Path       []string               `json:"path"`
-	Extensions map[string]interface{} `json:"extensions,omitempty"`
+	Message   string     `json:"message"`
+	Locations []Location `json:"locations,omitempty"`
+	// Path is a list of path segments that lead to the error, can be number or string
+	Path       []any          `json:"path"`
+	Extensions map[string]any `json:"extensions,omitempty"`
 }
 
 type Location struct {
@@ -72,7 +73,20 @@ func (e *SubgraphError) Error() string {
 			}
 
 			if len(downstreamError.Path) > 0 {
-				fmt.Fprintf(&bf, "%d. Subgraph error at Path '%s', Message: %s", i+1, strings.Join(downstreamError.Path, ","), downstreamError.Message)
+				builder := strings.Builder{}
+				for i := range downstreamError.Path {
+					switch t := downstreamError.Path[i].(type) {
+					case string:
+						builder.WriteString(t)
+					case int:
+						builder.WriteString(fmt.Sprintf("%d", t))
+					}
+					if i < len(downstreamError.Path)-1 {
+						builder.WriteRune('.')
+					}
+				}
+				path := builder.String()
+				fmt.Fprintf(&bf, "%d. Subgraph error at Path '%s', Message: %s", i+1, path, downstreamError.Message)
 			} else {
 				fmt.Fprintf(&bf, "%d. Subgraph error with Message: %s", i+1, downstreamError.Message)
 			}
