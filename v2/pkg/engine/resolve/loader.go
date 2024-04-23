@@ -42,6 +42,13 @@ func IsIntrospectionDataSource(dataSourceID string) bool {
 	return dataSourceID == IntrospectionSchemaTypeDataSourceID || dataSourceID == IntrospectionTypeFieldsDataSourceID || dataSourceID == IntrospectionTypeEnumValuesDataSourceID
 }
 
+type SubgraphErrorPropagationMode int
+
+const (
+	SubgraphErrorPropagationModeWrapped SubgraphErrorPropagationMode = iota
+	SubgraphErrorPropagationModePassThrough
+)
+
 type Loader struct {
 	data       *astjson.JSON
 	dataRoot   int
@@ -52,6 +59,7 @@ type Loader struct {
 
 	propagateSubgraphErrors      bool
 	propagateSubgraphStatusCodes bool
+	subgraphErrorPropagationMode SubgraphErrorPropagationMode
 }
 
 func (l *Loader) Free() {
@@ -595,17 +603,14 @@ func (l *Loader) mergeErrors(res *result, ref int) error {
 		})
 		l.errorsRoot = len(l.data.Nodes) - 1
 	}
+
 	path := l.renderPath()
-	errorObject, err := l.data.AppendObject([]byte(l.renderSubgraphBaseError(res.subgraphName, path, failedToFetchNoReason)))
-	if err != nil {
-		return errors.WithStack(err)
-	}
 
 	responseErrorsBuf := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(responseErrorsBuf)
 
 	// print them into the buffer to be able to parse them
-	err = l.data.PrintNode(l.data.Nodes[ref], responseErrorsBuf)
+	err := l.data.PrintNode(l.data.Nodes[ref], responseErrorsBuf)
 	if err != nil {
 		return err
 	}
@@ -627,6 +632,16 @@ func (l *Loader) mergeErrors(res *result, ref int) error {
 		}
 
 		l.ctx.appendSubgraphError(goerrors.Join(res.err, subgraphError))
+	}
+
+	if l.subgraphErrorPropagationMode == SubgraphErrorPropagationModePassThrough {
+		l.data.MergeArrays(l.errorsRoot, ref)
+		return nil
+	}
+
+	errorObject, err := l.data.AppendObject([]byte(l.renderSubgraphBaseError(res.subgraphName, path, failedToFetchNoReason)))
+	if err != nil {
+		return errors.WithStack(err)
 	}
 
 	if !l.propagateSubgraphErrors {
