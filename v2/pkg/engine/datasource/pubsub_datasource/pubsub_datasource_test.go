@@ -20,9 +20,10 @@ func (t *testPubsub) ID() string {
 	return "test"
 }
 
-func (t *testPubsub) Subscribe(_ context.Context, _ []string, _ resolve.SubscriptionUpdater, streamConfiguration *StreamConfiguration) error {
+func (t *testPubsub) Subscribe(_ context.Context, _ []string, _ resolve.SubscriptionUpdater, _ *StreamConfiguration) error {
 	return errors.New("not implemented")
 }
+
 func (t *testPubsub) Publish(_ context.Context, _ string, _ []byte) error {
 	return errors.New("not implemented")
 }
@@ -38,45 +39,89 @@ func TestPubSub(t *testing.T) {
 
 	const schema = `
 	type Query {
-		helloQuery(id: String!): String! @eventsRequest(subject: "helloQuery.{{ args.id }}")
+		helloQuery(userKey: UserKey!): User! @edfs__natsRequest(subject: "tenants.{{ args.userKey.tenantId }}.users.{{ args.userKey.id }}")
 	}
 
 	type Mutation {
-		helloMutation(id: String!, input: String!): String! @eventsPublish(subject: "helloMutation.{{ args.id }}")
+		helloMutation(userKey: UserKey!): User! @edfs__natsPublish(subject: "tenants.{{ args.userKey.tenantId }}.users.{{ args.userKey.id }}")
 	}
 
 	type Subscription {
-		helloSubscription(id: String!): String! @eventsSubscribe(subjects: ["helloSubscription.{{ args.id }}"])
-		subscriptionWithMultipleSubjects(firstId: String!, secondId: String!): String! @eventsSubscribe(subjects: ["firstSubscription.{{ args.firstId }}", "secondSubscription.{{ args.secondId }}"])
-	}`
+		helloSubscription(userKey: UserKey!): User! @edfs__natsSubscribe(subjects: ["tenants.{{ args.userKey.tenantId }}.users.{{ args.userKey.id }}"])
+		subscriptionWithMultipleSubjects(userKeyOne: UserKey!, userKeyTwo: UserKey!): User! @edfs__natsSubscribe(subjects: ["tenantsOne.{{ args.userKeyOne.tenantId }}.users.{{ args.userKeyOne.id }}", "tenantsTwo.{{ args.userKeyTwo.tenantId }}.users.{{ args.userKeyTwo.id }}"])
+		subscriptionWithStaticValues: User! @edfs__natsSubscribe(subjects: ["tenants.1.users.1"])
+		subscriptionWithArgTemplateAndStaticValue(nestedUserKey: NestedUserKey!): User! @edfs__natsSubscribe(subjects: ["tenants.1.users.{{ args.nestedUserKey.user.id }}"])
+	}
+	
+	type User @key(fields: "id tenant { id }") {
+		id: Int! @external
+		tenant: Tenant! @external
+	}
+
+	type Tenant {
+		id: Int! @external
+	}
+
+	input UserKey {
+		id: Int!
+		tenantId: Int!
+	}
+
+	input NestedUserKey {
+		user: UserInput!
+		tenant: TenantInput!
+	}
+	
+	input UserInput {
+		id: Int!
+	}
+	
+	input TenantInput {
+		id: Int!
+	}
+	`
 
 	dataSourceCustomConfig := Configuration{
 		Events: []EventConfiguration{
 			{
 				FieldName:  "helloQuery",
 				SourceName: "default",
-				Subjects:   []string{"helloQuery.{{ args.id }}"},
+				Subjects:   []string{"tenants.{{ args.userKey.tenantId }}.users.{{ args.userKey.id }}"},
 				Type:       EventTypeRequest,
 				TypeName:   "Query",
 			},
 			{
 				FieldName:  "helloMutation",
 				SourceName: "default",
-				Subjects:   []string{"helloMutation.{{ args.id }}"},
+				Subjects:   []string{"tenants.{{ args.userKey.tenantId }}.users.{{ args.userKey.id }}"},
 				Type:       EventTypePublish,
 				TypeName:   "Mutation",
 			},
 			{
 				FieldName:  "helloSubscription",
 				SourceName: "default",
-				Subjects:   []string{"helloSubscription.{{ args.id }}"},
+				Subjects:   []string{"tenants.{{ args.userKey.tenantId }}.users.{{ args.userKey.id }}"},
 				Type:       EventTypeSubscribe,
 				TypeName:   "Subscription",
 			},
 			{
 				FieldName:  "subscriptionWithMultipleSubjects",
 				SourceName: "default",
-				Subjects:   []string{"firstSubscription.{{ args.firstId }}", "secondSubscription.{{ args.secondId }}"},
+				Subjects:   []string{"tenantsOne.{{ args.userKeyOne.tenantId }}.users.{{ args.userKeyOne.id }}", "tenantsTwo.{{ args.userKeyTwo.tenantId }}.users.{{ args.userKeyTwo.id }}"},
+				Type:       EventTypeSubscribe,
+				TypeName:   "Subscription",
+			},
+			{
+				FieldName:  "subscriptionWithStaticValues",
+				SourceName: "default",
+				Subjects:   []string{"tenants.1.users.1"},
+				Type:       EventTypeSubscribe,
+				TypeName:   "Subscription",
+			},
+			{
+				FieldName:  "subscriptionWithArgTemplateAndStaticValue",
+				SourceName: "default",
+				Subjects:   []string{"tenants.1.users.{{ args.nestedUserKey.user.id }}"},
 				Type:       EventTypeSubscribe,
 				TypeName:   "Subscription",
 			},
@@ -104,6 +149,28 @@ func TestPubSub(t *testing.T) {
 					TypeName:   "Subscription",
 					FieldNames: []string{"subscriptionWithMultipleSubjects"},
 				},
+				{
+					TypeName:   "Subscription",
+					FieldNames: []string{"subscriptionWithStaticValues"},
+				},
+				{
+					TypeName:   "Subscription",
+					FieldNames: []string{"subscriptionWithArgTemplateAndStaticValue"},
+				},
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id", "tenant"},
+				},
+			},
+			ChildNodes: []plan.TypeField{
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id", "tenant"},
+				},
+				{
+					TypeName:   "Tenant",
+					FieldNames: []string{"id"},
+				},
 			},
 		},
 		dataSourceCustomConfig,
@@ -120,7 +187,7 @@ func TestPubSub(t *testing.T) {
 				FieldName: "helloQuery",
 				Arguments: []plan.ArgumentConfiguration{
 					{
-						Name:       "id",
+						Name:       "userKey",
 						SourceType: plan.FieldArgumentSource,
 					},
 				},
@@ -130,7 +197,7 @@ func TestPubSub(t *testing.T) {
 				FieldName: "helloMutation",
 				Arguments: []plan.ArgumentConfiguration{
 					{
-						Name:       "input",
+						Name:       "userKey",
 						SourceType: plan.FieldArgumentSource,
 					},
 				},
@@ -140,7 +207,7 @@ func TestPubSub(t *testing.T) {
 				FieldName: "helloSubscription",
 				Arguments: []plan.ArgumentConfiguration{
 					{
-						Name:       "id",
+						Name:       "userKey",
 						SourceType: plan.FieldArgumentSource,
 					},
 				},
@@ -150,11 +217,21 @@ func TestPubSub(t *testing.T) {
 				FieldName: "subscriptionWithMultipleSubjects",
 				Arguments: []plan.ArgumentConfiguration{
 					{
-						Name:       "firstId",
+						Name:       "userKeyOne",
 						SourceType: plan.FieldArgumentSource,
 					},
 					{
-						Name:       "secondId",
+						Name:       "userKeyTwo",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "Subscription",
+				FieldName: "subscriptionWithArgTemplateAndStaticValue",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "nestedUserKey",
 						SourceType: plan.FieldArgumentSource,
 					},
 				},
@@ -164,7 +241,7 @@ func TestPubSub(t *testing.T) {
 	}
 
 	t.Run("query", func(t *testing.T) {
-		const operation = "query HelloQuery { helloQuery(id:42) }"
+		const operation = "query HelloQuery { helloQuery(userKey:{id:42,tenantId:3}) { id } }"
 		const operationName = `HelloQuery`
 		expect := &plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
@@ -172,18 +249,36 @@ func TestPubSub(t *testing.T) {
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("helloQuery"),
-							Value: &resolve.String{
-								Path: []string{"helloQuery"},
+							Value: &resolve.Object{
+								Path:     []string{"helloQuery"},
+								Nullable: false,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("id"),
+										Value: &resolve.Integer{
+											Path:     []string{"id"},
+											Nullable: false,
+										},
+									},
+								},
 							},
 						},
 					},
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
-							Input: `{"subject":"helloQuery.$$0$$", "data": {"id":$$0$$}, "sourceName":"default"}`,
+							Input: `{"subject":"tenants.$$0$$.users.$$1$$", "data": {"userKey":$$2$$}, "sourceName":"default"}`,
 							Variables: resolve.Variables{
 								&resolve.ContextVariable{
+									Path:     []string{"a", "tenantId"},
+									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+								},
+								&resolve.ContextVariable{
+									Path:     []string{"a", "id"},
+									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+								},
+								&resolve.ContextVariable{
 									Path:     []string{"a"},
-									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
+									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["object"],"properties":{"id":{"type":["integer"]},"tenantId":{"type":["integer"]}},"required":["id","tenantId"],"additionalProperties":false}`),
 								},
 							},
 							DataSource: &RequestDataSource{
@@ -202,7 +297,7 @@ func TestPubSub(t *testing.T) {
 	})
 
 	t.Run("mutation", func(t *testing.T) {
-		const operation = "mutation HelloMutation { helloMutation(id: 42, input:\"world\") }"
+		const operation = "mutation HelloMutation { helloMutation(userKey:{id:42,tenantId:3}) { id } }"
 		const operationName = `HelloMutation`
 		expect := &plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
@@ -210,22 +305,36 @@ func TestPubSub(t *testing.T) {
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("helloMutation"),
-							Value: &resolve.String{
-								Path: []string{"helloMutation"},
+							Value: &resolve.Object{
+								Path:     []string{"helloMutation"},
+								Nullable: false,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("id"),
+										Value: &resolve.Integer{
+											Path:     []string{"id"},
+											Nullable: false,
+										},
+									},
+								},
 							},
 						},
 					},
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
-							Input: `{"subject":"helloMutation.$$0$$", "data": {"id":$$0$$,"input":$$1$$}, "sourceName":"default"}`,
+							Input: `{"subject":"tenants.$$0$$.users.$$1$$", "data": {"userKey":$$2$$}, "sourceName":"default"}`,
 							Variables: resolve.Variables{
 								&resolve.ContextVariable{
-									Path:     []string{"a"},
-									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
+									Path:     []string{"a", "tenantId"},
+									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
 								},
 								&resolve.ContextVariable{
-									Path:     []string{"b"},
-									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
+									Path:     []string{"a", "id"},
+									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+								},
+								&resolve.ContextVariable{
+									Path:     []string{"a"},
+									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["object"],"properties":{"id":{"type":["integer"]},"tenantId":{"type":["integer"]}},"required":["id","tenantId"],"additionalProperties":false}`),
 								},
 							},
 							DataSource: &PublishDataSource{
@@ -244,16 +353,20 @@ func TestPubSub(t *testing.T) {
 	})
 
 	t.Run("subscription", func(t *testing.T) {
-		const operation = "subscription HelloSubscription { helloSubscription(id: 42) }"
+		const operation = "subscription HelloSubscription { helloSubscription(userKey:{id:42,tenantId:3}) { id } }"
 		const operationName = `HelloSubscription`
 		expect := &plan.SubscriptionResponsePlan{
 			Response: &resolve.GraphQLSubscription{
 				Trigger: resolve.GraphQLSubscriptionTrigger{
-					Input: []byte(`{"subjects":["helloSubscription.$$0$$"], "sourceName":"default"}`),
+					Input: []byte(`{"subjects":["tenants.$$0$$.users.$$1$$"], "sourceName":"default"}`),
 					Variables: resolve.Variables{
 						&resolve.ContextVariable{
-							Path:     []string{"a"},
-							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
+							Path:     []string{"a", "tenantId"},
+							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+						},
+						&resolve.ContextVariable{
+							Path:     []string{"a", "id"},
+							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
 						},
 					},
 					Source: &SubscriptionSource{
@@ -268,8 +381,18 @@ func TestPubSub(t *testing.T) {
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("helloSubscription"),
-								Value: &resolve.String{
-									Path: []string{"helloSubscription"},
+								Value: &resolve.Object{
+									Path:     []string{"helloSubscription"},
+									Nullable: false,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("id"),
+											Value: &resolve.Integer{
+												Path:     []string{"id"},
+												Nullable: false,
+											},
+										},
+									},
 								},
 							},
 						},
@@ -281,20 +404,28 @@ func TestPubSub(t *testing.T) {
 	})
 
 	t.Run("subscription with multiple subjects", func(t *testing.T) {
-		const operation = "subscription SubscriptionWithMultipleSubjects { subscriptionWithMultipleSubjects(firstId: 11, secondId: 23) }"
+		const operation = "subscription SubscriptionWithMultipleSubjects { subscriptionWithMultipleSubjects(userKeyOne:{id:42,tenantId:3},userKeyTwo:{id:24,tenantId:99}) { id } }"
 		const operationName = `SubscriptionWithMultipleSubjects`
 		expect := &plan.SubscriptionResponsePlan{
 			Response: &resolve.GraphQLSubscription{
 				Trigger: resolve.GraphQLSubscriptionTrigger{
-					Input: []byte(`{"subjects":["firstSubscription.$$0$$","secondSubscription.$$1$$"], "sourceName":"default"}`),
+					Input: []byte(`{"subjects":["tenantsOne.$$0$$.users.$$1$$","tenantsTwo.$$2$$.users.$$3$$"], "sourceName":"default"}`),
 					Variables: resolve.Variables{
 						&resolve.ContextVariable{
-							Path:     []string{"a"},
-							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
+							Path:     []string{"a", "tenantId"},
+							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
 						},
 						&resolve.ContextVariable{
-							Path:     []string{"b"},
-							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
+							Path:     []string{"a", "id"},
+							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+						},
+						&resolve.ContextVariable{
+							Path:     []string{"b", "tenantId"},
+							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+						},
+						&resolve.ContextVariable{
+							Path:     []string{"b", "id"},
+							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
 						},
 					},
 					Source: &SubscriptionSource{
@@ -309,8 +440,106 @@ func TestPubSub(t *testing.T) {
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("subscriptionWithMultipleSubjects"),
-								Value: &resolve.String{
-									Path: []string{"subscriptionWithMultipleSubjects"},
+								Value: &resolve.Object{
+									Path:     []string{"subscriptionWithMultipleSubjects"},
+									Nullable: false,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("id"),
+											Value: &resolve.Integer{
+												Path:     []string{"id"},
+												Nullable: false,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		datasourcetesting.RunTest(schema, operation, operationName, expect, planConfig)(t)
+	})
+
+	t.Run("subscription with only static values", func(t *testing.T) {
+		const operation = "subscription SubscriptionWithStaticValues { subscriptionWithStaticValues { id } }"
+		const operationName = `SubscriptionWithStaticValues`
+		expect := &plan.SubscriptionResponsePlan{
+			Response: &resolve.GraphQLSubscription{
+				Trigger: resolve.GraphQLSubscriptionTrigger{
+					Input: []byte(`{"subjects":["tenants.1.users.1"], "sourceName":"default"}`),
+					Source: &SubscriptionSource{
+						pubSub: &testPubsub{},
+					},
+					PostProcessing: resolve.PostProcessingConfiguration{
+						MergePath: []string{"subscriptionWithStaticValues"},
+					},
+				},
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("subscriptionWithStaticValues"),
+								Value: &resolve.Object{
+									Path:     []string{"subscriptionWithStaticValues"},
+									Nullable: false,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("id"),
+											Value: &resolve.Integer{
+												Path:     []string{"id"},
+												Nullable: false,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		datasourcetesting.RunTest(schema, operation, operationName, expect, planConfig)(t)
+	})
+
+	t.Run("subscription with deeply nested argument and static value", func(t *testing.T) {
+		const operation = "subscription SubscriptionWithArgTemplateAndStaticValue { subscriptionWithArgTemplateAndStaticValue(nestedUserKey: { user: { id: 44, tenantId: 2 } }) { id } }"
+		const operationName = `SubscriptionWithArgTemplateAndStaticValue`
+		expect := &plan.SubscriptionResponsePlan{
+			Response: &resolve.GraphQLSubscription{
+				Trigger: resolve.GraphQLSubscriptionTrigger{
+					Input: []byte(`{"subjects":["tenants.1.users.$$0$$"], "sourceName":"default"}`),
+					Variables: resolve.Variables{
+						&resolve.ContextVariable{
+							Path:     []string{"a", "user", "id"},
+							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+						},
+					},
+					Source: &SubscriptionSource{
+						pubSub: &testPubsub{},
+					},
+					PostProcessing: resolve.PostProcessingConfiguration{
+						MergePath: []string{"subscriptionWithArgTemplateAndStaticValue"},
+					},
+				},
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("subscriptionWithArgTemplateAndStaticValue"),
+								Value: &resolve.Object{
+									Path:     []string{"subscriptionWithArgTemplateAndStaticValue"},
+									Nullable: false,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("id"),
+											Value: &resolve.Integer{
+												Path:     []string{"id"},
+												Nullable: false,
+											},
+										},
+									},
 								},
 							},
 						},

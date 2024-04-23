@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	natsserver "github.com/nats-io/nats-server/v2/server"
 	"io"
 	"regexp"
 	"strings"
@@ -26,7 +27,11 @@ const (
 	EventTypeSubscribe EventType = "subscribe"
 )
 
-var eventSubjectRegex = regexp.MustCompile(`{{ args.([a-zA-Z0-9_]+) }}`)
+// argument template has form {{args.path}} with flexible whitespace surrounding args.path
+var argumentTemplateRegex = regexp.MustCompile(`{{\s*args((?:\.[a-zA-Z0-9_]+)+)\s*}}`)
+
+// variable template has form $$number$$ where the number can range from one to multiple digits
+var variableTemplateRegex = regexp.MustCompile(`\$\$\d+\$\$`)
 
 func EventTypeFromString(s string) (EventType, error) {
 	et := EventType(strings.ToLower(s))
@@ -321,38 +326,113 @@ func (s *RequestDataSource) Load(ctx context.Context, input []byte, w io.Writer)
 	return s.pubSub.Request(ctx, subject, nil, w)
 }
 
-func (p *Planner[T]) extractEventSubject(ref int, subject string) (string, error) {
-	matches := eventSubjectRegex.FindAllStringSubmatch(subject, -1)
-	if len(matches) != 1 || len(matches[0]) != 2 {
-		return "", fmt.Errorf("expected subject to match regex")
+func (p *Planner[T]) inputObjectDefinitionRefByFieldArgument(fieldDefinitionRef int, argumentNameBytes []byte) (inputObjectDefinitionRef int, inputValueTypeRef int) {
+	inputValueTypeRef = -1
+	for _, inputValueDefinitionRef := range p.visitor.Definition.FieldDefinitions[fieldDefinitionRef].ArgumentsDefinition.Refs {
+		if !p.visitor.Definition.InputValueDefinitionNameBytes(inputValueDefinitionRef).Equals(argumentNameBytes) {
+			continue
+		}
+		inputObjectDefinitionRef, inputValueTypeRef = p.inputObjectDefinitionRefByInputValueDefinitionRef(inputValueDefinitionRef)
+		if inputObjectDefinitionRef != -1 {
+			return inputObjectDefinitionRef, inputValueTypeRef
+		}
 	}
-	argumentName := matches[0][1]
-	// We need to find the argument in the operation
-	argumentRef, ok := p.visitor.Operation.FieldArgument(ref, []byte(argumentName))
+	return -1, inputValueTypeRef
+}
+func (p *Planner[T]) inputObjectDefinitionRefByInputValueDefinitionRef(inputValueDefinitionRef int) (inputObjectDefinitionRef int, inputValueTypeRef int) {
+	inputValueTypeRef = p.visitor.Definition.InputValueDefinitions[inputValueDefinitionRef].Type
+	typeNameBytes := p.visitor.Definition.ResolveTypeNameBytes(inputValueTypeRef)
+	node, ok := p.visitor.Definition.Index.FirstNodeByNameBytes(typeNameBytes)
 	if !ok {
-		return "", fmt.Errorf("argument \"%s\" is not defined", argumentName)
+		return -1, inputValueTypeRef
 	}
-	argumentValue := p.visitor.Operation.ArgumentValue(argumentRef)
-	if argumentValue.Kind != ast.ValueKindVariable {
-		return "", fmt.Errorf("expected argument \"%s\" kind to be \"ValueKindVariable\" but received \"%s\"", argumentName, argumentValue.Kind)
+	if node.Kind != ast.NodeKindInputObjectTypeDefinition {
+		return -1, inputValueTypeRef
 	}
-	variableName := p.visitor.Operation.VariableValueNameBytes(argumentValue.Ref)
-	variableDefinition, ok := p.visitor.Operation.VariableDefinitionByNameAndOperation(p.visitor.Walker.Ancestors[0].Ref, variableName)
-	if !ok {
-		return "", fmt.Errorf("expected definition to exist for variable \"%s\"", variableName)
+	return node.Ref, inputValueTypeRef
+}
+
+func (p *Planner[T]) extractEventSubject(fieldRef int, subject string) (string, error) {
+	allMatches := argumentTemplateRegex.FindAllStringSubmatch(subject, -1)
+	// if no argument templates are defined, there are only static values
+	if len(allMatches) < 1 {
+		if natsserver.IsValidSubject(subject) {
+			return subject, nil
+		}
+		return "", fmt.Errorf(`subject "%s" is not a valid NATS subject`, subject)
 	}
-	variableTypeRef := p.visitor.Operation.VariableDefinitions[variableDefinition].Type
-	renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(p.visitor.Operation, p.visitor.Definition, variableTypeRef, string(variableName))
-	if err != nil {
-		return "", err
+	substitutedSubject := subject
+	for templateNumber, matches := range allMatches {
+		if len(matches) != 2 {
+			return "", fmt.Errorf("expected a single matching group for argument template")
+		}
+		// the path begins with ".", so ignore the first empty string element
+		argumentPath := strings.Split(matches[1][1:], ".")
+		fieldNameBytes := p.visitor.Operation.FieldNameBytes(fieldRef)
+		fieldDefinitionRef, ok := p.visitor.Definition.ObjectTypeDefinitionFieldWithName(p.visitor.Walker.EnclosingTypeDefinition.Ref, fieldNameBytes)
+		if !ok {
+			return "", fmt.Errorf(`expected field definition to exist for field "%s"`, fieldNameBytes)
+		}
+		inputObjectDefinitionRef, lastInputValueTypeRef := p.inputObjectDefinitionRefByFieldArgument(fieldDefinitionRef, []byte(argumentPath[0]))
+		for _, path := range argumentPath[1:] {
+			inputValueNameBytes := []byte(path)
+			if inputObjectDefinitionRef < 0 {
+				return "", fmt.Errorf(`the event subject "%s" defines nested input field "%s" in argument template #%d, but no parent input object was found`, subject, inputValueNameBytes, templateNumber+1)
+			}
+			inputObjectDefinition := p.visitor.Definition.InputObjectTypeDefinitions[inputObjectDefinitionRef]
+			inputObjectDefinitionRef = -1
+			lastInputValueTypeRef = -1
+			for _, inputValueDefinitionRef := range inputObjectDefinition.InputFieldsDefinition.Refs {
+				if !p.visitor.Definition.InputValueDefinitionNameBytes(inputValueDefinitionRef).Equals(inputValueNameBytes) {
+					continue
+				}
+				inputObjectDefinitionRef, lastInputValueTypeRef = p.inputObjectDefinitionRefByInputValueDefinitionRef(inputValueDefinitionRef)
+				break
+			}
+		}
+		if inputObjectDefinitionRef != -1 {
+			return "", fmt.Errorf(`the event subject "%s" defines the final nested input field "%s" in argument template #%d, but it is not a leaf type`, subject, argumentPath[len(argumentPath)-1], templateNumber+1)
+		}
+		if lastInputValueTypeRef == -1 {
+			return "", fmt.Errorf(`the event subject "%s" defines the final nested input field "%s" in argument template #%d, but it does not exist`, subject, argumentPath[len(argumentPath)-1], templateNumber+1)
+		}
+		argumentName := argumentPath[0]
+		argumentRef, ok := p.visitor.Operation.FieldArgument(fieldRef, []byte(argumentName))
+		if !ok {
+			return "", fmt.Errorf(`argument "%s" is not defined`, argumentName)
+		}
+		p.visitor.Definition.ObjectTypeDefinitionFieldWithName(p.visitor.Walker.EnclosingTypeDefinition.Ref, p.visitor.Operation.FieldNameBytes(fieldRef))
+		argumentValue := p.visitor.Operation.ArgumentValue(argumentRef)
+		if argumentValue.Kind != ast.ValueKindVariable {
+			return "", fmt.Errorf(`expected argument "%s" kind to be "ValueKindVariable" but received "%s"`, argumentName, argumentValue.Kind)
+		}
+		variableName := p.visitor.Operation.VariableValueNameBytes(argumentValue.Ref)
+		_, ok = p.visitor.Operation.VariableDefinitionByNameAndOperation(p.visitor.Walker.Ancestors[0].Ref, variableName)
+		if !ok {
+			return "", fmt.Errorf(`expected definition to exist for variable "%s"`, variableName)
+		}
+		// the variable path should be the variable name, e.g., "a", and then the 2nd element from the path onwards
+		variablePath := append([]string{string(variableName)}, argumentPath[1:]...)
+
+		// the definition is passed as operation because getJSONRootType resolves the type from the first argument,
+		// but lastInputValueTypeRef comes from the definition
+		renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(p.visitor.Definition, p.visitor.Definition, lastInputValueTypeRef, variablePath...)
+		if err != nil {
+			return "", err
+		}
+		contextVariable := &resolve.ContextVariable{
+			Path:     variablePath,
+			Renderer: renderer,
+		}
+		// We need to replace the template literal with the variable placeholder (and reuse if it already exists)
+		variablePlaceHolder, _ := p.variables.AddVariable(contextVariable) // $$0$$
+		substitutedSubject = strings.ReplaceAll(substitutedSubject, matches[0], variablePlaceHolder)
 	}
-	contextVariable := &resolve.ContextVariable{
-		Path:     []string{string(variableName)},
-		Renderer: renderer,
+	// substitute the variable templates for dummy values to check that the string is a valid NATS subject
+	if natsserver.IsValidSubject(variableTemplateRegex.ReplaceAllLiteralString(substitutedSubject, "a")) {
+		return substitutedSubject, nil
 	}
-	// We need to replace the template literal with the variable placeholder (and reuse if it already exists)
-	variablePlaceHolder, _ := p.variables.AddVariable(contextVariable) // $$0$$
-	return eventSubjectRegex.ReplaceAllLiteralString(subject, variablePlaceHolder), nil
+	return "", fmt.Errorf(`subject "%s" is not a valid NATS subject`, subject)
 }
 
 func (p *Planner[T]) eventDataBytes(ref int) ([]byte, error) {
