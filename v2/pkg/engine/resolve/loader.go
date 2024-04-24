@@ -42,13 +42,6 @@ func IsIntrospectionDataSource(dataSourceID string) bool {
 	return dataSourceID == IntrospectionSchemaTypeDataSourceID || dataSourceID == IntrospectionTypeFieldsDataSourceID || dataSourceID == IntrospectionTypeEnumValuesDataSourceID
 }
 
-type SubgraphErrorPropagationMode int
-
-const (
-	SubgraphErrorPropagationModeWrapped SubgraphErrorPropagationMode = iota
-	SubgraphErrorPropagationModePassThrough
-)
-
 type Loader struct {
 	data       *astjson.JSON
 	dataRoot   int
@@ -60,6 +53,9 @@ type Loader struct {
 	propagateSubgraphErrors      bool
 	propagateSubgraphStatusCodes bool
 	subgraphErrorPropagationMode SubgraphErrorPropagationMode
+	rewriteSubgraphErrorPaths    bool
+	omitSubgraphErrorLocations   bool
+	omitSubgraphErrorExtensions  bool
 }
 
 func (l *Loader) Free() {
@@ -634,6 +630,10 @@ func (l *Loader) mergeErrors(res *result, ref int) error {
 		l.ctx.appendSubgraphError(goerrors.Join(res.err, subgraphError))
 	}
 
+	l.optionallyOmitErrorExtensions(ref)
+	l.optionallyOmitErrorLocations(ref)
+	l.optionallyRewriteErrorPaths(ref)
+
 	if l.subgraphErrorPropagationMode == SubgraphErrorPropagationModePassThrough {
 		l.data.MergeArrays(l.errorsRoot, ref)
 		return nil
@@ -659,6 +659,93 @@ func (l *Loader) mergeErrors(res *result, ref int) error {
 	l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
 
 	return nil
+}
+
+func (l *Loader) optionallyOmitErrorExtensions(ref int) {
+	if !l.omitSubgraphErrorExtensions {
+		return
+	}
+WithNextError:
+	for _, i := range l.data.Nodes[ref].ArrayValues {
+		if l.data.Nodes[i].Kind != astjson.NodeKindObject {
+			continue
+		}
+		fields := l.data.Nodes[i].ObjectFields
+		for j, k := range fields {
+			key := l.data.ObjectFieldKey(k)
+			if !bytes.Equal(key, literalExtensions) {
+				continue
+			}
+			l.data.Nodes[i].ObjectFields = append(fields[:j], fields[j+1:]...)
+			continue WithNextError
+		}
+	}
+}
+
+func (l *Loader) optionallyOmitErrorLocations(ref int) {
+	if !l.omitSubgraphErrorLocations {
+		return
+	}
+WithNextError:
+	for _, i := range l.data.Nodes[ref].ArrayValues {
+		if l.data.Nodes[i].Kind != astjson.NodeKindObject {
+			continue
+		}
+		fields := l.data.Nodes[i].ObjectFields
+		for j, k := range fields {
+			key := l.data.ObjectFieldKey(k)
+			if !bytes.Equal(key, literalLocations) {
+				continue
+			}
+			l.data.Nodes[i].ObjectFields = append(fields[:j], fields[j+1:]...)
+			continue WithNextError
+		}
+	}
+}
+
+func (l *Loader) optionallyRewriteErrorPaths(ref int) {
+	if !l.rewriteSubgraphErrorPaths {
+		return
+	}
+	pathPrefix := make([]int, len(l.path))
+	for i := range l.path {
+		str := l.data.AppendString(l.path[i])
+		pathPrefix[i] = str
+	}
+	// remove the trailing @ in case we're in an array as it looks weird in the path
+	// errors, like fetches, are attached to objects, not arrays
+	if len(l.path) != 0 && l.path[len(l.path)-1] == "@" {
+		pathPrefix = pathPrefix[:len(pathPrefix)-1]
+	}
+WithNextError:
+	for _, i := range l.data.Nodes[ref].ArrayValues {
+		if l.data.Nodes[i].Kind != astjson.NodeKindObject {
+			continue
+		}
+		fields := l.data.Nodes[i].ObjectFields
+		for _, j := range fields {
+			key := l.data.ObjectFieldKey(j)
+			if !bytes.Equal(key, literalPath) {
+				continue
+			}
+			value := l.data.ObjectFieldValue(j)
+			if l.data.Nodes[value].Kind != astjson.NodeKindArray {
+				continue
+			}
+			if len(l.data.Nodes[value].ArrayValues) == 0 {
+				continue WithNextError
+			}
+			v := l.data.Nodes[value].ArrayValues[0]
+			if l.data.Nodes[v].Kind != astjson.NodeKindString {
+				continue WithNextError
+			}
+			elem := l.data.Nodes[v].ValueBytes(l.data)
+			if !bytes.Equal(elem, literalUnderscoreEntities) {
+				continue WithNextError
+			}
+			l.data.Nodes[value].ArrayValues = append(pathPrefix, l.data.Nodes[value].ArrayValues[1:]...)
+		}
+	}
 }
 
 func (l *Loader) setSubgraphStatusCode(errorObjectRef, statusCode int) {

@@ -304,6 +304,17 @@ func (j *JSON) AppendStringBytes(input []byte) int {
 	})
 }
 
+func (j *JSON) AppendString(input string) int {
+	start := len(j.storage)
+	j.storage = append(j.storage, input...)
+	end := len(j.storage)
+	return j.appendNode(Node{
+		Kind:       NodeKindString,
+		valueStart: start,
+		valueEnd:   end,
+	})
+}
+
 func (j *JSON) AppendInt(value int) int {
 	start := len(j.storage)
 	j.storage = append(j.storage, strconv.FormatInt(int64(value), 10)...)

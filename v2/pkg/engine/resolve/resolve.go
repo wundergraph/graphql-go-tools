@@ -65,6 +65,13 @@ type tools struct {
 	loader     *Loader
 }
 
+type SubgraphErrorPropagationMode int
+
+const (
+	SubgraphErrorPropagationModeWrapped SubgraphErrorPropagationMode = iota
+	SubgraphErrorPropagationModePassThrough
+)
+
 type ResolverOptions struct {
 	// MaxConcurrency limits the number of concurrent resolve operations
 	// if set to 0, no limit is applied
@@ -81,9 +88,21 @@ type ResolverOptions struct {
 	Reporter         Reporter
 	AsyncErrorWriter AsyncErrorWriter
 
-	PropagateSubgraphErrors      bool
+	// PropagateSubgraphErrors adds Subgraph Errors to the response
+	PropagateSubgraphErrors bool
+	// PropagateSubgraphStatusCodes adds the status code of the Subgraph to the extensions field of a Subgraph Error
 	PropagateSubgraphStatusCodes bool
+	// SubgraphErrorPropagationMode defines how Subgraph Errors are propagated
+	// SubgraphErrorPropagationModeWrapped wraps Subgraph Errors in a Subgraph Error to prevent leaking internal information
+	// SubgraphErrorPropagationModePassThrough passes Subgraph Errors through without modification
 	SubgraphErrorPropagationMode SubgraphErrorPropagationMode
+	// RewriteSubgraphErrorPaths rewrites the paths of Subgraph Errors to match the path of the field from the perspective of the client
+	// This means that nested entity requests will have their paths rewritten from e.g. "_entities.foo.bar" to "person.foo.bar" if the root field above is "person"
+	RewriteSubgraphErrorPaths bool
+	// OmitSubgraphErrorLocations omits the locations field of Subgraph Errors
+	OmitSubgraphErrorLocations bool
+	// OmitSubgraphErrorExtensions omits the extensions field of Subgraph Errors
+	OmitSubgraphErrorExtensions bool
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -102,6 +121,9 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 						propagateSubgraphErrors:      options.PropagateSubgraphErrors,
 						propagateSubgraphStatusCodes: options.PropagateSubgraphStatusCodes,
 						subgraphErrorPropagationMode: options.SubgraphErrorPropagationMode,
+						rewriteSubgraphErrorPaths:    options.RewriteSubgraphErrorPaths,
+						omitSubgraphErrorLocations:   options.OmitSubgraphErrorLocations,
+						omitSubgraphErrorExtensions:  options.OmitSubgraphErrorExtensions,
 					},
 				}
 			},
