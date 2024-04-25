@@ -4,6 +4,15 @@
 
 [<p align="center"><img height="auto" src="./assets/logo.png"></p>](https://wundergraph.com/)
 
+## We're hiring!
+
+Are you interested in working on graphql-go-tools?
+We're looking for experienced Go developers and DevOps or Platform Engineering specialists to help us run Cosmo Cloud.
+If you're more interested in working with Customers on their GraphQL Strategy,
+we also offer Solution Architect positions.
+
+Check out the [currently open positions](https://wundergraph.com/jobs#open-positions).
+
 ## Replacement for Apollo Router
 
 If you're looking for a complete ready-to-use Open Source Router for Federation,
