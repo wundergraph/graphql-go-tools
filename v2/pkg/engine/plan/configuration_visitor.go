@@ -633,6 +633,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 					shouldWalkFields: true,
 					typeName:         typeName,
 					fieldRef:         ref,
+					fragmentRef:      ast.InvalidRef,
 					enclosingNode:    c.walker.EnclosingTypeDefinition,
 					dsHash:           currentPlannerDSHash,
 					isRootNode:       hasRootNode,
@@ -707,6 +708,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		shouldWalkFields: true,
 		typeName:         typeName,
 		fieldRef:         ref,
+		fragmentRef:      ast.InvalidRef,
 		enclosingNode:    c.walker.EnclosingTypeDefinition,
 		dsHash:           config.Hash(),
 		isRootNode:       true,
@@ -718,7 +720,12 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 
 	isParentAbstract := c.isParentTypeNodeAbstractType()
 	isParentFragment := c.walker.Path[len(c.walker.Path)-1].Kind == ast.InlineFragmentName
+	fragmentRef := ast.InvalidRef
 
+	if isParentFragment {
+		fragmentRef = c.walker.Ancestors[len(c.walker.Ancestors)-2].Ref
+	}
+	
 	if isParentAbstract && isParentFragment {
 		// if the parent is abstract and path is on a fragment parent, we add the parent path of type fragment
 		// this will ensure that we're walking into and out of the root inline fragments
@@ -730,10 +737,16 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 				shouldWalkFields: false,
 				dsHash:           config.Hash(),
 				fieldRef:         ast.InvalidRef,
+				fragmentRef:      fragmentRef,
 				pathType:         PathTypeFragment,
 			},
 		}, paths...)
 	} else {
+		pathType := PathTypeParent
+		if isParentFragment {
+			pathType = PathTypeFragment
+		}
+
 		// add potentially missing parent path
 		// this could happen when the parent is a fragment and we walking nested selection sets
 		paths = append([]pathConfiguration{
@@ -742,7 +755,8 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 				shouldWalkFields: true,
 				dsHash:           config.Hash(),
 				fieldRef:         ast.InvalidRef,
-				pathType:         PathTypeParent,
+				fragmentRef:      fragmentRef,
+				pathType:         pathType,
 			},
 		}, paths...)
 	}
@@ -759,6 +773,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 				shouldWalkFields: false,
 				dsHash:           config.Hash(),
 				fieldRef:         ast.InvalidRef,
+				fragmentRef:      ast.InvalidRef,
 				pathType:         PathTypeParent,
 			},
 		}, paths...)

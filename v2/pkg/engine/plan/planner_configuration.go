@@ -204,6 +204,7 @@ type pathConfiguration struct {
 	typeName string
 
 	fieldRef      int
+	fragmentRef   int
 	enclosingNode ast.Node
 
 	dsHash     DSHash
@@ -220,16 +221,14 @@ const (
 )
 
 func (p *pathConfiguration) String() string {
-	pathType := "field"
-	if p.pathType == PathTypeField {
-		return fmt.Sprintf(`{"ds":%d,"path":"%s","fieldRef":%3d,"typeName":"%s","shouldWalkFields":%t,"isRootNode":%t,"pathType":"%s"}`, p.dsHash, p.path, p.fieldRef, p.typeName, p.shouldWalkFields, p.isRootNode, pathType)
-	}
 	switch p.pathType {
+	case PathTypeField:
+		return fmt.Sprintf(`{"ds":%d,"path":"%s","fieldRef":%3d,"typeName":"%s","shouldWalkFields":%t,"isRootNode":%t,"pathType":"field"}`, p.dsHash, p.path, p.fieldRef, p.typeName, p.shouldWalkFields, p.isRootNode)
 	case PathTypeFragment:
-		pathType = "fragment"
+		return fmt.Sprintf(`{"ds":%d,"path":"%s","fragmentRef":%3d,"shouldWalkFields":%t,"pathType":"fragment"}`, p.dsHash, p.path, p.fragmentRef, p.shouldWalkFields)
 	case PathTypeParent:
-		pathType = "parent"
+		return fmt.Sprintf(`{"ds":%d,"path":"%s","shouldWalkFields":%t,"pathType":"parent"}`, p.dsHash, p.path, p.shouldWalkFields)
+	default:
+		return ""
 	}
-
-	return fmt.Sprintf(`{"ds":%d,"path":"%s","shouldWalkFields":%t,"pathType":"%s"}`, p.dsHash, p.path, p.shouldWalkFields, pathType)
 }
