@@ -63,6 +63,7 @@ import (
   "fmt"
 
   "github.com/cespare/xxhash/v2"
+
   "github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
   "github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
   "github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
@@ -101,7 +102,7 @@ func ExampleParsePrintDocument() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(out.String()) // Output: query { hello }
+	fmt.Println(out) // Output: { hello }
 }
 
 /*
@@ -138,7 +139,7 @@ func ExampleParseComplexDocument() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(out.String()) // Output: query { hello foo { bar } }
+	fmt.Println(out) // Output: {hello foo {bar}}
 }
 
 /*
@@ -173,11 +174,11 @@ func ExamplePrintWithIndentation() {
 		panic(err)
 	}
 	fmt.Println(out)
-	// Output: query {
-	//   hello
-	//   foo {
-	//     bar
-	//   }
+	// Output: {
+	//     hello
+	//     foo {
+	//         bar
+	//     }
 	// }
 }
 
@@ -221,9 +222,9 @@ func ExampleParseOperationNameAndType() {
 			continue
 		}
 		operationCount++
-		name := document.RootOperationTypeDefinitionNameString(node.Ref)
+		name := document.OperationDefinitionNameString(node.Ref)
 		operationNames = append(operationNames, name)
-		operationType := document.RootOperationTypeDefinitions[node.Ref].OperationType
+		operationType := document.OperationDefinitions[node.Ref].OperationType
 		operationTypes = append(operationTypes, operationType)
 	}
 
@@ -335,10 +336,10 @@ func ExampleNormalizeDocument() {
 
 	fmt.Println(out)
 	// Output: query MyQuery {
-	//   hello
-	//   foo {
-	//     bar
-	//   }
+	//     hello
+	//     foo {
+	//         bar
+	//     }
 	// }
 }
 
@@ -353,14 +354,17 @@ Alright. Let's do it!
 */
 
 func ExampleValidateDocument() {
-	schemaDocument := ast.NewSmallDocument()
-	operationDocument := ast.NewSmallDocument()
+	operationDocument := ast.NewSmallDocument() // replace with the "document" from ExampleNormalizeDocument
+	schemaDocument := ast.NewSmallDocument()    // replace with the "schemaDocument" from ExampleNormalizeDocument
 	report := &operationreport.Report{}
+
 	validator := astvalidation.DefaultOperationValidator()
-	validator.Validate(schemaDocument, operationDocument, report)
+	validator.Validate(operationDocument, schemaDocument, report)
 	if report.HasErrors() {
 		panic(report.Error())
 	}
+
+	fmt.Println("Valid")
 }
 
 /*
@@ -373,18 +377,9 @@ Let's take a look!
 */
 
 func ExampleGenerateCacheKey() {
-	operationDocument := ast.NewSmallDocument()
-	schemaDocument := ast.NewSmallDocument()
-	report := &operationreport.Report{}
+	operationDocument := ast.NewSmallDocument() // replace with the "document" from ExampleNormalizeDocument
+	schemaDocument := ast.NewSmallDocument()    // replace with the "schemaDocument" from ExampleNormalizeDocument
 
-	normalizer := astnormalization.NewWithOpts(
-		astnormalization.WithExtractVariables(),
-		astnormalization.WithInlineFragmentSpreads(),
-		astnormalization.WithRemoveFragmentDefinitions(),
-		astnormalization.WithRemoveNotMatchingOperationDefinitions(),
-	)
-
-	normalizer.NormalizeNamedOperation(operationDocument, schemaDocument, []byte("MyQuery"), report)
 	printer := &astprinter.Printer{}
 	keyGen := xxhash.New()
 	err := printer.Print(operationDocument, schemaDocument, keyGen)
@@ -401,7 +396,7 @@ func ExampleGenerateCacheKey() {
 	}
 
 	key := keyGen.Sum64()
-	fmt.Printf("%x", key) // Output: {cache key}
+	fmt.Printf("%x\n", key) // Output: {cache key}
 }
 
 /*
@@ -419,16 +414,9 @@ func ExampleGenerateCacheKeyWithStaticOperationName() {
 
 	staticOperationName := []byte("O")
 
-	operationDocument := ast.NewSmallDocument()
-	schemaDocument := ast.NewSmallDocument()
+	operationDocument := ast.NewSmallDocument() // replace with the "document" from ExampleNormalizeDocument
+	schemaDocument := ast.NewSmallDocument()    // replace with the "schemaDocument" from ExampleNormalizeDocument
 	report := &operationreport.Report{}
-
-	normalizer := astnormalization.NewWithOpts(
-		astnormalization.WithExtractVariables(),
-		astnormalization.WithInlineFragmentSpreads(),
-		astnormalization.WithRemoveFragmentDefinitions(),
-		astnormalization.WithRemoveNotMatchingOperationDefinitions(),
-	)
 
 	// First, we add the static operation name to the document and get an "address" to the byte slice (string) in the document
 	// We cannot just add a string to an AST because the AST only stores references to byte slices
@@ -448,6 +436,13 @@ func ExampleGenerateCacheKeyWithStaticOperationName() {
 		operationDocument.OperationDefinitions[node.Ref].Name = nameRef
 	}
 
+	normalizer := astnormalization.NewWithOpts(
+		astnormalization.WithExtractVariables(),
+		astnormalization.WithInlineFragmentSpreads(),
+		astnormalization.WithRemoveFragmentDefinitions(),
+		astnormalization.WithRemoveNotMatchingOperationDefinitions(),
+	)
+
 	// Now we can normalize the modified document
 	// All Operations that don't have the name O will be removed
 	normalizer.NormalizeNamedOperation(operationDocument, schemaDocument, staticOperationName, report)
@@ -465,7 +460,7 @@ func ExampleGenerateCacheKeyWithStaticOperationName() {
 	}
 
 	key := keyGen.Sum64()
-	fmt.Printf("%x", key) // Output: {cache key}
+	fmt.Printf("%x\n", key) // Output: {cache key}
 }
 
 /*
@@ -495,51 +490,62 @@ so that the planner knows how to create an execution plan for the DataSource and
 */
 
 func ExamplePlanOperation() {
-    staticDataSource, err := plan.NewDataSourceConfiguration[staticdatasource.Configuration](
-      "StaticDataSource",
-      &staticdatasource.Factory[staticdatasource.Configuration]{},
-      &plan.DataSourceMetadata{
-        RootNodes: []plan.TypeField{
-          {
-            TypeName:   "Query",
-            FieldNames: []string{"hello"},
-          },
-        },
-      },
-      staticdatasource.Configuration{
-        Data: `{"hello":"world"}`,
-      },
-    )
-  
-    config := plan.Configuration{
-      DataSources: []plan.DataSource{
-        staticDataSource,
-      },
-      Fields: []plan.FieldConfiguration{
-        {
-          TypeName:              "Query", // attach this config to the Query type and the field hello
-          FieldName:             "hello",
-          DisableDefaultMapping: true,              // disable the default mapping for this field which only applies to GraphQL APIs
-          Path:                  []string{"hello"}, // returns the value of the field "hello" from the JSON data
-        },
-      },
-      IncludeInfo: true,
-    }
+	staticDataSource, err := plan.NewDataSourceConfiguration(
+		"StaticDataSource",
+		&staticdatasource.Factory[staticdatasource.Configuration]{},
+		&plan.DataSourceMetadata{
+			RootNodes: plan.TypeFields{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"hello", "foo"},
+				},
+			},
+			ChildNodes: plan.TypeFields{
+				{
+					TypeName:   "Foo",
+					FieldNames: []string{"bar"},
+				},
+			},
+		},
+		staticdatasource.Configuration{
+			Data: `{"hello":"world"}`,
+		},
+	)
 	if err != nil {
-        panic(err)
-    }
+		panic(err)
+	}
 
-	operationDocument := ast.NewSmallDocument() // containing the following query: query O { hello }
+	config := plan.Configuration{
+		DataSources: []plan.DataSource{
+			staticDataSource,
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:              "Query", // attach this config to the Query type and the field hello
+				FieldName:             "hello",
+				DisableDefaultMapping: true,              // disable the default mapping for this field which only applies to GraphQL APIs
+				Path:                  []string{"hello"}, // returns the value of the field "hello" from the JSON data
+			},
+		},
+		IncludeInfo: true,
+	}
+
+	// Assumes a document containing the following query: query O { hello }
+	// Replace with the "operationDocument" from ExampleGenerateCacheKeyWithStaticOperationName
+	operationDocument := ast.NewSmallDocument()
+	// Assumes a document containing the following schema: type Query { hello: String }
+	// Replace with the "schemaDocument" from ExampleGenerateCacheKeyWithStaticOperationName
 	schemaDocument := ast.NewSmallDocument()
-	report := &operationreport.Report{}
-	operationName := "O"
 
-	planner := plan.NewPlanner(context.Background(), config)
+	report := &operationreport.Report{}
+
+	operationName := "O"
+	planner, err := plan.NewPlanner(config)
 	executionPlan := planner.Plan(operationDocument, schemaDocument, operationName, report)
 	if report.HasErrors() {
 		panic(report.Error())
 	}
-	fmt.Printf("%+v", executionPlan) // Output: Plan...
+	fmt.Printf("%#+v\n", executionPlan) // Output: Plan...
 }
 
 /*
@@ -548,8 +554,8 @@ This plan can now be executed by using the Resolver.
 */
 
 func ExampleExecuteOperation() {
-	var preparedPlan plan.Plan
-	resolver := resolve.New(context.Background(), true)
+	var preparedPlan plan.Plan // replace with the "executionPlan" from ExamplePlanOperation
+	resolver := resolve.New(context.Background(), resolve.ResolverOptions{})
 
 	ctx := resolve.NewContext(context.Background())
 
@@ -560,7 +566,7 @@ func ExampleExecuteOperation() {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println(out.String()) // Output: {"data":{"hello":"world"}}
+		fmt.Println(out) // Output: {"data":{"hello":"world"}}
 	case *plan.SubscriptionResponsePlan:
 		// this is a Query, so we ignore Subscriptions for now, but they are supported
 	}
