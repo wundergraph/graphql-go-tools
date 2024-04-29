@@ -1985,6 +1985,36 @@ func TestExecutionValidation(t *testing.T) {
 							}`,
 					FieldSelectionMerging(), Invalid)
 			})
+			t.Run("skip/include do not creates conflicts", func(t *testing.T) {
+				run(t, `query noConflictOnDifferentFieldIncludeSkip {
+										dog {
+											nickname @include(if: true)
+											nickname @include(if: false)
+											nickname @skip(if: true)
+											nickname @skip(if: false)
+										}
+									}`,
+					FieldSelectionMerging(), Valid, withDisableNormalization())
+			})
+			t.Run("execution directives do not creates conflicts", func(t *testing.T) {
+				// it is questionable if this is correct, but spec do not check directives at all
+				run(t, `query noConflictOnDifferentFieldIncludeSkip {
+										dog {
+											nickname @tag(name: "a")
+											nickname @tag(name: "b")
+										}
+									}`,
+					FieldSelectionMerging(), Valid, withDisableNormalization())
+			})
+			t.Run("different stream directives creates conflicts", func(t *testing.T) {
+				run(t, `query noConflictOnDifferentFieldIncludeSkip {
+										dog {
+											nickname @stream(label: "a")
+											nickname @stream(label: "b")
+										}
+									}`,
+					FieldSelectionMerging(), Invalid, withDisableNormalization())
+			})
 		})
 		t.Run("5.3.3 Leaf Field Selections", func(t *testing.T) {
 			t.Run("113", func(t *testing.T) {
@@ -4461,6 +4491,9 @@ func BenchmarkValidation(b *testing.B) {
 }
 
 var testDefinition = `
+directive @tag(name: String) on FIELD
+directive @stream(label: String) on FIELD
+
 schema {
 	query: Query
 	mutation: Mutation

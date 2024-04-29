@@ -130,6 +130,18 @@ func (d *Document) DirectiveSetsAreEqual(left, right []int) bool {
 	return true
 }
 
+// DirectiveSetsHasCompatibleStreamDirective checks if directives sets contains stream directive with same arguments
+func (d *Document) DirectiveSetsHasCompatibleStreamDirective(left, right []int) bool {
+	leftRef, leftExists := d.DirectiveWithNameBytes(left, literal.STREAM)
+	rightRef, rightExists := d.DirectiveWithNameBytes(right, literal.STREAM)
+
+	if leftExists && rightExists {
+		return d.DirectivesAreEqual(leftRef, rightRef)
+	}
+
+	return true
+}
+
 func (d *Document) AddDirective(directive Directive) (ref int) {
 	d.Directives = append(d.Directives, directive)
 	return len(d.Directives) - 1
@@ -214,11 +226,8 @@ func (d *Document) DirectiveIsAllowedOnNodeKind(directiveName string, kind NodeK
 }
 
 func (d *Document) ResolveSkipDirectiveVariable(directiveRefs []int) (variableName string, exists bool) {
-	for _, i := range directiveRefs {
-		if !bytes.Equal(d.DirectiveNameBytes(i), literal.SKIP) {
-			continue
-		}
-		if value, ok := d.DirectiveArgumentValueByName(i, literal.IF); ok {
+	if ref, ok := d.DirectiveWithNameBytes(directiveRefs, literal.SKIP); ok {
+		if value, ok := d.DirectiveArgumentValueByName(ref, literal.IF); ok {
 			if value.Kind == ValueKindVariable {
 				return d.VariableValueNameString(value.Ref), true
 			}
@@ -228,15 +237,22 @@ func (d *Document) ResolveSkipDirectiveVariable(directiveRefs []int) (variableNa
 }
 
 func (d *Document) ResolveIncludeDirectiveVariable(directiveRefs []int) (variableName string, exists bool) {
-	for _, i := range directiveRefs {
-		if !bytes.Equal(d.DirectiveNameBytes(i), literal.INCLUDE) {
-			continue
-		}
-		if value, ok := d.DirectiveArgumentValueByName(i, literal.IF); ok {
+	if ref, ok := d.DirectiveWithNameBytes(directiveRefs, literal.INCLUDE); ok {
+		if value, ok := d.DirectiveArgumentValueByName(ref, literal.IF); ok {
 			if value.Kind == ValueKindVariable {
 				return d.VariableValueNameString(value.Ref), true
 			}
 		}
 	}
+
 	return "", false
+}
+
+func (d *Document) DirectiveWithNameBytes(directiveRefs []int, name []byte) (directiveRef int, exists bool) {
+	for _, i := range directiveRefs {
+		if bytes.Equal(d.DirectiveNameBytes(i), name) {
+			return i, true
+		}
+	}
+	return InvalidRef, false
 }
