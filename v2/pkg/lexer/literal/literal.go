@@ -65,6 +65,8 @@ var (
 	INCLUDE                       = []byte("include")
 	IF                            = []byte("if")
 	SKIP                          = []byte("skip")
+	DEFER                         = []byte("defer")
+	STREAM                        = []byte("stream")
 	SCHEMA                        = []byte("schema")
 	EXTEND                        = []byte("extend")
 	SCALAR                        = []byte("scalar")

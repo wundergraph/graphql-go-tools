@@ -152,7 +152,8 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 
 	for _, i := range matchedRequirements {
 		if f.potentiallySameObject(f.scalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition) {
-			if !f.operation.FieldsAreEqualFlat(f.scalarRequirements[i].fieldRef, ref) {
+			// here we do not check directives equality, only if the stream directives are the same for the fields
+			if !f.operation.FieldsAreEqualFlat(f.scalarRequirements[i].fieldRef, ref, false) {
 				f.StopWithExternalErr(operationreport.ErrDifferingFieldsOnPotentiallySameType(objectName))
 				return
 			}

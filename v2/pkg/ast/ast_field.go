@@ -121,12 +121,24 @@ func (d *Document) FieldHasDirectives(ref int) bool {
 	return d.Fields[ref].HasDirectives
 }
 
-func (d *Document) FieldsAreEqualFlat(left, right int) bool {
-	return bytes.Equal(d.FieldNameBytes(left), d.FieldNameBytes(right)) && // name
+func (d *Document) FieldsAreEqualFlat(left, right int, checkDirectivesEquality bool) bool {
+	equal := bytes.Equal(d.FieldNameBytes(left), d.FieldNameBytes(right)) && // name
 		bytes.Equal(d.FieldAliasBytes(left), d.FieldAliasBytes(right)) && // alias
 		!d.FieldHasSelections(left) && !d.FieldHasSelections(right) && // selections
-		d.ArgumentSetsAreEquals(d.FieldArguments(left), d.FieldArguments(right)) && // arguments
-		d.DirectiveSetsAreEqual(d.FieldDirectives(left), d.FieldDirectives(right)) // directives
+		d.ArgumentSetsAreEquals(d.FieldArguments(left), d.FieldArguments(right)) // arguments
+
+	if !equal {
+		return false
+	}
+
+	if checkDirectivesEquality {
+		// directives set equality
+		return d.DirectiveSetsAreEqual(d.FieldDirectives(left), d.FieldDirectives(right))
+	}
+
+	// directives set has compatible stream directive
+	// we don't care about other execution directives
+	return d.DirectiveSetsHasCompatibleStreamDirective(d.FieldDirectives(left), d.FieldDirectives(right))
 }
 
 func (d *Document) FieldSelectionSet(ref int) (selectionSetRef int, ok bool) {
