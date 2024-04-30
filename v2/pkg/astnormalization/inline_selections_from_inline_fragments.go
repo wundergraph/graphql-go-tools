@@ -58,21 +58,20 @@ func (m *inlineSelectionsFromInlineFragmentsVisitor) couldInline(inlineFragmentR
 
 	// we could inline the current fragment only if all nested fragment types are of the same type as enclosing type
 	// or enclosing type implements nested fragment type
-	fragmentsValid := true
+
 	for _, fragmentSelectionRef := range fragmentSelectionRefs {
 		nestedFragmentRef := m.operation.Selections[fragmentSelectionRef].Ref
 		nestedInlineFragmentTypeName := m.operation.InlineFragmentTypeConditionName(nestedFragmentRef)
 
-		validFragment := bytes.Equal(nestedInlineFragmentTypeName, enclosingTypeName) ||
+		isCompatibleFragmentType := bytes.Equal(nestedInlineFragmentTypeName, enclosingTypeName) ||
 			m.definition.TypeDefinitionContainsImplementsInterface(enclosingTypeName, nestedInlineFragmentTypeName)
 
-		if !validFragment {
-			fragmentsValid = false
-			break
+		if !isCompatibleFragmentType {
+			return false
 		}
 	}
 
-	return fragmentsValid
+	return true
 }
 
 func (m *inlineSelectionsFromInlineFragmentsVisitor) resolveInlineFragment(selectionSetRef, index, inlineFragment int) {
