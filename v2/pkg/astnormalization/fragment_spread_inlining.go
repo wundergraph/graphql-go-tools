@@ -15,8 +15,6 @@ func fragmentSpreadInline(walker *astvisitor.Walker) {
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterSelectionSetVisitor(&visitor)
 	walker.RegisterEnterFragmentDefinitionVisitor(&visitor)
-
-	walker.RevisitNode()
 }
 
 type fragmentSpreadInlineVisitor struct {
