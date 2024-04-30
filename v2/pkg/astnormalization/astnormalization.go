@@ -313,6 +313,7 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 			return
 		}
 
+		// NOTE: debug code - do not remove
 		// printed, _ := astprinter.PrintStringIndent(operation, definition, "  ")
 		// fmt.Println("\n\nNormalizeOperation stage:", o.operationWalkers[i].name)
 		// fmt.Println(printed)

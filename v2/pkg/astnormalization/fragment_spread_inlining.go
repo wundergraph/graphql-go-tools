@@ -13,7 +13,7 @@ func fragmentSpreadInline(walker *astvisitor.Walker) {
 		Walker: walker,
 	}
 	walker.RegisterEnterDocumentVisitor(&visitor)
-	walker.RegisterEnterFragmentSpreadVisitor(&visitor)
+	walker.RegisterEnterSelectionSetVisitor(&visitor)
 	walker.RegisterEnterFragmentDefinitionVisitor(&visitor)
 }
 
@@ -31,7 +31,19 @@ func (f *fragmentSpreadInlineVisitor) EnterDocument(operation, definition *ast.D
 	f.definition = definition
 }
 
-func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
+func (f *fragmentSpreadInlineVisitor) EnterSelectionSet(ref int) {
+	for _, selection := range f.operation.SelectionSets[ref].SelectionRefs {
+		if f.operation.Selections[selection].Kind != ast.SelectionKindFragmentSpread {
+			continue
+		}
+		if f.replaceFragmentSpread(ref, f.operation.Selections[selection].Ref) {
+			f.RevisitNode()
+			return
+		}
+	}
+}
+
+func (f *fragmentSpreadInlineVisitor) replaceFragmentSpread(selectionSetRef int, ref int) (replaced bool) {
 	parentTypeName := f.definition.NodeNameBytes(f.EnclosingTypeDefinition)
 
 	spreadName := f.operation.FragmentSpreadNameBytes(ref)
@@ -85,32 +97,31 @@ func (f *fragmentSpreadInlineVisitor) EnterFragmentSpread(ref int) {
 		fragmentTypeIsMemberOfEnclosingUnionType = f.definition.NodeIsUnionMember(fragmentNode, f.EnclosingTypeDefinition)
 	}
 
-	selectionSet := f.Ancestors[len(f.Ancestors)-1].Ref
 	replaceWith := f.operation.FragmentDefinitions[fragmentDefinitionRef].SelectionSet
 	typeCondition := f.operation.FragmentDefinitions[fragmentDefinitionRef].TypeCondition
 
-	fragmentSpreadHasDirectives := f.operation.FragmentSpreadHasDirectives(ref)
 	directiveList := f.operation.FragmentSpreads[ref].Directives
 
 	switch {
 	case fragmentTypeEqualsParentType || enclosingTypeImplementsFragmentType:
-		if fragmentSpreadHasDirectives {
-			// when the fragment spread has directives we need to replace the fragment spread with an inline fragment with preserved directives
-			f.operation.ReplaceFragmentSpreadWithInlineFragment(selectionSet, ref, replaceWith, typeCondition, directiveList)
-		} else {
-			// in case the fragment spread has no directives we could just replace selection set with the fragment selection set fields
-			f.operation.ReplaceFragmentSpread(selectionSet, ref, replaceWith)
-		}
+		// NOTE: we always replace fragment with inline fragment
+		// it is dangerous to fully inline fragment without checking for the compatibility
+		// of possible nested fragments.
+		// Such checks are performed in the inlineSelectionsFromInlineFragmentsVisitor
+		// on the next stage of the normalization.
 
+		fallthrough
 	case fragmentTypeImplementsEnclosingType ||
 		fragmentTypeIsMemberOfEnclosingUnionType ||
 		enclosingTypeIsMemberOfFragmentUnion ||
 		fragmentUnionIntersectsEnclosingInterface ||
 		fragmentInterfaceIntersectsEnclosingUnion:
 
-		f.operation.ReplaceFragmentSpreadWithInlineFragment(selectionSet, ref, replaceWith, typeCondition, directiveList)
+		f.operation.ReplaceFragmentSpreadWithInlineFragment(selectionSetRef, ref, replaceWith, typeCondition, directiveList)
 
+		return true
 	default:
 		// all other case are invalid and should be reported by validation
+		return false
 	}
 }
