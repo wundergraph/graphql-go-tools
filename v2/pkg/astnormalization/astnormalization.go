@@ -69,10 +69,7 @@ Output:
 package astnormalization
 
 import (
-	"fmt"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -316,9 +313,10 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 			return
 		}
 
-		printed, _ := astprinter.PrintStringIndent(operation, definition, "  ")
-		fmt.Println("\n\nNormalizeOperation stage:", o.operationWalkers[i].name)
-		fmt.Println(printed)
-		fmt.Println("variables:", string(operation.Input.Variables))
+		// NOTE: debug code - do not remove
+		// printed, _ := astprinter.PrintStringIndent(operation, definition, "  ")
+		// fmt.Println("\n\nNormalizeOperation stage:", o.operationWalkers[i].name)
+		// fmt.Println(printed)
+		// fmt.Println("variables:", string(operation.Input.Variables))
 	}
 }
