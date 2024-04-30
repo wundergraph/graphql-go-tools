@@ -53,4 +53,47 @@ func TestResolveInlineFragments(t *testing.T) {
 						}
 					}`)
 	})
+
+	t.Run("with nested not compatible fragments", func(t *testing.T) {
+		run(t, inlineSelectionsFromInlineFragments, testDefinition, `
+					{
+						dog {
+							... on Pet {
+								... on Cat {
+									meowVolume
+								}
+							}
+						}
+					}`,
+			`
+					{
+						dog {
+							... on Pet {
+								... on Cat {
+									meowVolume
+								}
+							}
+						}
+					}`)
+	})
+
+	t.Run("with nested compatible fragments", func(t *testing.T) {
+		run(t, inlineSelectionsFromInlineFragments, testDefinition, `
+					{
+						dog {
+							... on Pet {
+								... on Dog {
+									name
+								}
+							}
+						}
+					}`,
+			`
+					{
+						dog {
+							name
+						}
+					}`)
+	})
+
 }

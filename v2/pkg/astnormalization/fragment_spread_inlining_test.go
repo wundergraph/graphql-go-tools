@@ -4,7 +4,8 @@ import "testing"
 
 func TestInlineFragments(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
-		run(t, fragmentSpreadInline, testDefinition, `	
+		t.Run("with inline selections", func(t *testing.T) {
+			runMany(t, testDefinition, `	
 				subscription sub {
 					...multipleSubscriptions
 				}
@@ -28,7 +29,39 @@ func TestInlineFragments(t *testing.T) {
 						sender
 					}
 					disallowedSecondRootField
+				}`, fragmentSpreadInline, inlineSelectionsFromInlineFragments)
+		})
+
+		t.Run("without inlining selections", func(t *testing.T) {
+			run(t, fragmentSpreadInline, testDefinition, `	
+				subscription sub {
+					...multipleSubscriptions
+				}
+				fragment multipleSubscriptions on Subscription {
+					newMessage {
+						body
+						sender
+					}
+					disallowedSecondRootField
+				}`, `
+				subscription sub {
+					... on Subscription {
+						newMessage {
+							body
+							sender
+						}
+						disallowedSecondRootField
+					}
+				}
+				fragment multipleSubscriptions on Subscription {
+					newMessage {
+						body
+						sender
+					}
+					disallowedSecondRootField
 				}`)
+		})
+
 	})
 	t.Run("simple with directive", func(t *testing.T) {
 		run(t, fragmentSpreadInline, testDefinition, `	
@@ -73,16 +106,20 @@ func TestInlineFragments(t *testing.T) {
 					disallowedSecondRootField
 				}`, `
 				subscription sub {
-					newMessage {
-						body
-						sender
+					... on Subscription {
+						newMessage {
+							body
+							sender
+						}
+						disallowedSecondRootField
 					}
-					disallowedSecondRootField
-					newMessage {
-						body
-						sender
+					... on Subscription {
+						newMessage {
+							body
+							sender
+						}
+						disallowedSecondRootField
 					}
-					disallowedSecondRootField
 				}
 				fragment multipleSubscriptions on Subscription {
 					newMessage {
@@ -109,12 +146,16 @@ func TestInlineFragments(t *testing.T) {
 					frag2Field
 				}`, `
 				subscription sub {
-					newMessage {
-						body
-						sender
+					... on Subscription {
+						newMessage {
+							body
+							sender
+						}
+						disallowedSecondRootField
+						... on Subscription {
+							frag2Field
+						}
 					}
-					disallowedSecondRootField
-					frag2Field
 				}
 				fragment frag1 on Subscription {
 					newMessage {
@@ -157,18 +198,26 @@ func TestInlineFragments(t *testing.T) {
 					frag2Field
 				}`, `
 				subscription sub {
-					newMessage {
-						body
-						sender
-						body
-						sender
-						sender
-						sender
-						body
-						sender
+					... on Subscription {
+						newMessage {
+							body
+							sender
+							... on Message {
+								body
+								sender
+							}
+							sender
+							sender
+							... on Message {
+								body
+								sender
+							}
+						}
+						disallowedSecondRootField
+						... on Subscription {
+							frag2Field
+						}
 					}
-					disallowedSecondRootField
-					frag2Field
 				}
 				fragment frag1 on Subscription {
 					newMessage {
@@ -262,17 +311,29 @@ func TestInlineFragments(t *testing.T) {
 					}
 				}`, `	
 				query q {
-					foo {
-						fooName
-						some {
-							something
-						}
-						bar {
-							barName
-							baz {
-								bazName
+					... on Query {
+						foo {
+							... on Foo {	
+								fooName
 								some {
-									something
+									... on Some {
+										something
+									}
+								}
+								bar {
+									... on Bar {
+										barName
+										baz {
+											... on Baz {
+												bazName
+												some {
+													... on Some {
+														something
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
@@ -325,7 +386,9 @@ func TestInlineFragments(t *testing.T) {
 				}`, `
 				{
 					dog {
-						name
+						... on Pet {
+							name
+						}
 					}
 				}
 				fragment definedOnImplementorsButNotInterface on Pet {
@@ -351,11 +414,13 @@ func TestInlineFragments(t *testing.T) {
 				}`, `
 				query conflictingDifferingResponses {
 					pet {
-						... on Dog {
-							someValue: nickname	
-						}
-						... on Cat {
-							someValue: meowVolume
+						... on Pet {
+							... on Dog {
+								someValue: nickname	
+							}
+							... on Cat {
+								someValue: meowVolume
+							}
 						}
 					}
 				}
@@ -389,11 +454,13 @@ func TestInlineFragments(t *testing.T) {
 				}`, `
 				query conflictingDifferingResponses {
 					catOrDog {
-						... on Cat {
-							someValue: meowVolume							
-						}
-						... on Dog {
-							someValue: name
+						... on CatOrDog {
+							... on Cat {
+								someValue: meowVolume							
+							}
+							... on Dog {
+								someValue: name
+							}
 						}
 					}
 				}
@@ -430,8 +497,12 @@ func TestInlineFragments(t *testing.T) {
 				}`, `
 				{
 				dog {
-						name
-						name
+						... on Dog {
+							name
+						}
+						... on Pet  {
+							name
+						}
 						... on CatOrDog {
 							... on Dog {
 								name
@@ -468,9 +539,11 @@ func TestInlineFragments(t *testing.T) {
 				}`, `
 				{
 					dog {
-						... on CatOrDog {
-							... on Cat {
-								meowVolume
+						... on Dog {
+							... on CatOrDog {
+								... on Cat {
+									meowVolume
+								}
 							}
 						}
 					}
@@ -501,9 +574,11 @@ func TestInlineFragments(t *testing.T) {
 				}`, `
 				{
 					dog {
-						... on DogOrHuman {
-							... on Dog {
-								barkVolume
+						... on Pet {
+							... on DogOrHuman {
+								... on Dog {
+									barkVolume
+								}
 							}
 						}
 					}
@@ -567,7 +642,9 @@ func TestInlineFragments(t *testing.T) {
 				}`, `
 				{
 					dog {
-						...sentientFragment # invalid fragment spread, but doesn't matter for test
+						... on Pet {
+							...sentientFragment # invalid fragment spread, but doesn't matter for test
+						}
 					}
 				}
 				fragment nonIntersectingInterfaces on Pet {

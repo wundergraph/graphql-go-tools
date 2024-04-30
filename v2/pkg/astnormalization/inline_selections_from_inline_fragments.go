@@ -25,25 +25,58 @@ func (m *inlineSelectionsFromInlineFragmentsVisitor) EnterDocument(operation, de
 	m.definition = definition
 }
 
-func (m *inlineSelectionsFromInlineFragmentsVisitor) couldInline(set, inlineFragment int) bool {
-	if m.operation.InlineFragmentHasDirectives(inlineFragment) {
+func (m *inlineSelectionsFromInlineFragmentsVisitor) couldInline(inlineFragmentRef int) bool {
+	if m.operation.InlineFragmentHasDirectives(inlineFragmentRef) {
 		return false
 	}
-	if !m.operation.InlineFragmentHasTypeCondition(inlineFragment) {
-		return true
-	}
-	if bytes.Equal(m.operation.InlineFragmentTypeConditionName(inlineFragment), m.definition.NodeNameBytes(m.EnclosingTypeDefinition)) {
+	if !m.operation.InlineFragmentHasTypeCondition(inlineFragmentRef) {
 		return true
 	}
 
-	inlineFragmentTypeName := m.operation.InlineFragmentTypeConditionName(inlineFragment)
+	inlineFragmentTypeName := m.operation.InlineFragmentTypeConditionName(inlineFragmentRef)
 	enclosingTypeName := m.definition.NodeNameBytes(m.EnclosingTypeDefinition)
 
-	return m.definition.TypeDefinitionContainsImplementsInterface(enclosingTypeName, inlineFragmentTypeName)
+	// check that enclosing type name and inline fragment type condition name are the same
+	if bytes.Equal(inlineFragmentTypeName, enclosingTypeName) {
+		return true
+	}
+
+	// check that enclosing type implements interface type of the fragment type
+	if !m.definition.TypeDefinitionContainsImplementsInterface(enclosingTypeName, inlineFragmentTypeName) {
+		return false
+	}
+
+	selectionSetRef, exists := m.operation.InlineFragmentSelectionSet(inlineFragmentRef)
+	if !exists {
+		return false
+	}
+
+	fragmentSelectionRefs := m.operation.SelectionSetInlineFragmentSelections(selectionSetRef)
+	if len(fragmentSelectionRefs) == 0 {
+		return true
+	}
+
+	// we could inline the current fragment only if all nested fragment types are of the same type as enclosing type
+	// or enclosing type implements nested fragment type
+	fragmentsValid := true
+	for _, fragmentSelectionRef := range fragmentSelectionRefs {
+		nestedFragmentRef := m.operation.Selections[fragmentSelectionRef].Ref
+		nestedInlineFragmentTypeName := m.operation.InlineFragmentTypeConditionName(nestedFragmentRef)
+
+		validFragment := bytes.Equal(nestedInlineFragmentTypeName, enclosingTypeName) ||
+			m.definition.TypeDefinitionContainsImplementsInterface(enclosingTypeName, nestedInlineFragmentTypeName)
+
+		if !validFragment {
+			fragmentsValid = false
+			break
+		}
+	}
+
+	return fragmentsValid
 }
 
-func (m *inlineSelectionsFromInlineFragmentsVisitor) resolveInlineFragment(set, index, inlineFragment int) {
-	m.operation.ReplaceSelectionOnSelectionSet(set, index, m.operation.InlineFragments[inlineFragment].SelectionSet)
+func (m *inlineSelectionsFromInlineFragmentsVisitor) resolveInlineFragment(selectionSetRef, index, inlineFragment int) {
+	m.operation.ReplaceSelectionOnSelectionSet(selectionSetRef, index, m.operation.InlineFragments[inlineFragment].SelectionSet)
 }
 
 func (m *inlineSelectionsFromInlineFragmentsVisitor) EnterSelectionSet(ref int) {
@@ -53,7 +86,7 @@ func (m *inlineSelectionsFromInlineFragmentsVisitor) EnterSelectionSet(ref int) 
 			continue
 		}
 		inlineFragment := m.operation.Selections[selection].Ref
-		if !m.couldInline(ref, inlineFragment) {
+		if !m.couldInline(inlineFragment) {
 			continue
 		}
 		m.resolveInlineFragment(ref, index, inlineFragment)
