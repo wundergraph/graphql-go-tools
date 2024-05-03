@@ -55,13 +55,9 @@ func (p *KafkaEventManager) handleSubscriptionEvent(ref int) {
 		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("expected at least one subscription topic but received %d", len(p.eventConfiguration.Topics)))
 		return
 	}
-	extractedSubjects := make([]string, 0, len(p.eventConfiguration.Topics))
-	for _, topic := range p.eventConfiguration.Topics {
-		extractedSubjects = append(extractedSubjects, topic)
-	}
 
 	p.subscriptionEventConfiguration = &KafkaSubscriptionEventConfiguration{
 		ProviderID: p.eventMetadata.ProviderID,
-		Topics:     extractedSubjects,
+		Topics:     p.eventConfiguration.Topics,
 	}
 }
