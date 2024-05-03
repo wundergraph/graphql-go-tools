@@ -166,7 +166,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		}
 
 		return resolve.FetchConfiguration{
-			Input:      fmt.Sprintf(`{"subject":"%s", "data": %s, "providerId":"%s"}`, v.publishAndRequestEventConfiguration.Subject, v.publishAndRequestEventConfiguration.Data, v.eventMetadata.ProviderID),
+			Input:      v.publishAndRequestEventConfiguration.MarshalJSONTemplate(),
 			Variables:  p.variables,
 			DataSource: dataSource,
 			PostProcessing: resolve.PostProcessingConfiguration{
@@ -195,7 +195,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		}
 
 		return resolve.FetchConfiguration{
-			Input:      fmt.Sprintf(`{"topic":"%s", "data": %s, "providerId":"%s"}`, v.publishEventConfiguration.Topic, v.publishEventConfiguration.Data, v.eventMetadata.ProviderID),
+			Input:      v.publishEventConfiguration.MarshalJSONTemplate(),
 			Variables:  p.variables,
 			DataSource: dataSource,
 			PostProcessing: resolve.PostProcessingConfiguration{

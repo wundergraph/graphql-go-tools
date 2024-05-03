@@ -17,6 +17,10 @@ type KafkaPublishEventConfiguration struct {
 	Data       []byte `json:"data"`
 }
 
+func (s *KafkaPublishEventConfiguration) MarshalJSONTemplate() string {
+	return fmt.Sprintf(`{"topic":"%s", "data": %s, "providerId":"%s"}`, s.Topic, s.Data, s.ProviderID)
+}
+
 type KafkaEventManager struct {
 	visitor                        *plan.Visitor
 	variables                      *resolve.Variables

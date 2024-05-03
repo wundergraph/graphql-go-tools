@@ -19,6 +19,10 @@ type NatsPublishAndRequestEventConfiguration struct {
 	Data       []byte `json:"data"`
 }
 
+func (s *NatsPublishAndRequestEventConfiguration) MarshalJSONTemplate() string {
+	return fmt.Sprintf(`{"subject":"%s", "data": %s, "providerId":"%s"}`, s.Subject, s.Data, s.ProviderID)
+}
+
 type NatsEventManager struct {
 	visitor                             *plan.Visitor
 	variables                           *resolve.Variables
