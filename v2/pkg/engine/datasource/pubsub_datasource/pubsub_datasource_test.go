@@ -20,7 +20,7 @@ func (t *testPubsub) ID() string {
 	return "test"
 }
 
-func (t *testPubsub) Subscribe(_ context.Context, _ []string, _ resolve.SubscriptionUpdater, streamConfiguration *StreamConfiguration) error {
+func (t *testPubsub) Subscribe(_ context.Context, _ []string, _ resolve.SubscriptionUpdater, streamConfiguration *NatsStreamConfiguration) error {
 	return errors.New("not implemented")
 }
 func (t *testPubsub) Publish(_ context.Context, _ string, _ []byte) error {
@@ -33,7 +33,7 @@ func (t *testPubsub) Request(_ context.Context, _ string, _ []byte, _ io.Writer)
 
 func TestPubSub(t *testing.T) {
 	factory := &Factory[Configuration]{
-		PubSubBySourceName: map[string]PubSub{"default": &testPubsub{}},
+		natsPubSubBySourceName: map[string]NatsPubSub{"default": &testPubsub{}},
 	}
 
 	const schema = `
@@ -53,32 +53,48 @@ func TestPubSub(t *testing.T) {
 	dataSourceCustomConfig := Configuration{
 		Events: []EventConfiguration{
 			{
-				FieldName:  "helloQuery",
-				SourceName: "default",
-				Subjects:   []string{"helloQuery.{{ args.id }}"},
-				Type:       EventTypeRequest,
-				TypeName:   "Query",
+				Metadata: &EventMetadata{
+					ProviderID: "default",
+					FieldName:  "helloQuery",
+					Type:       EventTypeRequest,
+					TypeName:   "Query",
+				},
+				Configuration: &NatsEventConfiguration{
+					Subjects: []string{"helloQuery.{{ args.id }}"},
+				},
 			},
 			{
-				FieldName:  "helloMutation",
-				SourceName: "default",
-				Subjects:   []string{"helloMutation.{{ args.id }}"},
-				Type:       EventTypePublish,
-				TypeName:   "Mutation",
+				Metadata: &EventMetadata{
+					ProviderID: "default",
+					FieldName:  "helloMutation",
+					Type:       EventTypePublish,
+					TypeName:   "Mutation",
+				},
+				Configuration: &NatsEventConfiguration{
+					Subjects: []string{"helloMutation.{{ args.id }}"},
+				},
 			},
 			{
-				FieldName:  "helloSubscription",
-				SourceName: "default",
-				Subjects:   []string{"helloSubscription.{{ args.id }}"},
-				Type:       EventTypeSubscribe,
-				TypeName:   "Subscription",
+				Metadata: &EventMetadata{
+					ProviderID: "default",
+					FieldName:  "helloSubscription",
+					Type:       EventTypeSubscribe,
+					TypeName:   "Subscription",
+				},
+				Configuration: &NatsEventConfiguration{
+					Subjects: []string{"helloSubscription.{{ args.id }}"},
+				},
 			},
 			{
-				FieldName:  "subscriptionWithMultipleSubjects",
-				SourceName: "default",
-				Subjects:   []string{"firstSubscription.{{ args.firstId }}", "secondSubscription.{{ args.secondId }}"},
-				Type:       EventTypeSubscribe,
-				TypeName:   "Subscription",
+				Metadata: &EventMetadata{
+					ProviderID: "default",
+					FieldName:  "subscriptionWithMultipleSubjects",
+					Type:       EventTypeSubscribe,
+					TypeName:   "Subscription",
+				},
+				Configuration: &NatsEventConfiguration{
+					Subjects: []string{"firstSubscription.{{ args.firstId }}", "secondSubscription.{{ args.secondId }}"},
+				},
 			},
 		},
 	}
@@ -179,21 +195,21 @@ func TestPubSub(t *testing.T) {
 					},
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
-							Input: `{"subject":"helloQuery.$$0$$", "data": {"id":$$0$$}, "sourceName":"default"}`,
+							Input: `{"subject":"helloQuery.$$0$$", "data": {"id":$$0$$}, "providerId":"default"}`,
 							Variables: resolve.Variables{
 								&resolve.ContextVariable{
 									Path:     []string{"a"},
 									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 								},
 							},
-							DataSource: &RequestDataSource{
+							DataSource: &NatsRequestDataSource{
 								pubSub: &testPubsub{},
 							},
 							PostProcessing: resolve.PostProcessingConfiguration{
 								MergePath: []string{"helloQuery"},
 							},
 						},
-						DataSourceIdentifier: []byte("pubsub_datasource.RequestDataSource"),
+						DataSourceIdentifier: []byte("pubsub_datasource.NatsRequestDataSource"),
 					},
 				},
 			},
@@ -217,7 +233,7 @@ func TestPubSub(t *testing.T) {
 					},
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
-							Input: `{"subject":"helloMutation.$$0$$", "data": {"id":$$0$$,"input":$$1$$}, "sourceName":"default"}`,
+							Input: `{"subject":"helloMutation.$$0$$", "data": {"id":$$0$$,"input":$$1$$}, "providerId":"default"}`,
 							Variables: resolve.Variables{
 								&resolve.ContextVariable{
 									Path:     []string{"a"},
@@ -228,14 +244,14 @@ func TestPubSub(t *testing.T) {
 									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 								},
 							},
-							DataSource: &PublishDataSource{
+							DataSource: &NatsPublishDataSource{
 								pubSub: &testPubsub{},
 							},
 							PostProcessing: resolve.PostProcessingConfiguration{
 								MergePath: []string{"helloMutation"},
 							},
 						},
-						DataSourceIdentifier: []byte("pubsub_datasource.PublishDataSource"),
+						DataSourceIdentifier: []byte("pubsub_datasource.NatsPublishDataSource"),
 					},
 				},
 			},
@@ -249,14 +265,14 @@ func TestPubSub(t *testing.T) {
 		expect := &plan.SubscriptionResponsePlan{
 			Response: &resolve.GraphQLSubscription{
 				Trigger: resolve.GraphQLSubscriptionTrigger{
-					Input: []byte(`{"subjects":["helloSubscription.$$0$$"], "sourceName":"default"}`),
+					Input: []byte(`{"providerId":"default","subjects":["helloSubscription.$$0$$"]}`),
 					Variables: resolve.Variables{
 						&resolve.ContextVariable{
 							Path:     []string{"a"},
 							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 						},
 					},
-					Source: &SubscriptionSource{
+					Source: &NatsSubscriptionSource{
 						pubSub: &testPubsub{},
 					},
 					PostProcessing: resolve.PostProcessingConfiguration{
@@ -286,7 +302,7 @@ func TestPubSub(t *testing.T) {
 		expect := &plan.SubscriptionResponsePlan{
 			Response: &resolve.GraphQLSubscription{
 				Trigger: resolve.GraphQLSubscriptionTrigger{
-					Input: []byte(`{"subjects":["firstSubscription.$$0$$","secondSubscription.$$1$$"], "sourceName":"default"}`),
+					Input: []byte(`{"providerId":"default","subjects":["firstSubscription.$$0$$","secondSubscription.$$1$$"]}`),
 					Variables: resolve.Variables{
 						&resolve.ContextVariable{
 							Path:     []string{"a"},
@@ -297,7 +313,7 @@ func TestPubSub(t *testing.T) {
 							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
 						},
 					},
-					Source: &SubscriptionSource{
+					Source: &NatsSubscriptionSource{
 						pubSub: &testPubsub{},
 					},
 					PostProcessing: resolve.PostProcessingConfiguration{
