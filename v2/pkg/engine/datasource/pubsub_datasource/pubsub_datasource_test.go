@@ -20,14 +20,14 @@ func (t *testPubsub) ID() string {
 	return "test"
 }
 
-func (t *testPubsub) Subscribe(_ context.Context, _ []string, _ resolve.SubscriptionUpdater, streamConfiguration *NatsStreamConfiguration) error {
+func (t *testPubsub) Subscribe(_ context.Context, _ NatsSubscriptionEventConfiguration, _ resolve.SubscriptionUpdater) error {
 	return errors.New("not implemented")
 }
-func (t *testPubsub) Publish(_ context.Context, _ string, _ []byte) error {
+func (t *testPubsub) Publish(_ context.Context, _ NatsPublishAndRequestEventConfiguration) error {
 	return errors.New("not implemented")
 }
 
-func (t *testPubsub) Request(_ context.Context, _ string, _ []byte, _ io.Writer) error {
+func (t *testPubsub) Request(_ context.Context, _ NatsPublishAndRequestEventConfiguration, _ io.Writer) error {
 	return errors.New("not implemented")
 }
 

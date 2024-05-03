@@ -98,7 +98,7 @@ func (p *Planner[T]) EnterField(ref int) {
 		case EventTypeSubscribe:
 			em.handleSubscriptionEvent(ref)
 		default:
-			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("invalid EventType \"%s\"", eventConfig.Metadata.Type))
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("invalid EventType \"%s\" for Nats", eventConfig.Metadata.Type))
 		}
 	case *KafkaEventConfiguration:
 		em := &KafkaEventManager{
@@ -115,7 +115,7 @@ func (p *Planner[T]) EnterField(ref int) {
 		case EventTypeSubscribe:
 			em.handleSubscriptionEvent(ref)
 		default:
-			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("invalid EventType \"%s\"", eventConfig.Metadata.Type))
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("invalid EventType \"%s\" for Kafka", eventConfig.Metadata.Type))
 		}
 	default:
 		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("invalid event configuration type"))
