@@ -1,6 +1,7 @@
 package pubsub_datasource
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -14,9 +15,9 @@ type NatsSubscriptionEventConfiguration struct {
 }
 
 type NatsPublishAndRequestEventConfiguration struct {
-	ProviderID string `json:"providerId"`
-	Subject    string `json:"subject"`
-	Data       []byte `json:"data"`
+	ProviderID string          `json:"providerId"`
+	Subject    string          `json:"subject"`
+	Data       json.RawMessage `json:"data"`
 }
 
 func (s *NatsPublishAndRequestEventConfiguration) MarshalJSONTemplate() string {

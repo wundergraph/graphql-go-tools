@@ -18,9 +18,6 @@ type KafkaConnector interface {
 
 // KafkaPubSub describe the interface that implements the primitive operations for pubsub
 type KafkaPubSub interface {
-	// ID is the unique identifier of the pubsub implementation (e.g. Kafka)
-	// This is used to uniquely identify a subscription
-	ID() string
 	// Subscribe starts listening on the given subjects and sends the received messages to the given next channel
 	Subscribe(ctx context.Context, config KafkaSubscriptionEventConfiguration, updater resolve.SubscriptionUpdater) error
 	// Publish sends the given data to the given subject

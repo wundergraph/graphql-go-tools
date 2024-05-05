@@ -1,6 +1,7 @@
 package pubsub_datasource
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -12,9 +13,9 @@ type KafkaSubscriptionEventConfiguration struct {
 }
 
 type KafkaPublishEventConfiguration struct {
-	ProviderID string `json:"providerId"`
-	Topic      string `json:"topic"`
-	Data       []byte `json:"data"`
+	ProviderID string          `json:"providerId"`
+	Topic      string          `json:"topic"`
+	Data       json.RawMessage `json:"data"`
 }
 
 func (s *KafkaPublishEventConfiguration) MarshalJSONTemplate() string {

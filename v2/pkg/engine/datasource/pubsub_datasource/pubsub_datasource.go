@@ -118,7 +118,7 @@ func (p *Planner[T]) EnterField(ref int) {
 			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("invalid EventType \"%s\" for Kafka", eventConfig.Metadata.Type))
 		}
 	default:
-		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("invalid event configuration type"))
+		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("invalid event configuration type: %T", v))
 	}
 }
 
@@ -147,7 +147,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 	case *NatsEventManager:
 		pubsub, ok := p.natsPubSubByProviderID[v.eventMetadata.ProviderID]
 		if !ok {
-			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("no pubsub connection exists with source id \"%s\"", v.eventMetadata.ProviderID))
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("no pubsub connection exists with provider id \"%s\"", v.eventMetadata.ProviderID))
 			return resolve.FetchConfiguration{}
 		}
 
@@ -175,15 +175,15 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		}
 
 	case *KafkaEventManager:
-		pubsub, ok := p.natsPubSubByProviderID[v.eventMetadata.ProviderID]
+		pubsub, ok := p.kafkaPubSubByProviderID[v.eventMetadata.ProviderID]
 		if !ok {
-			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("no pubsub connection exists with source id \"%s\"", v.eventMetadata.ProviderID))
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("no pubsub connection exists with provider id \"%s\"", v.eventMetadata.ProviderID))
 			return resolve.FetchConfiguration{}
 		}
 
 		switch v.eventMetadata.Type {
 		case EventTypePublish:
-			dataSource = &NatsPublishDataSource{
+			dataSource = &KafkaPublishDataSource{
 				pubSub: pubsub,
 			}
 		case EventTypeRequest:
@@ -220,7 +220,7 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	case *NatsEventManager:
 		pubsub, ok := p.natsPubSubByProviderID[v.eventMetadata.ProviderID]
 		if !ok {
-			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("no pubsub connection exists with source id \"%s\"", v.eventMetadata.ProviderID))
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("no pubsub connection exists with provider id \"%s\"", v.eventMetadata.ProviderID))
 			return plan.SubscriptionConfiguration{}
 		}
 		object, err := json.Marshal(v.subscriptionEventConfiguration)
@@ -239,9 +239,9 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 			},
 		}
 	case *KafkaEventManager:
-		pubsub, ok := p.natsPubSubByProviderID[v.eventMetadata.ProviderID]
+		pubsub, ok := p.kafkaPubSubByProviderID[v.eventMetadata.ProviderID]
 		if !ok {
-			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("no pubsub connection exists with source id \"%s\"", v.eventMetadata.ProviderID))
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("no pubsub connection exists with provider id \"%s\"", v.eventMetadata.ProviderID))
 			return plan.SubscriptionConfiguration{}
 		}
 		object, err := json.Marshal(v.subscriptionEventConfiguration)
@@ -252,7 +252,7 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 		return plan.SubscriptionConfiguration{
 			Input:     string(object),
 			Variables: p.variables,
-			DataSource: &NatsSubscriptionSource{
+			DataSource: &KafkaSubscriptionSource{
 				pubSub: pubsub,
 			},
 			PostProcessing: resolve.PostProcessingConfiguration{

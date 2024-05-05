@@ -24,9 +24,6 @@ type NatsConnector interface {
 
 // NatsPubSub describe the interface that implements the primitive operations for pubsub
 type NatsPubSub interface {
-	// ID is the unique identifier of the pubsub implementation (e.g. NATS)
-	// This is used to uniquely identify a subscription
-	ID() string
 	// Subscribe starts listening on the given subjects and sends the received messages to the given next channel
 	Subscribe(ctx context.Context, event NatsSubscriptionEventConfiguration, updater resolve.SubscriptionUpdater) error
 	// Publish sends the given data to the given subject

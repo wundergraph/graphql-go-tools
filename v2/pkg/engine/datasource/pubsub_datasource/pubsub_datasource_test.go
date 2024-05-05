@@ -16,10 +16,6 @@ import (
 type testPubsub struct {
 }
 
-func (t *testPubsub) ID() string {
-	return "test"
-}
-
 func (t *testPubsub) Subscribe(_ context.Context, _ NatsSubscriptionEventConfiguration, _ resolve.SubscriptionUpdater) error {
 	return errors.New("not implemented")
 }
