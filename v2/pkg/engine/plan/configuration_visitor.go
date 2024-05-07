@@ -527,14 +527,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 		planningBehaviour := plannerConfig.DataSourcePlanningBehavior()
 		currentPlannerDSHash := plannerConfig.DataSourceConfiguration().Hash()
 		_, isProvided := plannerConfig.ProvidedFields().HasSuggestionForPath(typeName, fieldName, currentPath)
-
-		hasSuggestion := false
-		for _, dsHash := range dsHashes {
-			if dsHash == currentPlannerDSHash {
-				hasSuggestion = true
-				break
-			}
-		}
+		hasSuggestion := slices.Contains(dsHashes, currentPlannerDSHash)
 
 		// On a union we will never get a node suggestion because union type is not in the root or child nodes
 		shouldHandleTypeNameOnUnion :=
@@ -557,6 +550,8 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 
 		if c.secondaryRun && plannerConfig.HasPath(currentPath) {
 			if c.hasMissingPathWithParentPath(currentPath) {
+				// shareable case - we have planned this path for this plannerIdx, but we still have a missing path
+				// so we need to check other planner indexes
 				continue
 			}
 			// on the second run we need to process only new fields added by the first run
@@ -567,30 +562,12 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 			return -1, false
 		}
 
-		if (plannerConfig.HasParent(parentPath) || plannerConfig.HasParent(precedingParentPath)) &&
-			hasRootNode &&
-			planningBehaviour.MergeAliasedRootNodes {
-			// same parent + root node = root sibling
-
-			c.addPath(plannerIdx, pathConfiguration{
-				path:             currentPath,
-				shouldWalkFields: true,
-				typeName:         typeName,
-				fieldRef:         ref,
-				enclosingNode:    c.walker.EnclosingTypeDefinition,
-				dsHash:           currentPlannerDSHash,
-				isRootNode:       true,
-			})
-
-			return plannerIdx, true
-		}
 		if plannerConfig.HasPath(parentPath) || plannerConfig.HasPath(precedingParentPath) {
 			if pathAdded := c.addPlannerPathForTypename(plannerIdx, currentPath, parentPath, ref, fieldName, typeName, planningBehaviour); pathAdded {
 				return plannerIdx, true
 			}
 
 			if isProvided || hasChildNode || (hasRootNode && planningBehaviour.MergeAliasedRootNodes) {
-				// has parent path + has child node = child
 				c.addPath(plannerIdx, pathConfiguration{
 					path:             currentPath,
 					shouldWalkFields: true,
@@ -601,14 +578,6 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 					isRootNode:       hasRootNode,
 				})
 
-				return plannerIdx, true
-			}
-
-			if pathAdded := c.addPlannerPathForUnionChildOfObjectParent(plannerIdx, currentPath, parentPath, ref, fieldName, typeName, planningBehaviour); pathAdded {
-				return plannerIdx, true
-			}
-
-			if pathAdded := c.addPlannerPathForChildOfAbstractParent(plannerIdx, currentPath, parentPath, ref, fieldName, typeName, planningBehaviour); pathAdded {
 				return plannerIdx, true
 			}
 		}
@@ -643,17 +612,9 @@ func (c *configurationVisitor) isParentPathIsRootOperationPath(parentPath string
 }
 
 func (c *configurationVisitor) allowNewPlannerForTypenameField(fieldName string, typeName string, parentPath string, dsCfg DataSource) bool {
-	isEntityInterface := false
-	for _, interfaceObjCfg := range dsCfg.FederationConfiguration().EntityInterfaces {
-		hasMatch :=
-			interfaceObjCfg.InterfaceTypeName == typeName ||
-				slices.Contains(interfaceObjCfg.ConcreteTypeNames, typeName)
-
-		if hasMatch {
-			isEntityInterface = true
-			break
-		}
-	}
+	isEntityInterface := slices.ContainsFunc(dsCfg.FederationConfiguration().EntityInterfaces, func(interfaceObjCfg EntityInterfaceConfiguration) bool {
+		return interfaceObjCfg.InterfaceTypeName == typeName || slices.Contains(interfaceObjCfg.ConcreteTypeNames, typeName)
+	})
 
 	if isEntityInterface {
 		return true
@@ -847,71 +808,6 @@ func (c *configurationVisitor) LeaveField(ref int) {
 	}
 }
 
-func (c *configurationVisitor) addPlannerPathForUnionChildOfObjectParent(
-	plannerIndex int, currentPath string, parentPath string, fieldRef int, fieldName string, typeName string, planningBehaviour DataSourcePlanningBehavior,
-) (pathAdded bool) {
-
-	if c.walker.EnclosingTypeDefinition.Kind != ast.NodeKindObjectTypeDefinition {
-		return false
-	}
-	fieldDefRef, exists := c.definition.NodeFieldDefinitionByName(c.walker.EnclosingTypeDefinition, c.operation.FieldNameBytes(fieldRef))
-	if !exists {
-		return false
-	}
-
-	fieldDefTypeName := c.definition.FieldDefinitionTypeNameBytes(fieldDefRef)
-	node, ok := c.definition.NodeByName(fieldDefTypeName)
-	if !ok {
-		return false
-	}
-
-	if node.Kind == ast.NodeKindUnionTypeDefinition {
-		c.addPath(plannerIndex, pathConfiguration{
-			path:             currentPath,
-			shouldWalkFields: true,
-			typeName:         typeName,
-			fieldRef:         fieldRef,
-			enclosingNode:    c.walker.EnclosingTypeDefinition,
-			dsHash:           c.planners[plannerIndex].DataSourceConfiguration().Hash(),
-		})
-		return true
-	}
-
-	return false
-}
-
-func (c *configurationVisitor) addPlannerPathForChildOfAbstractParent(
-	plannerIndex int, currentPath string, parentPath string, fieldRef int, fieldName string, typeName string, planningBehaviour DataSourcePlanningBehavior,
-) (pathAdded bool) {
-
-	if !c.isParentTypeNodeAbstractType() {
-		return false
-	}
-
-	if pathAdded := c.addPlannerPathForTypename(plannerIndex, currentPath, parentPath, fieldRef, fieldName, typeName, planningBehaviour); pathAdded {
-		return true
-	}
-
-	// If the field is a root node in any of the data sources, the path shouldn't be handled here
-	// NOTE: previously we were checking all ds, not sure if we need now
-	for _, d := range c.dataSources {
-		if d.HasRootNode(typeName, fieldName) {
-			return false
-		}
-	}
-
-	c.addPath(plannerIndex, pathConfiguration{
-		path:             currentPath,
-		shouldWalkFields: true,
-		typeName:         typeName,
-		fieldRef:         fieldRef,
-		enclosingNode:    c.walker.EnclosingTypeDefinition,
-		dsHash:           c.planners[plannerIndex].DataSourceConfiguration().Hash(),
-	})
-
-	return true
-}
-
 // addPlannerPathForTypename adds a path for the __typename field
 // adding __typename should be done only in case particular planner has parent path
 // otherwise it will be added to all planners and will cause visiting of incorrect selection sets
@@ -1037,16 +933,14 @@ func (c *configurationVisitor) planKeyRequiredFields(currentPlannerIdx int, type
 		for _, possibleRequiredFieldConfig := range possibleRequiredFields {
 			if c.planners[i].DataSourceConfiguration().HasKeyRequirement(typeName, possibleRequiredFieldConfig.SelectionSet) {
 
-				isInterfaceObject := false
-				for _, interfaceObjCfg := range c.planners[i].DataSourceConfiguration().FederationConfiguration().InterfaceObjects {
-					if slices.Contains(interfaceObjCfg.ConcreteTypeNames, typeName) {
-						isInterfaceObject = true
-						break
-					}
-				}
+				isInterfaceObject := slices.ContainsFunc(c.planners[i].DataSourceConfiguration().FederationConfiguration().InterfaceObjects, func(interfaceObjCfg EntityInterfaceConfiguration) bool {
+					return slices.Contains(interfaceObjCfg.ConcreteTypeNames, typeName)
+				})
+
 				skipTypename := forInterfaceObject && isInterfaceObject
 
 				c.planAddingRequiredFields(currentPlannerIdx, i, possibleRequiredFieldConfig, skipTypename)
+
 				return possibleRequiredFieldConfig, true
 			}
 		}
@@ -1076,13 +970,7 @@ func (c *configurationVisitor) planAddingRequiredFields(currentPlannerIdx int, p
 		if requirements[i].fieldSelections == fieldConfiguration.SelectionSet {
 			requirementExists = true
 
-			plannerIdExists := false
-			for _, plannerId := range requirements[i].requestedByPlannerIDs {
-				if plannerId == currentPlannerIdx {
-					plannerIdExists = true
-					break
-				}
-			}
+			plannerIdExists := slices.Contains(requirements[i].requestedByPlannerIDs, currentPlannerIdx)
 
 			// when we have already added the same requirements for the current selection set
 			// but not for such planner id
