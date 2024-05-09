@@ -174,8 +174,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 	p.configurationVisitor.debug = p.config.Debug.ConfigurationVisitor
 
 	// set initial suggestions and used data sources
-	p.configurationVisitor.dataSources, p.configurationVisitor.nodeSuggestions =
-		dsFilter.FilterDataSources(p.config.DataSources, nil)
+	p.configurationVisitor.dataSources, p.configurationVisitor.nodeSuggestions = dsFilter.FilterDataSources(p.config.DataSources, nil)
 	if report.HasErrors() {
 		return
 	}

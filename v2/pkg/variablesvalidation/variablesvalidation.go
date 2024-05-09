@@ -41,9 +41,11 @@ func (v *VariablesValidator) Validate(operation, definition *ast.Document, varia
 	v.visitor.err = nil
 	v.visitor.definition = definition
 	v.visitor.operation = operation
-	err := v.visitor.variables.ParseObject(variables)
-	if err != nil {
-		return err
+	if len(variables) > 0 {
+		err := v.visitor.variables.ParseObject(variables)
+		if err != nil {
+			return err
+		}
 	}
 	report := &operationreport.Report{}
 	v.walker.Walk(operation, definition, report)
