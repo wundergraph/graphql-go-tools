@@ -4272,7 +4272,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
-		ctx := &Context{}
+		ctx := &Context{
+			ctx: context.Background(),
+		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
 		assert.NoError(t, err)
@@ -4288,7 +4290,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		resolver, plan, recorder, id := setup(c, nil)
 
-		ctx := &Context{}
+		ctx := &Context{
+			ctx: context.Background(),
+		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
 		assert.Error(t, err)
@@ -4306,7 +4310,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
-		ctx := &Context{}
+		ctx := &Context{
+			ctx: context.Background(),
+		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
 		assert.NoError(t, err)
@@ -4332,6 +4338,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
 		ctx := Context{
+			ctx:        context.Background(),
 			Extensions: []byte(`{"foo":"bar"}`),
 		}
 
@@ -4359,6 +4366,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
 		ctx := Context{
+			ctx:            context.Background(),
 			InitialPayload: []byte(`{"hello":"world"}`),
 		}
 
@@ -4385,7 +4393,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
-		ctx := Context{}
+		ctx := Context{
+			ctx: context.Background(),
+		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
@@ -4408,7 +4418,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
-		ctx := Context{}
+		ctx := Context{
+			ctx: context.Background(),
+		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
