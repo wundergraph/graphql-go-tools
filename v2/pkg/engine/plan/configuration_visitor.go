@@ -2,6 +2,7 @@ package plan
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -71,6 +72,7 @@ func (p *missingPath) String() string {
 type objectFetchConfiguration struct {
 	object             *resolve.Object
 	trigger            *resolve.GraphQLSubscriptionTrigger
+	filter             *resolve.SubscriptionFilter
 	planner            DataSourceFetchPlanner
 	isSubscription     bool
 	fieldRef           int
@@ -782,6 +784,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		fetchID:            fetchID,
 		sourceID:           config.Id(),
 		operationType:      c.resolveRootFieldOperationType(typeName),
+		filter:             c.resolveSubscriptionFilterCondition(typeName, fieldName),
 	}
 
 	plannerPathConfig := newPlannerPathsConfiguration(
@@ -799,6 +802,101 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 	}
 
 	return len(c.planners) - 1, true
+}
+
+func (c *configurationVisitor) resolveSubscriptionFilterCondition(typeName, fieldName string) *resolve.SubscriptionFilter {
+	fieldConfig := c.fieldConfigurations.ForTypeField(typeName, fieldName)
+	if fieldConfig == nil {
+		return nil
+	}
+	if fieldConfig.SubscriptionFilterCondition == nil {
+		return nil
+	}
+	return c.buildSubscriptionFilterCondition(fieldConfig.SubscriptionFilterCondition)
+}
+
+func (c *configurationVisitor) buildSubscriptionFilterCondition(condition *SubscriptionFilterCondition) *resolve.SubscriptionFilter {
+	filter := &resolve.SubscriptionFilter{}
+	if condition.And != nil {
+		for _, andCondition := range condition.And {
+			filter.And = append(filter.And, c.buildSubscriptionFilterCondition(andCondition))
+		}
+	}
+	if condition.Or != nil {
+		for _, orCondition := range condition.Or {
+			filter.Or = append(filter.Or, c.buildSubscriptionFilterCondition(orCondition))
+		}
+	}
+	if condition.Not != nil {
+		filter.Not = c.buildSubscriptionFilterCondition(condition.Not)
+	}
+	if condition.In != nil {
+		filter.In = c.buildSubscriptionFieldFilter(condition.In)
+	}
+	if filter.And == nil && filter.Or == nil && filter.Not == nil && filter.In == nil {
+		return nil
+	}
+	return filter
+}
+
+var (
+	subscriptionFieldFilterRegex = regexp.MustCompile(`{{\s*args\.([a-zA-Z0-9_]+)\s*}}`)
+)
+
+func (c *configurationVisitor) buildSubscriptionFieldFilter(condition *SubscriptionFieldCondition) *resolve.SubscriptionFieldFilter {
+	filter := &resolve.SubscriptionFieldFilter{}
+	filter.FieldPath = condition.FieldPath
+	filter.Values = make([]resolve.InputTemplate, len(condition.Values))
+	for i, value := range condition.Values {
+		matches := subscriptionFieldFilterRegex.FindAllStringSubmatchIndex(value, -1)
+		if len(matches) == 0 {
+			filter.Values[i].Segments = []resolve.TemplateSegment{
+				{
+					SegmentType: resolve.StaticSegmentType,
+					Data:        []byte(value),
+				},
+			}
+			continue
+		}
+		if len(matches) == 1 && len(matches[0]) == 4 {
+			prefix := value[:matches[0][0]]
+			hasPrefix := len(prefix) > 0
+			variableName := value[matches[0][2]:matches[0][3]]
+			suffix := value[matches[0][1]:]
+			hasSuffix := len(suffix) > 0
+			size := 1
+			if hasPrefix {
+				size++
+			}
+			if hasSuffix {
+				size++
+			}
+			filter.Values[i].Segments = make([]resolve.TemplateSegment, size)
+			idx := 0
+			if hasPrefix {
+				filter.Values[i].Segments[idx] = resolve.TemplateSegment{
+					SegmentType: resolve.StaticSegmentType,
+					Data:        []byte(prefix),
+				}
+				idx++
+			}
+			filter.Values[i].Segments[idx] = resolve.TemplateSegment{
+				SegmentType:        resolve.VariableSegmentType,
+				VariableKind:       resolve.ContextVariableKind,
+				Renderer:           resolve.NewPlainVariableRenderer(),
+				VariableSourcePath: []string{variableName},
+			}
+			if hasSuffix {
+				filter.Values[i].Segments[idx+1] = resolve.TemplateSegment{
+					SegmentType: resolve.StaticSegmentType,
+					Data:        []byte(suffix),
+				}
+			}
+			continue
+		}
+		return nil
+	}
+	return filter
 }
 
 func (c *configurationVisitor) resolveRootFieldOperationType(typeName string) ast.OperationType {
