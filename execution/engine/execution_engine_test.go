@@ -141,12 +141,13 @@ func TestWithAdditionalHttpHeaders(t *testing.T) {
 	}
 
 	t.Run("should add all headers to request without excluded keys", func(t *testing.T) {
+		c := resolve.NewContext(context.Background())
+		c.Request = resolve.Request{
+			Header: nil,
+		}
+
 		internalExecutionCtx := &internalExecutionContext{
-			resolveContext: &resolve.Context{
-				Request: resolve.Request{
-					Header: nil,
-				},
-			},
+			resolveContext: c,
 		}
 
 		optionsFn := WithAdditionalHttpHeaders(reqHeader)
@@ -156,12 +157,13 @@ func TestWithAdditionalHttpHeaders(t *testing.T) {
 	})
 
 	t.Run("should only add headers that are not excluded", func(t *testing.T) {
+		c := resolve.NewContext(context.Background())
+		c.Request = resolve.Request{
+			Header: nil,
+		}
+
 		internalExecutionCtx := &internalExecutionContext{
-			resolveContext: &resolve.Context{
-				Request: resolve.Request{
-					Header: nil,
-				},
-			},
+			resolveContext: c,
 		}
 
 		excludableRuntimeHeaders := []string{
