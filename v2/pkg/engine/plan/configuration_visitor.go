@@ -392,7 +392,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 		c.handleFieldsRequiredByKey(plannerIdx, parentPath, typeName)
 		c.recordFieldPlannedOn(ref, plannerIdx)
 		c.addPlannerDependencies(ref, plannerIdx)
-		c.addFieldDependencies(ref, plannerIdx)
+		c.addFieldDependencies(ref, typeName, fieldName, plannerIdx)
 
 		c.rewriteSelectionSetOfFieldWithInterfaceType(ref, plannerIdx)
 		c.addRootField(ref, plannerIdx)
@@ -463,14 +463,23 @@ func (c *configurationVisitor) recordFieldPlannedOn(fieldRef int, plannerIdx int
 	c.fieldsPlannedOn[fieldRef] = append(c.fieldsPlannedOn[fieldRef], plannerIdx)
 }
 
-func (c *configurationVisitor) addFieldDependencies(fieldRef int, currentPlannerIdx int) {
+func (c *configurationVisitor) addFieldDependencies(fieldRef int, typeName, fieldName string, currentPlannerIdx int) {
 	fieldRefs, mappingExists := c.fieldWaitingForDependency[fieldRef]
 	if !mappingExists {
 		return
 	}
 
-	fetchConfiguration := c.planners[currentPlannerIdx].ObjectFetchConfiguration()
+	dsConfig := c.planners[currentPlannerIdx].DataSourceConfiguration()
+	requiresConfiguration, exists := dsConfig.RequiredFieldsByRequires(typeName, fieldName)
+	if !exists {
+		// we do not have a @requires configuration for the field
+		return
+	}
+	// add required fields to the current planner to pass it in the representation variables
+	c.planners[currentPlannerIdx].RequiredFields().AppendIfNotPresent(requiresConfiguration)
 
+	// add dependency to current field planner for all fields which we were waiting for
+	fetchConfiguration := c.planners[currentPlannerIdx].ObjectFetchConfiguration()
 	for _, waitingForFieldRef := range fieldRefs {
 		// we do not check if it exists, because we should not be able to plan a field with requires
 		// in case we haven't planned all required fields
@@ -1098,8 +1107,10 @@ func (c *configurationVisitor) addRequiredFieldsToOperation(selectionSetRef int,
 	c.skipFieldsRefs = append(c.skipFieldsRefs, skipFieldRefs...)
 
 	for _, fieldRef := range requiredFieldRefs {
-		// add mapping for the planner field dependecies
-		c.fieldDependenciesForPlanners[fieldRef] = append(c.fieldDependenciesForPlanners[fieldRef], requiredFieldsCfg.requestedByPlannerID)
+		if requiredFieldsCfg.requestedByPlannerID != -1 {
+			// add mapping for the planner field dependecies
+			c.fieldDependenciesForPlanners[fieldRef] = append(c.fieldDependenciesForPlanners[fieldRef], requiredFieldsCfg.requestedByPlannerID)
+		}
 
 		// add suggestion hint to plan key fields on a proper data source
 		if requiredFieldsCfg.providedByPlannerID != -1 {
