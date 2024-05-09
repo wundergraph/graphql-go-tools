@@ -4501,9 +4501,9 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			count++
 			if count <= 3 {
-				return fmt.Sprintf(`{"id":1}`), false
+				return `{"id":1}`, false
 			}
-			return fmt.Sprintf(`{"id":2}`), true
+			return `{"id":2}`, true
 		}, 0, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
 		})
@@ -4596,9 +4596,9 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			count++
 			if count <= 3 {
-				return fmt.Sprintf(`{"id":1}`), false
+				return `{"id":1}`, false
 			}
-			return fmt.Sprintf(`{"id":2}`), true
+			return `{"id":2}`, true
 		}, 0, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
 		})
@@ -4689,9 +4689,9 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			count++
 			if count <= 3 {
-				return fmt.Sprintf(`{"id":1}`), false
+				return `{"id":1}`, false
 			}
-			return fmt.Sprintf(`{"id":2}`), true
+			return `{"id":2}`, true
 		}, 0, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
 		})
@@ -4785,9 +4785,9 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			count++
 			if count <= 3 {
-				return fmt.Sprintf(`{"id":"x.1"}`), false
+				return `{"id":"x.1"}`, false
 			}
-			return fmt.Sprintf(`{"id":"x.2"}`), true
+			return `{"id":"x.2"}`, true
 		}, 0, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
 		})
@@ -4885,9 +4885,9 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			count++
 			if count <= 3 {
-				return fmt.Sprintf(`{"id":"x.1"}`), false
+				return `{"id":"x.1"}`, false
 			}
-			return fmt.Sprintf(`{"id":"x.2"}`), true
+			return `{"id":"x.2"}`, true
 		}, 0, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
 		})
