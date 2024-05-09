@@ -342,13 +342,8 @@ func (r *Resolver) handleTriggerDone(triggerID uint64) {
 		if wg != nil {
 			wg.Wait()
 		}
-		for c, s := range trig.subscriptions {
-			if c.Context().Err() == nil {
-				s.mux.Lock()
-				s.writer.Complete()
-				s.writer = nil
-				s.mux.Unlock()
-			}
+		for _, s := range trig.subscriptions {
+			s.writer.Complete()
 		}
 		if r.reporter != nil {
 			r.reporter.SubscriptionCountDec(subscriptionCount)
@@ -398,6 +393,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	}
 	r.triggers[triggerID] = trig
 	trig.subscriptions[add.ctx] = s
+
 	err = add.resolve.Trigger.Source.Start(clone, add.input, updater)
 	if err != nil {
 		cancel()
