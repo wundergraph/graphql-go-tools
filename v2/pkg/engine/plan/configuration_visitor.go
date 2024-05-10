@@ -314,36 +314,40 @@ func (c *configurationVisitor) EnterSelectionSet(ref int) {
 	// When selection is the inline fragment
 	// We have to add a fragment path to the planner paths
 	ancestor := c.walker.Ancestor()
-	if ancestor.Kind == ast.NodeKindInlineFragment {
-		parentPath := c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString()
-		currentPath := c.walker.Path.DotDelimitedString()
-		typeName := c.operation.InlineFragmentTypeConditionNameString(ancestor.Ref)
+	if ancestor.Kind != ast.NodeKindInlineFragment {
+		return
+	}
 
-		for i, planner := range c.planners {
-			if !planner.HasPath(parentPath) {
-				continue
-			}
+	parentPath := c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString()
+	currentPath := c.walker.Path.DotDelimitedString()
+	typeName := c.operation.InlineFragmentTypeConditionNameString(ancestor.Ref)
 
-			hasRootNode := planner.DataSourceConfiguration().HasRootNodeWithTypename(typeName)
-			hasChildNode := planner.DataSourceConfiguration().HasChildNodeWithTypename(typeName)
-			if !(hasRootNode || hasChildNode) {
-				continue
-			}
-
-			if planner.HasPath(currentPath) {
-				continue
-			}
-
-			path := pathConfiguration{
-				path:             currentPath,
-				shouldWalkFields: true,
-				dsHash:           planner.DataSourceConfiguration().Hash(),
-				fieldRef:         ast.InvalidRef,
-				pathType:         PathTypeFragment,
-			}
-
-			c.addPath(i, path)
+	for i, planner := range c.planners {
+		if !planner.HasPath(parentPath) {
+			continue
 		}
+
+		hasRootNode := planner.DataSourceConfiguration().HasRootNodeWithTypename(typeName)
+		hasChildNode := planner.DataSourceConfiguration().HasChildNodeWithTypename(typeName)
+		if !(hasRootNode || hasChildNode) {
+			continue
+		}
+
+		if planner.HasPath(currentPath) {
+			continue
+		}
+
+		path := pathConfiguration{
+			parentPath:       parentPath,
+			path:             currentPath,
+			shouldWalkFields: true,
+			dsHash:           planner.DataSourceConfiguration().Hash(),
+			fieldRef:         ast.InvalidRef,
+			fragmentRef:      ancestor.Ref,
+			pathType:         PathTypeFragment,
+		}
+
+		c.addPath(i, path)
 	}
 }
 
@@ -629,6 +633,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 
 			if isProvided || hasChildNode || (hasRootNode && planningBehaviour.MergeAliasedRootNodes) {
 				c.addPath(plannerIdx, pathConfiguration{
+					parentPath:       parentPath,
 					path:             currentPath,
 					shouldWalkFields: true,
 					typeName:         typeName,
@@ -704,6 +709,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 	}
 
 	currentPathConfiguration := pathConfiguration{
+		parentPath:       parentPath,
 		path:             currentPath,
 		shouldWalkFields: true,
 		typeName:         typeName,
@@ -725,7 +731,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 	if isParentFragment {
 		fragmentRef = c.walker.Ancestors[len(c.walker.Ancestors)-2].Ref
 	}
-	
+
 	if isParentAbstract && isParentFragment {
 		// if the parent is abstract and path is on a fragment parent, we add the parent path of type fragment
 		// this will ensure that we're walking into and out of the root inline fragments
@@ -997,10 +1003,12 @@ func (c *configurationVisitor) addPlannerPathForTypename(
 	}
 
 	c.addPath(plannerIndex, pathConfiguration{
+		parentPath:       parentPath,
 		path:             currentPath,
 		shouldWalkFields: true,
 		typeName:         typeName,
 		fieldRef:         fieldRef,
+		fragmentRef:      ast.InvalidRef,
 		dsHash:           c.planners[plannerIndex].DataSourceConfiguration().Hash(),
 	})
 	return true

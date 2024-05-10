@@ -151,14 +151,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 			case astvisitor.EnterInlineFragment, astvisitor.LeaveInlineFragment:
 				// we allow visiting inline fragments only if particular planner has path for the fragment
 
-				hasFragmentPath := false
-				paths := config.Paths()
-				for _, pathConfig := range paths {
-					if pathConfig.fragmentRef == ref {
-						hasFragmentPath = true
-						break
-					}
-				}
+				hasFragmentPath := config.HasFragmentPath(ref)
 
 				if pp, ok := config.Debugger(); ok {
 					typeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
@@ -424,11 +417,8 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 	sourceIDs := make([]string, 0, 1)
 
 	for i := range v.planners {
-		paths := v.planners[i].Paths()
-		for j := range paths {
-			if paths[j].fieldRef == ref {
-				sourceIDs = append(sourceIDs, v.planners[i].DataSourceConfiguration().Id())
-			}
+		if v.planners[i].HasPathWithFieldRef(ref) {
+			sourceIDs = append(sourceIDs, v.planners[i].DataSourceConfiguration().Id())
 		}
 	}
 	return &resolve.FieldInfo{
@@ -554,9 +544,7 @@ func (v *Visitor) addInterfaceObjectNameToTypeNames(fieldRef int, typeName []byt
 	includeInterfaceObjectName := false
 	var interfaceObjectName string
 	for i := range v.planners {
-		if !slices.ContainsFunc(v.planners[i].Paths(), func(path pathConfiguration) bool {
-			return path.fieldRef == fieldRef
-		}) {
+		if !v.planners[i].HasPathWithFieldRef(fieldRef) {
 			continue
 		}
 
@@ -915,22 +903,25 @@ var (
 )
 
 func (v *Visitor) currentOrParentPlannerConfiguration() PlannerConfiguration {
+	// TODO: this method should be dropped it is unnecessary expensive
+
 	const none = -1
 	currentPath := v.currentFullPath(false)
 	plannerIndex := none
 	plannerPathDeepness := none
 
 	for i := range v.planners {
-		for _, plannerPath := range v.planners[i].Paths() {
+		v.planners[i].ForEachPath(func(plannerPath *pathConfiguration) bool {
 			if v.isCurrentOrParentPath(currentPath, plannerPath.path) {
 				currentPlannerPathDeepness := v.pathDeepness(plannerPath.path)
 				if currentPlannerPathDeepness > plannerPathDeepness {
 					plannerPathDeepness = currentPlannerPathDeepness
 					plannerIndex = i
-					break
+					return true
 				}
 			}
-		}
+			return false
+		})
 	}
 
 	if plannerIndex != none {

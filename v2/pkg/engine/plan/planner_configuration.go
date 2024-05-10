@@ -84,28 +84,30 @@ func (p *plannerConfiguration[T]) DataSourceConfiguration() DataSource {
 }
 
 type PlannerPathConfiguration interface {
-	Paths() []pathConfiguration
+	ForEachPath(each func(*pathConfiguration) (shouldBreak bool))
+	RemoveLeafFragmentPaths() (hasRemovals bool)
 	ParentPath() string
 	AddPath(configuration pathConfiguration)
 	IsNestedPlanner() bool
 	HasPath(path string) bool
+	HasPathWithFieldRef(fieldRef int) bool
+	HasFragmentPath(fragmentRef int) bool
 	ShouldWalkFieldsOnPath(path string, typeName string) bool
-	HasPathPrefix(prefix string) bool
-	FragmentPaths() (out []string)
-	RemovePath(path string)
 	HasParent(parent string) bool
 }
 
 func newPlannerPathsConfiguration(parentPath string, parentPathType PlannerPathType, paths []pathConfiguration) *plannerPathsConfiguration {
 	p := &plannerPathsConfiguration{
-		parentPath:     parentPath,
-		parentPathType: parentPathType,
-		paths:          paths,
-		index:          make(map[string]int),
+		parentPath:      parentPath,
+		parentPathType:  parentPathType,
+		index:           make(map[string][]int),
+		indexByFieldRef: make(map[int]struct{}),
+		fragmentPaths:   make(map[pathConfiguration]struct{}),
+		nonLeafPaths:    make(map[string]struct{}),
 	}
 
-	for i, path := range paths {
-		p.index[path.path] = i
+	for _, path := range paths {
+		p.AddPath(path)
 	}
 
 	return p
@@ -115,11 +117,24 @@ type plannerPathsConfiguration struct {
 	parentPath     string
 	parentPathType PlannerPathType
 	paths          []pathConfiguration
-	index          map[string]int
+
+	// indexes
+
+	index           map[string][]int
+	indexByFieldRef map[int]struct{}
+	fragmentPaths   map[pathConfiguration]struct{}
+	nonLeafPaths    map[string]struct{}
 }
 
-func (p *plannerPathsConfiguration) Paths() []pathConfiguration {
-	return p.paths
+func (p *plannerPathsConfiguration) ForEachPath(callback func(*pathConfiguration) (shouldNathanDreak bool)) {
+	for i := range p.paths {
+		if _, exists := p.index[p.paths[i].path]; !exists {
+			continue
+		}
+		if callback(&p.paths[i]) {
+			break
+		}
+	}
 }
 
 func (p *plannerPathsConfiguration) ParentPath() string {
@@ -129,7 +144,19 @@ func (p *plannerPathsConfiguration) ParentPath() string {
 func (p *plannerPathsConfiguration) AddPath(configuration pathConfiguration) {
 	// fmt.Println("[plannerConfiguration.AddPath] parentPath:", p.parentPath, "path:", configuration.String())
 	p.paths = append(p.paths, configuration)
-	p.index[configuration.path] = len(p.paths) - 1
+	idx := len(p.paths) - 1
+
+	p.index[configuration.path] = append(p.index[configuration.path], idx)
+
+	if configuration.parentPath != "" {
+		p.nonLeafPaths[configuration.parentPath] = struct{}{}
+	}
+	if configuration.fragmentRef != ast.InvalidRef {
+		p.fragmentPaths[configuration] = struct{}{}
+	}
+	if configuration.fieldRef != ast.InvalidRef {
+		p.indexByFieldRef[configuration.fieldRef] = struct{}{}
+	}
 }
 
 // IsNestedPlanner returns true in case the planner is not directly attached to the Operation root
@@ -143,49 +170,57 @@ func (p *plannerPathsConfiguration) HasPath(path string) bool {
 	return ok
 }
 
-func (p *plannerPathsConfiguration) ShouldWalkFieldsOnPath(path string, typeName string) bool {
-	idx, ok := p.index[path]
-	if !ok {
-		return false
-	}
-
-	if p.paths[idx].typeName == typeName {
-		return p.paths[idx].shouldWalkFields
-	}
-
-	return false
+func (p *plannerPathsConfiguration) HasPathWithFieldRef(fieldRef int) bool {
+	_, ok := p.indexByFieldRef[fieldRef]
+	return ok
 }
 
-func (p *plannerPathsConfiguration) HasPathPrefix(prefix string) bool {
-	for i := range p.paths {
-		if p.paths[i].path == prefix {
-			continue
-		}
-		if strings.HasPrefix(p.paths[i].path, prefix) {
+func (p *plannerPathsConfiguration) HasFragmentPath(fragmentRef int) bool {
+	for path := range p.fragmentPaths {
+		if path.fragmentRef == fragmentRef {
 			return true
 		}
 	}
+
 	return false
 }
 
-func (p *plannerPathsConfiguration) FragmentPaths() (out []string) {
-	for i := range p.paths {
-		if p.paths[i].pathType == PathTypeFragment {
-			out = append(out, p.paths[i].path)
+func (p *plannerPathsConfiguration) ShouldWalkFieldsOnPath(path string, typeName string) bool {
+	indexes := p.index[path]
+
+	for _, idx := range indexes {
+		if p.paths[idx].typeName == typeName {
+			return p.paths[idx].shouldWalkFields
 		}
 	}
+
+	return false
+}
+
+func (p *plannerPathsConfiguration) hasPathPrefix(prefix string) bool {
+	_, exists := p.nonLeafPaths[prefix]
+	return exists
+}
+
+func (p *plannerPathsConfiguration) RemoveLeafFragmentPaths() (hasRemovals bool) {
+	pathsToRemove := make([]pathConfiguration, 0, len(p.fragmentPaths))
+
+	for path := range p.fragmentPaths {
+		if !p.hasPathPrefix(path.path) {
+			pathsToRemove = append(pathsToRemove, path)
+			hasRemovals = true
+		}
+	}
+	for _, path := range pathsToRemove {
+		p.removePath(path)
+	}
+
 	return
 }
 
-func (p *plannerPathsConfiguration) RemovePath(path string) {
-	idx, ok := p.index[path]
-	if !ok {
-		return
-	}
-
-	// NOTE: we do not remove item itself to preserve the correct slice indexes in an index map
-	p.paths[idx] = pathConfiguration{}
-	delete(p.index, path)
+func (p *plannerPathsConfiguration) removePath(path pathConfiguration) {
+	delete(p.index, path.path)
+	delete(p.fragmentPaths, path)
 }
 
 func (p *plannerPathsConfiguration) HasParent(parent string) bool {
@@ -193,7 +228,8 @@ func (p *plannerPathsConfiguration) HasParent(parent string) bool {
 }
 
 type pathConfiguration struct {
-	path string
+	parentPath string // parentPath is the path of the parent node. It is mandatory to always pass a parent path
+	path       string
 	// shouldWalkFields indicates whether the planner is allowed to walk into fields
 	// this is needed in case we're dealing with a nested federated abstract query
 	// we need to be able to walk into the inline fragments and selection sets in the root
@@ -203,8 +239,8 @@ type pathConfiguration struct {
 	// typeName - the planner will only walk into fields of this type
 	typeName string
 
-	fieldRef      int
-	fragmentRef   int
+	fieldRef      int // fieldRef is the reference to the field in the AST. In case you don't have a field ref its value should be ast.InvalidRef
+	fragmentRef   int // fragmentRef is the reference to the inline fragment in the AST. In case you don't have a fragment ref its value should be ast.InvalidRef
 	enclosingNode ast.Node
 
 	dsHash     DSHash
