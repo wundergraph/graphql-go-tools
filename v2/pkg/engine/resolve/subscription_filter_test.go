@@ -193,6 +193,48 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
+	t.Run("and allow static", func(t *testing.T) {
+		filter := &SubscriptionFilter{
+			And: []*SubscriptionFilter{
+				{
+					In: &SubscriptionFieldFilter{
+						FieldPath: []string{"eventX"},
+						Values: []InputTemplate{
+							{
+								Segments: []TemplateSegment{
+									{
+										SegmentType: StaticSegmentType,
+										Data:        []byte("b"),
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					In: &SubscriptionFieldFilter{
+						FieldPath: []string{"eventY"},
+						Values: []InputTemplate{
+							{
+								Segments: []TemplateSegment{
+									{
+										SegmentType: StaticSegmentType,
+										Data:        []byte("c"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		c := &Context{}
+		buf := &bytes.Buffer{}
+		data := []byte(`{"eventX":"b","eventY":"c"}`)
+		skip, err := filter.SkipEvent(c, data, buf)
+		assert.NoError(t, err)
+		assert.Equal(t, false, skip)
+	})
 	t.Run("and skip", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			And: []*SubscriptionFilter{
