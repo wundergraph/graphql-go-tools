@@ -11,7 +11,7 @@ type FederationMetaData struct {
 type FederationInfo interface {
 	HasKeyRequirement(typeName, requiresFields string) bool
 	RequiredFieldsByKey(typeName string) []FederationFieldConfiguration
-	RequiredFieldsByRequires(typeName, fieldName string) []FederationFieldConfiguration
+	RequiredFieldsByRequires(typeName, fieldName string) (cfg FederationFieldConfiguration, exists bool)
 	HasEntity(typeName string) bool
 }
 
@@ -27,8 +27,8 @@ func (d *FederationMetaData) HasEntity(typeName string) bool {
 	return len(d.Keys.FilterByTypeAndResolvability(typeName, false)) > 0
 }
 
-func (d *FederationMetaData) RequiredFieldsByRequires(typeName, fieldName string) []FederationFieldConfiguration {
-	return d.Requires.FilterByTypeAndField(typeName, fieldName)
+func (d *FederationMetaData) RequiredFieldsByRequires(typeName, fieldName string) (cfg FederationFieldConfiguration, exists bool) {
+	return d.Requires.FirstByTypeAndField(typeName, fieldName)
 }
 
 type EntityInterfaceConfiguration struct {
@@ -70,14 +70,13 @@ func (f *FederationFieldConfigurations) UniqueTypes() (out []string) {
 	return out
 }
 
-func (f *FederationFieldConfigurations) FilterByTypeAndField(typeName, fieldName string) (out []FederationFieldConfiguration) {
+func (f *FederationFieldConfigurations) FirstByTypeAndField(typeName, fieldName string) (cfg FederationFieldConfiguration, exists bool) {
 	for i := range *f {
-		if (*f)[i].TypeName != typeName || (*f)[i].FieldName != fieldName {
-			continue
+		if (*f)[i].TypeName == typeName && (*f)[i].FieldName == fieldName {
+			return (*f)[i], true
 		}
-		out = append(out, (*f)[i])
 	}
-	return out
+	return FederationFieldConfiguration{}, false
 }
 
 func (f *FederationFieldConfigurations) HasSelectionSet(typeName, fieldName, selectionSet string) bool {

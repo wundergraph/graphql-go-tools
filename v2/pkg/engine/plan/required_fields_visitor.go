@@ -29,7 +29,6 @@ type addRequiredFieldsInput struct {
 	key, operation, definition *ast.Document
 	report                     *operationreport.Report
 	operationSelectionSet      int
-	parentPath                 string
 }
 
 func addRequiredFields(input *addRequiredFieldsInput) (skipFieldRefs []int, requiredFieldRefs []int) {
@@ -53,6 +52,26 @@ func addRequiredFields(input *addRequiredFieldsInput) (skipFieldRefs []int, requ
 	return visitor.skipFieldRefs, visitor.requiredFieldRefs
 }
 
+func testRequiredFields(input *addRequiredFieldsInput) (allPresent bool) {
+	walker := astvisitor.NewWalker(48)
+
+	visitor := &requiredFieldsVisitor{
+		Walker:            &walker,
+		input:             input,
+		skipFieldRefs:     make([]int, 0, 2),
+		requiredFieldRefs: make([]int, 0, 2),
+		testMode:          true,
+		allFieldsPresent:  true,
+	}
+	walker.RegisterEnterDocumentVisitor(visitor)
+	walker.RegisterFieldVisitor(visitor)
+	walker.RegisterSelectionSetVisitor(visitor)
+
+	walker.Walk(input.key, input.definition, input.report)
+
+	return visitor.allFieldsPresent
+}
+
 type requiredFieldsVisitor struct {
 	*astvisitor.Walker
 	OperationNodes    []ast.Node
@@ -60,6 +79,9 @@ type requiredFieldsVisitor struct {
 	importer          *astimport.Importer
 	skipFieldRefs     []int
 	requiredFieldRefs []int
+
+	testMode         bool
+	allFieldsPresent bool
 }
 
 func (v *requiredFieldsVisitor) EnterDocument(_, _ *ast.Document) {
@@ -110,6 +132,12 @@ func (v *requiredFieldsVisitor) EnterField(ref int) {
 		}
 
 		v.OperationNodes = append(v.OperationNodes, ast.Node{Kind: ast.NodeKindField, Ref: operationFieldRef})
+		return
+	}
+
+	if v.testMode {
+		v.allFieldsPresent = false
+		v.Walker.Stop()
 		return
 	}
 
