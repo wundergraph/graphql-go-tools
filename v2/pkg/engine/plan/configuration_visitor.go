@@ -934,7 +934,7 @@ func (c *configurationVisitor) handleFieldRequiredByRequires(fieldRef int, typeN
 func (c *configurationVisitor) hasFieldsRequiredByRequires(selectionSetRef int, fieldSelections string, typeName, fieldName, currentPath string) bool {
 	key, report := RequiredFieldsFragment(typeName, fieldSelections, false)
 	if report.HasErrors() {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse required fields for %s", typeName))
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse/check field requirements %s for %s field of %s type at path %s", fieldSelections, fieldName, typeName, currentPath))
 		return false
 	}
 
@@ -948,8 +948,7 @@ func (c *configurationVisitor) hasFieldsRequiredByRequires(selectionSetRef int, 
 
 	allPresent := testRequiredFields(input)
 	if report.HasErrors() {
-		// TODO: here should be also a field name
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to check field requirements for %s", typeName))
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to check field requirements %s for %s field of %s type at path %s", fieldSelections, fieldName, typeName, currentPath))
 		return false
 	}
 
