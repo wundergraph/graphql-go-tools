@@ -46,6 +46,7 @@ type Resolver struct {
 	triggers          map[uint64]*trigger
 	events            chan subscriptionEvent
 	triggerUpdatePool *pond.WorkerPool
+	triggerUpdateBuf  *bytes.Buffer
 
 	connectionIDs atomic.Int64
 
@@ -132,6 +133,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		triggers:         make(map[uint64]*trigger),
 		reporter:         options.Reporter,
 		asyncErrorWriter: options.AsyncErrorWriter,
+		triggerUpdateBuf: bytes.NewBuffer(make([]byte, 0, 1024)),
 	}
 	if options.MaxConcurrency > 0 {
 		semaphore := make(chan struct{}, options.MaxConcurrency)
@@ -479,10 +481,20 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		fmt.Printf("resolver:trigger:update:%d\n", id)
 	}
 	wg := &sync.WaitGroup{}
-	wg.Add(len(trig.subscriptions))
 	trig.inFlight = wg
 	for c, s := range trig.subscriptions {
 		c, s := c, s
+		skip, err := s.resolve.Filter.SkipEvent(c, data, r.triggerUpdateBuf)
+		if err != nil {
+			buf := pool.BytesBuffer.Get()
+			r.asyncErrorWriter.WriteError(c, err, s.resolve.Response, s.writer, buf)
+			pool.BytesBuffer.Put(buf)
+			continue
+		}
+		if skip {
+			continue
+		}
+		wg.Add(1)
 		r.triggerUpdatePool.Submit(func() {
 			r.executeSubscriptionUpdate(c, s, data)
 			wg.Done()

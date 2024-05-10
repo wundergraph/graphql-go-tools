@@ -96,6 +96,20 @@ type FieldConfiguration struct {
 	UnescapeResponseJson bool
 	// HasAuthorizationRule needs to be set to true if the Authorizer should be called for this field
 	HasAuthorizationRule bool
+
+	SubscriptionFilterCondition *SubscriptionFilterCondition
+}
+
+type SubscriptionFilterCondition struct {
+	And []SubscriptionFilterCondition
+	Or  []SubscriptionFilterCondition
+	Not *SubscriptionFilterCondition
+	In  *SubscriptionFieldCondition
+}
+
+type SubscriptionFieldCondition struct {
+	FieldPath []string
+	Values    []string
 }
 
 type ArgumentsConfigurations []ArgumentConfiguration

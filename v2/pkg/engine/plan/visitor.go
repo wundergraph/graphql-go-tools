@@ -434,7 +434,10 @@ func (v *Visitor) linkFetchConfiguration(fieldRef int) {
 			if v.planners[i].ObjectFetchConfiguration().isSubscription {
 				plan, ok := v.plan.(*SubscriptionResponsePlan)
 				if ok {
-					v.planners[i].ObjectFetchConfiguration().trigger = &plan.Response.Trigger
+					fetchConfig := v.planners[i].ObjectFetchConfiguration()
+					fetchConfig.trigger = &plan.Response.Trigger
+					// The filter is built by the configuration planner, so we link it back here
+					plan.Response.Filter = fetchConfig.filter
 				}
 			} else {
 				v.planners[i].ObjectFetchConfiguration().object = v.objects[len(v.objects)-1]
