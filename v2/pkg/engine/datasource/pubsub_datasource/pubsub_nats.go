@@ -1,0 +1,87 @@
+package pubsub_datasource
+
+import (
+	"context"
+	"encoding/json"
+	"github.com/cespare/xxhash/v2"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"io"
+)
+
+type NatsStreamConfiguration struct {
+	Consumer   string `json:"consumer"`
+	StreamName string `json:"streamName"`
+}
+
+type NatsEventConfiguration struct {
+	StreamConfiguration *NatsStreamConfiguration `json:"streamConfiguration,omitempty"`
+	Subjects            []string                 `json:"subjects"`
+}
+
+type NatsConnector interface {
+	New(ctx context.Context) NatsPubSub
+}
+
+// NatsPubSub describe the interface that implements the primitive operations for pubsub
+type NatsPubSub interface {
+	// Subscribe starts listening on the given subjects and sends the received messages to the given next channel
+	Subscribe(ctx context.Context, event NatsSubscriptionEventConfiguration, updater resolve.SubscriptionUpdater) error
+	// Publish sends the given data to the given subject
+	Publish(ctx context.Context, event NatsPublishAndRequestEventConfiguration) error
+	// Request sends a request on the given subject and writes the response to the given writer
+	Request(ctx context.Context, event NatsPublishAndRequestEventConfiguration, w io.Writer) error
+}
+
+type NatsSubscriptionSource struct {
+	pubSub NatsPubSub
+}
+
+func (s *NatsSubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte, xxh *xxhash.Digest) error {
+	// input must be unique across datasources
+	_, err := xxh.Write(input)
+	return err
+}
+
+func (s *NatsSubscriptionSource) Start(ctx *resolve.Context, input []byte, updater resolve.SubscriptionUpdater) error {
+	var subscriptionConfiguration NatsSubscriptionEventConfiguration
+	err := json.Unmarshal(input, &subscriptionConfiguration)
+	if err != nil {
+		return err
+	}
+
+	return s.pubSub.Subscribe(ctx.Context(), subscriptionConfiguration, updater)
+}
+
+type NatsPublishDataSource struct {
+	pubSub NatsPubSub
+}
+
+func (s *NatsPublishDataSource) Load(ctx context.Context, input []byte, w io.Writer) error {
+	var publishConfiguration NatsPublishAndRequestEventConfiguration
+	err := json.Unmarshal(input, &publishConfiguration)
+	if err != nil {
+		return err
+	}
+
+	if err := s.pubSub.Publish(ctx, publishConfiguration); err != nil {
+		_, err = io.WriteString(w, `{"success": false}`)
+		return err
+	}
+
+	_, err = io.WriteString(w, `{"success": true}`)
+	return err
+}
+
+type NatsRequestDataSource struct {
+	pubSub NatsPubSub
+}
+
+func (s *NatsRequestDataSource) Load(ctx context.Context, input []byte, w io.Writer) error {
+	var subscriptionConfiguration NatsPublishAndRequestEventConfiguration
+	err := json.Unmarshal(input, &subscriptionConfiguration)
+	if err != nil {
+		return err
+	}
+
+	return s.pubSub.Request(ctx, subscriptionConfiguration, w)
+}
