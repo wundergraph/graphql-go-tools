@@ -3,6 +3,7 @@ package pubsub_datasource
 import (
 	"context"
 	"encoding/json"
+	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"io"
@@ -29,8 +30,23 @@ type KafkaSubscriptionSource struct {
 }
 
 func (s *KafkaSubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte, xxh *xxhash.Digest) error {
-	// input must be unique across datasources
-	_, err := xxh.Write(input)
+
+	val, _, _, err := jsonparser.Get(input, "topics")
+	if err != nil {
+		return err
+	}
+
+	_, err = xxh.Write(val)
+	if err != nil {
+		return err
+	}
+
+	val, _, _, err = jsonparser.Get(input, "providerId")
+	if err != nil {
+		return err
+	}
+
+	_, err = xxh.Write(val)
 	return err
 }
 
