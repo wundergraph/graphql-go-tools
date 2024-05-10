@@ -151,10 +151,10 @@ func (p *plannerPathsConfiguration) AddPath(configuration pathConfiguration) {
 	if configuration.parentPath != "" {
 		p.nonLeafPaths[configuration.parentPath] = struct{}{}
 	}
-	if configuration.fragmentRef != ast.InvalidRef {
+	if configuration.pathType == PathTypeFragment {
 		p.fragmentPaths[configuration] = struct{}{}
 	}
-	if configuration.fieldRef != ast.InvalidRef {
+	if configuration.pathType == PathTypeField {
 		p.indexByFieldRef[configuration.fieldRef] = struct{}{}
 	}
 }
@@ -228,7 +228,7 @@ func (p *plannerPathsConfiguration) HasParent(parent string) bool {
 }
 
 type pathConfiguration struct {
-	parentPath string // parentPath is the path of the parent node. It is mandatory to always pass a parent path
+	parentPath string // parentPath is the path of the parent node. It is mandatory to always pass a parent path for field paths
 	path       string
 	// shouldWalkFields indicates whether the planner is allowed to walk into fields
 	// this is needed in case we're dealing with a nested federated abstract query
