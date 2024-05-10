@@ -64,8 +64,10 @@ func (s *NatsPublishDataSource) Load(ctx context.Context, input []byte, w io.Wri
 	}
 
 	if err := s.pubSub.Publish(ctx, publishConfiguration); err != nil {
+		_, err = io.WriteString(w, `{"success": false}`)
 		return err
 	}
+
 	_, err = io.WriteString(w, `{"success": true}`)
 	return err
 }
