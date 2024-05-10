@@ -436,6 +436,8 @@ func (c *configurationVisitor) fieldIsChildNode(plannerIdx int) bool {
 }
 
 // addPlannerDependencies adds dependencies between planners based on @key directive
+// e.g. when we have a record in a map, that this fieldRef is a dependency for the planner id
+// we will notify that planner about the dependency on thecurrentPlannerIdx where this field is landed
 func (c *configurationVisitor) addPlannerDependencies(fieldRef int, currentPlannerIdx int) {
 	plannerIds, mappingExists := c.fieldDependenciesForPlanners[fieldRef]
 	if !mappingExists {
@@ -457,11 +459,15 @@ func (c *configurationVisitor) addPlannerDependencies(fieldRef int, currentPlann
 	}
 }
 
-// handleFieldsRequiredByKey records on which planner id a field was planned
+// recordFieldPlannedOn - records the planner id on which the field was planned
 func (c *configurationVisitor) recordFieldPlannedOn(fieldRef int, plannerIdx int) {
 	c.fieldsPlannedOn[fieldRef] = append(c.fieldsPlannedOn[fieldRef], plannerIdx)
 }
 
+// addFieldDependencies adds dependencies between planners based on @requires directive
+// in case current field has @requires directive, and we were able to plan it - it means that all fields from requires selection set was planned before that.
+// So we need to notify planner of current fieldRef about dependencie on those other fields
+// we know where fields were planned, because we record planner id of each planned field
 func (c *configurationVisitor) addFieldDependencies(fieldRef int, typeName, fieldName string, currentPlannerIdx int) {
 	fieldRefs, mappingExists := c.fieldWaitingForDependency[fieldRef]
 	if !mappingExists {
