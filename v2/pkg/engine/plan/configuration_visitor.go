@@ -812,23 +812,29 @@ func (c *configurationVisitor) resolveSubscriptionFilterCondition(typeName, fiel
 	if fieldConfig.SubscriptionFilterCondition == nil {
 		return nil
 	}
-	return c.buildSubscriptionFilterCondition(fieldConfig.SubscriptionFilterCondition)
+	return c.buildSubscriptionFilterCondition(*fieldConfig.SubscriptionFilterCondition)
 }
 
-func (c *configurationVisitor) buildSubscriptionFilterCondition(condition *SubscriptionFilterCondition) *resolve.SubscriptionFilter {
+func (c *configurationVisitor) buildSubscriptionFilterCondition(condition SubscriptionFilterCondition) *resolve.SubscriptionFilter {
 	filter := &resolve.SubscriptionFilter{}
 	if condition.And != nil {
 		for _, andCondition := range condition.And {
-			filter.And = append(filter.And, c.buildSubscriptionFilterCondition(andCondition))
+			and := c.buildSubscriptionFilterCondition(andCondition)
+			if and != nil {
+				filter.And = append(filter.And, *and)
+			}
 		}
 	}
 	if condition.Or != nil {
 		for _, orCondition := range condition.Or {
-			filter.Or = append(filter.Or, c.buildSubscriptionFilterCondition(orCondition))
+			or := c.buildSubscriptionFilterCondition(orCondition)
+			if or != nil {
+				filter.Or = append(filter.Or, *or)
+			}
 		}
 	}
 	if condition.Not != nil {
-		filter.Not = c.buildSubscriptionFilterCondition(condition.Not)
+		filter.Not = c.buildSubscriptionFilterCondition(*condition.Not)
 	}
 	if condition.In != nil {
 		filter.In = c.buildSubscriptionFieldFilter(condition.In)
@@ -840,7 +846,10 @@ func (c *configurationVisitor) buildSubscriptionFilterCondition(condition *Subsc
 }
 
 var (
-	subscriptionFieldFilterRegex = regexp.MustCompile(`{{\s*args\.([a-zA-Z0-9_]+)\s*}}`)
+	// subscriptionFieldFilterRegex is used to extract the variable name from the subscription filter condition
+	// e.g. {{ args.id }} -> id
+	// e.g. {{ args.input.id }} -> input.id
+	subscriptionFieldFilterRegex = regexp.MustCompile(`{{\s*args\.([a-zA-Z0-9_.]+)\s*}}`)
 )
 
 func (c *configurationVisitor) buildSubscriptionFieldFilter(condition *SubscriptionFieldCondition) *resolve.SubscriptionFieldFilter {
@@ -884,7 +893,7 @@ func (c *configurationVisitor) buildSubscriptionFieldFilter(condition *Subscript
 				SegmentType:        resolve.VariableSegmentType,
 				VariableKind:       resolve.ContextVariableKind,
 				Renderer:           resolve.NewPlainVariableRenderer(),
-				VariableSourcePath: []string{variableName},
+				VariableSourcePath: strings.Split(variableName, "."),
 			}
 			if hasSuffix {
 				filter.Values[i].Segments[idx+1] = resolve.TemplateSegment{

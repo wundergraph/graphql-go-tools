@@ -147,7 +147,7 @@ func TestSubscriptionFilter(t *testing.T) {
 	})
 	t.Run("and allow", func(t *testing.T) {
 		filter := &SubscriptionFilter{
-			And: []*SubscriptionFilter{
+			And: []SubscriptionFilter{
 				{
 					In: &SubscriptionFieldFilter{
 						FieldPath: []string{"eventX"},
@@ -195,7 +195,7 @@ func TestSubscriptionFilter(t *testing.T) {
 	})
 	t.Run("and allow static", func(t *testing.T) {
 		filter := &SubscriptionFilter{
-			And: []*SubscriptionFilter{
+			And: []SubscriptionFilter{
 				{
 					In: &SubscriptionFieldFilter{
 						FieldPath: []string{"eventX"},
@@ -237,7 +237,7 @@ func TestSubscriptionFilter(t *testing.T) {
 	})
 	t.Run("and skip", func(t *testing.T) {
 		filter := &SubscriptionFilter{
-			And: []*SubscriptionFilter{
+			And: []SubscriptionFilter{
 				{
 					In: &SubscriptionFieldFilter{
 						FieldPath: []string{"eventX"},
@@ -285,7 +285,7 @@ func TestSubscriptionFilter(t *testing.T) {
 	})
 	t.Run("and skip 2", func(t *testing.T) {
 		filter := &SubscriptionFilter{
-			And: []*SubscriptionFilter{
+			And: []SubscriptionFilter{
 				{
 					In: &SubscriptionFieldFilter{
 						FieldPath: []string{"eventX"},
@@ -333,7 +333,7 @@ func TestSubscriptionFilter(t *testing.T) {
 	})
 	t.Run("or allow", func(t *testing.T) {
 		filter := &SubscriptionFilter{
-			Or: []*SubscriptionFilter{
+			Or: []SubscriptionFilter{
 				{
 					In: &SubscriptionFieldFilter{
 						FieldPath: []string{"eventX"},
@@ -381,7 +381,7 @@ func TestSubscriptionFilter(t *testing.T) {
 	})
 	t.Run("or allow differing", func(t *testing.T) {
 		filter := &SubscriptionFilter{
-			Or: []*SubscriptionFilter{
+			Or: []SubscriptionFilter{
 				{
 					In: &SubscriptionFieldFilter{
 						FieldPath: []string{"eventX"},
@@ -429,7 +429,7 @@ func TestSubscriptionFilter(t *testing.T) {
 	})
 	t.Run("or skip", func(t *testing.T) {
 		filter := &SubscriptionFilter{
-			Or: []*SubscriptionFilter{
+			Or: []SubscriptionFilter{
 				{
 					In: &SubscriptionFieldFilter{
 						FieldPath: []string{"eventX"},

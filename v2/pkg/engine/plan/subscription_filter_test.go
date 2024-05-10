@@ -170,6 +170,87 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 	))
 
+	t.Run("subscription with nested in field filter", test(
+		schema, `
+				subscription { heroByID(id: "1") { id name } }
+			`, "",
+		&SubscriptionResponsePlan{
+			Response: &resolve.GraphQLSubscription{
+				Trigger: resolve.GraphQLSubscriptionTrigger{
+					Input: []byte{},
+				},
+				Filter: &resolve.SubscriptionFilter{
+					In: &resolve.SubscriptionFieldFilter{
+						FieldPath: []string{"id"},
+						Values: []resolve.InputTemplate{
+							{
+								Segments: []resolve.TemplateSegment{
+									{
+										SegmentType:        resolve.VariableSegmentType,
+										VariableKind:       resolve.ContextVariableKind,
+										VariableSourcePath: []string{"input", "id"},
+										Renderer:           resolve.NewPlainVariableRenderer(),
+									},
+								},
+							},
+						},
+					},
+				},
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("heroByID"),
+								Value: &resolve.Object{
+									Path:     []string{"heroByID"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("id"),
+											Value: &resolve.Scalar{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path: []string{"name"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Configuration{
+			DisableResolveFieldPositions: true,
+			DataSources:                  []DataSource{dsConfig},
+			Fields: []FieldConfiguration{
+				{
+					TypeName:  "Subscription",
+					FieldName: "heroByID",
+					Path:      []string{"heroByID"},
+					Arguments: []ArgumentConfiguration{
+						{
+							Name:       "id",
+							SourceType: FieldArgumentSource,
+							SourcePath: []string{"id"},
+						},
+					},
+					SubscriptionFilterCondition: &SubscriptionFilterCondition{
+						In: &SubscriptionFieldCondition{
+							FieldPath: []string{"id"},
+							Values:    []string{"{{ args.input.id }}"},
+						},
+					},
+				},
+			},
+		},
+	))
+
 	t.Run("subscription with in field invalid filter multiple templates", test(
 		schema, `
 				subscription { heroByID(id: "1") { id name } }
@@ -503,7 +584,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					Input: []byte{},
 				},
 				Filter: &resolve.SubscriptionFilter{
-					And: []*resolve.SubscriptionFilter{
+					And: []resolve.SubscriptionFilter{
 						{
 							In: &resolve.SubscriptionFieldFilter{
 								FieldPath: []string{"a"},
@@ -585,7 +666,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 						},
 					},
 					SubscriptionFilterCondition: &SubscriptionFilterCondition{
-						And: []*SubscriptionFilterCondition{
+						And: []SubscriptionFilterCondition{
 							{
 								In: &SubscriptionFieldCondition{
 									FieldPath: []string{"a"},
@@ -615,7 +696,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					Input: []byte{},
 				},
 				Filter: &resolve.SubscriptionFilter{
-					Or: []*resolve.SubscriptionFilter{
+					Or: []resolve.SubscriptionFilter{
 						{
 							In: &resolve.SubscriptionFieldFilter{
 								FieldPath: []string{"a"},
@@ -697,7 +778,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 						},
 					},
 					SubscriptionFilterCondition: &SubscriptionFilterCondition{
-						Or: []*SubscriptionFilterCondition{
+						Or: []SubscriptionFilterCondition{
 							{
 								In: &SubscriptionFieldCondition{
 									FieldPath: []string{"a"},
@@ -728,7 +809,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 				},
 				Filter: &resolve.SubscriptionFilter{
 					Not: &resolve.SubscriptionFilter{
-						Or: []*resolve.SubscriptionFilter{
+						Or: []resolve.SubscriptionFilter{
 							{
 								In: &resolve.SubscriptionFieldFilter{
 									FieldPath: []string{"a"},
@@ -812,7 +893,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					},
 					SubscriptionFilterCondition: &SubscriptionFilterCondition{
 						Not: &SubscriptionFilterCondition{
-							Or: []*SubscriptionFilterCondition{
+							Or: []SubscriptionFilterCondition{
 								{
 									In: &SubscriptionFieldCondition{
 										FieldPath: []string{"a"},

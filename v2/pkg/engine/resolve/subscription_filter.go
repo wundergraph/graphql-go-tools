@@ -10,8 +10,8 @@ import (
 )
 
 type SubscriptionFilter struct {
-	And []*SubscriptionFilter
-	Or  []*SubscriptionFilter
+	And []SubscriptionFilter
+	Or  []SubscriptionFilter
 	Not *SubscriptionFilter
 	In  *SubscriptionFieldFilter
 }
@@ -68,6 +68,9 @@ func (f *SubscriptionFilter) SkipEvent(ctx *Context, data []byte, buf *bytes.Buf
 }
 
 var (
+	// findArray is a regex to find all array values in a string
+	// e.g. [1, 2, 3] or ["a", "b", "c"]
+	// it will skip prefix and suffix non array values, e.g. "foo[1, 2, 3]bar" will return [1, 2, 3]
 	findArray                         = regexp.MustCompile(`\[(.*?)\]`)
 	InvalidSubscriptionFilterTemplate = fmt.Errorf("invalid subscription filter template")
 )

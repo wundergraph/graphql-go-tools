@@ -101,8 +101,8 @@ type FieldConfiguration struct {
 }
 
 type SubscriptionFilterCondition struct {
-	And []*SubscriptionFilterCondition
-	Or  []*SubscriptionFilterCondition
+	And []SubscriptionFilterCondition
+	Or  []SubscriptionFilterCondition
 	Not *SubscriptionFilterCondition
 	In  *SubscriptionFieldCondition
 }
