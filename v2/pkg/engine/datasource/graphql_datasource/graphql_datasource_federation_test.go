@@ -1287,7 +1287,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 
 				operationName := "Requires"
 
-				expectedPlan := func(input string) *plan.SynchronousResponsePlan {
+				expectedPlan := func() *plan.SynchronousResponsePlan {
 					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
 							Data: &resolve.Object{
@@ -1295,7 +1295,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									FetchID:              0,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          input,
+										Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {line1 line2 __typename id}}}}"}}`,
 										DataSource:     &Source{},
 										PostProcessing: DefaultPostProcessingConfiguration,
 									},
@@ -1496,8 +1496,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					definition,
 					operation,
 					operationName,
-					expectedPlan(`{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {__typename id line1 line2}}}}"}}`),
+					expectedPlan(),
 					plan.Configuration{
+						Debug: plan.DebugConfiguration{
+							PrintQueryPlans: false,
+						},
 						DataSources: []plan.DataSource{
 							usersDatasourceConfiguration,
 							accountsDatasourceConfiguration,
@@ -1645,9 +1648,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						secondDatasourceConfiguration,
 					},
 					DisableResolveFieldPositions: true,
-					Debug: plan.DebugConfiguration{
-						PrintQueryPlans: true,
-					},
 				}
 
 				t.Run("should create 3 fetches", func(t *testing.T) {
@@ -1666,7 +1666,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								Data: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
 										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {id __typename}}"}}`,
+											Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
 											PostProcessing: DefaultPostProcessingConfiguration,
 											DataSource:     &Source{},
 										},
@@ -1689,7 +1689,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												Fetch: &resolve.SerialFetch{
 													Fetches: []resolve.Fetch{
 														&resolve.SingleFetch{
-															FetchID:           1,
+															FetchID:           2,
 															DependsOnFetchIDs: []int{0},
 															FetchConfiguration: resolve.FetchConfiguration{
 																RequiresEntityBatchFetch:              false,
@@ -1725,8 +1725,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															DataSourceIdentifier: []byte("graphql_datasource.Source"),
 														},
 														&resolve.SingleFetch{
-															FetchID:           2,
-															DependsOnFetchIDs: []int{1},
+															FetchID:           1,
+															DependsOnFetchIDs: []int{2, 0},
 															FetchConfiguration: resolve.FetchConfiguration{
 																RequiresEntityBatchFetch:              false,
 																RequiresEntityFetch:                   true,
@@ -1749,6 +1749,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																					Name: []byte("id"),
 																					Value: &resolve.String{
 																						Path: []string{"id"},
+																					},
+																					OnTypeNames: [][]byte{[]byte("User")},
+																				},
+																				{
+																					Name: []byte("firstName"),
+																					Value: &resolve.String{
+																						Path: []string{"firstName"},
+																					},
+																					OnTypeNames: [][]byte{[]byte("User")},
+																				},
+																				{
+																					Name: []byte("lastName"),
+																					Value: &resolve.String{
+																						Path: []string{"lastName"},
 																					},
 																					OnTypeNames: [][]byte{[]byte("User")},
 																				},

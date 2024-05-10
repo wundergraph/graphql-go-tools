@@ -68,11 +68,10 @@ type arrayField struct {
 type missingPath struct {
 	path                  string
 	precedingRootNodePath string
-	dsHash                DSHash
 }
 
 func (p *missingPath) String() string {
-	return fmt.Sprintf(`{"ds":%d,"path":"%s","precedingRootNodePath":"%s"}`, p.dsHash, p.path, p.precedingRootNodePath)
+	return fmt.Sprintf(`{"path":"%s","precedingRootNodePath":"%s"}`, p.path, p.precedingRootNodePath)
 }
 
 type objectFetchConfiguration struct {
@@ -389,7 +388,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 
 	if planned {
-		c.handleFieldsRequiredByKey(plannerIdx, parentPath, typeName)
+		c.handleFieldsRequiredByKey(plannerIdx, parentPath, typeName, fieldName)
 		c.recordFieldPlannedOn(ref, plannerIdx)
 		c.addPlannerDependencies(ref, plannerIdx)
 		c.addFieldDependencies(ref, typeName, fieldName, plannerIdx)
@@ -564,7 +563,8 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 
 	for plannerIdx, plannerConfig := range c.planners {
 		planningBehaviour := plannerConfig.DataSourcePlanningBehavior()
-		currentPlannerDSHash := plannerConfig.DataSourceConfiguration().Hash()
+		dsConfiguration := plannerConfig.DataSourceConfiguration()
+		currentPlannerDSHash := dsConfiguration.Hash()
 		_, isProvided := plannerConfig.ProvidedFields().HasSuggestionForPath(typeName, fieldName, currentPath)
 		hasSuggestion := slices.Contains(dsHashes, currentPlannerDSHash)
 
@@ -584,8 +584,8 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 			continue
 		}
 
-		hasRootNode := plannerConfig.DataSourceConfiguration().HasRootNode(typeName, fieldName)
-		hasChildNode := plannerConfig.DataSourceConfiguration().HasChildNode(typeName, fieldName)
+		hasRootNode := dsConfiguration.HasRootNode(typeName, fieldName)
+		hasChildNode := dsConfiguration.HasChildNode(typeName, fieldName)
 
 		if c.secondaryRun && plannerConfig.HasPath(currentPath) {
 			if c.hasMissingPathWithParentPath(currentPath) {
@@ -597,7 +597,14 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 			return plannerIdx, true
 		}
 
-		if !c.couldHandleFieldsRequiredByKey(plannerConfig.DataSourceConfiguration(), typeName, parentPath) {
+		// we should not plan fields with requires on a root level planner
+		// because field with requires always will need an additional fetch before could be planned
+		_, exists := dsConfiguration.RequiredFieldsByRequires(typeName, fieldName)
+		if exists && !plannerConfig.IsNestedPlanner() {
+			continue
+		}
+
+		if !c.couldHandleFieldsRequiredByKey(dsConfiguration, typeName, parentPath) {
 			return -1, false
 		}
 
@@ -826,24 +833,13 @@ func (c *configurationVisitor) handleMissingPath(typeName string, fieldName stri
 func (c *configurationVisitor) LeaveField(ref int) {
 	c.removeArrayField(ref)
 
-	fieldName := c.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
-	c.debugPrint("LeaveField ref:", ref, "fieldName:", fieldName, "typeName:", typeName)
+	c.debugPrint("LeaveField ref:", ref, "fieldName:", fieldAliasOrName, "typeName:", typeName)
 
 	if !c.secondaryRun {
 		// we should evaluate exit paths only on the second run
 		return
-	}
-
-	// fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
-	parent := c.walker.Path.DotDelimitedString()
-	current := parent + "." + fieldAliasOrName
-	for i, planner := range c.planners {
-		if planner.HasPath(current) && !planner.HasPathPrefix(current) {
-			c.planners[i].SetPathExit(current)
-			return
-		}
 	}
 }
 
@@ -954,18 +950,21 @@ func (c *configurationVisitor) hasFieldsRequiredByRequires(selectionSetRef int, 
 	return allPresent
 }
 
-func (c *configurationVisitor) handleFieldsRequiredByKey(plannerIdx int, parentPath string, typeName string) {
+func (c *configurationVisitor) handleFieldsRequiredByKey(plannerIdx int, parentPath string, typeName, fieldName string) {
 	plannerConfig := c.planners[plannerIdx]
-	dsHash := plannerConfig.DataSourceConfiguration().Hash()
+	dsConfig := plannerConfig.DataSourceConfiguration()
 
 	parentDSHash, ok := c.addedPathDSHash(parentPath)
 	if !ok {
 		return
 	}
 
+	_, hasRequiresCondition := dsConfig.RequiredFieldsByRequires(typeName, fieldName)
+
 	// we should handle key requirements only when the datasource hash differs from the parent datasource hash
 	// it means that this field should be resolved by another datasource
-	if dsHash == parentDSHash {
+	// one exception in case field has requires directive
+	if dsConfig.Hash() == parentDSHash && !hasRequiresCondition {
 		return
 	}
 
