@@ -482,7 +482,7 @@ func (c *configurationVisitor) addFieldDependencies(fieldRef int, typeName, fiel
 	for _, waitingForFieldRef := range fieldRefs {
 		// we do not check if it exists, because we should not be able to plan a field with requires
 		// in case we haven't planned all required fields
-		plannerIds, _ := c.fieldsPlannedOn[waitingForFieldRef]
+		plannerIds := c.fieldsPlannedOn[waitingForFieldRef]
 
 		for _, plannerIdx := range plannerIds {
 			notified := slices.Contains(fetchConfiguration.dependsOnFetchIDs, plannerIdx)
