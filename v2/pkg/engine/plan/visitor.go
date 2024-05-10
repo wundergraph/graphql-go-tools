@@ -149,22 +149,11 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 			case astvisitor.EnterSelectionSet, astvisitor.LeaveSelectionSet:
 				allowedByParent := skipFor.Allow(config.Planner())
 
-				if !allowedByParent {
-					if pp, ok := config.Debugger(); ok {
-						pp.DebugPrint("allow:", false, " AllowVisitor: SelectionSet", " ref:", ref, " parent allowance check")
-					}
-
-					// do not override a parent's decision
-					return false
-				}
-
-				allow := !config.IsExitPath(path)
-
 				if pp, ok := config.Debugger(); ok {
-					pp.DebugPrint("allow:", allow, " AllowVisitor: SelectionSet", " ref:", ref, " exit path check")
+					pp.DebugPrint("allow:", allowedByParent, " AllowVisitor: SelectionSet", " ref:", ref, " parent allowance check")
 				}
 
-				return allow
+				return allowedByParent
 			default:
 				return skipFor.Allow(config.Planner())
 			}
