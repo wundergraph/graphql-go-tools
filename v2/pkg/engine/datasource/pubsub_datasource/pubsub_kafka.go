@@ -23,6 +23,8 @@ type KafkaPubSub interface {
 	Subscribe(ctx context.Context, config KafkaSubscriptionEventConfiguration, updater resolve.SubscriptionUpdater) error
 	// Publish sends the given data to the given subject
 	Publish(ctx context.Context, config KafkaPublishEventConfiguration) error
+	// Shutdown all the resources used by the pubsub
+	Shutdown(_ context.Context) error
 }
 
 type KafkaSubscriptionSource struct {

@@ -31,6 +31,8 @@ type NatsPubSub interface {
 	Publish(ctx context.Context, event NatsPublishAndRequestEventConfiguration) error
 	// Request sends a request on the given subject and writes the response to the given writer
 	Request(ctx context.Context, event NatsPublishAndRequestEventConfiguration, w io.Writer) error
+	// Shutdown all the resources used by the pubsub
+	Shutdown(_ context.Context) error
 }
 
 type NatsSubscriptionSource struct {

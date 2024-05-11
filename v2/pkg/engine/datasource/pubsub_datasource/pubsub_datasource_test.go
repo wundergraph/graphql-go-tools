@@ -22,8 +22,10 @@ func (t *testPubsub) Subscribe(_ context.Context, _ NatsSubscriptionEventConfigu
 func (t *testPubsub) Publish(_ context.Context, _ NatsPublishAndRequestEventConfiguration) error {
 	return errors.New("not implemented")
 }
-
 func (t *testPubsub) Request(_ context.Context, _ NatsPublishAndRequestEventConfiguration, _ io.Writer) error {
+	return errors.New("not implemented")
+}
+func (t *testPubsub) Shutdown(_ context.Context) error {
 	return errors.New("not implemented")
 }
 
