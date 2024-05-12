@@ -106,6 +106,7 @@ type SubscriptionConfiguration struct {
 	// which connections can be multiplexed together, but the subscription engine does not forward
 	// these headers by itself.
 	ForwardedClientHeaderRegularExpressions []*regexp.Regexp
+	WsSubProtocol                           string
 }
 
 type FetchConfiguration struct {

@@ -63,7 +63,6 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(ProtocolGraphQLTWS),
 	).(*subscriptionClient)
 
 	updater := &testSubscriptionUpdater{}
@@ -142,7 +141,6 @@ func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(ProtocolGraphQLTWS),
 	).(*subscriptionClient)
 
 	updater := &testSubscriptionUpdater{}
@@ -210,7 +208,6 @@ func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(ProtocolGraphQLTWS),
 	)
 
 	updater := &testSubscriptionUpdater{}
@@ -298,7 +295,6 @@ func TestWebSocketSubscriptionClientInitIncludePing_GQLTWS(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(ProtocolGraphQLTWS),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
@@ -373,7 +369,6 @@ func TestWebsocketSubscriptionClient_GQLTWS_Upstream_Dies(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Second),
 		WithLogger(logger()),
-		WithWSSubProtocol(ProtocolGraphQLTWS),
 	).(*subscriptionClient)
 
 	updater := &testSubscriptionUpdater{}

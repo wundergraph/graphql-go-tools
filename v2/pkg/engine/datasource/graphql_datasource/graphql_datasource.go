@@ -362,6 +362,7 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 			input = httpclient.SetInputFlag(input, httpclient.SSE_METHOD_POST)
 		}
 	}
+	input = httpclient.SetInputWSSubprotocol(input, []byte(p.config.subscription.WsSubProtocol))
 
 	header, err := json.Marshal(p.config.subscription.Header)
 	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
@@ -1668,6 +1669,7 @@ type GraphQLSubscriptionOptions struct {
 	SSEMethodPost                           bool             `json:"sse_method_post"`
 	ForwardedClientHeaderNames              []string         `json:"forwarded_client_header_names"`
 	ForwardedClientHeaderRegularExpressions []*regexp.Regexp `json:"forwarded_client_header_regular_expressions"`
+	WsSubProtocol                           string           `json:"ws_sub_protocol"`
 }
 
 type GraphQLBody struct {

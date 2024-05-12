@@ -447,7 +447,6 @@ func (f *FederationEngineConfigFactory) subscriptionClient(
 			httpClient,
 			streamingClient,
 			f.engineCtx,
-			graphql_datasource.WithWSSubProtocol(graphql_datasource.ProtocolGraphQLTWS),
 		)
 	default:
 		// for compatibility reasons we fall back to graphql-ws protocol
@@ -455,7 +454,6 @@ func (f *FederationEngineConfigFactory) subscriptionClient(
 			httpClient,
 			streamingClient,
 			f.engineCtx,
-			graphql_datasource.WithWSSubProtocol(graphql_datasource.ProtocolGraphQLWS),
 		)
 	}
 

@@ -33,6 +33,7 @@ const (
 	FORWARDED_CLIENT_HEADER_NAMES               = "forwarded_client_header_names"
 	FORWARDED_CLIENT_HEADER_REGULAR_EXPRESSIONS = "forwarded_client_header_regular_expressions"
 	TRACE                                       = "__trace__"
+	WsSubProtocol                               = "ws_sub_protocol"
 )
 
 var (
@@ -115,6 +116,14 @@ func SetInputURLEncodeBody(input []byte, urlEncodeBody bool) []byte {
 
 func SetInputFlag(input []byte, flagName string) []byte {
 	out, _ := sjson.SetRawBytes(input, flagName, []byte("true"))
+	return out
+}
+
+func SetInputWSSubprotocol(input, wsSubProtocol []byte) []byte {
+	if len(wsSubProtocol) == 0 {
+		return input
+	}
+	out, _ := sjson.SetRawBytes(input, WsSubProtocol, wrapQuotesIfString(wsSubProtocol))
 	return out
 }
 
