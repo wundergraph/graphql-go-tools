@@ -89,9 +89,7 @@ type PlannerPathConfiguration interface {
 	AddPath(configuration pathConfiguration)
 	IsNestedPlanner() bool
 	HasPath(path string) bool
-	IsExitPath(path string) bool
 	ShouldWalkFieldsOnPath(path string, typeName string) bool
-	SetPathExit(path string)
 	HasPathPrefix(prefix string) bool
 	FragmentPaths() (out []string)
 	RemovePath(path string)
@@ -145,15 +143,6 @@ func (p *plannerPathsConfiguration) HasPath(path string) bool {
 	return ok
 }
 
-func (p *plannerPathsConfiguration) IsExitPath(path string) bool {
-	idx, ok := p.index[path]
-	if !ok {
-		return false
-	}
-
-	return p.paths[idx].exitPlannerOnNode
-}
-
 func (p *plannerPathsConfiguration) ShouldWalkFieldsOnPath(path string, typeName string) bool {
 	idx, ok := p.index[path]
 	if !ok {
@@ -165,15 +154,6 @@ func (p *plannerPathsConfiguration) ShouldWalkFieldsOnPath(path string, typeName
 	}
 
 	return false
-}
-
-func (p *plannerPathsConfiguration) SetPathExit(path string) {
-	idx, ok := p.index[path]
-	if !ok {
-		return
-	}
-
-	p.paths[idx].exitPlannerOnNode = true
 }
 
 func (p *plannerPathsConfiguration) HasPathPrefix(prefix string) bool {
@@ -213,8 +193,7 @@ func (p *plannerPathsConfiguration) HasParent(parent string) bool {
 }
 
 type pathConfiguration struct {
-	path              string
-	exitPlannerOnNode bool
+	path string
 	// shouldWalkFields indicates whether the planner is allowed to walk into fields
 	// this is needed in case we're dealing with a nested federated abstract query
 	// we need to be able to walk into the inline fragments and selection sets in the root
@@ -243,7 +222,7 @@ const (
 func (p *pathConfiguration) String() string {
 	pathType := "field"
 	if p.pathType == PathTypeField {
-		return fmt.Sprintf(`{"ds":%d,"path":"%s","fieldRef":%3d,"typeName":"%s","shouldWalkFields":%t,"exitPlannerOnNode":%t,"isRootNode":%t,"pathType":"%s"}`, p.dsHash, p.path, p.fieldRef, p.typeName, p.shouldWalkFields, p.exitPlannerOnNode, p.isRootNode, pathType)
+		return fmt.Sprintf(`{"ds":%d,"path":"%s","fieldRef":%3d,"typeName":"%s","shouldWalkFields":%t,"isRootNode":%t,"pathType":"%s"}`, p.dsHash, p.path, p.fieldRef, p.typeName, p.shouldWalkFields, p.isRootNode, pathType)
 	}
 	switch p.pathType {
 	case PathTypeFragment:
@@ -252,5 +231,5 @@ func (p *pathConfiguration) String() string {
 		pathType = "parent"
 	}
 
-	return fmt.Sprintf(`{"ds":%d,"path":"%s","shouldWalkFields":%t,"exitPlannerOnNode":%t,"pathType":"%s"}`, p.dsHash, p.path, p.shouldWalkFields, p.exitPlannerOnNode, pathType)
+	return fmt.Sprintf(`{"ds":%d,"path":"%s","shouldWalkFields":%t,"pathType":"%s"}`, p.dsHash, p.path, p.shouldWalkFields, pathType)
 }

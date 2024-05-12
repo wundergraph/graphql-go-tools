@@ -56,13 +56,12 @@ func (e *internalExecutionContext) reset() {
 }
 
 type ExecutionEngine struct {
-	logger                       abstractlogger.Logger
-	config                       Configuration
-	planner                      *plan.Planner
-	plannerMu                    sync.Mutex
-	resolver                     *resolve.Resolver
-	internalExecutionContextPool sync.Pool
-	executionPlanCache           *lru.Cache
+	logger             abstractlogger.Logger
+	config             Configuration
+	planner            *plan.Planner
+	plannerMu          sync.Mutex
+	resolver           *resolve.Resolver
+	executionPlanCache *lru.Cache
 }
 
 type WebsocketBeforeStartHook interface {
@@ -129,15 +128,10 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 	}
 
 	return &ExecutionEngine{
-		logger:   logger,
-		config:   engineConfig,
-		planner:  planner,
-		resolver: resolve.New(ctx, resolverOptions),
-		internalExecutionContextPool: sync.Pool{
-			New: func() interface{} {
-				return newInternalExecutionContext()
-			},
-		},
+		logger:             logger,
+		config:             engineConfig,
+		planner:            planner,
+		resolver:           resolve.New(ctx, resolverOptions),
 		executionPlanCache: executionPlanCache,
 	}, nil
 }
@@ -162,8 +156,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		return result.Errors
 	}
 
-	execContext := e.getExecutionCtx()
-	defer e.putExecutionCtx(execContext)
+	execContext := newInternalExecutionContext()
 
 	execContext.prepare(ctx, operation.Variables, operation.InternalRequest(), options...)
 
@@ -244,13 +237,4 @@ func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation
 
 func (e *ExecutionEngine) GetWebsocketBeforeStartHook() WebsocketBeforeStartHook {
 	return e.config.websocketBeforeStartHook
-}
-
-func (e *ExecutionEngine) getExecutionCtx() *internalExecutionContext {
-	return e.internalExecutionContextPool.Get().(*internalExecutionContext)
-}
-
-func (e *ExecutionEngine) putExecutionCtx(ctx *internalExecutionContext) {
-	ctx.reset()
-	e.internalExecutionContextPool.Put(ctx)
 }

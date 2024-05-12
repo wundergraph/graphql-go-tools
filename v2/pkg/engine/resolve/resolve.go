@@ -20,10 +20,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
-var (
-	ErrResolverClosed = errors.New("resolver closed")
-)
-
 type Reporter interface {
 	SubscriptionUpdateSent()
 	SubscriptionCountInc(count int)
@@ -46,6 +42,7 @@ type Resolver struct {
 	triggers          map[uint64]*trigger
 	events            chan subscriptionEvent
 	triggerUpdatePool *pond.WorkerPool
+	triggerUpdateBuf  *bytes.Buffer
 
 	connectionIDs atomic.Int64
 
@@ -132,6 +129,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		triggers:         make(map[uint64]*trigger),
 		reporter:         options.Reporter,
 		asyncErrorWriter: options.AsyncErrorWriter,
+		triggerUpdateBuf: bytes.NewBuffer(make([]byte, 0, 1024)),
 	}
 	if options.MaxConcurrency > 0 {
 		semaphore := make(chan struct{}, options.MaxConcurrency)
@@ -241,9 +239,11 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)
 		sub.pendingUpdates--
 		sub.mux.Unlock()
-		_ = r.AsyncUnsubscribeSubscription(sub.id)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:init:failed:%d\n", sub.id.SubscriptionID)
+		}
+		if r.reporter != nil {
+			r.reporter.SubscriptionUpdateSent()
 		}
 		return
 	}
@@ -254,9 +254,11 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)
 		sub.pendingUpdates--
 		sub.mux.Unlock()
-		_ = r.AsyncUnsubscribeSubscription(sub.id)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:load:failed:%d\n", sub.id.SubscriptionID)
+		}
+		if r.reporter != nil {
+			r.reporter.SubscriptionUpdateSent()
 		}
 		return
 	}
@@ -273,9 +275,11 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		buf := pool.BytesBuffer.Get()
 		defer pool.BytesBuffer.Put(buf)
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)
-		_ = r.AsyncUnsubscribeSubscription(sub.id)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:resolve:failed:%d\n", sub.id.SubscriptionID)
+		}
+		if r.reporter != nil {
+			r.reporter.SubscriptionUpdateSent()
 		}
 		return
 	}
@@ -292,9 +296,8 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		r.reporter.SubscriptionUpdateSent()
 	}
 	if t.resolvable.WroteErrorsWithoutData() {
-		_ = r.AsyncUnsubscribeSubscription(sub.id)
 		if r.options.Debug {
-			fmt.Printf("resolver:trigger:subscription:completing:errors_withou_data:%d\n", sub.id.SubscriptionID)
+			fmt.Printf("resolver:trigger:subscription:completing:errors_without_data:%d\n", sub.id.SubscriptionID)
 		}
 	}
 }
@@ -392,6 +395,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	}
 	r.triggers[triggerID] = trig
 	trig.subscriptions[add.ctx] = s
+
 	err = add.resolve.Trigger.Source.Start(clone, add.input, updater)
 	if err != nil {
 		cancel()
@@ -422,10 +426,14 @@ func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
 		trig := r.triggers[u]
 		for ctx, s := range trig.subscriptions {
 			if s.id == id {
-				s.mux.Lock()
-				s.writer.Complete()
-				s.writer = nil
-				s.mux.Unlock()
+
+				if ctx.Context().Err() == nil {
+					s.mux.Lock()
+					s.writer.Complete()
+					s.writer = nil
+					s.mux.Unlock()
+				}
+
 				delete(trig.subscriptions, ctx)
 				if r.options.Debug {
 					fmt.Printf("resolver:trigger:subscription:removed:%d:%d\n", trig.id, id.SubscriptionID)
@@ -450,10 +458,14 @@ func (r *Resolver) handleRemoveClient(id int64) {
 	for u := range r.triggers {
 		for c, s := range r.triggers[u].subscriptions {
 			if s.id.ConnectionID == id && !s.id.internal {
-				s.mux.Lock()
-				s.writer.Complete()
-				s.writer = nil
-				s.mux.Unlock()
+
+				if c.Context().Err() == nil {
+					s.mux.Lock()
+					s.writer.Complete()
+					s.writer = nil
+					s.mux.Unlock()
+				}
+
 				delete(r.triggers[u].subscriptions, c)
 				if r.options.Debug {
 					fmt.Printf("resolver:trigger:subscription:done:%d:%d\n", u, s.id.SubscriptionID)
@@ -479,10 +491,20 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		fmt.Printf("resolver:trigger:update:%d\n", id)
 	}
 	wg := &sync.WaitGroup{}
-	wg.Add(len(trig.subscriptions))
 	trig.inFlight = wg
 	for c, s := range trig.subscriptions {
 		c, s := c, s
+		skip, err := s.resolve.Filter.SkipEvent(c, data, r.triggerUpdateBuf)
+		if err != nil {
+			buf := pool.BytesBuffer.Get()
+			r.asyncErrorWriter.WriteError(c, err, s.resolve.Response, s.writer, buf)
+			pool.BytesBuffer.Put(buf)
+			continue
+		}
+		if skip {
+			continue
+		}
+		wg.Add(1)
 		r.triggerUpdatePool.Submit(func() {
 			r.executeSubscriptionUpdate(c, s, data)
 			wg.Done()
@@ -497,10 +519,13 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 	}
 	count := len(trig.subscriptions)
 	for c, s := range trig.subscriptions {
-		s.mux.Lock()
-		s.writer.Complete()
-		s.writer = nil
-		s.mux.Unlock()
+		if c.Context().Err() == nil {
+			s.mux.Lock()
+			s.writer.Complete()
+			s.writer = nil
+			s.mux.Unlock()
+		}
+
 		delete(trig.subscriptions, c)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:done:%d:%d\n", trig.id, s.id.SubscriptionID)
@@ -551,7 +576,7 @@ func (r *Resolver) AsyncUnsubscribeSubscription(id SubscriptionIdentifier) error
 func (r *Resolver) AsyncUnsubscribeClient(connectionID int64) error {
 	select {
 	case <-r.ctx.Done():
-		return ErrResolverClosed
+		return r.ctx.Err()
 	case r.events <- subscriptionEvent{
 		id: SubscriptionIdentifier{
 			ConnectionID: connectionID,
@@ -589,7 +614,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	}
 	select {
 	case <-r.ctx.Done():
-		return ErrResolverClosed
+		return r.ctx.Err()
 	case r.events <- subscriptionEvent{
 		triggerID: uniqueID,
 		kind:      subscriptionEventKindAddSubscription,
@@ -604,7 +629,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	}
 	select {
 	case <-r.ctx.Done():
-		return ErrResolverClosed
+		return r.ctx.Err()
 	case <-ctx.Context().Done():
 	}
 	if r.options.Debug {
@@ -612,7 +637,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	}
 	select {
 	case <-r.ctx.Done():
-		return ErrResolverClosed
+		return r.ctx.Err()
 	case r.events <- subscriptionEvent{
 		triggerID: uniqueID,
 		kind:      subscriptionEventKindRemoveSubscription,
@@ -641,7 +666,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 	uniqueID := xxh.Sum64()
 	select {
 	case <-r.ctx.Done():
-		return ErrResolverClosed
+		return r.ctx.Err()
 	case r.events <- subscriptionEvent{
 		triggerID: uniqueID,
 		kind:      subscriptionEventKindAddSubscription,

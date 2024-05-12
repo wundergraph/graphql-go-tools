@@ -57,12 +57,27 @@ func fakeDataSourceWithInputCheck(t TestingTB, input []byte, data []byte) *_fake
 	}
 }
 
+type TestErrorWriter struct {
+}
+
+func (t *TestErrorWriter) WriteError(ctx *Context, err error, res *GraphQLResponse, w io.Writer, buf *bytes.Buffer) {
+	_, err = w.Write([]byte(fmt.Sprintf(`{"errors":[{"message":"%s"}],"data":null}`, err.Error())))
+	if err != nil {
+		panic(err)
+	}
+	err = w.(*SubscriptionRecorder).Flush()
+	if err != nil {
+		panic(err)
+	}
+}
+
 func newResolver(ctx context.Context) *Resolver {
 	return New(ctx, ResolverOptions{
 		MaxConcurrency:               1024,
 		Debug:                        false,
 		PropagateSubgraphErrors:      true,
 		PropagateSubgraphStatusCodes: true,
+		AsyncErrorWriter:             &TestErrorWriter{},
 	})
 }
 
@@ -4272,7 +4287,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
-		ctx := &Context{}
+		ctx := &Context{
+			ctx: context.Background(),
+		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
 		assert.NoError(t, err)
@@ -4288,7 +4305,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		resolver, plan, recorder, id := setup(c, nil)
 
-		ctx := &Context{}
+		ctx := &Context{
+			ctx: context.Background(),
+		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
 		assert.Error(t, err)
@@ -4306,7 +4325,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
-		ctx := &Context{}
+		ctx := &Context{
+			ctx: context.Background(),
+		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
 		assert.NoError(t, err)
@@ -4332,6 +4353,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
 		ctx := Context{
+			ctx:        context.Background(),
 			Extensions: []byte(`{"foo":"bar"}`),
 		}
 
@@ -4359,6 +4381,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
 		ctx := Context{
+			ctx:            context.Background(),
 			InitialPayload: []byte(`{"hello":"world"}`),
 		}
 
@@ -4385,7 +4408,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
-		ctx := Context{}
+		ctx := Context{
+			ctx: context.Background(),
+		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
@@ -4408,7 +4433,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
-		ctx := Context{}
+		ctx := Context{
+			ctx: context.Background(),
+		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
@@ -4417,6 +4444,558 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.NoError(t, err)
 		recorder.AwaitComplete(t, defaultTimeout)
 		fakeStream.AwaitIsDone(t, defaultTimeout)
+	})
+}
+
+func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
+	defaultTimeout := time.Second * 30
+	if flags.IsWindows {
+		defaultTimeout = time.Second * 60
+	}
+
+	/*
+
+		GraphQL Schema:
+
+		directive @key(fields: String!) repeatable on OBJECT | INTERFACE
+
+		directive @subscription(
+			filter: SubscriptionFilter
+		) on FIELD_DEFINITION
+
+		input SubscriptionFilter {
+			AND: [SubscriptionFilter!]
+			OR: [SubscriptionFilter!]
+			NOT: SubscriptionFilter
+			IN: SubscriptionFieldFilter
+			NOT_IN: SubscriptionFieldFilter
+		}
+
+		input SubscriptionFieldFilter {
+			field: String!
+			values: [String!]
+		}
+
+		type Subscription {
+			oneUserByID(id: ID!): User @subscription(filter: { IN: { field: "id", values: ["{{ args.id }}"] } })
+			oneUserNotByID(id: ID!): User @subscription(filter: { NOT: { IN: { field: "id", values: ["{{ args.id }}"] } } })
+			oneUserOrByID(first: ID! second: ID!) : User @subscription(filter: { OR: [{ IN: { field: "id", values: ["{{ args.first }}"] } }, { IN: { field: "id", values: ["{{ args.second }}"] } }] })
+			oneUserAndByID(id: ID! email: String!): User @subscription(filter: { AND: [{ IN: { field: "id", values: ["{{ args.id }}"] } }, { IN: { field: "email", values: ["{{ args.email }}"] } }] })
+			oneUserByInput(input: UserEmailInput!): User @subscription(filter: { IN: { field: "email", values: ["{{ args.input.email }}"] } })
+			oneUserByLegacyID(id: ID!): User @subscription(filter: { IN: { field: "legacy.id", values: ["{{ args.id }}"] } })
+			manyUsersByIDs(ids: [ID!]!): [User] @subscription(filter: { IN: { field: "id", values: ["{{ args.ids }}"] } })
+			manyUsersNotInIDs(ids: [ID!]!): [User] @subscription(filter: { NOT_IN: { field: "id", values: ["{{ args.ids }}"] } })
+		}
+
+		type User @key(fields: "id") @key(fields: "email") @key(fields: "legacy.id") {
+			id: ID!
+			email: String!
+			name: String!
+			legacy: LegacyUser
+		}
+
+		type LegacyUser {
+			id: ID!
+		}
+
+		input UserEmailInput {
+			email: String!
+		}
+
+	*/
+
+	t.Run("should filter out non matching entity", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		count := 0
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			count++
+			if count <= 3 {
+				return `{"id":1}`, false
+			}
+			return `{"id":2}`, true
+		}, 0, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
+		})
+
+		plan := &GraphQLSubscription{
+			Trigger: GraphQLSubscriptionTrigger{
+				Source: fakeStream,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4000"}`),
+						},
+					},
+				},
+			},
+			Filter: &SubscriptionFilter{
+				In: &SubscriptionFieldFilter{
+					FieldPath: []string{"id"},
+					Values: []InputTemplate{
+						{
+							Segments: []TemplateSegment{
+								{
+									SegmentType:        VariableSegmentType,
+									VariableKind:       ContextVariableKind,
+									VariableSourcePath: []string{"id"},
+									Renderer:           NewPlainVariableRenderer(),
+								},
+							},
+						},
+					},
+				},
+			},
+			Response: &GraphQLResponse{
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("oneUserByID"),
+							Value: &Object{
+								Fields: []*Field{
+									{
+										Name: []byte("id"),
+										Value: &Integer{
+											Path: []string{"id"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		out := &SubscriptionRecorder{
+			buf:      &bytes.Buffer{},
+			messages: []string{},
+			complete: atomic.Bool{},
+		}
+		out.complete.Store(false)
+
+		id := SubscriptionIdentifier{
+			ConnectionID:   1,
+			SubscriptionID: 1,
+		}
+
+		resolver := newResolver(c)
+
+		ctx := &Context{
+			Variables: []byte(`{"id":1}`),
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
+		assert.NoError(t, err)
+		out.AwaitComplete(t, defaultTimeout)
+		assert.Equal(t, 3, len(out.Messages()))
+		assert.ElementsMatch(t, []string{
+			`{"data":{"oneUserByID":{"id":1}}}`,
+			`{"data":{"oneUserByID":{"id":1}}}`,
+			`{"data":{"oneUserByID":{"id":1}}}`,
+		}, out.Messages())
+	})
+
+	t.Run("should reverse filter out non matching entity", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		count := 0
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			count++
+			if count <= 3 {
+				return `{"id":1}`, false
+			}
+			return `{"id":2}`, true
+		}, 0, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
+		})
+
+		plan := &GraphQLSubscription{
+			Trigger: GraphQLSubscriptionTrigger{
+				Source: fakeStream,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4000"}`),
+						},
+					},
+				},
+			},
+			Filter: &SubscriptionFilter{
+				In: &SubscriptionFieldFilter{
+					FieldPath: []string{"id"},
+					Values: []InputTemplate{
+						{
+							Segments: []TemplateSegment{
+								{
+									SegmentType:        VariableSegmentType,
+									VariableKind:       ContextVariableKind,
+									VariableSourcePath: []string{"id"},
+									Renderer:           NewPlainVariableRenderer(),
+								},
+							},
+						},
+					},
+				},
+			},
+			Response: &GraphQLResponse{
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("oneUserByID"),
+							Value: &Object{
+								Fields: []*Field{
+									{
+										Name: []byte("id"),
+										Value: &Integer{
+											Path: []string{"id"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		out := &SubscriptionRecorder{
+			buf:      &bytes.Buffer{},
+			messages: []string{},
+			complete: atomic.Bool{},
+		}
+		out.complete.Store(false)
+
+		id := SubscriptionIdentifier{
+			ConnectionID:   1,
+			SubscriptionID: 1,
+		}
+
+		resolver := newResolver(c)
+
+		ctx := &Context{
+			Variables: []byte(`{"id":2}`),
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
+		assert.NoError(t, err)
+		out.AwaitComplete(t, defaultTimeout)
+		assert.Equal(t, 1, len(out.Messages()))
+		assert.ElementsMatch(t, []string{
+			`{"data":{"oneUserByID":{"id":2}}}`,
+		}, out.Messages())
+	})
+
+	t.Run("should allow filtering with arrays", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		count := 0
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			count++
+			if count <= 3 {
+				return `{"id":1}`, false
+			}
+			return `{"id":2}`, true
+		}, 0, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
+		})
+
+		plan := &GraphQLSubscription{
+			Trigger: GraphQLSubscriptionTrigger{
+				Source: fakeStream,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4000"}`),
+						},
+					},
+				},
+			},
+			Filter: &SubscriptionFilter{
+				In: &SubscriptionFieldFilter{
+					FieldPath: []string{"id"},
+					Values: []InputTemplate{
+						{
+							Segments: []TemplateSegment{
+								{
+									SegmentType:        VariableSegmentType,
+									VariableKind:       ContextVariableKind,
+									VariableSourcePath: []string{"ids"},
+									Renderer:           NewPlainVariableRenderer(),
+								},
+							},
+						},
+					},
+				},
+			},
+			Response: &GraphQLResponse{
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("oneUserByID"),
+							Value: &Object{
+								Fields: []*Field{
+									{
+										Name: []byte("id"),
+										Value: &Integer{
+											Path: []string{"id"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		out := &SubscriptionRecorder{
+			buf:      &bytes.Buffer{},
+			messages: []string{},
+			complete: atomic.Bool{},
+		}
+		out.complete.Store(false)
+
+		id := SubscriptionIdentifier{
+			ConnectionID:   1,
+			SubscriptionID: 1,
+		}
+
+		resolver := newResolver(c)
+
+		ctx := &Context{
+			Variables: []byte(`{"ids":[1,2]}`),
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
+		assert.NoError(t, err)
+		out.AwaitComplete(t, defaultTimeout)
+		assert.Equal(t, 4, len(out.Messages()))
+		assert.ElementsMatch(t, []string{
+			`{"data":{"oneUserByID":{"id":1}}}`,
+			`{"data":{"oneUserByID":{"id":1}}}`,
+			`{"data":{"oneUserByID":{"id":1}}}`,
+			`{"data":{"oneUserByID":{"id":2}}}`,
+		}, out.Messages())
+	})
+
+	t.Run("should allow filtering with arrays with prefix and suffix", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		count := 0
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			count++
+			if count <= 3 {
+				return `{"id":"x.1"}`, false
+			}
+			return `{"id":"x.2"}`, true
+		}, 0, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
+		})
+
+		plan := &GraphQLSubscription{
+			Trigger: GraphQLSubscriptionTrigger{
+				Source: fakeStream,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4000"}`),
+						},
+					},
+				},
+			},
+			Filter: &SubscriptionFilter{
+				In: &SubscriptionFieldFilter{
+					FieldPath: []string{"id"},
+					Values: []InputTemplate{
+						{
+							Segments: []TemplateSegment{
+								{
+									SegmentType: StaticSegmentType,
+									Data:        []byte(`x.`),
+								},
+								{
+									SegmentType:        VariableSegmentType,
+									VariableKind:       ContextVariableKind,
+									VariableSourcePath: []string{"ids"},
+									Renderer:           NewPlainVariableRenderer(),
+								},
+							},
+						},
+					},
+				},
+			},
+			Response: &GraphQLResponse{
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("oneUserByID"),
+							Value: &Object{
+								Fields: []*Field{
+									{
+										Name: []byte("id"),
+										Value: &String{
+											Path: []string{"id"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		out := &SubscriptionRecorder{
+			buf:      &bytes.Buffer{},
+			messages: []string{},
+			complete: atomic.Bool{},
+		}
+		out.complete.Store(false)
+
+		id := SubscriptionIdentifier{
+			ConnectionID:   1,
+			SubscriptionID: 1,
+		}
+
+		resolver := newResolver(c)
+
+		ctx := &Context{
+			Variables: []byte(`{"ids":[1,2]}`),
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
+		assert.NoError(t, err)
+		out.AwaitComplete(t, defaultTimeout)
+		assert.Equal(t, 4, len(out.Messages()))
+		assert.ElementsMatch(t, []string{
+			`{"data":{"oneUserByID":{"id":"x.1"}}}`,
+			`{"data":{"oneUserByID":{"id":"x.1"}}}`,
+			`{"data":{"oneUserByID":{"id":"x.1"}}}`,
+			`{"data":{"oneUserByID":{"id":"x.2"}}}`,
+		}, out.Messages())
+	})
+
+	t.Run("should err when subscription filter has multiple templates", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		count := 0
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			count++
+			if count <= 3 {
+				return `{"id":"x.1"}`, false
+			}
+			return `{"id":"x.2"}`, true
+		}, 0, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
+		})
+
+		plan := &GraphQLSubscription{
+			Trigger: GraphQLSubscriptionTrigger{
+				Source: fakeStream,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4000"}`),
+						},
+					},
+				},
+			},
+			Filter: &SubscriptionFilter{
+				In: &SubscriptionFieldFilter{
+					FieldPath: []string{"id"},
+					Values: []InputTemplate{
+						{
+							Segments: []TemplateSegment{
+								{
+									SegmentType: StaticSegmentType,
+									Data:        []byte(`x.`),
+								},
+								{
+									SegmentType:        VariableSegmentType,
+									VariableKind:       ContextVariableKind,
+									VariableSourcePath: []string{"a"},
+									Renderer:           NewPlainVariableRenderer(),
+								},
+								{
+									SegmentType: StaticSegmentType,
+									Data:        []byte(`.`),
+								},
+								{
+									SegmentType:        VariableSegmentType,
+									VariableKind:       ContextVariableKind,
+									VariableSourcePath: []string{"b"},
+									Renderer:           NewPlainVariableRenderer(),
+								},
+							},
+						},
+					},
+				},
+			},
+			Response: &GraphQLResponse{
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("oneUserByID"),
+							Value: &Object{
+								Fields: []*Field{
+									{
+										Name: []byte("id"),
+										Value: &String{
+											Path: []string{"id"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		out := &SubscriptionRecorder{
+			buf:      &bytes.Buffer{},
+			messages: []string{},
+			complete: atomic.Bool{},
+		}
+		out.complete.Store(false)
+
+		id := SubscriptionIdentifier{
+			ConnectionID:   1,
+			SubscriptionID: 1,
+		}
+
+		resolver := newResolver(c)
+
+		ctx := &Context{
+			Variables: []byte(`{"a":[1,2],"b":[3,4]}`),
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
+		assert.NoError(t, err)
+		out.AwaitComplete(t, defaultTimeout)
+		assert.Equal(t, 4, len(out.Messages()))
+		assert.ElementsMatch(t, []string{
+			`{"errors":[{"message":"invalid subscription filter template"}],"data":null}`,
+			`{"errors":[{"message":"invalid subscription filter template"}],"data":null}`,
+			`{"errors":[{"message":"invalid subscription filter template"}],"data":null}`,
+			`{"errors":[{"message":"invalid subscription filter template"}],"data":null}`,
+		}, out.Messages())
 	})
 }
 

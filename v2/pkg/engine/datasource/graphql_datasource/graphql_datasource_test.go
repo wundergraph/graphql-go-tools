@@ -6085,7 +6085,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
 							// Should fetch the federation key as well as all the required fields.
-							Input:          `{"method":"POST","url":"http://one.service","body":{"query":"{serviceOne {__typename id serviceOneFieldOne serviceOneFieldTwo}}"}}`,
+							Input:          `{"method":"POST","url":"http://one.service","body":{"query":"{serviceOne {serviceOneFieldOne serviceOneFieldTwo __typename id}}"}}`,
 							DataSource:     &Source{},
 							PostProcessing: DefaultPostProcessingConfiguration,
 						},

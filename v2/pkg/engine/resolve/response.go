@@ -11,6 +11,7 @@ import (
 type GraphQLSubscription struct {
 	Trigger  GraphQLSubscriptionTrigger
 	Response *GraphQLResponse
+	Filter   *SubscriptionFilter
 }
 
 type GraphQLSubscriptionTrigger struct {
