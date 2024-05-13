@@ -32,11 +32,12 @@ func (f *SubscriptionFilter) SkipEvent(ctx *Context, data []byte, buf *bytes.Buf
 			if err != nil {
 				return false, err
 			}
-			if skip {
-				return true, nil
+			// if any one of the AND predicates are false, immediately return false
+			if !skip {
+				return false, nil
 			}
 		}
-		return false, nil
+		return true, nil
 	}
 
 	if f.Or != nil {
@@ -45,11 +46,12 @@ func (f *SubscriptionFilter) SkipEvent(ctx *Context, data []byte, buf *bytes.Buf
 			if err != nil {
 				return false, err
 			}
-			if !skip {
-				return false, nil
+			// if any one of the OR predicates are true, immediately return true
+			if skip {
+				return true, nil
 			}
 		}
-		return true, nil
+		return false, nil
 	}
 
 	if f.Not != nil {
@@ -93,14 +95,9 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		}
 		actual := buf.Bytes()
 		// cheap pre-check to see if we can skip the more expensive array check
-		if !bytes.Contains(actual, literal.LBRACK) {
+		if !bytes.Contains(actual, literal.LBRACK) || !bytes.Contains(actual, literal.RBRACK) {
 			if bytes.Equal(expected, buf.Bytes()) {
-				return false, nil
-			}
-		}
-		if !bytes.Contains(actual, literal.RBRACK) {
-			if bytes.Equal(expected, buf.Bytes()) {
-				return false, nil
+				return true, nil
 			}
 		}
 		// check if the actual value contains an array, e.g. [1, 2, 3] or ["a", "b", "c"]
@@ -112,7 +109,7 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		matches := findArray.FindAllSubmatch(actual, -1)
 		if matches == nil {
 			if bytes.Equal(expected, buf.Bytes()) {
-				return false, nil
+				return true, nil
 			}
 			continue
 		}
@@ -128,9 +125,9 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 			}
 		})
 		if arrayMatch {
-			return false, nil
+			return true, nil
 		}
 	}
 
-	return true, nil
+	return false, nil
 }
