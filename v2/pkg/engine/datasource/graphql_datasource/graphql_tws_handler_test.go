@@ -25,7 +25,9 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			Subprotocols: []string{"graphql-transport-ws"},
+		})
 		assert.NoError(t, err)
 
 		ctx := context.Background()
@@ -99,7 +101,9 @@ func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
 
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			Subprotocols: []string{"graphql-transport-ws"},
+		})
 		assert.NoError(t, err)
 
 		ctx := context.Background()
@@ -176,7 +180,9 @@ func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
 
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			Subprotocols: []string{"graphql-transport-ws"},
+		})
 		assert.NoError(t, err)
 
 		msgType, data, err := conn.Read(r.Context())
@@ -241,7 +247,9 @@ func TestWebSocketSubscriptionClientInitIncludePing_GQLTWS(t *testing.T) {
 	serverDone := make(chan struct{})
 	assertion := require.New(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			Subprotocols: []string{"graphql-transport-ws"},
+		})
 		assertion.NoError(err)
 
 		// write "ping" every second
@@ -331,7 +339,9 @@ func TestWebsocketSubscriptionClient_GQLTWS_Upstream_Dies(t *testing.T) {
 	defer serverCancel()
 
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			Subprotocols: []string{"graphql-transport-ws"},
+		})
 		assert.NoError(t, err)
 
 		ctx := context.Background()
