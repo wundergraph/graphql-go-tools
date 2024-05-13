@@ -62,7 +62,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
-	t.Run("in: array predicate is true", func(t *testing.T) {
+	t.Run("in: array predicate is false", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			In: &SubscriptionFieldFilter{
 				FieldPath: []string{"event"},
@@ -89,7 +89,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
-	t.Run("in: array predicate is false", func(t *testing.T) {
+	t.Run("in: array predicate is true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			In: &SubscriptionFieldFilter{
 				FieldPath: []string{"event"},
@@ -116,7 +116,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
-	t.Run("not: in predicate is true", func(t *testing.T) {
+	t.Run("not in: predicate is true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			Not: &SubscriptionFilter{
 				In: &SubscriptionFieldFilter{
@@ -145,7 +145,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
-	t.Run("not: in predicate is false", func(t *testing.T) {
+	t.Run("not in: predicate is false", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			Not: &SubscriptionFilter{
 				In: &SubscriptionFieldFilter{
@@ -222,7 +222,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
-	t.Run("and: static predicate is true", func(t *testing.T) {
+	t.Run("and: static predicates are true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			And: []SubscriptionFilter{
 				{
@@ -264,7 +264,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
-	t.Run("and: first predicate is false", func(t *testing.T) {
+	t.Run("and: first in predicate is false", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			And: []SubscriptionFilter{
 				{
@@ -312,7 +312,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
-	t.Run("and: second predicate is false", func(t *testing.T) {
+	t.Run("and: second in predicate is false", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			And: []SubscriptionFilter{
 				{
@@ -360,7 +360,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
-	t.Run("or: both predicates are true", func(t *testing.T) {
+	t.Run("or: both in predicates are true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			Or: []SubscriptionFilter{
 				{
@@ -408,7 +408,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
-	t.Run("or: first predicate is true", func(t *testing.T) {
+	t.Run("or: first in predicate is true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			Or: []SubscriptionFilter{
 				{
@@ -456,7 +456,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
-	t.Run("or: second predicate is true", func(t *testing.T) {
+	t.Run("or: second in predicate is true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			Or: []SubscriptionFilter{
 				{
@@ -504,7 +504,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
-	t.Run("or: neither predicate is true", func(t *testing.T) {
+	t.Run("or: neither in predicate is true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			Or: []SubscriptionFilter{
 				{
