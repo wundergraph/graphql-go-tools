@@ -43,9 +43,9 @@ func (e InvalidWsSubprotocolError) Error() string {
 	return e.Message
 }
 
-func NewInvalidWsSubprotocolError(message string) InvalidWsSubprotocolError {
+func NewInvalidWsSubprotocolError(wsSubProtocol string) InvalidWsSubprotocolError {
 	return InvalidWsSubprotocolError{
-		Message: message,
+		Message: fmt.Sprintf("provided websocket subprotocol %s is not supported. The supported subprotocols are graphql-ws and graphql-transport-ws. Please configure your subsciptions with the mentioned subprotocols", wsSubProtocol),
 	}
 }
 
@@ -356,7 +356,7 @@ func (c *subscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 	case ProtocolGraphQLTWS:
 		return newGQLTWSConnectionHandler(c.engineCtx, conn, c.readTimeout, c.log), nil
 	default:
-		return nil, NewInvalidWsSubprotocolError(fmt.Sprintf("provided websocket subprotocol %s is not supported. The supported subprotocols are graphql-ws and graphql-transport-ws. Please configure your subsciptions with the mentioned subprotocols", wsSubProtocol))
+		return nil, NewInvalidWsSubprotocolError(wsSubProtocol)
 	}
 }
 
