@@ -103,12 +103,18 @@ func (h *gqlWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan [
 	for {
 		msgType, data, err := h.conn.Read(ctx)
 		if ctx.Err() != nil {
-			errCh <- ctx.Err()
-			return
+			select {
+			case errCh <- ctx.Err():
+			case <-ctx.Done():
+				return
+			}
 		}
 		if err != nil {
-			errCh <- err
-			return
+			select {
+			case errCh <- err:
+			case <-ctx.Done():
+				return
+			}
 		}
 		if msgType != websocket.MessageText {
 			continue

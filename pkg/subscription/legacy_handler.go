@@ -388,6 +388,9 @@ func (h *Handler) handleKeepAlive(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-time.After(h.keepAliveInterval):
+			if !h.client.IsConnected() {
+				return
+			}
 			h.sendKeepAlive()
 		}
 	}
