@@ -8,7 +8,7 @@ import (
 )
 
 func TestSubscriptionFilter(t *testing.T) {
-	t.Run("in allow", func(t *testing.T) {
+	t.Run("in: predicate is true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			In: &SubscriptionFieldFilter{
 				FieldPath: []string{"event"},
@@ -33,9 +33,9 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"event":"b"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, false, skip)
+		assert.Equal(t, true, skip)
 	})
-	t.Run("in skip", func(t *testing.T) {
+	t.Run("in: predicate is false", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			In: &SubscriptionFieldFilter{
 				FieldPath: []string{"event"},
@@ -60,9 +60,9 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"event":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, true, skip)
+		assert.Equal(t, false, skip)
 	})
-	t.Run("in array skip", func(t *testing.T) {
+	t.Run("in: array predicate is true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			In: &SubscriptionFieldFilter{
 				FieldPath: []string{"event"},
@@ -87,9 +87,9 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"event":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, true, skip)
+		assert.Equal(t, false, skip)
 	})
-	t.Run("in array allow", func(t *testing.T) {
+	t.Run("in: array predicate is false", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			In: &SubscriptionFieldFilter{
 				FieldPath: []string{"event"},
@@ -114,9 +114,9 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"event":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, false, skip)
+		assert.Equal(t, true, skip)
 	})
-	t.Run("not in skip", func(t *testing.T) {
+	t.Run("not: in predicate is true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			Not: &SubscriptionFilter{
 				In: &SubscriptionFieldFilter{
@@ -143,9 +143,38 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"event":"b"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
+		assert.Equal(t, false, skip)
+	})
+	t.Run("not: in predicate is false", func(t *testing.T) {
+		filter := &SubscriptionFilter{
+			Not: &SubscriptionFilter{
+				In: &SubscriptionFieldFilter{
+					FieldPath: []string{"event"},
+					Values: []InputTemplate{
+						{
+							Segments: []TemplateSegment{
+								{
+									SegmentType:        VariableSegmentType,
+									VariableKind:       ContextVariableKind,
+									VariableSourcePath: []string{"var"},
+									Renderer:           NewPlainVariableRenderer(),
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		c := &Context{
+			Variables: []byte(`{"var":"b"}`),
+		}
+		buf := &bytes.Buffer{}
+		data := []byte(`{"event":"c"}`)
+		skip, err := filter.SkipEvent(c, data, buf)
+		assert.NoError(t, err)
 		assert.Equal(t, true, skip)
 	})
-	t.Run("and allow", func(t *testing.T) {
+	t.Run("and: both in predicates are true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			And: []SubscriptionFilter{
 				{
@@ -191,9 +220,9 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, false, skip)
+		assert.Equal(t, true, skip)
 	})
-	t.Run("and allow static", func(t *testing.T) {
+	t.Run("and: static predicate is true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			And: []SubscriptionFilter{
 				{
@@ -233,9 +262,57 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
+		assert.Equal(t, true, skip)
+	})
+	t.Run("and: first predicate is false", func(t *testing.T) {
+		filter := &SubscriptionFilter{
+			And: []SubscriptionFilter{
+				{
+					In: &SubscriptionFieldFilter{
+						FieldPath: []string{"eventX"},
+						Values: []InputTemplate{
+							{
+								Segments: []TemplateSegment{
+									{
+										SegmentType:        VariableSegmentType,
+										VariableKind:       ContextVariableKind,
+										VariableSourcePath: []string{"first"},
+										Renderer:           NewPlainVariableRenderer(),
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					In: &SubscriptionFieldFilter{
+						FieldPath: []string{"eventY"},
+						Values: []InputTemplate{
+							{
+								Segments: []TemplateSegment{
+									{
+										SegmentType:        VariableSegmentType,
+										VariableKind:       ContextVariableKind,
+										VariableSourcePath: []string{"second"},
+										Renderer:           NewPlainVariableRenderer(),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		c := &Context{
+			Variables: []byte(`{"first":"d","second":"c"}`),
+		}
+		buf := &bytes.Buffer{}
+		data := []byte(`{"eventX":"b","eventY":"c"}`)
+		skip, err := filter.SkipEvent(c, data, buf)
+		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
-	t.Run("and skip", func(t *testing.T) {
+	t.Run("and: second predicate is false", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			And: []SubscriptionFilter{
 				{
@@ -275,63 +352,15 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"first":"b","second":"d"}`),
+			Variables: []byte(`{"first":"b","unused":"c"}`),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, true, skip)
+		assert.Equal(t, false, skip)
 	})
-	t.Run("and skip 2", func(t *testing.T) {
-		filter := &SubscriptionFilter{
-			And: []SubscriptionFilter{
-				{
-					In: &SubscriptionFieldFilter{
-						FieldPath: []string{"eventX"},
-						Values: []InputTemplate{
-							{
-								Segments: []TemplateSegment{
-									{
-										SegmentType:        VariableSegmentType,
-										VariableKind:       ContextVariableKind,
-										VariableSourcePath: []string{"first"},
-										Renderer:           NewPlainVariableRenderer(),
-									},
-								},
-							},
-						},
-					},
-				},
-				{
-					In: &SubscriptionFieldFilter{
-						FieldPath: []string{"eventY"},
-						Values: []InputTemplate{
-							{
-								Segments: []TemplateSegment{
-									{
-										SegmentType:        VariableSegmentType,
-										VariableKind:       ContextVariableKind,
-										VariableSourcePath: []string{"second"},
-										Renderer:           NewPlainVariableRenderer(),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-		c := &Context{
-			Variables: []byte(`{"first":"b","third":"c"}`),
-		}
-		buf := &bytes.Buffer{}
-		data := []byte(`{"eventX":"b","eventY":"c"}`)
-		skip, err := filter.SkipEvent(c, data, buf)
-		assert.NoError(t, err)
-		assert.Equal(t, true, skip)
-	})
-	t.Run("or allow", func(t *testing.T) {
+	t.Run("or: both predicates are true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			Or: []SubscriptionFilter{
 				{
@@ -377,9 +406,9 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, false, skip)
+		assert.Equal(t, true, skip)
 	})
-	t.Run("or allow differing", func(t *testing.T) {
+	t.Run("or: first predicate is true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			Or: []SubscriptionFilter{
 				{
@@ -419,15 +448,63 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"first":"b","third":"c"}`),
+			Variables: []byte(`{"first":"b","unused":"c"}`),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, false, skip)
+		assert.Equal(t, true, skip)
 	})
-	t.Run("or skip", func(t *testing.T) {
+	t.Run("or: second predicate is true", func(t *testing.T) {
+		filter := &SubscriptionFilter{
+			Or: []SubscriptionFilter{
+				{
+					In: &SubscriptionFieldFilter{
+						FieldPath: []string{"eventX"},
+						Values: []InputTemplate{
+							{
+								Segments: []TemplateSegment{
+									{
+										SegmentType:        VariableSegmentType,
+										VariableKind:       ContextVariableKind,
+										VariableSourcePath: []string{"first"},
+										Renderer:           NewPlainVariableRenderer(),
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					In: &SubscriptionFieldFilter{
+						FieldPath: []string{"eventY"},
+						Values: []InputTemplate{
+							{
+								Segments: []TemplateSegment{
+									{
+										SegmentType:        VariableSegmentType,
+										VariableKind:       ContextVariableKind,
+										VariableSourcePath: []string{"second"},
+										Renderer:           NewPlainVariableRenderer(),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		c := &Context{
+			Variables: []byte(`{"third":"b","second":"c"}`),
+		}
+		buf := &bytes.Buffer{}
+		data := []byte(`{"eventX":"b","eventY":"c"}`)
+		skip, err := filter.SkipEvent(c, data, buf)
+		assert.NoError(t, err)
+		assert.Equal(t, true, skip)
+	})
+	t.Run("or: neither predicate is true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			Or: []SubscriptionFilter{
 				{
@@ -473,6 +550,6 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, true, skip)
+		assert.Equal(t, false, skip)
 	})
 }
