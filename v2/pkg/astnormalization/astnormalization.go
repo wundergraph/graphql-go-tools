@@ -193,15 +193,6 @@ func WithNormalizeDefinition() Option {
 func (o *OperationNormalizer) setupOperationWalkers() {
 	o.operationWalkers = make([]walkerStage, 0, 6)
 
-	if o.options.inlineFragmentSpreads {
-		fragmentInline := astvisitor.NewWalker(48)
-		fragmentSpreadInline(&fragmentInline)
-		o.operationWalkers = append(o.operationWalkers, walkerStage{
-			name:   "fragmentInline",
-			walker: &fragmentInline,
-		})
-	}
-
 	directivesIncludeSkip := astvisitor.NewWalker(48)
 	directiveIncludeSkip(&directivesIncludeSkip)
 
@@ -213,6 +204,15 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		name:   "directivesIncludeSkip, removeOperationDefinitions",
 		walker: &directivesIncludeSkip,
 	})
+
+	if o.options.inlineFragmentSpreads {
+		fragmentInline := astvisitor.NewWalker(48)
+		fragmentSpreadInline(&fragmentInline)
+		o.operationWalkers = append(o.operationWalkers, walkerStage{
+			name:   "fragmentInline",
+			walker: &fragmentInline,
+		})
+	}
 
 	if o.options.extractVariables {
 		extractVariablesWalker := astvisitor.NewWalker(48)
