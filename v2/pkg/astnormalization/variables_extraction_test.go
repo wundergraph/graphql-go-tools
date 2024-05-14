@@ -6,7 +6,7 @@ import (
 
 func TestVariablesExtraction(t *testing.T) {
 	t.Run("simple http bin example", func(t *testing.T) {
-		runWithVariables(t, extractVariables, variablesExtractionDefinition, `
+		runWithVariablesExtraction(t, extractVariables, variablesExtractionDefinition, `
 			mutation HttpBinPost {
 			  httpBinPost(input: {foo: "bar"}){
 				headers {
@@ -29,7 +29,7 @@ func TestVariablesExtraction(t *testing.T) {
 			}`, ``, `{"a":{"foo":"bar"}}`)
 	})
 	t.Run("enum", func(t *testing.T) {
-		runWithVariables(t, extractVariables, forumExampleSchema, `
+		runWithVariablesExtraction(t, extractVariables, forumExampleSchema, `
 			mutation EnumOperation {
 			  useEnum(simpleEnum: Foo)
 			}`,
@@ -41,7 +41,7 @@ func TestVariablesExtraction(t *testing.T) {
 			`{"a":"Foo"}`)
 	})
 	t.Run("variables in argument", func(t *testing.T) {
-		runWithVariables(t, extractVariables, variablesExtractionDefinition, `
+		runWithVariablesExtraction(t, extractVariables, variablesExtractionDefinition, `
 			mutation HttpBinPost($foo: String! = "bar") {
 			  httpBinPost(input: {foo: $foo}){
 				headers {
@@ -64,7 +64,7 @@ func TestVariablesExtraction(t *testing.T) {
 			}`, ``, ``)
 	})
 	t.Run("multiple queries", func(t *testing.T) {
-		runWithVariables(t, extractVariables, forumExampleSchema, `
+		runWithVariablesExtraction(t, extractVariables, forumExampleSchema, `
 			mutation Register {
 			  createUser(input: {user: {id: "jens" username: "jens"}}){
 				user {
@@ -107,7 +107,7 @@ func TestVariablesExtraction(t *testing.T) {
 			}`, ``, `{"a":{"user":{"id":"jens","username":"jens"}}}`)
 	})
 	t.Run("values on directives should be ignored", func(t *testing.T) {
-		runWithVariables(t, extractVariables, forumExampleSchema, `
+		runWithVariablesExtraction(t, extractVariables, forumExampleSchema, `
 			mutation Register($a: CreateUserInput @foo(name: "bar")) {
 			  createUser(input: $a){
 				user {
@@ -126,7 +126,7 @@ func TestVariablesExtraction(t *testing.T) {
 			}`, ``, ``)
 	})
 	t.Run("complex nesting", func(t *testing.T) {
-		runWithVariables(t, extractVariables, authSchema, `
+		runWithVariablesExtraction(t, extractVariables, authSchema, `
 			mutation Login ($phoneNumber: String!) {
 				Login: postPasswordlessStart(
 					postPasswordlessStartInput: {
@@ -149,7 +149,7 @@ func TestVariablesExtraction(t *testing.T) {
 			}`, ``, `{"a":"123"}`)
 	})
 	t.Run("complex nesting with existing variable", func(t *testing.T) {
-		runWithVariables(t, extractVariables, authSchema, `
+		runWithVariablesExtraction(t, extractVariables, authSchema, `
 			mutation Login ($phoneNumber: String!) {
 				Login: postPasswordlessStart(
 					postPasswordlessStartInput: {
@@ -172,7 +172,7 @@ func TestVariablesExtraction(t *testing.T) {
 			}`, `{"phoneNumber":"456"}`, `{"a":"123","phoneNumber":"456"}`)
 	})
 	t.Run("complex nesting with deep nesting", func(t *testing.T) {
-		runWithVariables(t, extractVariables, authSchema, `
+		runWithVariablesExtraction(t, extractVariables, authSchema, `
 			mutation Login ($phoneNumber: String!) {
 				Login: postPasswordlessStart(
 					postPasswordlessStartInput: {
@@ -199,7 +199,7 @@ func TestVariablesExtraction(t *testing.T) {
 			}`, `{"phoneNumber":"456"}`, `{"a":"123","phoneNumber":"456"}`)
 	})
 	t.Run("complex nesting with deep nesting and lists", func(t *testing.T) {
-		runWithVariables(t, extractVariables, authSchema, `
+		runWithVariablesExtraction(t, extractVariables, authSchema, `
 			mutation Login ($phoneNumber: String!) {
 				Login: postPasswordlessStartList(
 					postPasswordlessStartInput: [{
@@ -226,7 +226,7 @@ func TestVariablesExtraction(t *testing.T) {
 			}`, `{"phoneNumber":"456"}`, `{"a":"123","phoneNumber":"456"}`)
 	})
 	t.Run("complex nesting with variable in list", func(t *testing.T) {
-		runWithVariables(t, extractVariables, authSchema, `
+		runWithVariablesExtraction(t, extractVariables, authSchema, `
 			mutation Login ($input: postPasswordlessStartInput!) {
 				Login: postPasswordlessStartList(
 					postPasswordlessStartInput: [$input]
@@ -243,7 +243,7 @@ func TestVariablesExtraction(t *testing.T) {
 			}`, ``, ``)
 	})
 	t.Run("nested inline string", func(t *testing.T) {
-		runWithVariables(t, extractVariables, nexusSchema, `
+		runWithVariablesExtraction(t, extractVariables, nexusSchema, `
 			mutation Draw ($drawDate: AWSDate!, $play: PlayInput!) {
 				AddTicket: addCartItem(
 					item: {
@@ -273,7 +273,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same string", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(input: {string: "foo"})
 				foo(input: {string: "foo"})
@@ -287,7 +287,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same string arg", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				bar(string: "foo")
 				bar(string: "foo")
@@ -301,7 +301,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same string arg with user variables", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo ($another: String) {
 				another: bar(string: $another)
 				bar(string: "foo")
@@ -317,7 +317,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same int arg", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				baz(int: 1)
 				baz(int: 1)
@@ -331,7 +331,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same strings", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(input: {strings: ["foo", "bar"]})
 				foo(input: {strings: ["foo", "bar"]})
@@ -345,7 +345,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same int", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(input: {int: 1})
 				foo(input: {int: 1})
@@ -359,7 +359,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same ints", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(input: {ints: [1, 2]})
 				foo(input: {ints: [1, 2]})
@@ -373,7 +373,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same float", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(input: {float: 1.1})
 				foo(input: {float: 1.1})
@@ -387,7 +387,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same floats", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(input: {floats: [1.1, 2.2]})
 				foo(input: {floats: [1.1, 2.2]})
@@ -401,7 +401,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same boolean", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(input: {boolean: true})
 				foo(input: {boolean: true})
@@ -415,7 +415,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same booleans", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(input: {booleans: [true, false]})
 				foo(input: {booleans: [true, false]})
@@ -429,7 +429,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same id", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(input: {id: "foo"})
 				foo(input: {id: "foo"})
@@ -442,7 +442,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same ids", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(input: {ids: ["foo", "bar"]})
 				foo(input: {ids: ["foo", "bar"]})
@@ -455,7 +455,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same enum", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(input: {enum: Foo})
 				foo(input: {enum: Foo})
@@ -468,7 +468,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same enums", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(input: {enums: [Foo, Bar]})
 				foo(input: {enums: [Foo, Bar]})
@@ -481,7 +481,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same input", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(input: {input: {string: "foo"}})
 				foo(input: {input: {string: "foo"}})
@@ -494,7 +494,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same inputs", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(
 					input: {
@@ -525,7 +525,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same customScalar", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(input: {customScalar: "foo"})
 				foo(input: {customScalar: "foo"})
@@ -538,7 +538,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same customScalars", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(input: {customScalars: ["foo", "bar"]})
 				foo(input: {customScalars: ["foo", "bar"]})
@@ -551,7 +551,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same variable", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo($a: String!) {
 				foo(input: {string: $a})
 				foo(input: {string: $a})
@@ -564,7 +564,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("same variables", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo($a: String!, $b: String!) {
 				foo(input: {string: $a})
 				foo(input: {string: $b})
@@ -577,7 +577,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("ignore user variables same string", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo($fromUser: MyInput!) {
 				another: foo(input: $fromUser)
 				foo(input: {string: "foo"})
@@ -593,7 +593,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("don't re-use same input of different type", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(input: {string: "foo"})
 				bat(input: {string: "foo"})
@@ -606,7 +606,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 
 	t.Run("don't re-use same nested input of different type", func(t *testing.T) {
-		runWithVariables(t, extractVariables, sameVariableExtraction, `
+		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
 			mutation Foo {
 				foo(input: {input: {string: "foo"}})
 				bat(input: {input: {string: "foo"}})

@@ -557,7 +557,7 @@ var runWithVariablesAssert = func(t *testing.T, registerVisitor func(walker *ast
 	assert.Equal(t, expectedVariables, actualVariables)
 }
 
-var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeVariablesFunc, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string, additionalNormalizers ...registerNormalizeFunc) {
+var runWithVariablesExtraction = func(t *testing.T, normalizeFunc registerNormalizeVariablesFunc, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string, additionalNormalizers ...registerNormalizeFunc) {
 	t.Helper()
 
 	runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
@@ -581,6 +581,35 @@ var runWithDeleteUnusedVariables = func(t *testing.T, normalizeFunc registerNorm
 	runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
 		normalizeFunc(walker)
 	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables)
+}
+
+var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput, variablesInput string) {
+
+	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
+	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
+	if err != nil {
+		panic(err)
+	}
+
+	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
+	operationDocument.Input.Variables = []byte(variablesInput)
+
+	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
+	report := operationreport.Report{}
+	walker := astvisitor.NewWalker(48)
+
+	normalizeFunc(&walker)
+
+	walker.Walk(&operationDocument, &definitionDocument, &report)
+
+	if report.HasErrors() {
+		panic(report.Error())
+	}
+
+	got := mustString(astprinter.PrintStringIndent(&operationDocument, &definitionDocument, "  "))
+	want := mustString(astprinter.PrintStringIndent(&expectedOutputDocument, &definitionDocument, "  "))
+
+	assert.Equal(t, want, got)
 }
 
 var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string, indent ...bool) {
