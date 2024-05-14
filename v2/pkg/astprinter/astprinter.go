@@ -58,6 +58,12 @@ func PrintStringIndentDebug(document, definition *ast.Document, indent string) (
 	return out, err
 }
 
+func NewPrinter(indent []byte) *Printer {
+	return &Printer{
+		indent: indent,
+	}
+}
+
 // Printer walks a GraphQL document and prints it as a string
 type Printer struct {
 	indent     []byte

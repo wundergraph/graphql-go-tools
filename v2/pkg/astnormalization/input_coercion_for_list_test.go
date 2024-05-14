@@ -84,7 +84,7 @@ input InputWithNestedScalarList {
 
 func TestInputCoercionForList(t *testing.T) {
 	t.Run("convert integer to list of integer", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  charactersByIds(ids: 1) {
 				id
@@ -102,7 +102,7 @@ func TestInputCoercionForList(t *testing.T) {
 
 	t.Run("strings list variants", func(t *testing.T) {
 		t.Run("convert string to list of strings", func(t *testing.T) {
-			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 				query {
 				  charactersByStringIds(ids: "id") {
 					id
@@ -119,7 +119,7 @@ func TestInputCoercionForList(t *testing.T) {
 		})
 
 		t.Run("convert string id to list of ID", func(t *testing.T) {
-			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 				query {
 				  charactersByIdScalarIds(ids: "id") {
 					id
@@ -136,7 +136,7 @@ func TestInputCoercionForList(t *testing.T) {
 		})
 
 		t.Run("convert int id to list of ID", func(t *testing.T) {
-			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 				query Q {
 				  charactersByIdScalarIds(ids: 1) {
 					id
@@ -156,7 +156,7 @@ func TestInputCoercionForList(t *testing.T) {
 
 	t.Run("input with nested scalar list", func(t *testing.T) {
 		t.Run("query", func(t *testing.T) {
-			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 				query Q {
 					inputWithNestedScalar(input: {
 						stringList: "str",
@@ -170,7 +170,7 @@ func TestInputCoercionForList(t *testing.T) {
 		})
 
 		t.Run("query with null values", func(t *testing.T) {
-			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 				query Q {
 					inputWithNestedScalar(input: {
 						stringList: null,
@@ -184,7 +184,7 @@ func TestInputCoercionForList(t *testing.T) {
 		})
 
 		t.Run("mutation", func(t *testing.T) {
-			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 				mutation Mutate {
 					mutate(input: {
 						stringList: "str"
@@ -197,7 +197,7 @@ func TestInputCoercionForList(t *testing.T) {
 		})
 
 		t.Run("mutation with list of inputs with nested list fields", func(t *testing.T) {
-			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 				mutation Mutate {
 					mutateWithList(input: {
 						stringList: "str"
@@ -210,7 +210,7 @@ func TestInputCoercionForList(t *testing.T) {
 		})
 
 		t.Run("mutation: should coerse each nested field of element of a list", func(t *testing.T) {
-			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 				mutation Mutate {
 					mutateWithList(input: [
 						{stringList: "str"},
@@ -224,7 +224,7 @@ func TestInputCoercionForList(t *testing.T) {
 		})
 
 		t.Run("mutation list items as variables", func(t *testing.T) {
-			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 				mutation Mutate($a: InputWithNestedScalarList, $b: InputWithNestedScalarList) {
 					mutateWithList(input: [
 						$a,
@@ -243,7 +243,7 @@ func TestInputCoercionForList(t *testing.T) {
 		})
 
 		t.Run("mutation list items as variables with additional variables", func(t *testing.T) {
-			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 				mutation Mutate($a: InputWithNestedScalarList, $b: InputWithNestedScalarList) {
 					mutateWithList(input: [
 						$a,
@@ -266,7 +266,7 @@ func TestInputCoercionForList(t *testing.T) {
 		})
 
 		t.Run("mutation nested", func(t *testing.T) {
-			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 				mutation Mutate {
 					mutateNested(input: {
 						nested: {
@@ -281,7 +281,7 @@ func TestInputCoercionForList(t *testing.T) {
 		})
 
 		t.Run("mutation deep nested", func(t *testing.T) {
-			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 				mutation Mutate {
 					mutateDeepNested(input: {
 						deepNested: {
@@ -298,7 +298,7 @@ func TestInputCoercionForList(t *testing.T) {
 		})
 
 		t.Run("mutation deep nested in extreme list", func(t *testing.T) {
-			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 				mutation Mutate {
 					mutateNestedExtremeList(input: {
 						nested: {
@@ -313,7 +313,7 @@ func TestInputCoercionForList(t *testing.T) {
 		})
 
 		t.Run("mutation multi arg", func(t *testing.T) {
-			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 				mutation Mutate {
 					mutateMultiArg(arg1: {stringList: "str"}, arg2: {intList: 1})
 				}`, `Mutate`,
@@ -326,7 +326,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("list of integers", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  charactersByIds(ids: [1, 2, 3]) {
 				id
@@ -343,7 +343,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("nested list of integers", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  nestedList(ids: [[1], [2, 3]]) {
 				id
@@ -360,7 +360,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("list of integers with null value", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  charactersByIds(ids: null) {
 				id
@@ -377,7 +377,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("nested list with null value", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  nestedList(ids: null) {
 				id
@@ -394,7 +394,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("convert integer to nested list of integer", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  nestedList(ids: 1) {
 				id
@@ -411,7 +411,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("integer argument without modification", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  characterById(id: 1) {
 				id
@@ -428,7 +428,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("non-null integer argument without modification", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  characterByIdNonNullInteger(id: 1) {
 				id
@@ -445,7 +445,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("do not modify null as argument", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  characterByIdNonNullInteger(id: null) {
 				id
@@ -462,7 +462,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("convert object type to list of object type", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  charactersByInputs(inputs: { foo: "bar" }) {
 				id
@@ -479,7 +479,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("list of object type to list of object type remains unchanged", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  charactersByInputs(inputs: [{ foo: "bar" },{ foo: "bazz" }]) {
 				id
@@ -496,7 +496,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("object type definition", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  characterByInput(input: { foo: "bar" }) {
 				id
@@ -530,7 +530,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("convert integer to list of integer, non-null list", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  charactersByIdsNonNull(ids: 1) {
 				id
@@ -547,7 +547,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("convert integer to list of integer, non-null integer", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  charactersByIdsNonNullInteger(ids: 1) {
 				id
@@ -564,7 +564,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("send list of integers as argument, non-null integer", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  charactersByIdsNonNullInteger(ids: [1]) {
 				id
@@ -581,7 +581,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("send list of integers as argument, non-null list", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  charactersByIdsNonNull(ids: [1]) {
 				id
@@ -599,7 +599,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("convert integer to nested list of integer, non-null nested list", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  nestedListNonNull(ids: 1) {
 				id
@@ -616,7 +616,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("convert integer to nested list of integer, non-null inner list", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  innerListNonNull(ids: 1) {
 				id
@@ -650,7 +650,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("send inline null to charactersByIdsNonNull", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  charactersByIdsNonNull(ids: null) {
 				id
@@ -667,7 +667,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("send inline null to nestedListNonNull", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  nestedListNonNull(ids: null) {
 				id
@@ -684,7 +684,7 @@ func TestInputCoercionForList(t *testing.T) {
 	})
 
 	t.Run("send inline null to charactersByIdsNonNullInteger", func(t *testing.T) {
-		runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+		runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 			query {
 			  charactersByIdsNonNullInteger(ids: null) {
 				id
@@ -759,7 +759,7 @@ func TestInputCoercionForList(t *testing.T) {
 		})
 
 		t.Run("nested test with inline values", func(t *testing.T) {
-			runWithVariables(t, extractVariables, inputCoercionForListDefinition, `
+			runWithVariablesExtraction(t, extractVariables, inputCoercionForListDefinition, `
 				query Foo {
 				  inputWithList(input: {list:{foo:"bar",list:{foo:"bar2",list:{nested:{foo:"bar3",list:{foo:"bar4"}}}}}}) {
 					id

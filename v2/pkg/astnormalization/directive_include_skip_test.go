@@ -54,4 +54,178 @@ func TestDirectiveIncludeVisitor(t *testing.T) {
 					skip: dog {__typename}
 				}`)
 	})
+	t.Run("include variables true", func(t *testing.T) {
+		runWithVariables(t, directiveIncludeSkip, testDefinition, `
+				query($yes: Boolean!) {
+					dog {
+						... @include(if: $yes) {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name @include(if: $yes)
+					}
+				}`, `
+				query($yes: Boolean!) {
+					dog {
+						... {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name
+					}
+				}`, `{"yes":true}`)
+	})
+	t.Run("include variables false", func(t *testing.T) {
+		runWithVariables(t, directiveIncludeSkip, testDefinition, `
+				query($no: Boolean!) {
+					dog {
+						... @include(if: $no) {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name @include(if: $no)
+					}
+				}`, `
+				query($no: Boolean!){
+					dog {
+						__typename
+					}
+					withAlias: dog {
+						__typename
+					}
+				}`, `{"no":false}`)
+	})
+	t.Run("include variables mixed", func(t *testing.T) {
+		runWithVariables(t, directiveIncludeSkip, testDefinition, `
+				query($yes: Boolean!, $no: Boolean!) {
+					dog {
+						... @include(if: $yes) {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name @include(if: $no)
+					}
+				}`, `
+				query($yes: Boolean! $no: Boolean!){
+					dog {
+						__typename
+					}
+					withAlias: dog {
+						name
+					}
+				}`, `{"yes":false,"no":true}`)
+	})
+	t.Run("skip variables true", func(t *testing.T) {
+		runWithVariables(t, directiveIncludeSkip, testDefinition, `
+				query($yes: Boolean!) {
+					dog {
+						... @skip(if: $yes) {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name @skip(if: $yes)
+					}
+				}`, `
+				query($yes: Boolean!) {
+					dog {
+						__typename
+					}
+					withAlias: dog {
+						__typename
+					}
+				}`, `{"yes":true}`)
+	})
+	t.Run("skip variables false", func(t *testing.T) {
+		runWithVariables(t, directiveIncludeSkip, testDefinition, `
+				query($no: Boolean!) {
+					dog {
+						... @skip(if: $no) {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name @skip(if: $no)
+					}
+				}`, `
+				query($no: Boolean!){
+					dog {
+						... {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name
+					}
+				}`, `{"no":false}`)
+	})
+	t.Run("skip variables mixed", func(t *testing.T) {
+		runWithVariables(t, directiveIncludeSkip, testDefinition, `
+				query($yes: Boolean!, $no: Boolean!) {
+					dog {
+						... @skip(if: $yes) {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name @skip(if: $no)
+					}
+				}`, `
+				query($yes: Boolean!, $no: Boolean!) {
+					dog {
+						__typename
+					}
+					withAlias: dog {
+						name
+					}
+				}`, `{"yes":true,"no":false}`)
+	})
+	t.Run("skip include variables mixed", func(t *testing.T) {
+		runWithVariables(t, directiveIncludeSkip, testDefinition, `
+				query($yes: Boolean!, $no: Boolean!) {
+					dog {
+						... @skip(if: $yes) {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name @include(if: $no)
+					}
+				}`, `
+				query($yes: Boolean!, $no: Boolean!) {
+					dog {
+						__typename
+					}
+					withAlias: dog {
+						__typename
+					}
+				}`, `{"yes":true,"no":false}`)
+	})
+	t.Run("skip include variables mixed reverse", func(t *testing.T) {
+		runWithVariables(t, directiveIncludeSkip, testDefinition, `
+				query($yes: Boolean!, $no: Boolean!) {
+					dog {
+						... @include(if: $yes) {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name @skip(if: $no)
+					}
+				}`, `
+				query($yes: Boolean!, $no: Boolean!) {
+					dog {
+						... {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name
+					}
+				}`, `{"yes":true,"no":false}`)
+	})
 }

@@ -91,6 +91,7 @@ func NormalizeNamedOperation(operation, definition *ast.Document, operationName 
 		WithRemoveFragmentDefinitions(),
 		WithInlineFragmentSpreads(),
 		WithRemoveNotMatchingOperationDefinitions(),
+		WithRemoveUnusedVariables(),
 	)
 	normalizer.NormalizeNamedOperation(operation, definition, operationName, report)
 }
@@ -193,15 +194,6 @@ func WithNormalizeDefinition() Option {
 func (o *OperationNormalizer) setupOperationWalkers() {
 	o.operationWalkers = make([]walkerStage, 0, 6)
 
-	if o.options.inlineFragmentSpreads {
-		fragmentInline := astvisitor.NewWalker(48)
-		fragmentSpreadInline(&fragmentInline)
-		o.operationWalkers = append(o.operationWalkers, walkerStage{
-			name:   "fragmentInline",
-			walker: &fragmentInline,
-		})
-	}
-
 	directivesIncludeSkip := astvisitor.NewWalker(48)
 	directiveIncludeSkip(&directivesIncludeSkip)
 
@@ -213,6 +205,15 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		name:   "directivesIncludeSkip, removeOperationDefinitions",
 		walker: &directivesIncludeSkip,
 	})
+
+	if o.options.inlineFragmentSpreads {
+		fragmentInline := astvisitor.NewWalker(48)
+		fragmentSpreadInline(&fragmentInline)
+		o.operationWalkers = append(o.operationWalkers, walkerStage{
+			name:   "fragmentInline",
+			walker: &fragmentInline,
+		})
+	}
 
 	if o.options.extractVariables {
 		extractVariablesWalker := astvisitor.NewWalker(48)
@@ -238,17 +239,24 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		walker: &mergeInlineFragments,
 	})
 
+	if o.options.removeFragmentDefinitions {
+		removeFragments := astvisitor.NewWalker(48)
+		removeFragmentDefinitions(&removeFragments)
+
+		o.operationWalkers = append(o.operationWalkers, walkerStage{
+			name:   "removeFragmentDefinitions",
+			walker: &removeFragments,
+		})
+	}
+
 	cleanup := astvisitor.NewWalker(48)
 	mergeFieldSelections(&cleanup)
 	deduplicateFields(&cleanup)
-	if o.options.removeFragmentDefinitions {
-		removeFragmentDefinitions(&cleanup)
-	}
 	if o.options.removeUnusedVariables {
 		deleteUnusedVariables(&cleanup)
 	}
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
-		name:   "mergeFieldSelections, deduplicateFields, removeFragmentDefinitions, deleteUnusedVariables",
+		name:   "mergeFieldSelections, deduplicateFields, deleteUnusedVariables",
 		walker: &cleanup,
 	})
 
