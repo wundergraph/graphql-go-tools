@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"slices"
 )
 
 type KafkaSubscriptionEventConfiguration struct {
@@ -60,6 +61,8 @@ func (p *KafkaEventManager) handleSubscriptionEvent(ref int) {
 		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("expected at least one subscription topic but received %d", len(p.eventConfiguration.Topics)))
 		return
 	}
+
+	slices.Sort(p.eventConfiguration.Topics)
 
 	p.subscriptionEventConfiguration = &KafkaSubscriptionEventConfiguration{
 		ProviderID: p.eventMetadata.ProviderID,

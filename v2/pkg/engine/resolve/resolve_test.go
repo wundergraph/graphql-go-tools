@@ -4459,32 +4459,31 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 
 		directive @key(fields: String!) repeatable on OBJECT | INTERFACE
 
-		directive @subscription(
-			filter: SubscriptionFilter
+		directive @openfed__subscriptionFilter(
+			condition: SubscriptionFilter!
 		) on FIELD_DEFINITION
 
-		input SubscriptionFilter {
-			AND: [SubscriptionFilter!]
-			OR: [SubscriptionFilter!]
-			NOT: SubscriptionFilter
-			IN: SubscriptionFieldFilter
-			NOT_IN: SubscriptionFieldFilter
+		input openfed__SubscriptionFilterCondition {
+			AND: [openfed__SubscriptionFilterCondition!]
+			OR: [openfed__SubscriptionFilterCondition!]
+			NOT: openfed__SubscriptionFilterCondition
+			IN: openfed__SubscriptionFieldCondition
 		}
 
-		input SubscriptionFieldFilter {
+		input openfed__SubscriptionFieldCondition {
 			field: String!
 			values: [String!]
 		}
 
 		type Subscription {
-			oneUserByID(id: ID!): User @subscription(filter: { IN: { field: "id", values: ["{{ args.id }}"] } })
-			oneUserNotByID(id: ID!): User @subscription(filter: { NOT: { IN: { field: "id", values: ["{{ args.id }}"] } } })
-			oneUserOrByID(first: ID! second: ID!) : User @subscription(filter: { OR: [{ IN: { field: "id", values: ["{{ args.first }}"] } }, { IN: { field: "id", values: ["{{ args.second }}"] } }] })
-			oneUserAndByID(id: ID! email: String!): User @subscription(filter: { AND: [{ IN: { field: "id", values: ["{{ args.id }}"] } }, { IN: { field: "email", values: ["{{ args.email }}"] } }] })
-			oneUserByInput(input: UserEmailInput!): User @subscription(filter: { IN: { field: "email", values: ["{{ args.input.email }}"] } })
-			oneUserByLegacyID(id: ID!): User @subscription(filter: { IN: { field: "legacy.id", values: ["{{ args.id }}"] } })
-			manyUsersByIDs(ids: [ID!]!): [User] @subscription(filter: { IN: { field: "id", values: ["{{ args.ids }}"] } })
-			manyUsersNotInIDs(ids: [ID!]!): [User] @subscription(filter: { NOT_IN: { field: "id", values: ["{{ args.ids }}"] } })
+			oneUserByID(id: ID!): User @openfed__subscriptionFilter(condition: { IN: { field: "id", values: ["{{ args.id }}"] } })
+			oneUserNotByID(id: ID!): User  @openfed__subscriptionFilter(condition: { NOT: { IN: { field: "id", values: ["{{ args.id }}"] } } })
+			oneUserOrByID(first: ID! second: ID!) : User @openfed__subscriptionFilter(condition: { OR: [{ IN: { field: "id", values: ["{{ args.first }}"] } }, { IN: { field: "id", values: ["{{ args.second }}"] } }] })
+			oneUserAndByID(id: ID! email: String!): User @openfed__subscriptionFilter(condition: { AND: [{ IN: { field: "id", values: ["{{ args.id }}"] } }, { IN: { field: "email", values: ["{{ args.email }}"] } }] })
+			oneUserByInput(input: UserEmailInput!): User @openfed__subscriptionFilter(condition: { IN: { field: "email", values: ["{{ args.input.email }}"] } })
+			oneUserByLegacyID(id: ID!): User @openfed__subscriptionFilter(condition: { IN: { field: "legacy.id", values: ["{{ args.id }}"] } })
+			manyUsersByIDs(ids: [ID!]!): [User] @openfed__subscriptionFilter(condition: { IN: { field: "id", values: ["{{ args.ids }}"] } })
+			manyUsersNotInIDs(ids: [ID!]!): [User] @openfed__subscriptionFilter(condition: { NOT_IN: { field: "id", values: ["{{ args.ids }}"] } })
 		}
 
 		type User @key(fields: "id") @key(fields: "email") @key(fields: "legacy.id") {
@@ -4504,7 +4503,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 
 	*/
 
-	t.Run("should filter out non matching entity", func(t *testing.T) {
+	t.Run("matching entity should be filtered", func(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -4591,15 +4590,13 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
 		assert.NoError(t, err)
 		out.AwaitComplete(t, defaultTimeout)
-		assert.Equal(t, 3, len(out.Messages()))
+		assert.Equal(t, 1, len(out.Messages()))
 		assert.ElementsMatch(t, []string{
-			`{"data":{"oneUserByID":{"id":1}}}`,
-			`{"data":{"oneUserByID":{"id":1}}}`,
-			`{"data":{"oneUserByID":{"id":1}}}`,
+			`{"data":{"oneUserByID":{"id":2}}}`,
 		}, out.Messages())
 	})
 
-	t.Run("should reverse filter out non matching entity", func(t *testing.T) {
+	t.Run("non-matching entity should remain", func(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -4686,13 +4683,15 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
 		assert.NoError(t, err)
 		out.AwaitComplete(t, defaultTimeout)
-		assert.Equal(t, 1, len(out.Messages()))
+		assert.Equal(t, 3, len(out.Messages()))
 		assert.ElementsMatch(t, []string{
-			`{"data":{"oneUserByID":{"id":2}}}`,
+			`{"data":{"oneUserByID":{"id":1}}}`,
+			`{"data":{"oneUserByID":{"id":1}}}`,
+			`{"data":{"oneUserByID":{"id":1}}}`,
 		}, out.Messages())
 	})
 
-	t.Run("should allow filtering with arrays", func(t *testing.T) {
+	t.Run("matching array values should be filtered", func(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -4701,9 +4700,9 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			count++
 			if count <= 3 {
-				return `{"id":1}`, false
+				return fmt.Sprintf(`{"id":%d}`, count), false
 			}
-			return `{"id":2}`, true
+			return `{"id":4}`, true
 		}, 0, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
 		})
@@ -4779,16 +4778,14 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
 		assert.NoError(t, err)
 		out.AwaitComplete(t, defaultTimeout)
-		assert.Equal(t, 4, len(out.Messages()))
+		assert.Equal(t, 2, len(out.Messages()))
 		assert.ElementsMatch(t, []string{
-			`{"data":{"oneUserByID":{"id":1}}}`,
-			`{"data":{"oneUserByID":{"id":1}}}`,
-			`{"data":{"oneUserByID":{"id":1}}}`,
-			`{"data":{"oneUserByID":{"id":2}}}`,
+			`{"data":{"oneUserByID":{"id":3}}}`,
+			`{"data":{"oneUserByID":{"id":4}}}`,
 		}, out.Messages())
 	})
 
-	t.Run("should allow filtering with arrays with prefix and suffix", func(t *testing.T) {
+	t.Run("matching array values with prefix should be filtered", func(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -4797,9 +4794,9 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			count++
 			if count <= 3 {
-				return `{"id":"x.1"}`, false
+				return fmt.Sprintf(`{"id":"x.%d"}`, count), false
 			}
-			return `{"id":"x.2"}`, true
+			return `{"id":"x.4"}`, true
 		}, 0, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
 		})
@@ -4873,18 +4870,16 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		resolver := newResolver(c)
 
 		ctx := &Context{
-			Variables: []byte(`{"ids":[1,2]}`),
+			Variables: []byte(`{"ids":[2,3]}`),
 		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
 		assert.NoError(t, err)
 		out.AwaitComplete(t, defaultTimeout)
-		assert.Equal(t, 4, len(out.Messages()))
+		assert.Equal(t, 2, len(out.Messages()))
 		assert.ElementsMatch(t, []string{
 			`{"data":{"oneUserByID":{"id":"x.1"}}}`,
-			`{"data":{"oneUserByID":{"id":"x.1"}}}`,
-			`{"data":{"oneUserByID":{"id":"x.1"}}}`,
-			`{"data":{"oneUserByID":{"id":"x.2"}}}`,
+			`{"data":{"oneUserByID":{"id":"x.4"}}}`,
 		}, out.Messages())
 	})
 
