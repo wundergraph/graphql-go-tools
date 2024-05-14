@@ -382,6 +382,162 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		assert.Equal(t, expectedQuery, actual)
 	})
 
+	t.Run("should remove obsolete variables", func(t *testing.T) {
+		schema := `
+			type Query {
+				hero: Hero
+			}
+			type Hero {
+				name: String
+				age: Int
+			}
+`
+
+		query := `
+			query Game($withAge: Boolean! $withName: Boolean!) {
+				hero {
+					... NameFragment @include(if: $withName)
+					... AgeFragment @include(if: $withAge)
+				}
+			}
+			fragment NameFragment on Hero {
+				name
+			}
+			fragment AgeFragment on Hero {
+				age
+			}
+			`
+
+		expectedQuery := `
+			query Game {
+				hero {
+					age
+				}
+			}
+		`
+
+		definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
+		operation := unsafeparser.ParseGraphqlDocumentString(query)
+		operation.Input.Variables = []byte(`{"withAge":true,"withName":false}`)
+
+		report := operationreport.Report{}
+		NormalizeNamedOperation(&operation, &definition, []byte("Game"), &report)
+		assert.False(t, report.HasErrors())
+
+		expectedDocument := unsafeparser.ParseGraphqlDocumentString(expectedQuery)
+		NormalizeNamedOperation(&expectedDocument, &definition, []byte("Game"), &report)
+		assert.False(t, report.HasErrors())
+
+		actual, _ := astprinter.PrintStringIndent(&operation, &definition, " ")
+		expected, _ := astprinter.PrintStringIndent(&expectedDocument, &definition, " ")
+		assert.Equal(t, expected, actual)
+		assert.Equal(t, `{}`, string(operation.Input.Variables))
+	})
+
+	t.Run("should remove obsolete variables but keep used ones", func(t *testing.T) {
+		schema := `
+			type Query {
+				hero(id: ID!): Hero
+			}
+			type Hero {
+				name: String
+				age: Int
+			}
+`
+
+		query := `
+			query Game($id: ID! $withAge: Boolean! $withName: Boolean!) {
+				hero(id: $id) {
+					... NameFragment @include(if: $withName)
+					... AgeFragment @include(if: $withAge)
+				}
+			}
+			fragment NameFragment on Hero {
+				name
+			}
+			fragment AgeFragment on Hero {
+				age
+			}
+			`
+
+		expectedQuery := `
+			query Game($id: ID!) {
+				hero(id: $id) {
+					age
+				}
+			}
+		`
+
+		definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
+		operation := unsafeparser.ParseGraphqlDocumentString(query)
+		operation.Input.Variables = []byte(`{"id":"1","withAge":true,"withName":false}`)
+
+		report := operationreport.Report{}
+		NormalizeNamedOperation(&operation, &definition, []byte("Game"), &report)
+		assert.False(t, report.HasErrors())
+
+		expectedDocument := unsafeparser.ParseGraphqlDocumentString(expectedQuery)
+		NormalizeNamedOperation(&expectedDocument, &definition, []byte("Game"), &report)
+		assert.False(t, report.HasErrors())
+
+		actual, _ := astprinter.PrintStringIndent(&operation, &definition, " ")
+		expected, _ := astprinter.PrintStringIndent(&expectedDocument, &definition, " ")
+		assert.Equal(t, expected, actual)
+		assert.Equal(t, `{"id":"1"}`, string(operation.Input.Variables))
+	})
+
+	t.Run("should remove nested obsolete variables but keep used ones", func(t *testing.T) {
+		schema := `
+			type Query {
+				hero(ids: [ID!]!): Hero
+			}
+			type Hero {
+				name: String
+				age: Int
+			}
+`
+
+		query := `
+			query Game($id: ID! $withAge: Boolean! $withName: Boolean!) {
+				hero(ids: [$id]) {
+					... NameFragment @include(if: $withName)
+					... AgeFragment @include(if: $withAge)
+				}
+			}
+			fragment NameFragment on Hero {
+				name
+			}
+			fragment AgeFragment on Hero {
+				age
+			}
+			`
+
+		expectedQuery := `
+			query Game($id: ID!) {
+				hero(ids: [$id]) {
+					age
+				}
+			}
+		`
+
+		definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
+		operation := unsafeparser.ParseGraphqlDocumentString(query)
+		operation.Input.Variables = []byte(`{"id":"1","withAge":true,"withName":false}`)
+
+		report := operationreport.Report{}
+		NormalizeNamedOperation(&operation, &definition, []byte("Game"), &report)
+		assert.False(t, report.HasErrors())
+
+		expectedDocument := unsafeparser.ParseGraphqlDocumentString(expectedQuery)
+		NormalizeNamedOperation(&expectedDocument, &definition, []byte("Game"), &report)
+		assert.False(t, report.HasErrors())
+
+		actual, _ := astprinter.PrintStringIndent(&operation, &definition, " ")
+		expected, _ := astprinter.PrintStringIndent(&expectedDocument, &definition, " ")
+		assert.Equal(t, expected, actual)
+		assert.Equal(t, `{"id":"1"}`, string(operation.Input.Variables))
+	})
+
 	t.Run("should properly extract default values and remove unmatched query", func(t *testing.T) {
 		schema := `
 			type Query {

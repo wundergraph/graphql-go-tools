@@ -91,6 +91,7 @@ func NormalizeNamedOperation(operation, definition *ast.Document, operationName 
 		WithRemoveFragmentDefinitions(),
 		WithInlineFragmentSpreads(),
 		WithRemoveNotMatchingOperationDefinitions(),
+		WithRemoveUnusedVariables(),
 	)
 	normalizer.NormalizeNamedOperation(operation, definition, operationName, report)
 }
