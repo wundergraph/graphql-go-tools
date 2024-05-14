@@ -719,4 +719,35 @@ func TestInlineFragments(t *testing.T) {
 				}
 		`)
 	})
+	t.Run("with nested compatible fragments with @include", func(t *testing.T) {
+		run(t, inlineSelectionsFromInlineFragments, testDefinition, `
+					query Q($includeName: Boolean!) {
+						pet {
+							... on Dog {
+								... on Dog {
+									owner {
+										name
+									}
+								}
+								... on Dog @include(if: $includeName){
+									nickname
+								}
+							}
+						}
+					}`,
+			`
+					query Q($includeName: Boolean!) {
+						pet {
+							... on Dog {
+								owner {
+									name
+								}
+								... on Dog @include(if: $includeName){
+									nickname
+								}
+							}
+						}
+					}`)
+	})
+
 }
