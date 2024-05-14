@@ -5678,7 +5678,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Data: &resolve.Object{
 					Fetch: &resolve.SingleFetch{
 						BufferId:              0,
-						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{me {__typename id uid: id username}}"}}`,
+						Input:                 `{"method":"POST","url":"http://user.service","body":{"query":"{me {id __typename uid: id username}}"}}`,
 						DataSource:            &Source{},
 						DataSourceIdentifier:  []byte("graphql_datasource.Source"),
 						ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
@@ -7750,6 +7750,127 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 		DisableResolveFieldPositions: true,
 	}))
+
+	t.Run("nested field mapping should work when nested field is alone in query", RunTest(countriesSchema, `
+		query Country($code: ID!) {
+          country(code: $code) {
+			continent {
+			  name
+		    }
+		  }
+		}
+	`, "Country", &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			Data: &resolve.Object{
+				Fetch: &resolve.SingleFetch{
+					DataSource: &Source{},
+					BufferId:   0,
+					Input:      `{"method":"POST","url":"http://countries.service/query","body":{"query":"query($code: ID!){country(code: $code){__typename}}","variables":{"code":$$0$$}}}`,
+					Variables: resolve.NewVariables(
+						&resolve.ContextVariable{
+							Path:     []string{"code"},
+							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+						},
+					),
+					DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+					ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+				},
+				Fields: []*resolve.Field{
+					{
+						HasBuffer: true,
+						BufferID:  0,
+						Name:      []byte("country"),
+						Value: &resolve.Object{
+							Path:     []string{"country"},
+							Nullable: true,
+							Fields: []*resolve.Field{
+								{
+									HasBuffer: true,
+									Name:      []byte("continent"),
+									BufferID:  1,
+									Value: &resolve.Object{
+										Path: []string{"continent"},
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("name"),
+												Value: &resolve.String{
+													Path: []string{"name"},
+												},
+											},
+										},
+									},
+								},
+							},
+							Fetch: &resolve.SingleFetch{
+								DataSource:            &Source{},
+								BufferId:              1,
+								Input:                 `{"method":"POST","url":"http://continents.service/query","body":{"query":"{continent {name}}"}}`,
+								DataSourceIdentifier:  []byte("graphql_datasource.Source"),
+								ProcessResponseConfig: resolve.ProcessResponseConfig{ExtractGraphqlResponse: true},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, plan.Configuration{
+		DataSources: []plan.DataSourceConfiguration{
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"country"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Country",
+						FieldNames: []string{"name", "code"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://countries.service/query",
+					},
+				}),
+			},
+			{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Country",
+						FieldNames: []string{"continent"},
+					},
+				},
+				ChildNodes: []plan.TypeField{
+					{
+						TypeName:   "Continent",
+						FieldNames: []string{"name", "code"},
+					},
+				},
+				Factory: &Factory{},
+				Custom: ConfigJson(Configuration{
+					Fetch: FetchConfiguration{
+						URL: "http://continents.service/query",
+					},
+				}),
+			},
+		},
+		Fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "country",
+				Path:      []string{"country"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "code",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		DisableResolveFieldPositions: true,
+	}))
 }
 
 var errSubscriptionClientFail = errors.New("subscription client fail error")
@@ -9691,6 +9812,12 @@ schema {
 }
 
 type Country {
+  name: String!
+  code: ID!
+  continent: Continent!
+}
+
+type Continent {
   name: String!
   code: ID!
 }

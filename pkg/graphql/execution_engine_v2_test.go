@@ -633,6 +633,97 @@ func TestExecutionEngineV2_Execute(t *testing.T) {
 		},
 	))
 
+	t.Run("execute with empty selection set of data source", runWithoutError(
+		ExecutionEngineV2TestCase{
+			schema: func(t *testing.T) *Schema {
+				t.Helper()
+				schema, err := NewSchemaFromString(`
+					type Query {
+						countries: [Country]
+					}
+					
+					type Country {
+						name: String!
+						code: ID!
+						continent: Continent!
+					}
+
+					type Continent {
+						name: String!
+					}
+				`)
+				require.NoError(t, err)
+				return schema
+			}(t),
+			operation: func(t *testing.T) Request {
+				t.Helper()
+				return Request{
+					OperationName: "CountriesContinent",
+					Query: `
+						query CountriesContinent {
+						  countries {
+							continent {
+							  name
+							}
+						  }
+						}
+					`,
+				}
+			},
+			dataSources: []plan.DataSourceConfiguration{
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"countries"}},
+					},
+					Factory: &graphql_datasource.Factory{
+						HTTPClient: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "countries.example.com",
+							expectedPath:     "/graphql",
+							expectedBody:     `{"query":"{countries {__typename}}"}`,
+							sendResponseBody: `{"data": {"countries": {"__typename": "Country"}}}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: graphql_datasource.ConfigJson(graphql_datasource.Configuration{
+						Fetch: graphql_datasource.FetchConfiguration{
+							URL:    "https://countries.example.com/graphql",
+							Method: "POST",
+						},
+					}),
+				},
+				{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Country", FieldNames: []string{"continent"}},
+					},
+					Factory: &rest_datasource.Factory{
+						Client: testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "continents.example.com",
+							expectedPath:     "/1",
+							expectedBody:     "",
+							sendResponseBody: `{"name": "Europe"}`,
+							sendStatusCode:   200,
+						}),
+					},
+					Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+						Fetch: rest_datasource.FetchConfiguration{
+							URL:    "https://continents.example.com/1",
+							Method: "GET",
+						},
+					}),
+				},
+			},
+			fields: []plan.FieldConfiguration{
+				{
+					TypeName:              "Country",
+					FieldName:             "continent",
+					DisableDefaultMapping: true,
+					Path:                  []string{""},
+				},
+			},
+			expectedResponse: `{"data":{"countries":[{"continent":{"name":"Europe"}}]}}`,
+		},
+	))
+
 	t.Run("execute with .object and .arguments placeholder", runWithoutError(
 		ExecutionEngineV2TestCase{
 			schema: func(t *testing.T) *Schema {
@@ -2107,6 +2198,8 @@ func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) *http.Client
 		Timeout:       defaultClient.Timeout,
 	}
 }
+
+type hostBasedRoundTripperTestCases map[string]roundTripperTestCase
 
 type beforeFetchHook struct {
 	input string

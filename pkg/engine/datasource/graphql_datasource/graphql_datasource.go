@@ -527,9 +527,9 @@ func (p *Planner) EnterField(ref int) {
 	// least the federation key for the type the field lives on is required
 	// (and required fields are specified in the configuration).
 	p.handleFederation(fieldConfiguration)
-	p.addField(ref)
+	fieldNodeIndex := p.addField(ref)
 
-	upstreamFieldRef := p.nodes[len(p.nodes)-1].Ref
+	upstreamFieldRef := p.nodes[fieldNodeIndex].Ref
 
 	p.addFieldArguments(upstreamFieldRef, ref, fieldConfiguration)
 }
@@ -619,8 +619,7 @@ func (p *Planner) EnterDocument(_, _ *ast.Document) {
 	}
 }
 
-func (p *Planner) LeaveDocument(_, _ *ast.Document) {
-}
+func (p *Planner) LeaveDocument(_, _ *ast.Document) {}
 
 func (p *Planner) handleFederation(fieldConfig *plan.FieldConfiguration) {
 	if !p.config.Federation.Enabled { // federation must be enabled
@@ -1052,6 +1051,7 @@ const (
 func (p *Planner) printOperation() []byte {
 	buf := &bytes.Buffer{}
 
+	p.checkAndFixUpstreamOperation(p.upstreamOperation)
 	err := astprinter.Print(p.upstreamOperation, nil, buf)
 	if err != nil {
 		return nil
@@ -1134,6 +1134,20 @@ func (p *Planner) printOperation() []byte {
 	}
 
 	return buf.Bytes()
+}
+
+func (p *Planner) checkAndFixUpstreamOperation(operation *ast.Document) {
+	p.checkAndFixEmptySelectionSets(operation)
+}
+
+func (p *Planner) checkAndFixEmptySelectionSets(operation *ast.Document) {
+	for i := 0; i < len(operation.SelectionSets); i++ {
+		if len(operation.SelectionSets[i].SelectionRefs) > 0 {
+			continue
+		}
+
+		p.addTypenameToSelectionSet(i)
+	}
 }
 
 func (p *Planner) stopWithError(msg string, args ...interface{}) {
@@ -1283,21 +1297,45 @@ func (p *Planner) handleFieldAlias(ref int) (newFieldName string, alias ast.Alia
 }
 
 // addField - add a field to an upstream operation
-func (p *Planner) addField(ref int) {
+func (p *Planner) addField(ref int) (addedNodeIndex int) {
 	fieldName, alias := p.handleFieldAlias(ref)
 
-	field := p.upstreamOperation.AddField(ast.Field{
+	field := ast.Field{
 		Name:  p.upstreamOperation.Input.AppendInputString(fieldName),
 		Alias: alias,
-	})
+	}
+
+	fieldNode := p.upstreamOperation.AddField(field)
 
 	selection := ast.Selection{
 		Kind: ast.SelectionKindField,
-		Ref:  field.Ref,
+		Ref:  fieldNode.Ref,
 	}
 
 	p.upstreamOperation.AddSelection(p.nodes[len(p.nodes)-1].Ref, selection)
-	p.nodes = append(p.nodes, field)
+	p.nodes = append(p.nodes, fieldNode)
+	addedNodeIndex = len(p.nodes) - 1
+
+	definitions := p.visitor.Definition.NodeFieldDefinitions(p.visitor.Walker.EnclosingTypeDefinition)
+	for _, fieldDefRef := range definitions {
+		definitionFieldName := p.visitor.Definition.FieldDefinitionNameBytes(fieldDefRef)
+		if !bytes.Equal([]byte(fieldName), definitionFieldName) {
+			continue
+		}
+
+		fieldDefKind := p.visitor.Definition.FieldDefinitionTypeNode(fieldDefRef).Kind
+		if fieldDefKind == ast.NodeKindObjectTypeDefinition || fieldDefKind == ast.NodeKindInterfaceTypeDefinition {
+			selectionSetNode := p.upstreamOperation.AddSelectionSet()
+			p.nodes = append(p.nodes, selectionSetNode)
+
+			p.upstreamOperation.Fields[fieldNode.Ref].HasSelections = true
+			p.upstreamOperation.Fields[fieldNode.Ref].SelectionSet = selectionSetNode.Ref
+
+			break
+		}
+	}
+
+	return addedNodeIndex
 }
 
 type OnWsConnectionInitCallback func(ctx context.Context, url string, header http.Header) (json.RawMessage, error)
