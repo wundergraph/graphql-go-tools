@@ -273,6 +273,24 @@ func TestNormalizeOperation(t *testing.T) {
 			}`, `{"input":{"doubleList":{"foo":"bar","list":{"foo":"bar2","list":{"nested":{"foo":"bar3","list":{"foo":"bar4"}}}}}}}`,
 			`{"input":{"doubleList":[[{"foo":"bar","list":[{"foo":"bar2","list":[{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}]}]}]]}}`)
 	})
+	t.Run("preserve still used fragments", func(t *testing.T) {
+		run(t, testDefinition, `
+			fragment D on Dog {
+				name
+			}
+			query  {
+			  simple
+			  ...D
+			}`, `
+			fragment D on Dog {
+				name
+			}
+			query ($a: String) {
+				simple(input: $a)
+				...D
+			}`, ``, `{"a":"foo"}`)
+	})
+
 }
 
 func TestOperationNormalizer_NormalizeOperation(t *testing.T) {
