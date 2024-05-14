@@ -25,9 +25,10 @@ const (
 )
 
 type PathItem struct {
-	Kind       PathKind
-	ArrayIndex int
-	FieldName  ByteSlice
+	Kind        PathKind
+	ArrayIndex  int
+	FieldName   ByteSlice
+	FragmentRef int // only used for InlineFragmentName, allows to distinguish between multiple inline fragments on the same type
 }
 
 type Path []PathItem
@@ -42,7 +43,11 @@ func (p Path) Equals(another Path) bool {
 		}
 		if p[i].Kind == ArrayIndex && p[i].ArrayIndex != another[i].ArrayIndex {
 			return false
-		} else if !bytes.Equal(p[i].FieldName, another[i].FieldName) {
+		}
+		if !bytes.Equal(p[i].FieldName, another[i].FieldName) {
+			return false
+		}
+		if p[i].FragmentRef != another[i].FragmentRef {
 			return false
 		}
 	}
@@ -89,6 +94,7 @@ func (p Path) String() string {
 			}
 		case InlineFragmentName:
 			out += InlineFragmentPathPrefix
+			out += strconv.Itoa(p[i].FragmentRef)
 			out += unsafebytes.BytesToString(p[i].FieldName)
 		}
 	}
@@ -128,6 +134,7 @@ func (p Path) DotDelimitedString() string {
 			}
 		case InlineFragmentName:
 			builder.WriteString(InlineFragmentPathPrefix)
+			builder.WriteString(strconv.Itoa(p[i].FragmentRef))
 			builder.WriteString(unsafebytes.BytesToString(p[i].FieldName))
 		}
 	}

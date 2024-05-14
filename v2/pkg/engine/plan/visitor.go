@@ -104,18 +104,30 @@ type objectFields struct {
 
 func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any, skipFor astvisitor.SkipVisitors) bool {
 	if visitor == v {
+		// main planner visitor should always be allowed
 		return true
 	}
 	path := v.Walker.Path.DotDelimitedString()
+	isFragmentPath := false
 
 	switch kind {
 	case astvisitor.EnterField, astvisitor.LeaveField:
 		fieldAliasOrName := v.Operation.FieldAliasOrNameString(ref)
 		path = path + "." + fieldAliasOrName
+	case astvisitor.EnterInlineFragment, astvisitor.LeaveInlineFragment:
+		isFragmentPath = true
 	}
-	if !strings.Contains(path, ".") {
+
+	isRootPath := !strings.Contains(path, ".")
+	if isRootPath && !isFragmentPath {
+		// if path is a root query (e.g. query, mutation) path we always allow visiting
+		//
+		// but if it is a fragment path on a query type like `... on Query`, we need to check if visiting is allowed
+		// AllowVisitor callback is called before firing Enter/Leave callbacks, but we append ancestor and update path after enter callback,
+		// so we will get path as `query` instead of `query.$Query` in case of fragment path
 		return true
 	}
+
 	for _, config := range v.planners {
 		if config.Planner() == visitor && config.HasPath(path) {
 			switch kind {
@@ -137,15 +149,16 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 
 				return shouldWalkFieldsOnPath
 			case astvisitor.EnterInlineFragment, astvisitor.LeaveInlineFragment:
-				typeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
-				hasRootOrHasChildNode := config.DataSourceConfiguration().HasRootNodeWithTypename(typeCondition) ||
-					config.DataSourceConfiguration().HasChildNodeWithTypename(typeCondition)
+				// we allow visiting inline fragments only if particular planner has path for the fragment
+
+				hasFragmentPath := config.HasFragmentPath(ref)
 
 				if pp, ok := config.Debugger(); ok {
-					pp.DebugPrint("allow:", hasRootOrHasChildNode, " AllowVisitor: InlineFragment", " ref:", ref, " typeCondition:", typeCondition)
+					typeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
+					pp.DebugPrint("allow:", hasFragmentPath, " AllowVisitor: InlineFragment", " ref:", ref, " typeCondition:", typeCondition)
 				}
 
-				return hasRootOrHasChildNode
+				return hasFragmentPath
 			case astvisitor.EnterSelectionSet, astvisitor.LeaveSelectionSet:
 				allowedByParent := skipFor.Allow(config.Planner())
 
@@ -404,11 +417,8 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 	sourceIDs := make([]string, 0, 1)
 
 	for i := range v.planners {
-		paths := v.planners[i].Paths()
-		for j := range paths {
-			if paths[j].fieldRef == ref {
-				sourceIDs = append(sourceIDs, v.planners[i].DataSourceConfiguration().Id())
-			}
+		if v.planners[i].HasPathWithFieldRef(ref) {
+			sourceIDs = append(sourceIDs, v.planners[i].DataSourceConfiguration().Id())
 		}
 	}
 	return &resolve.FieldInfo{
@@ -534,9 +544,7 @@ func (v *Visitor) addInterfaceObjectNameToTypeNames(fieldRef int, typeName []byt
 	includeInterfaceObjectName := false
 	var interfaceObjectName string
 	for i := range v.planners {
-		if !slices.ContainsFunc(v.planners[i].Paths(), func(path pathConfiguration) bool {
-			return path.fieldRef == fieldRef
-		}) {
+		if !v.planners[i].HasPathWithFieldRef(fieldRef) {
 			continue
 		}
 
@@ -895,22 +903,25 @@ var (
 )
 
 func (v *Visitor) currentOrParentPlannerConfiguration() PlannerConfiguration {
+	// TODO: this method should be dropped it is unnecessary expensive
+
 	const none = -1
 	currentPath := v.currentFullPath(false)
 	plannerIndex := none
 	plannerPathDeepness := none
 
 	for i := range v.planners {
-		for _, plannerPath := range v.planners[i].Paths() {
+		v.planners[i].ForEachPath(func(plannerPath *pathConfiguration) bool {
 			if v.isCurrentOrParentPath(currentPath, plannerPath.path) {
 				currentPlannerPathDeepness := v.pathDeepness(plannerPath.path)
 				if currentPlannerPathDeepness > plannerPathDeepness {
 					plannerPathDeepness = currentPlannerPathDeepness
 					plannerIndex = i
-					break
+					return true
 				}
 			}
-		}
+			return false
+		})
 	}
 
 	if plannerIndex != none {

@@ -136,7 +136,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			ExpectedSuggestions: newNodeSuggestions([]NodeSuggestion{
 				{TypeName: "Query", FieldName: "provider", DataSourceHash: 11, Path: "query.provider", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: unique"}},
 				{TypeName: "AccountProvider", FieldName: "accounts", DataSourceHash: 11, Path: "query.provider.accounts", ParentPath: "query.provider", Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
-				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.provider.accounts.$User.name", ParentPath: "query.provider.accounts.$User", onFragment: true, parentPathWithoutFragment: strptr("query.provider.accounts"), IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: unique"}},
+				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.provider.accounts.$0User.name", ParentPath: "query.provider.accounts.$0User", onFragment: true, parentPathWithoutFragment: strptr("query.provider.accounts"), IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: unique"}},
 			}),
 		},
 		{
@@ -196,7 +196,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			ExpectedSuggestions: newNodeSuggestions([]NodeSuggestion{
 				{TypeName: "Query", FieldName: "provider", DataSourceHash: 11, Path: "query.provider", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: unique"}},
 				{TypeName: "AccountProvider", FieldName: "accounts", DataSourceHash: 11, Path: "query.provider.accounts", ParentPath: "query.provider", Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
-				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.provider.accounts.$User.name", ParentPath: "query.provider.accounts.$User", onFragment: true, parentPathWithoutFragment: strptr("query.provider.accounts"), IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: unique"}},
+				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.provider.accounts.$0User.name", ParentPath: "query.provider.accounts.$0User", onFragment: true, parentPathWithoutFragment: strptr("query.provider.accounts"), IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: unique"}},
 			}),
 		},
 		{

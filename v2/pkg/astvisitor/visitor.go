@@ -1411,8 +1411,9 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 		}
 		typeName = w.document.InlineFragmentTypeConditionName(ref)
 		w.Path = append(w.Path, ast.PathItem{
-			Kind:      ast.InlineFragmentName,
-			FieldName: typeName,
+			Kind:        ast.InlineFragmentName,
+			FieldName:   typeName,
+			FragmentRef: ref,
 		})
 	case ast.NodeKindFragmentDefinition:
 		typeName = w.document.FragmentDefinitionTypeName(ref)
