@@ -654,4 +654,69 @@ func TestInlineFragments(t *testing.T) {
 					name
 				}`, true)
 	})
+	t.Run("implicitly intersecting interfaces should merge", func(t *testing.T) {
+		run(t, fragmentSpreadInline, `
+				schema {
+					query: Query
+				}
+
+				type Query {
+					root: FaceA
+				}
+
+				interface FaceA {
+					fieldA: String
+				}
+
+				interface FaceB {
+					fieldB: String
+				}
+
+				type SomeType implements FaceA & FaceB {
+					fieldA: String
+					fieldB: String
+				}
+		`, `
+				{
+					root {
+						...faceAFragment
+					}
+				}
+
+				fragment faceAFragment on FaceA {
+					__typename
+					fieldA
+					...faceBFragment
+				}
+
+				fragment faceBFragment on FaceB {
+					fieldB
+				}
+
+				`,
+			`
+
+				{
+					root {
+						... on FaceA {
+							__typename
+							fieldA
+							... on FaceB {
+								fieldB
+							}
+						}
+					}
+				}
+
+				fragment faceAFragment on FaceA {
+					__typename
+					fieldA
+					...faceBFragment
+				}
+
+				fragment faceBFragment on FaceB {
+					fieldB
+				}
+		`)
+	})
 }
