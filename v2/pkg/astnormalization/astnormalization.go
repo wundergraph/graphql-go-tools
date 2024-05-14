@@ -238,17 +238,24 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		walker: &mergeInlineFragments,
 	})
 
+	if o.options.removeFragmentDefinitions {
+		removeFragments := astvisitor.NewWalker(48)
+		removeFragmentDefinitions(&removeFragments)
+
+		o.operationWalkers = append(o.operationWalkers, walkerStage{
+			name:   "removeFragmentDefinitions",
+			walker: &removeFragments,
+		})
+	}
+
 	cleanup := astvisitor.NewWalker(48)
 	mergeFieldSelections(&cleanup)
 	deduplicateFields(&cleanup)
-	if o.options.removeFragmentDefinitions {
-		removeFragmentDefinitions(&cleanup)
-	}
 	if o.options.removeUnusedVariables {
 		deleteUnusedVariables(&cleanup)
 	}
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
-		name:   "mergeFieldSelections, deduplicateFields, removeFragmentDefinitions, deleteUnusedVariables",
+		name:   "mergeFieldSelections, deduplicateFields, deleteUnusedVariables",
 		walker: &cleanup,
 	})
 
