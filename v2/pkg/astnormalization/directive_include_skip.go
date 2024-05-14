@@ -48,7 +48,7 @@ func (d *directiveIncludeSkipVisitor) handleSkip(ref int) {
 		return
 	}
 	value := d.operation.ArgumentValue(arg)
-	skip := ast.BooleanValue(false)
+	var skip ast.BooleanValue
 	switch value.Kind {
 	case ast.ValueKindBoolean:
 		skip = d.operation.BooleanValue(value.Ref)
@@ -78,7 +78,7 @@ func (d *directiveIncludeSkipVisitor) handleInclude(ref int) {
 		return
 	}
 	value := d.operation.ArgumentValue(arg)
-	include := ast.BooleanValue(true)
+	var include ast.BooleanValue
 	switch value.Kind {
 	case ast.ValueKindBoolean:
 		include = d.operation.BooleanValue(value.Ref)
