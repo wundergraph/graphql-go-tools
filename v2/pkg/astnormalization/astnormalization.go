@@ -197,6 +197,18 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	directivesIncludeSkip := astvisitor.NewWalker(48)
 	directiveIncludeSkip(&directivesIncludeSkip)
 
+	cleanup := astvisitor.NewWalker(48)
+	mergeFieldSelections(&cleanup)
+	deduplicateFields(&cleanup)
+	if o.options.removeUnusedVariables {
+		del := deleteUnusedVariables(&cleanup)
+		// register variable usage detection on the first stage
+		// and pass usage information to the deletion visitor
+		// so it keeps variables that are defined but not used at all
+		// ensuring that validation can still catch them
+		detectVariableUsage(&directivesIncludeSkip, del)
+	}
+
 	if o.options.removeNotMatchingOperationDefinitions {
 		o.removeOperationDefinitionsVisitor = removeOperationDefinitions(&directivesIncludeSkip)
 	}
@@ -249,12 +261,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		})
 	}
 
-	cleanup := astvisitor.NewWalker(48)
-	mergeFieldSelections(&cleanup)
-	deduplicateFields(&cleanup)
-	if o.options.removeUnusedVariables {
-		deleteUnusedVariables(&cleanup)
-	}
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
 		name:   "mergeFieldSelections, deduplicateFields, deleteUnusedVariables",
 		walker: &cleanup,

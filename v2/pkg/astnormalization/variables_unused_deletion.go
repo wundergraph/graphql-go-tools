@@ -20,15 +20,19 @@ func deleteUnusedVariables(walker *astvisitor.Walker) *deleteUnusedVariablesVisi
 
 type deleteUnusedVariablesVisitor struct {
 	*astvisitor.Walker
-	operation, definition *ast.Document
-	usedVariableNames     []string
+	operation, definition        *ast.Document
+	variableNamesUsed            []string
+	variableNamesSafeForDeletion []string
 }
 
 func (d *deleteUnusedVariablesVisitor) LeaveOperationDefinition(ref int) {
 	filterOutIndices := make([]int, 0, len(d.operation.OperationDefinitions[ref].VariableDefinitions.Refs))
 	for i := range d.operation.OperationDefinitions[ref].VariableDefinitions.Refs {
 		name := d.operation.VariableDefinitionNameString(d.operation.OperationDefinitions[ref].VariableDefinitions.Refs[i])
-		if slices.Contains(d.usedVariableNames, name) {
+		if slices.Contains(d.variableNamesUsed, name) {
+			continue
+		}
+		if !slices.Contains(d.variableNamesSafeForDeletion, name) {
 			continue
 		}
 		filterOutIndices = append(filterOutIndices, i)
@@ -58,7 +62,7 @@ func (d *deleteUnusedVariablesVisitor) traverseValue(value ast.Value) {
 	switch value.Kind {
 	case ast.ValueKindVariable:
 		name := d.operation.VariableValueNameString(value.Ref)
-		d.usedVariableNames = append(d.usedVariableNames, name)
+		d.variableNamesUsed = append(d.variableNamesUsed, name)
 	case ast.ValueKindList:
 		for _, ref := range d.operation.ListValues[value.Ref].Refs {
 			d.traverseValue(d.operation.Value(ref))
@@ -72,5 +76,48 @@ func (d *deleteUnusedVariablesVisitor) traverseValue(value ast.Value) {
 
 func (d *deleteUnusedVariablesVisitor) EnterDocument(operation, definition *ast.Document) {
 	d.operation, d.definition = operation, definition
-	d.usedVariableNames = d.usedVariableNames[:0]
+	d.variableNamesUsed = d.variableNamesUsed[:0]
+}
+
+func detectVariableUsage(walker *astvisitor.Walker, deletion *deleteUnusedVariablesVisitor) *variableUsageDetector {
+	visitor := &variableUsageDetector{
+		Walker:   walker,
+		deletion: deletion,
+	}
+	visitor.Walker.RegisterEnterDocumentVisitor(visitor)
+	visitor.Walker.RegisterEnterArgumentVisitor(visitor)
+	return visitor
+}
+
+type variableUsageDetector struct {
+	*astvisitor.Walker
+	operation, definition *ast.Document
+	deletion              *deleteUnusedVariablesVisitor
+}
+
+func (v *variableUsageDetector) EnterDocument(operation, definition *ast.Document) {
+	v.operation, v.definition = operation, definition
+	v.deletion.variableNamesSafeForDeletion = v.deletion.variableNamesSafeForDeletion[:0]
+}
+
+func (v *variableUsageDetector) EnterArgument(ref int) {
+	v.traverseValue(v.operation.Arguments[ref].Value)
+}
+
+func (v *variableUsageDetector) traverseValue(value ast.Value) {
+	switch value.Kind {
+	case ast.ValueKindVariable:
+		name := v.operation.VariableValueNameString(value.Ref)
+		if !slices.Contains(v.deletion.variableNamesSafeForDeletion, name) {
+			v.deletion.variableNamesSafeForDeletion = append(v.deletion.variableNamesSafeForDeletion, name)
+		}
+	case ast.ValueKindList:
+		for _, ref := range v.operation.ListValues[value.Ref].Refs {
+			v.traverseValue(v.operation.Value(ref))
+		}
+	case ast.ValueKindObject:
+		for _, ref := range v.operation.ObjectValues[value.Ref].Refs {
+			v.traverseValue(v.operation.ObjectField(ref).Value)
+		}
+	}
 }
