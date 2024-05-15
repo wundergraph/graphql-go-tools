@@ -36,16 +36,16 @@ type subscriptionClient struct {
 }
 
 type InvalidWsSubprotocolError struct {
-	Message string
+	InvalidProtocol string
 }
 
 func (e InvalidWsSubprotocolError) Error() string {
-	return e.Message
+	return fmt.Sprintf("provided websocket subprotocol %s is not supported. The supported subprotocols are graphql-ws and graphql-transport-ws. Please configure your subsciptions with the mentioned subprotocols", e.InvalidProtocol)
 }
 
-func NewInvalidWsSubprotocolError(wsSubProtocol string) InvalidWsSubprotocolError {
+func NewInvalidWsSubprotocolError(invalidProtocol string) InvalidWsSubprotocolError {
 	return InvalidWsSubprotocolError{
-		Message: fmt.Sprintf("provided websocket subprotocol %s is not supported. The supported subprotocols are graphql-ws and graphql-transport-ws. Please configure your subsciptions with the mentioned subprotocols", wsSubProtocol),
+		InvalidProtocol: invalidProtocol,
 	}
 }
 
