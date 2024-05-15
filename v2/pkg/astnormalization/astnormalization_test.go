@@ -119,14 +119,14 @@ func TestNormalizeOperation(t *testing.T) {
 				}
 				fragment frag on DogExtra { string1 }
 				fragment frag2 on DogExtra { string1: string }`, `
-				query conflictingBecauseAlias {
+				query conflictingBecauseAlias ($unused: String) {
 					dog {
 						extras {
 							string1
 							string1: string
 						}
 					}
-				}`, `{"unused":"foo"}`, `{}`)
+				}`, `{"unused":"foo"}`, `{"unused":"foo"}`)
 	})
 	t.Run("inline fragment spreads and merge fragments", func(t *testing.T) {
 		run(t, testDefinition, `
