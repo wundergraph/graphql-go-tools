@@ -68,11 +68,16 @@ func (f *fragmentSpreadInlineVisitor) replaceFragmentSpread(selectionSetRef int,
 	var fragmentTypeIsMemberOfEnclosingUnionType bool
 	var fragmentUnionIntersectsEnclosingInterface bool
 	var fragmentInterfaceIntersectsEnclosingUnion bool
+	var fragmentInterfaceIntersectsEnclosingInterface bool
 
 	if fragmentNode.Kind == ast.NodeKindInterfaceTypeDefinition && f.EnclosingTypeDefinition.Kind == ast.NodeKindObjectTypeDefinition {
 		enclosingTypeImplementsFragmentType =
 			f.definition.NodeImplementsInterface(f.EnclosingTypeDefinition, fragmentTypeName) &&
 				f.definition.NodeImplementsInterfaceFields(f.EnclosingTypeDefinition, fragmentNode)
+	}
+
+	if fragmentNode.Kind == ast.NodeKindInterfaceTypeDefinition && f.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition {
+		fragmentInterfaceIntersectsEnclosingInterface = f.definition.InterfacesIntersect(fragmentNode.Ref, f.EnclosingTypeDefinition.Ref)
 	}
 
 	if fragmentNode.Kind == ast.NodeKindUnionTypeDefinition {
@@ -115,7 +120,8 @@ func (f *fragmentSpreadInlineVisitor) replaceFragmentSpread(selectionSetRef int,
 		fragmentTypeIsMemberOfEnclosingUnionType ||
 		enclosingTypeIsMemberOfFragmentUnion ||
 		fragmentUnionIntersectsEnclosingInterface ||
-		fragmentInterfaceIntersectsEnclosingUnion:
+		fragmentInterfaceIntersectsEnclosingUnion ||
+		fragmentInterfaceIntersectsEnclosingInterface:
 
 		f.operation.ReplaceFragmentSpreadWithInlineFragment(selectionSetRef, ref, replaceWith, typeCondition, directiveList)
 

@@ -9,17 +9,41 @@ type FragmentDefinitionRemoval struct {
 }
 
 func removeFragmentDefinitions(walker *astvisitor.Walker) {
-	visitor := removeFragmentDefinitionsVisitor{}
+	visitor := &removeFragmentDefinitionsVisitor{
+		walker: walker,
+	}
+	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterLeaveDocumentVisitor(visitor)
+	walker.RegisterEnterFragmentSpreadVisitor(visitor)
+	walker.RegisterEnterFragmentDefinitionVisitor(visitor)
 }
 
 type removeFragmentDefinitionsVisitor struct {
+	operation     *ast.Document
+	usedFragments map[string]struct{}
+	walker        *astvisitor.Walker
 }
 
-func (r removeFragmentDefinitionsVisitor) LeaveDocument(operation, definition *ast.Document) {
+func (r *removeFragmentDefinitionsVisitor) EnterDocument(operation, _ *ast.Document) {
+	r.operation = operation
+	r.usedFragments = make(map[string]struct{})
+}
+
+func (r *removeFragmentDefinitionsVisitor) EnterFragmentSpread(ref int) {
+	fragmentName := r.operation.FragmentSpreadNameString(ref)
+	r.usedFragments[fragmentName] = struct{}{}
+}
+
+func (r *removeFragmentDefinitionsVisitor) EnterFragmentDefinition(ref int) {
+	r.walker.SkipNode()
+}
+
+func (r *removeFragmentDefinitionsVisitor) LeaveDocument(operation, _ *ast.Document) {
 	for i := range operation.RootNodes {
 		if operation.RootNodes[i].Kind == ast.NodeKindFragmentDefinition {
-			operation.RootNodes[i].Kind = ast.NodeKindUnknown
+			if _, exists := r.usedFragments[operation.FragmentDefinitionNameString(operation.RootNodes[i].Ref)]; !exists {
+				operation.RootNodes[i].Kind = ast.NodeKindUnknown
+			}
 		}
 	}
 }

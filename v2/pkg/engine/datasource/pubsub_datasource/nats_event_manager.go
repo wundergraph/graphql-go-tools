@@ -6,6 +6,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"slices"
 )
 
 type NatsSubscriptionEventConfiguration struct {
@@ -110,6 +111,8 @@ func (p *NatsEventManager) handleSubscriptionEvent(ref int) {
 		}
 		extractedSubjects = append(extractedSubjects, extractedSubject)
 	}
+
+	slices.Sort(extractedSubjects)
 
 	p.subscriptionEventConfiguration = &NatsSubscriptionEventConfiguration{
 		ProviderID:          p.eventMetadata.ProviderID,

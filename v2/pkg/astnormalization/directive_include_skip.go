@@ -3,6 +3,7 @@ package astnormalization
 import (
 	"bytes"
 
+	"github.com/buger/jsonparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -47,15 +48,24 @@ func (d *directiveIncludeSkipVisitor) handleSkip(ref int) {
 		return
 	}
 	value := d.operation.ArgumentValue(arg)
-	if value.Kind != ast.ValueKindBoolean {
+	var skip ast.BooleanValue
+	switch value.Kind {
+	case ast.ValueKindBoolean:
+		skip = d.operation.BooleanValue(value.Ref)
+	case ast.ValueKindVariable:
+		name := d.operation.VariableValueNameString(value.Ref)
+		val, err := jsonparser.GetBoolean(d.operation.Input.Variables, name)
+		if err != nil {
+			return
+		}
+		skip = ast.BooleanValue(val)
+	default:
 		return
 	}
-	include := d.operation.BooleanValue(value.Ref)
-	switch include {
-	case false:
-		d.operation.RemoveDirectiveFromNode(d.Ancestors[len(d.Ancestors)-1], ref)
-	case true:
+	if skip {
 		d.handleRemoveNode()
+	} else {
+		d.operation.RemoveDirectiveFromNode(d.Ancestors[len(d.Ancestors)-1], ref)
 	}
 }
 
@@ -68,14 +78,23 @@ func (d *directiveIncludeSkipVisitor) handleInclude(ref int) {
 		return
 	}
 	value := d.operation.ArgumentValue(arg)
-	if value.Kind != ast.ValueKindBoolean {
+	var include ast.BooleanValue
+	switch value.Kind {
+	case ast.ValueKindBoolean:
+		include = d.operation.BooleanValue(value.Ref)
+	case ast.ValueKindVariable:
+		name := d.operation.VariableValueNameString(value.Ref)
+		val, err := jsonparser.GetBoolean(d.operation.Input.Variables, name)
+		if err != nil {
+			return
+		}
+		include = ast.BooleanValue(val)
+	default:
 		return
 	}
-	include := d.operation.BooleanValue(value.Ref)
-	switch include {
-	case true:
+	if include {
 		d.operation.RemoveDirectiveFromNode(d.Ancestors[len(d.Ancestors)-1], ref)
-	case false:
+	} else {
 		d.handleRemoveNode()
 	}
 }

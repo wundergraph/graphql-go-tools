@@ -95,52 +95,13 @@ func TestRequest_Normalize(t *testing.T) {
 			Query: `query MySearch($s: String!, $other: String) {search(name: $s) {...on Human {name}}}`,
 		}
 
-		runNormalization(t, &request, `{"s":"Luke"}`, `query MySearch($s: String!){
+		runNormalization(t, &request, `{"other":"other","s":"Luke"}`, `query MySearch($s: String!, $other: String){
     search(name: $s){
         ... on Human {
             name
         }
     }
 }`)
-	})
-
-	t.Run("should successfully normalize query and remove unused variables and values", func(t *testing.T) {
-		const expectedVar = "query MySearch($s: String!){\n    search(name: $s){\n        ... on Human {\n            name\n        }\n    }\n}"
-		for _, v := range []Request{
-			{
-				OperationName: "MySearch",
-				Variables: stringify(map[string]interface{}{
-					"s":  "Luke",
-					"s2": nil,
-					"s3": nil,
-				}),
-				Query: `query MySearch($s: String!, $s2: String, $s3: String) {search(name: $s) {...on Human {name}}}`,
-			},
-			{
-				OperationName: "MySearch",
-				Variables: stringify(map[string]interface{}{
-					"s":  "Luke",
-					"s2": 12,
-					"s3": "",
-				}),
-				Query: `query MySearch($s: String!, $s2: Int, $s3: String) {search(name: $s) {...on Human {name}}}`,
-			},
-			{
-				OperationName: "MySearch",
-				Variables: stringify(map[string]interface{}{
-					"s":  "Luke",
-					"s3": "value",
-				}),
-				Query: `query MySearch($s: String!, $s2: Int, $s3: String) {search(name: $s) {...on Human {name}}}`,
-			},
-			{
-				OperationName: "MySearch",
-				Variables:     []byte(`{"s":"Luke", "s2": null, "s3": 78.8}`),
-				Query:         `query MySearch($s: String!, $s2: String, $s3: String) {search(name: $s) {...on Human {name}}}`,
-			},
-		} {
-			runNormalization(t, &v, `{"s":"Luke"}`, expectedVar)
-		}
 	})
 
 	t.Run("should successfully normalize query and remove variables with no value provided", func(t *testing.T) {
@@ -151,7 +112,7 @@ func TestRequest_Normalize(t *testing.T) {
 			}),
 			Query: `query MySearch($s: String!, $other: String) {search(name: $s) {...on Human {name}}}`,
 		}
-		runNormalization(t, &request, `{"s":"Luke"}`, `query MySearch($s: String!){
+		runNormalization(t, &request, `{"s":"Luke"}`, `query MySearch($s: String!, $other: String){
     search(name: $s){
         ... on Human {
             name

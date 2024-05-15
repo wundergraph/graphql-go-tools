@@ -91,6 +91,7 @@ func NormalizeNamedOperation(operation, definition *ast.Document, operationName 
 		WithRemoveFragmentDefinitions(),
 		WithInlineFragmentSpreads(),
 		WithRemoveNotMatchingOperationDefinitions(),
+		WithRemoveUnusedVariables(),
 	)
 	normalizer.NormalizeNamedOperation(operation, definition, operationName, report)
 }
@@ -193,17 +194,20 @@ func WithNormalizeDefinition() Option {
 func (o *OperationNormalizer) setupOperationWalkers() {
 	o.operationWalkers = make([]walkerStage, 0, 6)
 
-	if o.options.inlineFragmentSpreads {
-		fragmentInline := astvisitor.NewWalker(48)
-		fragmentSpreadInline(&fragmentInline)
-		o.operationWalkers = append(o.operationWalkers, walkerStage{
-			name:   "fragmentInline",
-			walker: &fragmentInline,
-		})
-	}
-
 	directivesIncludeSkip := astvisitor.NewWalker(48)
 	directiveIncludeSkip(&directivesIncludeSkip)
+
+	cleanup := astvisitor.NewWalker(48)
+	mergeFieldSelections(&cleanup)
+	deduplicateFields(&cleanup)
+	if o.options.removeUnusedVariables {
+		del := deleteUnusedVariables(&cleanup)
+		// register variable usage detection on the first stage
+		// and pass usage information to the deletion visitor
+		// so it keeps variables that are defined but not used at all
+		// ensuring that validation can still catch them
+		detectVariableUsage(&directivesIncludeSkip, del)
+	}
 
 	if o.options.removeNotMatchingOperationDefinitions {
 		o.removeOperationDefinitionsVisitor = removeOperationDefinitions(&directivesIncludeSkip)
@@ -213,6 +217,15 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		name:   "directivesIncludeSkip, removeOperationDefinitions",
 		walker: &directivesIncludeSkip,
 	})
+
+	if o.options.inlineFragmentSpreads {
+		fragmentInline := astvisitor.NewWalker(48)
+		fragmentSpreadInline(&fragmentInline)
+		o.operationWalkers = append(o.operationWalkers, walkerStage{
+			name:   "fragmentInline",
+			walker: &fragmentInline,
+		})
+	}
 
 	if o.options.extractVariables {
 		extractVariablesWalker := astvisitor.NewWalker(48)
@@ -238,17 +251,18 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		walker: &mergeInlineFragments,
 	})
 
-	cleanup := astvisitor.NewWalker(48)
-	mergeFieldSelections(&cleanup)
-	deduplicateFields(&cleanup)
 	if o.options.removeFragmentDefinitions {
-		removeFragmentDefinitions(&cleanup)
+		removeFragments := astvisitor.NewWalker(48)
+		removeFragmentDefinitions(&removeFragments)
+
+		o.operationWalkers = append(o.operationWalkers, walkerStage{
+			name:   "removeFragmentDefinitions",
+			walker: &removeFragments,
+		})
 	}
-	if o.options.removeUnusedVariables {
-		deleteUnusedVariables(&cleanup)
-	}
+
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
-		name:   "mergeFieldSelections, deduplicateFields, removeFragmentDefinitions, deleteUnusedVariables",
+		name:   "mergeFieldSelections, deduplicateFields, deleteUnusedVariables",
 		walker: &cleanup,
 	})
 
