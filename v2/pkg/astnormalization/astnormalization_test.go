@@ -119,14 +119,14 @@ func TestNormalizeOperation(t *testing.T) {
 				}
 				fragment frag on DogExtra { string1 }
 				fragment frag2 on DogExtra { string1: string }`, `
-				query conflictingBecauseAlias {
+				query conflictingBecauseAlias ($unused: String) {
 					dog {
 						extras {
 							string1
 							string1: string
 						}
 					}
-				}`, `{"unused":"foo"}`, `{}`)
+				}`, `{"unused":"foo"}`, `{"unused":"foo"}`)
 	})
 	t.Run("inline fragment spreads and merge fragments", func(t *testing.T) {
 		run(t, testDefinition, `
@@ -553,6 +553,129 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		actual, _ := astprinter.PrintStringIndent(&operation, &definition, " ")
 		expected, _ := astprinter.PrintStringIndent(&expectedDocument, &definition, " ")
 		assert.Equal(t, expected, actual)
+		assert.Equal(t, `{"id":"1"}`, string(operation.Input.Variables))
+	})
+
+	t.Run("should not remove variables that were not used by skip or include", func(t *testing.T) {
+		schema := `
+			type Query {
+				hero(ids: [ID!]!): Hero
+			}
+			type Hero {
+				name: String
+				age: Int
+			}
+`
+
+		query := `
+			query Game($id: ID! $withAge: Boolean! $withName: Boolean! $unused: String) {
+				hero(ids: [$id]) {
+					... NameFragment @include(if: $withName)
+					... AgeFragment @include(if: $withAge)
+				}
+			}
+			fragment NameFragment on Hero {
+				name
+			}
+			fragment AgeFragment on Hero {
+				age
+			}
+			`
+
+		expectedQuery := `query Game($id: ID!, $unused: String){hero(ids: [$id]){age}}`
+
+		definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
+		operation := unsafeparser.ParseGraphqlDocumentString(query)
+		operation.Input.Variables = []byte(`{"id":"1","withAge":true,"withName":false}`)
+
+		report := operationreport.Report{}
+		NormalizeNamedOperation(&operation, &definition, []byte("Game"), &report)
+		assert.False(t, report.HasErrors())
+
+		actual, _ := astprinter.PrintString(&operation, &definition)
+		assert.Equal(t, expectedQuery, actual)
+		assert.Equal(t, `{"id":"1"}`, string(operation.Input.Variables))
+	})
+
+	t.Run("should safely remove obsolete variables", func(t *testing.T) {
+		schema := `
+			type Query {
+				hero(ids: [ID!]!): Hero
+			}
+			type Hero {
+				name(length: Int!): String
+				age: Int
+			}
+`
+
+		query := `
+			query Game($id: ID! $withAge: Boolean! $withName: Boolean! $nameLength: Int!) {
+				hero(ids: [$id]) {
+					... NameFragment @include(if: $withName)
+					... AgeFragment @include(if: $withAge)
+				}
+			}
+			fragment NameFragment on Hero {
+				name(length: $nameLength)
+			}
+			fragment AgeFragment on Hero {
+				age
+			}
+			`
+
+		expectedQuery := `query Game($id: ID!){hero(ids: [$id]){age}}`
+
+		definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
+		operation := unsafeparser.ParseGraphqlDocumentString(query)
+		operation.Input.Variables = []byte(`{"id":"1","withAge":true,"withName":false}`)
+
+		report := operationreport.Report{}
+		NormalizeNamedOperation(&operation, &definition, []byte("Game"), &report)
+		assert.False(t, report.HasErrors())
+
+		actual, _ := astprinter.PrintString(&operation, &definition)
+		assert.Equal(t, expectedQuery, actual)
+		assert.Equal(t, `{"id":"1"}`, string(operation.Input.Variables))
+	})
+
+	t.Run("should keep variable if included", func(t *testing.T) {
+		schema := `
+			type Query {
+				hero(ids: [ID!]!): Hero
+			}
+			type Hero {
+				name(length: Int!): String
+				age: Int
+			}
+`
+
+		query := `
+			query Game($id: ID! $withAge: Boolean! $withName: Boolean! $nameLength: Int!) {
+				hero(ids: [$id]) {
+					... NameFragment @include(if: $withName)
+					... AgeFragment @include(if: $withAge)
+				}
+			}
+			fragment NameFragment on Hero {
+				name(length: $nameLength)
+			}
+			fragment AgeFragment on Hero {
+				age
+			}
+			`
+
+		expectedQuery := `query Game($id: ID!, $nameLength: Int!){hero(ids: [$id]){name(length: $nameLength) age}}`
+
+		definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
+		operation := unsafeparser.ParseGraphqlDocumentString(query)
+		operation.Input.Variables = []byte(`{"id":"1","withAge":true,"withName":true}`)
+
+		report := operationreport.Report{}
+		NormalizeNamedOperation(&operation, &definition, []byte("Game"), &report)
+		assert.False(t, report.HasErrors())
+
+		actual, _ := astprinter.PrintString(&operation, &definition)
+		assert.Equal(t, expectedQuery, actual)
 		assert.Equal(t, `{"id":"1"}`, string(operation.Input.Variables))
 	})
 
