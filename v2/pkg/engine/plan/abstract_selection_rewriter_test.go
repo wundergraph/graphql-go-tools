@@ -2019,7 +2019,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					returnsUnion: Account!
 				}`,
 			dsConfiguration: dsb().
-				RootNode("Query", "iface").
+				RootNode("Query", "returnsUnion").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
 				KeysMetadata(FederationFieldConfigurations{
@@ -2058,6 +2058,196 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					}
 				}`,
 			shouldRewrite: true,
+		},
+		{
+			name: "everything is local, nested interface selections with typename, first interface is matching field return type",
+			definition: `
+				interface HasName {
+					name: String!
+				}
+
+				interface Title {
+					title: String!
+				}
+
+				type User implements HasName & Title {
+					id: ID!
+					name: String!
+					title: String!
+				}
+		
+				type Admin implements HasName & Title {
+					id: ID!
+					name: String!
+					title: String!
+				}
+
+				type Query {
+					iface: HasName!
+				}`,
+			upstreamDefinition: `
+				interface HasName {
+					name: String!
+				}
+
+				interface Title {
+					title: String!
+				}
+
+				type User implements HasName & Title {
+					id: ID!
+					name: String!
+					title: String!
+				}
+		
+				type Admin implements HasName & Title {
+					id: ID!
+					name: String!
+					title: String!
+				}
+
+				type Query {
+					iface: HasName!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name", "title").
+				RootNode("Admin", "id", "name", "title").
+				ChildNode("HasName", "name").
+				ChildNode("Title", "title").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DS(),
+			operation: `
+				query {
+					iface {
+						... on HasName {
+							__typename
+							name
+							... on Title {
+								__typename
+								title
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					iface {
+						... on HasName {
+							__typename
+							name
+							... on Title {
+								__typename
+								title
+							}
+						}
+					}
+				}`,
+			shouldRewrite: false,
+		},
+		{
+			name: "everything is local, nested interface selections with typename, first interface is differs from field return type",
+			definition: `
+				interface HasName {
+					name: String!
+				}
+
+				interface Title {
+					title: String!
+				}
+
+				type User implements HasName & Title {
+					id: ID!
+					name: String!
+					title: String!
+				}
+		
+				type Admin implements HasName & Title {
+					id: ID!
+					name: String!
+					title: String!
+				}
+
+				type Query {
+					iface: HasName!
+				}`,
+			upstreamDefinition: `
+				interface HasName {
+					name: String!
+				}
+
+				interface Title {
+					title: String!
+				}
+
+				type User implements HasName & Title {
+					id: ID!
+					name: String!
+					title: String!
+				}
+		
+				type Admin implements HasName & Title {
+					id: ID!
+					name: String!
+					title: String!
+				}
+
+				type Query {
+					iface: HasName!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name", "title").
+				RootNode("Admin", "id", "name", "title").
+				ChildNode("HasName", "name").
+				ChildNode("Title", "title").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DS(),
+			operation: `
+				query {
+					iface {
+						... on Title {
+							__typename
+							title
+							... on HasName {
+								__typename
+								name
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					iface {
+						... on Title {
+							__typename
+							title
+							... on HasName {
+								__typename
+								name
+							}
+						}
+					}
+				}`,
+			shouldRewrite: false,
 		},
 	}
 
