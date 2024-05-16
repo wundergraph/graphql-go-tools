@@ -33,7 +33,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"event":"b"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, true, skip)
+		assert.Equal(t, false, skip)
 	})
 	t.Run("in: predicate is false", func(t *testing.T) {
 		filter := &SubscriptionFilter{
@@ -60,7 +60,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"event":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, false, skip)
+		assert.Equal(t, true, skip)
 	})
 	t.Run("in: array predicate is false", func(t *testing.T) {
 		filter := &SubscriptionFilter{
@@ -87,7 +87,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"event":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, false, skip)
+		assert.Equal(t, true, skip)
 	})
 	t.Run("in: array predicate is true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
@@ -114,7 +114,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"event":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, true, skip)
+		assert.Equal(t, false, skip)
 	})
 	t.Run("not in: predicate is true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
@@ -143,7 +143,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"event":"b"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, false, skip)
+		assert.Equal(t, true, skip)
 	})
 	t.Run("not in: predicate is false", func(t *testing.T) {
 		filter := &SubscriptionFilter{
@@ -172,7 +172,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"event":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, true, skip)
+		assert.Equal(t, false, skip)
 	})
 	t.Run("and: both in predicates are true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
@@ -220,7 +220,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, true, skip)
+		assert.Equal(t, false, skip)
 	})
 	t.Run("and: static predicates are true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
@@ -262,7 +262,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, true, skip)
+		assert.Equal(t, false, skip)
 	})
 	t.Run("and: first in predicate is false", func(t *testing.T) {
 		filter := &SubscriptionFilter{
@@ -310,7 +310,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, false, skip)
+		assert.Equal(t, true, skip)
 	})
 	t.Run("and: second in predicate is false", func(t *testing.T) {
 		filter := &SubscriptionFilter{
@@ -358,7 +358,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, false, skip)
+		assert.Equal(t, true, skip)
 	})
 	t.Run("or: both in predicates are true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
@@ -406,7 +406,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, true, skip)
+		assert.Equal(t, false, skip)
 	})
 	t.Run("or: first in predicate is true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
@@ -454,7 +454,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, true, skip)
+		assert.Equal(t, false, skip)
 	})
 	t.Run("or: second in predicate is true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
@@ -502,7 +502,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, true, skip)
+		assert.Equal(t, false, skip)
 	})
 	t.Run("or: neither in predicate is true", func(t *testing.T) {
 		filter := &SubscriptionFilter{
@@ -550,6 +550,6 @@ func TestSubscriptionFilter(t *testing.T) {
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
-		assert.Equal(t, false, skip)
+		assert.Equal(t, true, skip)
 	})
 }

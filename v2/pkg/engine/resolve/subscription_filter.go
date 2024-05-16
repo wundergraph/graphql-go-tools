@@ -32,12 +32,13 @@ func (f *SubscriptionFilter) SkipEvent(ctx *Context, data []byte, buf *bytes.Buf
 			if err != nil {
 				return false, err
 			}
-			// if any one of the AND predicates are false, immediately return false
-			if !skip {
-				return false, nil
+			/* Skip will be true if any AND predicate is false, so immediately return true
+			 * because all AND predicates must be true for the event to be included */
+			if skip {
+				return true, nil
 			}
 		}
-		return true, nil
+		return false, nil
 	}
 
 	if f.Or != nil {
@@ -46,12 +47,13 @@ func (f *SubscriptionFilter) SkipEvent(ctx *Context, data []byte, buf *bytes.Buf
 			if err != nil {
 				return false, err
 			}
-			// if any one of the OR predicates are true, immediately return true
-			if skip {
-				return true, nil
+			/* Skip will be false if any OR predicate is true, so immediately return false
+			 * because only a single OR predicate must be true for the event to be included */
+			if !skip {
+				return false, nil
 			}
 		}
-		return false, nil
+		return true, nil
 	}
 
 	if f.Not != nil {
@@ -97,7 +99,7 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		// cheap pre-check to see if we can skip the more expensive array check
 		if !bytes.Contains(actual, literal.LBRACK) || !bytes.Contains(actual, literal.RBRACK) {
 			if bytes.Equal(expected, buf.Bytes()) {
-				return true, nil
+				return false, nil
 			}
 		}
 		// check if the actual value contains an array, e.g. [1, 2, 3] or ["a", "b", "c"]
@@ -109,7 +111,7 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		matches := findArray.FindAllSubmatch(actual, -1)
 		if matches == nil {
 			if bytes.Equal(expected, buf.Bytes()) {
-				return true, nil
+				return false, nil
 			}
 			continue
 		}
@@ -125,9 +127,9 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 			}
 		})
 		if arrayMatch {
-			return true, nil
+			return false, nil
 		}
 	}
 
-	return false, nil
+	return true, nil
 }
