@@ -75,6 +75,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 
 			type Subscription {
 				heroByID(id: ID!): Hero
+				heroByIDs(ids: [ID!]!): Hero
 			}
 
 			type Hero {
@@ -86,6 +87,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 	dsConfig := dsb().Schema(schema).
 		RootNode("Query", "heroByID").
 		RootNode("Subscription", "heroByID").
+		RootNode("Subscription", "heroByIDs").
 		ChildNode("Hero", "id", "name").
 		DS()
 
@@ -907,6 +909,86 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 									},
 								},
 							},
+						},
+					},
+				},
+			},
+		},
+	))
+	t.Run("subscription with in condition filter and list argument", test(
+		schema, `
+				subscription { heroByIDs(ids: ["1", "3", "5"]) { id name } }
+			`, "",
+		&SubscriptionResponsePlan{
+			Response: &resolve.GraphQLSubscription{
+				Trigger: resolve.GraphQLSubscriptionTrigger{
+					Input: []byte{},
+				},
+				Filter: &resolve.SubscriptionFilter{
+					In: &resolve.SubscriptionFieldFilter{
+						FieldPath: []string{"id"},
+						Values: []resolve.InputTemplate{
+							{
+								Segments: []resolve.TemplateSegment{
+									{
+										SegmentType:        resolve.VariableSegmentType,
+										VariableKind:       resolve.ContextVariableKind,
+										VariableSourcePath: []string{"a"},
+										Renderer:           resolve.NewPlainVariableRenderer(),
+									},
+								},
+							},
+						},
+					},
+				},
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("heroByIDs"),
+								Value: &resolve.Object{
+									Path:     []string{"heroByIDs"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("id"),
+											Value: &resolve.Scalar{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path: []string{"name"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Configuration{
+			DisableResolveFieldPositions: true,
+			DataSources:                  []DataSource{dsConfig},
+			Fields: []FieldConfiguration{
+				{
+					TypeName:  "Subscription",
+					FieldName: "heroByIDs",
+					Path:      []string{"heroByIDs"},
+					Arguments: []ArgumentConfiguration{
+						{
+							Name:       "ids",
+							SourceType: FieldArgumentSource,
+							SourcePath: []string{"ids"},
+						},
+					},
+					SubscriptionFilterCondition: &SubscriptionFilterCondition{
+						In: &SubscriptionFieldCondition{
+							FieldPath: []string{"id"},
+							Values:    []string{"{{ args.ids }}"},
 						},
 					},
 				},

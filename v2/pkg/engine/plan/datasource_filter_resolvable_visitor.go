@@ -46,5 +46,5 @@ type errOperationFieldNotResolved struct {
 }
 
 func (e *errOperationFieldNotResolved) Error() string {
-	return fmt.Sprintf("could not select the datasource to resolve %s.%s on a path %s", e.TypeName, e.FieldName, e.Path)
+	return fmt.Sprintf("could not select the datasource to resolve %s.%s on path %s", e.TypeName, e.FieldName, e.Path)
 }
