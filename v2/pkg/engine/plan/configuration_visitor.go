@@ -46,7 +46,7 @@ type configurationVisitor struct {
 
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the configurationVisitor not the first time
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
-	fieldRef     int
+	fieldRef     int  // fieldRef is the reference for the current field; it is required by subscription filter to retrieve any variables
 }
 
 // selectionSetPendingRequirements - is a wrapper to been able to have predictable order of fieldsRequirementConfig but at the same time deduplicate fieldsRequirementConfig
