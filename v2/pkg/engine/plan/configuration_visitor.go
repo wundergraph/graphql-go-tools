@@ -46,6 +46,7 @@ type configurationVisitor struct {
 
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the configurationVisitor not the first time
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
+	fieldRef     int  // fieldRef is the reference for the current field; it is required by subscription filter to retrieve any variables
 }
 
 // selectionSetPendingRequirements - is a wrapper to been able to have predictable order of fieldsRequirementConfig but at the same time deduplicate fieldsRequirementConfig
@@ -797,6 +798,9 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 	// fetch id is an index of the current planner
 	fetchID := len(c.planners)
 
+	// the filter needs access to fieldRef to retrieve the field argument variable
+	c.fieldRef = ref
+
 	fetchConfiguration := &objectFetchConfiguration{
 		isSubscription:     isSubscription,
 		fieldRef:           ref,
@@ -869,7 +873,7 @@ var (
 	// subscriptionFieldFilterRegex is used to extract the variable name from the subscription filter condition
 	// e.g. {{ args.id }} -> id
 	// e.g. {{ args.input.id }} -> input.id
-	subscriptionFieldFilterRegex = regexp.MustCompile(`{{\s*args\.([a-zA-Z0-9_.]+)\s*}}`)
+	subscriptionFieldFilterRegex = regexp.MustCompile(`{{\s*args((?:\.[a-zA-Z0-9_]+)+)\s*}}`)
 )
 
 func (c *configurationVisitor) buildSubscriptionFieldFilter(condition *SubscriptionFieldCondition) *resolve.SubscriptionFieldFilter {
@@ -890,7 +894,22 @@ func (c *configurationVisitor) buildSubscriptionFieldFilter(condition *Subscript
 		if len(matches) == 1 && len(matches[0]) == 4 {
 			prefix := value[:matches[0][0]]
 			hasPrefix := len(prefix) > 0
-			variableName := value[matches[0][2]:matches[0][3]]
+			// the path begins with ".", so ignore the first empty string element with trailing [1:]
+			argumentPath := strings.Split(value[matches[0][2]:matches[0][3]][1:], ".")
+			argumentName := argumentPath[0]
+			argumentRef, ok := c.operation.FieldArgument(c.fieldRef, []byte(argumentName))
+			if !ok {
+				c.walker.StopWithInternalErr(fmt.Errorf(`field argument "%s" is not defined`, argumentName))
+				return nil
+			}
+			argumentValue := c.operation.ArgumentValue(argumentRef)
+			if argumentValue.Kind != ast.ValueKindVariable {
+				c.walker.StopWithInternalErr(fmt.Errorf(`expected argument "%s" kind to be "ValueKindVariable" but received "%s"`, argumentName, argumentValue.Kind))
+				return nil
+			}
+			variableName := c.operation.VariableValueNameString(argumentValue.Ref)
+			// the variable path should be the variable name, e.g., "a", and then the 2nd element from the path onwards
+			variablePath := append([]string{variableName}, argumentPath[1:]...)
 			suffix := value[matches[0][1]:]
 			hasSuffix := len(suffix) > 0
 			size := 1
@@ -913,7 +932,7 @@ func (c *configurationVisitor) buildSubscriptionFieldFilter(condition *Subscript
 				SegmentType:        resolve.VariableSegmentType,
 				VariableKind:       resolve.ContextVariableKind,
 				Renderer:           resolve.NewPlainVariableRenderer(),
-				VariableSourcePath: strings.Split(variableName, "."),
+				VariableSourcePath: variablePath,
 			}
 			if hasSuffix {
 				filter.Values[i].Segments[idx+1] = resolve.TemplateSegment{

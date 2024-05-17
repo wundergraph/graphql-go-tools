@@ -98,7 +98,7 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		actual := buf.Bytes()
 		// cheap pre-check to see if we can skip the more expensive array check
 		if !bytes.Contains(actual, literal.LBRACK) || !bytes.Contains(actual, literal.RBRACK) {
-			if bytes.Equal(expected, buf.Bytes()) {
+			if bytes.Equal(expected, actual) {
 				return false, nil
 			}
 		}
@@ -110,7 +110,7 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		// then check if the actual value contains the expected value
 		matches := findArray.FindAllSubmatch(actual, -1)
 		if matches == nil {
-			if bytes.Equal(expected, buf.Bytes()) {
+			if bytes.Equal(expected, actual) {
 				return false, nil
 			}
 			continue
