@@ -2054,6 +2054,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						}
 						... on User {
 							name
+							isUser
 						}
 					}
 				}`,
