@@ -294,6 +294,7 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 	}, time.Second, time.Millisecond, "client handlers not 0")
 }
 
+// didnt configure subprotocol, but the subgraph return graphql-ws
 func TestSubprotocolNegotiationWithGraphQLWS(t *testing.T) {
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -361,6 +362,7 @@ func TestSubprotocolNegotiationWithGraphQLWS(t *testing.T) {
 	}, time.Second, time.Millisecond, "client handlers not 0")
 }
 
+// didnt configure subprotocol, but the subgraph return graphql-transport-ws
 func TestSubprotocolNegotiationWithGraphQLTransportWS(t *testing.T) {
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -431,7 +433,7 @@ func TestSubprotocolNegotiationWithGraphQLTransportWS(t *testing.T) {
 	}, time.Second, time.Millisecond, "client handlers not 0")
 }
 
-// In this case the subgraph doesnt return the subprotocol, so falls back to graphql-ws
+// In this case the subgraph doesnt return the subprotocol and we didnt configure the subprotocol, so falls back to graphql-ws
 func TestSubprotocolNegotiationWithNoSubprotocol(t *testing.T) {
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
