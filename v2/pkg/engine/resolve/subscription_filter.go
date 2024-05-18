@@ -98,15 +98,16 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		actualRawBytes := buf.Bytes()
 		// cheap pre-check to see if we can skip the more expensive array check
 		if !bytes.Contains(actualRawBytes, literal.LBRACK) || !bytes.Contains(actualRawBytes, literal.RBRACK) {
-			actual, actualDataType, _, err := jsonparser.Get(actualRawBytes)
-			if err != nil {
-				return false, nil
+			// type is only set when a proper variable rendering is used.
+			// if more than one segment is used, the result is always a string and we compare byte by byte
+			if len(f.Values[i].Segments) == 1 {
+				vt := f.Values[i].Segments[0].VariableValueType
+				if vt != jsonparser.NotExist && expectedDataType != vt {
+					return true, nil
+				}
 			}
-			// type must match
-			if expectedDataType != actualDataType {
-				continue
-			}
-			if bytes.Equal(expected, actual) {
+
+			if bytes.Equal(expected, actualRawBytes) {
 				return false, nil
 			}
 		}

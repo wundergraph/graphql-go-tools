@@ -26,6 +26,7 @@ type TemplateSegment struct {
 	VariableSourcePath []string
 	Renderer           VariableRenderer
 	Segments           []TemplateSegment
+	VariableValueType  jsonparser.ValueType
 }
 
 type InputTemplate struct {
@@ -113,6 +114,9 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []by
 		_, _ = preparedInput.Write(literal.NULL)
 		return nil
 	}
+
+	segment.VariableValueType = valueType
+
 	if valueType == jsonparser.String {
 		value = variables[offset-len(value)-2 : offset]
 		switch segment.Renderer.GetKind() {
@@ -140,6 +144,9 @@ func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegm
 		}
 		return false, segment.Renderer.RenderVariable(ctx.Context(), value, preparedInput)
 	}
+
+	segment.VariableValueType = valueType
+
 	if valueType == jsonparser.String {
 		value = ctx.Variables[offset-len(value)-2 : offset]
 		switch segment.Renderer.GetKind() {
@@ -149,6 +156,7 @@ func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegm
 			}
 		}
 	}
+
 	return false, segment.Renderer.RenderVariable(ctx.Context(), value, preparedInput)
 }
 
