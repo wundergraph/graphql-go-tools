@@ -84,7 +84,7 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		return false, nil
 	}
 
-	expected, _, _, _err := jsonparser.Get(data, f.FieldPath...)
+	expected, expectedDataType, _, _err := jsonparser.Get(data, f.FieldPath...)
 	if _err != nil {
 		return true, nil
 	}
@@ -95,9 +95,17 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		if err != nil {
 			return false, err
 		}
-		actual := buf.Bytes()
+		actualRawBytes := buf.Bytes()
 		// cheap pre-check to see if we can skip the more expensive array check
-		if !bytes.Contains(actual, literal.LBRACK) || !bytes.Contains(actual, literal.RBRACK) {
+		if !bytes.Contains(actualRawBytes, literal.LBRACK) || !bytes.Contains(actualRawBytes, literal.RBRACK) {
+			actual, actualDataType, _, err := jsonparser.Get(actualRawBytes)
+			if err != nil {
+				return false, nil
+			}
+			// type must match
+			if expectedDataType != actualDataType {
+				continue
+			}
 			if bytes.Equal(expected, actual) {
 				return false, nil
 			}
@@ -108,9 +116,9 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		// so we need to check for that as well
 		// start with a regex to find all array values
 		// then check if the actual value contains the expected value
-		matches := findArray.FindAllSubmatch(actual, -1)
+		matches := findArray.FindAllSubmatch(actualRawBytes, -1)
 		if matches == nil {
-			if bytes.Equal(expected, actual) {
+			if bytes.Equal(expected, actualRawBytes) {
 				return false, nil
 			}
 			continue
@@ -121,7 +129,11 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		arrayValue := matches[0][0]
 		arrayMatch := false
 		_, _ = jsonparser.ArrayEach(arrayValue, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-			replaced := bytes.Replace(actual, matches[0][0], value, 1)
+			// type must match
+			if expectedDataType != dataType {
+				return
+			}
+			replaced := bytes.Replace(actualRawBytes, matches[0][0], value, 1)
 			if bytes.Equal(expected, replaced) {
 				arrayMatch = true
 			}
