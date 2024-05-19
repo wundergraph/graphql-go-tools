@@ -2,7 +2,6 @@ package resolve
 
 import (
 	"bytes"
-	"github.com/buger/jsonparser"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,6 @@ func TestSubscriptionFilter(t *testing.T) {
 								SegmentType:        VariableSegmentType,
 								VariableKind:       ContextVariableKind,
 								VariableSourcePath: []string{"var"},
-								VariableValueType:  jsonparser.Boolean,
 								Renderer:           NewPlainVariableRenderer(),
 							},
 						},
@@ -48,7 +46,6 @@ func TestSubscriptionFilter(t *testing.T) {
 								SegmentType:        VariableSegmentType,
 								VariableKind:       ContextVariableKind,
 								VariableSourcePath: []string{"var"},
-								VariableValueType:  jsonparser.String,
 								Renderer:           NewPlainVariableRenderer(),
 							},
 						},
@@ -76,7 +73,6 @@ func TestSubscriptionFilter(t *testing.T) {
 								SegmentType:        VariableSegmentType,
 								VariableKind:       ContextVariableKind,
 								VariableSourcePath: []string{"var"},
-								VariableValueType:  jsonparser.String,
 								Renderer:           NewPlainVariableRenderer(),
 							},
 						},
@@ -112,7 +108,6 @@ func TestSubscriptionFilter(t *testing.T) {
 							{
 								SegmentType:        VariableSegmentType,
 								VariableKind:       ContextVariableKind,
-								VariableValueType:  jsonparser.Number,
 								VariableSourcePath: []string{"var"},
 								Renderer:           NewPlainVariableRenderer(),
 							},
@@ -141,7 +136,6 @@ func TestSubscriptionFilter(t *testing.T) {
 								SegmentType:        VariableSegmentType,
 								VariableKind:       ContextVariableKind,
 								VariableSourcePath: []string{"var"},
-								VariableValueType:  jsonparser.String,
 								Renderer:           NewPlainVariableRenderer(),
 							},
 						},
@@ -177,7 +171,6 @@ func TestSubscriptionFilter(t *testing.T) {
 							{
 								SegmentType:        VariableSegmentType,
 								VariableKind:       ContextVariableKind,
-								VariableValueType:  jsonparser.Number,
 								VariableSourcePath: []string{"var"},
 								Renderer:           NewPlainVariableRenderer(),
 							},
@@ -206,7 +199,6 @@ func TestSubscriptionFilter(t *testing.T) {
 								SegmentType:        VariableSegmentType,
 								VariableKind:       ContextVariableKind,
 								VariableSourcePath: []string{"var"},
-								VariableValueType:  jsonparser.String,
 								Renderer:           NewPlainVariableRenderer(),
 							},
 						},
@@ -242,7 +234,6 @@ func TestSubscriptionFilter(t *testing.T) {
 							{
 								SegmentType:        VariableSegmentType,
 								VariableKind:       ContextVariableKind,
-								VariableValueType:  jsonparser.String,
 								VariableSourcePath: []string{"var"},
 								Renderer:           NewPlainVariableRenderer(),
 							},
@@ -270,7 +261,6 @@ func TestSubscriptionFilter(t *testing.T) {
 							{
 								SegmentType:        VariableSegmentType,
 								VariableKind:       ContextVariableKind,
-								VariableValueType:  jsonparser.Number,
 								VariableSourcePath: []string{"var"},
 								Renderer:           NewPlainVariableRenderer(),
 							},
@@ -298,7 +288,6 @@ func TestSubscriptionFilter(t *testing.T) {
 							{
 								SegmentType:        VariableSegmentType,
 								VariableKind:       ContextVariableKind,
-								VariableValueType:  jsonparser.Boolean,
 								VariableSourcePath: []string{"var"},
 								Renderer:           NewPlainVariableRenderer(),
 							},
@@ -326,7 +315,6 @@ func TestSubscriptionFilter(t *testing.T) {
 							{
 								SegmentType:        VariableSegmentType,
 								VariableKind:       ContextVariableKind,
-								VariableValueType:  jsonparser.Array,
 								VariableSourcePath: []string{"var"},
 								Renderer:           NewPlainVariableRenderer(),
 							},
@@ -354,7 +342,6 @@ func TestSubscriptionFilter(t *testing.T) {
 							{
 								SegmentType:        VariableSegmentType,
 								VariableKind:       ContextVariableKind,
-								VariableValueType:  jsonparser.Array,
 								VariableSourcePath: []string{"var"},
 								Renderer:           NewPlainVariableRenderer(),
 							},
@@ -382,7 +369,6 @@ func TestSubscriptionFilter(t *testing.T) {
 							{
 								SegmentType:        VariableSegmentType,
 								VariableKind:       ContextVariableKind,
-								VariableValueType:  jsonparser.Array,
 								VariableSourcePath: []string{"var"},
 								Renderer:           NewPlainVariableRenderer(),
 							},
@@ -411,7 +397,6 @@ func TestSubscriptionFilter(t *testing.T) {
 								{
 									SegmentType:        VariableSegmentType,
 									VariableKind:       ContextVariableKind,
-									VariableValueType:  jsonparser.String,
 									VariableSourcePath: []string{"var"},
 									Renderer:           NewPlainVariableRenderer(),
 								},
@@ -441,7 +426,6 @@ func TestSubscriptionFilter(t *testing.T) {
 								{
 									SegmentType:        VariableSegmentType,
 									VariableKind:       ContextVariableKind,
-									VariableValueType:  jsonparser.String,
 									VariableSourcePath: []string{"var"},
 									Renderer:           NewPlainVariableRenderer(),
 								},
@@ -472,7 +456,6 @@ func TestSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        VariableSegmentType,
 										VariableKind:       ContextVariableKind,
-										VariableValueType:  jsonparser.String,
 										VariableSourcePath: []string{"first"},
 										Renderer:           NewPlainVariableRenderer(),
 									},
@@ -490,7 +473,6 @@ func TestSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        VariableSegmentType,
 										VariableKind:       ContextVariableKind,
-										VariableValueType:  jsonparser.String,
 										VariableSourcePath: []string{"second"},
 										Renderer:           NewPlainVariableRenderer(),
 									},
@@ -564,7 +546,6 @@ func TestSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        VariableSegmentType,
 										VariableKind:       ContextVariableKind,
-										VariableValueType:  jsonparser.String,
 										VariableSourcePath: []string{"first"},
 										Renderer:           NewPlainVariableRenderer(),
 									},
@@ -582,7 +563,6 @@ func TestSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        VariableSegmentType,
 										VariableKind:       ContextVariableKind,
-										VariableValueType:  jsonparser.String,
 										VariableSourcePath: []string{"second"},
 										Renderer:           NewPlainVariableRenderer(),
 									},
@@ -614,7 +594,6 @@ func TestSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        VariableSegmentType,
 										VariableKind:       ContextVariableKind,
-										VariableValueType:  jsonparser.String,
 										VariableSourcePath: []string{"first"},
 										Renderer:           NewPlainVariableRenderer(),
 									},
@@ -632,7 +611,6 @@ func TestSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        VariableSegmentType,
 										VariableKind:       ContextVariableKind,
-										VariableValueType:  jsonparser.String,
 										VariableSourcePath: []string{"second"},
 										Renderer:           NewPlainVariableRenderer(),
 									},
@@ -664,7 +642,6 @@ func TestSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        VariableSegmentType,
 										VariableKind:       ContextVariableKind,
-										VariableValueType:  jsonparser.String,
 										VariableSourcePath: []string{"first"},
 										Renderer:           NewPlainVariableRenderer(),
 									},
@@ -682,7 +659,6 @@ func TestSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        VariableSegmentType,
 										VariableKind:       ContextVariableKind,
-										VariableValueType:  jsonparser.String,
 										VariableSourcePath: []string{"second"},
 										Renderer:           NewPlainVariableRenderer(),
 									},
@@ -714,7 +690,6 @@ func TestSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        VariableSegmentType,
 										VariableKind:       ContextVariableKind,
-										VariableValueType:  jsonparser.String,
 										VariableSourcePath: []string{"first"},
 										Renderer:           NewPlainVariableRenderer(),
 									},
@@ -732,7 +707,6 @@ func TestSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        VariableSegmentType,
 										VariableKind:       ContextVariableKind,
-										VariableValueType:  jsonparser.NotExist,
 										VariableSourcePath: []string{"second"},
 										Renderer:           NewPlainVariableRenderer(),
 									},
@@ -764,7 +738,6 @@ func TestSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        VariableSegmentType,
 										VariableKind:       ContextVariableKind,
-										VariableValueType:  jsonparser.NotExist,
 										VariableSourcePath: []string{"first"},
 										Renderer:           NewPlainVariableRenderer(),
 									},
@@ -782,7 +755,6 @@ func TestSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        VariableSegmentType,
 										VariableKind:       ContextVariableKind,
-										VariableValueType:  jsonparser.String,
 										VariableSourcePath: []string{"second"},
 										Renderer:           NewPlainVariableRenderer(),
 									},
@@ -814,7 +786,6 @@ func TestSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        VariableSegmentType,
 										VariableKind:       ContextVariableKind,
-										VariableValueType:  jsonparser.NotExist,
 										VariableSourcePath: []string{"first"},
 										Renderer:           NewPlainVariableRenderer(),
 									},
@@ -832,7 +803,6 @@ func TestSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        VariableSegmentType,
 										VariableKind:       ContextVariableKind,
-										VariableValueType:  jsonparser.String,
 										VariableSourcePath: []string{"second"},
 										Renderer:           NewPlainVariableRenderer(),
 									},
@@ -865,7 +835,6 @@ func TestSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        VariableSegmentType,
 										VariableKind:       ContextVariableKind,
-										VariableValueType:  jsonparser.NotExist,
 										VariableSourcePath: []string{"first"},
 										Renderer:           NewPlainVariableRenderer(),
 									},
@@ -883,14 +852,12 @@ func TestSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        VariableSegmentType,
 										VariableKind:       ContextVariableKind,
-										VariableValueType:  jsonparser.String,
 										VariableSourcePath: []string{"second"},
 										Renderer:           NewPlainVariableRenderer(),
 									},
 									{
 										SegmentType:        VariableSegmentType,
 										VariableKind:       ContextVariableKind,
-										VariableValueType:  jsonparser.String,
 										VariableSourcePath: []string{"fourth"},
 										Renderer:           NewPlainVariableRenderer(),
 									},
