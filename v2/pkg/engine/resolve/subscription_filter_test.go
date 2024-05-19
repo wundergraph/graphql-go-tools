@@ -823,7 +823,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.Equal(t, false, skip)
 	})
 
-	t.Run("or: multiple predicates with multiple is true and will always be compared byte-to-byte", func(t *testing.T) {
+	t.Run("or: multiple segments with multiple is true and will always be compared byte-to-byte", func(t *testing.T) {
 		filter := &SubscriptionFilter{
 			Or: []SubscriptionFilter{
 				{
