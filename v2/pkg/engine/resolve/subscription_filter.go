@@ -100,7 +100,7 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		if !bytes.Contains(actualRawBytes, literal.LBRACK) || !bytes.Contains(actualRawBytes, literal.RBRACK) {
 			// We only try to compare the types if a variable segment is used otherwise we just compare the bytes
 			// This requires that not more than one segment is used, because the use of multiple segments
-			// always result in a byte by byte comparison
+			// always result in a string and where byte by byte comparison is needed
 			if len(f.Values[i].Segments) == 1 && f.Values[i].Segments[0].SegmentType == VariableSegmentType {
 				_, valueType, _, err := jsonparser.Get(ctx.Variables, f.Values[i].Segments[0].VariableSourcePath...)
 				if err != nil {
