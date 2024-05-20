@@ -4870,7 +4870,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		resolver := newResolver(c)
 
 		ctx := &Context{
-			Variables: []byte(`{"ids":[2,3]}`),
+			Variables: []byte(`{"ids":["2","3"]}`),
 		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
