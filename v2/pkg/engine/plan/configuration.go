@@ -104,12 +104,12 @@ type SubscriptionFilterCondition struct {
 	And []SubscriptionFilterCondition
 	Or  []SubscriptionFilterCondition
 	Not *SubscriptionFilterCondition
-	In  *SubscriptionFieldCondition
+	In  *SubscriptionFilterInCondition
 }
 
-type SubscriptionFieldCondition struct {
+type SubscriptionFilterInCondition struct {
 	FieldPath []string
-	Values    []string
+	Values    [][]byte
 }
 
 type ArgumentsConfigurations []ArgumentConfiguration

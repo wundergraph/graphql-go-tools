@@ -171,7 +171,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 						},
 					},
 					SubscriptionFilterCondition: &SubscriptionFilterCondition{
-						In: &SubscriptionFieldCondition{
+						In: &SubscriptionFilterInCondition{
 							FieldPath: []string{"id"},
 							Values:    []string{"{{ args.id }}"},
 						},
@@ -252,7 +252,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 						},
 					},
 					SubscriptionFilterCondition: &SubscriptionFilterCondition{
-						In: &SubscriptionFieldCondition{
+						In: &SubscriptionFilterInCondition{
 							FieldPath: []string{"input", "one"},
 							Values:    []string{"{{ args.input.one }}"},
 						},
@@ -316,7 +316,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 						},
 					},
 					SubscriptionFilterCondition: &SubscriptionFilterCondition{
-						In: &SubscriptionFieldCondition{
+						In: &SubscriptionFilterInCondition{
 							FieldPath: []string{"id"},
 							Values:    []string{"{{ args.a }}.{{ args.b }}"},
 						},
@@ -401,7 +401,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 						},
 					},
 					SubscriptionFilterCondition: &SubscriptionFilterCondition{
-						In: &SubscriptionFieldCondition{
+						In: &SubscriptionFilterInCondition{
 							FieldPath: []string{"id"},
 							Values:    []string{"prefix.{{ args.id }}"},
 						},
@@ -486,7 +486,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 						},
 					},
 					SubscriptionFilterCondition: &SubscriptionFilterCondition{
-						In: &SubscriptionFieldCondition{
+						In: &SubscriptionFilterInCondition{
 							FieldPath: []string{"id"},
 							Values:    []string{"{{ args.id }}.suffix"},
 						},
@@ -575,7 +575,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 						},
 					},
 					SubscriptionFilterCondition: &SubscriptionFilterCondition{
-						In: &SubscriptionFieldCondition{
+						In: &SubscriptionFilterInCondition{
 							FieldPath: []string{"id"},
 							Values:    []string{"prefix.{{ args.id }}.suffix"},
 						},
@@ -679,13 +679,13 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					SubscriptionFilterCondition: &SubscriptionFilterCondition{
 						And: []SubscriptionFilterCondition{
 							{
-								In: &SubscriptionFieldCondition{
+								In: &SubscriptionFilterInCondition{
 									FieldPath: []string{"input", "one"},
 									Values:    []string{"{{ args.input.one }}"},
 								},
 							},
 							{
-								In: &SubscriptionFieldCondition{
+								In: &SubscriptionFilterInCondition{
 									FieldPath: []string{"input", "two"},
 									Values:    []string{"{{ args.input.two }}"},
 								},
@@ -796,13 +796,13 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					SubscriptionFilterCondition: &SubscriptionFilterCondition{
 						Or: []SubscriptionFilterCondition{
 							{
-								In: &SubscriptionFieldCondition{
+								In: &SubscriptionFilterInCondition{
 									FieldPath: []string{"one"},
 									Values:    []string{"{{ args.one }}"},
 								},
 							},
 							{
-								In: &SubscriptionFieldCondition{
+								In: &SubscriptionFilterInCondition{
 									FieldPath: []string{"two"},
 									Values:    []string{"{{ args.two }}"},
 								},
@@ -916,13 +916,13 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 						Not: &SubscriptionFilterCondition{
 							Or: []SubscriptionFilterCondition{
 								{
-									In: &SubscriptionFieldCondition{
+									In: &SubscriptionFilterInCondition{
 										FieldPath: []string{"one"},
 										Values:    []string{"{{ args.one }}"},
 									},
 								},
 								{
-									In: &SubscriptionFieldCondition{
+									In: &SubscriptionFilterInCondition{
 										FieldPath: []string{"two"},
 										Values:    []string{"{{ args.two }}"},
 									},
@@ -1005,7 +1005,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 						},
 					},
 					SubscriptionFilterCondition: &SubscriptionFilterCondition{
-						In: &SubscriptionFieldCondition{
+						In: &SubscriptionFilterInCondition{
 							FieldPath: []string{"id"},
 							Values:    []string{"{{ args.ids }}"},
 						},

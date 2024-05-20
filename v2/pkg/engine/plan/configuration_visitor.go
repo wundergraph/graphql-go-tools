@@ -876,26 +876,27 @@ var (
 	subscriptionFieldFilterRegex = regexp.MustCompile(`{{\s*args((?:\.[a-zA-Z0-9_]+)+)\s*}}`)
 )
 
-func (c *configurationVisitor) buildSubscriptionFieldFilter(condition *SubscriptionFieldCondition) *resolve.SubscriptionFieldFilter {
+func (c *configurationVisitor) buildSubscriptionFieldFilter(condition *SubscriptionFilterInCondition) *resolve.SubscriptionFieldFilter {
 	filter := &resolve.SubscriptionFieldFilter{}
 	filter.FieldPath = condition.FieldPath
 	filter.Values = make([]resolve.InputTemplate, len(condition.Values))
 	for i, value := range condition.Values {
-		matches := subscriptionFieldFilterRegex.FindAllStringSubmatchIndex(value, -1)
+		stringValue := string(value)
+		matches := subscriptionFieldFilterRegex.FindAllStringSubmatchIndex(stringValue, -1)
 		if len(matches) == 0 {
 			filter.Values[i].Segments = []resolve.TemplateSegment{
 				{
 					SegmentType: resolve.StaticSegmentType,
-					Data:        []byte(value),
+					Data:        value,
 				},
 			}
 			continue
 		}
 		if len(matches) == 1 && len(matches[0]) == 4 {
-			prefix := value[:matches[0][0]]
+			prefix := stringValue[:matches[0][0]]
 			hasPrefix := len(prefix) > 0
 			// the path begins with ".", so ignore the first empty string element with trailing [1:]
-			argumentPath := strings.Split(value[matches[0][2]:matches[0][3]][1:], ".")
+			argumentPath := strings.Split(stringValue[matches[0][2]:matches[0][3]][1:], ".")
 			argumentName := argumentPath[0]
 			argumentRef, ok := c.operation.FieldArgument(c.fieldRef, []byte(argumentName))
 			if !ok {
@@ -910,7 +911,7 @@ func (c *configurationVisitor) buildSubscriptionFieldFilter(condition *Subscript
 			variableName := c.operation.VariableValueNameString(argumentValue.Ref)
 			// the variable path should be the variable name, e.g., "a", and then the 2nd element from the path onwards
 			variablePath := append([]string{variableName}, argumentPath[1:]...)
-			suffix := value[matches[0][1]:]
+			suffix := stringValue[matches[0][1]:]
 			hasSuffix := len(suffix) > 0
 			size := 1
 			if hasPrefix {
