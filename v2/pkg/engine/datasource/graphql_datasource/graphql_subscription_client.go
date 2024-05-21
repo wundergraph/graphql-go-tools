@@ -30,10 +30,23 @@ type subscriptionClient struct {
 	hashPool                   sync.Pool
 	handlers                   map[uint64]ConnectionHandler
 	handlersMu                 sync.Mutex
-	wsSubProtocol              string
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
 
 	readTimeout time.Duration
+}
+
+type InvalidWsSubprotocolError struct {
+	InvalidProtocol string
+}
+
+func (e InvalidWsSubprotocolError) Error() string {
+	return fmt.Sprintf("provided websocket subprotocol '%s' is not supported. The supported subprotocols are graphql-ws and graphql-transport-ws. Please configure your subsciptions with the mentioned subprotocols", e.InvalidProtocol)
+}
+
+func NewInvalidWsSubprotocolError(invalidProtocol string) InvalidWsSubprotocolError {
+	return InvalidWsSubprotocolError{
+		InvalidProtocol: invalidProtocol,
+	}
 }
 
 type Options func(options *opts)
@@ -50,12 +63,6 @@ func WithReadTimeout(timeout time.Duration) Options {
 	}
 }
 
-func WithWSSubProtocol(protocol string) Options {
-	return func(options *opts) {
-		options.wsSubProtocol = protocol
-	}
-}
-
 func WithOnWsConnectionInitCallback(callback *OnWsConnectionInitCallback) Options {
 	return func(options *opts) {
 		options.onWsConnectionInitCallback = callback
@@ -65,7 +72,6 @@ func WithOnWsConnectionInitCallback(callback *OnWsConnectionInitCallback) Option
 type opts struct {
 	readTimeout                time.Duration
 	log                        abstractlogger.Logger
-	wsSubProtocol              string
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
 }
 
@@ -106,7 +112,6 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 				return xxhash.New()
 			},
 		},
-		wsSubProtocol:              op.wsSubProtocol,
 		onWsConnectionInitCallback: op.onWsConnectionInitCallback,
 	}
 }
@@ -288,8 +293,8 @@ func (c *subscriptionClient) requestHash(ctx *resolve.Context, options GraphQLSu
 
 func (c *subscriptionClient) newWSConnectionHandler(reqCtx context.Context, options GraphQLSubscriptionOptions) (ConnectionHandler, error) {
 	subProtocols := []string{ProtocolGraphQLWS, ProtocolGraphQLTWS}
-	if c.wsSubProtocol != "" {
-		subProtocols = []string{c.wsSubProtocol}
+	if options.WsSubProtocol != "" && options.WsSubProtocol != "auto" {
+		subProtocols = []string{options.WsSubProtocol}
 	}
 
 	conn, upgradeResponse, err := websocket.Dial(reqCtx, options.URL, &websocket.DialOptions{
@@ -333,21 +338,25 @@ func (c *subscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 		return nil, err
 	}
 
-	if c.wsSubProtocol == "" {
-		c.wsSubProtocol = conn.Subprotocol()
+	wsSubProtocol := subProtocols[0]
+	if options.WsSubProtocol == "" || options.WsSubProtocol == "auto" {
+		wsSubProtocol = conn.Subprotocol()
+		if wsSubProtocol == "" {
+			wsSubProtocol = ProtocolGraphQLWS
+		}
 	}
 
 	if err := waitForAck(reqCtx, conn); err != nil {
 		return nil, err
 	}
 
-	switch c.wsSubProtocol {
+	switch wsSubProtocol {
 	case ProtocolGraphQLWS:
 		return newGQLWSConnectionHandler(c.engineCtx, conn, c.readTimeout, c.log), nil
 	case ProtocolGraphQLTWS:
 		return newGQLTWSConnectionHandler(c.engineCtx, conn, c.readTimeout, c.log), nil
 	default:
-		return nil, fmt.Errorf("unknown protocol %s", conn.Subprotocol())
+		return nil, NewInvalidWsSubprotocolError(wsSubProtocol)
 	}
 }
 

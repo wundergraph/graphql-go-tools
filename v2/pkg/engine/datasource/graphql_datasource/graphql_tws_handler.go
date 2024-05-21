@@ -83,6 +83,11 @@ func (h *gqlTWSConnectionHandler) StartBlocking(sub Subscription) {
 			case messageTypeError:
 				h.handleMessageTypeError(data)
 				continue
+			case messageTypeConnectionKeepAlive:
+				continue
+			case messageTypeData, messageTypeConnectionError:
+				h.log.Error("Invalid subprotocol. The subprotocol should be set to graphql-transport-ws, but currently it is set to graphql-ws")
+				return
 			default:
 				h.log.Error("unknown message type", log.String("type", messageType))
 				continue
