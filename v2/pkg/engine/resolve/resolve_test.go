@@ -4503,7 +4503,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 
 	*/
 
-	t.Run("matching entity should be filtered", func(t *testing.T) {
+	t.Run("matching entity should be included", func(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -4590,9 +4590,11 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
 		assert.NoError(t, err)
 		out.AwaitComplete(t, defaultTimeout)
-		assert.Equal(t, 1, len(out.Messages()))
+		assert.Equal(t, 3, len(out.Messages()))
 		assert.ElementsMatch(t, []string{
-			`{"data":{"oneUserByID":{"id":2}}}`,
+			`{"data":{"oneUserByID":{"id":1}}}`,
+			`{"data":{"oneUserByID":{"id":1}}}`,
+			`{"data":{"oneUserByID":{"id":1}}}`,
 		}, out.Messages())
 	})
 
@@ -4683,15 +4685,13 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
 		assert.NoError(t, err)
 		out.AwaitComplete(t, defaultTimeout)
-		assert.Equal(t, 3, len(out.Messages()))
+		assert.Equal(t, 1, len(out.Messages()))
 		assert.ElementsMatch(t, []string{
-			`{"data":{"oneUserByID":{"id":1}}}`,
-			`{"data":{"oneUserByID":{"id":1}}}`,
-			`{"data":{"oneUserByID":{"id":1}}}`,
+			`{"data":{"oneUserByID":{"id":2}}}`,
 		}, out.Messages())
 	})
 
-	t.Run("matching array values should be filtered", func(t *testing.T) {
+	t.Run("matching array values should be included", func(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -4780,12 +4780,12 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		out.AwaitComplete(t, defaultTimeout)
 		assert.Equal(t, 2, len(out.Messages()))
 		assert.ElementsMatch(t, []string{
-			`{"data":{"oneUserByID":{"id":3}}}`,
-			`{"data":{"oneUserByID":{"id":4}}}`,
+			`{"data":{"oneUserByID":{"id":1}}}`,
+			`{"data":{"oneUserByID":{"id":2}}}`,
 		}, out.Messages())
 	})
 
-	t.Run("matching array values with prefix should be filtered", func(t *testing.T) {
+	t.Run("matching array values with prefix should be included", func(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -4870,7 +4870,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		resolver := newResolver(c)
 
 		ctx := &Context{
-			Variables: []byte(`{"ids":[2,3]}`),
+			Variables: []byte(`{"ids":["2","3"]}`),
 		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
@@ -4878,8 +4878,8 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		out.AwaitComplete(t, defaultTimeout)
 		assert.Equal(t, 2, len(out.Messages()))
 		assert.ElementsMatch(t, []string{
-			`{"data":{"oneUserByID":{"id":"x.1"}}}`,
-			`{"data":{"oneUserByID":{"id":"x.4"}}}`,
+			`{"data":{"oneUserByID":{"id":"x.2"}}}`,
+			`{"data":{"oneUserByID":{"id":"x.3"}}}`,
 		}, out.Messages())
 	})
 

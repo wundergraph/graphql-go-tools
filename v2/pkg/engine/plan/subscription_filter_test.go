@@ -75,6 +75,14 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 
 			type Subscription {
 				heroByID(id: ID!): Hero
+				heroByIDInput(input: Input!): Hero
+				heroByIDMultipleArgs(one: Int!, two: Float!): Hero
+				heroByIDs(ids: [ID!]!): Hero
+			}
+			
+			input Input {
+				one: Int!
+				two: Boolean!
 			}
 
 			type Hero {
@@ -86,10 +94,13 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 	dsConfig := dsb().Schema(schema).
 		RootNode("Query", "heroByID").
 		RootNode("Subscription", "heroByID").
+		RootNode("Subscription", "heroByIDs").
+		RootNode("Subscription", "heroByIDInput").
+		RootNode("Subscription", "heroByIDMultipleArgs").
 		ChildNode("Hero", "id", "name").
 		DS()
 
-	t.Run("subscription with in field filter", test(
+	t.Run("subscription with IN field filter", test(
 		schema, `
 				subscription { heroByID(id: "1") { id name } }
 			`, "",
@@ -107,7 +118,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        resolve.VariableSegmentType,
 										VariableKind:       resolve.ContextVariableKind,
-										VariableSourcePath: []string{"id"},
+										VariableSourcePath: []string{"a"},
 										Renderer:           resolve.NewPlainVariableRenderer(),
 									},
 								},
@@ -170,9 +181,9 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 	))
 
-	t.Run("subscription with nested in field filter", test(
+	t.Run("subscription with nested IN field filter", test(
 		schema, `
-				subscription { heroByID(id: "1") { id name } }
+				subscription { heroByIDInput(input: { one: 1, two: true }) { id name } }
 			`, "",
 		&SubscriptionResponsePlan{
 			Response: &resolve.GraphQLSubscription{
@@ -181,14 +192,14 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 				},
 				Filter: &resolve.SubscriptionFilter{
 					In: &resolve.SubscriptionFieldFilter{
-						FieldPath: []string{"id"},
+						FieldPath: []string{"input", "one"},
 						Values: []resolve.InputTemplate{
 							{
 								Segments: []resolve.TemplateSegment{
 									{
 										SegmentType:        resolve.VariableSegmentType,
 										VariableKind:       resolve.ContextVariableKind,
-										VariableSourcePath: []string{"input", "id"},
+										VariableSourcePath: []string{"a", "one"},
 										Renderer:           resolve.NewPlainVariableRenderer(),
 									},
 								},
@@ -200,9 +211,9 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
-								Name: []byte("heroByID"),
+								Name: []byte("heroByIDInput"),
 								Value: &resolve.Object{
-									Path:     []string{"heroByID"},
+									Path:     []string{"heroByIDInput"},
 									Nullable: true,
 									Fields: []*resolve.Field{
 										{
@@ -231,19 +242,19 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 			Fields: []FieldConfiguration{
 				{
 					TypeName:  "Subscription",
-					FieldName: "heroByID",
-					Path:      []string{"heroByID"},
+					FieldName: "heroByIDInput",
+					Path:      []string{"heroByIDInput"},
 					Arguments: []ArgumentConfiguration{
 						{
-							Name:       "id",
+							Name:       "input",
 							SourceType: FieldArgumentSource,
-							SourcePath: []string{"id"},
+							SourcePath: []string{"input"},
 						},
 					},
 					SubscriptionFilterCondition: &SubscriptionFilterCondition{
 						In: &SubscriptionFieldCondition{
-							FieldPath: []string{"id"},
-							Values:    []string{"{{ args.input.id }}"},
+							FieldPath: []string{"input", "one"},
+							Values:    []string{"{{ args.input.one }}"},
 						},
 					},
 				},
@@ -251,7 +262,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 	))
 
-	t.Run("subscription with in field invalid filter multiple templates", test(
+	t.Run("subscription with IN field invalid filter multiple templates", test(
 		schema, `
 				subscription { heroByID(id: "1") { id name } }
 			`, "",
@@ -315,7 +326,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 	))
 
-	t.Run("subscription with in field filter with prefix", test(
+	t.Run("subscription with IN field filter with prefix", test(
 		schema, `
 				subscription { heroByID(id: "1") { id name } }
 			`, "",
@@ -337,7 +348,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        resolve.VariableSegmentType,
 										VariableKind:       resolve.ContextVariableKind,
-										VariableSourcePath: []string{"id"},
+										VariableSourcePath: []string{"a"},
 										Renderer:           resolve.NewPlainVariableRenderer(),
 									},
 								},
@@ -400,7 +411,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 	))
 
-	t.Run("subscription with in field filter with suffix", test(
+	t.Run("subscription with IN field filter with suffix", test(
 		schema, `
 				subscription { heroByID(id: "1") { id name } }
 			`, "",
@@ -418,7 +429,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        resolve.VariableSegmentType,
 										VariableKind:       resolve.ContextVariableKind,
-										VariableSourcePath: []string{"id"},
+										VariableSourcePath: []string{"a"},
 										Renderer:           resolve.NewPlainVariableRenderer(),
 									},
 									{
@@ -485,7 +496,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 	))
 
-	t.Run("subscription with in field filter with prefix and suffix", test(
+	t.Run("subscription with IN field filter with prefix and suffix", test(
 		schema, `
 				subscription { heroByID(id: "1") { id name } }
 			`, "",
@@ -507,7 +518,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 									{
 										SegmentType:        resolve.VariableSegmentType,
 										VariableKind:       resolve.ContextVariableKind,
-										VariableSourcePath: []string{"id"},
+										VariableSourcePath: []string{"a"},
 										Renderer:           resolve.NewPlainVariableRenderer(),
 									},
 									{
@@ -574,9 +585,9 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 	))
 
-	t.Run("subscription with and field filter", test(
+	t.Run("subscription with AND field filter", test(
 		schema, `
-				subscription { heroByID(id: "1") { id name } }
+				subscription { heroByIDInput(input: { one: 3, two: false }) { id name } }
 			`, "",
 		&SubscriptionResponsePlan{
 			Response: &resolve.GraphQLSubscription{
@@ -587,14 +598,14 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					And: []resolve.SubscriptionFilter{
 						{
 							In: &resolve.SubscriptionFieldFilter{
-								FieldPath: []string{"a"},
+								FieldPath: []string{"input", "one"},
 								Values: []resolve.InputTemplate{
 									{
 										Segments: []resolve.TemplateSegment{
 											{
 												SegmentType:        resolve.VariableSegmentType,
 												VariableKind:       resolve.ContextVariableKind,
-												VariableSourcePath: []string{"a"},
+												VariableSourcePath: []string{"a", "one"},
 												Renderer:           resolve.NewPlainVariableRenderer(),
 											},
 										},
@@ -604,14 +615,14 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 						},
 						{
 							In: &resolve.SubscriptionFieldFilter{
-								FieldPath: []string{"b"},
+								FieldPath: []string{"input", "two"},
 								Values: []resolve.InputTemplate{
 									{
 										Segments: []resolve.TemplateSegment{
 											{
 												SegmentType:        resolve.VariableSegmentType,
 												VariableKind:       resolve.ContextVariableKind,
-												VariableSourcePath: []string{"b"},
+												VariableSourcePath: []string{"a", "two"},
 												Renderer:           resolve.NewPlainVariableRenderer(),
 											},
 										},
@@ -625,9 +636,9 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
-								Name: []byte("heroByID"),
+								Name: []byte("heroByIDInput"),
 								Value: &resolve.Object{
-									Path:     []string{"heroByID"},
+									Path:     []string{"heroByIDInput"},
 									Nullable: true,
 									Fields: []*resolve.Field{
 										{
@@ -656,27 +667,27 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 			Fields: []FieldConfiguration{
 				{
 					TypeName:  "Subscription",
-					FieldName: "heroByID",
-					Path:      []string{"heroByID"},
+					FieldName: "heroByIDInput",
+					Path:      []string{"heroByIDInput"},
 					Arguments: []ArgumentConfiguration{
 						{
-							Name:       "id",
+							Name:       "input",
 							SourceType: FieldArgumentSource,
-							SourcePath: []string{"id"},
+							SourcePath: []string{"input"},
 						},
 					},
 					SubscriptionFilterCondition: &SubscriptionFilterCondition{
 						And: []SubscriptionFilterCondition{
 							{
 								In: &SubscriptionFieldCondition{
-									FieldPath: []string{"a"},
-									Values:    []string{"{{ args.a }}"},
+									FieldPath: []string{"input", "one"},
+									Values:    []string{"{{ args.input.one }}"},
 								},
 							},
 							{
 								In: &SubscriptionFieldCondition{
-									FieldPath: []string{"b"},
-									Values:    []string{"{{ args.b }}"},
+									FieldPath: []string{"input", "two"},
+									Values:    []string{"{{ args.input.two }}"},
 								},
 							},
 						},
@@ -686,9 +697,9 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 	))
 
-	t.Run("subscription with or field filter", test(
+	t.Run("subscription with OR field filter", test(
 		schema, `
-				subscription { heroByID(id: "1") { id name } }
+				subscription { heroByIDMultipleArgs(one: 10, two: 5.8) { id name } }
 			`, "",
 		&SubscriptionResponsePlan{
 			Response: &resolve.GraphQLSubscription{
@@ -699,7 +710,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					Or: []resolve.SubscriptionFilter{
 						{
 							In: &resolve.SubscriptionFieldFilter{
-								FieldPath: []string{"a"},
+								FieldPath: []string{"one"},
 								Values: []resolve.InputTemplate{
 									{
 										Segments: []resolve.TemplateSegment{
@@ -716,7 +727,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 						},
 						{
 							In: &resolve.SubscriptionFieldFilter{
-								FieldPath: []string{"b"},
+								FieldPath: []string{"two"},
 								Values: []resolve.InputTemplate{
 									{
 										Segments: []resolve.TemplateSegment{
@@ -737,9 +748,9 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
-								Name: []byte("heroByID"),
+								Name: []byte("heroByIDMultipleArgs"),
 								Value: &resolve.Object{
-									Path:     []string{"heroByID"},
+									Path:     []string{"heroByIDMultipleArgs"},
 									Nullable: true,
 									Fields: []*resolve.Field{
 										{
@@ -768,27 +779,32 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 			Fields: []FieldConfiguration{
 				{
 					TypeName:  "Subscription",
-					FieldName: "heroByID",
-					Path:      []string{"heroByID"},
+					FieldName: "heroByIDMultipleArgs",
+					Path:      []string{"heroByIDMultipleArgs"},
 					Arguments: []ArgumentConfiguration{
 						{
-							Name:       "id",
+							Name:       "one",
 							SourceType: FieldArgumentSource,
-							SourcePath: []string{"id"},
+							SourcePath: []string{"one"},
+						},
+						{
+							Name:       "two",
+							SourceType: FieldArgumentSource,
+							SourcePath: []string{"two"},
 						},
 					},
 					SubscriptionFilterCondition: &SubscriptionFilterCondition{
 						Or: []SubscriptionFilterCondition{
 							{
 								In: &SubscriptionFieldCondition{
-									FieldPath: []string{"a"},
-									Values:    []string{"{{ args.a }}"},
+									FieldPath: []string{"one"},
+									Values:    []string{"{{ args.one }}"},
 								},
 							},
 							{
 								In: &SubscriptionFieldCondition{
-									FieldPath: []string{"b"},
-									Values:    []string{"{{ args.b }}"},
+									FieldPath: []string{"two"},
+									Values:    []string{"{{ args.two }}"},
 								},
 							},
 						},
@@ -798,9 +814,9 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 	))
 
-	t.Run("subscription with not or field filter", test(
+	t.Run("subscription with NOT OR field filter", test(
 		schema, `
-				subscription { heroByID(id: "1") { id name } }
+				subscription { heroByIDMultipleArgs(one: 42, two: 3.7) { id name } }
 			`, "",
 		&SubscriptionResponsePlan{
 			Response: &resolve.GraphQLSubscription{
@@ -812,7 +828,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 						Or: []resolve.SubscriptionFilter{
 							{
 								In: &resolve.SubscriptionFieldFilter{
-									FieldPath: []string{"a"},
+									FieldPath: []string{"one"},
 									Values: []resolve.InputTemplate{
 										{
 											Segments: []resolve.TemplateSegment{
@@ -829,7 +845,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 							},
 							{
 								In: &resolve.SubscriptionFieldFilter{
-									FieldPath: []string{"b"},
+									FieldPath: []string{"two"},
 									Values: []resolve.InputTemplate{
 										{
 											Segments: []resolve.TemplateSegment{
@@ -851,9 +867,9 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
-								Name: []byte("heroByID"),
+								Name: []byte("heroByIDMultipleArgs"),
 								Value: &resolve.Object{
-									Path:     []string{"heroByID"},
+									Path:     []string{"heroByIDMultipleArgs"},
 									Nullable: true,
 									Fields: []*resolve.Field{
 										{
@@ -882,13 +898,18 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 			Fields: []FieldConfiguration{
 				{
 					TypeName:  "Subscription",
-					FieldName: "heroByID",
-					Path:      []string{"heroByID"},
+					FieldName: "heroByIDMultipleArgs",
+					Path:      []string{"heroByIDMultipleArgs"},
 					Arguments: []ArgumentConfiguration{
 						{
-							Name:       "id",
+							Name:       "one",
 							SourceType: FieldArgumentSource,
-							SourcePath: []string{"id"},
+							SourcePath: []string{"one"},
+						},
+						{
+							Name:       "two",
+							SourceType: FieldArgumentSource,
+							SourcePath: []string{"two"},
 						},
 					},
 					SubscriptionFilterCondition: &SubscriptionFilterCondition{
@@ -896,17 +917,97 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 							Or: []SubscriptionFilterCondition{
 								{
 									In: &SubscriptionFieldCondition{
-										FieldPath: []string{"a"},
-										Values:    []string{"{{ args.a }}"},
+										FieldPath: []string{"one"},
+										Values:    []string{"{{ args.one }}"},
 									},
 								},
 								{
 									In: &SubscriptionFieldCondition{
-										FieldPath: []string{"b"},
-										Values:    []string{"{{ args.b }}"},
+										FieldPath: []string{"two"},
+										Values:    []string{"{{ args.two }}"},
 									},
 								},
 							},
+						},
+					},
+				},
+			},
+		},
+	))
+	t.Run("subscription with IN condition filter and list argument", test(
+		schema, `
+				subscription { heroByIDs(ids: ["1", "3", "5"]) { id name } }
+			`, "",
+		&SubscriptionResponsePlan{
+			Response: &resolve.GraphQLSubscription{
+				Trigger: resolve.GraphQLSubscriptionTrigger{
+					Input: []byte{},
+				},
+				Filter: &resolve.SubscriptionFilter{
+					In: &resolve.SubscriptionFieldFilter{
+						FieldPath: []string{"id"},
+						Values: []resolve.InputTemplate{
+							{
+								Segments: []resolve.TemplateSegment{
+									{
+										SegmentType:        resolve.VariableSegmentType,
+										VariableKind:       resolve.ContextVariableKind,
+										VariableSourcePath: []string{"a"},
+										Renderer:           resolve.NewPlainVariableRenderer(),
+									},
+								},
+							},
+						},
+					},
+				},
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("heroByIDs"),
+								Value: &resolve.Object{
+									Path:     []string{"heroByIDs"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("id"),
+											Value: &resolve.Scalar{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path: []string{"name"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Configuration{
+			DisableResolveFieldPositions: true,
+			DataSources:                  []DataSource{dsConfig},
+			Fields: []FieldConfiguration{
+				{
+					TypeName:  "Subscription",
+					FieldName: "heroByIDs",
+					Path:      []string{"heroByIDs"},
+					Arguments: []ArgumentConfiguration{
+						{
+							Name:       "ids",
+							SourceType: FieldArgumentSource,
+							SourcePath: []string{"ids"},
+						},
+					},
+					SubscriptionFilterCondition: &SubscriptionFilterCondition{
+						In: &SubscriptionFieldCondition{
+							FieldPath: []string{"id"},
+							Values:    []string{"{{ args.ids }}"},
 						},
 					},
 				},

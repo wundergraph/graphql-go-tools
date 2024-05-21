@@ -305,7 +305,8 @@ func (r *fieldSelectionRewriter) hasTypeOnDataSource(typeName string) bool {
 }
 
 func (r *fieldSelectionRewriter) hasFieldOnDataSource(typeName string, fieldName string) bool {
-	return r.dsConfiguration.HasRootNode(typeName, fieldName) ||
+	return fieldName == typeNameField ||
+		r.dsConfiguration.HasRootNode(typeName, fieldName) ||
 		r.dsConfiguration.HasChildNode(typeName, fieldName)
 }
 

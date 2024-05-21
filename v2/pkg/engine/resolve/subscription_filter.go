@@ -32,12 +32,13 @@ func (f *SubscriptionFilter) SkipEvent(ctx *Context, data []byte, buf *bytes.Buf
 			if err != nil {
 				return false, err
 			}
-			// if any one of the AND predicates are false, immediately return false
-			if !skip {
-				return false, nil
+			/* Skip will be true if any AND predicate is false, so immediately return true
+			 * because all AND predicates must be true for the event to be included */
+			if skip {
+				return true, nil
 			}
 		}
-		return true, nil
+		return false, nil
 	}
 
 	if f.Or != nil {
@@ -46,12 +47,13 @@ func (f *SubscriptionFilter) SkipEvent(ctx *Context, data []byte, buf *bytes.Buf
 			if err != nil {
 				return false, err
 			}
-			// if any one of the OR predicates are true, immediately return true
-			if skip {
-				return true, nil
+			/* Skip will be false if any OR predicate is true, so immediately return false
+			 * because only a single OR predicate must be true for the event to be included */
+			if !skip {
+				return false, nil
 			}
 		}
-		return false, nil
+		return true, nil
 	}
 
 	if f.Not != nil {
@@ -82,7 +84,7 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		return false, nil
 	}
 
-	expected, _, _, _err := jsonparser.Get(data, f.FieldPath...)
+	expected, expectedDataType, _, _err := jsonparser.Get(data, f.FieldPath...)
 	if _err != nil {
 		return true, nil
 	}
@@ -93,11 +95,24 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		if err != nil {
 			return false, err
 		}
-		actual := buf.Bytes()
+		actualRawBytes := buf.Bytes()
 		// cheap pre-check to see if we can skip the more expensive array check
-		if !bytes.Contains(actual, literal.LBRACK) || !bytes.Contains(actual, literal.RBRACK) {
-			if bytes.Equal(expected, buf.Bytes()) {
-				return true, nil
+		if !bytes.Contains(actualRawBytes, literal.LBRACK) || !bytes.Contains(actualRawBytes, literal.RBRACK) {
+			// We only try to compare the types if a variable segment is used otherwise we just compare the bytes
+			// This requires that not more than one segment is used, because the use of multiple segments
+			// always result in a string and where byte by byte comparison is needed
+			if len(f.Values[i].Segments) == 1 && f.Values[i].Segments[0].SegmentType == VariableSegmentType {
+				_, valueType, _, err := jsonparser.Get(ctx.Variables, f.Values[i].Segments[0].VariableSourcePath...)
+				if err != nil {
+					return true, nil
+				}
+				if valueType != jsonparser.NotExist && expectedDataType != valueType {
+					return true, nil
+				}
+			}
+
+			if bytes.Equal(expected, actualRawBytes) {
+				return false, nil
 			}
 		}
 		// check if the actual value contains an array, e.g. [1, 2, 3] or ["a", "b", "c"]
@@ -106,10 +121,10 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		// so we need to check for that as well
 		// start with a regex to find all array values
 		// then check if the actual value contains the expected value
-		matches := findArray.FindAllSubmatch(actual, -1)
+		matches := findArray.FindAllSubmatch(actualRawBytes, -1)
 		if matches == nil {
-			if bytes.Equal(expected, buf.Bytes()) {
-				return true, nil
+			if bytes.Equal(expected, actualRawBytes) {
+				return false, nil
 			}
 			continue
 		}
@@ -119,15 +134,19 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		arrayValue := matches[0][0]
 		arrayMatch := false
 		_, _ = jsonparser.ArrayEach(arrayValue, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-			replaced := bytes.Replace(actual, matches[0][0], value, 1)
+			// type must match
+			if expectedDataType != dataType {
+				return
+			}
+			replaced := bytes.Replace(actualRawBytes, matches[0][0], value, 1)
 			if bytes.Equal(expected, replaced) {
 				arrayMatch = true
 			}
 		})
 		if arrayMatch {
-			return true, nil
+			return false, nil
 		}
 	}
 
-	return false, nil
+	return true, nil
 }
