@@ -163,6 +163,10 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) {
 	dsFilter := NewDataSourceFilter(operation, definition, report)
 
+	if p.config.Debug.EnableNodeSuggestionsSelectionReasons {
+		dsFilter.EnableSelectionReasons()
+	}
+
 	if p.config.Debug.PrintOperationTransformations {
 		p.debugMessage("Initial operation:")
 		p.printOperation(operation)
