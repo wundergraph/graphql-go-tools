@@ -37,12 +37,12 @@ type configurationVisitor struct {
 	missingPathTracker map[string]missingPath // missingPathTracker is a map of paths which will be added on secondary runs
 	addedPathTracker   []pathConfiguration    // addedPathTracker is a list of paths which were added
 
-	pendingRequiredFields        map[int]selectionSetPendingRequirements // pendingRequiredFields is a map[selectionSetRef][]fieldsRequirementConfig
-	visitedFieldsRequiresChecks  map[int]struct{}                        // visitedFieldsRequiresChecks is a map[FieldRef] of already processed fields which we check for @requires directive
-	visitedFieldsAbstractChecks  map[int]struct{}                        // visitedFieldsAbstractChecks is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
-	fieldDependenciesForPlanners map[int][]int                           // fieldDependenciesForPlanners is a map[FieldRef][]plannerIdx holds list of planner ids which depends on a field ref. Used for @key dependencies
-	fieldsPlannedOn              map[int][]int                           // fieldsPlannedOn is a map[fieldRef][]plannerIdx holds list of planner ids which planned a field ref
-	fieldWaitingForDependency    map[int][]int                           // fieldWaitingForDependency is a map[fieldRef][]fieldRef holds list of field refs which are waiting for a dependency to be planned. Used for @requires directive dependencies
+	pendingRequiredFields             map[int]selectionSetPendingRequirements // pendingRequiredFields is a map[selectionSetRef][]fieldsRequirementConfig
+	fieldsWithProcessedRequires       map[int]struct{}                        // fieldsWithProcessedRequires is a map[FieldRef] of already processed fields which we check for @requires directive
+	visitedFieldsAbstractChecks       map[int]struct{}                        // visitedFieldsAbstractChecks is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
+	fieldDependenciesForPlanners      map[int][]int                           // fieldDependenciesForPlanners is a map[FieldRef][]plannerIdx holds list of planner ids which depends on a field ref. Used for @key dependencies
+	fieldsPlannedOn                   map[int][]int                           // fieldsPlannedOn is a map[fieldRef][]plannerIdx holds list of planner ids which planned a field ref
+	fieldWaitingForRequiresDependency map[int][]int                           // fieldWaitingForRequiresDependency is a map[fieldRef][]fieldRef holds list of field refs which are waiting for a dependency to be planned. Used for @requires directive dependencies
 
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the configurationVisitor not the first time
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
@@ -290,9 +290,9 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 	c.pendingRequiredFields = make(map[int]selectionSetPendingRequirements)
 	c.fieldDependenciesForPlanners = make(map[int][]int)
 	c.fieldsPlannedOn = make(map[int][]int)
-	c.fieldWaitingForDependency = make(map[int][]int)
+	c.fieldWaitingForRequiresDependency = make(map[int][]int)
 
-	c.visitedFieldsRequiresChecks = make(map[int]struct{})
+	c.fieldsWithProcessedRequires = make(map[int]struct{})
 	c.visitedFieldsAbstractChecks = make(map[int]struct{})
 }
 
@@ -482,7 +482,7 @@ func (c *configurationVisitor) recordFieldPlannedOn(fieldRef int, plannerIdx int
 // So we need to notify planner of current fieldRef about dependencie on those other fields
 // we know where fields were planned, because we record planner id of each planned field
 func (c *configurationVisitor) addFieldDependencies(fieldRef int, typeName, fieldName string, currentPlannerIdx int) {
-	fieldRefs, mappingExists := c.fieldWaitingForDependency[fieldRef]
+	fieldRefs, mappingExists := c.fieldWaitingForRequiresDependency[fieldRef]
 	if !mappingExists {
 		return
 	}
@@ -1050,19 +1050,23 @@ func (c *configurationVisitor) isSubscription(root int, path string) bool {
 }
 
 func (c *configurationVisitor) handleFieldRequiredByRequires(fieldRef int, typeName, fieldName, currentPath string) (ok bool) {
-	if _, ok := c.visitedFieldsRequiresChecks[fieldRef]; ok {
-		// if we already visited this field, we should not check it again
+	_, isPlanned := c.fieldsPlannedOn[fieldRef]
+	_, requiresIsProcessed := c.fieldsWithProcessedRequires[fieldRef]
+	_, waitingForDependency := c.fieldWaitingForRequiresDependency[fieldRef]
+
+	if isPlanned || requiresIsProcessed {
 		return true
 	}
-	c.visitedFieldsRequiresChecks[fieldRef] = struct{}{}
 
 	if fieldName == typeNameField {
 		// the __typename field could not have @requires directive
+		c.fieldsWithProcessedRequires[fieldRef] = struct{}{}
 		return true
 	}
 
 	config := c.findSuggestedDataSourceConfiguration(typeName, fieldName, currentPath)
 	if config == nil {
+		c.fieldsWithProcessedRequires[fieldRef] = struct{}{}
 		// if we could not find a datasource for the field
 		// something wrong, and we will not be able to plan a query
 		return false
@@ -1070,6 +1074,7 @@ func (c *configurationVisitor) handleFieldRequiredByRequires(fieldRef int, typeN
 
 	requiresConfiguration, exists := config.RequiredFieldsByRequires(typeName, fieldName)
 	if !exists {
+		c.fieldsWithProcessedRequires[fieldRef] = struct{}{}
 		// we do not have a @requires configuration for the field
 		return true
 	}
@@ -1077,12 +1082,15 @@ func (c *configurationVisitor) handleFieldRequiredByRequires(fieldRef int, typeN
 	currentSelectionSet := c.currentSelectionSet()
 	if c.hasFieldsRequiredByRequires(currentSelectionSet, requiresConfiguration.SelectionSet, typeName, fieldName, currentPath) {
 		// all field from @requires directive are already planned
-		return true
+		if waitingForDependency {
+			return true
+		}
 	}
 
 	// we should plan required fields for the field
 	c.planAddingRequiredFields(-1, -1, fieldRef, requiresConfiguration, true, currentPath)
 	c.hasNewFields = true
+	c.fieldsWithProcessedRequires[fieldRef] = struct{}{}
 	return false
 }
 
@@ -1286,7 +1294,7 @@ func (c *configurationVisitor) addRequiredFieldsToOperation(selectionSetRef int,
 
 	// add mapping for the field deoendencies
 	if requiredFieldsCfg.requestedByFieldRef != -1 {
-		c.fieldWaitingForDependency[requiredFieldsCfg.requestedByFieldRef] = requiredFieldRefs
+		c.fieldWaitingForRequiresDependency[requiredFieldsCfg.requestedByFieldRef] = requiredFieldRefs
 	}
 }
 

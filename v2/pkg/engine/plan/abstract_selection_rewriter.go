@@ -405,10 +405,9 @@ func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo sel
 	}
 
 	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnInterfaces {
-		if !r.hasTypeOnDataSource(inlineFragmentInfo.typeName) {
-			// remove fragments with type not exists in the current datasource
-			continue
-		}
+		// We do not check if interface fragment type not exists in the current datasource
+		// in case of interfaces the only thing which is matter is an interception of implementing types
+		// and parent allowed types
 
 		r.flattenFragmentOnInterface(inlineFragmentInfo.selectionSetInfo, inlineFragmentInfo.typeNamesImplementingInterface, filteredImplementingTypes, selectionRefs, false)
 	}
