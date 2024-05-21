@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"regexp"
 
@@ -99,12 +100,18 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 		// cheap pre-check to see if we can skip the more expensive array check
 		if !bytes.Contains(actualRawBytes, literal.LBRACK) || !bytes.Contains(actualRawBytes, literal.RBRACK) {
 			// We only try to compare the types if a variable segment is used otherwise we just compare the bytes
-			// When more than one segment is used, we will always byte compare the values
+			// When more than one segment is used, we will always byte compare the values because two segments
+			// are concatenated and the type is always a string
 			if len(f.Values[i].Segments) == 1 {
-				valueType := jsonparser.String
+				var valueType jsonparser.ValueType
 
 				if f.Values[i].Segments[0].SegmentType == VariableSegmentType {
 					_, valueType, _, err = jsonparser.Get(ctx.Variables, f.Values[i].Segments[0].VariableSourcePath...)
+					if err != nil {
+						return true, nil
+					}
+				} else if f.Values[i].Segments[0].SegmentType == StaticSegmentType {
+					_, valueType, _, err = jsonparser.Get(f.Values[i].Segments[0].Data)
 					if err != nil {
 						return true, nil
 					}
@@ -113,13 +120,43 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 				if valueType != jsonparser.NotExist && expectedDataType != valueType {
 					return true, nil
 				}
-			}
 
-			// We compare the bytes after the type check was successful
-			// or when we have more than one segment
-			// or when static segments are used which are essentially strings
-			if bytes.Equal(expected, actualRawBytes) {
-				return false, nil
+				// Short circuit if the types are the same we can compare the bytes directly
+				if expectedDataType == valueType {
+					if bytes.Equal(expected, actualRawBytes) {
+						return false, nil
+					}
+				}
+
+				// The event data must be stringified to match against the stringified expected value
+				// This is only necessary when the expected value is a string because all other types
+				// are already the JSON representation of the actual value. Examples:
+				// String: "foo" -> JSON: "\"foo\""
+				// Boolean: true -> JSON: "true"
+				// Number: 42 -> JSON: "42"
+				// Null: null -> JSON: "null"
+				if expectedDataType == jsonparser.String {
+					expected, err = json.Marshal(string(expected))
+					if err != nil {
+						return true, err
+					}
+				}
+
+				if bytes.Equal(expected, actualRawBytes) {
+					return false, nil
+				}
+
+				// Make sure we checked all values
+				continue
+			} else {
+				// If we have more than one segment we always compare the bytes
+				// because the segments are concatenated and the type is always a string
+				if bytes.Equal(expected, actualRawBytes) {
+					return false, nil
+				}
+
+				// Make sure we checked all values
+				continue
 			}
 		}
 		// check if the actual value contains an array, e.g. [1, 2, 3] or ["a", "b", "c"]
