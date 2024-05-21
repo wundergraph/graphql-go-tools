@@ -150,7 +150,6 @@ func (d *graphqlDataSourceGenerator) generateSubscriptionClient(httpClient *http
 			httpClient,
 			definedOptions.streamingClient,
 			nil,
-			graphql_datasource.WithWSSubProtocol(graphql_datasource.ProtocolGraphQLTWS),
 		)
 	default:
 		// for compatibility reasons we fall back to graphql-ws protocol
@@ -158,7 +157,6 @@ func (d *graphqlDataSourceGenerator) generateSubscriptionClient(httpClient *http
 			httpClient,
 			definedOptions.streamingClient,
 			nil,
-			graphql_datasource.WithWSSubProtocol(graphql_datasource.ProtocolGraphQLWS),
 		)
 	}
 
