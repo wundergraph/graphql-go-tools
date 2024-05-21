@@ -503,7 +503,7 @@ func TestSubscriptionFilter(t *testing.T) {
 								Segments: []TemplateSegment{
 									{
 										SegmentType: StaticSegmentType,
-										Data:        []byte("b"),
+										Data:        []byte(`"b"`),
 									},
 								},
 							},
@@ -518,7 +518,7 @@ func TestSubscriptionFilter(t *testing.T) {
 								Segments: []TemplateSegment{
 									{
 										SegmentType: StaticSegmentType,
-										Data:        []byte("c"),
+										Data:        []byte(`"c"`),
 									},
 								},
 							},
@@ -530,6 +530,89 @@ func TestSubscriptionFilter(t *testing.T) {
 		c := &Context{}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
+		skip, err := filter.SkipEvent(c, data, buf)
+		assert.NoError(t, err)
+		assert.Equal(t, false, skip)
+	})
+	t.Run("and: static predicate with bool as segment is true", func(t *testing.T) {
+		filter := &SubscriptionFilter{
+			And: []SubscriptionFilter{
+				{
+					In: &SubscriptionFieldFilter{
+						FieldPath: []string{"eventX"},
+						Values: []InputTemplate{
+							{
+								Segments: []TemplateSegment{
+									{
+										SegmentType: StaticSegmentType,
+										Data:        []byte(`true`),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		c := &Context{}
+		buf := &bytes.Buffer{}
+		data := []byte(`{"eventX":true,"eventY":"c"}`)
+		skip, err := filter.SkipEvent(c, data, buf)
+		assert.NoError(t, err)
+		assert.Equal(t, false, skip)
+	})
+	t.Run("static predicate with static segment type should not skip", func(t *testing.T) {
+		filter := &SubscriptionFilter{
+			And: []SubscriptionFilter{
+				{
+					In: &SubscriptionFieldFilter{
+						FieldPath: []string{"eventX"},
+						Values: []InputTemplate{
+							{
+								Segments: []TemplateSegment{
+									{
+										SegmentType: StaticSegmentType,
+										Data:        []byte(`{{ args.id }}`),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		c := &Context{
+			Variables: []byte(`{"id":1}`),
+		}
+		buf := &bytes.Buffer{}
+		data := []byte(`{"eventX":1,"eventY":"c"}`)
+		skip, err := filter.SkipEvent(c, data, buf)
+		assert.NoError(t, err)
+		assert.Equal(t, true, skip)
+	})
+	t.Run("and: static predicate with NULL as segment is true", func(t *testing.T) {
+		filter := &SubscriptionFilter{
+			And: []SubscriptionFilter{
+				{
+					In: &SubscriptionFieldFilter{
+						FieldPath: []string{"eventX"},
+						Values: []InputTemplate{
+							{
+								Segments: []TemplateSegment{
+									{
+										SegmentType: StaticSegmentType,
+										Data:        []byte(`null`),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		c := &Context{}
+		buf := &bytes.Buffer{}
+		data := []byte(`{"eventX":null,"eventY":"c"}`)
 		skip, err := filter.SkipEvent(c, data, buf)
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)

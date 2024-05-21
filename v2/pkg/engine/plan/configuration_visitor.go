@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 	"slices"
@@ -875,6 +876,11 @@ var (
 	// e.g. {{ args.input.id }} -> input.id
 	subscriptionFieldFilterRegex = regexp.MustCompile(`{{\s*args((?:\.[a-zA-Z0-9_]+)+)\s*}}`)
 )
+
+// ContainsTemplateString checks if the value contains a template string
+func ContainsTemplateString(value []byte) bool {
+	return bytes.Contains(value, []byte("{{"))
+}
 
 func (c *configurationVisitor) buildSubscriptionFieldFilter(condition *SubscriptionFieldCondition) *resolve.SubscriptionFieldFilter {
 	filter := &resolve.SubscriptionFieldFilter{}
