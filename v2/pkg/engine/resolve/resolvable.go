@@ -127,23 +127,9 @@ func (r *Resolvable) Resolve(ctx context.Context, root *Object, out io.Writer) e
 	r.printErr = nil
 	r.authorizationError = nil
 
-	// if we have errors and no data, we only print the errors and set data to null
-	// in this case, we're skipping the walk because it would lead to unnecessary non-null errors
-	if r.hasErrors() && !r.hasData() {
-		r.printBytes(lBrace)
-		r.printErrors()
-		r.printBytes(quote)
-		r.printBytes(literalData)
-		r.printBytes(quote)
-		r.printBytes(colon)
-		r.printBytes(null)
-		if r.hasExtensions() {
-			r.printBytes(comma)
-			r.printErr = r.printExtensions(ctx, root)
-		}
-		r.printBytes(rBrace)
-		return nil
-	}
+	/* @TODO: In the event of an error or failed fetch, propagate only the highest level errors.
+	 * For example, if a fetch fails, only propagate that the fetch has failed; do not propagate nested non-null errors.
+	 */
 
 	err := r.walkObject(root, r.dataRoot)
 	if r.authorizationError != nil {
