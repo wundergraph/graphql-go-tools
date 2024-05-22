@@ -2009,6 +2009,150 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'."},{"message":"Cannot return null for non-nullable field 'Query.name'.","path":["name"]}],"data":null}`
 	}))
+	t.Run("root field with nested non-nullable fields returns null", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: false,
+				Fetch: &SingleFetch{
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"user":{"name":null,"age":1}}`)},
+				},
+				Fields: []*Field{
+					{
+						Name: []byte("user"),
+						Value: &Object{
+							Path:     []string{"user"},
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path:     []string{"name"},
+										Nullable: false,
+									},
+								},
+								{
+									Name: []byte("age"),
+									Value: &Integer{
+										Path:     []string{"age"},
+										Nullable: false,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":{"user":null}}`
+	}))
+	t.Run("multiple root fields with nested non-nullable fields each return null", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: false,
+				Fetch: &SingleFetch{
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"one":{"name":null,"age":1},"two":{"name":"user:","age":null}}`)},
+				},
+				Fields: []*Field{
+					{
+						Name: []byte("one"),
+						Value: &Object{
+							Path:     []string{"one"},
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path:     []string{"name"},
+										Nullable: false,
+									},
+								},
+								{
+									Name: []byte("age"),
+									Value: &Integer{
+										Path:     []string{"age"},
+										Nullable: false,
+									},
+								},
+							},
+						},
+					},
+					{
+						Name: []byte("two"),
+						Value: &Object{
+							Path:     []string{"two"},
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path:     []string{"name"},
+										Nullable: false,
+									},
+								},
+								{
+									Name: []byte("age"),
+									Value: &Integer{
+										Path:     []string{"age"},
+										Nullable: false,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.one.name'.","path":["one","name"]},{"message":"Cannot return null for non-nullable field 'Query.two.age'.","path":["two","age"]}],"data":{"one":null,"two":null}}`
+	}))
+	t.Run("root field with double nested non-nullable field returns partial data", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Data: &Object{
+				Nullable: false,
+				Fetch: &SingleFetch{
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"user":{"nested":{"name":null,"age":1},"age":1}}`)},
+				},
+				Fields: []*Field{
+					{
+						Name: []byte("user"),
+						Value: &Object{
+							Path:     []string{"user"},
+							Nullable: true,
+							Fields: []*Field{
+								{
+									Name: []byte("nested"),
+									Value: &Object{
+										Path:     []string{"nested"},
+										Nullable: true,
+										Fields: []*Field{
+											{
+												Name: []byte("name"),
+												Value: &String{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+											},
+											{
+												Name: []byte("age"),
+												Value: &Integer{
+													Path:     []string{"age"},
+													Nullable: false,
+												},
+											},
+										},
+									},
+								},
+								{
+									Name: []byte("age"),
+									Value: &Integer{
+										Path:     []string{"age"},
+										Nullable: false,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.nested.name'.","path":["user","nested","name"]}],"data":{"user":{"nested":null,"age":1}}}`
+	}))
 	t.Run("fetch with two Errors", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
@@ -2042,7 +2186,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query'.","extensions":{"errors":[{"message":"errorMessage1"},{"message":"errorMessage2"}]}}],"data":{"name":null}}`
 	}))
-	t.Run("not nullable object in nullable field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("non-nullable object in nullable field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
 				Nullable: false,
