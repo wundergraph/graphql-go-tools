@@ -92,9 +92,8 @@ func TestPlanner_Plan(t *testing.T) {
 					{
 						Name: []byte("searchResults"),
 						Value: &resolve.Array{
-							Path:                []string{"searchResults"},
-							Nullable:            true,
-							ResolveAsynchronous: false,
+							Path:     []string{"searchResults"},
+							Nullable: true,
 							Item: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{

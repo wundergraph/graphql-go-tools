@@ -1,28 +1,9 @@
 package resolve
 
 type Array struct {
-	Path                []string
-	Nullable            bool
-	ResolveAsynchronous bool // deprecated: remove
-	Item                Node
-	Items               []Node // deprecated: remove
-}
-
-func (a *Array) HasChildFetches() bool {
-	switch t := a.Item.(type) {
-	case *Object:
-		if t.Fetch != nil {
-			return true
-		}
-		if t.HasChildFetches() {
-			return true
-		}
-	case *Array:
-		if t.HasChildFetches() {
-			return true
-		}
-	}
-	return false
+	Path     []string
+	Nullable bool
+	Item     Node
 }
 
 func (_ *Array) NodeKind() NodeKind {

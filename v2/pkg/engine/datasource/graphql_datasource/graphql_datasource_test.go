@@ -2569,9 +2569,8 @@ func TestGraphQLDataSource(t *testing.T) {
 									{
 										Name: []byte("reviews"),
 										Value: &resolve.Array{
-											Path:                []string{"reviews"},
-											Nullable:            true,
-											ResolveAsynchronous: false,
+											Path:     []string{"reviews"},
+											Nullable: true,
 											Item: &resolve.Object{
 												Nullable: true,
 												Path:     nil,

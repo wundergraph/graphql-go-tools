@@ -272,14 +272,7 @@ func parseNode(n Node, options *getTraceOptions) *TraceNode {
 		node.Fetch = parseFetch(v.Fetch, options)
 
 	case *Array:
-		if v.Item != nil {
-			node.Items = append(node.Items, parseNode(v.Item, options))
-		} else if len(v.Items) > 0 {
-			for _, item := range v.Items {
-				node.Items = append(node.Items, parseNode(item, options))
-			}
-		}
-
+		node.Items = append(node.Items, parseNode(v.Item, options))
 	case *String:
 		node.UnescapeResponseJson = v.UnescapeResponseJson
 		node.IsTypeName = v.IsTypeName
