@@ -407,7 +407,6 @@ func (c *configurationVisitor) EnterField(ref int) {
 	currentPath := parentPath + "." + fieldAliasOrName
 
 	c.addArrayField(ref, currentPath)
-	c.handleProvidesSuggestions(ref, typeName, fieldName, currentPath)
 
 	root := c.walker.Ancestors[0]
 	if root.Kind != ast.NodeKindOperationDefinition {
@@ -431,6 +430,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 
 	if planned {
+		c.handleProvidesSuggestions(plannerIdx, ref, typeName, fieldName, currentPath)
 		c.handleFieldsRequiredByKey(plannerIdx, parentPath, typeName, fieldName)
 		c.recordFieldPlannedOn(ref, plannerIdx)
 		c.addPlannerDependencies(ref, plannerIdx)
@@ -547,35 +547,26 @@ func (c *configurationVisitor) addFieldDependencies(fieldRef int, typeName, fiel
 	}
 }
 
-func (c *configurationVisitor) handleProvidesSuggestions(ref int, typeName, fieldName, currentPath string) {
-	dsHash, ok := c.nodeSuggestions.HasSuggestionForPath(typeName, fieldName, currentPath)
-	if !ok {
+func (c *configurationVisitor) handleProvidesSuggestions(plannerId int, ref int, typeName, fieldName, currentPath string) {
+	_, ok := c.fieldsWithProcessedProvides[ref]
+	if ok {
 		return
 	}
 
-	var providesCfg *FederationFieldConfiguration
-	for _, ds := range c.dataSources {
-		if ds.Hash() != dsHash {
-			continue
-		}
+	dsConfig := c.planners[plannerId].DataSourceConfiguration()
+	federationMetaData := dsConfig.FederationConfiguration()
 
-		found := false
-		for _, provide := range ds.FederationConfiguration().Provides {
-			if provide.TypeName == typeName && provide.FieldName == fieldName {
-				providesCfg = &provide
-				found = true
-				break
-			}
-		}
-		if found {
-			break
-		}
-
-	}
-
-	if providesCfg == nil {
+	providesIdx := slices.IndexFunc(federationMetaData.Provides, func(provide FederationFieldConfiguration) bool {
+		return provide.TypeName == typeName && provide.FieldName == fieldName
+	})
+	if providesIdx == -1 {
+		// we don't have provides config, so we don't want to do a checks again for this field
+		c.fieldsWithProcessedProvides[ref] = struct{}{}
 		return
 	}
+	// NOTE: in case field has provides configuration, we will check it each time we visit the field
+	// because such field could be potentially added by planner due to requires directive
+	providesCfg := federationMetaData.Provides[providesIdx]
 
 	if c.walker.EnclosingTypeDefinition.Kind != ast.NodeKindObjectTypeDefinition {
 		return
@@ -590,26 +581,57 @@ func (c *configurationVisitor) handleProvidesSuggestions(ref int, typeName, fiel
 	key, report := RequiredFieldsFragment(fieldTypeName, providesCfg.SelectionSet, false)
 	if report.HasErrors() {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse provides fields for %s.%s at path %s", typeName, fieldName, currentPath))
+		return
+	}
+
+	selectionSetRef, ok := c.operation.FieldSelectionSet(ref)
+	if !ok {
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to get selection set ref for %s.%s at path %s. Field with provides directive should have a selections", typeName, fieldName, currentPath))
+		return
 	}
 
 	input := &providesInput{
-		key:        key,
-		definition: c.definition,
-		report:     report,
-		parentPath: currentPath,
-		DSHash:     dsHash,
+		providesFieldSet:                  key,
+		operation:                         c.operation,
+		definition:                        c.definition,
+		operationSelectionSet:             selectionSetRef,
+		report:                            report,
+		parentPath:                        currentPath,
+		DSHash:                            dsConfig.Hash(),
+		suggestionSelectionReasonsEnabled: c.suggestionsSelectionReasonsEnabled,
 	}
 	suggestions := providesSuggestions(input)
 	if report.HasErrors() {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to get provides suggestions for %s.%s at path %s", typeName, fieldName, currentPath))
+		return
 	}
 
-	for i := range c.planners {
-		if c.planners[i].DataSourceConfiguration().Hash() == dsHash {
-			c.planners[i].ProvidedFields().AddItems(suggestions...)
-			break
+	for _, suggestion := range suggestions {
+		nodeID := TreeNodeID(suggestion.fieldRef)
+		treeNode, _ := c.nodeSuggestions.responseTree.Find(nodeID)
+
+		nodesIndexes := treeNode.GetData()
+
+		exists := false
+		for _, idx := range nodesIndexes {
+			if c.nodeSuggestions.items[idx].DataSourceHash == dsConfig.Hash() {
+				c.nodeSuggestions.items[idx].selectWithReason(ReasonProvidesProvidedByPlanner, c.suggestionsSelectionReasonsEnabled)
+				exists = true
+			} else {
+				c.nodeSuggestions.items[idx].Selected = false
+				c.nodeSuggestions.items[idx].SelectionReasons = nil
+			}
 		}
+		if exists {
+			continue
+		}
+
+		c.nodeSuggestions.items = append(c.nodeSuggestions.items, suggestion)
+		suggestionIdx := len(c.nodeSuggestions.items) - 1
+		nodesIndexes = append(nodesIndexes, suggestionIdx)
+		treeNode.SetData(nodesIndexes)
 	}
+	c.nodeSuggestions.populateHasSuggestions()
 }
 
 func (c *configurationVisitor) isPlannerDependenciesAllowsToPlanField(fieldRef int, currentPlannerIdx int) bool {
@@ -641,7 +663,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 		planningBehaviour := plannerConfig.DataSourcePlanningBehavior()
 		dsConfiguration := plannerConfig.DataSourceConfiguration()
 		currentPlannerDSHash := dsConfiguration.Hash()
-		_, isProvided := plannerConfig.ProvidedFields().HasSuggestionForPath(typeName, fieldName, currentPath)
+
 		suggestionIdx := slices.IndexFunc(suggestions, func(suggestion *NodeSuggestion) bool {
 			return suggestion.DataSourceHash == currentPlannerDSHash
 		})
@@ -659,9 +681,11 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 			}
 		}
 
-		if !isProvided && !hasSuggestion {
+		if !hasSuggestion {
 			continue
 		}
+		suggestion := suggestions[suggestionIdx]
+		isProvided := suggestion.IsProvided
 
 		hasRootNode := dsConfiguration.HasRootNode(typeName, fieldName)
 		hasChildNode := dsConfiguration.HasChildNode(typeName, fieldName)
@@ -1059,7 +1083,6 @@ func (c *configurationVisitor) handleMissingPath(typeName string, fieldName stri
 			c.addMissingPath(currentPath, parentPath)
 			return
 		}
-
 	}
 
 	c.walker.StopWithInternalErr(errors.Wrap(fmt.Errorf("could not plan field %s.%s on path %s", typeName, fieldName, currentPath), "configurationVisitor.handleMissingPath"))

@@ -206,7 +206,6 @@ func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractl
 		objectFetchConfiguration:  fetchConfig,
 		plannerPathsConfiguration: pathConfig,
 		planner:                   planner,
-		providedFields:            NewNodeSuggestionsWithSize(4),
 	}
 
 	return plannerConfig
@@ -230,7 +229,6 @@ func (d *dataSourceConfiguration[T]) Hash() DSHash {
 
 type DataSourcePlannerConfiguration struct {
 	RequiredFields FederationFieldConfigurations
-	ProvidedFields *NodeSuggestions
 	ParentPath     string
 	PathType       PlannerPathType
 	IsNested       bool

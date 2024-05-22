@@ -15,7 +15,6 @@ type plannerConfiguration[T any] struct {
 	objectFetchConfiguration *objectFetchConfiguration
 
 	requiredFields FederationFieldConfigurations
-	providedFields *NodeSuggestions
 }
 
 type PlannerConfiguration interface {
@@ -26,7 +25,6 @@ type PlannerConfiguration interface {
 	DataSourceConfiguration() DataSource
 
 	RequiredFields() *FederationFieldConfigurations
-	ProvidedFields() *NodeSuggestions
 
 	Debugger() (d DataSourceDebugger, ok bool)
 	Planner() any
@@ -37,7 +35,6 @@ type PlannerConfiguration interface {
 func (p *plannerConfiguration[T]) Register(visitor *Visitor) error {
 	dataSourcePlannerConfig := DataSourcePlannerConfiguration{
 		RequiredFields: p.requiredFields,
-		ProvidedFields: p.providedFields,
 		ParentPath:     p.parentPath,
 		PathType:       p.parentPathType,
 		IsNested:       p.IsNestedPlanner(),
@@ -69,10 +66,6 @@ func (p *plannerConfiguration[T]) DataSourcePlanningBehavior() DataSourcePlannin
 
 func (p *plannerConfiguration[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
 	return p.planner.DownstreamResponseFieldAlias(downstreamFieldRef)
-}
-
-func (p *plannerConfiguration[T]) ProvidedFields() *NodeSuggestions {
-	return p.providedFields
 }
 
 func (p *plannerConfiguration[T]) RequiredFields() *FederationFieldConfigurations {

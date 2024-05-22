@@ -30,10 +30,10 @@ func (f *DataSourceFilter) EnableSelectionReasons() {
 	f.enableSelectionReasons = true
 }
 
-func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingNodes *NodeSuggestions, hints ...NodeSuggestionHint) (used []DataSource, suggestions *NodeSuggestions) {
+func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingNodes *NodeSuggestions, keyHints ...NodeSuggestionHint) (used []DataSource, suggestions *NodeSuggestions) {
 	var dsInUse map[DSHash]struct{}
 
-	suggestions, dsInUse = f.findBestDataSourceSet(dataSources, existingNodes, hints...)
+	suggestions, dsInUse = f.findBestDataSourceSet(dataSources, existingNodes, keyHints...)
 	if f.report.HasErrors() {
 		return
 	}
@@ -49,7 +49,7 @@ func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingN
 	return used, suggestions
 }
 
-func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSource, existingNodes *NodeSuggestions, hints ...NodeSuggestionHint) (*NodeSuggestions, map[DSHash]struct{}) {
+func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSource, existingNodes *NodeSuggestions, keyHints ...NodeSuggestionHint) (*NodeSuggestions, map[DSHash]struct{}) {
 	f.nodes = f.collectNodes(dataSources, existingNodes)
 	if f.report.HasErrors() {
 		return nil, nil
@@ -57,7 +57,7 @@ func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSource, exist
 
 	// f.nodes.printNodes("initial nodes")
 
-	f.applySuggestionHints(hints)
+	f.applySuggestionHints(keyHints)
 	// f.nodes.printNodes("nodes after applying hints")
 
 	f.selectUniqueNodes()
@@ -123,6 +123,7 @@ const (
 	ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource = "stage3: select non leaf node which have possible child selections on the same source"
 
 	ReasonKeyRequirementProvidedByPlanner = "provided by planner as required by @key"
+	ReasonProvidesProvidedByPlanner       = "provided by planner as provided by @provides"
 )
 
 func (f *DataSourceFilter) applySuggestionHints(hints []NodeSuggestionHint) {

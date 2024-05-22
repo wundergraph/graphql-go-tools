@@ -15,6 +15,7 @@ type NodeSuggestion struct {
 	Path           string
 	ParentPath     string
 	IsRootNode     bool
+	IsProvided     bool
 	LessPreferable bool // is true in case the node is an entity root node and has a key with disabled resolver
 
 	parentPathWithoutFragment *string
