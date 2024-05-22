@@ -254,12 +254,6 @@ const (
   query: Query
 }
 
-directive @eventsPublish(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
-
-directive @eventsRequest(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
-
-directive @eventsSubscribe(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
-
 directive @extends on INTERFACE | OBJECT
 
 directive @external on FIELD_DEFINITION | OBJECT
@@ -295,12 +289,6 @@ scalar openfed__FieldSet`
 	productUpstreamSchema = `schema {
   query: Query
 }
-
-directive @eventsPublish(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
-
-directive @eventsRequest(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
-
-directive @eventsSubscribe(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
 
 directive @extends on INTERFACE | OBJECT
 
@@ -342,13 +330,7 @@ scalar openfed__FieldSet`
 			reviews: [Review] 
 		}`
 
-	reviewUpstreamSchema = `directive @eventsPublish(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
-
-directive @eventsRequest(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
-
-directive @eventsSubscribe(sourceName: String! = "default", topic: String!) on FIELD_DEFINITION
-
-directive @extends on INTERFACE | OBJECT
+	reviewUpstreamSchema = `directive @extends on INTERFACE | OBJECT
 
 directive @external on FIELD_DEFINITION | OBJECT
 
