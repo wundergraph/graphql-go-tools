@@ -14,7 +14,7 @@ import (
 func TestDataSourceInput_Process(t *testing.T) {
 	pre := &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
-			Data: &resolve.Object{
+			FetchTree: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					FetchConfiguration: resolve.FetchConfiguration{
 						Input:      `{"method":"POST","url":"http://localhost:4001/$$0$$","body":{"query":"{me {id username __typename}}"}}`,
@@ -159,7 +159,7 @@ func TestDataSourceInput_Process(t *testing.T) {
 
 	expected := &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
-			Data: &resolve.Object{
+			FetchTree: &resolve.Object{
 				Fetch: &resolve.SingleFetch{
 					InputTemplate: resolve.InputTemplate{
 						Segments: []resolve.TemplateSegment{
@@ -343,10 +343,10 @@ func TestDataSourceInput_Process(t *testing.T) {
 	}
 
 	processor := &ResolveInputTemplates{}
-	actual := processor.Process(pre)
+	processor.Process(pre.Response.Data)
 
-	if !assert.Equal(t, expected, actual) {
-		actualBytes, _ := json.MarshalIndent(actual, "", "  ")
+	if !assert.Equal(t, expected, pre) {
+		actualBytes, _ := json.MarshalIndent(pre, "", "  ")
 		expectedBytes, _ := json.MarshalIndent(expected, "", "  ")
 
 		if string(expectedBytes) != string(actualBytes) {

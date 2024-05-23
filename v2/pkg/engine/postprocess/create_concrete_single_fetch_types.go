@@ -1,21 +1,18 @@
 package postprocess
 
 import (
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 // CreateConcreteSingleFetchTypes is a postprocessor that transforms fetches into more concrete fetch types
 type CreateConcreteSingleFetchTypes struct{}
 
-func (d *CreateConcreteSingleFetchTypes) Process(pre plan.Plan) plan.Plan {
-	switch t := pre.(type) {
-	case *plan.SynchronousResponsePlan:
-		d.traverseNode(t.Response.Data)
-	case *plan.SubscriptionResponsePlan:
-		d.traverseNode(t.Response.Response.Data)
-	}
-	return pre
+func (d *CreateConcreteSingleFetchTypes) Process(node resolve.Node) {
+	d.traverseNode(node)
+}
+
+func (d *CreateConcreteSingleFetchTypes) ProcessSubscription(node resolve.Node, trigger *resolve.GraphQLSubscriptionTrigger) {
+	d.traverseNode(node)
 }
 
 func (d *CreateConcreteSingleFetchTypes) traverseNode(node resolve.Node) {

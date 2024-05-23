@@ -1,11 +1,10 @@
 package postprocess
 
 import (
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-type CreateFetchesCopy struct {
+type CreateFetchTree struct {
 	*PlanWalker
 
 	data *resolve.Object
@@ -18,8 +17,8 @@ type CreateFetchesCopy struct {
 	fieldHasFetch map[*resolve.Field]struct{}
 }
 
-func NewFetchesCopier(fieldHasFetch map[*resolve.Field]struct{}) *CreateFetchesCopy {
-	e := &CreateFetchesCopy{
+func NewFetchTreeCreator(fieldHasFetch map[*resolve.Field]struct{}) *CreateFetchTree {
+	e := &CreateFetchTree{
 		PlanWalker:    &PlanWalker{},
 		objectForPath: make(map[string]*resolve.Object),
 		fieldForPath:  make(map[string]*resolve.Field),
@@ -33,48 +32,38 @@ func NewFetchesCopier(fieldHasFetch map[*resolve.Field]struct{}) *CreateFetchesC
 	return e
 }
 
-func (e *CreateFetchesCopy) Process(pre plan.Plan) plan.Plan {
-	switch t := pre.(type) {
-	case *plan.SynchronousResponsePlan:
-		e.Walk(t.Response.Data, t.Response.Info)
+func (e *CreateFetchTree) ExtractFetchTree(res *resolve.GraphQLResponse) *resolve.Object {
+	e.Walk(res.Data, res.Info)
 
-		t.Response.FetchData = e.data
-
-	case *plan.SubscriptionResponsePlan:
-		e.Walk(t.Response.Response.Data, t.Response.Response.Info)
-
-		t.Response.Response.FetchData = e.data
-	}
-	return pre
+	return e.data
 }
 
-func (e *CreateFetchesCopy) EnterArray(array *resolve.Array) {
+func (e *CreateFetchTree) EnterArray(array *resolve.Array) {
 	currentField := e.currentFields[len(e.currentFields)-1]
 
 	switch currentField.Value.(type) {
-	case *resolve.Object:
-		panic("not implemented")
 	case *resolve.Array:
 		// nothing to do
 	case nil:
 		cloned := e.CloneArray(array)
 		currentField.Value = cloned
+	default:
+		panic("should not happen")
 	}
-
 }
 
-func (e *CreateFetchesCopy) CloneArray(a *resolve.Array) *resolve.Array {
+func (e *CreateFetchTree) CloneArray(a *resolve.Array) *resolve.Array {
 	return &resolve.Array{
 		Nullable: a.Nullable,
 		Path:     a.Path,
 	}
 }
 
-func (e *CreateFetchesCopy) LeaveArray(array *resolve.Array) {
+func (e *CreateFetchTree) LeaveArray(_ *resolve.Array) {
 
 }
 
-func (e *CreateFetchesCopy) EnterObject(object *resolve.Object) {
+func (e *CreateFetchTree) EnterObject(object *resolve.Object) {
 	if e.data == nil {
 		e.data = e.CloneObject(object)
 		e.currentObjects = append(e.currentObjects, e.data)
@@ -102,25 +91,22 @@ func (e *CreateFetchesCopy) EnterObject(object *resolve.Object) {
 	e.currentObjects = append(e.currentObjects, objectForPath)
 }
 
-func (e *CreateFetchesCopy) setFieldObject(o *resolve.Object) {
+func (e *CreateFetchTree) setFieldObject(o *resolve.Object) {
 	currentField := e.currentFields[len(e.currentFields)-1]
 
-	if currentField.Value == nil {
-		currentField.Value = o
-		return
-	}
-
 	switch t := currentField.Value.(type) {
+	case nil:
+		currentField.Value = o
 	case *resolve.Object:
-		panic("not implemented")
+		// nothing to do
 	case *resolve.Array:
 		t.Item = o
 	default:
-		panic("not implemented")
+		panic("should not happen")
 	}
 }
 
-func (e *CreateFetchesCopy) appendFetch(existing resolve.Fetch, additional resolve.Fetch) resolve.Fetch {
+func (e *CreateFetchTree) appendFetch(existing resolve.Fetch, additional resolve.Fetch) resolve.Fetch {
 	switch t := existing.(type) {
 	case *resolve.SingleFetch:
 		switch at := additional.(type) {
@@ -141,12 +127,14 @@ func (e *CreateFetchesCopy) appendFetch(existing resolve.Fetch, additional resol
 			t.Fetches = append(t.Fetches, at.Fetches...)
 		}
 		return t
+	default:
+		panic("there should be no other fetch types")
 	}
 
 	return existing
 }
 
-func (e *CreateFetchesCopy) CloneObject(o *resolve.Object) *resolve.Object {
+func (e *CreateFetchTree) CloneObject(o *resolve.Object) *resolve.Object {
 	return &resolve.Object{
 		Nullable:             o.Nullable,
 		Path:                 o.Path,
@@ -155,11 +143,11 @@ func (e *CreateFetchesCopy) CloneObject(o *resolve.Object) *resolve.Object {
 	}
 }
 
-func (e *CreateFetchesCopy) LeaveObject(object *resolve.Object) {
+func (e *CreateFetchTree) LeaveObject(_ *resolve.Object) {
 	e.currentObjects = e.currentObjects[:len(e.currentObjects)-1]
 }
 
-func (e *CreateFetchesCopy) EnterField(field *resolve.Field) {
+func (e *CreateFetchTree) EnterField(field *resolve.Field) {
 	if _, ok := e.fieldHasFetch[field]; !ok {
 		e.SetSkip(true)
 		return
@@ -179,13 +167,13 @@ func (e *CreateFetchesCopy) EnterField(field *resolve.Field) {
 	e.currentFields = append(e.currentFields, existingField)
 }
 
-func (e *CreateFetchesCopy) CloneField(f *resolve.Field) *resolve.Field {
+func (e *CreateFetchTree) CloneField(f *resolve.Field) *resolve.Field {
 	return &resolve.Field{
 		Name: f.Name,
 	}
 }
 
-func (e *CreateFetchesCopy) LeaveField(field *resolve.Field) {
+func (e *CreateFetchTree) LeaveField(field *resolve.Field) {
 	if _, ok := e.fieldHasFetch[field]; !ok {
 		e.SetSkip(false)
 		return

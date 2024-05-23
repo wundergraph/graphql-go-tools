@@ -12,7 +12,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-func TestExtractFetches_Process(t *testing.T) {
+func TestProcess_ExtractFetches(t *testing.T) {
 	type TestCase struct {
 		name     string
 		pre      plan.Plan
@@ -55,7 +55,7 @@ func TestExtractFetches_Process(t *testing.T) {
 							},
 						},
 					},
-					FetchData: &resolve.Object{
+					FetchTree: &resolve.Object{
 						Fetch: &resolve.MultiFetch{
 							Fetches: []*resolve.SingleFetch{
 								{FetchID: 1},
@@ -142,7 +142,7 @@ func TestExtractFetches_Process(t *testing.T) {
 							},
 						},
 					},
-					FetchData: &resolve.Object{
+					FetchTree: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("obj"),
@@ -253,7 +253,7 @@ func TestExtractFetches_Process(t *testing.T) {
 							},
 						},
 					},
-					FetchData: &resolve.Object{
+					FetchTree: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("objects"),
@@ -279,7 +279,7 @@ func TestExtractFetches_Process(t *testing.T) {
 		},
 	}
 
-	processor := &FetchExtractor{}
+	processor := &Processor{}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

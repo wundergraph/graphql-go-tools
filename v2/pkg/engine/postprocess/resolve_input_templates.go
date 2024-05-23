@@ -4,22 +4,19 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 // ResolveInputTemplates is a postprocessor that resolves input template
 type ResolveInputTemplates struct{}
 
-func (d *ResolveInputTemplates) Process(pre plan.Plan) plan.Plan {
-	switch t := pre.(type) {
-	case *plan.SynchronousResponsePlan:
-		d.traverseNode(t.Response.Data)
-	case *plan.SubscriptionResponsePlan:
-		d.traverseTrigger(&t.Response.Trigger)
-		d.traverseNode(t.Response.Response.Data)
-	}
-	return pre
+func (d *ResolveInputTemplates) Process(node resolve.Node) {
+	d.traverseNode(node)
+}
+
+func (d *ResolveInputTemplates) ProcessSubscription(node resolve.Node, trigger *resolve.GraphQLSubscriptionTrigger) {
+	d.traverseTrigger(trigger)
+	d.traverseNode(node)
 }
 
 func (d *ResolveInputTemplates) traverseNode(node resolve.Node) {

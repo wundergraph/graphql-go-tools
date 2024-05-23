@@ -16,12 +16,11 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
@@ -73,7 +72,7 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 	l.errorsRoot = resolvable.errorsRoot
 	l.ctx = ctx
 	l.info = response.Info
-	return l.walkNode(response.Data, []int{resolvable.dataRoot})
+	return l.walkNode(response.FetchTree, []int{resolvable.dataRoot})
 }
 
 func (l *Loader) walkNode(node Node, items []int) error {

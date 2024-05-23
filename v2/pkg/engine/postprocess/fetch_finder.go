@@ -1,7 +1,6 @@
 package postprocess
 
 import (
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -22,13 +21,8 @@ func NewFetchFinder() *FetchFinder {
 	return e
 }
 
-func (e *FetchFinder) Find(pre plan.Plan) map[*resolve.Field]struct{} {
-	switch t := pre.(type) {
-	case *plan.SynchronousResponsePlan:
-		e.Walk(t.Response.Data, t.Response.Info)
-	case *plan.SubscriptionResponsePlan:
-		e.Walk(t.Response.Response.Data, t.Response.Response.Info)
-	}
+func (e *FetchFinder) Find(res *resolve.GraphQLResponse) map[*resolve.Field]struct{} {
+	e.Walk(res.Data, res.Info)
 	return e.fieldHasFetches
 }
 
