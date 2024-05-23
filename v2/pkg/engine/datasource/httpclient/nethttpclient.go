@@ -244,10 +244,10 @@ func DoMultipartForm(
 			if len(files) == 1 {
 				fileMap = fmt.Sprintf(`"%d" : ["variables.file"]`, i)
 			} else {
-				fileMap = fmt.Sprintf(`"%d" : ["variables.file%d"]`, i, i+1)
+				fileMap = fmt.Sprintf(`"%d" : ["variables.files.%d"]`, i, i)
 			}
 		} else {
-			fileMap = fmt.Sprintf(`%s, "%d" : ["variables.file%d"]`, fileMap, i, i+1)
+			fileMap = fmt.Sprintf(`%s, "%d" : ["variables.files.%d"]`, fileMap, i, i)
 		}
 		key := fmt.Sprintf("%d", i)
 		temporaryFile, err := os.Open(file.Path())
