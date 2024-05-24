@@ -12,6 +12,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+const InvalidRef = -1
+
 var (
 	Pool = &pool{
 		p: sync.Pool{
@@ -151,6 +153,33 @@ func (j *JSON) SetObjectField(nodeRef, setFieldNodeRef int, key string) bool {
 	objectFieldNodeRef := len(j.Nodes) - 1
 	j.Nodes[nodeRef].ObjectFields = append(j.Nodes[nodeRef].ObjectFields, objectFieldNodeRef)
 	return false
+}
+
+func (j *JSON) SetObjectFieldKeyBytes(nodeRef, setFieldNodeRef int, key []byte) bool {
+	for i, fieldRef := range j.Nodes[nodeRef].ObjectFields {
+		if j.objectFieldKeyEqualsBytes(fieldRef, key) {
+			objectFieldNodeRef := j.Nodes[nodeRef].ObjectFields[i]
+			j.Nodes[objectFieldNodeRef].ObjectFieldValue = setFieldNodeRef
+			return true
+		}
+	}
+	j.storage = append(j.storage, key...)
+	j.Nodes = append(j.Nodes, Node{
+		Kind:             NodeKindObjectField,
+		ObjectFieldValue: setFieldNodeRef,
+		keyStart:         len(j.storage) - len(key),
+		keyEnd:           len(j.storage),
+	})
+	objectFieldNodeRef := len(j.Nodes) - 1
+	j.Nodes[nodeRef].ObjectFields = append(j.Nodes[nodeRef].ObjectFields, objectFieldNodeRef)
+	return false
+}
+
+func (j *JSON) AppendArrayValue(arrayNodeRef, newItemRef int) {
+	if j.Nodes[arrayNodeRef].ArrayValues == nil {
+		j.Nodes[arrayNodeRef].ArrayValues = j.getIntSlice()
+	}
+	j.Nodes[arrayNodeRef].ArrayValues = append(j.Nodes[arrayNodeRef].ArrayValues, newItemRef)
 }
 
 func (j *JSON) objectFieldKeyEquals(objectFieldRef int, another string) bool {
@@ -310,6 +339,45 @@ func (j *JSON) AppendString(input string) int {
 	end := len(j.storage)
 	return j.appendNode(Node{
 		Kind:       NodeKindString,
+		valueStart: start,
+		valueEnd:   end,
+	})
+}
+
+func (j *JSON) NodeIsPrimitive(ref int) bool {
+	if ref == -1 {
+		return false
+	}
+	switch j.Nodes[ref].Kind {
+	case NodeKindString, NodeKindNumber, NodeKindBoolean, NodeKindNull:
+		return true
+	default:
+		return false
+	}
+}
+
+func (j *JSON) ImportPrimitiveNode(from *JSON, ref int) (int, error) {
+	if !from.NodeIsPrimitive(ref) {
+		return -1, fmt.Errorf("cannot import non-primitive node kind: %v", from.Nodes[ref].Kind)
+	}
+
+	fromNode := from.Nodes[ref]
+	start := len(j.storage)
+	j.storage = append(j.storage, from.storage[fromNode.valueStart:fromNode.valueEnd]...)
+	end := len(j.storage)
+	return j.appendNode(Node{
+		Kind:       fromNode.Kind,
+		valueStart: start,
+		valueEnd:   end,
+	}), nil
+}
+
+func (j *JSON) AppendNull() int {
+	start := len(j.storage)
+	j.storage = append(j.storage, null...)
+	end := len(j.storage)
+	return j.appendNode(Node{
+		Kind:       NodeKindNull,
 		valueStart: start,
 		valueEnd:   end,
 	})

@@ -72,7 +72,14 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 	l.errorsRoot = resolvable.errorsRoot
 	l.ctx = ctx
 	l.info = response.Info
-	return l.walkNode(response.FetchTree, []int{resolvable.dataRoot})
+
+	// fallback to data mostly for tests
+	fetchTree := response.FetchTree
+	if response.FetchTree == nil {
+		fetchTree = response.Data
+	}
+
+	return l.walkNode(fetchTree, []int{resolvable.dataRoot})
 }
 
 func (l *Loader) walkNode(node Node, items []int) error {
