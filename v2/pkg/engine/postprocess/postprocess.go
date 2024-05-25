@@ -11,16 +11,25 @@ type PostProcessor interface {
 }
 
 type Processor struct {
-	postProcessors []PostProcessor
+	postProcessors       []PostProcessor
+	enableExtractFetches bool
+}
+
+func NewProcessor(postProcessors []PostProcessor, extractFetches bool) *Processor {
+	return &Processor{
+		postProcessors:       postProcessors,
+		enableExtractFetches: extractFetches,
+	}
 }
 
 func DefaultProcessor() *Processor {
 	return &Processor{
-		[]PostProcessor{
+		postProcessors: []PostProcessor{
 			&ResolveInputTemplates{},
 			&CreateMultiFetchTypes{},
 			&CreateConcreteSingleFetchTypes{},
 		},
+		enableExtractFetches: true,
 	}
 }
 
@@ -29,13 +38,21 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 	case *plan.SynchronousResponsePlan:
 		p.extractFetches(t.Response)
 		for i := range p.postProcessors {
-			p.postProcessors[i].Process(t.Response.FetchTree)
+			if p.enableExtractFetches {
+				p.postProcessors[i].Process(t.Response.FetchTree)
+			} else {
+				p.postProcessors[i].Process(t.Response.Data)
+			}
 		}
 
 	case *plan.SubscriptionResponsePlan:
 		p.extractFetches(t.Response.Response)
 		for i := range p.postProcessors {
-			p.postProcessors[i].ProcessSubscription(t.Response.Response.FetchTree, &t.Response.Trigger)
+			if p.enableExtractFetches {
+				p.postProcessors[i].ProcessSubscription(t.Response.Response.FetchTree, &t.Response.Trigger)
+			} else {
+				p.postProcessors[i].ProcessSubscription(t.Response.Response.Data, &t.Response.Trigger)
+			}
 		}
 	}
 
@@ -43,6 +60,10 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 }
 
 func (p *Processor) extractFetches(res *resolve.GraphQLResponse) {
+	if !p.enableExtractFetches {
+		return
+	}
+
 	fieldsWithFetch := NewFetchFinder().Find(res)
 	createFetchesCopy := NewFetchTreeCreator(fieldsWithFetch)
 

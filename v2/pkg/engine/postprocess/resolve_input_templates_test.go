@@ -343,7 +343,7 @@ func TestDataSourceInput_Process(t *testing.T) {
 	}
 
 	processor := &ResolveInputTemplates{}
-	processor.Process(pre.Response.Data)
+	processor.Process(pre.Response.FetchTree)
 
 	if !assert.Equal(t, expected, pre) {
 		actualBytes, _ := json.MarshalIndent(pre, "", "  ")

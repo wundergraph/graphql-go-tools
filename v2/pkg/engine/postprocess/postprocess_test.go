@@ -279,7 +279,7 @@ func TestProcess_ExtractFetches(t *testing.T) {
 		},
 	}
 
-	processor := &Processor{}
+	processor := &Processor{enableExtractFetches: true}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
