@@ -56,6 +56,7 @@ func TestProcess_ExtractFetches(t *testing.T) {
 						},
 					},
 					FetchTree: &resolve.Object{
+						Nullable: true,
 						Fetch: &resolve.MultiFetch{
 							Fetches: []*resolve.SingleFetch{
 								{FetchID: 1},
@@ -143,11 +144,13 @@ func TestProcess_ExtractFetches(t *testing.T) {
 						},
 					},
 					FetchTree: &resolve.Object{
+						Nullable: true,
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("obj"),
 								Value: &resolve.Object{
-									Path: []string{"obj"},
+									Nullable: true,
+									Path:     []string{"obj"},
 									Fetch: &resolve.MultiFetch{
 										Fetches: []*resolve.SingleFetch{
 											{FetchID: 2},
@@ -254,6 +257,7 @@ func TestProcess_ExtractFetches(t *testing.T) {
 						},
 					},
 					FetchTree: &resolve.Object{
+						Nullable: true,
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("objects"),
@@ -261,7 +265,8 @@ func TestProcess_ExtractFetches(t *testing.T) {
 									Nullable: true,
 									Path:     []string{"objects"},
 									Item: &resolve.Object{
-										Path: []string{"obj"},
+										Nullable: true,
+										Path:     []string{"obj"},
 										Fetch: &resolve.MultiFetch{
 											Fetches: []*resolve.SingleFetch{
 												{FetchID: 2},

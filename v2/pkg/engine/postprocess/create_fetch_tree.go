@@ -54,7 +54,7 @@ func (e *CreateFetchTree) EnterArray(array *resolve.Array) {
 
 func (e *CreateFetchTree) CloneArray(a *resolve.Array) *resolve.Array {
 	return &resolve.Array{
-		Nullable: a.Nullable,
+		Nullable: true, // fetches do not care about nullability
 		Path:     a.Path,
 	}
 }
@@ -136,10 +136,9 @@ func (e *CreateFetchTree) appendFetch(existing resolve.Fetch, additional resolve
 
 func (e *CreateFetchTree) CloneObject(o *resolve.Object) *resolve.Object {
 	return &resolve.Object{
-		Nullable:             o.Nullable,
-		Path:                 o.Path,
-		Fetch:                o.Fetch,
-		UnescapeResponseJson: o.UnescapeResponseJson,
+		Nullable: true, // fetches do not care about nullability
+		Path:     o.Path,
+		Fetch:    o.Fetch,
 	}
 }
 
