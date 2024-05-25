@@ -38,7 +38,11 @@ func (d *ResolveInputTemplates) traverseFetch(fetch resolve.Fetch) {
 	switch f := fetch.(type) {
 	case *resolve.SingleFetch:
 		d.traverseSingleFetch(f)
-	case *resolve.MultiFetch:
+	case *resolve.ParallelFetch:
+		for i := range f.Fetches {
+			d.traverseFetch(f.Fetches[i])
+		}
+	case *resolve.SerialFetch:
 		for i := range f.Fetches {
 			d.traverseFetch(f.Fetches[i])
 		}

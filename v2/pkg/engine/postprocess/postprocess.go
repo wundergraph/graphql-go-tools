@@ -25,8 +25,9 @@ func NewProcessor(postProcessors []PostProcessor, extractFetches bool) *Processo
 func DefaultProcessor() *Processor {
 	return &Processor{
 		postProcessors: []PostProcessor{
-			&ResolveInputTemplates{},
 			&CreateMultiFetchTypes{},
+			&DeduplicateMultiFetch{}, // this processor must be called after CreateMultiFetchTypes, when we remove duplicates we may lack of dependency id, which required to create proper multi fetch types
+			&ResolveInputTemplates{},
 			&CreateConcreteSingleFetchTypes{},
 		},
 		enableExtractFetches: true,
