@@ -151,6 +151,9 @@ func (e *PlanWalker) walkNode(node resolve.Node) {
 }
 
 func (e *PlanWalker) walkField(field *resolve.Field) {
+	e.pushPath(field.Value.NodePath())
+	defer e.popPath(field.Value.NodePath())
+
 	e.onEnterField(field)
 	defer e.onLeaveField(field)
 
@@ -177,9 +180,6 @@ func (e *PlanWalker) onLeaveField(field *resolve.Field) {
 }
 
 func (e *PlanWalker) walkObject(object *resolve.Object) {
-	e.pushPath(object.Path)
-	defer e.popPath(object.Path)
-
 	e.objectVisitor.EnterObject(object)
 	defer e.objectVisitor.LeaveObject(object)
 
@@ -216,9 +216,6 @@ func (e *PlanWalker) onLeaveArray(array *resolve.Array) {
 }
 
 func (e *PlanWalker) walkArray(array *resolve.Array) {
-	e.pushPath(array.Path)
-	defer e.popPath(array.Path)
-
 	e.pushArrayPath()
 	defer e.popArrayPath()
 
