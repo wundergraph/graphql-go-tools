@@ -199,9 +199,8 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 		return false
 	}
 
-	if fc.DataSource != other.DataSource {
-		return false
-	}
+	// Note: we do not compare datasources, as they will always be a different instance
+
 	if fc.RequiresParallelListItemFetch != other.RequiresParallelListItemFetch {
 		return false
 	}

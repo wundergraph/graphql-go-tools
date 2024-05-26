@@ -20,6 +20,7 @@ type Node interface {
 	NodeKind() NodeKind
 	NodePath() []string
 	NodeNullable() bool
+	Equals(Node) bool
 }
 
 type NodeKind int

@@ -1,5 +1,7 @@
 package resolve
 
+import "slices"
+
 type Scalar struct {
 	Path     []string
 	Nullable bool
@@ -18,12 +20,54 @@ func (s *Scalar) NodeNullable() bool {
 	return s.Nullable
 }
 
+func (s *Scalar) Equals(n Node) bool {
+	other, ok := n.(*Scalar)
+	if !ok {
+		return false
+	}
+
+	if s.Nullable != other.Nullable {
+		return false
+	}
+
+	if !slices.Equal(s.Path, other.Path) {
+		return false
+	}
+
+	return true
+}
+
 type String struct {
 	Path                 []string
 	Nullable             bool
 	Export               *FieldExport `json:"export,omitempty"`
 	UnescapeResponseJson bool         `json:"unescape_response_json,omitempty"`
 	IsTypeName           bool         `json:"is_type_name,omitempty"`
+}
+
+func (s *String) Equals(n Node) bool {
+	other, ok := n.(*String)
+	if !ok {
+		return false
+	}
+
+	if s.Nullable != other.Nullable {
+		return false
+	}
+
+	if s.UnescapeResponseJson != other.UnescapeResponseJson {
+		return false
+	}
+
+	if s.IsTypeName != other.IsTypeName {
+		return false
+	}
+
+	if !slices.Equal(s.Path, other.Path) {
+		return false
+	}
+
+	return true
 }
 
 func (_ *String) NodeKind() NodeKind {
@@ -55,6 +99,23 @@ func (s *StaticString) NodeNullable() bool {
 	return false
 }
 
+func (s *StaticString) Equals(n Node) bool {
+	other, ok := n.(*StaticString)
+	if !ok {
+		return false
+	}
+
+	if s.Value != other.Value {
+		return false
+	}
+
+	if !slices.Equal(s.Path, other.Path) {
+		return false
+	}
+
+	return true
+}
+
 type Boolean struct {
 	Path     []string
 	Nullable bool
@@ -71,6 +132,23 @@ func (b *Boolean) NodePath() []string {
 
 func (b *Boolean) NodeNullable() bool {
 	return b.Nullable
+}
+
+func (b *Boolean) Equals(n Node) bool {
+	other, ok := n.(*Boolean)
+	if !ok {
+		return false
+	}
+
+	if b.Nullable != other.Nullable {
+		return false
+	}
+
+	if !slices.Equal(b.Path, other.Path) {
+		return false
+	}
+
+	return true
 }
 
 type Float struct {
@@ -91,6 +169,23 @@ func (f *Float) NodeNullable() bool {
 	return f.Nullable
 }
 
+func (f *Float) Equals(n Node) bool {
+	other, ok := n.(*Float)
+	if !ok {
+		return false
+	}
+
+	if f.Nullable != other.Nullable {
+		return false
+	}
+
+	if !slices.Equal(f.Path, other.Path) {
+		return false
+	}
+
+	return true
+}
+
 type Integer struct {
 	Path     []string
 	Nullable bool
@@ -107,6 +202,24 @@ func (i *Integer) NodePath() []string {
 
 func (i *Integer) NodeNullable() bool {
 	return i.Nullable
+}
+
+func (i *Integer) Equals(n Node) bool {
+	other, ok := n.(*Integer)
+	if !ok {
+		return false
+	}
+
+	if i.Nullable != other.Nullable {
+		return false
+	}
+
+	if !slices.Equal(i.Path, other.Path) {
+		return false
+	}
+
+	return true
+
 }
 
 type BigInt struct {
@@ -127,6 +240,24 @@ func (b *BigInt) NodeNullable() bool {
 	return b.Nullable
 }
 
+func (b *BigInt) Equals(n Node) bool {
+	other, ok := n.(*BigInt)
+	if !ok {
+		return false
+	}
+
+	if b.Nullable != other.Nullable {
+		return false
+	}
+
+	if !slices.Equal(b.Path, other.Path) {
+		return false
+	}
+
+	return true
+
+}
+
 type Null struct {
 }
 
@@ -140,6 +271,11 @@ func (_ *Null) NodePath() []string {
 
 func (_ *Null) NodeNullable() bool {
 	return true
+}
+
+func (_ *Null) Equals(n Node) bool {
+	_, ok := n.(*Null)
+	return ok
 }
 
 // FieldExport takes the value of the field during evaluation (rendering of the field)

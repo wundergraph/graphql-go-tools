@@ -617,10 +617,9 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			}
 		case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
 			object := &resolve.Object{
-				Nullable:             nullable,
-				Path:                 path,
-				Fields:               []*resolve.Field{},
-				UnescapeResponseJson: unescapeResponseJson,
+				Nullable: nullable,
+				Path:     path,
+				Fields:   []*resolve.Field{},
 			}
 			v.objects = append(v.objects, object)
 			v.Walker.DefferOnEnterField(func() {

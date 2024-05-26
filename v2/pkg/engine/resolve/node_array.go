@@ -1,5 +1,7 @@
 package resolve
 
+import "slices"
+
 type Array struct {
 	Path     []string
 	Nullable bool
@@ -18,6 +20,23 @@ func (a *Array) NodeNullable() bool {
 	return a.Nullable
 }
 
+func (a *Array) Equals(n Node) bool {
+	other, ok := n.(*Array)
+	if !ok {
+		return false
+	}
+
+	if a.Nullable != other.Nullable {
+		return false
+	}
+
+	if !slices.Equal(a.Path, other.Path) {
+		return false
+	}
+
+	return a.Item.Equals(other.Item)
+}
+
 type EmptyArray struct{}
 
 func (_ *EmptyArray) NodeKind() NodeKind {
@@ -30,4 +49,9 @@ func (_ *EmptyArray) NodePath() []string {
 
 func (_ *EmptyArray) NodeNullable() bool {
 	return false
+}
+
+func (_ *EmptyArray) Equals(n Node) bool {
+	_, ok := n.(*EmptyArray)
+	return ok
 }
