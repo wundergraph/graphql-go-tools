@@ -9,12 +9,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/jensneuse/abstractlogger"
+	"github.com/sebdah/goldie/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/gateway"
@@ -46,7 +49,6 @@ func testQueryPath(name string) string {
 }
 
 func TestFederationIntegrationTestWithArt(t *testing.T) {
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -55,12 +57,27 @@ func TestFederationIntegrationTestWithArt(t *testing.T) {
 
 	gqlClient := NewGraphqlClient(http.DefaultClient)
 
-	t.Run("single upstream query operation with ART", func(t *testing.T) {
-		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/single_upstream.query"), nil, t)
-		respString := string(resp)
+	normalizeResponse := func(resp string) string {
+		rex, err := regexp.Compile(`http://127.0.0.1:\d+`)
+		require.NoError(t, err)
+		resp = rex.ReplaceAllString(resp, "http://localhost/graphql")
+		// all nodes have UUIDs, so we need to replace them with a static UUID
+		rex2, err := regexp.Compile(`"id":"[a-f0-9\-]{36}"`)
+		require.NoError(t, err)
+		resp = rex2.ReplaceAllString(resp, `"id":"00000000-0000-0000-0000-000000000000"`)
+		return resp
+	}
 
-		assert.Contains(t, respString, `{"data":{"me":{"id":"1234","username":"Me"}}`)
+	t.Run("single upstream query operation with ART", func(t *testing.T) {
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/complex_nesting.graphql"), nil, t)
+		respString := normalizeResponse(string(resp))
+
+		assert.Contains(t, respString, `{"data":{"me":{"id":"1234","username":"Me"`)
 		assert.Contains(t, respString, `"extensions":{"trace":{"info":{"trace_start_time"`)
+
+		buf := &bytes.Buffer{}
+		_ = json.Indent(buf, []byte(respString), "", "  ")
+		goldie.New(t).Assert(t, "complex_nesting_query_with_art", buf.Bytes())
 	})
 }
 

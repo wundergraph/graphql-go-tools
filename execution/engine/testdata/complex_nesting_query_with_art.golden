@@ -1,0 +1,722 @@
+{
+  "data": {
+    "me": {
+      "id": "1234",
+      "username": "Me",
+      "history": [
+        {
+          "wallet": {
+            "currency": "USD"
+          }
+        },
+        {
+          "location": "Germany",
+          "product": {
+            "upc": "top-2",
+            "name": "Fedora"
+          }
+        },
+        {
+          "wallet": {
+            "currency": "USD"
+          }
+        }
+      ],
+      "reviews": [
+        {
+          "__typename": "Review",
+          "attachments": [
+            {
+              "upc": "top-1",
+              "body": "How do I turn it on?"
+            }
+          ]
+        },
+        {
+          "__typename": "Review",
+          "attachments": [
+            {
+              "upc": "top-2",
+              "body": "The best hat I have ever bought in my life."
+            },
+            {
+              "upc": "top-2",
+              "size": 13.37
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "extensions": {
+    "trace": {
+      "info": {
+        "trace_start_time": "",
+        "trace_start_unix": 0,
+        "parse_stats": {
+          "duration_nanoseconds": 0,
+          "duration_pretty": "",
+          "duration_since_start_nanoseconds": 0,
+          "duration_since_start_pretty": ""
+        },
+        "normalize_stats": {
+          "duration_nanoseconds": 0,
+          "duration_pretty": "",
+          "duration_since_start_nanoseconds": 0,
+          "duration_since_start_pretty": ""
+        },
+        "validate_stats": {
+          "duration_nanoseconds": 0,
+          "duration_pretty": "",
+          "duration_since_start_nanoseconds": 0,
+          "duration_since_start_pretty": ""
+        },
+        "planner_stats": {
+          "duration_nanoseconds": 5,
+          "duration_pretty": "5ns",
+          "duration_since_start_nanoseconds": 20,
+          "duration_since_start_pretty": "20ns"
+        }
+      },
+      "fetch": {
+        "id": "00000000-0000-0000-0000-000000000000",
+        "type": "single",
+        "path": "query",
+        "datasource_load_trace": {
+          "raw_input_data": {},
+          "input": {
+            "body": {
+              "query": "{me {id username history {__typename ... on Store {location} ... on Purchase {wallet {currency}} ... on Sale {location product {upc __typename}}} __typename}}"
+            },
+            "header": {},
+            "method": "POST",
+            "url": "http://localhost/graphql"
+          },
+          "output": {
+            "data": {
+              "me": {
+                "id": "1234",
+                "username": "Me",
+                "history": [
+                  {
+                    "__typename": "Purchase",
+                    "wallet": {
+                      "currency": "USD"
+                    }
+                  },
+                  {
+                    "__typename": "Sale",
+                    "location": "Germany",
+                    "product": {
+                      "upc": "top-2",
+                      "__typename": "Product"
+                    }
+                  },
+                  {
+                    "__typename": "Purchase",
+                    "wallet": {
+                      "currency": "USD"
+                    }
+                  }
+                ],
+                "__typename": "User"
+              }
+            },
+            "extensions": {
+              "trace": {
+                "request": {
+                  "method": "POST",
+                  "url": "http://localhost/graphql",
+                  "headers": {
+                    "Accept": [
+                      "application/json"
+                    ],
+                    "Accept-Encoding": [
+                      "gzip",
+                      "deflate"
+                    ],
+                    "Content-Type": [
+                      "application/json"
+                    ]
+                  }
+                },
+                "response": {
+                  "status_code": 200,
+                  "status": "200 OK",
+                  "headers": {
+                    "Content-Length": [
+                      "277"
+                    ],
+                    "Content-Type": [
+                      "application/json"
+                    ]
+                  },
+                  "body_size": 277
+                }
+              }
+            }
+          },
+          "duration_since_start_nanoseconds": 1,
+          "duration_since_start_pretty": "1ns",
+          "duration_load_nanoseconds": 1,
+          "duration_load_pretty": "1ns",
+          "single_flight_used": false,
+          "single_flight_shared_response": false,
+          "load_skipped": false,
+          "load_stats": {
+            "get_conn": {
+              "duration_since_start_nanoseconds": 1,
+              "duration_since_start_pretty": "1ns",
+              "host_port": ""
+            },
+            "got_conn": {
+              "duration_since_start_nanoseconds": 1,
+              "duration_since_start_pretty": "1ns",
+              "reused": false,
+              "was_idle": false,
+              "idle_time_nanoseconds": 0,
+              "idle_time_pretty": ""
+            },
+            "got_first_response_byte": {
+              "duration_since_start_nanoseconds": 1,
+              "duration_since_start_pretty": "1ns"
+            },
+            "dns_start": {
+              "duration_since_start_nanoseconds": 0,
+              "duration_since_start_pretty": "",
+              "host": ""
+            },
+            "dns_done": {
+              "duration_since_start_nanoseconds": 0,
+              "duration_since_start_pretty": ""
+            },
+            "connect_start": {
+              "duration_since_start_nanoseconds": 0,
+              "duration_since_start_pretty": "",
+              "network": "",
+              "addr": ""
+            },
+            "connect_done": {
+              "duration_since_start_nanoseconds": 0,
+              "duration_since_start_pretty": "",
+              "network": "",
+              "addr": ""
+            },
+            "tls_handshake_start": {
+              "duration_since_start_nanoseconds": 0,
+              "duration_since_start_pretty": ""
+            },
+            "tls_handshake_done": {
+              "duration_since_start_nanoseconds": 0,
+              "duration_since_start_pretty": ""
+            },
+            "wrote_headers": {
+              "duration_since_start_nanoseconds": 1,
+              "duration_since_start_pretty": "1ns"
+            },
+            "wrote_request": {
+              "duration_since_start_nanoseconds": 1,
+              "duration_since_start_pretty": "1ns"
+            }
+          }
+        }
+      },
+      "node_type": "object",
+      "nullable": true,
+      "fields": [
+        {
+          "name": "me",
+          "value": {
+            "fetch": {
+              "id": "00000000-0000-0000-0000-000000000000",
+              "type": "entity",
+              "path": "query.me",
+              "datasource_load_trace": {
+                "raw_input_data": {
+                  "id": "1234",
+                  "username": "Me",
+                  "history": [
+                    {
+                      "__typename": "Purchase",
+                      "wallet": {
+                        "currency": "USD"
+                      }
+                    },
+                    {
+                      "__typename": "Sale",
+                      "location": "Germany",
+                      "product": {
+                        "upc": "top-2",
+                        "__typename": "Product"
+                      }
+                    },
+                    {
+                      "__typename": "Purchase",
+                      "wallet": {
+                        "currency": "USD"
+                      }
+                    }
+                  ],
+                  "__typename": "User"
+                },
+                "input": {
+                  "body": {
+                    "query": "query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {__typename attachments {__typename ... on Comment {upc __typename ... on Rating {body}} ... on Question {body} ... on Video {upc size}}}}}}",
+                    "variables": {
+                      "representations": [
+                        {
+                          "__typename": "User",
+                          "id": "1234"
+                        }
+                      ]
+                    }
+                  },
+                  "header": {},
+                  "method": "POST",
+                  "url": "http://localhost/graphql"
+                },
+                "output": {
+                  "data": {
+                    "_entities": [
+                      {
+                        "__typename": "User",
+                        "reviews": [
+                          {
+                            "__typename": "Review",
+                            "attachments": [
+                              {
+                                "__typename": "Question",
+                                "upc": "top-1",
+                                "__typename": "Question",
+                                "body": "How do I turn it on?"
+                              }
+                            ]
+                          },
+                          {
+                            "__typename": "Review",
+                            "attachments": [
+                              {
+                                "__typename": "Rating",
+                                "upc": "top-2",
+                                "__typename": "Rating",
+                                "body": "The best hat I have ever bought in my life."
+                              },
+                              {
+                                "__typename": "Video",
+                                "upc": "top-2",
+                                "size": 13.37
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "extensions": {
+                    "trace": {
+                      "request": {
+                        "method": "POST",
+                        "url": "http://localhost/graphql",
+                        "headers": {
+                          "Accept": [
+                            "application/json"
+                          ],
+                          "Accept-Encoding": [
+                            "gzip",
+                            "deflate"
+                          ],
+                          "Content-Type": [
+                            "application/json"
+                          ]
+                        }
+                      },
+                      "response": {
+                        "status_code": 200,
+                        "status": "200 OK",
+                        "headers": {
+                          "Content-Length": [
+                            "395"
+                          ],
+                          "Content-Type": [
+                            "application/json"
+                          ]
+                        },
+                        "body_size": 395
+                      }
+                    }
+                  }
+                },
+                "duration_since_start_nanoseconds": 1,
+                "duration_since_start_pretty": "1ns",
+                "duration_load_nanoseconds": 1,
+                "duration_load_pretty": "1ns",
+                "single_flight_used": false,
+                "single_flight_shared_response": false,
+                "load_skipped": false,
+                "load_stats": {
+                  "get_conn": {
+                    "duration_since_start_nanoseconds": 1,
+                    "duration_since_start_pretty": "1ns",
+                    "host_port": ""
+                  },
+                  "got_conn": {
+                    "duration_since_start_nanoseconds": 1,
+                    "duration_since_start_pretty": "1ns",
+                    "reused": false,
+                    "was_idle": false,
+                    "idle_time_nanoseconds": 0,
+                    "idle_time_pretty": ""
+                  },
+                  "got_first_response_byte": {
+                    "duration_since_start_nanoseconds": 1,
+                    "duration_since_start_pretty": "1ns"
+                  },
+                  "dns_start": {
+                    "duration_since_start_nanoseconds": 0,
+                    "duration_since_start_pretty": "",
+                    "host": ""
+                  },
+                  "dns_done": {
+                    "duration_since_start_nanoseconds": 0,
+                    "duration_since_start_pretty": ""
+                  },
+                  "connect_start": {
+                    "duration_since_start_nanoseconds": 0,
+                    "duration_since_start_pretty": "",
+                    "network": "",
+                    "addr": ""
+                  },
+                  "connect_done": {
+                    "duration_since_start_nanoseconds": 0,
+                    "duration_since_start_pretty": "",
+                    "network": "",
+                    "addr": ""
+                  },
+                  "tls_handshake_start": {
+                    "duration_since_start_nanoseconds": 0,
+                    "duration_since_start_pretty": ""
+                  },
+                  "tls_handshake_done": {
+                    "duration_since_start_nanoseconds": 0,
+                    "duration_since_start_pretty": ""
+                  },
+                  "wrote_headers": {
+                    "duration_since_start_nanoseconds": 1,
+                    "duration_since_start_pretty": "1ns"
+                  },
+                  "wrote_request": {
+                    "duration_since_start_nanoseconds": 1,
+                    "duration_since_start_pretty": "1ns"
+                  }
+                }
+              }
+            },
+            "node_type": "object",
+            "path": [
+              "me"
+            ],
+            "fields": [
+              {
+                "name": "id",
+                "value": {
+                  "node_type": "scalar",
+                  "path": [
+                    "id"
+                  ]
+                }
+              },
+              {
+                "name": "username",
+                "value": {
+                  "node_type": "string",
+                  "path": [
+                    "username"
+                  ]
+                }
+              },
+              {
+                "name": "history",
+                "value": {
+                  "node_type": "array",
+                  "path": [
+                    "history"
+                  ],
+                  "items": [
+                    {
+                      "node_type": "object",
+                      "nullable": true,
+                      "fields": [
+                        {
+                          "name": "location",
+                          "value": {
+                            "node_type": "string",
+                            "path": [
+                              "location"
+                            ]
+                          }
+                        },
+                        {
+                          "name": "wallet",
+                          "value": {
+                            "node_type": "object",
+                            "path": [
+                              "wallet"
+                            ],
+                            "fields": [
+                              {
+                                "name": "currency",
+                                "value": {
+                                  "node_type": "string",
+                                  "path": [
+                                    "currency"
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "name": "product",
+                          "value": {
+                            "fetch": {
+                              "id": "00000000-0000-0000-0000-000000000000",
+                              "type": "batchEntity",
+                              "path": "query.me.history.@.product",
+                              "datasource_load_trace": {
+                                "raw_input_data": {
+                                  "upc": "top-2",
+                                  "__typename": "Product"
+                                },
+                                "input": {
+                                  "body": {
+                                    "query": "query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {name}}}",
+                                    "variables": {
+                                      "representations": [
+                                        {
+                                          "__typename": "Product",
+                                          "upc": "top-2"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "header": {},
+                                  "method": "POST",
+                                  "url": "http://localhost/graphql"
+                                },
+                                "output": {
+                                  "data": {
+                                    "_entities": [
+                                      {
+                                        "__typename": "Product",
+                                        "name": "Fedora"
+                                      }
+                                    ]
+                                  },
+                                  "extensions": {
+                                    "trace": {
+                                      "request": {
+                                        "method": "POST",
+                                        "url": "http://localhost/graphql",
+                                        "headers": {
+                                          "Accept": [
+                                            "application/json"
+                                          ],
+                                          "Accept-Encoding": [
+                                            "gzip",
+                                            "deflate"
+                                          ],
+                                          "Content-Type": [
+                                            "application/json"
+                                          ]
+                                        }
+                                      },
+                                      "response": {
+                                        "status_code": 200,
+                                        "status": "200 OK",
+                                        "headers": {
+                                          "Content-Length": [
+                                            "65"
+                                          ],
+                                          "Content-Type": [
+                                            "application/json"
+                                          ]
+                                        },
+                                        "body_size": 65
+                                      }
+                                    }
+                                  }
+                                },
+                                "duration_since_start_nanoseconds": 1,
+                                "duration_since_start_pretty": "1ns",
+                                "duration_load_nanoseconds": 1,
+                                "duration_load_pretty": "1ns",
+                                "single_flight_used": false,
+                                "single_flight_shared_response": false,
+                                "load_skipped": false,
+                                "load_stats": {
+                                  "get_conn": {
+                                    "duration_since_start_nanoseconds": 1,
+                                    "duration_since_start_pretty": "1ns",
+                                    "host_port": ""
+                                  },
+                                  "got_conn": {
+                                    "duration_since_start_nanoseconds": 1,
+                                    "duration_since_start_pretty": "1ns",
+                                    "reused": false,
+                                    "was_idle": false,
+                                    "idle_time_nanoseconds": 0,
+                                    "idle_time_pretty": ""
+                                  },
+                                  "got_first_response_byte": {
+                                    "duration_since_start_nanoseconds": 1,
+                                    "duration_since_start_pretty": "1ns"
+                                  },
+                                  "dns_start": {
+                                    "duration_since_start_nanoseconds": 0,
+                                    "duration_since_start_pretty": "",
+                                    "host": ""
+                                  },
+                                  "dns_done": {
+                                    "duration_since_start_nanoseconds": 0,
+                                    "duration_since_start_pretty": ""
+                                  },
+                                  "connect_start": {
+                                    "duration_since_start_nanoseconds": 0,
+                                    "duration_since_start_pretty": "",
+                                    "network": "",
+                                    "addr": ""
+                                  },
+                                  "connect_done": {
+                                    "duration_since_start_nanoseconds": 0,
+                                    "duration_since_start_pretty": "",
+                                    "network": "",
+                                    "addr": ""
+                                  },
+                                  "tls_handshake_start": {
+                                    "duration_since_start_nanoseconds": 0,
+                                    "duration_since_start_pretty": ""
+                                  },
+                                  "tls_handshake_done": {
+                                    "duration_since_start_nanoseconds": 0,
+                                    "duration_since_start_pretty": ""
+                                  },
+                                  "wrote_headers": {
+                                    "duration_since_start_nanoseconds": 1,
+                                    "duration_since_start_pretty": "1ns"
+                                  },
+                                  "wrote_request": {
+                                    "duration_since_start_nanoseconds": 1,
+                                    "duration_since_start_pretty": "1ns"
+                                  }
+                                }
+                              }
+                            },
+                            "node_type": "object",
+                            "path": [
+                              "product"
+                            ],
+                            "fields": [
+                              {
+                                "name": "upc",
+                                "value": {
+                                  "node_type": "string",
+                                  "path": [
+                                    "upc"
+                                  ]
+                                }
+                              },
+                              {
+                                "name": "name",
+                                "value": {
+                                  "node_type": "string",
+                                  "path": [
+                                    "name"
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "reviews",
+                "value": {
+                  "node_type": "array",
+                  "path": [
+                    "reviews"
+                  ],
+                  "items": [
+                    {
+                      "node_type": "object",
+                      "nullable": true,
+                      "fields": [
+                        {
+                          "name": "__typename",
+                          "value": {
+                            "node_type": "string",
+                            "path": [
+                              "__typename"
+                            ],
+                            "is_type_name": true
+                          }
+                        },
+                        {
+                          "name": "attachments",
+                          "value": {
+                            "node_type": "array",
+                            "path": [
+                              "attachments"
+                            ],
+                            "items": [
+                              {
+                                "node_type": "object",
+                                "nullable": true,
+                                "fields": [
+                                  {
+                                    "name": "upc",
+                                    "value": {
+                                      "node_type": "string",
+                                      "path": [
+                                        "upc"
+                                      ]
+                                    }
+                                  },
+                                  {
+                                    "name": "body",
+                                    "value": {
+                                      "node_type": "string",
+                                      "path": [
+                                        "body"
+                                      ]
+                                    }
+                                  },
+                                  {
+                                    "name": "size",
+                                    "value": {
+                                      "node_type": "float",
+                                      "path": [
+                                        "size"
+                                      ]
+                                    }
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
