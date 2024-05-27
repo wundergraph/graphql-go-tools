@@ -925,9 +925,8 @@ func TestResolver_ResolveNode(t *testing.T) {
 				{
 					Name: []byte("synchronousFriends"),
 					Value: &Array{
-						Path:                []string{"friends"},
-						ResolveAsynchronous: false,
-						Nullable:            true,
+						Path:     []string{"friends"},
+						Nullable: true,
 						Item: &Object{
 							Fields: []*Field{
 								{
@@ -949,9 +948,8 @@ func TestResolver_ResolveNode(t *testing.T) {
 				{
 					Name: []byte("asynchronousFriends"),
 					Value: &Array{
-						Path:                []string{"friends"},
-						ResolveAsynchronous: true,
-						Nullable:            true,
+						Path:     []string{"friends"},
+						Nullable: true,
 						Item: &Object{
 							Fields: []*Field{
 								{
@@ -981,9 +979,8 @@ func TestResolver_ResolveNode(t *testing.T) {
 				{
 					Name: []byte("strings"),
 					Value: &Array{
-						Path:                []string{"strings"},
-						ResolveAsynchronous: false,
-						Nullable:            true,
+						Path:     []string{"strings"},
+						Nullable: true,
 						Item: &String{
 							Nullable: false,
 						},
@@ -992,9 +989,8 @@ func TestResolver_ResolveNode(t *testing.T) {
 				{
 					Name: []byte("integers"),
 					Value: &Array{
-						Path:                []string{"integers"},
-						ResolveAsynchronous: false,
-						Nullable:            true,
+						Path:     []string{"integers"},
+						Nullable: true,
 						Item: &Integer{
 							Nullable: false,
 						},
@@ -1003,9 +999,8 @@ func TestResolver_ResolveNode(t *testing.T) {
 				{
 					Name: []byte("floats"),
 					Value: &Array{
-						Path:                []string{"floats"},
-						ResolveAsynchronous: false,
-						Nullable:            true,
+						Path:     []string{"floats"},
+						Nullable: true,
 						Item: &Float{
 							Nullable: false,
 						},
@@ -1014,9 +1009,8 @@ func TestResolver_ResolveNode(t *testing.T) {
 				{
 					Name: []byte("booleans"),
 					Value: &Array{
-						Path:                []string{"booleans"},
-						ResolveAsynchronous: false,
-						Nullable:            true,
+						Path:     []string{"booleans"},
+						Nullable: true,
 						Item: &Boolean{
 							Nullable: false,
 						},
@@ -1218,8 +1212,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					{
 						Name: []byte("pets"),
 						Value: &Array{
-							ResolveAsynchronous: true,
-							Path:                []string{"pets"},
+							Path: []string{"pets"},
 							Item: &Object{
 								Fields: []*Field{
 									{

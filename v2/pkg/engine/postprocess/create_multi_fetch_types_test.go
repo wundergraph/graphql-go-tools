@@ -14,8 +14,8 @@ import (
 func TestCreateMultiFetchTypes_Process(t *testing.T) {
 	type TestCase struct {
 		name     string
-		pre      plan.Plan
-		expected plan.Plan
+		pre      *plan.SynchronousResponsePlan
+		expected *plan.SynchronousResponsePlan
 	}
 
 	cases := []TestCase{
@@ -214,10 +214,10 @@ func TestCreateMultiFetchTypes_Process(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			actual := processor.Process(c.pre)
+			processor.Process(c.pre.Response.Data)
 
-			if !assert.Equal(t, c.expected, actual) {
-				actualBytes, _ := json.MarshalIndent(actual, "", "  ")
+			if !assert.Equal(t, c.expected, c.pre) {
+				actualBytes, _ := json.MarshalIndent(c.pre, "", "  ")
 				expectedBytes, _ := json.MarshalIndent(c.expected, "", "  ")
 
 				if string(expectedBytes) != string(actualBytes) {

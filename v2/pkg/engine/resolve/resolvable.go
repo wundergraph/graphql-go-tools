@@ -121,7 +121,7 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	return
 }
 
-func (r *Resolvable) Resolve(ctx context.Context, root *Object, out io.Writer) error {
+func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *Object, out io.Writer) error {
 	r.out = out
 	r.print = false
 	r.printErr = nil
@@ -131,7 +131,7 @@ func (r *Resolvable) Resolve(ctx context.Context, root *Object, out io.Writer) e
 	 * For example, if a fetch fails, only propagate that the fetch has failed; do not propagate nested non-null errors.
 	 */
 
-	err := r.walkObject(root, r.dataRoot)
+	_, err := r.walkObject(rootData, r.dataRoot)
 	if r.authorizationError != nil {
 		return r.authorizationError
 	}
@@ -147,11 +147,11 @@ func (r *Resolvable) Resolve(ctx context.Context, root *Object, out io.Writer) e
 		r.printBytes(colon)
 		r.printBytes(null)
 	} else {
-		r.printData(root)
+		r.printData(rootData)
 	}
 	if r.hasExtensions() {
 		r.printBytes(comma)
-		r.printErr = r.printExtensions(ctx, root)
+		r.printErr = r.printExtensions(ctx, fetchTree)
 	}
 	r.printBytes(rBrace)
 
@@ -177,15 +177,14 @@ func (r *Resolvable) printData(root *Object) {
 	r.printBytes(literalData)
 	r.printBytes(quote)
 	r.printBytes(colon)
-	r.printBytes(lBrace)
 	r.print = true
-	_ = r.walkObject(root, r.dataRoot)
+	resolvedDataNodeRef, _ := r.walkObject(root, r.dataRoot)
+	r.printNode(resolvedDataNodeRef)
 	r.print = false
-	r.printBytes(rBrace)
 	r.wroteData = true
 }
 
-func (r *Resolvable) printExtensions(ctx context.Context, root *Object) error {
+func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *Object) error {
 	r.printBytes(quote)
 	r.printBytes(literalExtensions)
 	r.printBytes(quote)
@@ -219,7 +218,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, root *Object) error {
 		if writeComma {
 			r.printBytes(comma)
 		}
-		err := r.printTraceExtension(ctx, root)
+		err := r.printTraceExtension(ctx, fetchTree)
 		if err != nil {
 			return err
 		}
@@ -245,12 +244,12 @@ func (r *Resolvable) printRateLimitingExtension() error {
 	return r.ctx.rateLimiter.RenderResponseExtension(r.ctx, r.out)
 }
 
-func (r *Resolvable) printTraceExtension(ctx context.Context, root *Object) error {
+func (r *Resolvable) printTraceExtension(ctx context.Context, fetchTree *Object) error {
 	var trace *TraceNode
 	if r.ctx.TracingOptions.Debug {
-		trace = GetTrace(ctx, root, GetTraceDebug())
+		trace = GetTrace(ctx, fetchTree, GetTraceDebug())
 	} else {
-		trace = GetTrace(ctx, root)
+		trace = GetTrace(ctx, fetchTree)
 	}
 	traceData, err := json.Marshal(trace)
 	if err != nil {
@@ -334,9 +333,9 @@ func (r *Resolvable) popNodePathElement(path []string) {
 	r.depth--
 }
 
-func (r *Resolvable) walkNode(node Node, ref int) bool {
+func (r *Resolvable) walkNode(node Node, ref int) (nodeRef int, hasError bool) {
 	if r.authorizationError != nil {
-		return true
+		return astjson.InvalidRef, true
 	}
 	if r.print {
 		r.ctx.Stats.ResolvedNodes++
@@ -367,18 +366,18 @@ func (r *Resolvable) walkNode(node Node, ref int) bool {
 	case *CustomNode:
 		return r.walkCustom(n, ref)
 	default:
-		return false
+		return astjson.InvalidRef, false
 	}
 }
 
-func (r *Resolvable) walkObject(obj *Object, ref int) bool {
+func (r *Resolvable) walkObject(obj *Object, ref int) (nodeRef int, hasError bool) {
 	ref = r.storage.Get(ref, obj.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if obj.Nullable {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(ref, obj.Path)
-		return r.err()
+		return astjson.InvalidRef, r.err()
 	}
 	r.pushNodePathElement(obj.Path)
 	isRoot := r.depth < 2
@@ -389,13 +388,16 @@ func (r *Resolvable) walkObject(obj *Object, ref int) bool {
 	}
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindObject {
 		r.addError("Object cannot represent non-object value.", obj.Path)
-		return r.err()
+		return astjson.InvalidRef, r.err()
 	}
-	if r.print && !isRoot {
-		r.printBytes(lBrace)
-		r.ctx.Stats.ResolvedObjects++
+
+	objectNodeRef := astjson.InvalidRef
+	if r.print {
+		if !isRoot {
+			r.ctx.Stats.ResolvedObjects++
+		}
+		objectNodeRef, _ = r.storage.AppendObject(emptyObject)
 	}
-	addComma := false
 	for i := range obj.Fields {
 		if obj.Fields[i].SkipDirectiveDefined {
 			if r.skipField(obj.Fields[i].SkipVariableName) {
@@ -429,34 +431,33 @@ func (r *Resolvable) walkObject(obj *Object, ref int) bool {
 				} else {
 					// if the field value is not nullable and the object is not nullable
 					// we return true to indicate an error
-					return true
+					return astjson.InvalidRef, true
 				}
 				continue
 			}
 		}
-		if r.print {
-			if addComma {
-				r.printBytes(comma)
-			}
-			r.printBytes(quote)
-			r.printBytes(obj.Fields[i].Name)
-			r.printBytes(quote)
-			r.printBytes(colon)
-		}
-		err := r.walkNode(obj.Fields[i].Value, ref)
+
+		fieldNodeRef, err := r.walkNode(obj.Fields[i].Value, ref)
 		if err {
 			if obj.Nullable {
+				// set ref to null so we have early return on next round of walk
 				r.storage.Nodes[ref].Kind = astjson.NodeKindNull
-				return false
+				if r.print {
+					return r.walkNull()
+				}
+				return astjson.InvalidRef, false
 			}
-			return err
+			return astjson.InvalidRef, err
 		}
-		addComma = true
+
+		if r.print {
+			fieldTmpObjectRef, _ := r.storage.AppendObject(emptyObject)
+			r.storage.SetObjectFieldKeyBytes(fieldTmpObjectRef, fieldNodeRef, obj.Fields[i].Name)
+			objectNodeRef = r.storage.MergeNodes(objectNodeRef, fieldTmpObjectRef)
+		}
 	}
-	if r.print && !isRoot {
-		r.printBytes(rBrace)
-	}
-	return false
+
+	return objectNodeRef, false
 }
 
 func (r *Resolvable) authorizeField(ref int, field *Field) (skipField bool) {
@@ -594,54 +595,58 @@ func (r *Resolvable) excludeField(includeVariableName string) bool {
 	return bytes.Equal(value, literalFalse)
 }
 
-func (r *Resolvable) walkArray(arr *Array, ref int) bool {
+func (r *Resolvable) walkArray(arr *Array, ref int) (nodeRef int, hasError bool) {
 	ref = r.storage.Get(ref, arr.Path)
 	if !r.storage.NodeIsDefined(ref) {
 		if arr.Nullable {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(ref, arr.Path)
-		return r.err()
+		return astjson.InvalidRef, r.err()
 	}
 	r.pushNodePathElement(arr.Path)
 	defer r.popNodePathElement(arr.Path)
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindArray {
 		r.addError("Array cannot represent non-array value.", arr.Path)
-		return r.err()
+		return astjson.InvalidRef, r.err()
 	}
+
+	arrayNodeRef := astjson.InvalidRef
 	if r.print {
-		r.printBytes(lBrack)
+		arrayNodeRef, _ = r.storage.AppendArray(emptyArray)
 	}
 	for i, value := range r.storage.Nodes[ref].ArrayValues {
-		if r.print && i != 0 {
-			r.printBytes(comma)
-		}
 		r.pushArrayPathElement(i)
-		err := r.walkNode(arr.Item, value)
+		itemNodeRef, err := r.walkNode(arr.Item, value)
 		r.popArrayPathElement()
 		if err {
 			if arr.Nullable {
+				// set ref to null so we have early return on next round of walk
 				r.storage.Nodes[ref].Kind = astjson.NodeKindNull
-				return false
+				if r.print {
+					return r.walkNull()
+				}
+				return astjson.InvalidRef, false
 			}
-			return err
+			return astjson.InvalidRef, err
+		}
+
+		if r.print {
+			r.storage.AppendArrayValue(arrayNodeRef, itemNodeRef)
 		}
 	}
-	if r.print {
-		r.printBytes(rBrack)
-	}
-	return false
+	return arrayNodeRef, false
 }
 
-func (r *Resolvable) walkNull() bool {
+func (r *Resolvable) walkNull() (nodeRef int, hasError bool) {
 	if r.print {
-		r.printBytes(null)
 		r.ctx.Stats.ResolvedLeafs++
+		return r.storage.AppendNull(), false
 	}
-	return false
+	return astjson.InvalidRef, false
 }
 
-func (r *Resolvable) walkString(s *String, ref int) bool {
+func (r *Resolvable) walkString(s *String, ref int) (nodeRef int, hasError bool) {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
@@ -651,45 +656,46 @@ func (r *Resolvable) walkString(s *String, ref int) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(ref, s.Path)
-		return r.err()
+		return astjson.InvalidRef, r.err()
 	}
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindString {
 		value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
 		r.addError(fmt.Sprintf("String cannot represent non-string value: \\\"%s\\\"", value), s.Path)
-		return r.err()
+		return astjson.InvalidRef, r.err()
 	}
 	if r.print {
 		if s.IsTypeName {
 			value := r.storage.Nodes[ref].ValueBytes(r.storage)
 			for i := range r.renameTypeNames {
 				if bytes.Equal(value, r.renameTypeNames[i].From) {
-					r.printBytes(quote)
-					r.printBytes(r.renameTypeNames[i].To)
-					r.printBytes(quote)
-					return false
+					return r.storage.AppendStringBytes(r.renameTypeNames[i].To), false
 				}
 			}
-			r.printNode(ref)
-			return false
+			nodeRef, _ = r.storage.ImportPrimitiveNode(r.storage, ref)
+			return nodeRef, false
 		}
 		if s.UnescapeResponseJson {
 			value := r.storage.Nodes[ref].ValueBytes(r.storage)
 			value = bytes.ReplaceAll(value, []byte(`\"`), []byte(`"`))
 			if !gjson.ValidBytes(value) {
-				r.printBytes(quote)
-				r.printBytes(value)
-				r.printBytes(quote)
+				return r.storage.AppendStringBytes(value), false
 			} else {
-				r.printBytes(value)
+				nodeRef, err := r.storage.AppendAnyJSONBytes(value)
+				if err != nil {
+					r.addError(err.Error(), s.Path)
+					return astjson.InvalidRef, r.err()
+				}
+				return nodeRef, false
 			}
 		} else {
-			r.printNode(ref)
+			nodeRef, _ = r.storage.ImportPrimitiveNode(r.storage, ref)
+			return nodeRef, false
 		}
 	}
-	return false
+	return astjson.InvalidRef, false
 }
 
-func (r *Resolvable) walkBoolean(b *Boolean, ref int) bool {
+func (r *Resolvable) walkBoolean(b *Boolean, ref int) (nodeRef int, hasError bool) {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
@@ -699,20 +705,21 @@ func (r *Resolvable) walkBoolean(b *Boolean, ref int) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(ref, b.Path)
-		return r.err()
+		return astjson.InvalidRef, r.err()
 	}
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindBoolean {
 		value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
 		r.addError(fmt.Sprintf("Bool cannot represent non-boolean value: \\\"%s\\\"", value), b.Path)
-		return r.err()
+		return astjson.InvalidRef, r.err()
 	}
 	if r.print {
-		r.printNode(ref)
+		nodeRef, _ = r.storage.ImportPrimitiveNode(r.storage, ref)
+		return nodeRef, false
 	}
-	return false
+	return astjson.InvalidRef, false
 }
 
-func (r *Resolvable) walkInteger(i *Integer, ref int) bool {
+func (r *Resolvable) walkInteger(i *Integer, ref int) (nodeRef int, hasError bool) {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
@@ -722,20 +729,21 @@ func (r *Resolvable) walkInteger(i *Integer, ref int) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(ref, i.Path)
-		return r.err()
+		return astjson.InvalidRef, r.err()
 	}
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindNumber {
 		value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
 		r.addError(fmt.Sprintf("Int cannot represent non-integer value: \\\"%s\\\"", value), i.Path)
-		return r.err()
+		return astjson.InvalidRef, r.err()
 	}
 	if r.print {
-		r.printNode(ref)
+		nodeRef, _ = r.storage.ImportPrimitiveNode(r.storage, ref)
+		return nodeRef, false
 	}
-	return false
+	return astjson.InvalidRef, false
 }
 
-func (r *Resolvable) walkFloat(f *Float, ref int) bool {
+func (r *Resolvable) walkFloat(f *Float, ref int) (nodeRef int, hasError bool) {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
@@ -745,20 +753,21 @@ func (r *Resolvable) walkFloat(f *Float, ref int) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(ref, f.Path)
-		return r.err()
+		return astjson.InvalidRef, r.err()
 	}
 	if r.storage.Nodes[ref].Kind != astjson.NodeKindNumber {
 		value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
 		r.addError(fmt.Sprintf("Float cannot represent non-float value: \\\"%s\\\"", value), f.Path)
-		return r.err()
+		return astjson.InvalidRef, r.err()
 	}
 	if r.print {
-		r.printNode(ref)
+		nodeRef, _ = r.storage.ImportPrimitiveNode(r.storage, ref)
+		return nodeRef, false
 	}
-	return false
+	return astjson.InvalidRef, false
 }
 
-func (r *Resolvable) walkBigInt(b *BigInt, ref int) bool {
+func (r *Resolvable) walkBigInt(b *BigInt, ref int) (nodeRef int, hasError bool) {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
@@ -768,15 +777,16 @@ func (r *Resolvable) walkBigInt(b *BigInt, ref int) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(ref, b.Path)
-		return r.err()
+		return astjson.InvalidRef, r.err()
 	}
 	if r.print {
-		r.printNode(ref)
+		nodeRef, _ = r.storage.ImportPrimitiveNode(r.storage, ref)
+		return nodeRef, false
 	}
-	return false
+	return astjson.InvalidRef, false
 }
 
-func (r *Resolvable) walkScalar(s *Scalar, ref int) bool {
+func (r *Resolvable) walkScalar(s *Scalar, ref int) (nodeRef int, hasError bool) {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
@@ -786,31 +796,50 @@ func (r *Resolvable) walkScalar(s *Scalar, ref int) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(ref, s.Path)
-		return r.err()
+		return astjson.InvalidRef, r.err()
 	}
 	if r.print {
-		r.printNode(ref)
+		if r.storage.NodeIsPrimitive(ref) {
+			nodeRef, _ = r.storage.ImportPrimitiveNode(r.storage, ref)
+			return nodeRef, false
+		}
+
+		buf := pool.BytesBuffer.Get()
+		defer pool.BytesBuffer.Put(buf)
+
+		err := r.storage.PrintNode(r.storage.Nodes[ref], buf)
+		if err != nil {
+			r.printErr = err
+			return astjson.InvalidRef, r.err()
+		}
+		nodeRef, err := r.storage.AppendAnyJSONBytes(buf.Bytes())
+		if err != nil {
+			r.printErr = err
+			return astjson.InvalidRef, r.err()
+		}
+
+		return nodeRef, false
 	}
-	return false
+	return astjson.InvalidRef, false
 }
 
-func (r *Resolvable) walkEmptyObject(_ *EmptyObject) bool {
+func (r *Resolvable) walkEmptyObject(_ *EmptyObject) (nodeRef int, hasError bool) {
 	if r.print {
-		r.printBytes(lBrace)
-		r.printBytes(rBrace)
+		nodeRef, _ = r.storage.AppendObject(emptyObject)
+		return nodeRef, false
 	}
-	return false
+	return astjson.InvalidRef, false
 }
 
-func (r *Resolvable) walkEmptyArray(_ *EmptyArray) bool {
+func (r *Resolvable) walkEmptyArray(_ *EmptyArray) (nodeRef int, hasError bool) {
 	if r.print {
-		r.printBytes(lBrack)
-		r.printBytes(rBrack)
+		nodeRef, _ = r.storage.AppendArray(emptyArray)
+		return nodeRef, false
 	}
-	return false
+	return astjson.InvalidRef, false
 }
 
-func (r *Resolvable) walkCustom(c *CustomNode, ref int) bool {
+func (r *Resolvable) walkCustom(c *CustomNode, ref int) (nodeRef int, hasError bool) {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
@@ -820,18 +849,23 @@ func (r *Resolvable) walkCustom(c *CustomNode, ref int) bool {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(ref, c.Path)
-		return r.err()
+		return astjson.InvalidRef, r.err()
 	}
 	value := r.storage.Nodes[ref].ValueBytes(r.storage)
 	resolved, err := c.Resolve(r.ctx, value)
 	if err != nil {
 		r.addError(err.Error(), c.Path)
-		return r.err()
+		return astjson.InvalidRef, r.err()
 	}
 	if r.print {
-		r.printBytes(resolved)
+		nodeRef, err = r.storage.AppendAnyJSONBytes(resolved)
+		if err != nil {
+			r.addError(err.Error(), c.Path)
+			return astjson.InvalidRef, r.err()
+		}
+		return nodeRef, false
 	}
-	return false
+	return astjson.InvalidRef, false
 }
 
 func (r *Resolvable) addNonNullableFieldError(fieldRef int, fieldPath []string) {

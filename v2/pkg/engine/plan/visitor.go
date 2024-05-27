@@ -39,9 +39,6 @@ type Visitor struct {
 	exportedVariables            map[string]struct{}
 	skipIncludeOnFragments       map[int]skipIncludeInfo
 	disableResolveFieldPositions bool
-
-	fieldByPaths    map[string]*resolve.Field
-	allowFieldMerge bool
 }
 
 func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
@@ -272,110 +269,36 @@ func (v *Visitor) EnterField(ref int) {
 	}
 	fieldDefinitionTypeRef := v.Definition.FieldDefinitionType(fieldDefinition)
 
-	fullFieldPathWithoutFragments := v.currentFullPath(true)
-
-	// if we already have a field with the same path we merge existing field with the current one
-	if v.allowFieldMerge && v.handleExistingField(ref, fieldDefinitionTypeRef, fullFieldPathWithoutFragments) {
-		return
-	}
-
 	skipIncludeInfo := v.resolveSkipIncludeForField(ref)
 
 	onTypeNames := v.resolveOnTypeNames(ref)
 
+	v.currentField = &resolve.Field{
+		Name:                    fieldAliasOrName,
+		OnTypeNames:             onTypeNames,
+		Position:                v.resolveFieldPosition(ref),
+		SkipDirectiveDefined:    skipIncludeInfo.skip,
+		SkipVariableName:        skipIncludeInfo.skipVariableName,
+		IncludeDirectiveDefined: skipIncludeInfo.include,
+		IncludeVariableName:     skipIncludeInfo.includeVariableName,
+		Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
+	}
+
 	if bytes.Equal(fieldName, literal.TYPENAME) {
-		v.currentField = &resolve.Field{
-			Name: fieldAliasOrName,
-			Value: &resolve.String{
-				Nullable:   false,
-				Path:       []string{v.Operation.FieldAliasOrNameString(ref)},
-				IsTypeName: true,
-			},
-			OnTypeNames:             onTypeNames,
-			Position:                v.resolveFieldPosition(ref),
-			SkipDirectiveDefined:    skipIncludeInfo.skip,
-			SkipVariableName:        skipIncludeInfo.skipVariableName,
-			IncludeDirectiveDefined: skipIncludeInfo.include,
-			IncludeVariableName:     skipIncludeInfo.includeVariableName,
-			Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
+		v.currentField.Value = &resolve.String{
+			Nullable:   false,
+			Path:       []string{v.Operation.FieldAliasOrNameString(ref)},
+			IsTypeName: true,
 		}
 	} else {
 		path := v.resolveFieldPath(ref)
-		v.currentField = &resolve.Field{
-			Name:                    fieldAliasOrName,
-			Value:                   v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path),
-			OnTypeNames:             onTypeNames,
-			Position:                v.resolveFieldPosition(ref),
-			SkipDirectiveDefined:    skipIncludeInfo.skip,
-			SkipVariableName:        skipIncludeInfo.skipVariableName,
-			IncludeDirectiveDefined: skipIncludeInfo.include,
-			IncludeVariableName:     skipIncludeInfo.includeVariableName,
-			Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
-		}
+		v.currentField.Value = v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path)
 	}
 
 	// append the field to the current object
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
 
-	// track the added field by its path
-	v.fieldByPaths[fullFieldPathWithoutFragments] = v.currentField
-
 	v.mapFieldConfig(ref)
-}
-
-func (v *Visitor) handleExistingField(currentFieldRef int, fieldDefinitionTypeRef int, fullFieldPathWithoutFragments string) (exists bool) {
-	resolveField := v.fieldByPaths[fullFieldPathWithoutFragments]
-	if resolveField == nil {
-		return false
-	}
-
-	// merge on type names
-	onTypeNames := v.resolveOnTypeNames(currentFieldRef)
-	hasOnTypeNames := len(resolveField.OnTypeNames) > 0 && len(onTypeNames) > 0
-	if hasOnTypeNames {
-		for _, t := range onTypeNames {
-			if !slices.ContainsFunc(resolveField.OnTypeNames, func(existingT []byte) bool {
-				return bytes.Equal(existingT, t)
-			}) {
-				resolveField.OnTypeNames = append(resolveField.OnTypeNames, t)
-			}
-		}
-	} else {
-		// if one of the duplicates request the field unconditionally, we remove the on type names
-		resolveField.OnTypeNames = nil
-	}
-
-	// merge field info
-	maybeAdditionalInfo := v.resolveFieldInfo(currentFieldRef, fieldDefinitionTypeRef, onTypeNames)
-	if resolveField.Info != nil && maybeAdditionalInfo != nil {
-		resolveField.Info.Merge(maybeAdditionalInfo)
-	}
-
-	// set field as current field
-	v.currentField = resolveField
-
-	var obj *resolve.Object
-	switch node := v.currentField.Value.(type) {
-	case *resolve.Array:
-		obj, _ = node.Item.(*resolve.Object)
-	case *resolve.Object:
-		obj = node
-	}
-
-	if obj != nil {
-		v.objects = append(v.objects, obj)
-		v.Walker.DefferOnEnterField(func() {
-			v.currentFields = append(v.currentFields, objectFields{
-				popOnField: currentFieldRef,
-				fields:     &obj.Fields,
-			})
-		})
-	}
-
-	// we have to map field config again with a different ref because it is used in input templates rendering
-	v.mapFieldConfig(currentFieldRef)
-
-	return true
 }
 
 func (v *Visitor) mapFieldConfig(ref int) {
@@ -694,10 +617,9 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			}
 		case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
 			object := &resolve.Object{
-				Nullable:             nullable,
-				Path:                 path,
-				Fields:               []*resolve.Field{},
-				UnescapeResponseJson: unescapeResponseJson,
+				Nullable: nullable,
+				Path:     path,
+				Fields:   []*resolve.Field{},
 			}
 			v.objects = append(v.objects, object)
 			v.Walker.DefferOnEnterField(func() {
@@ -884,7 +806,6 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.fieldConfigs = map[int]*FieldConfiguration{}
 	v.exportedVariables = map[string]struct{}{}
 	v.skipIncludeOnFragments = map[int]skipIncludeInfo{}
-	v.fieldByPaths = map[string]*resolve.Field{}
 }
 
 func (v *Visitor) LeaveDocument(_, _ *ast.Document) {

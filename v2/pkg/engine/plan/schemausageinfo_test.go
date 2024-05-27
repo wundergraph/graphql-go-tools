@@ -231,7 +231,7 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 			},
 			{
 				Path:               []string{"searchResults", "name"},
-				EnclosingTypeNames: []string{"Human", "Droid"},
+				EnclosingTypeNames: []string{"Human"},
 				FieldName:          "name",
 				FieldTypeName:      "String",
 				Source: TypeFieldSource{
@@ -242,6 +242,15 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 				Path:               []string{"searchResults", "inlineName"},
 				EnclosingTypeNames: []string{"Human"},
 				FieldName:          "inlineName",
+				FieldTypeName:      "String",
+				Source: TypeFieldSource{
+					IDs: []string{"https://swapi.dev/api"},
+				},
+			},
+			{
+				Path:               []string{"searchResults", "name"},
+				EnclosingTypeNames: []string{"Droid"},
+				FieldName:          "name",
 				FieldTypeName:      "String",
 				Source: TypeFieldSource{
 					IDs: []string{"https://swapi.dev/api"},

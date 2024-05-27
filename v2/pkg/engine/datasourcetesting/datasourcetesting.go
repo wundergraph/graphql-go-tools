@@ -24,13 +24,20 @@ import (
 )
 
 type testOptions struct {
-	postProcessors []postprocess.PostProcessor
-	skipReason     string
+	postProcessors            []postprocess.PostProcessor
+	postProcessExtractFetches bool
+	skipReason                string
 }
 
 func WithPostProcessors(postProcessors ...postprocess.PostProcessor) func(*testOptions) {
 	return func(o *testOptions) {
 		o.postProcessors = postProcessors
+	}
+}
+
+func WithPostProcessExtractFetches() func(*testOptions) {
+	return func(o *testOptions) {
+		o.postProcessExtractFetches = true
 	}
 }
 
@@ -133,9 +140,7 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		}
 
 		if opts.postProcessors != nil {
-			for _, pp := range opts.postProcessors {
-				actualPlan = pp.Process(actualPlan)
-			}
+			postprocess.NewProcessor(opts.postProcessors, opts.postProcessExtractFetches).Process(actualPlan)
 		}
 
 		actualBytes, _ := json.MarshalIndent(actualPlan, "", "  ")

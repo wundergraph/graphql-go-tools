@@ -37,7 +37,8 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 			ExcludeInput:                           false,
 			ExcludeOutput:                          false,
 			ExcludeLoadStats:                       false,
-			EnablePredictableDebugTimings:          false,
+			EnablePredictableDebugTimings:          true,
+			Debug:                                  true,
 			IncludeTraceOutputInResponseExtensions: true,
 		}
 

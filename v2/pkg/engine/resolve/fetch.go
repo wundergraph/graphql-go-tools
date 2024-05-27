@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"encoding/json"
+	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -60,6 +61,25 @@ type PostProcessingConfiguration struct {
 	// In this case, the result would be {"a":1,"foo":"bar"}
 	// This is useful if you make multiple fetches, e.g. parallel fetches, that would otherwise overwrite each other
 	MergePath []string
+}
+
+// Equals compares two PostProcessingConfiguration objects
+func (ppc *PostProcessingConfiguration) Equals(other *PostProcessingConfiguration) bool {
+	if !slices.Equal(ppc.SelectResponseDataPath, other.SelectResponseDataPath) {
+		return false
+	}
+
+	if !slices.Equal(ppc.SelectResponseErrorsPath, other.SelectResponseErrorsPath) {
+		return false
+	}
+
+	// Response template is unused in the current codebase - so we can ignore it
+
+	if !slices.Equal(ppc.MergePath, other.MergePath) {
+		return false
+	}
+
+	return true
 }
 
 func (_ *SingleFetch) FetchKind() FetchKind {
@@ -167,6 +187,37 @@ type FetchConfiguration struct {
 	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
 	// Returning null in this case tells the batch implementation to skip this item
 	SetTemplateOutputToNullOnVariableNull bool
+}
+
+func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
+	if fc.Input != other.Input {
+		return false
+	}
+	if !slices.EqualFunc(fc.Variables, other.Variables, func(a, b Variable) bool {
+		return a.Equals(b)
+	}) {
+		return false
+	}
+
+	// Note: we do not compare datasources, as they will always be a different instance
+
+	if fc.RequiresParallelListItemFetch != other.RequiresParallelListItemFetch {
+		return false
+	}
+	if fc.RequiresEntityFetch != other.RequiresEntityFetch {
+		return false
+	}
+	if fc.RequiresEntityBatchFetch != other.RequiresEntityBatchFetch {
+		return false
+	}
+	if !fc.PostProcessing.Equals(&other.PostProcessing) {
+		return false
+	}
+	if fc.SetTemplateOutputToNullOnVariableNull != other.SetTemplateOutputToNullOnVariableNull {
+		return false
+	}
+
+	return true
 }
 
 type FetchInfo struct {
