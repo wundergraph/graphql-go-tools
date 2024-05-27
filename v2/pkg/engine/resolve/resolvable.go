@@ -121,7 +121,7 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	return
 }
 
-func (r *Resolvable) Resolve(ctx context.Context, root *Object, out io.Writer) error {
+func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *Object, out io.Writer) error {
 	r.out = out
 	r.print = false
 	r.printErr = nil
@@ -131,7 +131,7 @@ func (r *Resolvable) Resolve(ctx context.Context, root *Object, out io.Writer) e
 	 * For example, if a fetch fails, only propagate that the fetch has failed; do not propagate nested non-null errors.
 	 */
 
-	_, err := r.walkObject(root, r.dataRoot)
+	_, err := r.walkObject(rootData, r.dataRoot)
 	if r.authorizationError != nil {
 		return r.authorizationError
 	}
@@ -147,11 +147,11 @@ func (r *Resolvable) Resolve(ctx context.Context, root *Object, out io.Writer) e
 		r.printBytes(colon)
 		r.printBytes(null)
 	} else {
-		r.printData(root)
+		r.printData(rootData)
 	}
 	if r.hasExtensions() {
 		r.printBytes(comma)
-		r.printErr = r.printExtensions(ctx, root)
+		r.printErr = r.printExtensions(ctx, fetchTree)
 	}
 	r.printBytes(rBrace)
 
@@ -184,7 +184,7 @@ func (r *Resolvable) printData(root *Object) {
 	r.wroteData = true
 }
 
-func (r *Resolvable) printExtensions(ctx context.Context, root *Object) error {
+func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *Object) error {
 	r.printBytes(quote)
 	r.printBytes(literalExtensions)
 	r.printBytes(quote)
@@ -218,7 +218,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, root *Object) error {
 		if writeComma {
 			r.printBytes(comma)
 		}
-		err := r.printTraceExtension(ctx, root)
+		err := r.printTraceExtension(ctx, fetchTree)
 		if err != nil {
 			return err
 		}
@@ -244,12 +244,12 @@ func (r *Resolvable) printRateLimitingExtension() error {
 	return r.ctx.rateLimiter.RenderResponseExtension(r.ctx, r.out)
 }
 
-func (r *Resolvable) printTraceExtension(ctx context.Context, root *Object) error {
+func (r *Resolvable) printTraceExtension(ctx context.Context, fetchTree *Object) error {
 	var trace *TraceNode
 	if r.ctx.TracingOptions.Debug {
-		trace = GetTrace(ctx, root, GetTraceDebug())
+		trace = GetTrace(ctx, fetchTree, GetTraceDebug())
 	} else {
-		trace = GetTrace(ctx, root)
+		trace = GetTrace(ctx, fetchTree)
 	}
 	traceData, err := json.Marshal(trace)
 	if err != nil {

@@ -61,10 +61,6 @@ func TestFederationIntegrationTestWithArt(t *testing.T) {
 		rex, err := regexp.Compile(`http://127.0.0.1:\d+`)
 		require.NoError(t, err)
 		resp = rex.ReplaceAllString(resp, "http://localhost/graphql")
-		// all nodes have UUIDs, so we need to replace them with a static UUID
-		rex2, err := regexp.Compile(`"id":"[a-f0-9\-]{36}"`)
-		require.NoError(t, err)
-		resp = rex2.ReplaceAllString(resp, `"id":"00000000-0000-0000-0000-000000000000"`)
 		return resp
 	}
 
@@ -77,7 +73,7 @@ func TestFederationIntegrationTestWithArt(t *testing.T) {
 
 		buf := &bytes.Buffer{}
 		_ = json.Indent(buf, []byte(respString), "", "  ")
-		goldie.New(t).Assert(t, "complex_nesting_query_with_art", buf.Bytes())
+		goldie.New(t, goldie.WithNameSuffix(".json")).Assert(t, "complex_nesting_query_with_art", buf.Bytes())
 	})
 }
 

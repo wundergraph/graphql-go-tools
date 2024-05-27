@@ -104,7 +104,7 @@ type ResolverOptions struct {
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
 func New(ctx context.Context, options ResolverOptions) *Resolver {
-	//options.Debug = true
+	// options.Debug = true
 	resolver := &Resolver{
 		ctx:                          ctx,
 		options:                      options,
@@ -191,7 +191,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		return err
 	}
 
-	return t.resolvable.Resolve(ctx.ctx, response.Data, writer)
+	return t.resolvable.Resolve(ctx.ctx, response.Data, response.FetchTree, writer)
 }
 
 type trigger struct {
@@ -271,7 +271,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		}
 		return // subscription was already closed by the client
 	}
-	if err := t.resolvable.Resolve(ctx.ctx, sub.resolve.Response.Data, sub.writer); err != nil {
+	if err := t.resolvable.Resolve(ctx.ctx, sub.resolve.Response.Data, sub.resolve.Response.FetchTree, sub.writer); err != nil {
 		buf := pool.BytesBuffer.Get()
 		defer pool.BytesBuffer.Put(buf)
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)

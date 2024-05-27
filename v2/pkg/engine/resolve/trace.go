@@ -117,7 +117,6 @@ type TraceNode struct {
 	Info                 *TraceInfo    `json:"info,omitempty"`
 	Fetch                *TraceFetch   `json:"fetch,omitempty"`
 	NodeType             TraceNodeType `json:"node_type,omitempty"`
-	Nullable             bool          `json:"nullable,omitempty"`
 	Path                 []string      `json:"path,omitempty"`
 	Fields               []*TraceField `json:"fields,omitempty"`
 	Items                []*TraceNode  `json:"items,omitempty"`
@@ -260,12 +259,12 @@ func parseFetch(fetch Fetch, options *getTraceOptions) *TraceFetch {
 func parseNode(n Node, options *getTraceOptions) *TraceNode {
 	node := &TraceNode{
 		NodeType: getNodeType(n.NodeKind()),
-		Nullable: n.NodeKind() == NodeKindNull || n.NodePath() == nil,
 		Path:     n.NodePath(),
 	}
 
 	switch v := n.(type) {
 	case *Object:
+		node.Fields = make([]*TraceField, 0, len(v.Fields))
 		for _, field := range v.Fields {
 			node.Fields = append(node.Fields, parseField(field, options))
 		}

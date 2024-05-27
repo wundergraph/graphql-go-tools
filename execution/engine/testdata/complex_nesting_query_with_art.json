@@ -222,7 +222,6 @@
         }
       },
       "node_type": "object",
-      "nullable": true,
       "fields": [
         {
           "name": "me",
@@ -417,24 +416,6 @@
             ],
             "fields": [
               {
-                "name": "id",
-                "value": {
-                  "node_type": "scalar",
-                  "path": [
-                    "id"
-                  ]
-                }
-              },
-              {
-                "name": "username",
-                "value": {
-                  "node_type": "string",
-                  "path": [
-                    "username"
-                  ]
-                }
-              },
-              {
                 "name": "history",
                 "value": {
                   "node_type": "array",
@@ -444,37 +425,7 @@
                   "items": [
                     {
                       "node_type": "object",
-                      "nullable": true,
                       "fields": [
-                        {
-                          "name": "location",
-                          "value": {
-                            "node_type": "string",
-                            "path": [
-                              "location"
-                            ]
-                          }
-                        },
-                        {
-                          "name": "wallet",
-                          "value": {
-                            "node_type": "object",
-                            "path": [
-                              "wallet"
-                            ],
-                            "fields": [
-                              {
-                                "name": "currency",
-                                "value": {
-                                  "node_type": "string",
-                                  "path": [
-                                    "currency"
-                                  ]
-                                }
-                              }
-                            ]
-                          }
-                        },
                         {
                           "name": "product",
                           "value": {
@@ -614,97 +565,6 @@
                             "node_type": "object",
                             "path": [
                               "product"
-                            ],
-                            "fields": [
-                              {
-                                "name": "upc",
-                                "value": {
-                                  "node_type": "string",
-                                  "path": [
-                                    "upc"
-                                  ]
-                                }
-                              },
-                              {
-                                "name": "name",
-                                "value": {
-                                  "node_type": "string",
-                                  "path": [
-                                    "name"
-                                  ]
-                                }
-                              }
-                            ]
-                          }
-                        }
-                      ]
-                    }
-                  ]
-                }
-              },
-              {
-                "name": "reviews",
-                "value": {
-                  "node_type": "array",
-                  "path": [
-                    "reviews"
-                  ],
-                  "items": [
-                    {
-                      "node_type": "object",
-                      "nullable": true,
-                      "fields": [
-                        {
-                          "name": "__typename",
-                          "value": {
-                            "node_type": "string",
-                            "path": [
-                              "__typename"
-                            ],
-                            "is_type_name": true
-                          }
-                        },
-                        {
-                          "name": "attachments",
-                          "value": {
-                            "node_type": "array",
-                            "path": [
-                              "attachments"
-                            ],
-                            "items": [
-                              {
-                                "node_type": "object",
-                                "nullable": true,
-                                "fields": [
-                                  {
-                                    "name": "upc",
-                                    "value": {
-                                      "node_type": "string",
-                                      "path": [
-                                        "upc"
-                                      ]
-                                    }
-                                  },
-                                  {
-                                    "name": "body",
-                                    "value": {
-                                      "node_type": "string",
-                                      "path": [
-                                        "body"
-                                      ]
-                                    }
-                                  },
-                                  {
-                                    "name": "size",
-                                    "value": {
-                                      "node_type": "float",
-                                      "path": [
-                                        "size"
-                                      ]
-                                    }
-                                  }
-                                ]
-                              }
                             ]
                           }
                         }
