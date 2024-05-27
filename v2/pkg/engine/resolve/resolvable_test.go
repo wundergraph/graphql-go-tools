@@ -488,13 +488,10 @@ func TestResolvable_WithTracingNotStarted(t *testing.T) {
 		},
 	}
 	out := &bytes.Buffer{}
-	err = res.Resolve(ctx.ctx, object, nil, out)
+	err = res.Resolve(ctx.ctx, object, object, out)
 
 	assert.NoError(t, err)
-	assert.JSONEq(t, `{
-		"data": {"hello":"world"},
-		"extensions":{"trace":{"node_type":"object","nullable":true,"fields":[{"name":"hello","value":{"node_type":"string","path":["hello"]}}]}}
-	}`, out.String())
+	assert.Equal(t, `{"data":{"hello":"world"},"extensions":{"trace":{"node_type":"object","fields":[{"name":"hello","value":{"node_type":"string","path":["hello"]}}]}}}`, out.String())
 }
 
 func TestResolvable_WithTracing(t *testing.T) {
@@ -571,8 +568,8 @@ func TestResolvable_WithTracing(t *testing.T) {
 	SetPlannerStats(ctx.ctx, PhaseStats{})
 
 	out := &bytes.Buffer{}
-	err = res.Resolve(ctx.ctx, object, nil, out)
+	err = res.Resolve(ctx.ctx, object, object, out)
 
 	assert.NoError(t, err)
-	assert.Equal(t, `{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]},"extensions":{"trace":{"info":{"trace_start_time":"","trace_start_unix":0,"parse_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":5,"duration_since_start_pretty":"5ns"},"normalize_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":10,"duration_since_start_pretty":"10ns"},"validate_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":15,"duration_since_start_pretty":"15ns"},"planner_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":20,"duration_since_start_pretty":"20ns"}},"node_type":"object","nullable":true,"fields":[{"name":"topProducts","value":{"node_type":"array","path":["topProducts"],"items":[{"node_type":"object","nullable":true,"fields":[{"name":"name","value":{"node_type":"string","path":["name"]}},{"name":"stock","value":{"node_type":"integer","path":["stock"]}},{"name":"reviews","value":{"node_type":"array","path":["reviews"],"items":[{"node_type":"object","nullable":true,"fields":[{"name":"body","value":{"node_type":"string","path":["body"]}},{"name":"author","value":{"node_type":"object","path":["author"],"fields":[{"name":"name","value":{"node_type":"string","path":["name"]}}]}}]}]}}]}]}}]}}}`, out.String())
+	assert.Equal(t, `{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]},"extensions":{"trace":{"info":{"trace_start_time":"","trace_start_unix":0,"parse_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":5,"duration_since_start_pretty":"5ns"},"normalize_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":10,"duration_since_start_pretty":"10ns"},"validate_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":15,"duration_since_start_pretty":"15ns"},"planner_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":20,"duration_since_start_pretty":"20ns"}},"node_type":"object","fields":[{"name":"topProducts","value":{"node_type":"array","path":["topProducts"],"items":[{"node_type":"object","fields":[{"name":"name","value":{"node_type":"string","path":["name"]}},{"name":"stock","value":{"node_type":"integer","path":["stock"]}},{"name":"reviews","value":{"node_type":"array","path":["reviews"],"items":[{"node_type":"object","fields":[{"name":"body","value":{"node_type":"string","path":["body"]}},{"name":"author","value":{"node_type":"object","path":["author"],"fields":[{"name":"name","value":{"node_type":"string","path":["name"]}}]}}]}]}}]}]}}]}}}`, out.String())
 }

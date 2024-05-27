@@ -191,7 +191,13 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		return err
 	}
 
-	return t.resolvable.Resolve(ctx.ctx, response.Data, response.FetchTree, writer)
+	fetchTree := response.FetchTree
+	if fetchTree == nil {
+		// fallback to the response data
+		fetchTree = response.Data
+	}
+
+	return t.resolvable.Resolve(ctx.ctx, response.Data, fetchTree, writer)
 }
 
 type trigger struct {
