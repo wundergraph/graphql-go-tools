@@ -21,6 +21,8 @@ const (
 
 type Fetch interface {
 	FetchKind() FetchKind
+	FetchId() (id int, ok bool)
+	DependsOnFetchIds() (ids []int)
 }
 
 type MultiFetch struct {
@@ -30,6 +32,8 @@ type MultiFetch struct {
 func (_ *MultiFetch) FetchKind() FetchKind {
 	return FetchKindMulti
 }
+func (_ *MultiFetch) FetchId() (int, bool)           { return -1, false }
+func (_ *MultiFetch) DependsOnFetchIds() (ids []int) { return nil }
 
 type SingleFetch struct {
 	FetchConfiguration
@@ -91,6 +95,8 @@ func (ppc *PostProcessingConfiguration) Equals(other *PostProcessingConfiguratio
 func (_ *SingleFetch) FetchKind() FetchKind {
 	return FetchKindSingle
 }
+func (sf *SingleFetch) FetchId() (int, bool)           { return sf.FetchID, true }
+func (sf *SingleFetch) DependsOnFetchIds() (ids []int) { return sf.DependsOnFetchIDs }
 
 // ParallelFetch - contains fetches which not depends on each other
 // Fetches - will always contain only SingleFetch
@@ -102,6 +108,8 @@ type ParallelFetch struct {
 func (_ *ParallelFetch) FetchKind() FetchKind {
 	return FetchKindParallel
 }
+func (_ *ParallelFetch) FetchId() (int, bool)           { return -1, false }
+func (_ *ParallelFetch) DependsOnFetchIds() (ids []int) { return nil }
 
 // SerialFetch - contains fetches which depends on each other and should be executed in a specific order
 // Fetches - will contain ParallelFetch or SingleFetch
@@ -113,6 +121,8 @@ type SerialFetch struct {
 func (_ *SerialFetch) FetchKind() FetchKind {
 	return FetchKindSerial
 }
+func (_ *SerialFetch) FetchId() (int, bool)           { return -1, false }
+func (_ *SerialFetch) DependsOnFetchIds() (ids []int) { return nil }
 
 // BatchEntityFetch - represents nested entity fetch on array field
 // allows to join nested fetches to the same subgraph into a single fetch
@@ -145,6 +155,8 @@ type BatchInput struct {
 func (_ *BatchEntityFetch) FetchKind() FetchKind {
 	return FetchKindEntityBatch
 }
+func (b *BatchEntityFetch) FetchId() (int, bool)           { return b.FetchID, true }
+func (b *BatchEntityFetch) DependsOnFetchIds() (ids []int) { return b.DependsOnFetchIDs }
 
 // EntityFetch - represents nested entity fetch on object field
 // representations variable will contain single item
@@ -168,6 +180,8 @@ type EntityInput struct {
 func (_ *EntityFetch) FetchKind() FetchKind {
 	return FetchKindEntity
 }
+func (e *EntityFetch) FetchId() (int, bool)           { return e.FetchID, true }
+func (e *EntityFetch) DependsOnFetchIds() (ids []int) { return e.DependsOnFetchIDs }
 
 // The ParallelListItemFetch can be used to make nested parallel fetches within a list
 // Usually, you want to batch fetches within a list, which is the default behavior of SingleFetch
@@ -181,6 +195,8 @@ type ParallelListItemFetch struct {
 func (_ *ParallelListItemFetch) FetchKind() FetchKind {
 	return FetchKindParallelListItem
 }
+func (p *ParallelListItemFetch) FetchId() (int, bool)           { return p.Fetch.FetchID, true }
+func (p *ParallelListItemFetch) DependsOnFetchIds() (ids []int) { return p.Fetch.DependsOnFetchIDs }
 
 type FetchConfiguration struct {
 	Input      string

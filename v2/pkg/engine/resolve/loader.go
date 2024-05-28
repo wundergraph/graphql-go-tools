@@ -11,6 +11,7 @@ import (
 	"net/http/httptrace"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/buger/jsonparser"
@@ -55,6 +56,33 @@ type Loader struct {
 	rewriteSubgraphErrorPaths    bool
 	omitSubgraphErrorLocations   bool
 	omitSubgraphErrorExtensions  bool
+
+	fetchedFetches       map[int]struct{}
+	waitingForDependency map[int]struct{}
+	fetchedLock          sync.RWMutex
+}
+
+func (l *Loader) fetchWaitsForDependency(dependsOnFetchIDs []int) bool {
+	l.fetchedLock.RLock()
+	defer l.fetchedLock.RUnlock()
+
+	return slices.ContainsFunc(dependsOnFetchIDs, func(fetchID int) bool {
+		_, hasFetched := l.fetchedFetches[fetchID]
+		return !hasFetched
+	})
+}
+
+func (l *Loader) fetchFetched(fetchID int) {
+	l.fetchedLock.Lock()
+	l.fetchedFetches[fetchID] = struct{}{}
+	l.fetchedLock.Unlock()
+}
+
+func (l *Loader) isFetchFetched(fetchID int) bool {
+	l.fetchedLock.RLock()
+	defer l.fetchedLock.RUnlock()
+	_, ok := l.fetchedFetches[fetchID]
+	return ok
 }
 
 func (l *Loader) Free() {
@@ -64,6 +92,8 @@ func (l *Loader) Free() {
 	l.dataRoot = -1
 	l.errorsRoot = -1
 	l.path = l.path[:0]
+	l.fetchedFetches = nil
+	l.waitingForDependency = nil
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
@@ -72,6 +102,8 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 	l.errorsRoot = resolvable.errorsRoot
 	l.ctx = ctx
 	l.info = response.Info
+	l.fetchedFetches = make(map[int]struct{})
+	l.waitingForDependency = make(map[int]struct{})
 
 	// fallback to data mostly for tests
 	fetchTree := response.FetchTree
@@ -79,7 +111,17 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 		fetchTree = response.Data
 	}
 
-	return l.walkNode(fetchTree, []int{resolvable.dataRoot})
+	for {
+		if err := l.walkNode(fetchTree, []int{resolvable.dataRoot}); err != nil {
+			return err
+		}
+
+		if len(l.waitingForDependency) == 0 {
+			break
+		}
+	}
+
+	return nil
 }
 
 func (l *Loader) walkNode(node Node, items []int) error {
@@ -206,9 +248,35 @@ func (l *Loader) itemsData(items []int, out io.Writer) error {
 	}, out)
 }
 
+func (l *Loader) shouldSkipFetch(fetch Fetch) bool {
+	fetchID, ok := fetch.FetchId()
+	if !ok {
+		return false
+	}
+
+	if l.isFetchFetched(fetchID) {
+		return true
+	}
+
+	if len(fetch.DependsOnFetchIds()) > 0 {
+		if l.fetchWaitsForDependency(fetch.DependsOnFetchIds()) {
+			l.waitingForDependency[fetchID] = struct{}{}
+			return true
+		} else {
+			delete(l.waitingForDependency, fetchID)
+		}
+	}
+
+	return false
+}
+
 func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
+		if l.shouldSkipFetch(f) {
+			return nil
+		}
+
 		res := &result{
 			out: pool.BytesBuffer.Get(),
 		}
@@ -245,6 +313,13 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		results := make([]*result, len(f.Fetches))
 		g, ctx := errgroup.WithContext(l.ctx.ctx)
+
+		for i := range f.Fetches {
+			if l.shouldSkipFetch(f.Fetches[i]) {
+				return nil
+			}
+		}
+
 		for i := range f.Fetches {
 			i := i
 			results[i] = &result{}
@@ -278,6 +353,10 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			}
 		}
 	case *ParallelListItemFetch:
+		if l.shouldSkipFetch(f) {
+			return nil
+		}
+
 		if l.ctx.TracingOptions.Enable {
 			f.Trace = &DataSourceLoadTrace{
 				Path: l.renderPath(),
@@ -308,6 +387,10 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 			}
 		}
 	case *EntityFetch:
+		if l.shouldSkipFetch(f) {
+			return nil
+		}
+
 		res := &result{
 			out: pool.BytesBuffer.Get(),
 		}
@@ -321,6 +404,10 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 		return err
 	case *BatchEntityFetch:
+		if l.shouldSkipFetch(f) {
+			return nil
+		}
+
 		res := &result{
 			out: pool.BytesBuffer.Get(),
 		}
@@ -947,6 +1034,12 @@ func (l *Loader) validatePreFetch(input []byte, info *FetchInfo, res *result) (a
 }
 
 func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items []int, res *result) error {
+	defer func() {
+		if id, ok := fetch.FetchId(); ok {
+			l.fetchFetched(id)
+		}
+	}()
+
 	res.init(fetch.PostProcessing, fetch.Info)
 	input := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(input)
@@ -981,6 +1074,12 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items 
 }
 
 func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items []int, res *result) error {
+	defer func() {
+		if id, ok := fetch.FetchId(); ok {
+			l.fetchFetched(id)
+		}
+	}()
+
 	res.init(fetch.PostProcessing, fetch.Info)
 	itemData := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(itemData)
@@ -1069,6 +1168,12 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 }
 
 func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityFetch, items []int, res *result) error {
+	defer func() {
+		if id, ok := fetch.FetchId(); ok {
+			l.fetchFetched(id)
+		}
+	}()
+
 	res.init(fetch.PostProcessing, fetch.Info)
 
 	if l.ctx.TracingOptions.Enable {
