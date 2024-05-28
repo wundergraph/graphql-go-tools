@@ -12,11 +12,12 @@ require (
 	github.com/gorilla/websocket v1.5.1
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/jensneuse/abstractlogger v0.0.4
+	github.com/sebdah/goldie/v2 v2.5.3
 	github.com/stretchr/testify v1.9.0
 	github.com/vektah/gqlparser/v2 v2.5.11
-	github.com/wundergraph/cosmo/composition-go v0.0.0-20240522182921-ba255029e452
-	github.com/wundergraph/cosmo/router v0.0.0-20240522182921-ba255029e452
-	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.44
+	github.com/wundergraph/cosmo/composition-go v0.0.0-20240527153944-f69e36f08478
+	github.com/wundergraph/cosmo/router v0.0.0-20240527153944-f69e36f08478
+	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.45
 	go.uber.org/atomic v1.11.0
 	google.golang.org/protobuf v1.33.0
 )
@@ -48,6 +49,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/r3labs/sse/v2 v2.8.1 // indirect
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1 // indirect
+	github.com/sergi/go-diff v1.3.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/tidwall/gjson v1.17.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
