@@ -26,9 +26,9 @@ func TestDeduplicateMultiFetch_Process(t *testing.T) {
 					Data: &resolve.Object{
 						Fetch: &resolve.ParallelFetch{
 							Fetches: []resolve.Fetch{
-								&resolve.SingleFetch{FetchID: 1, FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
-								&resolve.SingleFetch{FetchID: 2, FetchConfiguration: resolve.FetchConfiguration{Input: "b"}},
-								&resolve.SingleFetch{FetchID: 3, FetchConfiguration: resolve.FetchConfiguration{Input: "c"}},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}, FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}, FetchConfiguration: resolve.FetchConfiguration{Input: "b"}},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}, FetchConfiguration: resolve.FetchConfiguration{Input: "c"}},
 							},
 						},
 					},
@@ -39,9 +39,9 @@ func TestDeduplicateMultiFetch_Process(t *testing.T) {
 					Data: &resolve.Object{
 						Fetch: &resolve.ParallelFetch{
 							Fetches: []resolve.Fetch{
-								&resolve.SingleFetch{FetchID: 1, FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
-								&resolve.SingleFetch{FetchID: 2, FetchConfiguration: resolve.FetchConfiguration{Input: "b"}},
-								&resolve.SingleFetch{FetchID: 3, FetchConfiguration: resolve.FetchConfiguration{Input: "c"}},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}, FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}, FetchConfiguration: resolve.FetchConfiguration{Input: "b"}},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}, FetchConfiguration: resolve.FetchConfiguration{Input: "c"}},
 							},
 						},
 					},
@@ -57,18 +57,18 @@ func TestDeduplicateMultiFetch_Process(t *testing.T) {
 							Fetches: []resolve.Fetch{
 								&resolve.ParallelFetch{
 									Fetches: []resolve.Fetch{
-										&resolve.SingleFetch{FetchID: 1, FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
-										&resolve.SingleFetch{FetchID: 2, FetchConfiguration: resolve.FetchConfiguration{Input: "b"}},
-										&resolve.SingleFetch{FetchID: 6, FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}, FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}, FetchConfiguration: resolve.FetchConfiguration{Input: "b"}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 6}, FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
 									},
 								},
 								&resolve.ParallelFetch{
 									Fetches: []resolve.Fetch{
-										&resolve.SingleFetch{FetchID: 3, FetchConfiguration: resolve.FetchConfiguration{Input: "c"}},
-										&resolve.SingleFetch{FetchID: 4, FetchConfiguration: resolve.FetchConfiguration{Input: "c"}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}, FetchConfiguration: resolve.FetchConfiguration{Input: "c"}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 4}, FetchConfiguration: resolve.FetchConfiguration{Input: "c"}},
 									},
 								},
-								&resolve.SingleFetch{FetchID: 5, DependsOnFetchIDs: []int{3}},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 5, DependsOnFetchIDs: []int{3}}},
 							},
 						},
 					},
@@ -81,16 +81,16 @@ func TestDeduplicateMultiFetch_Process(t *testing.T) {
 							Fetches: []resolve.Fetch{
 								&resolve.ParallelFetch{
 									Fetches: []resolve.Fetch{
-										&resolve.SingleFetch{FetchID: 1, FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
-										&resolve.SingleFetch{FetchID: 2, FetchConfiguration: resolve.FetchConfiguration{Input: "b"}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}, FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}, FetchConfiguration: resolve.FetchConfiguration{Input: "b"}},
 									},
 								},
 								&resolve.ParallelFetch{
 									Fetches: []resolve.Fetch{
-										&resolve.SingleFetch{FetchID: 3, FetchConfiguration: resolve.FetchConfiguration{Input: "c"}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}, FetchConfiguration: resolve.FetchConfiguration{Input: "c"}},
 									},
 								},
-								&resolve.SingleFetch{FetchID: 5, DependsOnFetchIDs: []int{3}},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 5, DependsOnFetchIDs: []int{3}}},
 							},
 						},
 					},

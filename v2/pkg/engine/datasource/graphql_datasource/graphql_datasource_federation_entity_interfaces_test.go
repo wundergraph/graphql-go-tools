@@ -58,8 +58,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											},
 										},
 										Fetch: &resolve.SingleFetch{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
+											FetchDependencies: resolve.FetchDependencies{
+												FetchID:           1,
+												DependsOnFetchIDs: []int{0},
+											},
 											FetchConfiguration: resolve.FetchConfiguration{
 												Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {__typename}}}","variables":{"representations":[$$0$$]}}}`,
 												Variables: []resolve.Variable{
@@ -214,8 +216,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											},
 										},
 										Fetch: &resolve.SingleFetch{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
+											FetchDependencies: resolve.FetchDependencies{
+												FetchID:           1,
+												DependsOnFetchIDs: []int{0},
+											},
 											FetchConfiguration: resolve.FetchConfiguration{
 												Input: `{"method":"POST","url":"http://localhost:4002/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {locations {country}}}}","variables":{"representations":[$$0$$]}}}`,
 												Variables: []resolve.Variable{
@@ -425,8 +429,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 										Fetch: &resolve.ParallelFetch{
 											Fetches: []resolve.Fetch{
 												&resolve.SingleFetch{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           1,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4002/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {locations {country}}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -491,8 +497,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 												},
 												&resolve.SingleFetch{
-													FetchID:           2,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           2,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4004/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {age}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -617,8 +625,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											},
 										},
 										Fetch: &resolve.SingleFetch{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
+											FetchDependencies: resolve.FetchDependencies{
+												FetchID:           1,
+												DependsOnFetchIDs: []int{0},
+											},
 											FetchConfiguration: resolve.FetchConfiguration{
 												Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {title __typename}}}","variables":{"representations":[$$0$$]}}}`,
 												Variables: []resolve.Variable{
@@ -712,8 +722,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 										},
 									},
 									Fetch: &resolve.SingleFetch{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID:           1,
+											DependsOnFetchIDs: []int{0},
+										},
 										FetchConfiguration: resolve.FetchConfiguration{
 											Input: `{"method":"POST","url":"http://localhost:4004/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {age}}}","variables":{"representations":[$$0$$]}}}`,
 											Variables: []resolve.Variable{
@@ -830,8 +842,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 									Fetch: &resolve.ParallelFetch{
 										Fetches: []resolve.Fetch{
 											&resolve.SingleFetch{
-												FetchID:           1,
-												DependsOnFetchIDs: []int{0},
+												FetchDependencies: resolve.FetchDependencies{
+													FetchID:           1,
+													DependsOnFetchIDs: []int{0},
+												},
 												FetchConfiguration: resolve.FetchConfiguration{
 													Input: `{"method":"POST","url":"http://localhost:4004/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {age}}}","variables":{"representations":[$$0$$]}}}`,
 													Variables: []resolve.Variable{
@@ -866,8 +880,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											},
 											&resolve.SingleFetch{
-												FetchID:           2,
-												DependsOnFetchIDs: []int{0},
+												FetchDependencies: resolve.FetchDependencies{
+													FetchID:           2,
+													DependsOnFetchIDs: []int{0},
+												},
 												FetchConfiguration: resolve.FetchConfiguration{
 													Input: `{"method":"POST","url":"http://localhost:4002/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {locations {country}}}}","variables":{"representations":[$$0$$]}}}`,
 													Variables: []resolve.Variable{
@@ -964,8 +980,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 										},
 									},
 									Fetch: &resolve.SingleFetch{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID:           1,
+											DependsOnFetchIDs: []int{0},
+										},
 										FetchConfiguration: resolve.FetchConfiguration{
 											Input: `{"method":"POST","url":"http://localhost:4004/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {age}}}","variables":{"representations":[$$0$$]}}}`,
 											Variables: []resolve.Variable{
@@ -1082,8 +1100,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 									Fetch: &resolve.ParallelFetch{
 										Fetches: []resolve.Fetch{
 											&resolve.SingleFetch{
-												FetchID:           1,
-												DependsOnFetchIDs: []int{0},
+												FetchDependencies: resolve.FetchDependencies{
+													FetchID:           1,
+													DependsOnFetchIDs: []int{0},
+												},
 												FetchConfiguration: resolve.FetchConfiguration{
 													Input: `{"method":"POST","url":"http://localhost:4004/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {age}}}","variables":{"representations":[$$0$$]}}}`,
 													Variables: []resolve.Variable{
@@ -1118,8 +1138,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											},
 											&resolve.SingleFetch{
-												FetchID:           2,
-												DependsOnFetchIDs: []int{0},
+												FetchDependencies: resolve.FetchDependencies{
+													FetchID:           2,
+													DependsOnFetchIDs: []int{0},
+												},
 												FetchConfiguration: resolve.FetchConfiguration{
 													Input: `{"method":"POST","url":"http://localhost:4002/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {locations {country}}}}","variables":{"representations":[$$0$$]}}}`,
 													Variables: []resolve.Variable{
@@ -1225,8 +1247,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 										Fetch: &resolve.SerialFetch{
 											Fetches: []resolve.Fetch{
 												&resolve.SingleFetch{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           1,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {title __typename} ... on Admin {__typename}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -1274,8 +1298,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 												},
 												&resolve.SingleFetch{
-													FetchID:           2,
-													DependsOnFetchIDs: []int{1, 0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           2,
+														DependsOnFetchIDs: []int{1, 0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {title}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -1459,8 +1485,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 										Fetch: &resolve.ParallelFetch{
 											Fetches: []resolve.Fetch{
 												&resolve.SingleFetch{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           1,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {title}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -1494,8 +1522,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 												},
 												&resolve.SingleFetch{
-													FetchID:           2,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           2,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4002/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {locations {country}}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -1731,8 +1761,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 										Fetch: &resolve.ParallelFetch{
 											Fetches: []resolve.Fetch{
 												&resolve.SingleFetch{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           1,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {title}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -1766,8 +1798,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 												},
 												&resolve.SingleFetch{
-													FetchID:           2,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           2,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4002/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {locations {country}}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -1832,8 +1866,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 												},
 												&resolve.SingleFetch{
-													FetchID:           3,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           3,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4004/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {age}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -1985,8 +2021,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 										Fetch: &resolve.SerialFetch{
 											Fetches: []resolve.Fetch{
 												&resolve.SingleFetch{
-													FetchID:           2,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           2,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {__typename} ... on Moderator {title __typename} ... on User {title __typename}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -2048,8 +2086,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 												},
 												&resolve.SingleFetch{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0, 2},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           1,
+														DependsOnFetchIDs: []int{0, 2},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {title}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -2196,8 +2236,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 										Fetch: &resolve.SerialFetch{
 											Fetches: []resolve.Fetch{
 												&resolve.SingleFetch{
-													FetchID:           2,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           2,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {__typename} ... on Moderator {title __typename} ... on User {title __typename}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -2259,8 +2301,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 												},
 												&resolve.SingleFetch{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0, 2},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           1,
+														DependsOnFetchIDs: []int{0, 2},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {title}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -2406,8 +2450,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												&resolve.ParallelFetch{
 													Fetches: []resolve.Fetch{
 														&resolve.SingleFetch{
-															FetchID:           2,
-															DependsOnFetchIDs: []int{0},
+															FetchDependencies: resolve.FetchDependencies{
+																FetchID:           2,
+																DependsOnFetchIDs: []int{0},
+															},
 															FetchConfiguration: resolve.FetchConfiguration{
 																Input: `{"method":"POST","url":"http://localhost:4004/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {age}}}","variables":{"representations":[$$0$$]}}}`,
 																Variables: []resolve.Variable{
@@ -2472,8 +2518,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 															DataSourceIdentifier: []byte("graphql_datasource.Source"),
 														},
 														&resolve.SingleFetch{
-															FetchID:           3,
-															DependsOnFetchIDs: []int{0},
+															FetchDependencies: resolve.FetchDependencies{
+																FetchID:           3,
+																DependsOnFetchIDs: []int{0},
+															},
 															FetchConfiguration: resolve.FetchConfiguration{
 																Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {__typename} ... on Moderator {title __typename} ... on User {title __typename}}}","variables":{"representations":[$$0$$]}}}`,
 																Variables: []resolve.Variable{
@@ -2537,8 +2585,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													},
 												},
 												&resolve.SingleFetch{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0, 3},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           1,
+														DependsOnFetchIDs: []int{0, 3},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {title}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -2721,8 +2771,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 										Fetch: &resolve.ParallelFetch{
 											Fetches: []resolve.Fetch{
 												&resolve.SingleFetch{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           1,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4002/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {locations {country}}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -2787,8 +2839,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 												},
 												&resolve.SingleFetch{
-													FetchID:           2,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           2,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4004/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {age}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -3024,8 +3078,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 										Fetch: &resolve.ParallelFetch{
 											Fetches: []resolve.Fetch{
 												&resolve.SingleFetch{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           1,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {title}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -3059,8 +3115,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 												},
 												&resolve.SingleFetch{
-													FetchID:           2,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           2,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4002/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {locations {country}}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -3125,8 +3183,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 												},
 												&resolve.SingleFetch{
-													FetchID:           3,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           3,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4004/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {age}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -3255,8 +3315,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											},
 										},
 										Fetch: &resolve.SingleFetch{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
+											FetchDependencies: resolve.FetchDependencies{
+												FetchID:           1,
+												DependsOnFetchIDs: []int{0},
+											},
 											FetchConfiguration: resolve.FetchConfiguration{
 												Input: `{"method":"POST","url":"http://localhost:4004/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {age}}}","variables":{"representations":[$$0$$]}}}`,
 												Variables: []resolve.Variable{
@@ -3410,8 +3472,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 										Fetch: &resolve.ParallelFetch{
 											Fetches: []resolve.Fetch{
 												&resolve.SingleFetch{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           1,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4004/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {age}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -3476,8 +3540,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 												},
 												&resolve.SingleFetch{
-													FetchID:           2,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           2,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {__typename} ... on Moderator {__typename} ... on User {__typename}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{
@@ -3616,8 +3682,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											},
 										},
 										Fetch: &resolve.SingleFetch{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
+											FetchDependencies: resolve.FetchDependencies{
+												FetchID:           1,
+												DependsOnFetchIDs: []int{0},
+											},
 											FetchConfiguration: resolve.FetchConfiguration{
 												Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {title __typename}}}","variables":{"representations":[$$0$$]}}}`,
 												Variables: []resolve.Variable{

@@ -26,9 +26,9 @@ func TestCreateMultiFetchTypes_Process(t *testing.T) {
 					Data: &resolve.Object{
 						Fetch: &resolve.MultiFetch{
 							Fetches: []*resolve.SingleFetch{
-								{FetchID: 1},
-								{FetchID: 2},
-								{FetchID: 3},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 2}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 3}},
 							},
 						},
 					},
@@ -39,9 +39,9 @@ func TestCreateMultiFetchTypes_Process(t *testing.T) {
 					Data: &resolve.Object{
 						Fetch: &resolve.ParallelFetch{
 							Fetches: []resolve.Fetch{
-								&resolve.SingleFetch{FetchID: 1},
-								&resolve.SingleFetch{FetchID: 2},
-								&resolve.SingleFetch{FetchID: 3},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}},
 							},
 						},
 					},
@@ -55,8 +55,8 @@ func TestCreateMultiFetchTypes_Process(t *testing.T) {
 					Data: &resolve.Object{
 						Fetch: &resolve.MultiFetch{
 							Fetches: []*resolve.SingleFetch{
-								{FetchID: 1, DependsOnFetchIDs: []int{3}},
-								{FetchID: 3},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 1, DependsOnFetchIDs: []int{3}}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 3}},
 							},
 						},
 					},
@@ -67,8 +67,8 @@ func TestCreateMultiFetchTypes_Process(t *testing.T) {
 					Data: &resolve.Object{
 						Fetch: &resolve.SerialFetch{
 							Fetches: []resolve.Fetch{
-								&resolve.SingleFetch{FetchID: 3},
-								&resolve.SingleFetch{FetchID: 1, DependsOnFetchIDs: []int{3}},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1, DependsOnFetchIDs: []int{3}}},
 							},
 						},
 					},
@@ -82,9 +82,9 @@ func TestCreateMultiFetchTypes_Process(t *testing.T) {
 					Data: &resolve.Object{
 						Fetch: &resolve.MultiFetch{
 							Fetches: []*resolve.SingleFetch{
-								{FetchID: 5, DependsOnFetchIDs: []int{2}},
-								{FetchID: 1, DependsOnFetchIDs: []int{0}},
-								{FetchID: 2, DependsOnFetchIDs: []int{1}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 5, DependsOnFetchIDs: []int{2}}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 1, DependsOnFetchIDs: []int{0}}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{1}}},
 							},
 						},
 					},
@@ -95,9 +95,9 @@ func TestCreateMultiFetchTypes_Process(t *testing.T) {
 					Data: &resolve.Object{
 						Fetch: &resolve.SerialFetch{
 							Fetches: []resolve.Fetch{
-								&resolve.SingleFetch{FetchID: 1, DependsOnFetchIDs: []int{0}},
-								&resolve.SingleFetch{FetchID: 2, DependsOnFetchIDs: []int{1}},
-								&resolve.SingleFetch{FetchID: 5, DependsOnFetchIDs: []int{2}},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1, DependsOnFetchIDs: []int{0}}},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{1}}},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 5, DependsOnFetchIDs: []int{2}}},
 							},
 						},
 					},
@@ -120,12 +120,12 @@ func TestCreateMultiFetchTypes_Process(t *testing.T) {
 					Data: &resolve.Object{
 						Fetch: &resolve.MultiFetch{
 							Fetches: []*resolve.SingleFetch{
-								{FetchID: 1, DependsOnFetchIDs: []int{0}},
-								{FetchID: 2, DependsOnFetchIDs: []int{0}},
-								{FetchID: 3, DependsOnFetchIDs: []int{0, 6}},
-								{FetchID: 4, DependsOnFetchIDs: []int{1, 2}},
-								{FetchID: 5, DependsOnFetchIDs: []int{3}},
-								{FetchID: 6, DependsOnFetchIDs: []int{0}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 1, DependsOnFetchIDs: []int{0}}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{0}}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 3, DependsOnFetchIDs: []int{0, 6}}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 4, DependsOnFetchIDs: []int{1, 2}}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 5, DependsOnFetchIDs: []int{3}}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 6, DependsOnFetchIDs: []int{0}}},
 							},
 						},
 					},
@@ -138,18 +138,18 @@ func TestCreateMultiFetchTypes_Process(t *testing.T) {
 							Fetches: []resolve.Fetch{
 								&resolve.ParallelFetch{
 									Fetches: []resolve.Fetch{
-										&resolve.SingleFetch{FetchID: 1, DependsOnFetchIDs: []int{0}},
-										&resolve.SingleFetch{FetchID: 2, DependsOnFetchIDs: []int{0}},
-										&resolve.SingleFetch{FetchID: 6, DependsOnFetchIDs: []int{0}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1, DependsOnFetchIDs: []int{0}}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{0}}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 6, DependsOnFetchIDs: []int{0}}},
 									},
 								},
 								&resolve.ParallelFetch{
 									Fetches: []resolve.Fetch{
-										&resolve.SingleFetch{FetchID: 3, DependsOnFetchIDs: []int{0, 6}},
-										&resolve.SingleFetch{FetchID: 4, DependsOnFetchIDs: []int{1, 2}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3, DependsOnFetchIDs: []int{0, 6}}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 4, DependsOnFetchIDs: []int{1, 2}}},
 									},
 								},
-								&resolve.SingleFetch{FetchID: 5, DependsOnFetchIDs: []int{3}},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 5, DependsOnFetchIDs: []int{3}}},
 							},
 						},
 					},
@@ -172,12 +172,12 @@ func TestCreateMultiFetchTypes_Process(t *testing.T) {
 					Data: &resolve.Object{
 						Fetch: &resolve.MultiFetch{
 							Fetches: []*resolve.SingleFetch{
-								{FetchID: 1, DependsOnFetchIDs: []int{0}},
-								{FetchID: 2, DependsOnFetchIDs: []int{0}},
-								{FetchID: 3, DependsOnFetchIDs: []int{1, 2}},
-								{FetchID: 5, DependsOnFetchIDs: []int{4}},
-								{FetchID: 6, DependsOnFetchIDs: []int{4, 5}},
-								{FetchID: 7, DependsOnFetchIDs: []int{6}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 1, DependsOnFetchIDs: []int{0}}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{0}}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 3, DependsOnFetchIDs: []int{1, 2}}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 5, DependsOnFetchIDs: []int{4}}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 6, DependsOnFetchIDs: []int{4, 5}}},
+								{FetchDependencies: resolve.FetchDependencies{FetchID: 7, DependsOnFetchIDs: []int{6}}},
 							},
 						},
 					},
@@ -190,18 +190,18 @@ func TestCreateMultiFetchTypes_Process(t *testing.T) {
 							Fetches: []resolve.Fetch{
 								&resolve.ParallelFetch{
 									Fetches: []resolve.Fetch{
-										&resolve.SingleFetch{FetchID: 1, DependsOnFetchIDs: []int{0}},
-										&resolve.SingleFetch{FetchID: 2, DependsOnFetchIDs: []int{0}},
-										&resolve.SingleFetch{FetchID: 5, DependsOnFetchIDs: []int{4}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1, DependsOnFetchIDs: []int{0}}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{0}}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 5, DependsOnFetchIDs: []int{4}}},
 									},
 								},
 								&resolve.ParallelFetch{
 									Fetches: []resolve.Fetch{
-										&resolve.SingleFetch{FetchID: 3, DependsOnFetchIDs: []int{1, 2}},
-										&resolve.SingleFetch{FetchID: 6, DependsOnFetchIDs: []int{4, 5}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3, DependsOnFetchIDs: []int{1, 2}}},
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 6, DependsOnFetchIDs: []int{4, 5}}},
 									},
 								},
-								&resolve.SingleFetch{FetchID: 7, DependsOnFetchIDs: []int{6}},
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 7, DependsOnFetchIDs: []int{6}}},
 							},
 						},
 					},
