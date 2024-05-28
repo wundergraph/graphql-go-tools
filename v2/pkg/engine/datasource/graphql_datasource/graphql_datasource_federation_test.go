@@ -1361,7 +1361,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																		Fetches: []resolve.Fetch{
 																			&resolve.SingleFetch{
 																				FetchDependencies: resolve.FetchDependencies{
-																					FetchID:           3,
+																					FetchID:           2,
 																					DependsOnFetchIDs: []int{0},
 																				},
 																				DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -1398,8 +1398,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			},
 																			&resolve.SingleFetch{
 																				FetchDependencies: resolve.FetchDependencies{
-																					FetchID:           2,
-																					DependsOnFetchIDs: []int{0, 3},
+																					FetchID:           1,
+																					DependsOnFetchIDs: []int{0, 2},
 																				},
 																				DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																				FetchConfiguration: resolve.FetchConfiguration{
@@ -1449,8 +1449,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			},
 																			&resolve.SingleFetch{
 																				FetchDependencies: resolve.FetchDependencies{
-																					FetchID:           1,
-																					DependsOnFetchIDs: []int{0, 2},
+																					FetchID:           3,
+																					DependsOnFetchIDs: []int{0, 1},
 																				},
 																				DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																				FetchConfiguration: resolve.FetchConfiguration{
@@ -1624,7 +1624,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															Fetches: []resolve.Fetch{
 																&resolve.SingleFetch{
 																	FetchDependencies: resolve.FetchDependencies{
-																		FetchID:           2,
+																		FetchID:           1,
 																		DependsOnFetchIDs: []int{0},
 																	},
 																	DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -1683,8 +1683,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																},
 																&resolve.SingleFetch{
 																	FetchDependencies: resolve.FetchDependencies{
-																		FetchID:           1,
-																		DependsOnFetchIDs: []int{2, 0},
+																		FetchID:           2,
+																		DependsOnFetchIDs: []int{1, 0},
 																	},
 																	DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																	FetchConfiguration: resolve.FetchConfiguration{
@@ -2233,7 +2233,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													Fetches: []resolve.Fetch{
 														&resolve.SingleFetch{
 															FetchDependencies: resolve.FetchDependencies{
-																FetchID:           2,
+																FetchID:           1,
 																DependsOnFetchIDs: []int{0},
 															},
 															FetchConfiguration: resolve.FetchConfiguration{
@@ -2271,8 +2271,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														},
 														&resolve.SingleFetch{
 															FetchDependencies: resolve.FetchDependencies{
-																FetchID:           1,
-																DependsOnFetchIDs: []int{2, 0},
+																FetchID:           2,
+																DependsOnFetchIDs: []int{1, 0},
 															},
 															FetchConfiguration: resolve.FetchConfiguration{
 																RequiresEntityBatchFetch:              false,
@@ -2825,7 +2825,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													Fetches: []resolve.Fetch{
 														&resolve.SingleFetch{
 															FetchDependencies: resolve.FetchDependencies{
-																FetchID:           2,
+																FetchID:           1,
 																DependsOnFetchIDs: []int{0},
 															},
 															FetchConfiguration: resolve.FetchConfiguration{
@@ -2863,8 +2863,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														},
 														&resolve.SingleFetch{
 															FetchDependencies: resolve.FetchDependencies{
-																FetchID:           1,
-																DependsOnFetchIDs: []int{0, 2},
+																FetchID:           2,
+																DependsOnFetchIDs: []int{0, 1},
 															},
 															FetchConfiguration: resolve.FetchConfiguration{
 																RequiresEntityBatchFetch:              false,
