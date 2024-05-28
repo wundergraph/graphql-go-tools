@@ -81,7 +81,8 @@ func (d *CreateConcreteSingleFetchTypes) createEntityBatchFetch(fetch *resolve.S
 	}
 
 	return &resolve.BatchEntityFetch{
-		Info: fetch.Info,
+		FetchDependencies: fetch.FetchDependencies,
+		Info:              fetch.Info,
 		Input: resolve.BatchInput{
 			Header: resolve.InputTemplate{
 				Segments:                              fetch.InputTemplate.Segments[:representationsVariableIndex],
@@ -125,7 +126,8 @@ func (d *CreateConcreteSingleFetchTypes) createEntityFetch(fetch *resolve.Single
 	}
 
 	return &resolve.EntityFetch{
-		Info: fetch.Info,
+		FetchDependencies: fetch.FetchDependencies,
+		Info:              fetch.Info,
 		Input: resolve.EntityInput{
 			Header: resolve.InputTemplate{
 				Segments:                              fetch.InputTemplate.Segments[:representationsVariableIndex],
