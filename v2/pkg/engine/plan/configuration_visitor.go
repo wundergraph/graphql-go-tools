@@ -993,28 +993,29 @@ func (c *configurationVisitor) resolveRootFieldOperationType(typeName string) as
 func (c *configurationVisitor) handleMissingPath(typeName string, fieldName string, currentPath string) {
 	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
 	if len(suggestions) > 0 {
+		somePlannerHasPath := false
+		for i := range c.planners {
+			if slices.ContainsFunc(suggestions, func(suggestion *NodeSuggestion) bool {
+				return suggestion.DataSourceHash == c.planners[i].DataSourceConfiguration().Hash()
+			}) {
+				if c.planners[i].HasPath(currentPath) {
+					somePlannerHasPath = true
+					break
+				}
+			}
+		}
+
+		if somePlannerHasPath {
+			// we have revisited field already planned by some planner
+			return
+		}
+
 		parentPath, found := c.findPreviousRootPath(currentPath)
 		if found {
 			c.addMissingPath(currentPath, parentPath)
 			return
 		}
 
-		allPlannersHasPath := true
-		for i := range c.planners {
-			if slices.ContainsFunc(suggestions, func(suggestion *NodeSuggestion) bool {
-				return suggestion.DataSourceHash == c.planners[i].DataSourceConfiguration().Hash()
-			}) {
-				if !c.planners[i].HasPath(currentPath) {
-					allPlannersHasPath = false
-					break
-				}
-			}
-		}
-
-		if allPlannersHasPath {
-			// we have revisited field already planned by all existing planners
-			return
-		}
 	}
 
 	c.walker.StopWithInternalErr(errors.Wrap(fmt.Errorf("could not plan field %s.%s on path %s", typeName, fieldName, currentPath), "configurationVisitor.handleMissingPath"))
