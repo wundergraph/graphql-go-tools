@@ -14,6 +14,13 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
+// configurationVisitor - walks through the operation multiple times to collect plannings paths
+// to resolve fields from different datasources.
+// During walks, it is adding required fields and rewrites abstract selection if it is necessary
+// we are revisiting query when we have:
+// - missing path
+// - new fields were added
+// - we have fields which are waiting for dependencies
 type configurationVisitor struct {
 	logger                             abstractlogger.Logger
 	debug                              bool
@@ -39,7 +46,7 @@ type configurationVisitor struct {
 	addedPathTracker   []pathConfiguration    // addedPathTracker is a list of paths which were added
 
 	pendingRequiredFields             map[int]selectionSetPendingRequirements // pendingRequiredFields is a map[selectionSetRef][]fieldsRequirementConfig
-	fieldsWithProcessedRequires       map[int]struct{}                        // fieldsWithProcessedRequires is a map[FieldRef] of already processed fields which we check for @requires directive
+	processedFieldNotHavingRequires   map[int]struct{}                        // processedFieldNotHavingRequires is a map[FieldRef] of already processed fields which do not have @requires directive
 	fieldsWithProcessedProvides       map[int]struct{}                        // fieldsWithProcessedProvides is a map[FieldRef] of already processed fields which we check for @provides directive
 	visitedFieldsAbstractChecks       map[int]struct{}                        // visitedFieldsAbstractChecks is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
 	fieldDependenciesForPlanners      map[int][]int                           // fieldDependenciesForPlanners is a map[FieldRef][]plannerIdx holds list of planner ids which depends on a field ref. Used for @key dependencies
@@ -49,6 +56,10 @@ type configurationVisitor struct {
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the configurationVisitor not the first time
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 	fieldRef     int  // fieldRef is the reference for the current field; it is required by subscription filter to retrieve any variables
+}
+
+func (c *configurationVisitor) shouldRevisit() bool {
+	return c.hasNewFields || c.hasMissingPaths() || c.hasFieldsWaitingForDependency()
 }
 
 // selectionSetPendingRequirements - is a wrapper to been able to have predictable order of fieldsRequirementConfig but at the same time deduplicate fieldsRequirementConfig
@@ -294,7 +305,7 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 	c.fieldsPlannedOn = make(map[int][]int)
 	c.fieldWaitingForRequiresDependency = make(map[int][]int)
 
-	c.fieldsWithProcessedRequires = make(map[int]struct{})
+	c.processedFieldNotHavingRequires = make(map[int]struct{})
 	c.fieldsWithProcessedProvides = make(map[int]struct{})
 	c.visitedFieldsAbstractChecks = make(map[int]struct{})
 }
@@ -394,7 +405,6 @@ func (c *configurationVisitor) EnterField(ref int) {
 	// and if we don't have required fields in the operation, we do not plan current field,
 	// but schedule adding of required fields into the operation and record missing path
 	if !c.handleFieldRequiredByRequires(ref, typeName, fieldName, currentPath) {
-		c.handleMissingPath(typeName, fieldName, currentPath)
 		return
 	}
 
@@ -480,6 +490,10 @@ func (c *configurationVisitor) recordFieldPlannedOn(fieldRef int, plannerIdx int
 	c.fieldsPlannedOn[fieldRef] = append(c.fieldsPlannedOn[fieldRef], plannerIdx)
 }
 
+func (c *configurationVisitor) hasFieldsWaitingForDependency() bool {
+	return len(c.fieldWaitingForRequiresDependency) > 0
+}
+
 // addFieldDependencies adds dependencies between planners based on @requires directive
 // in case current field has @requires directive, and we were able to plan it - it means that all fields from requires selection set was planned before that.
 // So we need to notify planner of current fieldRef about dependencie on those other fields
@@ -489,6 +503,7 @@ func (c *configurationVisitor) addFieldDependencies(fieldRef int, typeName, fiel
 	if !mappingExists {
 		return
 	}
+	delete(c.fieldWaitingForRequiresDependency, fieldRef)
 
 	dsConfig := c.planners[currentPlannerIdx].DataSourceConfiguration()
 	requiresConfiguration, exists := dsConfig.RequiredFieldsByRequires(typeName, fieldName)
@@ -1067,22 +1082,22 @@ func (c *configurationVisitor) isSubscription(root int, path string) bool {
 
 func (c *configurationVisitor) handleFieldRequiredByRequires(fieldRef int, typeName, fieldName, currentPath string) (ok bool) {
 	_, isPlanned := c.fieldsPlannedOn[fieldRef]
-	_, requiresIsProcessed := c.fieldsWithProcessedRequires[fieldRef]
+	_, doNotHasRequires := c.processedFieldNotHavingRequires[fieldRef]
 	_, waitingForDependency := c.fieldWaitingForRequiresDependency[fieldRef]
 
-	if isPlanned || requiresIsProcessed {
+	if isPlanned || doNotHasRequires {
 		return true
 	}
 
 	if fieldName == typeNameField {
 		// the __typename field could not have @requires directive
-		c.fieldsWithProcessedRequires[fieldRef] = struct{}{}
+		c.processedFieldNotHavingRequires[fieldRef] = struct{}{}
 		return true
 	}
 
 	config := c.findSuggestedDataSourceConfiguration(typeName, fieldName, currentPath)
 	if config == nil {
-		c.fieldsWithProcessedRequires[fieldRef] = struct{}{}
+		c.processedFieldNotHavingRequires[fieldRef] = struct{}{}
 		// if we could not find a datasource for the field
 		// something wrong, and we will not be able to plan a query
 		return false
@@ -1090,27 +1105,33 @@ func (c *configurationVisitor) handleFieldRequiredByRequires(fieldRef int, typeN
 
 	requiresConfiguration, exists := config.RequiredFieldsByRequires(typeName, fieldName)
 	if !exists {
-		c.fieldsWithProcessedRequires[fieldRef] = struct{}{}
+		c.processedFieldNotHavingRequires[fieldRef] = struct{}{}
 		// we do not have a @requires configuration for the field
 		return true
 	}
 
 	currentSelectionSet := c.currentSelectionSet()
-	if c.hasFieldsRequiredByRequires(currentSelectionSet, requiresConfiguration.SelectionSet, typeName, fieldName, currentPath) {
-		// all field from @requires directive are already planned
-		if waitingForDependency {
+
+	if waitingForDependency {
+		// if we are waiting for dependency it means that we have processed requires configuration,
+		// so we could check if required fields were planned
+		if c.hasPlannedFieldsRequiredByRequires(currentSelectionSet, requiresConfiguration.SelectionSet, typeName, fieldName, currentPath) {
 			return true
 		}
+
+		// we have processed requires config, but fields not yet planned
+		return false
 	}
 
-	// we should plan required fields for the field
+	// we should plan adding required fields for the field
+	// they will be added in the on LeaveSelectionSet callback for the current selection set
+	// and current field ref will be added to fieldWaitingForRequiresDependency map
 	c.planAddingRequiredFields(-1, -1, fieldRef, requiresConfiguration, true, currentPath)
 	c.hasNewFields = true
-	c.fieldsWithProcessedRequires[fieldRef] = struct{}{}
 	return false
 }
 
-func (c *configurationVisitor) hasFieldsRequiredByRequires(selectionSetRef int, fieldSelections string, typeName, fieldName, currentPath string) bool {
+func (c *configurationVisitor) hasPlannedFieldsRequiredByRequires(selectionSetRef int, fieldSelections string, typeName, fieldName, currentPath string) bool {
 	key, report := RequiredFieldsFragment(typeName, fieldSelections, false)
 	if report.HasErrors() {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse/check field requirements %s for %s field of %s type at path %s", fieldSelections, fieldName, typeName, currentPath))
@@ -1125,13 +1146,26 @@ func (c *configurationVisitor) hasFieldsRequiredByRequires(selectionSetRef int, 
 		operationSelectionSet: selectionSetRef,
 	}
 
-	allPresent := testRequiredFields(input)
+	allRequiredFieldsAddedToOperation, requiredFieldRefs := testRequiredFields(input)
 	if report.HasErrors() {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to check field requirements %s for %s field of %s type at path %s", fieldSelections, fieldName, typeName, currentPath))
 		return false
 	}
 
-	return allPresent
+	if !allRequiredFieldsAddedToOperation {
+		return false
+	}
+
+	allFieldsPlanned := true
+	for _, fieldRef := range requiredFieldRefs {
+		_, planned := c.fieldsPlannedOn[fieldRef]
+		if !planned {
+			allFieldsPlanned = false
+			break
+		}
+	}
+
+	return allFieldsPlanned
 }
 
 func (c *configurationVisitor) handleFieldsRequiredByKey(plannerIdx int, parentPath string, typeName, fieldName string) {

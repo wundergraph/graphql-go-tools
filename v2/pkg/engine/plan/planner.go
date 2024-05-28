@@ -205,7 +205,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 
 	i := 1
 	// secondary runs to add path for the new required fields
-	for p.configurationVisitor.hasNewFields || p.configurationVisitor.hasMissingPaths() {
+	for p.configurationVisitor.shouldRevisit() {
 		p.configurationVisitor.secondaryRun = true
 
 		if p.configurationVisitor.hasNewFields {
