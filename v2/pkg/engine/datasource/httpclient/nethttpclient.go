@@ -262,8 +262,9 @@ func DoMultipartForm(
 	if err != nil {
 		return err
 	}
+	defer multipartBody.Close()
 
-	request, err := http.NewRequestWithContext(ctx, string(method), string(url), &multipartBody)
+	request, err := http.NewRequestWithContext(ctx, string(method), string(url), multipartBody)
 	if err != nil {
 		return err
 	}
@@ -373,40 +374,86 @@ func DoMultipartForm(
 	return err
 }
 
-func multipartBytes(values map[string]io.Reader, files []File) (bytes.Buffer, string, error) {
-	var err error
-	var b bytes.Buffer
-	var fw io.Writer
-	w := multipart.NewWriter(&b)
+func multipartBytes(values map[string]io.Reader, files []File) (*io.PipeReader, string, error) {
+	byteBuf := &bytes.Buffer{}
+	mpWriter := multipart.NewWriter(byteBuf)
+	contentType := mpWriter.FormDataContentType()
 
 	// First create the fields to control the file upload
 	valuesInOrder := []string{"operations", "map"}
 	for _, key := range valuesInOrder {
 		r := values[key]
-		if fw, err = w.CreateFormField(key); err != nil {
-			return b, "", err
+		fw, err := mpWriter.CreateFormField(key)
+		if err != nil {
+			return nil, contentType, err
 		}
 		if _, err = io.Copy(fw, r); err != nil {
-			return b, "", err
+			return nil, contentType, err
 		}
 	}
 
-	// Now create one form for each file
+	// Insert parts for files
+	boundaries := make([][]byte, 0, len(files))
 	for i, file := range files {
 		key := fmt.Sprintf("%d", i)
-		r := values[key]
-		if fw, err = w.CreateFormFile(key, file.Name()); err != nil {
-			return b, "", err
+		_, err := mpWriter.CreateFormFile(key, file.Name())
+		if err != nil {
+			return nil, contentType, err
 		}
-		if _, err = io.Copy(fw, r); err != nil {
-			return b, "", err
+
+		// We read the files using pipe later
+		// So we need to keep store boundaries to insert contents in the correct place
+		lengthOfBufferTillBoundary := byteBuf.Len()
+		boundary := make([]byte, lengthOfBufferTillBoundary)
+		if _, err = byteBuf.Read(boundary); err != nil {
+			return nil, contentType, err
 		}
+		boundaries = append(boundaries, boundary)
 	}
 
-	err = w.Close()
+	err := mpWriter.Close()
 	if err != nil {
-		return b, "", err
+		return nil, contentType, err
 	}
 
-	return b, w.FormDataContentType(), nil
+	rd, wr := io.Pipe()
+
+	go func() {
+		defer func() {
+			err := wr.Close()
+			if err != nil {
+				fmt.Println("Error closing pipe: ", err)
+			}
+		}()
+
+		// 4MB chunks
+		buf := make([]byte, 2048*2048)
+		for i, file := range files {
+			if _, err = wr.Write(boundaries[i]); err != nil {
+				return
+			}
+
+			f, err := os.Open(file.Path())
+			if err != nil {
+				return
+			}
+
+			for {
+				n, err := f.Read(buf)
+				if err != nil && err == io.EOF {
+					break
+				} else if err != nil {
+					return
+				}
+
+				if _, err = wr.Write(buf[:n]); err != nil {
+					return
+				}
+			}
+		}
+		// Write last boundary
+		_, _ = wr.Write(byteBuf.Bytes())
+	}()
+
+	return rd, contentType, nil
 }
