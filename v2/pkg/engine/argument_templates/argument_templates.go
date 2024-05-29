@@ -8,7 +8,7 @@ import (
 )
 
 // ArgumentTemplateRegex dictates form {{args.nested.path}} with flexible whitespace surrounding args.path
-var ArgumentTemplateRegex = regexp.MustCompile("{{\\s*args\\.((?:[a-zA-Z0-9_]+\\.?\\b)+)\\s*}}")
+var ArgumentTemplateRegex = regexp.MustCompile(`{{\s*args\.((?:[a-zA-Z0-9_]+\.?\b)+)\s*}}`)
 
 // The argument template delimiter is currently a period
 var argumentTemplateDelimiter = "."
