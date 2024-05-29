@@ -101,8 +101,8 @@ func (d *Document) NamedTypeNodeByInputValueDefinitionRef(inputValueDefinitionRe
 	return d.Index.FirstNodeByNameBytes(typeNameBytes)
 }
 
-func (d *Document) InputValueDefinitionRefByFieldDefinitionRefAndArgumentNameBytes(fieldDefinitionRef int, argumentNameBytes []byte) (int, bool) {
-	for _, inputValueDefinitionRef := range d.FieldDefinitions[fieldDefinitionRef].ArgumentsDefinition.Refs {
+func (d *Document) InputValueDefinitionRefByFieldDefinitionRefAndArgumentNameBytes(fieldDefinitionRef int, argumentNameBytes []byte) (inputValueDefinitionRef int, ok bool) {
+	for _, inputValueDefinitionRef = range d.FieldDefinitions[fieldDefinitionRef].ArgumentsDefinition.Refs {
 		if d.InputValueDefinitionNameBytes(inputValueDefinitionRef).Equals(argumentNameBytes) {
 			return inputValueDefinitionRef, true
 		}
@@ -110,8 +110,8 @@ func (d *Document) InputValueDefinitionRefByFieldDefinitionRefAndArgumentNameByt
 	return InvalidRef, false
 }
 
-func (d *Document) InputValueDefinitionRefByInputObjectDefinitionRefAndFieldNameBytes(inputObjectDefinitionRef int, inputValueNameBytes []byte) (ref int, ok bool) {
-	for _, inputValueDefinitionRef := range d.InputObjectTypeDefinitions[inputObjectDefinitionRef].InputFieldsDefinition.Refs {
+func (d *Document) InputValueDefinitionRefByInputObjectDefinitionRefAndFieldNameBytes(inputObjectDefinitionRef int, inputValueNameBytes []byte) (inputValueDefinitionRef int, ok bool) {
+	for _, inputValueDefinitionRef = range d.InputObjectTypeDefinitions[inputObjectDefinitionRef].InputFieldsDefinition.Refs {
 		if d.InputValueDefinitionNameBytes(inputValueDefinitionRef).Equals(inputValueNameBytes) {
 			return inputValueDefinitionRef, true
 		}

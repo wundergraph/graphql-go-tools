@@ -29,7 +29,7 @@ func (t *testPubsub) Request(_ context.Context, _ NatsPublishAndRequestEventConf
 
 func TestPubSub(t *testing.T) {
 	factory := &Factory[Configuration]{
-		natsPubSubByProviderId: map[string]NatsPubSub{"default": &testPubsub{}},
+		natsPubSubByProviderID: map[string]NatsPubSub{"default": &testPubsub{}},
 	}
 
 	const schema = `

@@ -282,24 +282,24 @@ func (p *Planner[T]) UpstreamSchema(_ plan.DataSourceConfiguration[T]) (*ast.Doc
 	return nil, false
 }
 
-func NewFactory[T Configuration](executionContext context.Context, natsPubSubBySourceName map[string]NatsPubSub, kafkaPubSubBySourceName map[string]KafkaPubSub) *Factory[T] {
+func NewFactory[T Configuration](executionContext context.Context, natsPubSubByProviderID map[string]NatsPubSub, kafkaPubSubByProviderID map[string]KafkaPubSub) *Factory[T] {
 	return &Factory[T]{
 		executionContext:        executionContext,
-		natsPubSubByProviderId:  natsPubSubBySourceName,
-		kafkaPubSubBySourceName: kafkaPubSubBySourceName,
+		natsPubSubByProviderID:  natsPubSubByProviderID,
+		kafkaPubSubByProviderID: kafkaPubSubByProviderID,
 	}
 }
 
 type Factory[T Configuration] struct {
 	executionContext        context.Context
-	natsPubSubByProviderId  map[string]NatsPubSub
-	kafkaPubSubBySourceName map[string]KafkaPubSub
+	natsPubSubByProviderID  map[string]NatsPubSub
+	kafkaPubSubByProviderID map[string]KafkaPubSub
 }
 
 func (f *Factory[T]) Planner(_ abstractlogger.Logger) plan.DataSourcePlanner[T] {
 	return &Planner[T]{
-		natsPubSubByProviderID:  f.natsPubSubByProviderId,
-		kafkaPubSubByProviderID: f.kafkaPubSubBySourceName,
+		natsPubSubByProviderID:  f.natsPubSubByProviderID,
+		kafkaPubSubByProviderID: f.kafkaPubSubByProviderID,
 	}
 }
 
