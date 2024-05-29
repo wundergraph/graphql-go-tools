@@ -271,6 +271,10 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 			p.printPlanningPaths()
 		}
 
+		if p.config.Debug.PrintPlanningPaths {
+			p.printPlanningPaths()
+		}
+
 		i++
 
 		if i > 100 {
@@ -354,7 +358,7 @@ func (p *Planner) printRevisitInfo() {
 }
 
 func (p *Planner) printPlanningPaths() {
-	p.debugMessage("Planning paths:")
+	p.debugMessage("\n\nPlanning paths:\n\n")
 	for i, planner := range p.configurationVisitor.planners {
 		fmt.Printf("\nPlanner id: %d\n", i)
 		fmt.Println("Planner parent path", planner.ParentPath())
