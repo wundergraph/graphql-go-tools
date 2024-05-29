@@ -405,6 +405,9 @@ func (c *configurationVisitor) EnterField(ref int) {
 	// and if we don't have required fields in the operation, we do not plan current field,
 	// but schedule adding of required fields into the operation and record missing path
 	if !c.handleFieldRequiredByRequires(ref, typeName, fieldName, currentPath) {
+		// when current field has unsatisfied requirements
+		// do not go into it to not try to plan nested field
+		c.walker.SkipNode()
 		return
 	}
 
