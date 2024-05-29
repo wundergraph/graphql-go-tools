@@ -41,11 +41,11 @@ func (d *Document) VariableDefinitionDefaultValue(ref int) Value {
 	return d.VariableDefinitions[ref].DefaultValue.Value
 }
 
-func (d *Document) VariableDefinitionByNameAndOperation(operationDefinition int, name ByteSlice) (definition int, exists bool) {
-	if !d.OperationDefinitions[operationDefinition].HasVariableDefinitions {
+func (d *Document) VariableDefinitionByNameAndOperation(operationDefinitionRef int, name ByteSlice) (definition int, exists bool) {
+	if !d.OperationDefinitions[operationDefinitionRef].HasVariableDefinitions {
 		return -1, false
 	}
-	for _, i := range d.OperationDefinitions[operationDefinition].VariableDefinitions.Refs {
+	for _, i := range d.OperationDefinitions[operationDefinitionRef].VariableDefinitions.Refs {
 		definitionName := d.VariableValueNameBytes(d.VariableDefinitions[i].VariableValue.Ref)
 		if bytes.Equal(name, definitionName) {
 			return i, true

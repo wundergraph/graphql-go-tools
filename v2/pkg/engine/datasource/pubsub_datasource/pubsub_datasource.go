@@ -285,20 +285,20 @@ func (p *Planner[T]) UpstreamSchema(_ plan.DataSourceConfiguration[T]) (*ast.Doc
 func NewFactory[T Configuration](executionContext context.Context, natsPubSubBySourceName map[string]NatsPubSub, kafkaPubSubBySourceName map[string]KafkaPubSub) *Factory[T] {
 	return &Factory[T]{
 		executionContext:        executionContext,
-		natsPubSubBySourceName:  natsPubSubBySourceName,
+		natsPubSubByProviderId:  natsPubSubBySourceName,
 		kafkaPubSubBySourceName: kafkaPubSubBySourceName,
 	}
 }
 
 type Factory[T Configuration] struct {
 	executionContext        context.Context
-	natsPubSubBySourceName  map[string]NatsPubSub
+	natsPubSubByProviderId  map[string]NatsPubSub
 	kafkaPubSubBySourceName map[string]KafkaPubSub
 }
 
 func (f *Factory[T]) Planner(_ abstractlogger.Logger) plan.DataSourcePlanner[T] {
 	return &Planner[T]{
-		natsPubSubByProviderID:  f.natsPubSubBySourceName,
+		natsPubSubByProviderID:  f.natsPubSubByProviderId,
 		kafkaPubSubByProviderID: f.kafkaPubSubBySourceName,
 	}
 }
