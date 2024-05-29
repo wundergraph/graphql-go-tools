@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"io"
 	"net"
 	"net/http"
@@ -30,7 +31,7 @@ type _fakeDataSource struct {
 	artificialLatency time.Duration
 }
 
-func (f *_fakeDataSource) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
+func (f *_fakeDataSource) Load(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) (err error) {
 	if f.artificialLatency != 0 {
 		time.Sleep(f.artificialLatency)
 	}
