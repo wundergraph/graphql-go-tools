@@ -9,14 +9,15 @@ import (
 const treeRootID = ^uint(0)
 
 type NodeSuggestion struct {
-	TypeName               string
-	FieldName              string
-	DataSourceHash         DSHash
-	Path                   string
-	ParentPath             string
-	IsRootNode             bool
-	IsProvided             bool
-	DisabledEntityResolver bool // is true in case the node is an entity root node and has a key with disabled resolver
+	TypeName                  string
+	FieldName                 string
+	DataSourceHash            DSHash
+	Path                      string
+	ParentPath                string
+	IsRootNode                bool
+	IsProvided                bool
+	DisabledEntityResolver    bool // is true in case the node is an entity root node and has a key with disabled resolver
+	IsEntityInterfaceTypeName bool
 
 	parentPathWithoutFragment *string
 	onFragment                bool
