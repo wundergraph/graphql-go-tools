@@ -127,6 +127,8 @@ func (e *CreateFetchTree) appendFetch(existing resolve.Fetch, additional resolve
 			t.Fetches = append(t.Fetches, at.Fetches...)
 		}
 		return t
+	case nil:
+		return additional
 	default:
 		panic("there should be no other fetch types")
 	}

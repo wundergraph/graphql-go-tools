@@ -9,14 +9,14 @@ import (
 const treeRootID = ^uint(0)
 
 type NodeSuggestion struct {
-	TypeName       string
-	FieldName      string
-	DataSourceHash DSHash
-	Path           string
-	ParentPath     string
-	IsRootNode     bool
-	IsProvided     bool
-	LessPreferable bool // is true in case the node is an entity root node and has a key with disabled resolver
+	TypeName               string
+	FieldName              string
+	DataSourceHash         DSHash
+	Path                   string
+	ParentPath             string
+	IsRootNode             bool
+	IsProvided             bool
+	DisabledEntityResolver bool // is true in case the node is an entity root node and has a key with disabled resolver
 
 	parentPathWithoutFragment *string
 	onFragment                bool
@@ -30,23 +30,27 @@ func (n *NodeSuggestion) treeNodeID() uint {
 	return TreeNodeID(n.fieldRef)
 }
 
-func (n *NodeSuggestion) appendSelectionReason(reason string) {
+func (n *NodeSuggestion) appendSelectionReason(reason string, saveReason bool) {
+	if !saveReason {
+		return
+	}
 	n.SelectionReasons = append(n.SelectionReasons, reason)
+	if n.IsProvided {
+		n.SelectionReasons = append(n.SelectionReasons, ReasonProvidesProvidedByPlanner)
+	}
 }
 
 func (n *NodeSuggestion) selectWithReason(reason string, saveReason bool) {
 	if n.Selected {
 		return
 	}
-	if saveReason {
-		n.appendSelectionReason(reason)
-	}
+	n.appendSelectionReason(reason, saveReason)
 	n.Selected = true
 }
 
 func (n *NodeSuggestion) String() string {
-	return fmt.Sprintf(`{"ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t, "isSelected": %v,"select reason": %v}`,
-		n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode, n.Selected, n.SelectionReasons)
+	return fmt.Sprintf(`{"ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t,"isProvided":%t, "entityResolver":%t, "isSelected": %v,"selectReason": %v}`,
+		n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode, n.IsProvided, !n.DisabledEntityResolver, n.Selected, n.SelectionReasons)
 }
 
 type NodeSuggestionHint struct {
@@ -94,8 +98,9 @@ func (f *NodeSuggestions) AddSeenField(fieldRef int) {
 	f.seenFields[fieldRef] = struct{}{}
 }
 
-func (f *NodeSuggestions) addSuggestion(node *NodeSuggestion) {
+func (f *NodeSuggestions) addSuggestion(node *NodeSuggestion) (suggestionIdx int) {
 	f.items = append(f.items, node)
+	return len(f.items) - 1
 }
 
 func (f *NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string) (suggestions []*NodeSuggestion) {
@@ -234,11 +239,14 @@ func (f *NodeSuggestions) parentNodeOnSameSource(idx int) (parentIdx int, ok boo
 	return -1, false
 }
 
-func (f *NodeSuggestions) printNodes(msg string) {
+func (f *NodeSuggestions) printNodes(msg string, filterNotSelected bool) {
 	if msg != "" {
 		fmt.Println(msg)
 	}
 	for i := range f.items {
+		if filterNotSelected && !f.items[i].Selected {
+			continue
+		}
 		fmt.Println(f.items[i].String())
 	}
 }

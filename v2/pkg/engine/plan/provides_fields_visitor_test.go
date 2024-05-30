@@ -20,22 +20,25 @@ func TestProvidesSuggestions(t *testing.T) {
 
 		type User {
 			name: String!
+			surname: String!
 			info: Info!
 			address: Address!
 		}
 
 		type Info {
 			age: Int!
+			weight: Int!
 		}
 
 		type Address {
+			city: String!
 			street: String!
 			zip: String!
 		}`
 
-	fieldSet, report := RequiredFieldsFragment("User", keySDL, false)
-	assert.False(t, report.HasErrors())
 	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definitionSDL)
+	fieldSet, report := providesFragment("User", keySDL, &definition)
+	assert.False(t, report.HasErrors())
 
 	cases := []struct {
 		operation       string
@@ -53,26 +56,92 @@ func TestProvidesSuggestions(t *testing.T) {
 			selectionSetRef: 1,
 			expected: []*NodeSuggestion{
 				{
-					fieldRef:       1,
-					TypeName:       "User",
-					FieldName:      "info",
-					DataSourceHash: 2023,
-					Path:           "query.me.info",
-					ParentPath:     "query.me",
-					Selected:       true,
-					IsProvided:     true,
-				},
-				{
 					fieldRef:       0,
 					TypeName:       "Info",
 					FieldName:      "age",
 					DataSourceHash: 2023,
 					Path:           "query.me.info.age",
 					ParentPath:     "query.me.info",
-					Selected:       true,
+					Selected:       false,
+					IsProvided:     true,
+				},
+				{
+					fieldRef:       1,
+					TypeName:       "User",
+					FieldName:      "info",
+					DataSourceHash: 2023,
+					Path:           "query.me.info",
+					ParentPath:     "query.me",
+					Selected:       false,
 					IsProvided:     true,
 				},
 			},
+		},
+		{
+			operation: `query {
+				me { # selection set ref 1
+					__typename
+					info {
+						__typename
+						age
+					}
+				}
+			}`,
+			selectionSetRef: 1,
+			expected: []*NodeSuggestion{
+				{
+					fieldRef:       2,
+					TypeName:       "Info",
+					FieldName:      "age",
+					DataSourceHash: 2023,
+					Path:           "query.me.info.age",
+					ParentPath:     "query.me.info",
+					Selected:       false,
+					IsProvided:     true,
+				},
+				{
+					fieldRef:       1,
+					TypeName:       "Info",
+					FieldName:      "__typename",
+					DataSourceHash: 2023,
+					Path:           "query.me.info.__typename",
+					ParentPath:     "query.me.info",
+					Selected:       false,
+					IsProvided:     true,
+				},
+				{
+					fieldRef:       3,
+					TypeName:       "User",
+					FieldName:      "info",
+					DataSourceHash: 2023,
+					Path:           "query.me.info",
+					ParentPath:     "query.me",
+					Selected:       false,
+					IsProvided:     true,
+				},
+				{
+					fieldRef:       0,
+					TypeName:       "User",
+					FieldName:      "__typename",
+					DataSourceHash: 2023,
+					Path:           "query.me.__typename",
+					ParentPath:     "query.me",
+					Selected:       false,
+					IsProvided:     true,
+				},
+			},
+		},
+
+		{
+			operation: `query {
+				me { # selection set ref 1
+					info {
+						weight
+					}
+				}
+			}`,
+			selectionSetRef: 1,
+			expected:        nil,
 		},
 		{
 			operation: `query {
@@ -92,17 +161,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					DataSourceHash: 2023,
 					Path:           "query.me.name",
 					ParentPath:     "query.me",
-					Selected:       true,
-					IsProvided:     true,
-				},
-				{
-					fieldRef:       2,
-					TypeName:       "User",
-					FieldName:      "info",
-					DataSourceHash: 2023,
-					Path:           "query.me.info",
-					ParentPath:     "query.me",
-					Selected:       true,
+					Selected:       false,
 					IsProvided:     true,
 				},
 				{
@@ -112,7 +171,17 @@ func TestProvidesSuggestions(t *testing.T) {
 					DataSourceHash: 2023,
 					Path:           "query.me.info.age",
 					ParentPath:     "query.me.info",
-					Selected:       true,
+					Selected:       false,
+					IsProvided:     true,
+				},
+				{
+					fieldRef:       2,
+					TypeName:       "User",
+					FieldName:      "info",
+					DataSourceHash: 2023,
+					Path:           "query.me.info",
+					ParentPath:     "query.me",
+					Selected:       false,
 					IsProvided:     true,
 				},
 			},
@@ -128,26 +197,52 @@ func TestProvidesSuggestions(t *testing.T) {
 			selectionSetRef: 1,
 			expected: []*NodeSuggestion{
 				{
-					fieldRef:       1,
-					TypeName:       "User",
-					FieldName:      "address",
-					DataSourceHash: 2023,
-					Path:           "query.me.address",
-					ParentPath:     "query.me",
-					Selected:       true,
-					IsProvided:     true,
-				},
-				{
 					fieldRef:       0,
 					TypeName:       "Address",
 					FieldName:      "street",
 					DataSourceHash: 2023,
 					Path:           "query.me.address.street",
 					ParentPath:     "query.me.address",
-					Selected:       true,
+					Selected:       false,
+					IsProvided:     true,
+				},
+				{
+					fieldRef:       1,
+					TypeName:       "User",
+					FieldName:      "address",
+					DataSourceHash: 2023,
+					Path:           "query.me.address",
+					ParentPath:     "query.me",
+					Selected:       false,
 					IsProvided:     true,
 				},
 			},
+		},
+		{
+			operation: `query {
+				me {
+					address {
+						city
+					}
+				}
+			}`,
+			selectionSetRef: 1,
+			expected:        nil,
+		},
+		{
+			operation: `query {
+				me { # selection set ref 2
+					surname
+					info { # selection set ref 0
+						weight
+					}
+					address { # selection set ref 1
+						city
+					}
+				}
+			}`,
+			selectionSetRef: 2,
+			expected:        nil,
 		},
 		{
 			operation: `query {
@@ -171,17 +266,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					DataSourceHash: 2023,
 					Path:           "query.me.name",
 					ParentPath:     "query.me",
-					Selected:       true,
-					IsProvided:     true,
-				},
-				{
-					fieldRef:       2,
-					TypeName:       "User",
-					FieldName:      "info",
-					DataSourceHash: 2023,
-					Path:           "query.me.info",
-					ParentPath:     "query.me",
-					Selected:       true,
+					Selected:       false,
 					IsProvided:     true,
 				},
 				{
@@ -191,17 +276,17 @@ func TestProvidesSuggestions(t *testing.T) {
 					DataSourceHash: 2023,
 					Path:           "query.me.info.age",
 					ParentPath:     "query.me.info",
-					Selected:       true,
+					Selected:       false,
 					IsProvided:     true,
 				},
 				{
-					fieldRef:       5,
+					fieldRef:       2,
 					TypeName:       "User",
-					FieldName:      "address",
+					FieldName:      "info",
 					DataSourceHash: 2023,
-					Path:           "query.me.address",
+					Path:           "query.me.info",
 					ParentPath:     "query.me",
-					Selected:       true,
+					Selected:       false,
 					IsProvided:     true,
 				},
 				{
@@ -211,7 +296,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					DataSourceHash: 2023,
 					Path:           "query.me.address.street",
 					ParentPath:     "query.me.address",
-					Selected:       true,
+					Selected:       false,
 					IsProvided:     true,
 				},
 				{
@@ -221,7 +306,17 @@ func TestProvidesSuggestions(t *testing.T) {
 					DataSourceHash: 2023,
 					Path:           "query.me.address.zip",
 					ParentPath:     "query.me.address",
-					Selected:       true,
+					Selected:       false,
+					IsProvided:     true,
+				},
+				{
+					fieldRef:       5,
+					TypeName:       "User",
+					FieldName:      "address",
+					DataSourceHash: 2023,
+					Path:           "query.me.address",
+					ParentPath:     "query.me",
+					Selected:       false,
 					IsProvided:     true,
 				},
 			},
