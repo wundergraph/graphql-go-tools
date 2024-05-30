@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,7 @@ func TestSource_Load(t *testing.T) {
 
 			buf := &bytes.Buffer{}
 			source := &Source{introspectionData: &data}
-			require.NoError(t, source.Load(context.Background(), []byte(input), buf))
+			require.NoError(t, source.Load(context.Background(), []byte(input), []httpclient.File{}, buf))
 
 			actualResponse := &bytes.Buffer{}
 			require.NoError(t, json.Indent(actualResponse, buf.Bytes(), "", "  "))
