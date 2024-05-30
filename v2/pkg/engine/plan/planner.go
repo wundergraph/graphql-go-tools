@@ -201,7 +201,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 		p.printOperation(operation)
 	}
 
-	p.configurationVisitor.debug = p.config.Debug.ConfigurationVisitor
+	p.configurationVisitor.debug = p.config.Debug
 	p.configurationVisitor.suggestionsSelectionReasonsEnabled = p.config.Debug.EnableNodeSuggestionsSelectionReasons
 
 	// set initial suggestions and used data sources
@@ -212,7 +212,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 	}
 
 	if p.config.Debug.PrintNodeSuggestions {
-		p.configurationVisitor.nodeSuggestions.printNodes("\n\nInitial node suggestions:\n\n")
+		p.configurationVisitor.nodeSuggestions.printNodes("\n\nInitial node suggestions:\n\n", p.config.Debug.ShowOnlySelectedSuggestions)
 	}
 
 	p.configurationVisitor.secondaryRun = false

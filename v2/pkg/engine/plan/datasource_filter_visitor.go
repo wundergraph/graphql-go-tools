@@ -8,6 +8,8 @@ import (
 
 const typeNameField = "__typename"
 
+var typeNameFieldBytes = []byte(typeNameField)
+
 type DataSourceFilter struct {
 	operation  *ast.Document
 	definition *ast.Document
@@ -78,23 +80,19 @@ func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSource, exist
 }
 
 func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes *NodeSuggestions, hints ...NodeSuggestionHint) (nodes *NodeSuggestions) {
-	secondaryRun := existingNodes != nil
-
-	walker := astvisitor.NewWalker(32)
-	visitor := &collectNodesVisitor{
-		operation:           f.operation,
-		definition:          f.definition,
-		walker:              &walker,
-		dataSources:         dataSources,
-		secondaryRun:        secondaryRun,
-		nodes:               existingNodes,
-		hints:               hints,
-		saveSelectionReason: f.enableSelectionReasons,
+	if existingNodes == nil {
+		existingNodes = NewNodeSuggestions()
 	}
-	walker.RegisterEnterDocumentVisitor(visitor)
-	walker.RegisterFieldVisitor(visitor)
-	walker.Walk(f.operation, f.definition, f.report)
-	return visitor.nodes
+
+	nodesCollector := &nodesCollector{
+		operation:   f.operation,
+		definition:  f.definition,
+		dataSources: dataSources,
+		nodes:       existingNodes,
+		report:      f.report,
+	}
+
+	return nodesCollector.CollectNodes()
 }
 
 func (f *DataSourceFilter) isResolvable(nodes *NodeSuggestions) {
@@ -123,7 +121,7 @@ const (
 	ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource = "stage3: select non leaf node which have possible child selections on the same source"
 
 	ReasonKeyRequirementProvidedByPlanner = "provided by planner as required by @key"
-	ReasonProvidesProvidedByPlanner       = "provided by planner as provided by @provides"
+	ReasonProvidesProvidedByPlanner       = "@provides"
 )
 
 func (f *DataSourceFilter) applySuggestionHints(hints []NodeSuggestionHint) {
@@ -251,6 +249,13 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 			continue
 		}
 
+		if f.nodes.items[i].FieldName == typeNameField {
+			// we should select typename only depending on 2 conditions:
+			// - parent was selected
+			// - provided by key
+			continue
+		}
+
 		// check for selected childs of a current node or its duplicates
 		if f.checkNodeChilds(i) {
 			continue
@@ -275,12 +280,12 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 
 		// in case current node suggestion is an entity root node, and it contains key with disabled resolver
 		// it makes such node less preferable for selection
-		if f.nodes.items[i].LessPreferable {
+		if f.nodes.items[i].DisabledEntityResolver {
 			continue
 		}
 
-		// we could select first available node only in case it is a leaf node
-		if f.nodes.isLeaf(i) {
+		// we could select first available node only in case it is a leaf root node
+		if f.nodes.isLeaf(i) && f.nodes.items[i].IsRootNode {
 			f.nodes.items[i].selectWithReason(ReasonStage3SelectAvailableNode, f.enableSelectionReasons)
 			continue
 		}

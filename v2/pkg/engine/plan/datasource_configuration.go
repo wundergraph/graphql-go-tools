@@ -56,8 +56,10 @@ type NodesAccess interface {
 
 type NodesInfo interface {
 	HasRootNode(typeName, fieldName string) bool
+	HasExternalRootNode(typeName, fieldName string) bool
 	HasRootNodeWithTypename(typeName string) bool
 	HasChildNode(typeName, fieldName string) bool
+	HasExternalChildNode(typeName, fieldName string) bool
 	HasChildNodeWithTypename(typeName string) bool
 }
 
@@ -106,6 +108,10 @@ func (d *DataSourceMetadata) HasRootNode(typeName, fieldName string) bool {
 	return ok
 }
 
+func (d *DataSourceMetadata) HasExternalRootNode(typeName, fieldName string) bool {
+	return d.RootNodes.HasExternalNode(typeName, fieldName)
+}
+
 func (d *DataSourceMetadata) HasRootNodeWithTypename(typeName string) bool {
 	if d.rootNodesIndex == nil {
 		return false
@@ -125,6 +131,10 @@ func (d *DataSourceMetadata) HasChildNode(typeName, fieldName string) bool {
 
 	_, ok = fields[fieldName]
 	return ok
+}
+
+func (d *DataSourceMetadata) HasExternalChildNode(typeName, fieldName string) bool {
+	return d.ChildNodes.HasExternalNode(typeName, fieldName)
 }
 
 func (d *DataSourceMetadata) HasChildNodeWithTypename(typeName string) bool {
