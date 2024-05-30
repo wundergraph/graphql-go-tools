@@ -9217,8 +9217,8 @@ func TestLoadFiles(t *testing.T) {
 			query     = []byte(queryString)
 		)
 
-		t.TempDir()
-		f, err := os.CreateTemp("", fileName)
+		dir := t.TempDir()
+		f, err := os.CreateTemp(dir, fileName)
 		assert.NoError(t, err)
 		err = os.WriteFile(f.Name(), []byte(fileContent), 0644)
 		assert.NoError(t, err)
@@ -9278,12 +9278,13 @@ func TestLoadFiles(t *testing.T) {
 		input = httpclient.SetInputURL(input, []byte(serverUrl))
 		buf := bytes.NewBuffer(nil)
 
-		f1, err := os.CreateTemp("", file1Name)
+		dir := t.TempDir()
+		f1, err := os.CreateTemp(dir, file1Name)
 		assert.NoError(t, err)
 		err = os.WriteFile(f1.Name(), []byte(file1Content), 0644)
 		assert.NoError(t, err)
 
-		f2, err := os.CreateTemp("", file2Name)
+		f2, err := os.CreateTemp(dir, file2Name)
 		assert.NoError(t, err)
 		err = os.WriteFile(f2.Name(), []byte(file2Content), 0644)
 		assert.NoError(t, err)
