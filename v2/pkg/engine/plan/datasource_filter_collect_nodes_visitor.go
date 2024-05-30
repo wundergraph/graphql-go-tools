@@ -43,9 +43,6 @@ func (c *nodesCollector) collectNodes() {
 	walker.RegisterFieldVisitor(visitor)
 
 	for _, dataSource := range c.dataSources {
-		if dataSource.Hash() == 17537801118541465303 {
-			fmt.Println("hash is 1")
-		}
 		visitor.dataSource = dataSource
 		visitor.externalPaths = make(map[string]struct{})
 		walker.Walk(c.operation, c.definition, c.report)
@@ -137,9 +134,15 @@ func (f *collectNodesVisitor) hasProvidesConfiguration(typeName, fieldName strin
 	return f.dataSource.FederationConfiguration().Provides[providesIdx].SelectionSet, true
 }
 
+func (f *collectNodesVisitor) isEntityInterface(typeName string) bool {
+	return slices.ContainsFunc(f.dataSource.FederationConfiguration().EntityInterfaces, func(k EntityInterfaceConfiguration) bool {
+		return slices.Contains(k.ConcreteTypeNames, typeName) || k.InterfaceTypeName == typeName
+	})
+}
+
 func (f *collectNodesVisitor) isInterfaceObject(typeName string) bool {
 	return slices.ContainsFunc(f.dataSource.FederationConfiguration().InterfaceObjects, func(k EntityInterfaceConfiguration) bool {
-		return k.InterfaceTypeName == typeName || slices.Contains(k.ConcreteTypeNames, typeName)
+		return slices.Contains(k.ConcreteTypeNames, typeName) || k.InterfaceTypeName == typeName
 	})
 }
 
@@ -248,7 +251,11 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 	}
 
 	if isTypeName && f.isInterfaceObject(typeName) {
-		// we should not select a typename on the interface object
+		// we should not add a typename on the interface object
+		// to not select it during node suggestions calculation
+		// we will add a typename field to the interface object query in the datasource planner
+
+		// at the same type we should allow to select a typename on the entity interface
 		return
 	}
 
@@ -285,6 +292,7 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 			parentPathWithoutFragment: parentPathWithoutFragment,
 			fieldRef:                  ref,
 			DisabledEntityResolver:    hasRootNode && f.hasDisabledEntityResolver(typeName),
+			IsEntityInterfaceTypeName: isTypeName && f.isEntityInterface(typeName),
 		}
 
 		f.nodes.addSuggestion(&node)

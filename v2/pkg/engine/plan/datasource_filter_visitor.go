@@ -250,10 +250,15 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 		}
 
 		if f.nodes.items[i].FieldName == typeNameField {
-			// we should select typename only depending on 2 conditions:
+			// we should select typename predictable depending on 2 conditions:
 			// - parent was selected
 			// - provided by key
-			continue
+
+			// in case of entity interface we could select __typename from datasource containing this entity interface
+			// but not from the datasource containing the interface object
+			if !f.nodes.items[i].IsEntityInterfaceTypeName {
+				continue
+			}
 		}
 
 		// check for selected childs of a current node or its duplicates
