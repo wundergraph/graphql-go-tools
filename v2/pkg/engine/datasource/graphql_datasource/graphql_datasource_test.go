@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9191,7 +9192,7 @@ func TestLoadFiles(t *testing.T) {
 	t.Run("single file", func(t *testing.T) {
 		queryString := `mutation($file: Upload!){singleUpload(file: $file)}`
 		variableString := `{"file":null}`
-		fileName := "test"
+		fileName := uuid.NewString()
 		fileContent := "hello"
 
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -9216,6 +9217,7 @@ func TestLoadFiles(t *testing.T) {
 			query     = []byte(queryString)
 		)
 
+		t.TempDir()
 		f, err := os.CreateTemp("", fileName)
 		assert.NoError(t, err)
 		err = os.WriteFile(f.Name(), []byte(fileContent), 0644)
@@ -9240,8 +9242,8 @@ func TestLoadFiles(t *testing.T) {
 		queryString := `mutation($files: [Upload!]!) { multipleUpload(files: $files)}`
 		variableString := `{"files":[null,null]}`
 
-		file1Name := "file1"
-		file2Name := "file2"
+		file1Name := uuid.NewString()
+		file2Name := uuid.NewString()
 		file1Content := "test"
 		file2Content := "hello"
 
