@@ -1,7 +1,6 @@
 package resolve
 
 import (
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"strconv"
 )
 
@@ -190,31 +189,4 @@ func (h *ResolvableObjectVariable) Equals(another Variable) bool {
 	anotherVariable := another.(*ResolvableObjectVariable)
 
 	return h.Renderer.Node.Equals(anotherVariable.Renderer.Node)
-}
-
-func (v *Variables) AddContextVariableByArgumentRef(
-	operation *ast.Document,
-	definition *ast.Document,
-	operationDefinitionRef int,
-	argumentRef int,
-	argumentPath []string,
-	finalInputValueTypeRef int,
-) (string, error) {
-	variablePath, err := operation.VariablePathByArgumentRefAndArgumentPath(argumentRef, argumentPath, operationDefinitionRef)
-	if err != nil {
-		return "", err
-	}
-	/* The definition is passed as both definition and operation below because getJSONRootType resolves the type
-	 * from the first argument, but finalInputValueTypeRef comes from the definition
-	 */
-	renderer, err := NewPlainVariableRendererWithValidationFromTypeRef(definition, definition, finalInputValueTypeRef, variablePath...)
-	if err != nil {
-		return "", err
-	}
-	contextVariable := &ContextVariable{
-		Path:     variablePath,
-		Renderer: renderer,
-	}
-	variablePlaceHolder, _ := v.AddVariable(contextVariable)
-	return variablePlaceHolder, nil
 }

@@ -40,6 +40,30 @@ type NatsEventManager struct {
 	subscriptionEventConfiguration      *NatsSubscriptionEventConfiguration
 }
 
+func (p *NatsEventManager) addContextVariableByArgumentRef(
+	argumentRef int,
+	argumentPath []string,
+	finalInputValueTypeRef int,
+) (string, error) {
+	variablePath, err := p.visitor.Operation.VariablePathByArgumentRefAndArgumentPath(argumentRef, argumentPath, p.visitor.Walker.Ancestors[0].Ref)
+	if err != nil {
+		return "", err
+	}
+	/* The definition is passed as both definition and operation below because getJSONRootType resolves the type
+	 * from the first argument, but finalInputValueTypeRef comes from the definition
+	 */
+	renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(p.visitor.Definition, p.visitor.Definition, finalInputValueTypeRef, variablePath...)
+	if err != nil {
+		return "", err
+	}
+	contextVariable := &resolve.ContextVariable{
+		Path:     variablePath,
+		Renderer: renderer,
+	}
+	variablePlaceHolder, _ := p.variables.AddVariable(contextVariable)
+	return variablePlaceHolder, nil
+}
+
 func (p *NatsEventManager) extractEventSubject(fieldRef int, subject string) (string, error) {
 	matches := argument_templates.ArgumentTemplateRegex.FindAllStringSubmatch(subject, -1)
 	// If no argument templates are defined, there are only static values
@@ -71,8 +95,8 @@ func (p *NatsEventManager) extractEventSubject(fieldRef int, subject string) (st
 			return "", fmt.Errorf(`operation field "%s" does not define argument "%s"`, fieldNameBytes, argumentNameBytes)
 		}
 		// variablePlaceholder has the form $$0$$, $$1$$, etc.
-		variablePlaceholder, err := p.variables.AddContextVariableByArgumentRef(
-			p.visitor.Operation, p.visitor.Definition, p.visitor.Walker.Ancestors[0].Ref, argumentRef, validationResult.ArgumentPath, validationResult.FinalInputValueTypeRef,
+		variablePlaceholder, err := p.addContextVariableByArgumentRef(
+			argumentRef, validationResult.ArgumentPath, validationResult.FinalInputValueTypeRef,
 		)
 		if err != nil {
 			return "", fmt.Errorf(`failed to retrieve variable placeholder for argument ""%s" defined on operation field "%s": %w`, argumentNameBytes, fieldNameBytes, err)
