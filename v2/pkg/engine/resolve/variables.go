@@ -201,6 +201,9 @@ func (v *Variables) AddContextVariableByArgumentRef(
 	finalInputValueTypeRef int,
 ) (string, error) {
 	variablePath, err := operation.VariablePathByArgumentRefAndArgumentPath(argumentRef, argumentPath, operationDefinitionRef)
+	if err != nil {
+		return "", err
+	}
 	/* The definition is passed as both definition and operation below because getJSONRootType resolves the type
 	 * from the first argument, but finalInputValueTypeRef comes from the definition
 	 */
