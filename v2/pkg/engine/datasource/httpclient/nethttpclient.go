@@ -326,13 +326,23 @@ func DoMultipartForm(
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
-	for _, file := range files {
-		err = os.Remove(file.Path())
-		if err != nil {
-			return err
+
+	defer func() {
+		defer response.Body.Close()
+
+		for _, file := range files {
+			f, err := os.Open(file.Path())
+			if err != nil {
+				return
+			}
+			if err = f.Close(); err != nil {
+				return
+			}
+			if err = os.Remove(file.Path()); err != nil {
+				return
+			}
 		}
-	}
+	}()
 
 	respReader, err := respBodyReader(response)
 	if err != nil {
