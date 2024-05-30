@@ -239,6 +239,7 @@ func DoMultipartForm(
 	}
 
 	var fileMap string
+	var tempFiles []*os.File
 	for i, file := range files {
 		if len(fileMap) == 0 {
 			if len(files) == 1 {
@@ -251,6 +252,7 @@ func DoMultipartForm(
 		}
 		key := fmt.Sprintf("%d", i)
 		temporaryFile, err := os.Open(file.Path())
+		tempFiles = append(tempFiles, temporaryFile)
 		if err != nil {
 			return err
 		}
@@ -330,15 +332,11 @@ func DoMultipartForm(
 	defer func() {
 		defer response.Body.Close()
 
-		for _, file := range files {
-			f, err := os.Open(file.Path())
-			if err != nil {
+		for _, file := range tempFiles {
+			if err := file.Close(); err != nil {
 				return
 			}
-			if err = f.Close(); err != nil {
-				return
-			}
-			if err = os.Remove(file.Path()); err != nil {
+			if err = os.Remove(file.Name()); err != nil {
 				return
 			}
 		}
@@ -459,6 +457,9 @@ func multipartBytes(values map[string]io.Reader, files []File) (*io.PipeReader, 
 				if _, err = wr.Write(buf[:n]); err != nil {
 					return
 				}
+			}
+			if err := f.Close(); err != nil {
+				return
 			}
 		}
 		// Write last boundary
