@@ -1,6 +1,7 @@
 package argument_templates
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"regexp"
@@ -12,6 +13,12 @@ var ArgumentTemplateRegex = regexp.MustCompile(`{{\s*args\.((?:[a-zA-Z0-9_]+\.?\
 
 // The argument template delimiter is currently a period
 var argumentTemplateDelimiter = "."
+
+// ContainsArgumentTemplateString checks whether the value contains an argument template string
+// Currently partially naïve. If the need arises, the more expensive regex.find could be used.
+func ContainsArgumentTemplateString(value []byte) bool {
+	return bytes.Contains(value, []byte("{{"))
+}
 
 type ArgumentPathValidationResult struct {
 	ArgumentPath           []string

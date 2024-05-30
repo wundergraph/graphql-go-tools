@@ -2,7 +2,6 @@ package ast
 
 import (
 	"bytes"
-	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
@@ -116,5 +115,5 @@ func (d *Document) InputValueDefinitionRefByInputObjectDefinitionRefAndFieldName
 			return inputValueDefinitionRef, true
 		}
 	}
-	return ast.InvalidRef, false
+	return InvalidRef, false
 }

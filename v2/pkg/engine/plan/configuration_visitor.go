@@ -869,11 +869,6 @@ func (c *configurationVisitor) buildSubscriptionFilterCondition(condition Subscr
 	return filter
 }
 
-// ContainsTemplateString checks if the value contains an argument template string
-func ContainsTemplateString(value []byte) bool {
-	return len(argument_templates.ArgumentTemplateRegex.Find(value)) != 0
-}
-
 func (c *configurationVisitor) buildSubscriptionFieldFilter(condition *SubscriptionFieldCondition) *resolve.SubscriptionFieldFilter {
 	filter := &resolve.SubscriptionFieldFilter{}
 	filter.FieldPath = condition.FieldPath
