@@ -3,7 +3,6 @@ package pubsub_datasource
 import (
 	"encoding/json"
 	"fmt"
-	natsserver "github.com/nats-io/nats-server/v2/server"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/argument_templates"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -12,8 +11,15 @@ import (
 	"strings"
 )
 
+const (
+	fwc  = '>'
+	tsep = "."
+)
+
 // A variable template has form $$number$$ where the number can range from one to multiple digits
-var variableTemplateRegex = regexp.MustCompile(`\$\$\d+\$\$`)
+var (
+	variableTemplateRegex = regexp.MustCompile(`\$\$\d+\$\$`)
+)
 
 type NatsSubscriptionEventConfiguration struct {
 	ProviderID          string                   `json:"providerId"`
@@ -38,6 +44,33 @@ type NatsEventManager struct {
 	eventConfiguration                  *NatsEventConfiguration
 	publishAndRequestEventConfiguration *NatsPublishAndRequestEventConfiguration
 	subscriptionEventConfiguration      *NatsSubscriptionEventConfiguration
+}
+
+func isValidNatsSubject(subject string) bool {
+	if subject == "" {
+		return false
+	}
+	sfwc := false
+	tokens := strings.Split(subject, tsep)
+	for _, t := range tokens {
+		length := len(t)
+		if length == 0 || sfwc {
+			return false
+		}
+		if length > 1 {
+			if strings.ContainsAny(t, "\t\n\f\r ") {
+				return false
+			}
+			continue
+		}
+		switch t[0] {
+		case fwc:
+			sfwc = true
+		case ' ', '\t', '\n', '\r', '\f':
+			return false
+		}
+	}
+	return true
 }
 
 func (p *NatsEventManager) addContextVariableByArgumentRef(
@@ -68,7 +101,7 @@ func (p *NatsEventManager) extractEventSubject(fieldRef int, subject string) (st
 	matches := argument_templates.ArgumentTemplateRegex.FindAllStringSubmatch(subject, -1)
 	// If no argument templates are defined, there are only static values
 	if len(matches) < 1 {
-		if natsserver.IsValidSubject(subject) {
+		if isValidNatsSubject(subject) {
 			return subject, nil
 		}
 		return "", fmt.Errorf(`subject "%s" is not a valid NATS subject`, subject)
@@ -105,7 +138,7 @@ func (p *NatsEventManager) extractEventSubject(fieldRef int, subject string) (st
 		subjectWithVariableTemplateReplacements = strings.ReplaceAll(subjectWithVariableTemplateReplacements, groups[0], variablePlaceholder)
 	}
 	// Substitute the variable templates for dummy values to check naïvely that the string is a valid NATS subject
-	if natsserver.IsValidSubject(variableTemplateRegex.ReplaceAllLiteralString(subjectWithVariableTemplateReplacements, "a")) {
+	if isValidNatsSubject(variableTemplateRegex.ReplaceAllLiteralString(subjectWithVariableTemplateReplacements, "a")) {
 		return subjectWithVariableTemplateReplacements, nil
 	}
 	return "", fmt.Errorf(`subject "%s" is not a valid NATS subject`, subject)
