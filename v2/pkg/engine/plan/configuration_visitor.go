@@ -1,9 +1,8 @@
 package plan
 
 import (
-	"bytes"
 	"fmt"
-	"regexp"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/argument_templates"
 	"slices"
 	"strings"
 
@@ -870,16 +869,9 @@ func (c *configurationVisitor) buildSubscriptionFilterCondition(condition Subscr
 	return filter
 }
 
-var (
-	// subscriptionFieldFilterRegex is used to extract the variable name from the subscription filter condition
-	// e.g. {{ args.id }} -> id
-	// e.g. {{ args.input.id }} -> input.id
-	subscriptionFieldFilterRegex = regexp.MustCompile(`{{\s*args((?:\.[a-zA-Z0-9_]+)+)\s*}}`)
-)
-
-// ContainsTemplateString checks if the value contains a template string
+// ContainsTemplateString checks if the value contains an argument template string
 func ContainsTemplateString(value []byte) bool {
-	return bytes.Contains(value, []byte("{{"))
+	return len(argument_templates.ArgumentTemplateRegex.Find(value)) != 0
 }
 
 func (c *configurationVisitor) buildSubscriptionFieldFilter(condition *SubscriptionFieldCondition) *resolve.SubscriptionFieldFilter {
@@ -887,7 +879,7 @@ func (c *configurationVisitor) buildSubscriptionFieldFilter(condition *Subscript
 	filter.FieldPath = condition.FieldPath
 	filter.Values = make([]resolve.InputTemplate, len(condition.Values))
 	for i, value := range condition.Values {
-		matches := subscriptionFieldFilterRegex.FindAllStringSubmatchIndex(value, -1)
+		matches := argument_templates.ArgumentTemplateRegex.FindAllStringSubmatchIndex(value, -1)
 		if len(matches) == 0 {
 			filter.Values[i].Segments = []resolve.TemplateSegment{
 				{
@@ -897,58 +889,71 @@ func (c *configurationVisitor) buildSubscriptionFieldFilter(condition *Subscript
 			}
 			continue
 		}
-		if len(matches) == 1 && len(matches[0]) == 4 {
-			prefix := value[:matches[0][0]]
-			hasPrefix := len(prefix) > 0
-			// the path begins with ".", so ignore the first empty string element with trailing [1:]
-			argumentPath := strings.Split(value[matches[0][2]:matches[0][3]][1:], ".")
-			argumentName := argumentPath[0]
-			argumentRef, ok := c.operation.FieldArgument(c.fieldRef, []byte(argumentName))
-			if !ok {
-				c.walker.StopWithInternalErr(fmt.Errorf(`field argument "%s" is not defined`, argumentName))
-				return nil
-			}
-			argumentValue := c.operation.ArgumentValue(argumentRef)
-			if argumentValue.Kind != ast.ValueKindVariable {
-				c.walker.StopWithInternalErr(fmt.Errorf(`expected argument "%s" kind to be "ValueKindVariable" but received "%s"`, argumentName, argumentValue.Kind))
-				return nil
-			}
-			variableName := c.operation.VariableValueNameString(argumentValue.Ref)
-			// the variable path should be the variable name, e.g., "a", and then the 2nd element from the path onwards
-			variablePath := append([]string{variableName}, argumentPath[1:]...)
-			suffix := value[matches[0][1]:]
-			hasSuffix := len(suffix) > 0
-			size := 1
-			if hasPrefix {
-				size++
-			}
-			if hasSuffix {
-				size++
-			}
-			filter.Values[i].Segments = make([]resolve.TemplateSegment, size)
-			idx := 0
-			if hasPrefix {
-				filter.Values[i].Segments[idx] = resolve.TemplateSegment{
-					SegmentType: resolve.StaticSegmentType,
-					Data:        []byte(prefix),
-				}
-				idx++
-			}
-			filter.Values[i].Segments[idx] = resolve.TemplateSegment{
-				SegmentType:        resolve.VariableSegmentType,
-				VariableKind:       resolve.ContextVariableKind,
-				Renderer:           resolve.NewPlainVariableRenderer(),
-				VariableSourcePath: variablePath,
-			}
-			if hasSuffix {
-				filter.Values[i].Segments[idx+1] = resolve.TemplateSegment{
-					SegmentType: resolve.StaticSegmentType,
-					Data:        []byte(suffix),
-				}
-			}
-			continue
+		fieldNameBytes := c.operation.FieldNameBytes(c.fieldRef)
+		fieldDefinitionRef, ok := c.definition.ObjectTypeDefinitionFieldWithName(c.walker.EnclosingTypeDefinition.Ref, fieldNameBytes)
+		if !ok {
+			c.walker.StopWithInternalErr(fmt.Errorf(`expected field definition to exist for field "%s"`, fieldNameBytes))
+			return nil
 		}
-		return nil
+		groups := matches[0]
+		/* The range value[0:groups[0]] is a prefix (if any—an empty prefix still provides an index)
+		 * The range value[groups[1]:groups[2]] is the whole argument template
+		 * The range value[groups[2]:groups[3]] is the argument path
+		 * The range groups[1] to the end of value is the suffix (if any)
+		 */
+		if len(matches) != 1 || len(groups) != 4 {
+			return nil
+		}
+		argumentPathGroup := value[groups[2]:groups[3]]
+		validationResult, err := argument_templates.ValidateArgumentPath(c.definition, argumentPathGroup, fieldDefinitionRef)
+		if err != nil {
+			c.walker.StopWithInternalErr(fmt.Errorf(`argument template defined on field "%s" is invalid: %w`, fieldNameBytes, err))
+			return nil
+		}
+		prefix := value[:groups[0]]
+		hasPrefix := len(prefix) > 0
+		argumentNameBytes := []byte(validationResult.ArgumentPath[0])
+		argumentRef, ok := c.operation.FieldArgument(c.fieldRef, argumentNameBytes)
+		if !ok {
+			c.walker.StopWithInternalErr(fmt.Errorf(`operation field "%s" does not define argument "%s"`, fieldNameBytes, argumentNameBytes))
+			return nil
+		}
+		variablePath, err := c.operation.VariablePathByArgumentRefAndArgumentPath(argumentRef, validationResult.ArgumentPath, c.walker.Ancestors[0].Ref)
+		if err != nil {
+			c.walker.StopWithInternalErr(fmt.Errorf(`failed to create template segment for argument "%s" defined on operation field "%s": %w`, argumentNameBytes, fieldNameBytes, err))
+			return nil
+		}
+		suffix := value[groups[1]:]
+		hasSuffix := len(suffix) > 0
+		size := 1
+		if hasPrefix {
+			size++
+		}
+		if hasSuffix {
+			size++
+		}
+		filter.Values[i].Segments = make([]resolve.TemplateSegment, size)
+		idx := 0
+		if hasPrefix {
+			filter.Values[i].Segments[idx] = resolve.TemplateSegment{
+				SegmentType: resolve.StaticSegmentType,
+				Data:        []byte(prefix),
+			}
+			idx++
+		}
+		filter.Values[i].Segments[idx] = resolve.TemplateSegment{
+			SegmentType:        resolve.VariableSegmentType,
+			VariableKind:       resolve.ContextVariableKind,
+			Renderer:           resolve.NewPlainVariableRenderer(),
+			VariableSourcePath: variablePath,
+		}
+		if hasSuffix {
+			filter.Values[i].Segments[idx+1] = resolve.TemplateSegment{
+				SegmentType: resolve.StaticSegmentType,
+				Data:        []byte(suffix),
+			}
+		}
+		continue
 	}
 	return filter
 }

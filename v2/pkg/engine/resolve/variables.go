@@ -1,7 +1,6 @@
 package resolve
 
 import (
-	"fmt"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"strconv"
 )
@@ -198,19 +197,10 @@ func (v *Variables) AddContextVariableByArgumentRef(
 	definition *ast.Document,
 	operationDefinitionRef int,
 	argumentRef int,
-	fullArgumentPath []string,
+	argumentPath []string,
 	finalInputValueTypeRef int,
 ) (string, error) {
-	argumentValue := operation.ArgumentValue(argumentRef)
-	if argumentValue.Kind != ast.ValueKindVariable {
-		return "", fmt.Errorf(`expected argument to be kind "ValueKindVariable" but received "%s"`, argumentValue.Kind)
-	}
-	variableNameBytes := operation.VariableValueNameBytes(argumentValue.Ref)
-	if _, ok := operation.VariableDefinitionByNameAndOperation(operationDefinitionRef, variableNameBytes); !ok {
-		return "", fmt.Errorf(`expected definition for variable "%s" to exist`, variableNameBytes)
-	}
-	// The variable path should be the variable name, e.g., "a", and then the 2nd element from the path onwards
-	variablePath := append([]string{string(variableNameBytes)}, fullArgumentPath[1:]...)
+	variablePath, err := operation.VariablePathByArgumentRefAndArgumentPath(argumentRef, argumentPath, operationDefinitionRef)
 	/* The definition is passed as both definition and operation below because getJSONRootType resolves the type
 	 * from the first argument, but finalInputValueTypeRef comes from the definition
 	 */

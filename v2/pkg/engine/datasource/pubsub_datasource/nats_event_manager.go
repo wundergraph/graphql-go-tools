@@ -57,7 +57,11 @@ func (p *NatsEventManager) extractEventSubject(fieldRef int, subject string) (st
 	}
 	subjectWithVariableTemplateReplacements := subject
 	for templateNumber, groups := range matches {
-		validationResult, err := argument_templates.ValidateArgumentPath(p.visitor.Definition, groups, fieldDefinitionRef)
+		// The first group is the whole template; the second is the period delimited argument path
+		if len(groups) != 2 {
+			return "", fmt.Errorf(`argument template #%d defined on field "%s" is invalid: expected 2 matching groups but received %d`, templateNumber+1, fieldNameBytes, len(groups)-1)
+		}
+		validationResult, err := argument_templates.ValidateArgumentPath(p.visitor.Definition, groups[1], fieldDefinitionRef)
 		if err != nil {
 			return "", fmt.Errorf(`argument template #%d defined on field "%s" is invalid: %w`, templateNumber+1, fieldNameBytes, err)
 		}

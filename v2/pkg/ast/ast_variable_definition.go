@@ -2,7 +2,7 @@ package ast
 
 import (
 	"bytes"
-
+	"fmt"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
 )
@@ -74,4 +74,17 @@ func (d *Document) VariableDefinitionsAfter(variableDefinition int) bool {
 		}
 	}
 	return false
+}
+
+func (d *Document) VariablePathByArgumentRefAndArgumentPath(argumentRef int, argumentPath []string, operationDefinitionRef int) ([]string, error) {
+	argumentValue := d.ArgumentValue(argumentRef)
+	if argumentValue.Kind != ValueKindVariable {
+		return nil, fmt.Errorf(`expected argument to be kind "ValueKindVariable" but received "%s"`, argumentValue.Kind)
+	}
+	variableNameBytes := d.VariableValueNameBytes(argumentValue.Ref)
+	if _, ok := d.VariableDefinitionByNameAndOperation(operationDefinitionRef, variableNameBytes); !ok {
+		return nil, fmt.Errorf(`expected definition for variable "%s" to exist`, variableNameBytes)
+	}
+	// The variable path should be the variable name, e.g., "a", and then the 2nd element from the path onwards
+	return append([]string{string(variableNameBytes)}, argumentPath[1:]...), nil
 }
