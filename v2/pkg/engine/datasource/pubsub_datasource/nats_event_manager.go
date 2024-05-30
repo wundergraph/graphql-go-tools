@@ -3,10 +3,22 @@ package pubsub_datasource
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/argument_templates"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"regexp"
 	"slices"
+	"strings"
+)
+
+const (
+	fwc  = '>'
+	tsep = "."
+)
+
+// A variable template has form $$number$$ where the number can range from one to multiple digits
+var (
+	variableTemplateRegex = regexp.MustCompile(`\$\$\d+\$\$`)
 )
 
 type NatsSubscriptionEventConfiguration struct {
@@ -34,38 +46,102 @@ type NatsEventManager struct {
 	subscriptionEventConfiguration      *NatsSubscriptionEventConfiguration
 }
 
-func (p *NatsEventManager) extractEventSubject(ref int, subject string) (string, error) {
-	matches := eventSubjectRegex.FindAllStringSubmatch(subject, -1)
-	if len(matches) != 1 || len(matches[0]) != 2 {
-		return "", fmt.Errorf("expected subject to match regex")
+func isValidNatsSubject(subject string) bool {
+	if subject == "" {
+		return false
 	}
-	argumentName := matches[0][1]
-	// We need to find the argument in the operation
-	argumentRef, ok := p.visitor.Operation.FieldArgument(ref, []byte(argumentName))
-	if !ok {
-		return "", fmt.Errorf("argument \"%s\" is not defined", argumentName)
+	sfwc := false
+	tokens := strings.Split(subject, tsep)
+	for _, t := range tokens {
+		length := len(t)
+		if length == 0 || sfwc {
+			return false
+		}
+		if length > 1 {
+			if strings.ContainsAny(t, "\t\n\f\r ") {
+				return false
+			}
+			continue
+		}
+		switch t[0] {
+		case fwc:
+			sfwc = true
+		case ' ', '\t', '\n', '\r', '\f':
+			return false
+		}
 	}
-	argumentValue := p.visitor.Operation.ArgumentValue(argumentRef)
-	if argumentValue.Kind != ast.ValueKindVariable {
-		return "", fmt.Errorf("expected argument \"%s\" kind to be \"ValueKindVariable\" but received \"%s\"", argumentName, argumentValue.Kind)
+	return true
+}
+
+func (p *NatsEventManager) addContextVariableByArgumentRef(
+	argumentRef int,
+	argumentPath []string,
+	finalInputValueTypeRef int,
+) (string, error) {
+	variablePath, err := p.visitor.Operation.VariablePathByArgumentRefAndArgumentPath(argumentRef, argumentPath, p.visitor.Walker.Ancestors[0].Ref)
+	if err != nil {
+		return "", err
 	}
-	variableName := p.visitor.Operation.VariableValueNameBytes(argumentValue.Ref)
-	variableDefinition, ok := p.visitor.Operation.VariableDefinitionByNameAndOperation(p.visitor.Walker.Ancestors[0].Ref, variableName)
-	if !ok {
-		return "", fmt.Errorf("expected definition to exist for variable \"%s\"", variableName)
-	}
-	variableTypeRef := p.visitor.Operation.VariableDefinitions[variableDefinition].Type
-	renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(p.visitor.Operation, p.visitor.Definition, variableTypeRef, string(variableName))
+	/* The definition is passed as both definition and operation below because getJSONRootType resolves the type
+	 * from the first argument, but finalInputValueTypeRef comes from the definition
+	 */
+	renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(p.visitor.Definition, p.visitor.Definition, finalInputValueTypeRef, variablePath...)
 	if err != nil {
 		return "", err
 	}
 	contextVariable := &resolve.ContextVariable{
-		Path:     []string{string(variableName)},
+		Path:     variablePath,
 		Renderer: renderer,
 	}
-	// We need to replace the template literal with the variable placeholder (and reuse if it already exists)
-	variablePlaceHolder, _ := p.variables.AddVariable(contextVariable) // $$0$$
-	return eventSubjectRegex.ReplaceAllLiteralString(subject, variablePlaceHolder), nil
+	variablePlaceHolder, _ := p.variables.AddVariable(contextVariable)
+	return variablePlaceHolder, nil
+}
+
+func (p *NatsEventManager) extractEventSubject(fieldRef int, subject string) (string, error) {
+	matches := argument_templates.ArgumentTemplateRegex.FindAllStringSubmatch(subject, -1)
+	// If no argument templates are defined, there are only static values
+	if len(matches) < 1 {
+		if isValidNatsSubject(subject) {
+			return subject, nil
+		}
+		return "", fmt.Errorf(`subject "%s" is not a valid NATS subject`, subject)
+	}
+	fieldNameBytes := p.visitor.Operation.FieldNameBytes(fieldRef)
+	// TODO: handling for interfaces and unions
+	fieldDefinitionRef, ok := p.visitor.Definition.ObjectTypeDefinitionFieldWithName(p.visitor.Walker.EnclosingTypeDefinition.Ref, fieldNameBytes)
+	if !ok {
+		return "", fmt.Errorf(`expected field definition to exist for field "%s"`, fieldNameBytes)
+	}
+	subjectWithVariableTemplateReplacements := subject
+	for templateNumber, groups := range matches {
+		// The first group is the whole template; the second is the period delimited argument path
+		if len(groups) != 2 {
+			return "", fmt.Errorf(`argument template #%d defined on field "%s" is invalid: expected 2 matching groups but received %d`, templateNumber+1, fieldNameBytes, len(groups)-1)
+		}
+		validationResult, err := argument_templates.ValidateArgumentPath(p.visitor.Definition, groups[1], fieldDefinitionRef)
+		if err != nil {
+			return "", fmt.Errorf(`argument template #%d defined on field "%s" is invalid: %w`, templateNumber+1, fieldNameBytes, err)
+		}
+		argumentNameBytes := []byte(validationResult.ArgumentPath[0])
+		argumentRef, ok := p.visitor.Operation.FieldArgument(fieldRef, argumentNameBytes)
+		if !ok {
+			return "", fmt.Errorf(`operation field "%s" does not define argument "%s"`, fieldNameBytes, argumentNameBytes)
+		}
+		// variablePlaceholder has the form $$0$$, $$1$$, etc.
+		variablePlaceholder, err := p.addContextVariableByArgumentRef(
+			argumentRef, validationResult.ArgumentPath, validationResult.FinalInputValueTypeRef,
+		)
+		if err != nil {
+			return "", fmt.Errorf(`failed to retrieve variable placeholder for argument ""%s" defined on operation field "%s": %w`, argumentNameBytes, fieldNameBytes, err)
+		}
+		// Replace the template literal with the variable placeholder (and reuse the variable if it already exists)
+		subjectWithVariableTemplateReplacements = strings.ReplaceAll(subjectWithVariableTemplateReplacements, groups[0], variablePlaceholder)
+	}
+	// Substitute the variable templates for dummy values to check naïvely that the string is a valid NATS subject
+	if isValidNatsSubject(variableTemplateRegex.ReplaceAllLiteralString(subjectWithVariableTemplateReplacements, "a")) {
+		return subjectWithVariableTemplateReplacements, nil
+	}
+	return "", fmt.Errorf(`subject "%s" is not a valid NATS subject`, subject)
 }
 
 func (p *NatsEventManager) eventDataBytes(ref int) ([]byte, error) {
