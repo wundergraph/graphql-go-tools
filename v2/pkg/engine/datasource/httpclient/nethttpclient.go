@@ -228,7 +228,7 @@ func respBodyReader(res *http.Response) (io.Reader, error) {
 func DoMultipartForm(
 	client *http.Client, ctx context.Context, requestInput []byte, files []File, out io.Writer,
 ) (err error) {
-	if files == nil || len(files) == 0 {
+	if len(files) == 0 {
 		return errors.New("no files provided")
 	}
 
