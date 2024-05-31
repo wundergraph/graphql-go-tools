@@ -337,7 +337,7 @@ func TestProvidesSuggestions(t *testing.T) {
 				definition:            &definition,
 				report:                report,
 				parentPath:            "query.me",
-				DSHash:                2023,
+				dataSourceHash:        2023,
 			}
 
 			suggestions := providesSuggestions(input)

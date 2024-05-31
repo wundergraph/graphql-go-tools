@@ -192,7 +192,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) {
 	dsFilter := NewDataSourceFilter(operation, definition, report)
 
-	if p.config.Debug.EnableNodeSuggestionsSelectionReasons {
+	if p.config.Debug.NodeSuggestion.SelectionReasons {
 		dsFilter.EnableSelectionReasons()
 	}
 
@@ -202,7 +202,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 	}
 
 	p.configurationVisitor.debug = p.config.Debug
-	p.configurationVisitor.suggestionsSelectionReasonsEnabled = p.config.Debug.EnableNodeSuggestionsSelectionReasons
+	p.configurationVisitor.suggestionsSelectionReasonsEnabled = p.config.Debug.NodeSuggestion.SelectionReasons
 
 	// set initial suggestions and used data sources
 	p.configurationVisitor.dataSources, p.configurationVisitor.nodeSuggestions =
@@ -212,7 +212,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 	}
 
 	if p.config.Debug.PrintNodeSuggestions {
-		p.configurationVisitor.nodeSuggestions.printNodes("\n\nInitial node suggestions:\n\n", p.config.Debug.ShowOnlySelectedSuggestions)
+		p.configurationVisitor.nodeSuggestions.printNodes("\n\nInitial node suggestions:\n\n", p.config.Debug.NodeSuggestion.FilterNotSelected)
 	}
 
 	p.configurationVisitor.secondaryRun = false

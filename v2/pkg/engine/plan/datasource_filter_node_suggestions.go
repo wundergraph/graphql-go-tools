@@ -12,6 +12,7 @@ type NodeSuggestion struct {
 	TypeName                  string
 	FieldName                 string
 	DataSourceHash            DSHash
+	DataSourceID              string
 	Path                      string
 	ParentPath                string
 	IsRootNode                bool
@@ -50,8 +51,8 @@ func (n *NodeSuggestion) selectWithReason(reason string, saveReason bool) {
 }
 
 func (n *NodeSuggestion) String() string {
-	return fmt.Sprintf(`{"ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t,"isProvided":%t, "entityResolver":%t, "isSelected": %v,"selectReason": %v}`,
-		n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode, n.IsProvided, !n.DisabledEntityResolver, n.Selected, n.SelectionReasons)
+	return fmt.Sprintf(`{"dsID":"%s","ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t,"isProvided":%t, "entityResolver":%t, "isSelected": %v,"selectReason": %v}`,
+		n.DataSourceID, n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode, n.IsProvided, !n.DisabledEntityResolver, n.Selected, n.SelectionReasons)
 }
 
 type NodeSuggestionHint struct {

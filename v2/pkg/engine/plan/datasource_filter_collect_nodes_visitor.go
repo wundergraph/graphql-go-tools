@@ -192,7 +192,8 @@ func (f *collectNodesVisitor) handleProvidesSuggestions(fieldRef int, typeName, 
 		operationSelectionSet: selectionSetRef,
 		report:                report,
 		parentPath:            currentPath,
-		DSHash:                f.dataSource.Hash(),
+		dataSourceHash:        f.dataSource.Hash(),
+		dataSourceID:          f.dataSource.Id(),
 	}
 	suggestions := providesSuggestions(input)
 	if report.HasErrors() {
@@ -285,6 +286,7 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 			TypeName:                  typeName,
 			FieldName:                 fieldName,
 			DataSourceHash:            f.dataSource.Hash(),
+			DataSourceID:              f.dataSource.Id(),
 			Path:                      currentPath,
 			ParentPath:                parentPath,
 			IsRootNode:                hasRootNode,
