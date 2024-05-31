@@ -34,7 +34,7 @@ type DebugConfiguration struct {
 	PrintQueryPlans               bool
 
 	PrintNodeSuggestions bool
-	NodeSuggestionDebugConfiguration
+	NodeSuggestion       NodeSuggestionDebugConfiguration
 
 	ConfigurationVisitor bool
 	PlanningVisitor      bool
@@ -42,8 +42,8 @@ type DebugConfiguration struct {
 }
 
 type NodeSuggestionDebugConfiguration struct {
-	EnableNodeSuggestionsSelectionReasons bool
-	ShowOnlySelectedSuggestions           bool
+	SelectionReasons  bool
+	FilterNotSelected bool
 }
 
 type TypeConfigurations []TypeConfiguration

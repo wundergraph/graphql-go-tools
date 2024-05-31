@@ -13,7 +13,8 @@ type providesInput struct {
 	report                                  *operationreport.Report
 	operationSelectionSet                   int
 	parentPath                              string
-	DSHash                                  DSHash
+	dataSourceID                            string
+	dataSourceHash                          DSHash
 }
 
 type addTypenamesVisitor struct {
@@ -160,7 +161,8 @@ func (v *providesVisitor) EnterField(ref int) {
 		fieldRef:       operationFieldRef,
 		TypeName:       typeName,
 		FieldName:      fieldName,
-		DataSourceHash: v.input.DSHash,
+		DataSourceHash: v.input.dataSourceHash,
+		DataSourceID:   v.input.dataSourceID,
 		Path:           currentPath,
 		ParentPath:     parentPath,
 		Selected:       false,
