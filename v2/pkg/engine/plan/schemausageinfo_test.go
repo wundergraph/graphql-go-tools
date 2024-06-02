@@ -3,7 +3,6 @@ package plan
 import (
 	"bytes"
 	"context"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"io"
 	"testing"
 
@@ -487,6 +486,6 @@ type FakeDataSource struct {
 	source *StatefulSource
 }
 
-func (f *FakeDataSource) Load(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) (err error) {
+func (f *FakeDataSource) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
 	return
 }
