@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/stretchr/testify/require"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"io"
 	"sync/atomic"
 	"testing"
@@ -509,8 +508,8 @@ func TestAuthorization(t *testing.T) {
 func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller) *GraphQLResponse {
 	userService := NewMockDataSource(ctrl)
 	userService.EXPECT().
-		Load(gomock.Any(), gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-		DoAndReturn(func(ctx context.Context, input []byte, files []httpclient.File, w *bytes.Buffer) (err error) {
+		Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+		DoAndReturn(func(ctx context.Context, input []byte, w *bytes.Buffer) (err error) {
 			actual := string(input)
 			expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 			assert.Equal(t, expected, actual)
@@ -521,8 +520,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 
 	reviewsService := NewMockDataSource(ctrl)
 	reviewsService.EXPECT().
-		Load(gomock.Any(), gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-		DoAndReturn(func(ctx context.Context, input []byte, files []httpclient.File, w *bytes.Buffer) (err error) {
+		Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+		DoAndReturn(func(ctx context.Context, input []byte, w *bytes.Buffer) (err error) {
 			actual := string(input)
 			expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"__typename":"User","id":"1234"}]}}}`
 			assert.Equal(t, expected, actual)
@@ -533,8 +532,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 
 	productService := NewMockDataSource(ctrl)
 	productService.EXPECT().
-		Load(gomock.Any(), gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-		DoAndReturn(func(ctx context.Context, input []byte, files []httpclient.File, w *bytes.Buffer) (err error) {
+		Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+		DoAndReturn(func(ctx context.Context, input []byte, w *bytes.Buffer) (err error) {
 			actual := string(input)
 			expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"__typename":"Product","upc":"top-1"},{"__typename":"Product","upc":"top-2"}]}}}`
 			assert.Equal(t, expected, actual)
@@ -798,8 +797,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T, ctrl *gomock.Controller) *GraphQLResponse {
 	userService := NewMockDataSource(ctrl)
 	userService.EXPECT().
-		Load(gomock.Any(), gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-		DoAndReturn(func(ctx context.Context, input []byte, files []httpclient.File, w *bytes.Buffer) (err error) {
+		Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+		DoAndReturn(func(ctx context.Context, input []byte, w *bytes.Buffer) (err error) {
 			actual := string(input)
 			expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 			assert.Equal(t, expected, actual)
@@ -810,8 +809,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 
 	reviewsService := NewMockDataSource(ctrl)
 	reviewsService.EXPECT().
-		Load(gomock.Any(), gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-		DoAndReturn(func(ctx context.Context, input []byte, files []httpclient.File, w *bytes.Buffer) (err error) {
+		Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+		DoAndReturn(func(ctx context.Context, input []byte, w *bytes.Buffer) (err error) {
 			actual := string(input)
 			expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"__typename":"User","id":"1234"}]}}}`
 			assert.Equal(t, expected, actual)
@@ -822,8 +821,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 
 	productService := NewMockDataSource(ctrl)
 	productService.EXPECT().
-		Load(gomock.Any(), gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-		DoAndReturn(func(ctx context.Context, input []byte, files []httpclient.File, w *bytes.Buffer) (err error) {
+		Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+		DoAndReturn(func(ctx context.Context, input []byte, w *bytes.Buffer) (err error) {
 			actual := string(input)
 			expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"__typename":"Product","upc":"top-1"},{"__typename":"Product","upc":"top-2"}]}}}`
 			assert.Equal(t, expected, actual)
