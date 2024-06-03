@@ -88,6 +88,10 @@ func (s *NatsPublishDataSource) Load(ctx context.Context, input []byte, w io.Wri
 	return err
 }
 
+func (s *NatsPublishDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) error {
+	panic("not implemented")
+}
+
 type NatsRequestDataSource struct {
 	pubSub NatsPubSub
 }
@@ -100,4 +104,8 @@ func (s *NatsRequestDataSource) Load(ctx context.Context, input []byte, w io.Wri
 	}
 
 	return s.pubSub.Request(ctx, subscriptionConfiguration, w)
+}
+
+func (s *NatsRequestDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) error {
+	panic("not implemented")
 }

@@ -78,3 +78,7 @@ func (s *KafkaPublishDataSource) Load(ctx context.Context, input []byte, w io.Wr
 	_, err = io.WriteString(w, `{"success": true}`)
 	return err
 }
+
+func (s *KafkaPublishDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) (err error) {
+	panic("not implemented")
+}

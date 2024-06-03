@@ -9,7 +9,8 @@ import (
 )
 
 type DataSource interface {
-	Load(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) (err error)
+	Load(ctx context.Context, input []byte, w io.Writer) (err error)
+	LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) (err error)
 }
 
 type SubscriptionDataSource interface {

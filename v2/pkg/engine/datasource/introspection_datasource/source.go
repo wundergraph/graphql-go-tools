@@ -17,7 +17,7 @@ type Source struct {
 	introspectionData *introspection.Data
 }
 
-func (s *Source) Load(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) (err error) {
+func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
 	var req introspectionInput
 	if err := json.Unmarshal(input, &req); err != nil {
 		return err
@@ -33,6 +33,10 @@ func (s *Source) Load(ctx context.Context, input []byte, files []httpclient.File
 	}
 
 	return json.NewEncoder(w).Encode(s.schemaWithoutTypeInfo())
+}
+
+func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) (err error) {
+	panic("not implemented")
 }
 
 func (s *Source) schemaWithoutTypeInfo() introspection.Schema {

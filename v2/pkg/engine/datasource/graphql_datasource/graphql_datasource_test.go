@@ -9115,7 +9115,7 @@ func TestSource_Load(t *testing.T) {
 			input = httpclient.SetInputFlag(input, httpclient.UNNULL_VARIABLES)
 			buf := bytes.NewBuffer(nil)
 
-			require.NoError(t, src.Load(context.Background(), input, []httpclient.File(nil), buf))
+			require.NoError(t, src.Load(context.Background(), input, buf))
 			assert.Equal(t, `{"variables":{"b":"b"}}`, buf.String())
 		})
 
@@ -9126,7 +9126,7 @@ func TestSource_Load(t *testing.T) {
 
 			buf := bytes.NewBuffer(nil)
 
-			require.NoError(t, src.Load(context.Background(), input, []httpclient.File(nil), buf))
+			require.NoError(t, src.Load(context.Background(), input, buf))
 			assert.Equal(t, `{"variables":{"a":null,"b":"b","c":{}}}`, buf.String())
 		})
 	})
@@ -9148,7 +9148,7 @@ func TestSource_Load(t *testing.T) {
 			input, err = httpclient.SetUndefinedVariables(input, undefinedVariables)
 			assert.NoError(t, err)
 
-			require.NoError(t, src.Load(ctx, input, []httpclient.File(nil), buf))
+			require.NoError(t, src.Load(ctx, input, buf))
 			assert.Equal(t, `{"variables":{"b":null}}`, buf.String())
 		})
 	})
@@ -9230,7 +9230,7 @@ func TestLoadFiles(t *testing.T) {
 		buf := bytes.NewBuffer(nil)
 
 		ctx := context.Background()
-		require.NoError(t, src.Load(
+		require.NoError(t, src.LoadWithFiles(
 			ctx,
 			input,
 			[]httpclient.File{httpclient.NewFile(f.Name(), fileName)},
@@ -9290,7 +9290,7 @@ func TestLoadFiles(t *testing.T) {
 		assert.NoError(t, err)
 
 		ctx := context.Background()
-		require.NoError(t, src.Load(
+		require.NoError(t, src.LoadWithFiles(
 			ctx,
 			input,
 			[]httpclient.File{httpclient.NewFile(f1.Name(), file1Name), httpclient.NewFile(f2.Name(), file2Name)},

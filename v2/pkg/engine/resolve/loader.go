@@ -1271,6 +1271,14 @@ func (l *Loader) setTracingInput(input []byte, trace *DataSourceLoadTrace) {
 	}
 }
 
+func (l *Loader) loadByContext(ctx context.Context, source DataSource, input []byte, res *result) error {
+	if l.ctx.Files != nil {
+		return source.LoadWithFiles(ctx, input, l.ctx.Files, res.out)
+	}
+
+	return source.Load(ctx, input, res.out)
+}
+
 func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input []byte, res *result, trace *DataSourceLoadTrace) {
 	if l.ctx.Extensions != nil {
 		input, res.err = jsonparser.Set(input, l.ctx.Extensions, "body", "extensions")
@@ -1395,13 +1403,13 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 
 		// Prevent that the context is destroyed when the loader hook return an empty context
 		if res.loaderHookContext != nil {
-			res.err = source.Load(res.loaderHookContext, input, l.ctx.Files, res.out)
+			res.err = l.loadByContext(res.loaderHookContext, source, input, res)
 		} else {
-			res.err = source.Load(ctx, input, l.ctx.Files, res.out)
+			res.err = l.loadByContext(ctx, source, input, res)
 		}
 
 	} else {
-		res.err = source.Load(ctx, input, l.ctx.Files, res.out)
+		res.err = l.loadByContext(ctx, source, input, res)
 	}
 
 	res.statusCode = responseContext.StatusCode

@@ -83,116 +83,6 @@ func setResponseStatusCode(ctx context.Context, statusCode int) {
 	}
 }
 
-func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Writer) (err error) {
-
-	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
-
-	request, err := http.NewRequestWithContext(ctx, string(method), string(url), bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-
-	if headers != nil {
-		err = jsonparser.ObjectEach(headers, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-			_, err := jsonparser.ArrayEach(value, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-				if err != nil {
-					return
-				}
-				if len(value) == 0 {
-					return
-				}
-				request.Header.Add(string(key), string(value))
-			})
-			return err
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	if queryParams != nil {
-		query := request.URL.Query()
-		_, err = jsonparser.ArrayEach(queryParams, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-			var (
-				parameterName, parameterValue []byte
-			)
-			jsonparser.EachKey(value, func(i int, bytes []byte, valueType jsonparser.ValueType, err error) {
-				switch i {
-				case 0:
-					parameterName = bytes
-				case 1:
-					parameterValue = bytes
-				}
-			}, queryParamsKeys...)
-			if len(parameterName) != 0 && len(parameterValue) != 0 {
-				if bytes.Equal(parameterValue[:1], literal.LBRACK) {
-					_, _ = jsonparser.ArrayEach(parameterValue, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-						query.Add(string(parameterName), string(value))
-					})
-				} else {
-					query.Add(string(parameterName), string(parameterValue))
-				}
-			}
-		})
-		if err != nil {
-			return err
-		}
-		request.URL.RawQuery = query.Encode()
-	}
-
-	request.Header.Add(AcceptHeader, ContentTypeJSON)
-	request.Header.Add(ContentTypeHeader, ContentTypeJSON)
-	request.Header.Set(AcceptEncodingHeader, EncodingGzip)
-	request.Header.Add(AcceptEncodingHeader, EncodingDeflate)
-
-	response, err := client.Do(request)
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-
-	setResponseStatusCode(ctx, response.StatusCode)
-
-	respReader, err := respBodyReader(response)
-	if err != nil {
-		return err
-	}
-
-	if !enableTrace {
-		_, err = io.Copy(out, respReader)
-		return
-	}
-
-	buf := &bytes.Buffer{}
-	_, err = io.Copy(buf, respReader)
-	if err != nil {
-		return err
-	}
-	responseTrace := TraceHTTP{
-		Request: TraceHTTPRequest{
-			Method:  request.Method,
-			URL:     request.URL.String(),
-			Headers: redactHeaders(request.Header),
-		},
-		Response: TraceHTTPResponse{
-			StatusCode: response.StatusCode,
-			Status:     response.Status,
-			Headers:    redactHeaders(response.Header),
-			BodySize:   buf.Len(),
-		},
-	}
-	trace, err := json.Marshal(responseTrace)
-	if err != nil {
-		return err
-	}
-	responseWithTraceExtension, err := jsonparser.Set(buf.Bytes(), trace, "extensions", "trace")
-	if err != nil {
-		return err
-	}
-	_, err = out.Write(responseWithTraceExtension)
-	return err
-}
-
 var headersToRedact = []string{
 	"authorization",
 	"www-authenticate",
@@ -225,55 +115,15 @@ func respBodyReader(res *http.Response) (io.Reader, error) {
 	}
 }
 
-func DoMultipartForm(
-	client *http.Client, ctx context.Context, requestInput []byte, files []File, out io.Writer,
-) (err error) {
-	if len(files) == 0 {
-		return errors.New("no files provided")
-	}
-
-	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
-
-	formValues := map[string]io.Reader{
-		"operations": bytes.NewReader(body),
-	}
-
-	var fileMap string
-	var tempFiles []*os.File
-	for i, file := range files {
-		if len(fileMap) == 0 {
-			if len(files) == 1 {
-				fileMap = fmt.Sprintf(`"%d" : ["variables.file"]`, i)
-			} else {
-				fileMap = fmt.Sprintf(`"%d" : ["variables.files.%d"]`, i, i)
-			}
-		} else {
-			fileMap = fmt.Sprintf(`%s, "%d" : ["variables.files.%d"]`, fileMap, i, i)
-		}
-		key := fmt.Sprintf("%d", i)
-		temporaryFile, err := os.Open(file.Path())
-		tempFiles = append(tempFiles, temporaryFile)
-		if err != nil {
-			return err
-		}
-		formValues[key] = bufio.NewReader(temporaryFile)
-	}
-	formValues["map"] = strings.NewReader("{ " + fileMap + " }")
-
-	multipartBody, contentType, err := multipartBytes(formValues, files)
-	if err != nil {
-		return err
-	}
-	defer multipartBody.Close()
-
-	request, err := http.NewRequestWithContext(ctx, string(method), string(url), multipartBody)
+func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, headers, queryParams []byte, body io.Reader, enableTrace bool, out io.Writer, contentType string) (err error) {
+	request, err := http.NewRequestWithContext(ctx, string(method), string(url), body)
 	if err != nil {
 		return err
 	}
 
 	if headers != nil {
 		err = jsonparser.ObjectEach(headers, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-			_, err = jsonparser.ArrayEach(value, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
+			_, err := jsonparser.ArrayEach(value, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
 				if err != nil {
 					return
 				}
@@ -328,19 +178,9 @@ func DoMultipartForm(
 	if err != nil {
 		return err
 	}
+	defer response.Body.Close()
 
-	defer func() {
-		defer response.Body.Close()
-
-		for _, file := range tempFiles {
-			if err := file.Close(); err != nil {
-				return
-			}
-			if err = os.Remove(file.Name()); err != nil {
-				return
-			}
-		}
-	}()
+	setResponseStatusCode(ctx, response.StatusCode)
 
 	respReader, err := respBodyReader(response)
 	if err != nil {
@@ -380,6 +220,67 @@ func DoMultipartForm(
 	}
 	_, err = out.Write(responseWithTraceExtension)
 	return err
+}
+
+func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Writer) (err error) {
+	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
+
+	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, bytes.NewReader(body), enableTrace, out, ContentTypeJSON)
+}
+
+func DoMultipartForm(
+	client *http.Client, ctx context.Context, requestInput []byte, files []File, out io.Writer,
+) (err error) {
+	if len(files) == 0 {
+		return errors.New("no files provided")
+	}
+
+	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
+
+	formValues := map[string]io.Reader{
+		"operations": bytes.NewReader(body),
+	}
+
+	var fileMap string
+	var tempFiles []*os.File
+	for i, file := range files {
+		if len(fileMap) == 0 {
+			if len(files) == 1 {
+				fileMap = fmt.Sprintf(`"%d" : ["variables.file"]`, i)
+			} else {
+				fileMap = fmt.Sprintf(`"%d" : ["variables.files.%d"]`, i, i)
+			}
+		} else {
+			fileMap = fmt.Sprintf(`%s, "%d" : ["variables.files.%d"]`, fileMap, i, i)
+		}
+		key := fmt.Sprintf("%d", i)
+		temporaryFile, err := os.Open(file.Path())
+		tempFiles = append(tempFiles, temporaryFile)
+		if err != nil {
+			return err
+		}
+		formValues[key] = bufio.NewReader(temporaryFile)
+	}
+	formValues["map"] = strings.NewReader("{ " + fileMap + " }")
+
+	multipartBody, contentType, err := multipartBytes(formValues, files)
+	if err != nil {
+		return err
+	}
+	defer multipartBody.Close()
+
+	defer func() {
+		for _, file := range tempFiles {
+			if err := file.Close(); err != nil {
+				return
+			}
+			if err = os.Remove(file.Name()); err != nil {
+				return
+			}
+		}
+	}()
+
+	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, multipartBody, enableTrace, out, contentType)
 }
 
 func multipartBytes(values map[string]io.Reader, files []File) (*io.PipeReader, string, error) {
