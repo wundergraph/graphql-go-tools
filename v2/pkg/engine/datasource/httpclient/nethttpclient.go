@@ -267,9 +267,9 @@ func DoMultipartForm(
 	if err != nil {
 		return err
 	}
-	defer multipartBody.Close()
 
 	defer func() {
+		multipartBody.Close()
 		for _, file := range tempFiles {
 			if err := file.Close(); err != nil {
 				return
