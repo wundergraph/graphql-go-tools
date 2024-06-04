@@ -1,28 +1,11 @@
 package resolve
 
-type Array struct {
-	Path                []string
-	Nullable            bool
-	ResolveAsynchronous bool
-	Item                Node
-	Items               []Node
-}
+import "slices"
 
-func (a *Array) HasChildFetches() bool {
-	switch t := a.Item.(type) {
-	case *Object:
-		if t.Fetch != nil {
-			return true
-		}
-		if t.HasChildFetches() {
-			return true
-		}
-	case *Array:
-		if t.HasChildFetches() {
-			return true
-		}
-	}
-	return false
+type Array struct {
+	Path     []string
+	Nullable bool
+	Item     Node
 }
 
 func (_ *Array) NodeKind() NodeKind {
@@ -37,6 +20,23 @@ func (a *Array) NodeNullable() bool {
 	return a.Nullable
 }
 
+func (a *Array) Equals(n Node) bool {
+	other, ok := n.(*Array)
+	if !ok {
+		return false
+	}
+
+	if a.Nullable != other.Nullable {
+		return false
+	}
+
+	if !slices.Equal(a.Path, other.Path) {
+		return false
+	}
+
+	return a.Item.Equals(other.Item)
+}
+
 type EmptyArray struct{}
 
 func (_ *EmptyArray) NodeKind() NodeKind {
@@ -49,4 +49,9 @@ func (_ *EmptyArray) NodePath() []string {
 
 func (_ *EmptyArray) NodeNullable() bool {
 	return false
+}
+
+func (_ *EmptyArray) Equals(n Node) bool {
+	_, ok := n.(*EmptyArray)
+	return ok
 }

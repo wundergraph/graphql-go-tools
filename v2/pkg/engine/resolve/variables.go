@@ -188,5 +188,5 @@ func (h *ResolvableObjectVariable) Equals(another Variable) bool {
 	}
 	anotherVariable := another.(*ResolvableObjectVariable)
 
-	return h.Renderer.Node == anotherVariable.Renderer.Node
+	return h.Renderer.Node.Equals(anotherVariable.Renderer.Node)
 }

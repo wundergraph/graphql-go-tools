@@ -76,7 +76,6 @@ func TestWebSocketSubscriptionClientInitIncludeKA_GQLWS(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(ProtocolGraphQLWS),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
@@ -144,7 +143,6 @@ func TestWebsocketSubscriptionClient_GQLWS(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(ProtocolGraphQLWS),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
@@ -208,7 +206,6 @@ func TestWebsocketSubscriptionClientErrorArray(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	updater := &testSubscriptionUpdater{}
 	err := client.Subscribe(resolve.NewContext(clientCtx), GraphQLSubscriptionOptions{
@@ -264,7 +261,6 @@ func TestWebsocketSubscriptionClientErrorObject(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(ProtocolGraphQLWS),
 	)
 	updater := &testSubscriptionUpdater{}
 	err := client.Subscribe(resolve.NewContext(clientCtx), GraphQLSubscriptionOptions{
@@ -329,7 +325,6 @@ func TestWebsocketSubscriptionClient_GQLWS_Upstream_Dies(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Second),
 		WithLogger(logger()),
-		WithWSSubProtocol(ProtocolGraphQLWS),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
@@ -381,7 +376,6 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 			WithReadTimeout(time.Millisecond),
 			WithLogger(logger()),
-			WithWSSubProtocol(ProtocolGraphQLWS),
 		).(*subscriptionClient)
 
 		updater := &testSubscriptionUpdater{}
@@ -432,7 +426,6 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 				client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 					WithReadTimeout(time.Millisecond),
 					WithLogger(logger()),
-					WithWSSubProtocol(ProtocolGraphQLWS),
 				).(*subscriptionClient)
 
 				updater := &testSubscriptionUpdater{}
@@ -471,7 +464,6 @@ func TestWebsocketConnectionReuse(t *testing.T) {
 				client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 					WithReadTimeout(time.Millisecond),
 					WithLogger(logger()),
-					WithWSSubProtocol(ProtocolGraphQLWS),
 				).(*subscriptionClient)
 
 				updater := &testSubscriptionUpdater{}

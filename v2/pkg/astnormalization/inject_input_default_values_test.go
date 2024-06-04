@@ -116,7 +116,7 @@ func TestInputDefaultValueExtraction(t *testing.T) {
 	})
 
 	t.Run("simple default value nullable extract", func(t *testing.T) {
-		runWithVariables(t, extractVariables, testInputDefaultSchema, `
+		runWithVariablesExtraction(t, extractVariables, testInputDefaultSchema, `
 			mutation{
   				testDefaultValueSimpleNull(data: {firstField: "test"})
 			}`, "", `
@@ -181,7 +181,7 @@ func TestInputDefaultValueExtraction(t *testing.T) {
 	})
 
 	t.Run("run with extract variables", func(t *testing.T) {
-		runWithVariables(t, extractVariables, testInputDefaultSchema, `
+		runWithVariablesExtraction(t, extractVariables, testInputDefaultSchema, `
 		mutation {
   			testNestedInputField(data: { nested: { firstField: 1 } })
 		}`, "", `
@@ -307,7 +307,7 @@ func TestInputDefaultValueExtraction(t *testing.T) {
 	})
 
 	t.Run("null default value for object and list fields", func(t *testing.T) {
-		runWithVariables(t, extractVariables, testInputDefaultSchema, `
+		runWithVariablesExtraction(t, extractVariables, testInputDefaultSchema, `
 			mutation TestDefaults($data: NullDefaultForObjectAndListField!) {
   				testNullDefaultValuesForObjectAndList(data: $data)
 			}`, "", `
@@ -321,7 +321,7 @@ func TestInputDefaultValueExtraction(t *testing.T) {
 	})
 
 	t.Run("null default value for scalar fields", func(t *testing.T) {
-		runWithVariables(t, extractVariables, testInputDefaultSchema, `
+		runWithVariablesExtraction(t, extractVariables, testInputDefaultSchema, `
 			mutation{
   				testNullDefaultValueForFields(data: {})
 			}`, "", `

@@ -1,44 +1,15 @@
 package resolve
 
 import (
+	"bytes"
 	"slices"
 )
 
 type Object struct {
-	Nullable             bool
-	Path                 []string
-	Fields               []*Field
-	Fetch                Fetch
-	UnescapeResponseJson bool `json:"unescape_response_json,omitempty"`
-}
-
-func (o *Object) HasChildFetches() bool {
-	for i := range o.Fields {
-		switch t := o.Fields[i].Value.(type) {
-		case *Object:
-			if t.Fetch != nil {
-				return true
-			}
-			if t.HasChildFetches() {
-				return true
-			}
-		case *Array:
-			switch at := t.Item.(type) {
-			case *Object:
-				if at.Fetch != nil {
-					return true
-				}
-				if at.HasChildFetches() {
-					return true
-				}
-			case *Array:
-				if at.HasChildFetches() {
-					return true
-				}
-			}
-		}
-	}
-	return false
+	Nullable bool
+	Path     []string
+	Fields   []*Field
+	Fetch    Fetch
 }
 
 func (_ *Object) NodeKind() NodeKind {
@@ -51,6 +22,30 @@ func (o *Object) NodePath() []string {
 
 func (o *Object) NodeNullable() bool {
 	return o.Nullable
+}
+
+func (o *Object) Equals(n Node) bool {
+	other, ok := n.(*Object)
+	if !ok {
+		return false
+	}
+	if o.Nullable != other.Nullable {
+		return false
+	}
+
+	if !slices.Equal(o.Path, other.Path) {
+		return false
+	}
+
+	if !slices.EqualFunc(o.Fields, other.Fields, func(a, b *Field) bool {
+		return a.Equals(b)
+	}) {
+		return false
+	}
+
+	// We ignore fetches in comparison, because we compare shape of the response nodes
+
+	return true
 }
 
 type EmptyObject struct{}
@@ -67,6 +62,11 @@ func (_ *EmptyObject) NodeNullable() bool {
 	return false
 }
 
+func (_ *EmptyObject) Equals(n Node) bool {
+	_, ok := n.(*EmptyObject)
+	return ok
+}
+
 type Field struct {
 	Name                    []byte
 	Value                   Node
@@ -79,6 +79,19 @@ type Field struct {
 	IncludeDirectiveDefined bool
 	IncludeVariableName     string
 	Info                    *FieldInfo
+}
+
+func (f *Field) Equals(n *Field) bool {
+	// NOTE: a lot of struct fields are not compared here
+	// because they are not relevant for the value comparison of response nodes
+
+	if !bytes.Equal(f.Name, n.Name) {
+		return false
+	}
+	if !f.Value.Equals(n.Value) {
+		return false
+	}
+	return true
 }
 
 type FieldInfo struct {

@@ -388,6 +388,19 @@ func (d *Document) NodeImplementsInterfaceFields(node Node, interfaceNode Node) 
 	return true
 }
 
+func (d *Document) InterfacesIntersect(interfaceA, interfaceB int) bool {
+	typeNamesImplementingInterfaceA, _ := d.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceA)
+	typeNamesImplementingInterfaceB, _ := d.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceB)
+
+	for _, typeNameB := range typeNamesImplementingInterfaceB {
+		if slices.Contains(typeNamesImplementingInterfaceA, typeNameB) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // NodeImplementsInterface - checks that the given node has `implements` interface.
 // node can be either object type or interface type
 func (d *Document) NodeImplementsInterface(node Node, interfaceName ByteSlice) bool {

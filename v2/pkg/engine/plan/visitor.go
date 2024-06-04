@@ -39,9 +39,6 @@ type Visitor struct {
 	exportedVariables            map[string]struct{}
 	skipIncludeOnFragments       map[int]skipIncludeInfo
 	disableResolveFieldPositions bool
-
-	fieldByPaths    map[string]*resolve.Field
-	allowFieldMerge bool
 }
 
 func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
@@ -104,18 +101,30 @@ type objectFields struct {
 
 func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any, skipFor astvisitor.SkipVisitors) bool {
 	if visitor == v {
+		// main planner visitor should always be allowed
 		return true
 	}
 	path := v.Walker.Path.DotDelimitedString()
+	isFragmentPath := false
 
 	switch kind {
 	case astvisitor.EnterField, astvisitor.LeaveField:
 		fieldAliasOrName := v.Operation.FieldAliasOrNameString(ref)
 		path = path + "." + fieldAliasOrName
+	case astvisitor.EnterInlineFragment, astvisitor.LeaveInlineFragment:
+		isFragmentPath = true
 	}
-	if !strings.Contains(path, ".") {
+
+	isRootPath := !strings.Contains(path, ".")
+	if isRootPath && !isFragmentPath {
+		// if path is a root query (e.g. query, mutation) path we always allow visiting
+		//
+		// but if it is a fragment path on a query type like `... on Query`, we need to check if visiting is allowed
+		// AllowVisitor callback is called before firing Enter/Leave callbacks, but we append ancestor and update path after enter callback,
+		// so we will get path as `query` instead of `query.$Query` in case of fragment path
 		return true
 	}
+
 	for _, config := range v.planners {
 		if config.Planner() == visitor && config.HasPath(path) {
 			switch kind {
@@ -137,15 +146,16 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 
 				return shouldWalkFieldsOnPath
 			case astvisitor.EnterInlineFragment, astvisitor.LeaveInlineFragment:
-				typeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
-				hasRootOrHasChildNode := config.DataSourceConfiguration().HasRootNodeWithTypename(typeCondition) ||
-					config.DataSourceConfiguration().HasChildNodeWithTypename(typeCondition)
+				// we allow visiting inline fragments only if particular planner has path for the fragment
+
+				hasFragmentPath := config.HasFragmentPath(ref)
 
 				if pp, ok := config.Debugger(); ok {
-					pp.DebugPrint("allow:", hasRootOrHasChildNode, " AllowVisitor: InlineFragment", " ref:", ref, " typeCondition:", typeCondition)
+					typeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
+					pp.DebugPrint("allow:", hasFragmentPath, " AllowVisitor: InlineFragment", " ref:", ref, " typeCondition:", typeCondition)
 				}
 
-				return hasRootOrHasChildNode
+				return hasFragmentPath
 			case astvisitor.EnterSelectionSet, astvisitor.LeaveSelectionSet:
 				allowedByParent := skipFor.Allow(config.Planner())
 
@@ -259,110 +269,36 @@ func (v *Visitor) EnterField(ref int) {
 	}
 	fieldDefinitionTypeRef := v.Definition.FieldDefinitionType(fieldDefinition)
 
-	fullFieldPathWithoutFragments := v.currentFullPath(true)
-
-	// if we already have a field with the same path we merge existing field with the current one
-	if v.allowFieldMerge && v.handleExistingField(ref, fieldDefinitionTypeRef, fullFieldPathWithoutFragments) {
-		return
-	}
-
 	skipIncludeInfo := v.resolveSkipIncludeForField(ref)
 
 	onTypeNames := v.resolveOnTypeNames(ref)
 
+	v.currentField = &resolve.Field{
+		Name:                    fieldAliasOrName,
+		OnTypeNames:             onTypeNames,
+		Position:                v.resolveFieldPosition(ref),
+		SkipDirectiveDefined:    skipIncludeInfo.skip,
+		SkipVariableName:        skipIncludeInfo.skipVariableName,
+		IncludeDirectiveDefined: skipIncludeInfo.include,
+		IncludeVariableName:     skipIncludeInfo.includeVariableName,
+		Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
+	}
+
 	if bytes.Equal(fieldName, literal.TYPENAME) {
-		v.currentField = &resolve.Field{
-			Name: fieldAliasOrName,
-			Value: &resolve.String{
-				Nullable:   false,
-				Path:       []string{v.Operation.FieldAliasOrNameString(ref)},
-				IsTypeName: true,
-			},
-			OnTypeNames:             onTypeNames,
-			Position:                v.resolveFieldPosition(ref),
-			SkipDirectiveDefined:    skipIncludeInfo.skip,
-			SkipVariableName:        skipIncludeInfo.skipVariableName,
-			IncludeDirectiveDefined: skipIncludeInfo.include,
-			IncludeVariableName:     skipIncludeInfo.includeVariableName,
-			Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
+		v.currentField.Value = &resolve.String{
+			Nullable:   false,
+			Path:       []string{v.Operation.FieldAliasOrNameString(ref)},
+			IsTypeName: true,
 		}
 	} else {
 		path := v.resolveFieldPath(ref)
-		v.currentField = &resolve.Field{
-			Name:                    fieldAliasOrName,
-			Value:                   v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path),
-			OnTypeNames:             onTypeNames,
-			Position:                v.resolveFieldPosition(ref),
-			SkipDirectiveDefined:    skipIncludeInfo.skip,
-			SkipVariableName:        skipIncludeInfo.skipVariableName,
-			IncludeDirectiveDefined: skipIncludeInfo.include,
-			IncludeVariableName:     skipIncludeInfo.includeVariableName,
-			Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
-		}
+		v.currentField.Value = v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path)
 	}
 
 	// append the field to the current object
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
 
-	// track the added field by its path
-	v.fieldByPaths[fullFieldPathWithoutFragments] = v.currentField
-
 	v.mapFieldConfig(ref)
-}
-
-func (v *Visitor) handleExistingField(currentFieldRef int, fieldDefinitionTypeRef int, fullFieldPathWithoutFragments string) (exists bool) {
-	resolveField := v.fieldByPaths[fullFieldPathWithoutFragments]
-	if resolveField == nil {
-		return false
-	}
-
-	// merge on type names
-	onTypeNames := v.resolveOnTypeNames(currentFieldRef)
-	hasOnTypeNames := len(resolveField.OnTypeNames) > 0 && len(onTypeNames) > 0
-	if hasOnTypeNames {
-		for _, t := range onTypeNames {
-			if !slices.ContainsFunc(resolveField.OnTypeNames, func(existingT []byte) bool {
-				return bytes.Equal(existingT, t)
-			}) {
-				resolveField.OnTypeNames = append(resolveField.OnTypeNames, t)
-			}
-		}
-	} else {
-		// if one of the duplicates request the field unconditionally, we remove the on type names
-		resolveField.OnTypeNames = nil
-	}
-
-	// merge field info
-	maybeAdditionalInfo := v.resolveFieldInfo(currentFieldRef, fieldDefinitionTypeRef, onTypeNames)
-	if resolveField.Info != nil && maybeAdditionalInfo != nil {
-		resolveField.Info.Merge(maybeAdditionalInfo)
-	}
-
-	// set field as current field
-	v.currentField = resolveField
-
-	var obj *resolve.Object
-	switch node := v.currentField.Value.(type) {
-	case *resolve.Array:
-		obj, _ = node.Item.(*resolve.Object)
-	case *resolve.Object:
-		obj = node
-	}
-
-	if obj != nil {
-		v.objects = append(v.objects, obj)
-		v.Walker.DefferOnEnterField(func() {
-			v.currentFields = append(v.currentFields, objectFields{
-				popOnField: currentFieldRef,
-				fields:     &obj.Fields,
-			})
-		})
-	}
-
-	// we have to map field config again with a different ref because it is used in input templates rendering
-	v.mapFieldConfig(currentFieldRef)
-
-	return true
 }
 
 func (v *Visitor) mapFieldConfig(ref int) {
@@ -404,11 +340,8 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 	sourceIDs := make([]string, 0, 1)
 
 	for i := range v.planners {
-		paths := v.planners[i].Paths()
-		for j := range paths {
-			if paths[j].fieldRef == ref {
-				sourceIDs = append(sourceIDs, v.planners[i].DataSourceConfiguration().Id())
-			}
+		if v.planners[i].HasPathWithFieldRef(ref) {
+			sourceIDs = append(sourceIDs, v.planners[i].DataSourceConfiguration().Id())
 		}
 	}
 	return &resolve.FieldInfo{
@@ -534,9 +467,7 @@ func (v *Visitor) addInterfaceObjectNameToTypeNames(fieldRef int, typeName []byt
 	includeInterfaceObjectName := false
 	var interfaceObjectName string
 	for i := range v.planners {
-		if !slices.ContainsFunc(v.planners[i].Paths(), func(path pathConfiguration) bool {
-			return path.fieldRef == fieldRef
-		}) {
+		if !v.planners[i].HasPathWithFieldRef(fieldRef) {
 			continue
 		}
 
@@ -686,10 +617,9 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			}
 		case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
 			object := &resolve.Object{
-				Nullable:             nullable,
-				Path:                 path,
-				Fields:               []*resolve.Field{},
-				UnescapeResponseJson: unescapeResponseJson,
+				Nullable: nullable,
+				Path:     path,
+				Fields:   []*resolve.Field{},
 			}
 			v.objects = append(v.objects, object)
 			v.Walker.DefferOnEnterField(func() {
@@ -876,7 +806,6 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.fieldConfigs = map[int]*FieldConfiguration{}
 	v.exportedVariables = map[string]struct{}{}
 	v.skipIncludeOnFragments = map[int]skipIncludeInfo{}
-	v.fieldByPaths = map[string]*resolve.Field{}
 }
 
 func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
@@ -895,22 +824,25 @@ var (
 )
 
 func (v *Visitor) currentOrParentPlannerConfiguration() PlannerConfiguration {
+	// TODO: this method should be dropped it is unnecessary expensive
+
 	const none = -1
 	currentPath := v.currentFullPath(false)
 	plannerIndex := none
 	plannerPathDeepness := none
 
 	for i := range v.planners {
-		for _, plannerPath := range v.planners[i].Paths() {
+		v.planners[i].ForEachPath(func(plannerPath *pathConfiguration) bool {
 			if v.isCurrentOrParentPath(currentPath, plannerPath.path) {
 				currentPlannerPathDeepness := v.pathDeepness(plannerPath.path)
 				if currentPlannerPathDeepness > plannerPathDeepness {
 					plannerPathDeepness = currentPlannerPathDeepness
 					plannerIndex = i
-					break
+					return true
 				}
 			}
-		}
+			return false
+		})
 	}
 
 	if plannerIndex != none {

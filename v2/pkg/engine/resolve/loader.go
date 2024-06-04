@@ -16,12 +16,11 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
@@ -73,7 +72,14 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 	l.errorsRoot = resolvable.errorsRoot
 	l.ctx = ctx
 	l.info = response.Info
-	return l.walkNode(response.Data, []int{resolvable.dataRoot})
+
+	// fallback to data mostly for tests
+	fetchTree := response.FetchTree
+	if response.FetchTree == nil {
+		fetchTree = response.Data
+	}
+
+	return l.walkNode(fetchTree, []int{resolvable.dataRoot})
 }
 
 func (l *Loader) walkNode(node Node, items []int) error {
@@ -1021,16 +1027,18 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 		res.fetchSkipped = true
 		if l.ctx.TracingOptions.Enable {
 			fetch.Trace.LoadSkipped = true
+		} else {
+			return nil
 		}
-		return nil
 	}
 	if bytes.Equal(renderedItem, emptyObject) {
 		// skip fetch if item is empty
 		res.fetchSkipped = true
 		if l.ctx.TracingOptions.Enable {
 			fetch.Trace.LoadSkipped = true
+		} else {
+			return nil
 		}
-		return nil
 	}
 	_, _ = item.WriteTo(preparedInput)
 	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
@@ -1043,6 +1051,12 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 		return errors.WithStack(err)
 	}
 	fetchInput := preparedInput.Bytes()
+
+	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
+		l.setTracingInput(fetchInput, fetch.Trace)
+		return nil
+	}
+
 	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
 	if err != nil {
 		return err
@@ -1150,8 +1164,9 @@ WithNextItem:
 		res.fetchSkipped = true
 		if l.ctx.TracingOptions.Enable {
 			fetch.Trace.LoadSkipped = true
+		} else {
+			return nil
 		}
-		return nil
 	}
 
 	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
@@ -1164,6 +1179,12 @@ WithNextItem:
 		return errors.WithStack(err)
 	}
 	fetchInput := preparedInput.Bytes()
+
+	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
+		l.setTracingInput(fetchInput, fetch.Trace)
+		return nil
+	}
+
 	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
 	if err != nil {
 		return err
@@ -1235,6 +1256,19 @@ func GetSingleFlightStats(ctx context.Context) *SingleFlightStats {
 
 func setSingleFlightStats(ctx context.Context, stats *SingleFlightStats) context.Context {
 	return context.WithValue(ctx, singleFlightStatsKey{}, stats)
+}
+
+func (l *Loader) setTracingInput(input []byte, trace *DataSourceLoadTrace) {
+	trace.Path = l.renderPath()
+	if !l.ctx.TracingOptions.ExcludeInput {
+		trace.Input = make([]byte, len(input))
+		copy(trace.Input, input) // copy input explicitly, omit __trace__ field
+		redactedInput, err := redactHeaders(trace.Input)
+		if err != nil {
+			return
+		}
+		trace.Input = redactedInput
+	}
 }
 
 func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input []byte, res *result, trace *DataSourceLoadTrace) {

@@ -92,9 +92,8 @@ func TestPlanner_Plan(t *testing.T) {
 					{
 						Name: []byte("searchResults"),
 						Value: &resolve.Array{
-							Path:                []string{"searchResults"},
-							Nullable:            true,
-							ResolveAsynchronous: false,
+							Path:     []string{"searchResults"},
+							Nullable: true,
 							Item: &resolve.Object{
 								Nullable: true,
 								Fields: []*resolve.Field{
@@ -132,7 +131,7 @@ func TestPlanner_Plan(t *testing.T) {
 		DataSources:                  []DataSource{testDefinitionDSConfiguration},
 	}))
 
-	t.Run("Merging duplicate fields in response", func(t *testing.T) {
+	t.Run("Merging duplicate fields in response should not happen", func(t *testing.T) {
 		t.Run("Interface response type with type fragments and shared field", test(testDefinition, `
 			query Hero {
 				hero {
@@ -162,6 +161,22 @@ func TestPlanner_Plan(t *testing.T) {
 											Path:     []string{"name"},
 											Nullable: false,
 										},
+									},
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
+										OnTypeNames: [][]byte{[]byte("Droid")},
+									},
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
+										OnTypeNames: [][]byte{[]byte("Human")},
 									},
 								},
 							},
@@ -208,7 +223,15 @@ func TestPlanner_Plan(t *testing.T) {
 											Path:     []string{"name"},
 											Nullable: false,
 										},
-										OnTypeNames: [][]byte{[]byte("Droid"), []byte("Human")},
+										OnTypeNames: [][]byte{[]byte("Droid")},
+									},
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
+										OnTypeNames: [][]byte{[]byte("Human")},
 									},
 								},
 							},

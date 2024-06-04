@@ -2,7 +2,7 @@ package plan
 
 import (
 	"fmt"
-	"regexp"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/argument_templates"
 	"slices"
 	"strings"
 
@@ -37,15 +37,16 @@ type configurationVisitor struct {
 	missingPathTracker map[string]missingPath // missingPathTracker is a map of paths which will be added on secondary runs
 	addedPathTracker   []pathConfiguration    // addedPathTracker is a list of paths which were added
 
-	pendingRequiredFields        map[int]selectionSetPendingRequirements // pendingRequiredFields is a map[selectionSetRef][]fieldsRequirementConfig
-	visitedFieldsRequiresChecks  map[int]struct{}                        // visitedFieldsRequiresChecks is a map[FieldRef] of already processed fields which we check for @requires directive
-	visitedFieldsAbstractChecks  map[int]struct{}                        // visitedFieldsAbstractChecks is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
-	fieldDependenciesForPlanners map[int][]int                           // fieldDependenciesForPlanners is a map[FieldRef][]plannerIdx holds list of planner ids which depends on a field ref. Used for @key dependencies
-	fieldsPlannedOn              map[int][]int                           // fieldsPlannedOn is a map[fieldRef][]plannerIdx holds list of planner ids which planned a field ref
-	fieldWaitingForDependency    map[int][]int                           // fieldWaitingForDependency is a map[fieldRef][]fieldRef holds list of field refs which are waiting for a dependency to be planned. Used for @requires directive dependencies
+	pendingRequiredFields             map[int]selectionSetPendingRequirements // pendingRequiredFields is a map[selectionSetRef][]fieldsRequirementConfig
+	fieldsWithProcessedRequires       map[int]struct{}                        // fieldsWithProcessedRequires is a map[FieldRef] of already processed fields which we check for @requires directive
+	visitedFieldsAbstractChecks       map[int]struct{}                        // visitedFieldsAbstractChecks is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
+	fieldDependenciesForPlanners      map[int][]int                           // fieldDependenciesForPlanners is a map[FieldRef][]plannerIdx holds list of planner ids which depends on a field ref. Used for @key dependencies
+	fieldsPlannedOn                   map[int][]int                           // fieldsPlannedOn is a map[fieldRef][]plannerIdx holds list of planner ids which planned a field ref
+	fieldWaitingForRequiresDependency map[int][]int                           // fieldWaitingForRequiresDependency is a map[fieldRef][]fieldRef holds list of field refs which are waiting for a dependency to be planned. Used for @requires directive dependencies
 
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the configurationVisitor not the first time
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
+	fieldRef     int  // fieldRef is the reference for the current field; it is required by subscription filter to retrieve any variables
 }
 
 // selectionSetPendingRequirements - is a wrapper to been able to have predictable order of fieldsRequirementConfig but at the same time deduplicate fieldsRequirementConfig
@@ -289,9 +290,9 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 	c.pendingRequiredFields = make(map[int]selectionSetPendingRequirements)
 	c.fieldDependenciesForPlanners = make(map[int][]int)
 	c.fieldsPlannedOn = make(map[int][]int)
-	c.fieldWaitingForDependency = make(map[int][]int)
+	c.fieldWaitingForRequiresDependency = make(map[int][]int)
 
-	c.visitedFieldsRequiresChecks = make(map[int]struct{})
+	c.fieldsWithProcessedRequires = make(map[int]struct{})
 	c.visitedFieldsAbstractChecks = make(map[int]struct{})
 }
 
@@ -314,36 +315,40 @@ func (c *configurationVisitor) EnterSelectionSet(ref int) {
 	// When selection is the inline fragment
 	// We have to add a fragment path to the planner paths
 	ancestor := c.walker.Ancestor()
-	if ancestor.Kind == ast.NodeKindInlineFragment {
-		parentPath := c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString()
-		currentPath := c.walker.Path.DotDelimitedString()
-		typeName := c.operation.InlineFragmentTypeConditionNameString(ancestor.Ref)
+	if ancestor.Kind != ast.NodeKindInlineFragment {
+		return
+	}
 
-		for i, planner := range c.planners {
-			if !planner.HasPath(parentPath) {
-				continue
-			}
+	parentPath := c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString()
+	currentPath := c.walker.Path.DotDelimitedString()
+	typeName := c.operation.InlineFragmentTypeConditionNameString(ancestor.Ref)
 
-			hasRootNode := planner.DataSourceConfiguration().HasRootNodeWithTypename(typeName)
-			hasChildNode := planner.DataSourceConfiguration().HasChildNodeWithTypename(typeName)
-			if !(hasRootNode || hasChildNode) {
-				continue
-			}
-
-			if planner.HasPath(currentPath) {
-				continue
-			}
-
-			path := pathConfiguration{
-				path:             currentPath,
-				shouldWalkFields: true,
-				dsHash:           planner.DataSourceConfiguration().Hash(),
-				fieldRef:         ast.InvalidRef,
-				pathType:         PathTypeFragment,
-			}
-
-			c.addPath(i, path)
+	for i, planner := range c.planners {
+		if !planner.HasPath(parentPath) {
+			continue
 		}
+
+		hasRootNode := planner.DataSourceConfiguration().HasRootNodeWithTypename(typeName)
+		hasChildNode := planner.DataSourceConfiguration().HasChildNodeWithTypename(typeName)
+		if !(hasRootNode || hasChildNode) {
+			continue
+		}
+
+		if planner.HasPath(currentPath) {
+			continue
+		}
+
+		path := pathConfiguration{
+			parentPath:       parentPath,
+			path:             currentPath,
+			shouldWalkFields: true,
+			dsHash:           planner.DataSourceConfiguration().Hash(),
+			fieldRef:         ast.InvalidRef,
+			fragmentRef:      ancestor.Ref,
+			pathType:         PathTypeFragment,
+		}
+
+		c.addPath(i, path)
 	}
 }
 
@@ -477,7 +482,7 @@ func (c *configurationVisitor) recordFieldPlannedOn(fieldRef int, plannerIdx int
 // So we need to notify planner of current fieldRef about dependencie on those other fields
 // we know where fields were planned, because we record planner id of each planned field
 func (c *configurationVisitor) addFieldDependencies(fieldRef int, typeName, fieldName string, currentPlannerIdx int) {
-	fieldRefs, mappingExists := c.fieldWaitingForDependency[fieldRef]
+	fieldRefs, mappingExists := c.fieldWaitingForRequiresDependency[fieldRef]
 	if !mappingExists {
 		return
 	}
@@ -629,10 +634,12 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 
 			if isProvided || hasChildNode || (hasRootNode && planningBehaviour.MergeAliasedRootNodes) {
 				c.addPath(plannerIdx, pathConfiguration{
+					parentPath:       parentPath,
 					path:             currentPath,
 					shouldWalkFields: true,
 					typeName:         typeName,
 					fieldRef:         ref,
+					fragmentRef:      ast.InvalidRef,
 					enclosingNode:    c.walker.EnclosingTypeDefinition,
 					dsHash:           currentPlannerDSHash,
 					isRootNode:       hasRootNode,
@@ -703,10 +710,12 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 	}
 
 	currentPathConfiguration := pathConfiguration{
+		parentPath:       parentPath,
 		path:             currentPath,
 		shouldWalkFields: true,
 		typeName:         typeName,
 		fieldRef:         ref,
+		fragmentRef:      ast.InvalidRef,
 		enclosingNode:    c.walker.EnclosingTypeDefinition,
 		dsHash:           config.Hash(),
 		isRootNode:       true,
@@ -718,6 +727,11 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 
 	isParentAbstract := c.isParentTypeNodeAbstractType()
 	isParentFragment := c.walker.Path[len(c.walker.Path)-1].Kind == ast.InlineFragmentName
+	fragmentRef := ast.InvalidRef
+
+	if isParentFragment {
+		fragmentRef = c.walker.Ancestors[len(c.walker.Ancestors)-2].Ref
+	}
 
 	if isParentAbstract && isParentFragment {
 		// if the parent is abstract and path is on a fragment parent, we add the parent path of type fragment
@@ -730,10 +744,16 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 				shouldWalkFields: false,
 				dsHash:           config.Hash(),
 				fieldRef:         ast.InvalidRef,
+				fragmentRef:      fragmentRef,
 				pathType:         PathTypeFragment,
 			},
 		}, paths...)
 	} else {
+		pathType := PathTypeParent
+		if isParentFragment {
+			pathType = PathTypeFragment
+		}
+
 		// add potentially missing parent path
 		// this could happen when the parent is a fragment and we walking nested selection sets
 		paths = append([]pathConfiguration{
@@ -742,7 +762,8 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 				shouldWalkFields: true,
 				dsHash:           config.Hash(),
 				fieldRef:         ast.InvalidRef,
-				pathType:         PathTypeParent,
+				fragmentRef:      fragmentRef,
+				pathType:         pathType,
 			},
 		}, paths...)
 	}
@@ -759,6 +780,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 				shouldWalkFields: false,
 				dsHash:           config.Hash(),
 				fieldRef:         ast.InvalidRef,
+				fragmentRef:      ast.InvalidRef,
 				pathType:         PathTypeParent,
 			},
 		}, paths...)
@@ -775,6 +797,9 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 
 	// fetch id is an index of the current planner
 	fetchID := len(c.planners)
+
+	// the filter needs access to fieldRef to retrieve the field argument variable
+	c.fieldRef = ref
 
 	fetchConfiguration := &objectFetchConfiguration{
 		isSubscription:     isSubscription,
@@ -844,19 +869,12 @@ func (c *configurationVisitor) buildSubscriptionFilterCondition(condition Subscr
 	return filter
 }
 
-var (
-	// subscriptionFieldFilterRegex is used to extract the variable name from the subscription filter condition
-	// e.g. {{ args.id }} -> id
-	// e.g. {{ args.input.id }} -> input.id
-	subscriptionFieldFilterRegex = regexp.MustCompile(`{{\s*args\.([a-zA-Z0-9_.]+)\s*}}`)
-)
-
 func (c *configurationVisitor) buildSubscriptionFieldFilter(condition *SubscriptionFieldCondition) *resolve.SubscriptionFieldFilter {
 	filter := &resolve.SubscriptionFieldFilter{}
 	filter.FieldPath = condition.FieldPath
 	filter.Values = make([]resolve.InputTemplate, len(condition.Values))
 	for i, value := range condition.Values {
-		matches := subscriptionFieldFilterRegex.FindAllStringSubmatchIndex(value, -1)
+		matches := argument_templates.ArgumentTemplateRegex.FindAllStringSubmatchIndex(value, -1)
 		if len(matches) == 0 {
 			filter.Values[i].Segments = []resolve.TemplateSegment{
 				{
@@ -866,43 +884,71 @@ func (c *configurationVisitor) buildSubscriptionFieldFilter(condition *Subscript
 			}
 			continue
 		}
-		if len(matches) == 1 && len(matches[0]) == 4 {
-			prefix := value[:matches[0][0]]
-			hasPrefix := len(prefix) > 0
-			variableName := value[matches[0][2]:matches[0][3]]
-			suffix := value[matches[0][1]:]
-			hasSuffix := len(suffix) > 0
-			size := 1
-			if hasPrefix {
-				size++
-			}
-			if hasSuffix {
-				size++
-			}
-			filter.Values[i].Segments = make([]resolve.TemplateSegment, size)
-			idx := 0
-			if hasPrefix {
-				filter.Values[i].Segments[idx] = resolve.TemplateSegment{
-					SegmentType: resolve.StaticSegmentType,
-					Data:        []byte(prefix),
-				}
-				idx++
-			}
-			filter.Values[i].Segments[idx] = resolve.TemplateSegment{
-				SegmentType:        resolve.VariableSegmentType,
-				VariableKind:       resolve.ContextVariableKind,
-				Renderer:           resolve.NewPlainVariableRenderer(),
-				VariableSourcePath: strings.Split(variableName, "."),
-			}
-			if hasSuffix {
-				filter.Values[i].Segments[idx+1] = resolve.TemplateSegment{
-					SegmentType: resolve.StaticSegmentType,
-					Data:        []byte(suffix),
-				}
-			}
-			continue
+		fieldNameBytes := c.operation.FieldNameBytes(c.fieldRef)
+		fieldDefinitionRef, ok := c.definition.ObjectTypeDefinitionFieldWithName(c.walker.EnclosingTypeDefinition.Ref, fieldNameBytes)
+		if !ok {
+			c.walker.StopWithInternalErr(fmt.Errorf(`expected field definition to exist for field "%s"`, fieldNameBytes))
+			return nil
 		}
-		return nil
+		groups := matches[0]
+		/* The range value[0:groups[0]] is a prefix (if any—an empty prefix still provides an index)
+		 * The range value[groups[1]:groups[2]] is the whole argument template
+		 * The range value[groups[2]:groups[3]] is the argument path
+		 * The range groups[1] to the end of value is the suffix (if any)
+		 */
+		if len(matches) != 1 || len(groups) != 4 {
+			return nil
+		}
+		argumentPathGroup := value[groups[2]:groups[3]]
+		validationResult, err := argument_templates.ValidateArgumentPath(c.definition, argumentPathGroup, fieldDefinitionRef)
+		if err != nil {
+			c.walker.StopWithInternalErr(fmt.Errorf(`argument template defined on field "%s" is invalid: %w`, fieldNameBytes, err))
+			return nil
+		}
+		prefix := value[:groups[0]]
+		hasPrefix := len(prefix) > 0
+		argumentNameBytes := []byte(validationResult.ArgumentPath[0])
+		argumentRef, ok := c.operation.FieldArgument(c.fieldRef, argumentNameBytes)
+		if !ok {
+			c.walker.StopWithInternalErr(fmt.Errorf(`operation field "%s" does not define argument "%s"`, fieldNameBytes, argumentNameBytes))
+			return nil
+		}
+		variablePath, err := c.operation.VariablePathByArgumentRefAndArgumentPath(argumentRef, validationResult.ArgumentPath, c.walker.Ancestors[0].Ref)
+		if err != nil {
+			c.walker.StopWithInternalErr(fmt.Errorf(`failed to create template segment for argument "%s" defined on operation field "%s": %w`, argumentNameBytes, fieldNameBytes, err))
+			return nil
+		}
+		suffix := value[groups[1]:]
+		hasSuffix := len(suffix) > 0
+		size := 1
+		if hasPrefix {
+			size++
+		}
+		if hasSuffix {
+			size++
+		}
+		filter.Values[i].Segments = make([]resolve.TemplateSegment, size)
+		idx := 0
+		if hasPrefix {
+			filter.Values[i].Segments[idx] = resolve.TemplateSegment{
+				SegmentType: resolve.StaticSegmentType,
+				Data:        []byte(prefix),
+			}
+			idx++
+		}
+		filter.Values[i].Segments[idx] = resolve.TemplateSegment{
+			SegmentType:        resolve.VariableSegmentType,
+			VariableKind:       resolve.ContextVariableKind,
+			Renderer:           resolve.NewPlainVariableRenderer(),
+			VariableSourcePath: variablePath,
+		}
+		if hasSuffix {
+			filter.Values[i].Segments[idx+1] = resolve.TemplateSegment{
+				SegmentType: resolve.StaticSegmentType,
+				Data:        []byte(suffix),
+			}
+		}
+		continue
 	}
 	return filter
 }
@@ -982,10 +1028,12 @@ func (c *configurationVisitor) addPlannerPathForTypename(
 	}
 
 	c.addPath(plannerIndex, pathConfiguration{
+		parentPath:       parentPath,
 		path:             currentPath,
 		shouldWalkFields: true,
 		typeName:         typeName,
 		fieldRef:         fieldRef,
+		fragmentRef:      ast.InvalidRef,
 		dsHash:           c.planners[plannerIndex].DataSourceConfiguration().Hash(),
 	})
 	return true
@@ -1008,19 +1056,23 @@ func (c *configurationVisitor) isSubscription(root int, path string) bool {
 }
 
 func (c *configurationVisitor) handleFieldRequiredByRequires(fieldRef int, typeName, fieldName, currentPath string) (ok bool) {
-	if _, ok := c.visitedFieldsRequiresChecks[fieldRef]; ok {
-		// if we already visited this field, we should not check it again
+	_, isPlanned := c.fieldsPlannedOn[fieldRef]
+	_, requiresIsProcessed := c.fieldsWithProcessedRequires[fieldRef]
+	_, waitingForDependency := c.fieldWaitingForRequiresDependency[fieldRef]
+
+	if isPlanned || requiresIsProcessed {
 		return true
 	}
-	c.visitedFieldsRequiresChecks[fieldRef] = struct{}{}
 
 	if fieldName == typeNameField {
 		// the __typename field could not have @requires directive
+		c.fieldsWithProcessedRequires[fieldRef] = struct{}{}
 		return true
 	}
 
 	config := c.findSuggestedDataSourceConfiguration(typeName, fieldName, currentPath)
 	if config == nil {
+		c.fieldsWithProcessedRequires[fieldRef] = struct{}{}
 		// if we could not find a datasource for the field
 		// something wrong, and we will not be able to plan a query
 		return false
@@ -1028,6 +1080,7 @@ func (c *configurationVisitor) handleFieldRequiredByRequires(fieldRef int, typeN
 
 	requiresConfiguration, exists := config.RequiredFieldsByRequires(typeName, fieldName)
 	if !exists {
+		c.fieldsWithProcessedRequires[fieldRef] = struct{}{}
 		// we do not have a @requires configuration for the field
 		return true
 	}
@@ -1035,12 +1088,15 @@ func (c *configurationVisitor) handleFieldRequiredByRequires(fieldRef int, typeN
 	currentSelectionSet := c.currentSelectionSet()
 	if c.hasFieldsRequiredByRequires(currentSelectionSet, requiresConfiguration.SelectionSet, typeName, fieldName, currentPath) {
 		// all field from @requires directive are already planned
-		return true
+		if waitingForDependency {
+			return true
+		}
 	}
 
 	// we should plan required fields for the field
 	c.planAddingRequiredFields(-1, -1, fieldRef, requiresConfiguration, true, currentPath)
 	c.hasNewFields = true
+	c.fieldsWithProcessedRequires[fieldRef] = struct{}{}
 	return false
 }
 
@@ -1244,7 +1300,7 @@ func (c *configurationVisitor) addRequiredFieldsToOperation(selectionSetRef int,
 
 	// add mapping for the field deoendencies
 	if requiredFieldsCfg.requestedByFieldRef != -1 {
-		c.fieldWaitingForDependency[requiredFieldsCfg.requestedByFieldRef] = requiredFieldRefs
+		c.fieldWaitingForRequiresDependency[requiredFieldsCfg.requestedByFieldRef] = requiredFieldRefs
 	}
 }
 

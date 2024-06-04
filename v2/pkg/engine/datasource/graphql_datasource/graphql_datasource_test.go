@@ -2569,9 +2569,8 @@ func TestGraphQLDataSource(t *testing.T) {
 									{
 										Name: []byte("reviews"),
 										Value: &resolve.Array{
-											Path:                []string{"reviews"},
-											Nullable:            true,
-											ResolveAsynchronous: false,
+											Path:     []string{"reviews"},
+											Nullable: true,
 											Item: &resolve.Object{
 												Nullable: true,
 												Path:     nil,
@@ -7153,8 +7152,6 @@ func TestGraphQLDataSource(t *testing.T) {
 	// When user is an entity, the "pets" field can be both declared and resolved only in the pet subgraph
 	// This separation of concerns is recommended: https://www.apollographql.com/docs/federation/v1/#separation-of-concerns
 	t.Run("Federation with interface field query (defined on pet subgraph)", func(t *testing.T) {
-		t.Skip("problem with merging of resolve.Node")
-
 		planConfiguration := plan.Configuration{
 			DataSources: []plan.DataSource{
 				mustDataSourceConfiguration(
@@ -7400,16 +7397,10 @@ func TestGraphQLDataSource(t *testing.T) {
 																		Value: &resolve.Integer{
 																			Path: []string{"age"},
 																		},
-																		OnTypeNames: [][]byte{[]byte("Cat")},
-																	},
-																	{
-																		Name: []byte("hasOwner"),
-																		Value: &resolve.Boolean{
-																			Path: []string{"hasOwner"},
-																		},
 																	},
 																},
 															},
+															OnTypeNames: [][]byte{[]byte("Cat")},
 														},
 														{
 															Name: []byte("dogField"),
@@ -7425,6 +7416,20 @@ func TestGraphQLDataSource(t *testing.T) {
 															},
 															OnTypeNames: [][]byte{[]byte("Dog")},
 														},
+														{
+															Name: []byte("details"),
+															Value: &resolve.Object{
+																Path: []string{"details"},
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("hasOwner"),
+																		Value: &resolve.Boolean{
+																			Path: []string{"hasOwner"},
+																		},
+																	},
+																},
+															},
+														},
 													},
 												},
 											},
@@ -7436,8 +7441,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
-			planConfiguration,
-			WithSkipReason("age should have onTypes Cat")))
+			planConfiguration))
 
 		t.Run("featuring consecutive inline fragments (shared selection in middle)", RunTest(
 			federatedSchemaWithComplexNestedFragments,
@@ -7632,7 +7636,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Data: &resolve.Object{
 						Fetch: &resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username}}"}}`,
+								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username __typename id}}"}}`,
 								DataSource:     &Source{},
 								PostProcessing: DefaultPostProcessingConfiguration,
 							},
@@ -7673,9 +7677,12 @@ func TestGraphQLDataSource(t *testing.T) {
 												},
 											),
 											DataSource:                            &Source{},
-											PostProcessing:                        EntitiesPostProcessingConfiguration,
+											PostProcessing:                        SingleEntityPostProcessingConfiguration,
 											SetTemplateOutputToNullOnVariableNull: true,
+											RequiresEntityFetch:                   true,
 										},
+										FetchID:              1,
+										DependsOnFetchIDs:    []int{0},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
 									Path:     []string{"user"},
@@ -7875,7 +7882,7 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.String{
 															Path: []string{"name"},
 														},
-														OnTypeNames: [][]byte{[]byte("Cat"), []byte("Dog")},
+														OnTypeNames: [][]byte{[]byte("Cat")},
 													},
 													{
 														Name: []byte("catField"),
@@ -7883,6 +7890,13 @@ func TestGraphQLDataSource(t *testing.T) {
 															Path: []string{"catField"},
 														},
 														OnTypeNames: [][]byte{[]byte("Cat")},
+													},
+													{
+														Name: []byte("name"),
+														Value: &resolve.String{
+															Path: []string{"name"},
+														},
+														OnTypeNames: [][]byte{[]byte("Dog")},
 													},
 													{
 														Name: []byte("dogField"),
@@ -8145,7 +8159,7 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.String{
 															Path: []string{"name"},
 														},
-														OnTypeNames: [][]byte{[]byte("Cat"), []byte("Dog")},
+														OnTypeNames: [][]byte{[]byte("Cat")},
 													},
 													{
 														Name: []byte("catField"),
@@ -8154,6 +8168,14 @@ func TestGraphQLDataSource(t *testing.T) {
 														},
 														OnTypeNames: [][]byte{[]byte("Cat")},
 													},
+													{
+														Name: []byte("name"),
+														Value: &resolve.String{
+															Path: []string{"name"},
+														},
+														OnTypeNames: [][]byte{[]byte("Dog")},
+													},
+
 													{
 														Name: []byte("dogField"),
 														Value: &resolve.String{
@@ -8851,7 +8873,7 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 	newSubscriptionSource := func(ctx context.Context) SubscriptionSource {
 		httpClient := http.Client{}
 		subscriptionSource := SubscriptionSource{
-			client: NewGraphQLSubscriptionClient(&httpClient, http.DefaultClient, ctx, WithWSSubProtocol(ProtocolGraphQLTWS)),
+			client: NewGraphQLSubscriptionClient(&httpClient, http.DefaultClient, ctx),
 		}
 		return subscriptionSource
 	}

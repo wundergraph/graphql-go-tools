@@ -93,3 +93,27 @@ func (d *Document) ImportInputValueDefinition(name, description string, typeRef 
 
 	return d.AddInputValueDefinition(inputValueDef)
 }
+
+func (d *Document) NamedTypeNodeByInputValueDefinitionRef(inputValueDefinitionRef int) (Node, bool) {
+	inputValueTypeRef := d.InputValueDefinitions[inputValueDefinitionRef].Type
+	typeNameBytes := d.ResolveTypeNameBytes(inputValueTypeRef)
+	return d.Index.FirstNodeByNameBytes(typeNameBytes)
+}
+
+func (d *Document) InputValueDefinitionRefByFieldDefinitionRefAndArgumentNameBytes(fieldDefinitionRef int, argumentNameBytes []byte) (inputValueDefinitionRef int, ok bool) {
+	for _, inputValueDefinitionRef = range d.FieldDefinitions[fieldDefinitionRef].ArgumentsDefinition.Refs {
+		if d.InputValueDefinitionNameBytes(inputValueDefinitionRef).Equals(argumentNameBytes) {
+			return inputValueDefinitionRef, true
+		}
+	}
+	return InvalidRef, false
+}
+
+func (d *Document) InputValueDefinitionRefByInputObjectDefinitionRefAndFieldNameBytes(inputObjectDefinitionRef int, inputValueNameBytes []byte) (inputValueDefinitionRef int, ok bool) {
+	for _, inputValueDefinitionRef = range d.InputObjectTypeDefinitions[inputObjectDefinitionRef].InputFieldsDefinition.Refs {
+		if d.InputValueDefinitionNameBytes(inputValueDefinitionRef).Equals(inputValueNameBytes) {
+			return inputValueDefinitionRef, true
+		}
+	}
+	return InvalidRef, false
+}

@@ -25,7 +25,9 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			Subprotocols: []string{"graphql-transport-ws"},
+		})
 		assert.NoError(t, err)
 
 		ctx := context.Background()
@@ -63,7 +65,6 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(ProtocolGraphQLTWS),
 	).(*subscriptionClient)
 
 	updater := &testSubscriptionUpdater{}
@@ -100,7 +101,9 @@ func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
 
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			Subprotocols: []string{"graphql-transport-ws"},
+		})
 		assert.NoError(t, err)
 
 		ctx := context.Background()
@@ -142,7 +145,6 @@ func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(ProtocolGraphQLTWS),
 	).(*subscriptionClient)
 
 	updater := &testSubscriptionUpdater{}
@@ -178,7 +180,9 @@ func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
 
 	serverDone := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			Subprotocols: []string{"graphql-transport-ws"},
+		})
 		assert.NoError(t, err)
 
 		msgType, data, err := conn.Read(r.Context())
@@ -210,7 +214,6 @@ func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(ProtocolGraphQLTWS),
 	)
 
 	updater := &testSubscriptionUpdater{}
@@ -244,7 +247,9 @@ func TestWebSocketSubscriptionClientInitIncludePing_GQLTWS(t *testing.T) {
 	serverDone := make(chan struct{})
 	assertion := require.New(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			Subprotocols: []string{"graphql-transport-ws"},
+		})
 		assertion.NoError(err)
 
 		// write "ping" every second
@@ -298,7 +303,6 @@ func TestWebSocketSubscriptionClientInitIncludePing_GQLTWS(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Millisecond),
 		WithLogger(logger()),
-		WithWSSubProtocol(ProtocolGraphQLTWS),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
 	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
@@ -335,7 +339,9 @@ func TestWebsocketSubscriptionClient_GQLTWS_Upstream_Dies(t *testing.T) {
 	defer serverCancel()
 
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			Subprotocols: []string{"graphql-transport-ws"},
+		})
 		assert.NoError(t, err)
 
 		ctx := context.Background()
@@ -373,7 +379,6 @@ func TestWebsocketSubscriptionClient_GQLTWS_Upstream_Dies(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithReadTimeout(time.Second),
 		WithLogger(logger()),
-		WithWSSubProtocol(ProtocolGraphQLTWS),
 	).(*subscriptionClient)
 
 	updater := &testSubscriptionUpdater{}

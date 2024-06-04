@@ -3,21 +3,18 @@ package postprocess
 import (
 	"slices"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 // CreateMultiFetchTypes is a postprocessor that transforms multi fetches into more concrete fetch types
 type CreateMultiFetchTypes struct{}
 
-func (d *CreateMultiFetchTypes) Process(pre plan.Plan) plan.Plan {
-	switch t := pre.(type) {
-	case *plan.SynchronousResponsePlan:
-		d.traverseNode(t.Response.Data)
-	case *plan.SubscriptionResponsePlan:
-		d.traverseNode(t.Response.Response.Data)
-	}
-	return pre
+func (d *CreateMultiFetchTypes) Process(node resolve.Node) {
+	d.traverseNode(node)
+}
+
+func (d *CreateMultiFetchTypes) ProcessSubscription(node resolve.Node, trigger *resolve.GraphQLSubscriptionTrigger) {
+	d.traverseNode(node)
 }
 
 func (d *CreateMultiFetchTypes) traverseNode(node resolve.Node) {

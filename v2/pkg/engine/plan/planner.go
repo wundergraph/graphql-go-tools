@@ -114,17 +114,11 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		p.debugMessage("Planning visitor:")
 	}
 
-	hasConditionalSkipInclude := hasConditionalSkipInclude(operation, definition, report)
-	if report.HasErrors() {
-		return nil
-	}
-
 	// configure planning visitor
 
 	p.planningVisitor.planners = p.configurationVisitor.planners
 	p.planningVisitor.Config = p.config
 	p.planningVisitor.skipFieldsRefs = p.configurationVisitor.skipFieldsRefs
-	p.planningVisitor.allowFieldMerge = !hasConditionalSkipInclude
 
 	p.planningWalker.ResetVisitors()
 	p.planningWalker.SetVisitorFilter(p.planningVisitor)
@@ -263,12 +257,8 @@ func (p *Planner) removeUnnecessaryFragmentPaths() (hasRemovedPaths bool) {
 	// So we need to remove all fragment paths that are not prefixes of any other path
 
 	for _, planner := range p.configurationVisitor.planners {
-		fragmentPaths := planner.FragmentPaths()
-		for _, path := range fragmentPaths {
-			if !planner.HasPathPrefix(path) {
-				planner.RemovePath(path)
-				hasRemovedPaths = true
-			}
+		if planner.RemoveLeafFragmentPaths() {
+			hasRemovedPaths = true
 		}
 	}
 	return
@@ -317,9 +307,10 @@ func (p *Planner) printPlanningPaths() {
 	for i, planner := range p.configurationVisitor.planners {
 		fmt.Println("Paths for planner", i+1)
 		fmt.Println("Planner parent path", planner.ParentPath())
-		for _, path := range planner.Paths() {
+		planner.ForEachPath(func(path *pathConfiguration) (shouldBreak bool) {
 			fmt.Println(path.String())
-		}
+			return false
+		})
 	}
 
 	if p.configurationVisitor.hasMissingPaths() {
