@@ -117,8 +117,8 @@ const (
 	ReasonStage2SameSourceNodeOfSelectedChild   = "stage2: node on the same source as selected child"
 	ReasonStage2SameSourceNodeOfSelectedSibling = "stage2: node on the same source as selected sibling"
 
-	ReasonStage3SelectAvailableNode                            = "stage3: select first available node"
-	ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource = "stage3: select non leaf node which have possible child selections on the same source"
+	ReasonStage3SelectRootNodeWithEnabledEntityResolver = "stage3: first available node with enabled entity resolver"
+	ReasonStage3SelectFirstParentRootNode               = "stage3: first available parent node with enabled entity resolver"
 
 	ReasonKeyRequirementProvidedByPlanner = "provided by planner as required by @key"
 	ReasonProvidesProvidedByPlanner       = "@provides"
@@ -269,7 +269,6 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 			continue
 		}
 
-		// check for selected siblings of a current node or its duplicates
 		if f.checkNodeSiblings(i) {
 			continue
 		}
@@ -283,30 +282,49 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 		// if after all checks node was not selected, select it
 		// this could happen in case choises are fully equal
 
-		// in case current node suggestion is an entity root node, and it contains key with disabled resolver
-		// it makes such node less preferable for selection
-		if f.nodes.items[i].DisabledEntityResolver {
-			continue
-		}
+		// in case current node suggestion is an entity root node, and it contains a key with disabled resolver
+		// we could not select such node, because we could not jump to the subgraph which do not have reference resolver,
+		// so we need to find a possible duplicate which has enabled entity resolver
 
-		// we could select first available node only in case it is a leaf root node
-		if f.nodes.isLeaf(i) && f.nodes.items[i].IsRootNode {
-			f.nodes.items[i].selectWithReason(ReasonStage3SelectAvailableNode, f.enableSelectionReasons)
-			continue
-		}
-
-		currentIdx := i
-		currentChildNodeCount := len(f.nodes.childNodesOnSameSource(i))
-
-		for _, duplicateIdx := range nodeDuplicates {
-			duplicateChildNodeCount := len(f.nodes.childNodesOnSameSource(duplicateIdx))
-			if duplicateChildNodeCount > currentChildNodeCount {
-				currentIdx = duplicateIdx
-				currentChildNodeCount = duplicateChildNodeCount
+		if f.nodes.items[i].IsRootNode && f.nodes.items[i].DisabledEntityResolver {
+			foundPossibleDuplicate := false
+			for _, duplicateIdx := range nodeDuplicates {
+				if !f.nodes.items[duplicateIdx].DisabledEntityResolver {
+					f.nodes.items[duplicateIdx].selectWithReason(ReasonStage3SelectRootNodeWithEnabledEntityResolver, f.enableSelectionReasons)
+					foundPossibleDuplicate = true
+					break
+				}
+			}
+			if foundPossibleDuplicate {
+				// continue to the next node
+				continue
 			}
 		}
 
-		f.nodes.items[currentIdx].selectWithReason(ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource, f.enableSelectionReasons)
+		// when we haven't found a possible duplicate
+		// we need to find parent node which is a root node and has enabled entity resolver, e.g. the point in the query from where we could jump
+
+		treeNode := f.nodes.treeNode(i)
+		parent := treeNode.GetParent()
+
+		for parent != nil {
+			parentNodeIndexes := parent.GetData()
+
+			foundPossibleParent := false
+			for _, parentIdx := range parentNodeIndexes {
+				if f.nodes.items[parentIdx].IsRootNode && !f.nodes.items[parentIdx].DisabledEntityResolver {
+					f.nodes.items[parentIdx].selectWithReason(ReasonStage3SelectFirstParentRootNode, f.enableSelectionReasons)
+					foundPossibleParent = true
+					break
+				}
+			}
+
+			if foundPossibleParent {
+				break
+			}
+
+			parent = parent.GetParent()
+		}
 	}
 }
 
@@ -333,6 +351,12 @@ func (f *DataSourceFilter) checkNodeChilds(i int) (nodeIsSelected bool) {
 }
 
 func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
+	if f.nodes.items[i].IsKeyField {
+		// we select based on siblings only in case node is not part of a key
+		// check for selected siblings of a current node or its duplicates
+		return false
+	}
+
 	siblings := f.nodes.siblingNodesOnSameSource(i)
 	for _, sibling := range siblings {
 		if f.nodes.items[sibling].Selected {

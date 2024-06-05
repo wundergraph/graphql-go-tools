@@ -19,6 +19,7 @@ type NodeSuggestion struct {
 	IsProvided                bool
 	DisabledEntityResolver    bool // is true in case the node is an entity root node and has a key with disabled resolver
 	IsEntityInterfaceTypeName bool
+	IsKeyField                bool
 
 	parentPathWithoutFragment *string
 	onFragment                bool
@@ -51,8 +52,8 @@ func (n *NodeSuggestion) selectWithReason(reason string, saveReason bool) {
 }
 
 func (n *NodeSuggestion) String() string {
-	return fmt.Sprintf(`{"dsID":"%s","ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t,"isProvided":%t, "entityResolver":%t, "isSelected": %v,"selectReason": %v}`,
-		n.DataSourceID, n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode, n.IsProvided, !n.DisabledEntityResolver, n.Selected, n.SelectionReasons)
+	return fmt.Sprintf(`{"dsID":"%s","ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t,"isProvided":%t,"IsKeyField": %t, "DisabledEntityResolver":%t, "isSelected": %v,"selectReason": %v}`,
+		n.DataSourceID, n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode, n.IsProvided, n.IsKeyField, n.DisabledEntityResolver, n.Selected, n.SelectionReasons)
 }
 
 type NodeSuggestionHint struct {

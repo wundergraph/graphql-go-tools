@@ -212,7 +212,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 	}
 
 	if p.config.Debug.PrintNodeSuggestions {
-		p.configurationVisitor.nodeSuggestions.printNodes("\n\nInitial node suggestions:\n\n", p.config.Debug.NodeSuggestion.FilterNotSelected)
+		p.configurationVisitor.nodeSuggestions.printNodes("\nInitial node suggestions:\n", p.config.Debug.NodeSuggestion.FilterNotSelected)
 	}
 
 	p.configurationVisitor.secondaryRun = false
@@ -268,10 +268,6 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 
 		if p.config.Debug.PrintPlanningPaths {
 			p.printRevisitInfo()
-			p.printPlanningPaths()
-		}
-
-		if p.config.Debug.PrintPlanningPaths {
 			p.printPlanningPaths()
 		}
 

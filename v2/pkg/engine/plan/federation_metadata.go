@@ -1,5 +1,9 @@
 package plan
 
+import (
+	"encoding/json"
+)
+
 type FederationMetaData struct {
 	Keys             FederationFieldConfigurations
 	Requires         FederationFieldConfigurations
@@ -37,13 +41,15 @@ type EntityInterfaceConfiguration struct {
 }
 
 type FederationFieldConfiguration struct {
-	// TypeName is the name of the Entity the Fragment is for
-	TypeName string
-	// FieldName is empty for key requirements, otherwise, it is the name of the field that has requires or provides directive
-	FieldName string
-	// SelectionSet is the selection set that is required for the given field (keys, requires, provides)
-	SelectionSet          string
-	DisableEntityResolver bool // applicable only for the keys. If true it means that the given entity could not be resolved by this key.
+	TypeName              string `json:"type_name"`            // TypeName is the name of the Entity the Fragment is for
+	FieldName             string `json:"field_name,omitempty"` // FieldName is empty for key requirements, otherwise, it is the name of the field that has requires or provides directive
+	SelectionSet          string `json:"selection_set"`        // SelectionSet is the selection set that is required for the given field (keys, requires, provides)
+	DisableEntityResolver bool   `json:"-"`                    // applicable only for the keys. If true it means that the given entity could not be resolved by this key.
+}
+
+func (f FederationFieldConfiguration) String() string {
+	b, _ := json.Marshal(f)
+	return string(b)
 }
 
 type FederationFieldConfigurations []FederationFieldConfiguration

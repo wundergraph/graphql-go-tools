@@ -38,13 +38,13 @@ type configurationVisitor struct {
 	nodeSuggestions     *NodeSuggestions     // nodeSuggestions holds information about suggested data sources for each field
 	nodeSuggestionHints []NodeSuggestionHint // nodeSuggestionHints holds information about suggested data sources for key fields
 
-	parentTypeNodes       []ast.Node             // parentTypeNodes is a stack of parent type nodes - used to determine if the parent is abstract
-	arrayFields           []arrayField           // arrayFields is a stack of array fields - used to plan nested queries
-	selectionSetRefs      []int                  // selectionSetRefs is a stack of selection set refs - used to add a required fields
-	skipFieldsRefs        []int                  // skipFieldsRefs holds required field refs added by planner and should not be added to user response
-	missingPathTracker    map[string]missingPath // missingPathTracker is a map of paths which will be added on secondary runs
-	addedPathTracker      []pathConfiguration    // addedPathTracker is a list of paths which were added
-	addedPathTrackerIndex map[string][]int       // addedPathTrackerIndex is a map of path to index in addedPathTracker
+	parentTypeNodes       []ast.Node          // parentTypeNodes is a stack of parent type nodes - used to determine if the parent is abstract
+	arrayFields           []arrayField        // arrayFields is a stack of array fields - used to plan nested queries
+	selectionSetRefs      []int               // selectionSetRefs is a stack of selection set refs - used to add a required fields
+	skipFieldsRefs        []int               // skipFieldsRefs holds required field refs added by planner and should not be added to user response
+	missingPathTracker    map[string]struct{} // missingPathTracker is a map of paths which will be added on secondary runs
+	addedPathTracker      []pathConfiguration // addedPathTracker is a list of paths which were added
+	addedPathTrackerIndex map[string][]int    // addedPathTrackerIndex is a map of path to index in addedPathTracker
 
 	pendingRequiredFields             map[int]selectionSetPendingRequirements // pendingRequiredFields is a map[selectionSetRef][]fieldsRequirementConfig
 	processedFieldNotHavingRequires   map[int]struct{}                        // processedFieldNotHavingRequires is a map[FieldRef] of already processed fields which do not have @requires directive
@@ -236,11 +236,8 @@ func (c *configurationVisitor) findPreviousRootPath(currentPath string) (previou
 	return "", false
 }
 
-func (c *configurationVisitor) addMissingPath(path string, parentPath string) {
-	c.missingPathTracker[path] = missingPath{
-		path:                  path,
-		precedingRootNodePath: parentPath,
-	}
+func (c *configurationVisitor) addMissingPath(path string) {
+	c.missingPathTracker[path] = struct{}{}
 }
 
 func (c *configurationVisitor) hasMissingPaths() bool {
@@ -249,20 +246,6 @@ func (c *configurationVisitor) hasMissingPaths() bool {
 
 func (c *configurationVisitor) removeMissingPath(path string) {
 	delete(c.missingPathTracker, path)
-}
-
-func (c *configurationVisitor) hasMissingPathWithParentPath(parentPath string) bool {
-	if !c.hasMissingPaths() {
-		return false
-	}
-
-	for _, missingPath := range c.missingPathTracker {
-		if missingPath.precedingRootNodePath == parentPath {
-			return true
-		}
-	}
-
-	return false
 }
 
 func (c *configurationVisitor) debugPrint(args ...any) {
@@ -308,7 +291,7 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 		c.skipFieldsRefs = c.skipFieldsRefs[:0]
 	}
 
-	c.missingPathTracker = make(map[string]missingPath)
+	c.missingPathTracker = make(map[string]struct{})
 	c.addedPathTracker = make([]pathConfiguration, 0, 8)
 	c.addedPathTrackerIndex = make(map[string][]int)
 
@@ -435,10 +418,9 @@ func (c *configurationVisitor) EnterField(ref int) {
 
 		c.rewriteSelectionSetOfFieldWithInterfaceType(ref, plannerIdx)
 		c.addRootField(ref, plannerIdx)
-		return
 	}
 
-	c.handleMissingPath(typeName, fieldName, currentPath)
+	c.handleMissingPath(planned, typeName, fieldName, currentPath)
 }
 
 func (c *configurationVisitor) addRootField(fieldRef, plannerIdx int) {
@@ -596,16 +578,15 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 		}
 		suggestion := suggestions[suggestionIdx]
 		isProvided := suggestion.IsProvided
-
-		hasRootNode := dsConfiguration.HasRootNode(typeName, fieldName)
-		hasChildNode := dsConfiguration.HasChildNode(typeName, fieldName)
+		isRootNode := suggestion.IsRootNode
+		isChildNode := !isRootNode
 
 		if c.secondaryRun && plannerConfig.HasPath(currentPath) {
-			if c.hasMissingPathWithParentPath(currentPath) {
-				// shareable case - we have planned this path for this plannerIdx, but we still have a missing path,
-				// so we need to check other planner indexes
+			if len(suggestions) > 1 {
+				// if there is a few suggestions try other datasource
 				continue
 			}
+
 			// on the second run we need to process only new fields added by the first run
 			return plannerIdx, true
 		}
@@ -630,7 +611,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 				return plannerIdx, true
 			}
 
-			if isProvided || hasChildNode || (hasRootNode && planningBehaviour.MergeAliasedRootNodes) {
+			if isProvided || isChildNode || (isRootNode && planningBehaviour.MergeAliasedRootNodes) {
 				c.addPath(plannerIdx, pathConfiguration{
 					parentPath:       parentPath,
 					path:             currentPath,
@@ -640,7 +621,8 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 					fragmentRef:      ast.InvalidRef,
 					enclosingNode:    c.walker.EnclosingTypeDefinition,
 					dsHash:           currentPlannerDSHash,
-					isRootNode:       hasRootNode,
+					isRootNode:       isRootNode,
+					pathType:         PathTypeField,
 				})
 
 				return plannerIdx, true
@@ -719,6 +701,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		enclosingNode:    c.walker.EnclosingTypeDefinition,
 		dsHash:           config.Hash(),
 		isRootNode:       true,
+		pathType:         PathTypeField,
 	}
 
 	paths := []pathConfiguration{
@@ -968,34 +951,45 @@ func (c *configurationVisitor) resolveRootFieldOperationType(typeName string) as
 }
 
 // handleMissingPath - records missing path for the case when we don't yet have a planner for the field
-func (c *configurationVisitor) handleMissingPath(typeName string, fieldName string, currentPath string) {
+func (c *configurationVisitor) handleMissingPath(planned bool, typeName string, fieldName string, currentPath string) {
 	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
-	if len(suggestions) > 0 {
-		somePlannerHasPath := false
+
+	if len(suggestions) <= 1 {
+		if planned {
+			// __typename field on a union could not have a suggestion
+			return
+		}
+
+		c.walker.StopWithInternalErr(errors.Wrap(fmt.Errorf("could not plan field %s.%s on path %s", typeName, fieldName, currentPath), "configurationVisitor.handleMissingPath"))
+		return
+	}
+
+	allSuggestionsPlanned := true
+
+	for _, suggestion := range suggestions {
+		hasPlannedSuggestion := false
 		for i := range c.planners {
-			if slices.ContainsFunc(suggestions, func(suggestion *NodeSuggestion) bool {
-				return suggestion.DataSourceHash == c.planners[i].DataSourceConfiguration().Hash()
-			}) {
-				if c.planners[i].HasPath(currentPath) {
-					somePlannerHasPath = true
-					break
-				}
+			if c.planners[i].DataSourceConfiguration().Hash() != suggestion.DataSourceHash {
+				continue
+			}
+			if c.planners[i].HasPath(currentPath) {
+				hasPlannedSuggestion = true
+				break
 			}
 		}
-
-		if somePlannerHasPath {
-			// we have revisited field already planned by some planner
-			return
-		}
-
-		parentPath, found := c.findPreviousRootPath(currentPath)
-		if found {
-			c.addMissingPath(currentPath, parentPath)
-			return
+		if !hasPlannedSuggestion {
+			allSuggestionsPlanned = false
+			break
 		}
 	}
 
-	c.walker.StopWithInternalErr(errors.Wrap(fmt.Errorf("could not plan field %s.%s on path %s", typeName, fieldName, currentPath), "configurationVisitor.handleMissingPath"))
+	if allSuggestionsPlanned {
+		// all suggestions were planned, so we should not record a missing path
+		return
+	}
+
+	c.addMissingPath(currentPath)
+	c.walker.Stop()
 }
 
 func (c *configurationVisitor) LeaveField(ref int) {
@@ -1038,6 +1032,7 @@ func (c *configurationVisitor) addPlannerPathForTypename(
 		fieldRef:         fieldRef,
 		fragmentRef:      ast.InvalidRef,
 		dsHash:           c.planners[plannerIndex].DataSourceConfiguration().Hash(),
+		pathType:         PathTypeField,
 	})
 	return true
 }
