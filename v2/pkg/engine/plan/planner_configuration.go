@@ -244,7 +244,7 @@ type pathConfiguration struct {
 type PathType int
 
 const (
-	PathTypeField PathType = iota
+	PathTypeField PathType = iota + 1
 	PathTypeFragment
 	PathTypeParent
 )

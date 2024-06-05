@@ -1,12 +1,10 @@
 package plan
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -326,8 +324,6 @@ func TestProvidesSuggestions(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.operation, func(t *testing.T) {
 			operation := unsafeparser.ParseGraphqlDocumentString(c.operation)
-			p, _ := astprinter.PrintStringIndentDebug(&operation, nil, "  ")
-			fmt.Println(p)
 			report := &operationreport.Report{}
 
 			input := &providesInput{

@@ -45,6 +45,7 @@ func (c *nodesCollector) collectNodes() {
 	for _, dataSource := range c.dataSources {
 		visitor.dataSource = dataSource
 		visitor.externalPaths = make(map[string]struct{})
+		visitor.keyPaths = make(map[string]struct{})
 		walker.Walk(c.operation, c.definition, c.report)
 		if c.report.HasErrors() {
 			return
@@ -115,6 +116,7 @@ type collectNodesVisitor struct {
 	nodes      *NodeSuggestions
 
 	externalPaths map[string]struct{}
+	keyPaths      map[string]struct{}
 }
 
 func (f *collectNodesVisitor) hasSuggestionForField(itemIds []int, ref int) bool {
@@ -212,9 +214,6 @@ func (f *collectNodesVisitor) handleProvidesSuggestions(fieldRef int, typeName, 
 			if f.nodes.items[idx].DataSourceHash == f.dataSource.Hash() {
 				f.nodes.items[idx].IsProvided = true
 				exists = true
-				// } else {
-				// 	f.nodes.items[idx].Selected = false
-				// 	f.nodes.items[idx].SelectionReasons = nil
 			}
 		}
 		if exists {
@@ -226,6 +225,41 @@ func (f *collectNodesVisitor) handleProvidesSuggestions(fieldRef int, typeName, 
 		nodesIndexes = append(nodesIndexes, suggestionIdx)
 		treeNode.SetData(nodesIndexes)
 	}
+}
+
+func (f *collectNodesVisitor) isFieldPartOfKey(typeName, currentPath, parentPath string) bool {
+	if _, ok := f.keyPaths[currentPath]; ok {
+		return true
+	}
+
+	keyFields := f.dataSource.RequiredFieldsByKey(typeName)
+	if len(keyFields) == 0 {
+		return false
+	}
+
+	for _, keyField := range keyFields {
+		fieldSet, report := RequiredFieldsFragment(typeName, keyField.SelectionSet, false)
+		if report.HasErrors() {
+			return false
+		}
+
+		input := &keyVisitorInput{
+			typeName:   typeName,
+			key:        fieldSet,
+			definition: f.definition,
+			report:     report,
+			parentPath: parentPath,
+		}
+
+		keyPaths := keyFieldPaths(input)
+
+		for _, keyPath := range keyPaths {
+			f.keyPaths[keyPath] = struct{}{}
+		}
+	}
+
+	_, ok := f.keyPaths[currentPath]
+	return ok
 }
 
 func (f *collectNodesVisitor) EnterField(ref int) {
@@ -281,7 +315,12 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 		return
 	}
 
+	isKey := f.isFieldPartOfKey(typeName, currentPath, parentPath)
+
 	if hasRootNode || hasChildNode {
+		hasDisabledEntityResolver := f.hasDisabledEntityResolver(typeName)
+		disabledEntityResolver := hasRootNode && hasDisabledEntityResolver
+
 		node := NodeSuggestion{
 			TypeName:                  typeName,
 			FieldName:                 fieldName,
@@ -293,8 +332,9 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 			onFragment:                onFragment,
 			parentPathWithoutFragment: parentPathWithoutFragment,
 			fieldRef:                  ref,
-			DisabledEntityResolver:    hasRootNode && f.hasDisabledEntityResolver(typeName),
+			DisabledEntityResolver:    disabledEntityResolver,
 			IsEntityInterfaceTypeName: isTypeName && f.isEntityInterface(typeName),
+			IsKeyField:                isKey,
 		}
 
 		f.nodes.addSuggestion(&node)
