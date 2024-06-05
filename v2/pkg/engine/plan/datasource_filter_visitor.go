@@ -98,6 +98,7 @@ const (
 	ReasonStage2SameSourceNodeOfSelectedChild   = "stage2: node on the same source as selected child"
 	ReasonStage2SameSourceNodeOfSelectedSibling = "stage2: node on the same source as selected sibling"
 
+	ReasonStage3SelectAvailableNode                     = "stage3: select first available node"
 	ReasonStage3SelectRootNodeWithEnabledEntityResolver = "stage3: first available node with enabled entity resolver"
 	ReasonStage3SelectFirstParentRootNode               = "stage3: first available parent node with enabled entity resolver"
 
@@ -260,9 +261,11 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 		if !secondRun {
 			continue
 		}
-		// if after all checks node was not selected, select it
-		// this could happen in case choises are fully equal
 
+		// if after all checks node was not selected
+		// we need a couple more checks
+
+		// 1. Lookup in duplicates for root nodes with enabled reference resolver
 		// in case current node suggestion is an entity root node, and it contains a key with disabled resolver
 		// we could not select such node, because we could not jump to the subgraph which do not have reference resolver,
 		// so we need to find a possible duplicate which has enabled entity resolver
@@ -282,16 +285,17 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 			}
 		}
 
+		// 2. Lookup for the first parent root node with enabled entity resolver
 		// when we haven't found a possible duplicate
 		// we need to find parent node which is a root node and has enabled entity resolver, e.g. the point in the query from where we could jump
 
 		treeNode := f.nodes.treeNode(i)
 		parent := treeNode.GetParent()
 
+		foundPossibleParent := false
 		for parent != nil {
 			parentNodeIndexes := parent.GetData()
 
-			foundPossibleParent := false
 			for _, parentIdx := range parentNodeIndexes {
 				if f.nodes.items[parentIdx].IsRootNode && !f.nodes.items[parentIdx].DisabledEntityResolver {
 					f.nodes.items[parentIdx].selectWithReason(ReasonStage3SelectFirstParentRootNode, f.enableSelectionReasons)
@@ -306,6 +310,14 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 
 			parent = parent.GetParent()
 		}
+
+		if foundPossibleParent {
+			continue
+		}
+
+		// 3. If we still haven't selected a node we select current node as first available node
+
+		f.nodes.items[i].selectWithReason(ReasonStage3SelectAvailableNode, f.enableSelectionReasons)
 	}
 }
 
