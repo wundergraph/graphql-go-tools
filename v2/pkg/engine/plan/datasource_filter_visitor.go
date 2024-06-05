@@ -2,7 +2,6 @@ package plan
 
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -70,12 +69,6 @@ func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSource, exist
 	// f.nodes.printNodes("duplicate nodes after second run")
 
 	uniqueDataSourceHashes := f.nodes.populateHasSuggestions()
-
-	f.isResolvable(f.nodes)
-	if f.report.HasErrors() {
-		return nil, nil
-	}
-
 	return f.nodes, uniqueDataSourceHashes
 }
 
@@ -93,18 +86,6 @@ func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes 
 	}
 
 	return nodesCollector.CollectNodes()
-}
-
-func (f *DataSourceFilter) isResolvable(nodes *NodeSuggestions) {
-	walker := astvisitor.NewWalker(32)
-	visitor := &nodesResolvableVisitor{
-		operation:  f.operation,
-		definition: f.definition,
-		walker:     &walker,
-		nodes:      nodes,
-	}
-	walker.RegisterEnterFieldVisitor(visitor)
-	walker.Walk(f.operation, f.definition, f.report)
 }
 
 const (
