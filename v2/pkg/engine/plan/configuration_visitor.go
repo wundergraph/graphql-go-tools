@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/jensneuse/abstractlogger"
-	"github.com/pkg/errors"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -959,9 +958,6 @@ func (c *configurationVisitor) handleMissingPath(planned bool, typeName string, 
 			// __typename field on a union could not have a suggestion
 			return
 		}
-
-		c.walker.StopWithInternalErr(errors.Wrap(fmt.Errorf("could not plan field %s.%s on path %s", typeName, fieldName, currentPath), "configurationVisitor.handleMissingPath"))
-		return
 	}
 
 	allSuggestionsPlanned := true
