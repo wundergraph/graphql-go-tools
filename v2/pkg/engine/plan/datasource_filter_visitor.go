@@ -1,6 +1,8 @@
 package plan
 
 import (
+	"github.com/kingledion/go-tools/tree"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -98,9 +100,10 @@ const (
 	ReasonStage2SameSourceNodeOfSelectedChild   = "stage2: node on the same source as selected child"
 	ReasonStage2SameSourceNodeOfSelectedSibling = "stage2: node on the same source as selected sibling"
 
-	ReasonStage3SelectAvailableNode                     = "stage3: select first available node"
-	ReasonStage3SelectRootNodeWithEnabledEntityResolver = "stage3: first available node with enabled entity resolver"
-	ReasonStage3SelectFirstParentRootNode               = "stage3: first available parent node with enabled entity resolver"
+	ReasonStage3SelectAvailableLeafNode                        = "stage3: select first available leaf node"
+	ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource = "stage3: select non leaf node which have possible child selections on the same source"
+	ReasonStage3SelectRootNodeWithEnabledEntityResolver        = "stage3: first available node with enabled entity resolver"
+	ReasonStage3SelectFirstParentRootNode                      = "stage3: first available parent node with enabled entity resolver"
 
 	ReasonKeyRequirementProvidedByPlanner = "provided by planner as required by @key"
 	ReasonProvidesProvidedByPlanner       = "@provides"
@@ -212,112 +215,144 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 // On a second run in additional to all the checks from the first run
 // we select nodes which was not chosen by previous stages, so we just pick first available datasource
 func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
-	for i := range f.nodes.items {
-		if f.nodes.items[i].Selected {
+
+	treeNodes := f.nodes.responseTree.Traverse(tree.TraverseBreadthFirst)
+
+	for treeNode := range treeNodes {
+		if treeNode.GetID() == treeRootID {
 			continue
 		}
 
-		if f.nodes.isSelectedOnOtherSource(i) {
-			continue
-		}
+		itemIDs := treeNode.GetData()
 
-		nodeDuplicates := f.nodes.duplicatesOf(i)
-
-		// check for selected parent of a current node or its duplicates
-		if f.checkNodeParent(i) {
-			continue
-		}
-		if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeParent) {
-			continue
-		}
-
-		if f.nodes.items[i].FieldName == typeNameField {
-			// we should select typename predictable depending on 2 conditions:
-			// - parent was selected
-			// - provided by key
-
-			// in case of entity interface we could select __typename from datasource containing this entity interface
-			// but not from the datasource containing the interface object
-			if !f.nodes.items[i].IsEntityInterfaceTypeName {
+		for _, i := range itemIDs {
+			if f.nodes.items[i].Selected {
 				continue
 			}
-		}
 
-		// check for selected childs of a current node or its duplicates
-		if f.checkNodeChilds(i) {
-			continue
-		}
-		if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeChilds) {
-			continue
-		}
-
-		if f.checkNodeSiblings(i) {
-			continue
-		}
-		if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeSiblings) {
-			continue
-		}
-
-		if !secondRun {
-			continue
-		}
-
-		// if after all checks node was not selected
-		// we need a couple more checks
-
-		// 1. Lookup in duplicates for root nodes with enabled reference resolver
-		// in case current node suggestion is an entity root node, and it contains a key with disabled resolver
-		// we could not select such node, because we could not jump to the subgraph which do not have reference resolver,
-		// so we need to find a possible duplicate which has enabled entity resolver
-
-		if f.nodes.items[i].IsRootNode && f.nodes.items[i].DisabledEntityResolver {
-			foundPossibleDuplicate := false
-			for _, duplicateIdx := range nodeDuplicates {
-				if !f.nodes.items[duplicateIdx].DisabledEntityResolver {
-					f.nodes.items[duplicateIdx].selectWithReason(ReasonStage3SelectRootNodeWithEnabledEntityResolver, f.enableSelectionReasons)
-					foundPossibleDuplicate = true
-					break
-				}
-			}
-			if foundPossibleDuplicate {
-				// continue to the next node
+			if f.nodes.isSelectedOnOtherSource(i) {
 				continue
 			}
-		}
 
-		// 2. Lookup for the first parent root node with enabled entity resolver
-		// when we haven't found a possible duplicate
-		// we need to find parent node which is a root node and has enabled entity resolver, e.g. the point in the query from where we could jump
+			nodeDuplicates := f.nodes.duplicatesOf(i)
 
-		treeNode := f.nodes.treeNode(i)
-		parent := treeNode.GetParent()
+			// check for selected parent of a current node or its duplicates
+			if f.checkNodeParent(i) {
+				continue
+			}
+			if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeParent) {
+				continue
+			}
 
-		foundPossibleParent := false
-		for parent != nil {
-			parentNodeIndexes := parent.GetData()
+			if f.nodes.items[i].FieldName == typeNameField {
+				// we should select typename predictable depending on 2 conditions:
+				// - parent was selected
+				// - provided by key
 
-			for _, parentIdx := range parentNodeIndexes {
-				if f.nodes.items[parentIdx].IsRootNode && !f.nodes.items[parentIdx].DisabledEntityResolver {
-					f.nodes.items[parentIdx].selectWithReason(ReasonStage3SelectFirstParentRootNode, f.enableSelectionReasons)
-					foundPossibleParent = true
+				// in case of entity interface we could select __typename from datasource containing this entity interface
+				// but not from the datasource containing the interface object
+				if !f.nodes.items[i].IsEntityInterfaceTypeName {
+					continue
+				}
+			}
+
+			// check for selected childs of a current node or its duplicates
+			if f.checkNodeChilds(i) {
+				continue
+			}
+			if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeChilds) {
+				continue
+			}
+
+			if f.checkNodeSiblings(i) {
+				continue
+			}
+			if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeSiblings) {
+				continue
+			}
+
+			if !secondRun {
+				continue
+			}
+
+			if f.nodes.items[i].IsKeyField {
+				continue
+			}
+
+			// if after all checks node was not selected
+			// we need a couple more checks
+
+			// 1. Lookup in duplicates for root nodes with enabled reference resolver
+			// in case current node suggestion is an entity root node, and it contains a key with disabled resolver
+			// we could not select such node, because we could not jump to the subgraph which do not have reference resolver,
+			// so we need to find a possible duplicate which has enabled entity resolver
+
+			if f.nodes.items[i].IsRootNode && f.nodes.items[i].DisabledEntityResolver {
+				foundPossibleDuplicate := false
+				for _, duplicateIdx := range nodeDuplicates {
+					if !f.nodes.items[duplicateIdx].DisabledEntityResolver {
+						f.nodes.items[duplicateIdx].selectWithReason(ReasonStage3SelectRootNodeWithEnabledEntityResolver, f.enableSelectionReasons)
+						foundPossibleDuplicate = true
+						break
+					}
+				}
+				if foundPossibleDuplicate {
+					// continue to the next node
+					continue
+				}
+			}
+
+			// 2. Lookup for the first parent root node with enabled entity resolver
+			// when we haven't found a possible duplicate
+			// we need to find parent node which is a root node and has enabled entity resolver, e.g. the point in the query from where we could jump
+
+			treeNode := f.nodes.treeNode(i)
+			parent := treeNode.GetParent()
+
+			foundPossibleParent := false
+			for parent != nil {
+				parentNodeIndexes := parent.GetData()
+
+				for _, parentIdx := range parentNodeIndexes {
+					if f.nodes.items[parentIdx].IsRootNode && !f.nodes.items[parentIdx].DisabledEntityResolver {
+						f.nodes.items[parentIdx].selectWithReason(ReasonStage3SelectFirstParentRootNode, f.enableSelectionReasons)
+						foundPossibleParent = true
+						break
+					}
+				}
+
+				if foundPossibleParent {
 					break
 				}
+
+				parent = parent.GetParent()
 			}
 
 			if foundPossibleParent {
-				break
+				continue
 			}
 
-			parent = parent.GetParent()
+			// If we still haven't selected the node -
+			// 3. we could select first available node only in case it is a leaf node
+			if f.nodes.isLeaf(i) {
+				f.nodes.items[i].selectWithReason(ReasonStage3SelectAvailableLeafNode, f.enableSelectionReasons)
+				continue
+			}
+
+			// 4. then we try to select a node which could provide more selections on the same source
+			currentIdx := i
+			currentChildNodeCount := len(f.nodes.childNodesOnSameSource(i))
+
+			for _, duplicateIdx := range nodeDuplicates {
+				duplicateChildNodeCount := len(f.nodes.childNodesOnSameSource(duplicateIdx))
+				if duplicateChildNodeCount > currentChildNodeCount {
+					currentIdx = duplicateIdx
+					currentChildNodeCount = duplicateChildNodeCount
+				}
+			}
+
+			f.nodes.items[currentIdx].selectWithReason(ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource, f.enableSelectionReasons)
 		}
-
-		if foundPossibleParent {
-			continue
-		}
-
-		// 3. If we still haven't selected a node we select current node as first available node
-
-		f.nodes.items[i].selectWithReason(ReasonStage3SelectAvailableNode, f.enableSelectionReasons)
 	}
 }
 
