@@ -2303,7 +2303,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												&resolve.SingleFetch{
 													FetchDependencies: resolve.FetchDependencies{
 														FetchID:           1,
-														DependsOnFetchIDs: []int{0, 2},
+														DependsOnFetchIDs: []int{2, 0},
 													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {title}}}","variables":{"representations":[$$0$$]}}}`,
