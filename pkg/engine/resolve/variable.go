@@ -7,12 +7,13 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/buger/jsonparser"
-
 	"github.com/TykTechnologies/graphql-go-tools/pkg/ast"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/graphqljsonschema"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/lexer/literal"
+	"github.com/buger/jsonparser"
 )
+
+var doubleQuoteCharacter byte = 34
 
 type VariableKind int
 
@@ -38,6 +39,7 @@ const (
 type VariableRenderer interface {
 	GetKind() string
 	RenderVariable(ctx context.Context, data []byte, out io.Writer) error
+	GetRootValueType() JsonRootType
 }
 
 // JSONVariableRenderer is an implementation of VariableRenderer
@@ -52,6 +54,10 @@ type JSONVariableRenderer struct {
 
 func (r *JSONVariableRenderer) GetKind() string {
 	return r.Kind
+}
+
+func (r *JSONVariableRenderer) GetRootValueType() JsonRootType {
+	return r.rootValueType
 }
 
 func (r *JSONVariableRenderer) RenderVariable(ctx context.Context, data []byte, out io.Writer) error {
@@ -124,7 +130,6 @@ func NewPlainVariableRendererWithValidationFromTypeRef(operation, definition *as
 	} else {
 		jsonSchema = graphqljsonschema.FromTypeRef(operation, definition, variableTypeRef)
 	}
-
 	validator, err := graphqljsonschema.NewValidatorFromSchema(jsonSchema)
 	if err != nil {
 		return nil, err
@@ -156,6 +161,10 @@ type PlainVariableRenderer struct {
 
 func (p *PlainVariableRenderer) GetKind() string {
 	return p.Kind
+}
+
+func (p *PlainVariableRenderer) GetRootValueType() JsonRootType {
+	return p.rootValueType
 }
 
 func (p *PlainVariableRenderer) RenderVariable(ctx context.Context, data []byte, out io.Writer) error {
@@ -352,6 +361,10 @@ func (g *GraphQLVariableRenderer) GetKind() string {
 	return g.Kind
 }
 
+func (g *GraphQLVariableRenderer) GetRootValueType() JsonRootType {
+	return g.rootValueType
+}
+
 // add renderer that renders both variable name and variable value
 // before rendering, evaluate if the value contains null values
 // if an object contains only null values, set the object to null
@@ -457,6 +470,10 @@ type CSVVariableRenderer struct {
 
 func (c *CSVVariableRenderer) GetKind() string {
 	return c.Kind
+}
+
+func (p *CSVVariableRenderer) GetRootValueType() JsonRootType {
+	return p.arrayValueType
 }
 
 func (c *CSVVariableRenderer) RenderVariable(_ context.Context, data []byte, out io.Writer) error {
@@ -633,8 +650,13 @@ func extractStringWithQuotes(rootValueType JsonRootType, data []byte) ([]byte, j
 			desiredType = tt
 		}
 	}
+
 	if desiredType == jsonparser.String {
-		return data[1 : len(data)-1], desiredType
+		// The JSON standard requires double quotes. We strip double quotes if data is a valid JSON string.
+		// See TT-12222 for more info.
+		if data[0] == doubleQuoteCharacter && data[len(data)-1] == doubleQuoteCharacter {
+			return data[1 : len(data)-1], desiredType
+		}
 	}
 	return data, desiredType
 }

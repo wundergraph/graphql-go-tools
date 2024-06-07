@@ -1,6 +1,9 @@
 package postprocess
 
 import (
+	"errors"
+	"fmt"
+	"github.com/buger/jsonparser"
 	"strconv"
 	"strings"
 
@@ -69,8 +72,52 @@ func (d *ProcessDataSource) traverseSingleFetch(fetch *resolve.SingleFetch) {
 	fetch.SetTemplateOutputToNullOnVariableNull = false
 }
 
-func (d *ProcessDataSource) resolveInputTemplate(variables resolve.Variables, input string, template *resolve.InputTemplate) {
+// correctGraphQLVariableTypes removes double quotes from the variable definition if the variable type is not a string.
+// This function is only intended for variables in a GraphQL request body.
+func correctGraphQLVariableTypes(variables resolve.Variables, input string) string {
+	// See TT-12313 for details.
+	// The input should be a valid JSON. So it is normal to use double quotes for string values (variable markers).
+	_, _, _, err := jsonparser.Get([]byte(input), "body", "variables")
+	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
+		// No variables, return the input as-is.
+		return input
+	}
 
+	segments := strings.Split(input, "$$")
+	isVariable := false
+	for _, seg := range segments {
+		switch {
+		case isVariable:
+			i, _ := strconv.Atoi(seg)
+			variableTemplateSegment := (variables)[i].TemplateSegment()
+			if variableTemplateSegment.Renderer == nil {
+				continue
+			}
+			// Get the variable type from its renderer. If the type isn't a string, remove double quotes
+			//
+			// Possible types:
+			// 	* NotExist
+			//	* String
+			//	* Number
+			//	* Object
+			//	* Array
+			//	* Boolean
+			//	* Null
+			//	* Unknown
+			if variableTemplateSegment.Renderer.GetRootValueType().Value != jsonparser.String {
+				newVariable := fmt.Sprintf("$$%s$$", seg)
+				oldVariable := fmt.Sprintf("\"%s\"", newVariable)
+				input = strings.Replace(input, oldVariable, newVariable, 1)
+			}
+			isVariable = false
+		default:
+			isVariable = true
+		}
+	}
+	return input
+}
+
+func (d *ProcessDataSource) resolveInputTemplate(variables resolve.Variables, input string, template *resolve.InputTemplate) {
 	if input == "" {
 		return
 	}
@@ -83,6 +130,7 @@ func (d *ProcessDataSource) resolveInputTemplate(variables resolve.Variables, in
 		return
 	}
 
+	input = correctGraphQLVariableTypes(variables, input)
 	segments := strings.Split(input, "$$")
 
 	isVariable := false
