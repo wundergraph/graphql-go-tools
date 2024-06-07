@@ -28,6 +28,10 @@ type Reporter interface {
 	TriggerCountDec(count int)
 }
 
+type Metricer interface {
+	MeasureSubscriptionCount(count int)
+}
+
 type AsyncErrorWriter interface {
 	WriteError(ctx *Context, err error, res *GraphQLResponse, w io.Writer, buf *bytes.Buffer)
 }
@@ -47,6 +51,7 @@ type Resolver struct {
 	connectionIDs atomic.Int64
 
 	reporter         Reporter
+	metricer         Metricer
 	asyncErrorWriter AsyncErrorWriter
 
 	propagateSubgraphErrors      bool
@@ -83,6 +88,7 @@ type ResolverOptions struct {
 	Debug bool
 
 	Reporter         Reporter
+	Metricer         Metricer
 	AsyncErrorWriter AsyncErrorWriter
 
 	// PropagateSubgraphErrors adds Subgraph Errors to the response
@@ -128,6 +134,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		events:           make(chan subscriptionEvent),
 		triggers:         make(map[uint64]*trigger),
 		reporter:         options.Reporter,
+		metricer:         options.Metricer,
 		asyncErrorWriter: options.AsyncErrorWriter,
 		triggerUpdateBuf: bytes.NewBuffer(make([]byte, 0, 1024)),
 	}
@@ -357,6 +364,9 @@ func (r *Resolver) handleTriggerDone(triggerID uint64) {
 			r.reporter.SubscriptionCountDec(subscriptionCount)
 			r.reporter.TriggerCountDec(1)
 		}
+		if r.metricer != nil {
+			r.metricer.MeasureSubscriptionCount(-subscriptionCount)
+		}
 	}()
 }
 
@@ -377,6 +387,9 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		trig.subscriptions[add.ctx] = s
 		if r.reporter != nil {
 			r.reporter.SubscriptionCountInc(1)
+		}
+		if r.metricer != nil {
+			r.metricer.MeasureSubscriptionCount(1)
 		}
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:added:%d:%d\n", triggerID, add.id.SubscriptionID)
@@ -421,6 +434,9 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		r.reporter.SubscriptionCountInc(1)
 		r.reporter.TriggerCountInc(1)
 	}
+	if r.metricer != nil {
+		r.metricer.MeasureSubscriptionCount(1)
+	}
 }
 
 func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
@@ -454,6 +470,9 @@ func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountDec(removed)
 	}
+	if r.metricer != nil {
+		r.metricer.MeasureSubscriptionCount(-removed)
+	}
 }
 
 func (r *Resolver) handleRemoveClient(id int64) {
@@ -485,6 +504,9 @@ func (r *Resolver) handleRemoveClient(id int64) {
 	}
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountDec(removed)
+	}
+	if r.metricer != nil {
+		r.metricer.MeasureSubscriptionCount(-removed)
 	}
 }
 
@@ -545,6 +567,9 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountDec(count)
 		r.reporter.TriggerCountDec(1)
+	}
+	if r.metricer != nil {
+		r.metricer.MeasureSubscriptionCount(-count)
 	}
 }
 
